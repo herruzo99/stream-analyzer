@@ -1,337 +1,462 @@
+import { html, render } from 'lit-html';
 import { analysisState, dom } from '../state.js';
-import { handleSegmentAnalysisClick as analyzeSegmentFromBuffer } from '../api/segment-parser.js';
+import { dispatchAndRenderSegmentAnalysis } from '../api/segment-parser.js';
 
+// --- CONSTANTS ---
 const SEGMENT_PAGE_SIZE = 10;
-let segmentFreshnessInterval = null;
 
-/**
- * Main entry point to set up the Segment Explorer tab with its initial state.
- * @param {HTMLDivElement} container The container element for the tab.
- * @param {Element} mpd The parsed MPD.
- * @param {string} baseUrl The stream's base URL.
- */
+// --- MODULE STATE ---
+let segmentFreshnessInterval = null;
+let allSegmentsByRep = {}; // Caches the full list of segments for the current MPD
+
+// --- TEMPLATES ---
+const segmentRowTemplate = (seg) => {
+    const cacheEntry = analysisState.segmentCache.get(seg.resolvedUrl);
+    let statusHtml;
+
+    if (!cacheEntry || cacheEntry.status === -1) {
+        // This case should now be rare, but kept for robustness
+        statusHtml = html`<span
+            class="segment-status-indicator status-pending"
+            title="Status: Pending"
+        ></span>`;
+    } else if (cacheEntry.status !== 200) {
+        const statusText =
+            cacheEntry.status === 0
+                ? 'Network Error'
+                : `HTTP ${cacheEntry.status}`;
+        statusHtml = html`<span
+                class="segment-status-indicator status-fail"
+                title="Status: ${statusText}"
+            ></span
+            ><span class="text-xs text-red-400 ml-1">[${statusText}]</span>`;
+    } else {
+        // Success case - no visible indicator needed, just the text
+        statusHtml = html``;
+    }
+
+
+    const typeLabel = seg.type === 'Init' ? 'Init' : `Media #${seg.number}`;
+    const canAnalyze =
+        cacheEntry && cacheEntry.status === 200 && cacheEntry.data;
+
+    const analyzeHandler = (e) => {
+        const url = /** @type {HTMLElement} */ (e.currentTarget).dataset.url;
+        const cached = analysisState.segmentCache.get(url);
+        dom.modalSegmentUrl.textContent = url;
+        dom.segmentModal.classList.add('modal-overlay-visible');
+        dispatchAndRenderSegmentAnalysis(e, cached?.data);
+    };
+
+    const segmentTiming = seg.type === 'Media'
+        ? html`${(seg.time / seg.timescale).toFixed(2)}s (+${(seg.duration / seg.timescale).toFixed(2)}s)`
+        : 'N/A';
+
+    return html` <tr
+        class="border-t border-gray-700 segment-row"
+        data-url="${seg.resolvedUrl}"
+        data-time="${seg.time}"
+    >
+        <td class="py-2 pl-3 status-cell">${statusHtml}${typeLabel}</td>
+        <td class="py-2 text-xs font-mono">${segmentTiming}</td>
+        <td
+            class="py-2 font-mono text-cyan-400 truncate"
+            title="${seg.resolvedUrl}"
+        >
+            ${seg.template}
+        </td>
+        <td class="py-2 pr-3 text-right">
+            <button
+                class="view-details-btn text-xs bg-purple-600 hover:bg-purple-700 px-2 py-1 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                data-url="${seg.resolvedUrl}"
+                data-repid="${seg.repId}"
+                data-number="${seg.number}"
+                ?disabled=${!canAnalyze}
+                @click=${analyzeHandler}
+            >
+                Analyze
+            </button>
+        </td>
+    </tr>`;
+};
+
+const segmentTableTemplate = (rep, segmentsToRender) => {
+    const repId = rep.getAttribute('id');
+    const bandwidth = parseInt(rep.getAttribute('bandwidth'));
+
+    return html`
+        <details class="bg-gray-900 p-3 rounded" open>
+            <summary class="font-semibold cursor-pointer">
+                Representation: ${repId} (${(bandwidth / 1000).toFixed(0)} kbps)
+            </summary>
+            <div class="mt-2 pl-4 max-h-96 overflow-y-auto">
+                <table class="w-full text-left text-sm table-fixed">
+                    <thead class="sticky top-0 bg-gray-900 z-10">
+                        <tr>
+                            <th class="py-2 pl-3 w-[15%]">Type / Status</th>
+                            <th class="py-2 w-[20%]">Timing (s)</th>
+                            <th class="py-2 w-[45%]">URL / Template</th>
+                            <th class="py-2 pr-3 w-[20%] text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody data-repid="${repId}">
+                        ${segmentsToRender.map((seg) =>
+                            segmentRowTemplate(seg)
+                        )}
+                    </tbody>
+                </table>
+            </div>
+        </details>
+    `;
+};
+
+// --- UI INITIALIZATION AND EVENT HANDLERS ---
 export function initializeSegmentExplorer(container, mpd, baseUrl) {
+    allSegmentsByRep = parseAllSegmentUrls(mpd, baseUrl);
     const isDynamic = mpd.getAttribute('type') === 'dynamic';
 
-    let initialButtons = `
-        <button id="load-first-segments-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-md transition-colors">
-            Load First ${SEGMENT_PAGE_SIZE} Segments
-        </button>
-    `;
-    if (isDynamic) {
-        initialButtons += `
-            <button id="load-last-segments-btn" class="bg-orange-600 hover:bg-orange-700 text-white font-bold py-2 px-3 rounded-md transition-colors ml-2">
-                Load Last ${SEGMENT_PAGE_SIZE} Segments
-            </button>
-        `;
-    }
-
-    container.innerHTML = `
-        <div class="flex justify-between items-center mb-4">
+    const template = html`
+        <div class="flex flex-wrap justify-between items-center mb-4 gap-4">
             <h3 class="text-xl font-bold">Segment Explorer</h3>
-            <div id="segment-explorer-controls" class="flex items-center gap-2">${initialButtons}</div>
+            <div
+                id="segment-explorer-controls"
+                class="flex items-center flex-wrap gap-4"
+            >
+                <div class="flex items-center gap-2">
+                    <button
+                        @click=${() => loadAndRenderSegmentRange('first')}
+                        class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-md transition-colors"
+                    >
+                        First ${SEGMENT_PAGE_SIZE}
+                    </button>
+                    ${isDynamic
+                        ? html`<button
+                              @click=${() => loadAndRenderSegmentRange('last')}
+                              class="bg-orange-600 hover:bg-orange-700 text-white font-bold py-2 px-3 rounded-md transition-colors"
+                          >
+                              Last ${SEGMENT_PAGE_SIZE}
+                          </button>`
+                        : ''}
+                </div>
+                <div
+                    class="segment-filter-controls"
+                >
+                    <select
+                        id="segment-filter-type"
+                        class="bg-gray-700 text-white rounded-l-md border-gray-600 p-2 text-sm h-full border-r-0"
+                    >
+                        <option value="number">Segment #</option>
+                        <option value="time">Time (s)</option>
+                    </select>
+                    <input
+                        type="text"
+                        id="segment-filter-from"
+                        class="bg-gray-700 text-white p-2 border-gray-600 w-24 text-sm h-full"
+                        placeholder="From"
+                    />
+                    <input
+                        type="text"
+                        id="segment-filter-to"
+                        class="bg-gray-700 text-white p-2 border-gray-600 w-24 text-sm h-full"
+                        placeholder="To"
+                    />
+                    <button
+                        @click=${handleFilter}
+                        class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-3 h-full"
+                    >
+                        Filter
+                    </button>
+                    <button
+                        @click=${() => loadAndRenderSegmentRange('first')}
+                        class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-3 rounded-r-md h-full"
+                    >
+                        Reset
+                    </button>
+                </div>
+            </div>
         </div>
         <div id="segment-explorer-content" class="space-y-4">
-            <p class="text-gray-400">Click a button above to load and check an initial set of segments.</p>
+            <!-- Content will be rendered here -->
         </div>
+        <div class="dev-watermark">Segment Explorer v3.0</div>
     `;
-
-    container.querySelector('#load-first-segments-btn')?.addEventListener('click', () => {
-        loadAndCheckSegments(container, mpd, baseUrl, isDynamic, 'first');
-    });
-    if (isDynamic) {
-        container.querySelector('#load-last-segments-btn')?.addEventListener('click', () => {
-            loadAndCheckSegments(container, mpd, baseUrl, isDynamic, 'last');
-        });
-    }
+    render(template, container);
+    // Auto-load the first page for a better user experience
+    loadAndRenderSegmentRange('first');
 }
 
-async function loadAndCheckSegments(container, mpd, baseUrl, isDynamic, mode) {
-    const contentArea = container.querySelector('#segment-explorer-content');
-    const controlsArea = container.querySelector('#segment-explorer-controls');
-    
-    controlsArea.innerHTML = `<button class="bg-gray-600 text-white font-bold py-2 px-3 rounded-md" disabled>Loading & Fetching...</button>`;
-    contentArea.innerHTML = `<p class="info">Parsing MPD and fetching segments...</p>`;
-    
+async function loadAndRenderSegmentRange(mode) {
+    const contentArea = /** @type {HTMLDivElement} */ (
+        document.querySelector('#segment-explorer-content')
+    );
+    render(
+        html`<p class="info">Fetching segment data...</p>`,
+        contentArea
+    );
+
     analysisState.segmentCache.clear();
     stopSegmentFreshnessChecker();
 
-    const allSegmentsByRep = parseAllSegmentUrls(mpd, baseUrl);
-    if (Object.keys(allSegmentsByRep).length === 0) {
-        contentArea.innerHTML = '<p class="warn">Could not find any segments to load.</p>';
+    const segmentsToFetch = Object.values(allSegmentsByRep).flatMap(
+        (segments) =>
+            mode === 'first'
+                ? segments.slice(0, SEGMENT_PAGE_SIZE)
+                : segments.slice(-SEGMENT_PAGE_SIZE)
+    );
+
+    await Promise.all(
+        segmentsToFetch.map((seg) => fetchSegment(seg.resolvedUrl))
+    );
+
+    // *** THE FIX IS HERE: Generate the template *after* the cache is populated ***
+    const mpd = analysisState.streams.find(
+        (s) => s.id === analysisState.activeStreamId
+    ).mpd;
+    const tables = Array.from(mpd.querySelectorAll('Representation')).map(
+        (rep) => {
+            const repId = rep.getAttribute('id');
+            const segments = allSegmentsByRep[repId] || [];
+            const segmentsToRender =
+                mode === 'first'
+                    ? segments.slice(0, SEGMENT_PAGE_SIZE)
+                    : segments.slice(-SEGMENT_PAGE_SIZE);
+            return segmentTableTemplate(rep, segmentsToRender);
+        }
+    );
+    render(html`${tables}`, contentArea);
+
+
+    if (mpd.getAttribute('type') === 'dynamic') {
+        startSegmentFreshnessChecker();
+    }
+}
+
+async function handleFilter() {
+    const contentArea = /** @type {HTMLDivElement} */ (
+        document.querySelector('#segment-explorer-content')
+    );
+    const type = /** @type {HTMLSelectElement} */ (
+        document.querySelector('#segment-filter-type')
+    ).value;
+    const fromInput = /** @type {HTMLInputElement} */ (
+        document.querySelector('#segment-filter-from')
+    );
+    const toInput = /** @type {HTMLInputElement} */ (
+        document.querySelector('#segment-filter-to')
+    );
+
+    const fromValue = fromInput.value !== '' ? parseFloat(fromInput.value) : -Infinity;
+    const toValue = toInput.value !== '' ? parseFloat(toInput.value) : Infinity;
+
+    if (isNaN(fromValue) || isNaN(toValue)) {
+        render(html`<p class="warn">Please enter valid numbers for the filter range.</p>`, contentArea);
         return;
     }
 
-    const segmentsToFetch = mode === 'all' 
-        ? Object.values(allSegmentsByRep).flat()
-        : Object.values(allSegmentsByRep).flatMap(segments => 
-            mode === 'first' ? segments.slice(0, SEGMENT_PAGE_SIZE) : segments.slice(-SEGMENT_PAGE_SIZE)
-          );
+    render(html`<p class="info">Filtering and fetching segments...</p>`, contentArea);
 
-    await Promise.all(segmentsToFetch.map(seg => fetchSegment(seg.resolvedUrl)));
+    const filteredSegmentsByRep = getFilteredSegments(fromValue, toValue, type);
+    const segmentsToFetch = Object.values(filteredSegmentsByRep).flat();
 
-    contentArea.innerHTML = renderAllSegmentTables(allSegmentsByRep, mode);
-    attachSegmentExplorerListeners(container, mpd, baseUrl, isDynamic, allSegmentsByRep);
-
-    if (isDynamic) {
-        startSegmentFreshnessChecker();
+    if (segmentsToFetch.length === 0) {
+        render(html`<p class="warn">No segments found matching the specified filter.</p>`, contentArea);
+        return;
     }
-    
-    const refreshButtons = `
-        <button id="refresh-first-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-md transition-colors">Refresh First ${SEGMENT_PAGE_SIZE}</button>
-        ${isDynamic ? `<button id="refresh-last-btn" class="bg-orange-600 hover:bg-orange-700 text-white font-bold py-2 px-3 rounded-md transition-colors">Refresh Last ${SEGMENT_PAGE_SIZE}</button>` : ''}
-        <button id="load-all-btn" class="bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-md transition-colors">Load All Segments</button>
-    `;
-    controlsArea.innerHTML = refreshButtons;
-    controlsArea.querySelector('#refresh-first-btn')?.addEventListener('click', () => loadAndCheckSegments(container, mpd, baseUrl, isDynamic, 'first'));
-    controlsArea.querySelector('#refresh-last-btn')?.addEventListener('click', () => loadAndCheckSegments(container, mpd, baseUrl, isDynamic, 'last'));
-    controlsArea.querySelector('#load-all-btn')?.addEventListener('click', () => loadAndCheckSegments(container, mpd, baseUrl, isDynamic, 'all'));
+
+    await Promise.all(
+        segmentsToFetch.map((seg) => fetchSegment(seg.resolvedUrl))
+    );
+
+    // *** THE FIX IS HERE: Generate the template *after* the cache is populated ***
+    const mpd = analysisState.streams.find(
+        (s) => s.id === analysisState.activeStreamId
+    ).mpd;
+    const tables = Array.from(mpd.querySelectorAll('Representation')).map(
+        (rep) => {
+            const repId = rep.getAttribute('id');
+            const segmentsToRender = filteredSegmentsByRep[repId] || [];
+            return segmentsToRender.length > 0
+                ? segmentTableTemplate(rep, segmentsToRender)
+                : '';
+        }
+    );
+
+    render(html`${tables.filter(Boolean)}`, contentArea);
 }
 
+function getFilteredSegments(from, to, type) {
+    const results = {};
+    for (const repId in allSegmentsByRep) {
+        const segments = allSegmentsByRep[repId];
+        results[repId] = segments.filter(segment => {
+            if (segment.type !== 'Media') return false; // Only filter media segments
+            let value;
+            if (type === 'number') {
+                value = segment.number;
+            } else { // time
+                value = segment.time / segment.timescale;
+            }
+            return value >= from && value <= to;
+        });
+    }
+    return results;
+}
+
+// --- UTILITY AND HELPER FUNCTIONS ---
+
 async function fetchSegment(url) {
+    if (
+        analysisState.segmentCache.has(url) &&
+        analysisState.segmentCache.get(url).status !== -1
+    )
+        return;
     try {
+        analysisState.segmentCache.set(url, { status: -1, data: null }); // Pending
         const response = await fetch(url, { method: 'GET', cache: 'no-store' });
         const data = response.ok ? await response.arrayBuffer() : null;
         analysisState.segmentCache.set(url, { status: response.status, data });
-    } catch (error) {
-        analysisState.segmentCache.set(url, { status: 0, data: null });
+    } catch (_error) {
+        analysisState.segmentCache.set(url, { status: 0, data: null }); // Network error
     }
-}
-
-function renderAllSegmentTables(allSegmentsByRep, mode) {
-    let html = '';
-    const mpd = analysisState.streams.find(s => s.id === analysisState.activeStreamId).mpd;
-    mpd.querySelectorAll('Representation').forEach(rep => {
-        const repId = rep.getAttribute('id');
-        const repSegments = allSegmentsByRep[repId] || [];
-        const segmentsToRender = mode === 'all' ? repSegments : (mode === 'first' ? repSegments.slice(0, SEGMENT_PAGE_SIZE) : repSegments.slice(-SEGMENT_PAGE_SIZE));
-        const initialSegmentsHtml = renderSegmentRows(segmentsToRender);
-
-        let paginationButtonHtml = '';
-        if (mode === 'first' && repSegments.length > SEGMENT_PAGE_SIZE) {
-            paginationButtonHtml = `<tr class="load-more-row"><td colspan="3" class="text-center py-2"><button class="load-more-btn text-blue-400 hover:text-blue-600" data-repid="${repId}" data-offset="${SEGMENT_PAGE_SIZE}">Load More (${repSegments.length - SEGMENT_PAGE_SIZE} remaining)</button></td></tr>`;
-        } else if (mode === 'last' && repSegments.length > SEGMENT_PAGE_SIZE) {
-            paginationButtonHtml = `<tr class="load-previous-row"><td colspan="3" class="text-center py-2"><button class="load-previous-btn text-blue-400 hover:text-blue-600" data-repid="${repId}" data-offset="${repSegments.length - SEGMENT_PAGE_SIZE}">Load Previous</button></td></tr>`;
-        }
-
-        html += `<details class="bg-gray-900 p-3 rounded" open>
-                    <summary class="font-semibold cursor-pointer">Representation: ${repId} (${(parseInt(rep.getAttribute('bandwidth'))/1000).toFixed(0)} kbps)</summary>
-                    <div class="mt-2 pl-4 max-h-96 overflow-y-auto">
-                        <table class="w-full text-left text-sm">
-                            <thead class="sticky top-0 bg-gray-900 z-10"><tr>
-                                <th class="py-2 w-1/4">Type / Status</th>
-                                <th class="py-2 w-1/2">URL / Template</th>
-                                <th class="py-2 w-1/4 text-right pr-4">Actions</th>
-                            </tr></thead>
-                            <tbody data-repid="${repId}">${initialSegmentsHtml}${paginationButtonHtml}</tbody>
-                        </table>
-                    </div>
-                 </details>`;
-    });
-    return html;
-}
-
-function renderSegmentRows(segments) {
-    return segments.map(seg => {
-        const cacheEntry = analysisState.segmentCache.get(seg.resolvedUrl);
-        let statusHtml = '';
-        if (cacheEntry && cacheEntry.status !== 200) {
-            const statusText = cacheEntry.status === 0 ? 'ERR' : cacheEntry.status;
-            statusHtml = `<span class="segment-status-indicator status-fail" title="Status: ${statusText}"></span><span class="text-xs text-red-400 ml-1">[${statusText}]</span>`;
-        }
-        const typeLabel = seg.type === 'Init' ? 'Init' : `Media #${seg.number}`;
-
-        return `<tr class="border-t border-gray-700 segment-row" data-url="${seg.resolvedUrl}" data-time="${seg.time}">
-                    <td class="py-2 status-cell">${statusHtml}${typeLabel}</td>
-                    <td class="font-mono text-cyan-400 truncate py-2" title="${seg.resolvedUrl}">${seg.template}</td>
-                    <td class="py-2 text-right">
-                        <button class="view-details-btn text-xs bg-purple-600 hover:bg-purple-700 px-2 py-1 rounded" data-url="${seg.resolvedUrl}" data-repid="${seg.repId}" data-number="${seg.number}">Analyze</button>
-                    </td>
-                 </tr>`;
-    }).join('');
 }
 
 function parseAllSegmentUrls(mpd, baseUrl) {
     const segmentsByRep = {};
-    mpd.querySelectorAll('Representation').forEach(rep => {
+    mpd.querySelectorAll('Representation').forEach((rep) => {
         const repId = rep.getAttribute('id');
         segmentsByRep[repId] = [];
         const as = rep.closest('AdaptationSet');
         const period = rep.closest('Period');
-        const template = rep.querySelector('SegmentTemplate') || as.querySelector('SegmentTemplate') || period.querySelector('SegmentTemplate');
+        const template =
+            rep.querySelector('SegmentTemplate') ||
+            as.querySelector('SegmentTemplate') ||
+            period.querySelector('SegmentTemplate');
         if (!template) return;
+
+        const timescale = parseInt(template.getAttribute('timescale') || '1');
 
         const initTemplate = template.getAttribute('initialization');
         if (initTemplate) {
             const url = initTemplate.replace(/\$RepresentationID\$/g, repId);
-            segmentsByRep[repId].push({ repId, type: 'Init', number: 0, resolvedUrl: new URL(url, baseUrl).href, template: url, time: -1 });
+            segmentsByRep[repId].push({
+                repId,
+                type: 'Init',
+                number: 0,
+                resolvedUrl: new URL(url, baseUrl).href,
+                template: url,
+                time: -1,
+                duration: 0,
+                timescale,
+            });
         }
 
         const mediaTemplate = template.getAttribute('media');
         const timeline = template.querySelector('SegmentTimeline');
         if (mediaTemplate && timeline) {
-            let segmentNumber = parseInt(template.getAttribute('startNumber') || '1');
+            let segmentNumber = parseInt(
+                template.getAttribute('startNumber') || '1'
+            );
             let currentTime = 0;
-            timeline.querySelectorAll('S').forEach(s => {
-                const t = s.hasAttribute('t') ? parseInt(s.getAttribute('t')) : currentTime;
+            timeline.querySelectorAll('S').forEach((s) => {
+                const t = s.hasAttribute('t')
+                    ? parseInt(s.getAttribute('t'))
+                    : currentTime;
                 const d = parseInt(s.getAttribute('d'));
                 const r = parseInt(s.getAttribute('r') || '0');
                 for (let i = 0; i <= r; i++) {
-                    const segTime = t + (i * d);
-                    const url = mediaTemplate.replace(/\$RepresentationID\$/g, repId).replace(/\$Number(%0\d+d)?\$/g, (match, padding) => {
-                        const width = padding ? parseInt(padding.substring(2, padding.length - 1)) : 1;
-                        return String(segmentNumber).padStart(width, '0');
-                    }).replace(/\$Time\$/g, String(segTime));
-                    segmentsByRep[repId].push({ repId, type: 'Media', number: segmentNumber, resolvedUrl: new URL(url, baseUrl).href, template: url, time: segTime });
+                    const segTime = t + i * d;
+                    const url = mediaTemplate
+                        .replace(/\$RepresentationID\$/g, repId)
+                        .replace(/\$Number(%0\d+d)?\$/g, (match, padding) => {
+                            const width = padding
+                                ? parseInt(
+                                      padding.substring(2, padding.length - 1)
+                                  )
+                                : 1;
+                            return String(segmentNumber).padStart(width, '0');
+                        })
+                        .replace(/\$Time\$/g, String(segTime));
+                    segmentsByRep[repId].push({
+                        repId,
+                        type: 'Media',
+                        number: segmentNumber,
+                        resolvedUrl: new URL(url, baseUrl).href,
+                        template: url,
+                        time: segTime,
+                        duration: d,
+                        timescale,
+                    });
                     segmentNumber++;
                 }
-                currentTime = t + ((r + 1) * d);
+                currentTime = t + (r + 1) * d;
             });
         }
     });
     return segmentsByRep;
 }
 
-async function handleLoadMoreSegments(e, allSegmentsByRep) {
-    const btn = /** @type {HTMLButtonElement} */ (e.target);
-    btn.textContent = 'Loading...';
-    btn.disabled = true;
-
-    const repId = btn.dataset.repid;
-    const offset = parseInt(btn.dataset.offset);
-    
-    const segmentsToFetch = allSegmentsByRep[repId].slice(offset, offset + SEGMENT_PAGE_SIZE);
-    await Promise.all(segmentsToFetch.map(seg => fetchSegment(seg.resolvedUrl)));
-
-    const newRowsHtml = renderSegmentRows(segmentsToFetch);
-    const tableBody = document.querySelector(`tbody[data-repid="${repId}"]`);
-    const loadMoreRow = tableBody.querySelector('.load-more-row');
-    if (loadMoreRow) {
-        loadMoreRow.insertAdjacentHTML('beforebegin', newRowsHtml);
-    }
-
-    const newOffset = offset + SEGMENT_PAGE_SIZE;
-    if (newOffset < allSegmentsByRep[repId].length) {
-        btn.textContent = `Load More (${allSegmentsByRep[repId].length - newOffset} remaining)`;
-        btn.dataset.offset = String(newOffset);
-        btn.disabled = false;
-    } else {
-        loadMoreRow.remove();
-    }
-}
-
-async function handleLoadPreviousSegments(e, allSegmentsByRep) {
-    const btn = /** @type {HTMLButtonElement} */ (e.target);
-    btn.textContent = 'Loading...';
-    btn.disabled = true;
-
-    const repId = btn.dataset.repid;
-    const offset = parseInt(btn.dataset.offset);
-    
-    const start = Math.max(0, offset - SEGMENT_PAGE_SIZE);
-    const end = offset;
-    const segmentsToFetch = allSegmentsByRep[repId].slice(start, end);
-    await Promise.all(segmentsToFetch.map(seg => fetchSegment(seg.resolvedUrl)));
-
-    const newRowsHtml = renderSegmentRows(segmentsToFetch);
-    const tableBody = document.querySelector(`tbody[data-repid="${repId}"]`);
-    const loadPreviousRow = tableBody.querySelector('.load-previous-row');
-    if (loadPreviousRow) {
-        tableBody.querySelector('tr:first-child').insertAdjacentHTML('afterend', newRowsHtml); // after init
-    }
-    
-    const newOffset = start;
-    if (newOffset > 0) {
-        btn.textContent = `Load Previous`;
-        btn.dataset.offset = String(newOffset);
-        btn.disabled = false;
-    } else {
-        loadPreviousRow.remove();
-    }
-}
-
-export function attachSegmentExplorerListeners(container, mpd, baseUrl, isDynamic, allSegmentsByRep) {
-    const refreshBtn = container.querySelector('#refresh-segments-btn');
-    if (refreshBtn) {
-        refreshBtn.addEventListener('click', () => loadAndCheckSegments(container, mpd, baseUrl, isDynamic, 'first'));
-    }
-    
-    container.querySelectorAll('.view-details-btn:not([data-listener-attached])').forEach(btn => {
-        btn.setAttribute('data-listener-attached', 'true');
-        btn.addEventListener('click', async (e) => {
-            const target = /** @type {HTMLElement} */ (e.target);
-            const url = target.dataset.url;
-            const cacheEntry = analysisState.segmentCache.get(url);
-            dom.modalSegmentUrl.textContent = url;
-            dom.segmentModal.classList.add('modal-overlay-visible');
-            if (cacheEntry && cacheEntry.data) {
-                dom.modalContentArea.innerHTML = '<p class="info">Parsing segment from local cache...</p>';
-                await analyzeSegmentFromBuffer(e, cacheEntry.data);
-            } else {
-                dom.modalContentArea.innerHTML = `<p class="fail">Segment data not in cache. Status: ${cacheEntry?.status || 'N/A'}.</p>`;
-            }
-        });
-    });
-
-    container.querySelectorAll('.load-more-btn:not([data-listener-attached])').forEach(btn => {
-        btn.setAttribute('data-listener-attached', 'true');
-        btn.addEventListener('click', (e) => handleLoadMoreSegments(e, allSegmentsByRep));
-    });
-
-    container.querySelectorAll('.load-previous-btn:not([data-listener-attached])').forEach(btn => {
-        btn.setAttribute('data-listener-attached', 'true');
-        btn.addEventListener('click', (e) => handleLoadPreviousSegments(e, allSegmentsByRep));
-    });
-}
-
 function updateSegmentFreshness() {
-    const activeStream = analysisState.streams.find(s => s.id === analysisState.activeStreamId);
-    if (!activeStream || activeStream.mpd.getAttribute('type') !== 'dynamic') return;
+    const activeStream = analysisState.streams.find(
+        (s) => s.id === analysisState.activeStreamId
+    );
+    if (!activeStream || activeStream.mpd.getAttribute('type') !== 'dynamic')
+        return;
 
-    const timeShiftBufferDepth = parseDuration(activeStream.mpd.getAttribute('timeShiftBufferDepth'));
-    const availabilityStartTime = new Date(activeStream.mpd.getAttribute('availabilityStartTime')).getTime();
+    const timeShiftBufferDepth = parseIsoDuration(
+        activeStream.mpd.getAttribute('timeShiftBufferDepth')
+    );
+    const availabilityStartTime = new Date(
+        activeStream.mpd.getAttribute('availabilityStartTime')
+    ).getTime();
     if (!timeShiftBufferDepth || !availabilityStartTime) return;
 
     const now = Date.now();
-    const liveEdgeTime = (now - availabilityStartTime) / 1000;
-    const dvrStartTime = liveEdgeTime - timeShiftBufferDepth;
-    
-    document.querySelectorAll('#segment-explorer-content .segment-row').forEach(row => {
-        const rowEl = /** @type {HTMLTableRowElement} */ (row);
-        if (rowEl.dataset.time === "-1") return;
+    const liveEdge = (now - availabilityStartTime) / 1000;
+    const dvrStartTime = liveEdge - timeShiftBufferDepth;
 
-        const template = rowEl.closest('details')?.querySelector('tbody[data-repid]')?.closest('details')?.querySelector('SegmentTemplate');
-        if (!template) return;
-        const timescale = parseInt(template.getAttribute('timescale') || '1');
-        const segmentTime = parseInt(rowEl.dataset.time) / timescale;
-        const statusCell = /** @type {HTMLTableCellElement} */ (rowEl.querySelector('.status-cell'));
-        
-        let isStale = segmentTime < dvrStartTime || segmentTime > liveEdgeTime + 2;
-        let staleIndicator = statusCell.querySelector('.stale-segment-indicator');
+    document
+        .querySelectorAll('#segment-explorer-content .segment-row')
+        .forEach((row) => {
+            const rowEl = /** @type {HTMLTableRowElement} */ (row);
+            if (rowEl.dataset.time === '-1') return; // Skip init segment
 
-        if (isStale) {
-            if (!staleIndicator) {
-                const typeLabel = statusCell.innerText;
-                statusCell.innerHTML = `<div class="stale-segment-indicator tooltip" title="This segment is outside the current DVR window (${dvrStartTime.toFixed(1)}s - ${liveEdgeTime.toFixed(1)}s)."></div>${typeLabel}`;
+            const tableBody = rowEl.closest('tbody');
+            if (!tableBody) return;
+            const repId = (/** @type {HTMLElement} */ (tableBody)).dataset.repid;
+            const segmentData = allSegmentsByRep[repId]?.find(
+                (s) => s.resolvedUrl === rowEl.dataset.url
+            );
+            if (!segmentData) return;
+
+            const segmentTime = segmentData.time / segmentData.timescale;
+            const statusCell = /** @type {HTMLTableCellElement} */ (
+                rowEl.querySelector('.status-cell')
+            );
+            if (!statusCell) return;
+
+            const isStale = segmentTime < dvrStartTime;
+            const staleIndicator = statusCell.querySelector(
+                '.stale-segment-indicator'
+            );
+
+            if (isStale && !staleIndicator) {
+                // Surgically add the indicator element without breaking existing content or listeners.
+                const indicator = document.createElement('div');
+                indicator.className = 'stale-segment-indicator';
+                indicator.title = `This segment is outside the current DVR window (${dvrStartTime.toFixed(1)}s - ${liveEdge.toFixed(1)}s).`;
+                statusCell.prepend(indicator);
+            } else if (!isStale && staleIndicator) {
+                // Surgically remove the indicator when the segment is no longer stale.
+                staleIndicator.remove();
             }
-        } else {
-             if (staleIndicator) {
-                const typeLabel = statusCell.innerText;
-                const cacheEntry = analysisState.segmentCache.get(rowEl.dataset.url);
-                let statusHtml = '';
-                 if (cacheEntry && cacheEntry.status !== 200) {
-                    const statusText = cacheEntry.status === 0 ? 'ERR' : cacheEntry.status;
-                    statusHtml = `<span class="segment-status-indicator status-fail" title="Status: ${statusText}"></span><span class="text-xs text-red-400 ml-1">[${statusText}]</span>`;
-                }
-                statusCell.innerHTML = `${statusHtml}${typeLabel}`;
-             }
-        }
-    });
+        });
 }
 
 export function startSegmentFreshnessChecker() {
     stopSegmentFreshnessChecker();
-    const activeStream = analysisState.streams.find(s => s.id === analysisState.activeStreamId);
+    const activeStream = analysisState.streams.find(
+        (s) => s.id === analysisState.activeStreamId
+    );
     if (activeStream && activeStream.mpd.getAttribute('type') === 'dynamic') {
         updateSegmentFreshness();
         segmentFreshnessInterval = setInterval(updateSegmentFreshness, 2000);
@@ -347,8 +472,14 @@ export function stopSegmentFreshnessChecker() {
     }
 }
 
-const parseDuration = (durationStr) => {
+const parseIsoDuration = (durationStr) => {
     if (!durationStr) return 0;
-    const match = durationStr.match(/PT(?:(\d+\.?\d*)S)?/);
-    return match ? parseFloat(match[1] || 0) : 0;
+    const match = durationStr.match(
+        /PT(?:(\d+\.?\d*)H)?(?:(\d+\.?\d*)M)?(?:(\d+\.?\d*)S)?/
+    );
+    if (!match) return 0;
+    const hours = parseFloat(match[1] || 0);
+    const minutes = parseFloat(match[2] || 0);
+    const seconds = parseFloat(match[3] || 0);
+    return hours * 3600 + minutes * 60 + seconds;
 };

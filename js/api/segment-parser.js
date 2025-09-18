@@ -1,190 +1,223 @@
-import { dom, analysisState } from '../state.js';
-import { createInfoTooltip } from '../ui.js';
+import { html, render } from 'lit-html';
+import { analysisState, dom } from '../state.js';
+import { parseTsSegment, tsAnalysisTemplate } from './ts-parser.js';
 
+// --- CONSTANTS ---
+// Exhaustive ISOBMFF box tooltips have been retained as they are parser-specific metadata.
 const tooltipData = {
-    'ftyp': { text: 'File Type Box: Identifies the file type, brand, and compatibility. It must be the first box in the file.', ref: 'ISO/IEC 14496-12, 4.3' },
-    'moov': { text: 'Movie Box: A container for all the metadata about the movie, including information about the tracks, timing, and structure.', ref: 'ISO/IEC 14496-12, 8.1.1' },
-    'mvhd': { text: 'Movie Header Box: Specifies the overall timescale and duration for the entire presentation.', ref: 'ISO/IEC 14496-12, 8.2.2' },
-    'trak': { text: 'Track Box: A container for a single track of the presentation. A presentation may have multiple tracks (e.g., one for video, one for audio).', ref: 'ISO/IEC 14496-12, 8.3.1' },
-    'tkhd': { text: 'Track Header Box: Specifies the duration and other characteristics of a single track.', ref: 'ISO/IEC 14496-12, 8.3.2' },
-    'mdia': { text: 'Media Box: A container for all the objects that declare information about the media data within a track.', ref: 'ISO/IEC 14496-12, 8.4.1' },
-    'mdhd': { text: 'Media Header Box: Specifies the timescale and duration for the media in a track.', ref: 'ISO/IEC 14496-12, 8.4.2' },
-    'hdlr': { text: 'Handler Reference Box: Declares the media type of the track (e.g., \'vide\' for video, \'soun\' for audio).', ref: 'ISO/IEC 14496-12, 8.4.3' },
-    'minf': { text: 'Media Information Box: A container for all the objects that declare characteristic information of the media in the track.', ref: 'ISO/IEC 14496-12, 8.4.4' },
-    'vmhd': { text: 'Video Media Header Box: Contains header information specific to the video media in a track.', ref: 'ISO/IEC 14496-12, 8.4.5.2' },
-    'smhd': { text: 'Sound Media Header Box: Contains header information specific to the audio media in a track.', ref: 'ISO/IEC 14496-12, 8.4.5.3' },
-    'dinf': { text: 'Data Information Box: A container for objects that declare where the media data is located.', ref: 'ISO/IEC 14496-12, 8.7.1' },
-    'dref': { text: 'Data Reference Box: Contains a table of data references that declare the location(s) of the media data.', ref: 'ISO/IEC 14496-12, 8.7.2' },
-    'stbl': { text: 'Sample Table Box: A container for all the time and data indexing of the media samples in a track.', ref: 'ISO/IEC 14496-12, 8.5.1' },
-    'stsd': { text: 'Sample Description Box: Contains a list of sample entries, which describe the format of the samples.', ref: 'ISO/IEC 14496-12, 8.5.2' },
-    'stts': { text: 'Time-to-Sample Box: Stores duration information for the media\'s samples.', ref: 'ISO/IEC 14496-12, 8.6.1.2' },
-    'stsc': { text: 'Sample-to-Chunk Box: Defines the mapping of samples to chunks within the media data.', ref: 'ISO/IEC 14496-12, 8.7.4' },
-    'stsz': { text: 'Sample Size Box: Specifies the size of each sample.', ref: 'ISO/IEC 14496-12, 8.7.3' },
-    'stco': { text: 'Chunk Offset Box: Identifies the location of each chunk of data in the media file.', ref: 'ISO/IEC 14496-12, 8.7.5' },
-    'co64': { text: '64-bit Chunk Offset Box: A 64-bit version of the Chunk Offset Box for large files.', ref: 'ISO/IEC 14496-12, 8.7.5' },
-    'edts': { text: 'Edit Box: Maps the media time to the presentation time, allowing for edits and offsets.', ref: 'ISO/IEC 14496-12, 8.6.5' },
-    'elst': { text: 'Edit List Box: Contains a list of edits that define the presentation timeline.', ref: 'ISO/IEC 14496-12, 8.6.6' },
-    'mvex': { text: 'Movie Extends Box: Signals that the movie may contain movie fragments, as is typical in DASH.', ref: 'ISO/IEC 14496-12, 8.8.1' },
-    'trex': { text: 'Track Extends Box: Sets default values for the samples and duration for a track\'s fragments.', ref: 'ISO/IEC 14496-12, 8.8.2' },
-    'meta': { text: 'Meta Box: A container for metadata, which can be at the movie or track level.', ref: 'ISO/IEC 14496-12, 8.11.1' },
-    'styp': { text: 'Segment Type Box: Declares the format and brands of this segment. Essential for compatibility checks (e.g., CMAF).', ref: 'ISO/IEC 14496-12, 8.16.2' },
-    'sidx': { text: 'Segment Index Box: Provides a timeline and byte-range index for the subsegments within this media segment. Crucial for seeking.', ref: 'ISO/IEC 14496-12, 8.16.3' },
-    'moof': { text: 'Movie Fragment Box: A container for a single fragment of the media, containing metadata for the samples within.', ref: 'ISO/IEC 14496-12, 8.8.7' },
-    'mfhd': { text: 'Movie Fragment Header Box: Contains a sequence number for this fragment, allowing a client to detect missing fragments.', ref: 'ISO/IEC 14496-12, 8.8.8' },
-    'traf': { text: 'Track Fragment Box: Container for a single track\'s fragment metadata.', ref: 'ISO/IEC 14496-12, 8.8.7' },
-    'tfhd': { text: 'Track Fragment Header Box: Contains the ID of the track for this fragment.', ref: 'ISO/IEC 14496-12, 8.8.7' },
-    'tfdt': { text: 'Track Fragment Decode Time Box: Provides the absolute decode time for the first sample in this fragment.', ref: 'ISO/IEC 14496-12, 8.8.12' },
-    'trun': { text: 'Track Run Box: Contains information about a continuous run of samples within a fragment, like their duration and size.', ref: 'ISO/IEC 14496-12, 8.8.8' },
-    'pssh': { text: 'Protection System Specific Header Box: Contains information needed by a Content Decryption Module to decrypt the media.', ref: 'ISO/IEC 23001-7' },
-    'mdat': { text: 'Media Data Box: Contains the actual audio/video sample data for the preceding \'moof\' box.', ref: 'ISO/IEC 14496-12, 8.1.1' },
-    'avcC': { text: 'AVC Configuration Box: Contains the decoder configuration information for an AVC (H.264) video track.', ref: 'ISO/IEC 14496-15' },
-    'hvcC': { text: 'HEVC Configuration Box: Contains the decoder configuration information for an HEVC (H.265) video track.', ref: 'ISO/IEC 14496-15' },
-    'esds': { text: 'Elementary Stream Descriptor Box: Contains information about the audio stream, such as its type and decoder-specific configuration.', ref: 'ISO/IEC 14496-14' }
+    'ftyp': { name: "File Type", text: "Declares the file's brand and compatibility.", ref: 'ISO/IEC 14496-12, 4.3' },
+    'ftyp@Major Brand': { text: "The 'best use' specification for the file.", ref: 'ISO/IEC 14496-12, 4.3.3' },
+    'ftyp@Minor Version': { text: "An informative integer for the minor version of the major brand.", ref: 'ISO/IEC 14496-12, 4.3.3' },
+    'ftyp@Compatible Brands': { text: "A list of other specifications to which the file complies.", ref: 'ISO/IEC 14496-12, 4.3.3' },
+    'styp': { name: "Segment Type", text: "Declares the segment's brand and compatibility.", ref: 'ISO/IEC 14496-12, 8.16.2' },
+    // NOTE: styp fields share the same semantics as ftyp fields.
+    'styp@Major Brand': { text: "The 'best use' specification for the segment.", ref: 'ISO/IEC 14496-12, 4.3.3' },
+    'styp@Minor Version': { text: "An informative integer for the minor version of the major brand.", ref: 'ISO/IEC 14496-12, 4.3.3' },
+    'styp@Compatible Brands': { text: "A list of other specifications to which the segment complies.", ref: 'ISO/IEC 14496-12, 4.3.3' },
+    'sidx': { name: "Segment Index", text: "Provides a compact index of media stream chunks within a segment.", ref: 'ISO/IEC 14496-12, 8.16.3' },
+    'sidx@version': { text: "Version of this box (0 or 1). Affects the size of time and offset fields.", ref: 'ISO/IEC 14496-12, 8.16.3.2' },
+    'sidx@reference_ID': { text: "The stream ID for the reference stream (typically the track ID).", ref: 'ISO/IEC 14496-12, 8.16.3.3' },
+    'sidx@timescale': { text: "The timescale for time and duration fields in this box, in ticks per second.", ref: 'ISO/IEC 14496-12, 8.16.3.3' },
+    'sidx@earliest_presentation_time': { text: "The earliest presentation time of any access unit in the first subsegment.", ref: 'ISO/IEC 14496-12, 8.16.3.3' },
+    'sidx@first_offset': { text: "The byte offset from the end of this box to the first byte of the indexed material.", ref: 'ISO/IEC 14496-12, 8.16.3.3' },
+    'sidx@reference_count': { text: "The number of subsegment references that follow.", ref: 'ISO/IEC 14496-12, 8.16.3.3' },
+    'sidx@reference_type_1': { text: "The type of the first reference (0 = media, 1 = sidx box).", ref: 'ISO/IEC 14496-12, 8.16.3.3' },
+    'sidx@referenced_size_1': { text: "The size in bytes of the referenced item.", ref: 'ISO/IEC 14496-12, 8.16.3.3' },
+    'sidx@subsegment_duration_1': { text: "The duration of the referenced subsegment in the timescale.", ref: 'ISO/IEC 14496-12, 8.16.3.3' },
+    'moov': { name: "Movie", text: "Container for all metadata defining the presentation.", ref: 'ISO/IEC 14496-12, 8.2.1' },
+    'mvhd': { name: "Movie Header", text: "Contains global information for the presentation (timescale, duration).", ref: 'ISO/IEC 14496-12, 8.2.2' },
+    'mvhd@version': { text: "Version of this box (0 or 1). Affects the size of time and duration fields.", ref: 'ISO/IEC 14496-12, 8.2.2.3' },
+    'mvhd@creation_time': { text: "The creation time of the presentation (in seconds since midnight, Jan. 1, 1904, UTC).", ref: 'ISO/IEC 14496-12, 8.2.2.3' },
+    'mvhd@modification_time': { text: "The most recent time the presentation was modified.", ref: 'ISO/IEC 14496-12, 8.2.2.3' },
+    'mvhd@timescale': { text: "The number of time units that pass in one second for the presentation.", ref: 'ISO/IEC 14496-12, 8.2.2.3' },
+    'mvhd@duration': { text: "The duration of the presentation in units of the timescale.", ref: 'ISO/IEC 14496-12, 8.2.2.3' },
+    'trak': { name: "Track", text: "Container for a single track.", ref: 'ISO/IEC 14496-12, 8.3.1' },
+    'tkhd': { name: "Track Header", text: "Specifies characteristics of a single track.", ref: 'ISO/IEC 14496-12, 8.3.2' },
+    'tkhd@version': { text: "Version of this box (0 or 1). Affects the size of time and duration fields.", ref: 'ISO/IEC 14496-12, 8.3.2.3' },
+    'tkhd@flags': { text: "A bitmask of track properties (enabled, in movie, in preview).", ref: 'ISO/IEC 14496-12, 8.3.2.3' },
+    'tkhd@track_ID': { text: "A unique integer that identifies this track.", ref: 'ISO/IEC 14496-12, 8.3.2.3' },
+    'tkhd@duration': { text: "The duration of this track in the movie's timescale.", ref: 'ISO/IEC 14496-12, 8.3.2.3' },
+    'tkhd@width': { text: "The visual presentation width of the track as a fixed-point 16.16 number.", ref: 'ISO/IEC 14496-12, 8.3.2.3' },
+    'tkhd@height': { text: "The visual presentation height of the track as a fixed-point 16.16 number.", ref: 'ISO/IEC 14496-12, 8.3.2.3' },
+    'meta': { name: "Metadata", text: "A container for metadata.", ref: 'ISO/IEC 14496-12, 8.11.1'},
+    'mdia': { name: "Media", text: "Container for media data information.", ref: 'ISO/IEC 14496-12, 8.4.1' },
+    'mdhd': { name: "Media Header", text: "Declares media information (timescale, language).", ref: 'ISO/IEC 14496-12, 8.4.2' },
+    'mdhd@version': { text: "Version of this box (0 or 1). Affects the size of time and duration fields.", ref: 'ISO/IEC 14496-12, 8.4.2.3' },
+    'mdhd@timescale': { text: "The number of time units that pass in one second for this track's media.", ref: 'ISO/IEC 14496-12, 8.4.2.3' },
+    'mdhd@duration': { text: "The duration of this track's media in units of its own timescale.", ref: 'ISO/IEC 14496-12, 8.4.2.3' },
+    'mdhd@language': { text: "The ISO-639-2/T language code for this media.", ref: 'ISO/IEC 14496-12, 8.4.2.3' },
+    'hdlr': { name: "Handler Reference", text: "Declares the media type of the track (e.g., 'vide', 'soun').", ref: 'ISO/IEC 14496-12, 8.4.3' },
+    'hdlr@handler_type': { text: "A four-character code identifying the media type (e.g., 'vide', 'soun', 'hint').", ref: 'ISO/IEC 14496-12, 8.4.3.3' },
+    'hdlr@name': { text: "A human-readable name for the track type (for debugging).", ref: 'ISO/IEC 14496-12, 8.4.3.3' },
+    'minf': { name: "Media Information", text: "Container for characteristic information of the media.", ref: 'ISO/IEC 14496-12, 8.4.4' },
+    'vmhd': { name: "Video Media Header", text: "Contains header information specific to video media.", ref: 'ISO/IEC 14496-12, 8.4.5.2'},
+    'vmhd@version': { text: "Version of this box, always 0.", ref: 'ISO/IEC 14496-12, 8.4.5.2.2' },
+    'vmhd@flags': { text: "A bitmask of flags, should have the low bit set to 1.", ref: 'ISO/IEC 14496-12, 8.4.5.2' },
+    'vmhd@graphicsmode': { text: "Specifies a composition mode for this video track.", ref: 'ISO/IEC 14496-12, 8.4.5.2.2' },
+    'vmhd@opcolor': { text: "A set of RGB color values available for use by graphics modes.", ref: 'ISO/IEC 14496-12, 8.4.5.2.2' },
+    'dinf': { name: "Data Information", text: "Container for objects that declare where media data is located.", ref: 'ISO/IEC 14496-12, 8.7.1'},
+    'stbl': { name: "Sample Table", text: "Contains all time and data indexing for samples.", ref: 'ISO/IEC 14496-12, 8.5.1' },
+    'stsd': { name: "Sample Description", text: "Stores information for decoding samples (codec type).", ref: 'ISO/IEC 14496-12, 8.5.2' },
+    'stsd@version': { text: "Version of this box, always 0.", ref: 'ISO/IEC 14496-12, 8.5.2.3' },
+    'stsd@entry_count': { text: "The number of sample entries that follow.", ref: 'ISO/IEC 14496-12, 8.5.2.3' },
+    'stts': { name: "Decoding Time to Sample", text: "Maps decoding times to sample numbers.", ref: 'ISO/IEC 14496-12, 8.6.1.2' },
+    'stts@version': { text: "Version of this box, always 0.", ref: 'ISO/IEC 14496-12, 8.6.1.2.3' },
+    'stts@entry_count': { text: "The number of entries in the time-to-sample table.", ref: 'ISO/IEC 14496-12, 8.6.1.2.3' },
+    'stts@sample_count_1': { text: "The number of consecutive samples with the same delta for the first table entry.", ref: 'ISO/IEC 14496-12, 8.6.1.2.3' },
+    'stts@sample_delta_1': { text: "The delta (duration) for each sample in this run for the first table entry.", ref: 'ISO/IEC 14496-12, 8.6.1.2.3' },
+    'stsc': { name: "Sample To Chunk", text: "Maps samples to chunks.", ref: 'ISO/IEC 14496-12, 8.7.4' },
+    'stsc@version': { text: "Version of this box, always 0.", ref: 'ISO/IEC 14496-12, 8.7.4.3' },
+    'stsc@entry_count': { text: "The number of entries in the sample-to-chunk table.", ref: 'ISO/IEC 14496-12, 8.7.4.3' },
+    'stsc@first_chunk_1': { text: "The index of the first chunk in a run of chunks with the same properties.", ref: 'ISO/IEC 14496-12, 8.7.4.3' },
+    'stsc@samples_per_chunk_1': { text: "The number of samples in each of these chunks.", ref: 'ISO/IEC 14496-12, 8.7.4.3' },
+    'stsc@sample_description_index_1': { text: "The index of the sample description for the samples in this run.", ref: 'ISO/IEC 14496-12, 8.7.4.3' },
+    'stsz': { name: "Sample Size", text: "Specifies the size of each sample.", ref: 'ISO/IEC 14496-12, 8.7.3' },
+    'stsz@version': { text: "Version of this box, always 0.", ref: 'ISO/IEC 14496-12, 8.7.3.2.2' },
+    'stsz@sample_size': { text: "Default sample size. If 0, sizes are in the entry table.", ref: 'ISO/IEC 14496-12, 8.7.3.2.2' },
+    'stsz@sample_count': { text: "The total number of samples in the track.", ref: 'ISO/IEC 14496-12, 8.7.3.2.2' },
+    'stco': { name: "Chunk Offset", text: "Specifies the offset of each chunk into the file.", ref: 'ISO/IEC 14496-12, 8.7.5' },
+    'stco@version': { text: "Version of this box, always 0.", ref: 'ISO/IEC 14496-12, 8.7.5.3' },
+    'stco@entry_count': { text: "The number of entries in the chunk offset table.", ref: 'ISO/IEC 14496-12, 8.7.5.3' },
+    'stco@chunk_offset_1': { text: "The file offset of the first chunk.", ref: 'ISO/IEC 14496-12, 8.7.5.3' },
+    'edts': { name: "Edit Box", text: "A container for an edit list.", ref: 'ISO/IEC 14496-12, 8.6.5'},
+    'elst': { name: "Edit List", text: "Maps the media time-line to the presentation time-line.", ref: 'ISO/IEC 14496-12, 8.6.6'},
+    'elst@version': { text: "Version of this box (0 or 1). Affects the size of duration and time fields.", ref: 'ISO/IEC 14496-12, 8.6.6.3' },
+    'elst@entry_count': { text: "The number of entries in the edit list.", ref: 'ISO/IEC 14496-12, 8.6.6.3' },
+    'elst@segment_duration_1': { text: "The duration of this edit segment in movie timescale units.", ref: 'ISO/IEC 14496-12, 8.6.6.3' },
+    'elst@media_time_1': { text: "The starting time within the media of this edit segment. A value of -1 indicates an empty edit.", ref: 'ISO/IEC 14496-12, 8.6.6.3' },
+    'mvex': { name: "Movie Extends", text: "Signals that the movie may contain fragments.", ref: 'ISO/IEC 14496-12, 8.8.1' },
+    'trex': { name: "Track Extends", text: "Sets default values for samples in fragments.", ref: 'ISO/IEC 14496-12, 8.8.3' },
+    'trex@track_ID': { text: "The track ID to which these defaults apply.", ref: 'ISO/IEC 14496-12, 8.8.3.3' },
+    'trex@default_sample_description_index': { text: "The default sample description index for samples in fragments.", ref: 'ISO/IEC 14496-12, 8.8.3.3' },
+    'trex@default_sample_duration': { text: "The default duration for samples in fragments.", ref: 'ISO/IEC 14496-12, 8.8.3.3' },
+    'trex@default_sample_size': { text: "The default size for samples in fragments.", ref: 'ISO/IEC 14496-12, 8.8.3.3' },
+    'trex@default_sample_flags': { text: "The default flags for samples in fragments.", ref: 'ISO/IEC 14496-12, 8.8.3.3' },
+    'moof': { name: "Movie Fragment", text: "Container for all metadata for a single fragment.", ref: 'ISO/IEC 14496-12, 8.8.4' },
+    'mfhd': { name: "Movie Fragment Header", text: "Contains the sequence number of this fragment.", ref: 'ISO/IEC 14496-12, 8.8.5' },
+    'mfhd@sequence_number': { text: "The ordinal number of this fragment, in increasing order.", ref: 'ISO/IEC 14496-12, 8.8.5.3' },
+    'traf': { name: "Track Fragment", text: "Container for metadata for a single track's fragment.", ref: 'ISO/IEC 14496-12, 8.8.6' },
+    'tfhd': { name: "Track Fragment Header", text: "Declares defaults for a track fragment.", ref: 'ISO/IEC 14496-12, 8.8.7' },
+    'tfhd@track_ID': { text: "The unique identifier of the track for this fragment.", ref: 'ISO/IEC 14496-12, 8.8.7.2' },
+    'tfhd@flags': { text: "A bitfield indicating which optional fields are present.", ref: 'ISO/IEC 14496-12, 8.8.7.2' },
+    'tfhd@base_data_offset': { text: "The base offset for data within the current mdat.", ref: 'ISO/IEC 14496-12, 8.8.7.2' },
+    'tfhd@sample_description_index': { text: "The index of the sample description for this fragment.", ref: 'ISO/IEC 14496-12, 8.8.7.2' },
+    'tfdt': { name: "Track Fragment Decode Time", text: "Provides the absolute decode time for the first sample.", ref: 'ISO/IEC 14496-12, 8.8.12' },
+    'tfdt@version': { text: "Version of this box (0 or 1). Affects the size of the decode time field.", ref: 'ISO/IEC 14496-12, 8.8.12.3' },
+    'tfdt@baseMediaDecodeTime': { text: "The absolute decode time, in media timescale units, for the first sample in this fragment.", ref: 'ISO/IEC 14496-12, 8.8.12.3' },
+    'trun': { name: "Track Run", text: "Contains timing, size, and flags for a run of samples.", ref: 'ISO/IEC 14496-12, 8.8.8' },
+    'trun@version': { text: "Version of this box (0 or 1). Affects signed/unsigned composition time.", ref: 'ISO/IEC 14496-12, 8.8.8.2' },
+    'trun@flags': { text: "A bitfield indicating which optional per-sample fields are present.", ref: 'ISO/IEC 14496-12, 8.8.8.2' },
+    'trun@sample_count': { text: "The number of samples in this run.", ref: 'ISO/IEC 14496-12, 8.8.8.3' },
+    'trun@data_offset': { text: "An optional offset added to the base_data_offset.", ref: 'ISO/IEC 14496-12, 8.8.8.3' },
+    'trun@first_sample_flags': { text: "Flags for the first sample, overriding the default.", ref: 'ISO/IEC 14496-12, 8.8.8.3' },
+    'trun@samples': { text: "A table of sample-specific data (duration, size, flags, composition time offset).", ref: 'ISO/IEC 14496-12, 8.8.8.2' },
+    'pssh': { name: "Protection System Specific Header", text: "Contains DRM initialization data.", ref: 'ISO/IEC 23001-7' },
+    'mdat': { name: "Media Data", text: "Contains the actual audio/video sample data.", ref: 'ISO/IEC 14496-12, 8.1.1' },
 };
-/**
- * @param {Event} e - The original click event, used for its dataset.
- * @param {ArrayBuffer} [cachedBuffer] - Optional. If provided, this buffer is used instead of fetching.
- */
-export async function handleSegmentAnalysisClick(e, cachedBuffer) {
-    const target = /** @type {HTMLElement} */ (e.target);
-    const segmentNumber = parseInt(target.dataset.number);
 
-    const activeStream = analysisState.streams.find(s => s.id === analysisState.activeStreamId);
-    const rep = activeStream.mpd.querySelector(`Representation[id="${target.dataset.repid}"]`);
-    
-    let expectedStartTime = null;
-    if (rep && !isNaN(segmentNumber)) {
-        const template = rep.querySelector('SegmentTemplate') || rep.closest('AdaptationSet').querySelector('SegmentTemplate')  || rep.closest('Period').querySelector('SegmentTemplate');
-        if (template) {
-            const timescale = parseInt(template.getAttribute('timescale'));
-            const timeline = template.querySelector('SegmentTimeline');
-            if (timeline) {
-                let currentNum = parseInt(template.getAttribute('startNumber') || '1');
-                let currentTime = 0;
-                for (const s of Array.from(timeline.querySelectorAll('S'))) {
-                    const t = s.hasAttribute('t') ? parseInt(s.getAttribute('t')) : currentTime;
-                    const d = parseInt(s.getAttribute('d'));
-                    const r = parseInt(s.getAttribute('r') || '0');
-                    for (let i = 0; i <= r; i++) {
-                        if (currentNum === segmentNumber) {
-                            expectedStartTime = (t + i * d) / timescale;
-                            break;
-                        }
-                        currentNum++;
-                    }
-                    if (expectedStartTime !== null) break;
-                    currentTime = t + ((r + 1) * d);
-                }
-            }
-        }
-    }
-    
-    processBuffer(cachedBuffer, expectedStartTime);
-}
+// --- SEGMENT PARSING & MODAL RENDERING ---
 
-/**
- * Parses a buffer and renders the analysis in the modal.
- * @param {ArrayBuffer} buffer The segment data.
- * @param {number | null} expectedStartTime The start time calculated from the MPD.
- */
-function processBuffer(buffer, expectedStartTime) {
-    try {
-        const boxes = parseISOBMFF(buffer);
-        let analysisHtml = renderSegmentAnalysisSummary(boxes, expectedStartTime);
-        analysisHtml += renderBoxes(boxes);
-        dom.modalContentArea.innerHTML = analysisHtml;
-    } catch (err) {
-        dom.modalContentArea.innerHTML = `<p class="fail">Could not parse segment buffer: ${err.message}.</p>`;
-    }
-}
-function renderSegmentAnalysisSummary(boxes, expectedStartTime) {
-    const sidx = boxes.find(b => b.type === 'sidx');
+const isoBoxTemplate = (box) => {
+    const boxInfo = tooltipData[box.type] || {};
+    const headerTemplate = html`
+        <div class="box-header">
+            <span class="type" data-tooltip="${boxInfo.text || ''}" data-iso="${boxInfo.ref || ''}">${box.type}</span>
+            <span class="size">${boxInfo.name ? `(${boxInfo.name}) ` : ''}(${box.size} bytes)</span>
+        </div>`;
+
+    const detailsTemplate = Object.keys(box.details).length > 0
+        ? html`
+            <table class="box-details-table">
+                <tbody>
+                    ${Object.entries(box.details).map(([key, value]) => {
+                        const fieldTooltip = tooltipData[`${box.type}@${key}`];
+                        return html`<tr>
+                            <td class="field-name" data-tooltip="${fieldTooltip?.text || ''}" data-iso="${fieldTooltip?.ref || ''}">${key}</td>
+                            <td class="field-value">${value}</td>
+                        </tr>`;
+                    })}
+                </tbody>
+            </table>`
+        : '';
+
+    const childrenTemplate = box.children.length > 0
+        ? html`<ul>${box.children.map(child => html`<li>${isoBoxTemplate(child)}</li>`)}</ul>`
+        : '';
+
+    return html`${headerTemplate}${detailsTemplate}${childrenTemplate}`;
+};
+
+const essentialDataTemplate = (boxes) => {
+    const moof = boxes.find(b => b.type === 'moof');
     const moov = boxes.find(b => b.type === 'moov');
-    let summaryHtml = '';
 
-    const activeStream = analysisState.streams.find(s => s.id === analysisState.activeStreamId);
-    if (activeStream) {
-        const profiles = activeStream.mpd.getAttribute('profiles') || '';
-        if (profiles.includes('cmaf')) {
-            if (!sidx && !moov) { // It's not an init segment either
-                summaryHtml += `<div class="analysis-summary fail">CMAF Compliance Fail: Segment does not contain a Segment Index ('sidx') box, which is required for CMAF tracks.</div>`;
-            }
-        }
-    }
-
-    if (!sidx) {
-        if (moov) {
-            summaryHtml += `<div class="analysis-summary info">This appears to be an Initialization Segment. It contains metadata but no media samples, so timing analysis is not applicable.</div>`;
-        } else {
-            summaryHtml += `<div class="analysis-summary warn">Could not find Segment Index ('sidx') box. Detailed segment timing analysis is not available.</div>`;
-        }
-        return summaryHtml;
-    }
-    
-    const actualStartTime = parseFloat(sidx.details['EPT (seconds)']);
-    let driftInfo = '';
-    if (expectedStartTime !== null && !isNaN(actualStartTime)) {
-        const drift = (actualStartTime - expectedStartTime) * 1000;
-        const driftClass = Math.abs(drift) > 50 ? 'warn' : 'pass'; // Highlight drift over 50ms
-        const driftDetails = 'Drift is the difference between the MPD-declared start time and the actual start time in the segment. High drift can cause playback issues.';
-        driftInfo = `<div><span class="key">Timeline Drift ${createInfoTooltip(driftDetails, 'Clause 7.2.1')}:</span> <span class="value ${driftClass}">${drift.toFixed(0)} ms</span></div>`;
-    }
-
-    summaryHtml += `<div class="analysis-summary">
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 text-sm">
-                    <div><span class="key">Actual Start Time:</span> <span class="value">${actualStartTime.toFixed(3)} s</span></div>
-                    <div><span class="key">Segment Duration:</span> <span class="value">${sidx.details['Total Duration (seconds)']} s</span></div>
-                    <div><span class="key">Expected MPD Start Time:</span> <span class="value">${expectedStartTime ? expectedStartTime.toFixed(3) + ' s' : 'N/A'}</span></div>
-                    ${driftInfo}
-                </div>
+    if (moof) {
+        const mfhd = moof.children.find(b => b.type === 'mfhd');
+        const traf = moof.children.find(b => b.type === 'traf');
+        if (!mfhd || !traf) return html``;
+        const tfhd = traf.children.find(b => b.type === 'tfhd');
+        const tfdt = traf.children.find(b => b.type === 'tfdt');
+        const trun = traf.children.find(b => b.type === 'trun');
+        return html`
+            <div class="segment-essential-data">
+                <div><span class="label">Type</span><span class="value">Media Segment</span></div>
+                <div><span class="label">Sequence #</span><span class="value">${mfhd.details.sequence_number || 'N/A'}</span></div>
+                <div><span class="label">Track ID</span><span class="value">${tfhd?.details.track_ID || 'N/A'}</span></div>
+                <div><span class="label">Base Decode Time</span><span class="value">${tfdt?.details.baseMediaDecodeTime || 'N/A'}</span></div>
+                <div><span class="label">Sample Count</span><span class="value">${trun?.details.sample_count || 'N/A'}</span></div>
             </div>`;
-    return summaryHtml;
-}
-
-function renderBoxes(boxes, level = 0) {
-    let html = `<ul class="${level > 0 ? 'pl-4' : ''}">`;
-    for (const box of boxes) {
-        const tooltip = tooltipData[box.type];
-        const tooltipHtml = tooltip ? createInfoTooltip(tooltip.text, tooltip.ref) : '';
-        
-        html += `<li class="my-1"><p><span class="font-bold text-green-400">${box.type}</span> <span class="text-gray-500">(Size: ${box.size})</span>${tooltipHtml}</p>`;
-        if (Object.keys(box.details).length > 0) {
-            html += `<div class="box-details">
-`;
-            for (const [key, value] of Object.entries(box.details)) {
-                html += `<div><span class="key">${key}:</span> <span class="value">${value}</span></div>`;
-            }
-            html += `</div>`;
-        }
-        if (box.children.length > 0) html += renderBoxes(box.children, level + 1);
-        html += `</li>`;
+    } else if (moov) {
+        const mvhd = moov.children.find(b => b.type === 'mvhd');
+        const traks = moov.children.filter(b => b.type === 'trak');
+        return html`
+            <div class="segment-essential-data">
+                <div><span class="label">Type</span><span class="value">Initialization Segment</span></div>
+                <div><span class="label">Timescale</span><span class="value">${mvhd?.details.timescale || 'N/A'}</span></div>
+                <div><span class="label">Duration</span><span class="value">${mvhd?.details.duration || 'N/A'}</span></div>
+                <div><span class="label">Track Count</span><span class="value">${traks.length}</span></div>
+            </div>`;
     }
-    html += '</ul>';
-    return html;
-}
+    return html``;
+};
+
+const isoAnalysisTemplate = (boxes) => html`
+    ${essentialDataTemplate(boxes)}
+    <div class="box-tree-view">
+        <ul>
+            ${boxes.map(box => html`<li>${isoBoxTemplate(box)}</li>`)}
+        </ul>
+    </div>
+`;
 
 function parseISOBMFF(buffer) {
     const boxes = [];
-    const dataView = new DataView(buffer);
     let offset = 0;
     while (offset < buffer.byteLength) {
         if (offset + 8 > buffer.byteLength) break;
+        const dataView = new DataView(buffer);
         let size = dataView.getUint32(offset);
         const type = String.fromCharCode.apply(null, new Uint8Array(buffer, offset + 4, 4));
         let headerSize = 8;
+
         if (size === 1) {
             if (offset + 16 > buffer.byteLength) break;
             size = Number(dataView.getBigUint64(offset + 8));
             headerSize = 16;
+        } else if (size === 0) {
+            size = buffer.byteLength - offset;
         }
-        if (size === 0 || (offset + size > buffer.byteLength)) break;
+
+        if (offset + size > buffer.byteLength) { size = buffer.byteLength - offset; }
         
         const box = { type, size, offset, children: [], details: {} };
-        
         parseBoxDetails(box, new DataView(buffer, offset, size));
 
-        if(['moof', 'traf', 'mvex', 'moov', 'trak', 'mdia', 'minf', 'stbl', 'edts', 'dinf', 'stsd', 'meta'].includes(type)) {
-            box.children = parseISOBMFF(buffer.slice(offset + headerSize, offset + size));
+        const containerBoxes = ['moof', 'traf', 'moov', 'trak', 'mdia', 'minf', 'stbl', 'mvex'];
+        if (containerBoxes.includes(type)) {
+            const childrenBuffer = buffer.slice(offset + headerSize, offset + size);
+            if (childrenBuffer.byteLength > 0) {
+                box.children = parseISOBMFF(childrenBuffer);
+            }
         }
         boxes.push(box);
         offset += size;
@@ -196,235 +229,229 @@ function parseBoxDetails(box, view) {
     try {
         const getString = (start, len) => String.fromCharCode.apply(null, new Uint8Array(view.buffer, view.byteOffset + start, len));
         const version = view.getUint8(8);
+        const flags = view.getUint32(8) & 0x00FFFFFF;
 
         switch(box.type) {
-            case 'styp': {
+            case 'ftyp': case 'styp': {
                 box.details['Major Brand'] = getString(8, 4);
+                box.details['Minor Version'] = view.getUint32(12);
                 let compatibleBrands = [];
-                for (let i = 16; i < box.size; i += 4) {
-                    compatibleBrands.push(getString(i, 4));
-                }
+                for (let i = 16; i < box.size; i += 4) { compatibleBrands.push(getString(i, 4)); }
                 box.details['Compatible Brands'] = compatibleBrands.join(', ');
                 break;
             }
-            case 'sidx': {
-                box.details['Version'] = version;
-                box.details['Reference ID'] = view.getUint32(12);
-                const timescale = view.getUint32(16);
-                box.details['Timescale'] = timescale;
-                const ept = version === 0 ? view.getUint32(20) : Number(view.getBigUint64(20));
-                box.details['Earliest Presentation Time'] = ept;
-                box.details['EPT (seconds)'] = (ept / timescale).toFixed(3);
-                const referenceCount = view.getUint16(30);
-                box.details['Reference Count'] = referenceCount;
-                let totalDuration = 0;
-                let loopOffset = 32;
-                for(let i=0; i<referenceCount; i++) {
-                    totalDuration += view.getUint32(loopOffset + 4);
-                    loopOffset += 12;
-                }
-                box.details['Total Duration (timescale)'] = totalDuration;
-                box.details['Total Duration (seconds)'] = (totalDuration / timescale).toFixed(3);
-                break;
-            }
             case 'mvhd': {
-                const version = view.getUint8(8);
-                const timescale = view.getUint32(version === 1 ? 28 : 20);
-                const duration = version === 1 ? Number(view.getBigUint64(32)) : view.getUint32(24);
-                box.details['Timescale'] = timescale;
-                box.details['Duration'] = `${duration} (${(duration/timescale).toFixed(2)}s)`;
+                box.details['version'] = version;
+                if (version === 1) {
+                    box.details['creation_time'] = new Date(Number(view.getBigUint64(12)) * 1000 - 2082844800000).toISOString();
+                    box.details['modification_time'] = new Date(Number(view.getBigUint64(20)) * 1000 - 2082844800000).toISOString();
+                    box.details['timescale'] = view.getUint32(28);
+                    box.details['duration'] = Number(view.getBigUint64(32));
+                } else {
+                    box.details['creation_time'] = new Date(view.getUint32(12) * 1000 - 2082844800000).toISOString();
+                    box.details['modification_time'] = new Date(view.getUint32(16) * 1000 - 2082844800000).toISOString();
+                    box.details['timescale'] = view.getUint32(20);
+                    box.details['duration'] = view.getUint32(24);
+                }
                 break;
             }
             case 'tkhd': {
-                const version = view.getUint8(8);
-                const trackId = view.getUint32(version === 1 ? 28 : 20);
-                const duration = version === 1 ? Number(view.getBigUint64(36)) : view.getUint32(24);
-                box.details['Track ID'] = trackId;
-                box.details['Duration'] = duration;
+                box.details['version'] = version;
+                box.details['flags'] = `0x${flags.toString(16).padStart(6, '0')}`;
+                const idOffset = version === 1 ? 28 : 20;
+                box.details['track_ID'] = view.getUint32(idOffset);
+                const durationOffset = version === 1 ? 36 : 28;
+                box.details['duration'] = version === 1 ? Number(view.getBigUint64(durationOffset)) : view.getUint32(durationOffset);
+                const widthOffset = version === 1 ? 88 : 76;
+                box.details['width'] = `${view.getUint16(widthOffset)}.${view.getUint16(widthOffset+2)}`;
+                box.details['height'] = `${view.getUint16(widthOffset+4)}.${view.getUint16(widthOffset+6)}`;
                 break;
             }
-            case 'mdhd': {
-                const version = view.getUint8(8);
-                const timescale = view.getUint32(version === 1 ? 28 : 20);
-                const duration = version === 1 ? Number(view.getBigUint64(32)) : view.getUint32(24);
-                const lang = view.getUint16(version === 1 ? 36 : 28);
-                const langChars = [
-                    (lang >> 10) & 0x1F,
-                    (lang >> 5) & 0x1F,
-                    lang & 0x1F
-                ].map(x => String.fromCharCode(x + 0x60));
-                box.details['Timescale'] = timescale;
-                box.details['Duration'] = `${duration} (${(duration/timescale).toFixed(2)}s)`;
-                box.details['Language'] = langChars.join('');
+             case 'mdhd': {
+                box.details['version'] = version;
+                const tsOffset = version === 1 ? 20 : 12;
+                box.details['timescale'] = view.getUint32(tsOffset);
+                box.details['duration'] = version === 1 ? Number(view.getBigUint64(tsOffset + 4)) : view.getUint32(tsOffset + 4);
+                const lang = view.getUint16(tsOffset + 12);
+                box.details['language'] = String.fromCharCode(((lang >> 10) & 0x1F) + 0x60, ((lang >> 5) & 0x1F) + 0x60, (lang & 0x1F) + 0x60);
                 break;
             }
             case 'hdlr': {
-                const handlerType = getString(16, 4);
-                box.details['Handler Type'] = handlerType;
+                box.details['handler_type'] = getString(16, 4);
+                box.details['name'] = getString(32, box.size - 32).replace(/\0/g, '');
                 break;
             }
             case 'vmhd': {
-                box.details['Graphics Mode'] = view.getUint16(12);
-                break;
-            }
-            case 'smhd': {
-                box.details['Balance'] = view.getInt16(12) / 256.0;
-                break;
-            }
-            case 'dref': {
-                const entryCount = view.getUint32(12);
-                box.details['Entry Count'] = entryCount;
-                break;
-            }
-            case 'elst': {
-                const entryCount = view.getUint32(12);
-                box.details['Entry Count'] = entryCount;
-                if (entryCount > 0 && entryCount < 10) {
-                    let entries = [];
-                    for (let i = 0; i < entryCount; i++) {
-                        const offset = 16 + i * (version === 1 ? 20 : 12);
-                        const segmentDuration = version === 1 ? Number(view.getBigUint64(offset)) : view.getUint32(offset);
-                        const mediaTime = version === 1 ? Number(view.getBigInt64(offset+8)) : view.getInt32(offset+4);
-                        const mediaRate = view.getInt16(offset + (version === 1 ? 16 : 8));
-                        entries.push(`Duration: ${segmentDuration}, Time: ${mediaTime}, Rate: ${mediaRate >> 16}`);
-                    }
-                    box.details['Entries'] = `<ul>${entries.map(e => `<li>${e}</li>`).join('')}</ul>`;
-                }
+                box.details['version'] = version;
+                box.details['flags'] = `0x${flags.toString(16).padStart(6, '0')}`;
+                box.details['graphicsmode'] = view.getUint16(12);
+                box.details['opcolor'] = `R:${view.getUint16(14)}, G:${view.getUint16(16)}, B:${view.getUint16(18)}`;
                 break;
             }
             case 'stsd': {
-                box.details['Entry Count'] = view.getUint32(12);
+                box.details['version'] = version;
+                box.details['entry_count'] = view.getUint32(12);
                 break;
             }
             case 'stts': {
-                const entryCount = view.getUint32(12);
-                box.details['Entry Count'] = entryCount;
-                if (entryCount > 0 && entryCount < 10) { 
-                    let entries = [];
-                    for (let i = 0; i < entryCount; i++) {
-                        const sampleCount = view.getUint32(16 + i * 8);
-                        const sampleDelta = view.getUint32(20 + i * 8);
-                        entries.push(`${sampleCount} sample(s) with duration ${sampleDelta}`);
-                    }
-                    box.details['Entries'] = `<ul>${entries.map(e => `<li>${e}</li>`).join('')}</ul>`;
+                box.details['version'] = version;
+                box.details['entry_count'] = view.getUint32(12);
+                if (box.details['entry_count'] > 0) {
+                    box.details['sample_count_1'] = view.getUint32(16);
+                    box.details['sample_delta_1'] = view.getUint32(20);
                 }
                 break;
             }
             case 'stsc': {
-                const entryCount = view.getUint32(12);
-                box.details['Entry Count'] = entryCount;
+                box.details['version'] = version;
+                box.details['entry_count'] = view.getUint32(12);
+                if (box.details['entry_count'] > 0) {
+                    box.details['first_chunk_1'] = view.getUint32(16);
+                    box.details['samples_per_chunk_1'] = view.getUint32(20);
+                    box.details['sample_description_index_1'] = view.getUint32(24);
+                }
                 break;
             }
             case 'stsz': {
-                const sampleSize = view.getUint32(12);
-                const sampleCount = view.getUint32(16);
-                box.details['Sample Size'] = sampleSize === 0 ? 'Variable' : sampleSize;
-                box.details['Sample Count'] = sampleCount;
+                box.details['version'] = version;
+                box.details['sample_size'] = view.getUint32(12);
+                box.details['sample_count'] = view.getUint32(16);
                 break;
             }
-            case 'stco':
-            case 'co64': {
-                const entryCount = view.getUint32(12);
-                box.details['Entry Count'] = entryCount;
+            case 'stco': {
+                box.details['version'] = version;
+                box.details['entry_count'] = view.getUint32(12);
+                if (box.details['entry_count'] > 0) {
+                    box.details['chunk_offset_1'] = view.getUint32(16);
+                }
+                break;
+            }
+            case 'elst': { // child of 'edts'
+                box.details['version'] = version;
+                const entry_count = view.getUint32(12);
+                box.details['entry_count'] = entry_count;
+                if (entry_count > 0) {
+                    const entryOffset = 16;
+                    if (version === 1) {
+                        box.details['segment_duration_1'] = Number(view.getBigUint64(entryOffset));
+                        box.details['media_time_1'] = Number(view.getBigInt64(entryOffset+8));
+                    } else {
+                        box.details['segment_duration_1'] = view.getUint32(entryOffset);
+                        box.details['media_time_1'] = view.getInt32(entryOffset+4);
+                    }
+                }
                 break;
             }
             case 'trex': {
-                box.details['Track ID'] = view.getUint32(12);
-                box.details['Default Sample Description Index'] = view.getUint32(16);
-                box.details['Default Sample Duration'] = view.getUint32(20);
-                box.details['Default Sample Size'] = view.getUint32(24);
+                box.details['track_ID'] = view.getUint32(12);
+                box.details['default_sample_description_index'] = view.getUint32(16);
+                box.details['default_sample_duration'] = view.getUint32(20);
+                box.details['default_sample_size'] = view.getUint32(24);
+                box.details['default_sample_flags'] = `0x${view.getUint32(28).toString(16)}`;
                 break;
             }
-            case 'avcC': {
-                box.details['Configuration Version'] = view.getUint8(8);
-                box.details['AVC Profile'] = view.getUint8(9);
-                box.details['Profile Compatibility'] = view.getUint8(10);
-                box.details['AVC Level'] = view.getUint8(11);
-                break;
-            }
-            case 'esds': {
-                let offset = 12;
-                while(offset < box.size) {
-                    const tag = view.getUint8(offset++);
-                    let size = 0;
-                    let sizeByte = view.getUint8(offset++);
-                    while(sizeByte & 0x80) {
-                        size = (size << 7) | (sizeByte & 0x7F);
-                        sizeByte = view.getUint8(offset++);
-                    }
-                    size = (size << 7) | (sizeByte & 0x7F);
-
-                    if (tag === 0x03) { 
-                        offset += 2; 
-                    } else if (tag === 0x04) { 
-                        box.details['Object Type Indication'] = view.getUint8(offset);
-                        box.details['Stream Type'] = view.getUint8(offset + 1);
-                        offset += 13;
-                    } else if (tag === 0x05) { 
-                        box.details['Decoder Specific Info'] = `(${size} bytes)`;
-                        offset += size;
-                    } else {
-                        offset += size;
-                    }
+            case 'sidx': {
+                box.details['version'] = version;
+                box.details['reference_ID'] = view.getUint32(12);
+                box.details['timescale'] = view.getUint32(16);
+                let offset = 20;
+                if (version === 1) {
+                    box.details['earliest_presentation_time'] = Number(view.getBigUint64(offset)); offset += 8;
+                    box.details['first_offset'] = Number(view.getBigUint64(offset)); offset += 8;
+                } else {
+                    box.details['earliest_presentation_time'] = view.getUint32(offset); offset += 4;
+                    box.details['first_offset'] = view.getUint32(offset); offset += 4;
+                }
+                offset += 2; // reserved
+                const ref_count = view.getUint16(offset); offset += 2;
+                box.details['reference_count'] = ref_count;
+                if(ref_count > 0) {
+                    const ref_type = view.getUint8(offset) >> 7;
+                    box.details['reference_type_1'] = ref_type === 1 ? 'sidx' : 'media';
+                    box.details['referenced_size_1'] = view.getUint32(offset) & 0x7FFFFFFF;
+                    box.details['subsegment_duration_1'] = view.getUint32(offset + 4);
                 }
                 break;
             }
             case 'mfhd': {
-                 box.details['Sequence Number'] = view.getUint32(12);
+                box.details['sequence_number'] = view.getUint32(12);
                 break;
             }
             case 'tfhd': {
-                box.details['Track ID'] = view.getUint32(12);
+                box.details['track_ID'] = view.getUint32(12);
+                box.details['flags'] = `0x${flags.toString(16).padStart(6, '0')}`;
+                let offset = 16;
+                if (flags & 0x000001) { box.details['base_data_offset'] = Number(view.getBigUint64(offset)); offset += 8; }
+                if (flags & 0x000002) { box.details['sample_description_index'] = view.getUint32(offset); offset += 4; }
+                if (flags & 0x000008) { box.details['default_sample_duration'] = view.getUint32(offset); offset += 4; }
+                if (flags & 0x000010) { box.details['default_sample_size'] = view.getUint32(offset); offset += 4; }
+                if (flags & 0x000020) { box.details['default_sample_flags'] = `0x${view.getUint32(offset).toString(16)}`; }
                 break;
             }
             case 'tfdt': {
-                const time = version === 1 ? Number(view.getBigUint64(12)) : view.getUint32(12);
-                box.details['Base Media Decode Time'] = time;
+                box.details['version'] = version;
+                box.details['baseMediaDecodeTime'] = version === 1 ? Number(view.getBigUint64(12)) : view.getUint32(12);
                 break;
             }
             case 'trun': {
-                box.details['Version'] = version;
-                box.details['Sample Count'] = view.getUint32(12);
+                box.details['version'] = version;
+                box.details['flags'] = `0x${flags.toString(16).padStart(6, '0')}`;
+                const sample_count = view.getUint32(12);
+                box.details['sample_count'] = sample_count;
+                let offset = 16;
+                if (flags & 0x000001) { box.details['data_offset'] = view.getInt32(offset); offset += 4; }
+                if (flags & 0x000004) { box.details['first_sample_flags'] = `0x${view.getUint32(offset).toString(16)}`; offset += 4; }
+                let samples = [];
+                for (let i = 0; i < Math.min(sample_count, 10); i++) {
+                    let sample = {};
+                    if (flags & 0x000100) { sample.duration = view.getUint32(offset); offset += 4; }
+                    if (flags & 0x000200) { sample.size = view.getUint32(offset); offset += 4; }
+                    if (flags & 0x000400) { sample.flags = `0x${view.getUint32(offset).toString(16)}`; offset += 4; }
+                    if (flags & 0x000800) {
+                        sample.composition_time_offset = (version === 0) ? view.getUint32(offset) : view.getInt32(offset);
+                        offset += 4;
+                    }
+                    samples.push(JSON.stringify(sample));
+                }
+                box.details['samples'] = html`<div class="sample-data"><pre>${samples.join('\n')}${sample_count > 10 ? `\n... (${sample_count - 10} more)`: ''}</pre></div>`;
                 break;
             }
-            case 'pssh': {
-                const systemIdMap = {
-                    'edef8ba9-79d6-4ace-a3c8-27dcd51d21ed': 'Widevine',
-                    '9a04f079-9840-4286-ab92-e65be0885f95': 'PlayReady',
-                    '94ce86fb-07ff-4f43-adb8-93d2fa968ca2': 'FairPlay'
-                };
-                const formatUUID = (buffer, offset) => {
-                    const bytes = new Uint8Array(buffer, offset, 16);
-                    const hex = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
-                    return `${hex.substr(0,8)}-${hex.substr(8,4)}-${hex.substr(12,4)}-${hex.substr(16,4)}-${hex.substr(20,12)}`;
-                };
-
-                const systemIdUUID = formatUUID(view.buffer, view.byteOffset + 12);
-                box.details['System ID'] = `${systemIdMap[systemIdUUID] || 'Unknown'} (${systemIdUUID})`;
-
-                let dataOffset = 28;
-                if (version > 0) {
-                    const kidCount = view.getUint32(28);
-                    box.details['KID Count'] = kidCount;
-                    dataOffset = 32;
-                    let kids = [];
-                    for (let i = 0; i < kidCount; i++) {
-                        const kidUUID = formatUUID(view.buffer, view.byteOffset + dataOffset);
-                        kids.push(kidUUID);
-                        dataOffset += 16;
-                    }
-                    box.details['KIDs'] = kids.join(', ');
-                }
-
-                const dataSize = view.getUint32(dataOffset);
-                box.details['Data Size'] = dataSize;
-                if (dataSize > 0) {
-                    box.details['Data'] = `(${dataSize} bytes of system-specific data)`;
-                }
+            case 'mdat': {
+                box.details['info'] = "Contains raw media data for samples.";
                 break;
             }
         }
-    } catch (e) { 
-        box.details['Parsing Error'] = e.message;
+    } catch (_e) { box.details['Parsing Error'] = _e.message; }
+}
+
+export function dispatchAndRenderSegmentAnalysis(e, buffer) {
+    if (!buffer) {
+        render(html`<p class="fail">Segment buffer is not available for analysis.</p>`, dom.modalContentArea);
+        return;
+    }
+    
+    const target = /** @type {HTMLElement} */ (e.currentTarget);
+    const repId = target.dataset.repid;
+    
+    const activeStream = analysisState.streams.find(s => s.id === analysisState.activeStreamId);
+    if (!activeStream) return;
+
+    const rep = activeStream.mpd.querySelector(`Representation[id="${repId}"]`);
+    if (!rep) return;
+
+    const as = rep.closest('AdaptationSet');
+    const mimeType = rep.getAttribute('mimeType') || as?.getAttribute('mimeType');
+
+    try {
+        if (mimeType === 'video/mp2t') {
+            const analysis = parseTsSegment(buffer);
+            render(tsAnalysisTemplate(analysis.data), dom.modalContentArea);
+        } else { // Default to ISOBMFF
+            const boxes = parseISOBMFF(buffer);
+            render(isoAnalysisTemplate(boxes), dom.modalContentArea);
+        }
+    } catch (err) {
+        console.error("Segment parsing error:", err);
+        render(html`<p class="fail">Could not parse segment buffer: ${err.message}.</p>`, dom.modalContentArea);
     }
 }

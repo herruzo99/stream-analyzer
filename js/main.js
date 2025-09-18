@@ -8,7 +8,7 @@ import {
 } from './ui.js';
 import { parseMpd } from './api/dash-parser.js';
 import { setupGlobalTooltipListener } from './tooltip.js';
-import { startMpdUpdatePolling, stopMpdUpdatePolling } from './mpd-poll.js';
+import { stopMpdUpdatePolling } from './mpd-poll.js';
 
 const HISTORY_KEY = 'dash_analyzer_history';
 const MAX_HISTORY_ITEMS = 10;
@@ -36,7 +36,7 @@ function saveUrlToHistory(url) {
     if (!url) return;
     let history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
     // Remove the URL if it already exists to move it to the top
-    history = history.filter(item => item !== url);
+    history = history.filter((item) => item !== url);
     // Add the new URL to the beginning of the array
     history.unshift(url);
     // Trim the history to the maximum number of items
@@ -51,12 +51,18 @@ async function handleAnalysis() {
     stopMpdUpdatePolling();
     showStatus('Starting analysis...', 'info');
     analysisState.streams = [];
-    const inputGroups = dom.streamInputs.querySelectorAll('.stream-input-group');
+    const inputGroups = dom.streamInputs.querySelectorAll(
+        '.stream-input-group'
+    );
 
     const promises = Array.from(inputGroups).map(async (group) => {
         const id = parseInt(/** @type {HTMLElement} */ (group).dataset.id);
-        const urlInput = /** @type {HTMLInputElement} */ (group.querySelector('.input-url'));
-        const fileInput = /** @type {HTMLInputElement} */ (group.querySelector('.input-file'));
+        const urlInput = /** @type {HTMLInputElement} */ (
+            group.querySelector('.input-url')
+        );
+        const fileInput = /** @type {HTMLInputElement} */ (
+            group.querySelector('.input-file')
+        );
 
         let xmlString = '';
         let name = `Stream ${id + 1}`;
@@ -70,31 +76,38 @@ async function handleAnalysis() {
                 baseUrl = new URL(originalUrl, window.location.href).href;
                 showStatus(`Fetching ${name}...`, 'info');
                 const response = await fetch(originalUrl);
-                if (!response.ok) throw new Error(`HTTP Error ${response.status}`);
+                if (!response.ok)
+                    throw new Error(`HTTP Error ${response.status}`);
                 xmlString = await response.text();
-                // Save URL to history only on successful fetch
                 saveUrlToHistory(originalUrl);
             } else if (fileInput.files.length > 0) {
                 const file = fileInput.files[0];
                 name = file.name;
-                baseUrl = window.location.href;
+                baseUrl = window.location.href; // Use page location as base for local files
                 showStatus(`Reading ${name}...`, 'info');
-                xmlString = await new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = (e) => resolve(/** @type {string} */ (e.target.result));
-                    reader.onerror = (e) => reject(e);
-                    reader.readAsText(file);
-                });
+                xmlString = await file.text();
             } else {
-                return null;
+                return null; // Skip empty input group
             }
 
-            const { mpd, baseUrl: newBaseUrl } = parseMpd(xmlString, baseUrl);
+            showStatus(
+                `Parsing and resolving remote elements for ${name}...`,
+                'info'
+            );
+            // *** THE FIX IS HERE: `await` the async parseMpd function ***
+            const { mpd, baseUrl: newBaseUrl } = await parseMpd(
+                xmlString,
+                baseUrl
+            );
             baseUrl = newBaseUrl;
 
             return { id, name, originalUrl, baseUrl, mpd };
         } catch (error) {
-            showStatus(`Failed to process stream ${id + 1} (${name}): ${error.message}`, 'fail');
+            showStatus(
+                `Failed to process stream ${id + 1} (${name}): ${error.message}`,
+                'fail'
+            );
+            console.error(`Error details for stream ${id + 1}:`, error);
             throw error;
         }
     });
@@ -110,21 +123,24 @@ async function handleAnalysis() {
 
         analysisState.streams.sort((a, b) => a.id - b.id);
         analysisState.activeStreamId = analysisState.streams[0].id;
-        
-        const defaultTab = analysisState.streams.length > 1 ? 'comparison' : 'summary';
-        
+
+        const defaultTab =
+            analysisState.streams.length > 1 ? 'comparison' : 'summary';
+
         populateContextSwitcher();
         renderAllTabs();
 
-        showStatus(`Analysis Complete for ${analysisState.streams.length} stream(s).`, 'pass');
+        showStatus(
+            `Analysis Complete for ${analysisState.streams.length} stream(s).`,
+            'pass'
+        );
         dom.results.classList.remove('hidden');
 
         /** @type {HTMLButtonElement} */ (
             document.querySelector(`.tab[data-tab="${defaultTab}"]`)
         ).click();
-
-    } catch (error) {
-        console.error("Analysis failed:", error);
+    } catch (_error) {
+        // Error is already logged and displayed in the status bar
         dom.results.classList.add('hidden');
     }
 }
