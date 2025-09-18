@@ -57,27 +57,63 @@ export let analysisState = {
 
 /** @type {DOM_ELEMENTS} */
 export const dom = {
-    streamInputs: /** @type {HTMLDivElement} */ (document.getElementById('stream-inputs')),
-    addStreamBtn: /** @type {HTMLButtonElement} */ (document.getElementById('add-stream-btn')),
-    analyzeBtn: /** @type {HTMLButtonElement} */ (document.getElementById('analyze-btn')),
+    streamInputs: /** @type {HTMLDivElement} */ (
+        document.getElementById('stream-inputs')
+    ),
+    addStreamBtn: /** @type {HTMLButtonElement} */ (
+        document.getElementById('add-stream-btn')
+    ),
+    analyzeBtn: /** @type {HTMLButtonElement} */ (
+        document.getElementById('analyze-btn')
+    ),
     status: /** @type {HTMLDivElement} */ (document.getElementById('status')),
     results: /** @type {HTMLDivElement} */ (document.getElementById('results')),
     tabs: /** @type {HTMLElement} */ (document.getElementById('tabs')),
-    contextSwitcherContainer: /** @type {HTMLDivElement} */ (document.getElementById('context-switcher-container')),
-    contextSwitcher: /** @type {HTMLSelectElement} */ (document.getElementById('context-switcher')),
+    contextSwitcherContainer: /** @type {HTMLDivElement} */ (
+        document.getElementById('context-switcher-container')
+    ),
+    contextSwitcher: /** @type {HTMLSelectElement} */ (
+        document.getElementById('context-switcher')
+    ),
     tabContents: {
-        comparison: /** @type {HTMLDivElement} */ (document.getElementById('tab-comparison')),
-        summary: /** @type {HTMLDivElement} */ (document.getElementById('tab-summary')),
-        'timeline-visuals': /** @type {HTMLDivElement} */ (document.getElementById('tab-timeline-visuals')),
-        features: /** @type {HTMLDivElement} */ (document.getElementById('tab-features')),
-        compliance: /** @type {HTMLDivElement} */ (document.getElementById('tab-compliance')),
-        'interactive-mpd': /** @type {HTMLDivElement} */ (document.getElementById('tab-interactive-mpd')),
-        explorer: /** @type {HTMLDivElement} */ (document.getElementById('tab-explorer')),
-        updates: /** @type {HTMLDivElement} */ (document.getElementById('tab-updates')),
+        comparison: /** @type {HTMLDivElement} */ (
+            document.getElementById('tab-comparison')
+        ),
+        summary: /** @type {HTMLDivElement} */ (
+            document.getElementById('tab-summary')
+        ),
+        'timeline-visuals': /** @type {HTMLDivElement} */ (
+            document.getElementById('tab-timeline-visuals')
+        ),
+        features: /** @type {HTMLDivElement} */ (
+            document.getElementById('tab-features')
+        ),
+        compliance: /** @type {HTMLDivElement} */ (
+            document.getElementById('tab-compliance')
+        ),
+        'interactive-mpd': /** @type {HTMLDivElement} */ (
+            document.getElementById('tab-interactive-mpd')
+        ),
+        explorer: /** @type {HTMLDivElement} */ (
+            document.getElementById('tab-explorer')
+        ),
+        updates: /** @type {HTMLDivElement} */ (
+            document.getElementById('tab-updates')
+        ),
     },
-    segmentModal: /** @type {HTMLDivElement} */ (document.getElementById('segment-modal')),
-    modalSegmentUrl: /** @type {HTMLParagraphElement} */ (document.getElementById('modal-segment-url')),
-    modalContentArea: /** @type {HTMLDivElement} */ (document.getElementById('modal-content-area')),
-    closeModalBtn: /** @type {HTMLButtonElement} */ (document.getElementById('close-modal-btn')),
-    globalTooltip: /** @type {HTMLDivElement} */ (document.getElementById('global-tooltip')),
+    segmentModal: /** @type {HTMLDivElement} */ (
+        document.getElementById('segment-modal')
+    ),
+    modalSegmentUrl: /** @type {HTMLParagraphElement} */ (
+        document.getElementById('modal-segment-url')
+    ),
+    modalContentArea: /** @type {HTMLDivElement} */ (
+        document.getElementById('modal-content-area')
+    ),
+    closeModalBtn: /** @type {HTMLButtonElement} */ (
+        document.getElementById('close-modal-btn')
+    ),
+    globalTooltip: /** @type {HTMLDivElement} */ (
+        document.getElementById('global-tooltip')
+    ),
 };

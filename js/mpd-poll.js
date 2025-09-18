@@ -27,15 +27,27 @@ export function startMpdUpdatePolling(stream) {
             const newMpdString = await response.text();
 
             if (newMpdString !== originalMpdString) {
-                const { mpd: newMpd } = parseMpd(newMpdString, stream.baseUrl);
+                const { mpd: newMpd } = await parseMpd(
+                    newMpdString,
+                    stream.baseUrl
+                );
                 const oldMpdForDiff = originalMpdString;
                 stream.mpd = newMpd;
                 originalMpdString = newMpdString;
 
                 // Pretty print XML before diffing to ensure a clean, format-independent comparison
-                const formattingOptions = { indentation: '  ', lineSeparator: '\n' };
-                const formattedOldMpd = xmlFormatter(oldMpdForDiff, formattingOptions);
-                const formattedNewMpd = xmlFormatter(newMpdString, formattingOptions);
+                const formattingOptions = {
+                    indentation: '  ',
+                    lineSeparator: '\n',
+                };
+                const formattedOldMpd = xmlFormatter(
+                    oldMpdForDiff,
+                    formattingOptions
+                );
+                const formattedNewMpd = xmlFormatter(
+                    newMpdString,
+                    formattingOptions
+                );
 
                 const diffHtml = diffMpd(formattedOldMpd, formattedNewMpd);
 
@@ -51,7 +63,19 @@ export function startMpdUpdatePolling(stream) {
 
                 // If the active tab is one that depends on MPD data, re-render it
                 const activeTab = document.querySelector('.tab-active');
-                if (activeTab && ['summary', 'timeline-visuals', 'features', 'compliance', 'explorer', 'updates'].includes(/** @type {HTMLElement} */ (activeTab).dataset.tab)) {
+                if (
+                    activeTab &&
+                    [
+                        'summary',
+                        'timeline-visuals',
+                        'features',
+                        'compliance',
+                        'explorer',
+                        'updates',
+                    ].includes(
+                        /** @type {HTMLElement} */ (activeTab).dataset.tab
+                    )
+                ) {
                     renderSingleStreamTabs(stream.id);
                 }
             }
@@ -70,15 +94,17 @@ export function stopMpdUpdatePolling() {
 
 /**
  * Parses an ISO 8601 duration string into seconds.
- * @param {string} durationStr 
+ * @param {string} durationStr
  * @returns {number}
  */
 function parseDuration(durationStr) {
     if (!durationStr) return 0;
-    const match = durationStr.match(/PT(?:(\d+\.?\d*)H)?(?:(\d+\.?\d*)M)?(?:(\d+\.?\d*)S)?/);
+    const match = durationStr.match(
+        /PT(?:(\d+\.?\d*)H)?(?:(\d+\.?\d*)M)?(?:(\d+\.?\d*)S)?/
+    );
     if (!match) return 0;
-    const hours = parseFloat(match[1] || "0");
-    const minutes = parseFloat(match[2] || "0");
-    const seconds = parseFloat(match[3] || "0");
-    return (hours * 3600) + (minutes * 60) + seconds;
-};
+    const hours = parseFloat(match[1] || '0');
+    const minutes = parseFloat(match[2] || '0');
+    const seconds = parseFloat(match[3] || '0');
+    return hours * 3600 + minutes * 60 + seconds;
+}
