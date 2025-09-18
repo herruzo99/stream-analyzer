@@ -1,96 +1,56 @@
+import { html, nothing } from 'lit-html';
+import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { mpdTooltipData } from '../helpers/tooltip-data.js';
 
-/**
- * Creates an interactive HTML representation of the MPD with tooltips.
- * This version directly traverses the parsed XML DOM, which is more robust than regex or string manipulation.
- * @param {Element} mpd The root MPD element.
- * @returns {string} The HTML string.
- */
-export function getInteractiveMpdHTML(mpd) {
-    if (!mpd) {
-        return '<p class="warn">No MPD loaded to display.</p>';
-    }
+const escapeHtml = (str) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-    const html = buildHtmlFromNode(mpd, 0);
+const getTagHTML = (tagName) => {
+    const isClosing = tagName.startsWith('/');
+    const cleanTagName = isClosing ? tagName.substring(1) : tagName;
+    const tagInfo = mpdTooltipData[cleanTagName];
+    const tagClass = 'interactive-xml-tag';
+    const tooltipAttrs = tagInfo ? `data-tooltip="${escapeHtml(tagInfo.text)}" data-iso="${escapeHtml(tagInfo.isoRef)}"` : '';
+    return unsafeHTML(`&lt;${isClosing ? '/' : ''}<span class="${tagClass}" ${tooltipAttrs}>${cleanTagName}</span>`);
+};
 
-    return `<div class="interactive-mpd-container"><pre><code>${html}</code></pre></div>`;
-}
+const getAttributeHTML = (tagName, attr) => {
+    const attrKey = `${tagName}@${attr.name}`;
+    const attrInfo = mpdTooltipData[attrKey];
+    const nameClass = 'interactive-xml-attr-name';
+    const valueClass = 'interactive-xml-attr-value';
+    const tooltipAttrs = attrInfo ? `data-tooltip="${escapeHtml(attrInfo.text)}" data-iso="${escapeHtml(attrInfo.isoRef)}"` : '';
+    return unsafeHTML(`<span class="${nameClass}" ${tooltipAttrs}>${attr.name}</span>=<span class="${valueClass}">"${escapeHtml(attr.value)}"</span>`);
+};
 
-/**
- * Recursively builds an HTML string from an XML node, adding interactive tooltips.
- * @param {Node} node The XML node to process.
- * @param {number} depth The current indentation level.
- * @returns {string} The generated HTML for this node and its children.
- */
-function buildHtmlFromNode(node, depth) {
-    const indent = '  '.repeat(depth);
-    let html = '';
+export function getInteractiveMpdTemplate(mpd) {
+    if (!mpd) return html`<p class="warn">No MPD loaded to display.</p>`;
+    
+    // This function recursively builds the template, managing indentation and newlines correctly for the <pre> tag.
+    const preformatted = (node, depth = 0) => {
+        const indent = '  '.repeat(depth);
+        switch (node.nodeType) {
+            case Node.ELEMENT_NODE: {
+                 const el = /** @type {Element} */ (node);
+                 const childNodes = Array.from(el.childNodes);
+                 // Filter out empty text nodes to correctly identify childless elements
+                 const meaningfulChildren = childNodes.filter(n => n.nodeType === Node.ELEMENT_NODE || (n.nodeType === Node.TEXT_NODE && n.textContent.trim()));
 
-    switch (node.nodeType) {
-        case Node.ELEMENT_NODE:
-            const el = /** @type {Element} */ (node);
-            const tagName = el.tagName;
-            
-            const tagInfo = mpdTooltipData[tagName];
-            const tagHtml = tagInfo 
-                ? `<span class="interactive-xml-tag" data-tooltip="${escapeHtml(tagInfo.text)}" data-iso="${escapeHtml(tagInfo.isoRef)}">&lt;${tagName}</span>`
-                : `<span class="interactive-xml-tag">&lt;${tagName}</span>`;
-            
-            html += `${indent}${tagHtml}`;
-
-            // Process attributes
-            for (const attr of Array.from(el.attributes)) {
-                const attrKey = `${tagName}@${attr.name}`;
-                const attrInfo = mpdTooltipData[attrKey];
-                const attrNameHtml = attrInfo
-                    ? `<span class="interactive-xml-attr-name" data-tooltip="${escapeHtml(attrInfo.text)}" data-iso="${escapeHtml(attrInfo.isoRef)}">${attr.name}</span>`
-                    : `<span class="interactive-xml-attr-name">${attr.name}</span>`;
-                html += ` ${attrNameHtml}=<span class="interactive-xml-attr-value">"${escapeHtml(attr.value)}"</span>`;
+                 if (meaningfulChildren.length > 0) {
+                     return html`${indent}${getTagHTML(el.tagName)}${Array.from(el.attributes).map(a => html` ${getAttributeHTML(el.tagName, a)}`)}&gt;\n${childNodes.map(c => preformatted(c, depth + 1))}${indent}${getTagHTML(`/${el.tagName}`)}&gt;\n`;
+                 } else {
+                     return html`${indent}${getTagHTML(el.tagName)}${Array.from(el.attributes).map(a => html` ${getAttributeHTML(el.tagName, a)}`)} /&gt;\n`;
+                 }
             }
-
-            // Check for child ELEMENT nodes to decide closing tag style
-            const hasChildElements = Array.from(el.childNodes).some(n => n.nodeType === Node.ELEMENT_NODE);
-
-            if (hasChildElements) {
-                html += `&gt;\n`;
-                for (const child of Array.from(el.childNodes)) {
-                    html += buildHtmlFromNode(child, depth + 1);
-                }
-                html += `${indent}&lt;/${tagName}&gt;\n`;
-            } else if (el.childNodes.length > 0 && el.textContent.trim()) {
-                 // Handles elements with only text content like <Title>My Movie</Title>
-                html += `&gt;${escapeHtml(el.textContent.trim())}&lt;/${tagName}&gt;\n`;
-            } else {
-                // Self-closing tag for elements with no children
-                html += ` /&gt;\n`;
+            case Node.TEXT_NODE: {
+                 return node.textContent.trim() ? html`${indent}<span class="interactive-xml-text">${escapeHtml(node.textContent.trim())}</span>\n` : nothing;
             }
-            break;
-
-        case Node.COMMENT_NODE:
-            html += `${indent}<span class="interactive-xml-comment">&lt;!--${escapeHtml(node.textContent)}--&gt;</span>\n`;
-            break;
-            
-        // Text nodes with only whitespace are ignored to create a "pretty-print" effect
-        case Node.TEXT_NODE:
-            if (node.textContent.trim()) {
-                html += `${indent}${escapeHtml(node.textContent.trim())}\n`;
+            case Node.COMMENT_NODE: {
+                 return html`${indent}<span class="interactive-xml-comment">&lt;!--${escapeHtml(node.textContent)}--&gt;</span>\n`;
             }
-            break;
-    }
-    return html;
-}
-
-/**
- * Escapes HTML special characters for safe rendering inside attributes or text content.
- * @param {string | null} str The string to escape.
- * @returns {string} The escaped string.
- */
-function escapeHtml(str) {
-    if (!str) return '';
-    return str
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
+            default:
+                return nothing;
+        }
+    };
+    
+    return html`<div class="interactive-mpd-container"><pre><code>${preformatted(mpd)}</code></pre></div>`;
 }

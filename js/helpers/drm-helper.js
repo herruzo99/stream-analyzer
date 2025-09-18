@@ -8,7 +8,7 @@ export const knownDrmSchemes = {
     'urn:uuid:f239e769-efa3-4850-9c16-a903c6932efb': 'Adobe PrimeTime',
     'urn:uuid:1077efec-c0b2-4d02-ace3-3c1e52e2fb4b': 'ClearKey',
     'urn:uuid:94ce86fb-07ff-4f43-adb8-93d2fa968ca2': 'FairPlay',
-    'urn:mpeg:dash:mp4protection:2011': 'MPEG Common Encryption (CENC)'
+    'urn:mpeg:dash:mp4protection:2011': 'MPEG Common Encryption (CENC)',
 };
 
 /**
