@@ -1,4 +1,4 @@
-import { parseFtyp, ftypTooltip } from './ftyp.js';
+import { parseFtypStyp, ftypStypTooltip } from './ftyp.js';
 import { parseMvhd, mvhdTooltip } from './mvhd.js';
 import { parseMfhd, mfhdTooltip } from './mfhd.js';
 import { parseTfhd, tfhdTooltip } from './tfhd.js';
@@ -13,13 +13,18 @@ import { parseStsd, stsdTooltip } from './stsd.js';
 import { parseStts, sttsTooltip } from './stts.js';
 import { parseStsc, stscTooltip } from './stsc.js';
 import { parseStsz, stszTooltip } from './stsz.js';
-import { parseStco,stcoTooltip } from './stco.js';
+import { parseStco, stcoTooltip } from './stco.js';
 import { parseElst, elstTooltip } from './elst.js';
 import { parseTrex, trexTooltip } from './trex.js';
-import {groupTooltipData} from './groups/default.js'
+import { groupTooltipData } from './groups/default.js';
+import { parseAvcc, avccTooltip } from './avcc.js';
+import { parseEsds, esdsTooltip } from './esds.js';
+import { parseSmhd, smhdTooltip } from './smhd.js';
+import { parsePssh, psshTooltip } from './pssh.js';
+
 export const boxParsers = {
-    ftyp: parseFtyp,
-    styp: parseFtyp,
+    ftyp: parseFtypStyp,
+    styp: parseFtypStyp,
     mvhd: parseMvhd,
     mfhd: parseMfhd,
     tfhd: parseTfhd,
@@ -30,6 +35,7 @@ export const boxParsers = {
     mdhd: parseMdhd,
     hdlr: parseHdlr,
     vmhd: parseVmhd,
+    smhd: parseSmhd,
     stsd: parseStsd,
     stts: parseStts,
     stsc: parseStsc,
@@ -37,6 +43,9 @@ export const boxParsers = {
     stco: parseStco,
     elst: parseElst,
     trex: parseTrex,
+    pssh: parsePssh,
+    avcC: parseAvcc,
+    esds: parseEsds,
 };
 
 /**
@@ -45,10 +54,11 @@ export const boxParsers = {
  */
 export const tooltipData = {
     ...groupTooltipData,
-    ...ftypTooltip,
+    ...ftypStypTooltip,
     ...elstTooltip,
     ...hdlrTooltip,
     ...mvhdTooltip,
+    ...mfhdTooltip,
     ...tfhdTooltip,
     ...tfdtTooltip,
     ...trunTooltip,
@@ -56,11 +66,14 @@ export const tooltipData = {
     ...tkhdTooltip,
     ...mdhdTooltip,
     ...vmhdTooltip,
+    ...smhdTooltip,
     ...stsdTooltip,
     ...sttsTooltip,
     ...stscTooltip,
     ...stszTooltip,
     ...stcoTooltip,
     ...trexTooltip,
-    ...mfhdTooltip
+    ...psshTooltip,
+    ...avccTooltip,
+    ...esdsTooltip,
 };
