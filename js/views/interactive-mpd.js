@@ -1,6 +1,7 @@
 import { html, nothing } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { mpdTooltipData } from '../helpers/tooltip-data.js';
+import { tooltipTriggerClasses } from '../ui.js';
 
 const escapeHtml = (str) =>
     str
@@ -13,7 +14,8 @@ const getTagHTML = (tagName) => {
     const isClosing = tagName.startsWith('/');
     const cleanTagName = isClosing ? tagName.substring(1) : tagName;
     const tagInfo = mpdTooltipData[cleanTagName];
-    const tagClass = 'interactive-xml-tag';
+    const tagClass =
+        'text-blue-300 rounded-sm px-1 -mx-1 transition-colors hover:bg-slate-700';
     const tooltipAttrs = tagInfo
         ? `data-tooltip="${escapeHtml(tagInfo.text)}" data-iso="${escapeHtml(
               tagInfo.isoRef
@@ -22,22 +24,27 @@ const getTagHTML = (tagName) => {
     return unsafeHTML(
         `&lt;${
             isClosing ? '/' : ''
-        }<span class="${tagClass}" ${tooltipAttrs}>${cleanTagName}</span>`
+        }<span class="${tagClass} ${
+            tagInfo ? tooltipTriggerClasses : ''
+        }" ${tooltipAttrs}>${cleanTagName}</span>`
     );
 };
 
 const getAttributeHTML = (tagName, attr) => {
     const attrKey = `${tagName}@${attr.name}`;
     const attrInfo = mpdTooltipData[attrKey];
-    const nameClass = 'interactive-xml-attr-name';
-    const valueClass = 'interactive-xml-attr-value';
+    const nameClass =
+        'text-emerald-300 rounded-sm px-1 -mx-1 transition-colors hover:bg-slate-700';
+    const valueClass = 'text-yellow-300';
     const tooltipAttrs = attrInfo
         ? `data-tooltip="${escapeHtml(attrInfo.text)}" data-iso="${escapeHtml(
               attrInfo.isoRef
           )}"`
         : '';
     return unsafeHTML(
-        `<span class="${nameClass}" ${tooltipAttrs}>${
+        `<span class="${nameClass} ${
+            attrInfo ? tooltipTriggerClasses : ''
+        }" ${tooltipAttrs}>${
             attr.name
         }</span>=<span class="${valueClass}">"${escapeHtml(
             attr.value
@@ -79,13 +86,13 @@ ${childNodes.map((c) => preformatted(c, depth + 1))}${indent}${getTagHTML(
             }
             case Node.TEXT_NODE: {
                 // This is now only called for non-empty text nodes due to the filter above.
-                return html`${indent}<span class="interactive-xml-text"
+                return html`${indent}<span class="text-gray-200"
 >${escapeHtml(node.textContent.trim())}</span
 >
 `;
             }
             case Node.COMMENT_NODE: {
-                return html`${indent}<span class="interactive-xml-comment"
+                return html`${indent}<span class="text-gray-500 italic"
 >&lt;!--${escapeHtml(node.textContent)}--&gt;</span
 >
 `;
@@ -98,7 +105,9 @@ ${childNodes.map((c) => preformatted(c, depth + 1))}${indent}${getTagHTML(
     // The entire output is now a single template literal, which preserves newlines between recursive calls.
     const fullTemplate = html`${preformatted(mpd)}`;
 
-    return html`<div class="interactive-mpd-container">
-<pre><code>${fullTemplate}</code></pre>
+    return html`<div
+        class="bg-slate-800 rounded-lg p-4 font-mono text-sm leading-relaxed overflow-x-auto"
+    >
+        <pre class="m-0 p-0 whitespace-pre"><code>${fullTemplate}</code></pre>
     </div>`;
 }

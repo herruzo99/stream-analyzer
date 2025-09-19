@@ -24,6 +24,7 @@
  * @property {number} activeMpdUpdateIndex
  * @property {boolean} isPollingActive
  * @property {Map<string, {status: number, data: ArrayBuffer | null}>} segmentCache
+ * @property {string[]} segmentsForCompare
  */
 
 /** @type {AnalysisState} */
@@ -36,6 +37,7 @@ export let analysisState = {
     activeMpdUpdateIndex: 0,
     isPollingActive: false,
     segmentCache: new Map(),
+    segmentsForCompare: [],
 };
 
 /**
@@ -50,6 +52,7 @@ export let analysisState = {
  * @property {HTMLSelectElement} contextSwitcher
  * @property {Record<string, HTMLDivElement>} tabContents
  * @property {HTMLDivElement} segmentModal
+ * @property {HTMLHeadingElement} modalTitle
  * @property {HTMLParagraphElement} modalSegmentUrl
  * @property {HTMLDivElement} modalContentArea
  * @property {HTMLButtonElement} closeModalBtn
@@ -104,6 +107,9 @@ export const dom = {
     },
     segmentModal: /** @type {HTMLDivElement} */ (
         document.getElementById('segment-modal')
+    ),
+    modalTitle: /** @type {HTMLHeadingElement} */ (
+        document.getElementById('modal-title')
     ),
     modalSegmentUrl: /** @type {HTMLParagraphElement} */ (
         document.getElementById('modal-segment-url')

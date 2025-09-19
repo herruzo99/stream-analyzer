@@ -8,6 +8,55 @@ const SEGMENT_PAGE_SIZE = 10;
 // --- MODULE STATE ---
 let segmentFreshnessInterval = null;
 let allSegmentsByRep = {}; // Caches the full list of segments for the current MPD
+let currentContainer = null;
+let currentMpd = null;
+let currentBaseUrl = null;
+
+// --- EVENT HANDLERS ---
+function handleSegmentCheck(e) {
+    const checkbox = /** @type {HTMLInputElement} */ (e.target);
+    const url = checkbox.value;
+    const { segmentsForCompare } = analysisState;
+
+    if (checkbox.checked) {
+        if (!segmentsForCompare.includes(url)) {
+            segmentsForCompare.push(url);
+        }
+    } else {
+        const index = segmentsForCompare.indexOf(url);
+        if (index > -1) {
+            segmentsForCompare.splice(index, 1);
+        }
+    }
+
+    // A simple re-render is the easiest way to update the button state
+    initializeSegmentExplorer(currentContainer, currentMpd, currentBaseUrl);
+}
+
+function handleCompareClick() {
+    const { segmentsForCompare, segmentCache } = analysisState;
+    if (segmentsForCompare.length !== 2) return;
+
+    const [urlA, urlB] = segmentsForCompare;
+    const segmentA = segmentCache.get(urlA);
+    const segmentB = segmentCache.get(urlB);
+
+    if (!segmentA?.data || !segmentB?.data) {
+        alert('One or both selected segments have not been fetched successfully.');
+        return;
+    }
+
+    dom.modalTitle.textContent = 'Segment Comparison';
+    dom.modalSegmentUrl.textContent = `Comparing Segment A vs. Segment B`;
+    const modalContent = dom.segmentModal.querySelector('div');
+    dom.segmentModal.classList.remove('opacity-0', 'invisible');
+    dom.segmentModal.classList.add('opacity-100', 'visible');
+    modalContent.classList.remove('scale-95');
+    modalContent.classList.add('scale-100');
+
+    // Dispatch with two buffers to trigger comparison mode
+    dispatchAndRenderSegmentAnalysis(null, segmentA.data, segmentB.data);
+}
 
 // --- TEMPLATES ---
 const segmentRowTemplate = (seg) => {
@@ -15,35 +64,45 @@ const segmentRowTemplate = (seg) => {
     let statusHtml;
 
     if (!cacheEntry || cacheEntry.status === -1) {
-        // This case should now be rare, but kept for robustness
-        statusHtml = html`<span
-            class="segment-status-indicator status-pending"
+        statusHtml = html`<div
+            class="flex-shrink-0 w-2.5 h-2.5 rounded-full bg-gray-500 animate-pulse"
             title="Status: Pending"
-        ></span>`;
+        ></div>`;
     } else if (cacheEntry.status !== 200) {
         const statusText =
             cacheEntry.status === 0
                 ? 'Network Error'
                 : `HTTP ${cacheEntry.status}`;
-        statusHtml = html`<span
-                class="segment-status-indicator status-fail"
+        statusHtml = html`<div
+                class="flex-shrink-0 w-2.5 h-2.5 rounded-full bg-red-500"
                 title="Status: ${statusText}"
-            ></span
-            ><span class="text-xs text-red-400 ml-1">[${statusText}]</span>`;
+            ></div>
+            <span class="text-xs text-red-400 ml-2">[${statusText}]</span>`;
     } else {
-        // Success case - no visible indicator needed, just the text
-        statusHtml = html``;
+        // Success case
+        statusHtml = html`<div
+            class="flex-shrink-0 w-2.5 h-2.5 rounded-full bg-green-500"
+            title="Status: OK (200)"
+        ></div>`;
     }
 
     const typeLabel = seg.type === 'Init' ? 'Init' : `Media #${seg.number}`;
     const canAnalyze =
         cacheEntry && cacheEntry.status === 200 && cacheEntry.data;
+    const isChecked = analysisState.segmentsForCompare.includes(seg.resolvedUrl);
 
     const analyzeHandler = (e) => {
+        dom.modalTitle.textContent = 'Segment Analysis';
         const url = /** @type {HTMLElement} */ (e.currentTarget).dataset.url;
         const cached = analysisState.segmentCache.get(url);
         dom.modalSegmentUrl.textContent = url;
-        dom.segmentModal.classList.add('modal-overlay-visible');
+
+        const modalContent = dom.segmentModal.querySelector('div');
+        dom.segmentModal.classList.remove('opacity-0', 'invisible');
+        dom.segmentModal.classList.add('opacity-100', 'visible');
+        modalContent.classList.remove('scale-95');
+        modalContent.classList.add('scale-100');
+
         dispatchAndRenderSegmentAnalysis(e, cached?.data);
     };
 
@@ -58,7 +117,21 @@ const segmentRowTemplate = (seg) => {
         data-url="${seg.resolvedUrl}"
         data-time="${seg.time}"
     >
-        <td class="py-2 pl-3 status-cell">${statusHtml}${typeLabel}</td>
+        <td class="py-2 pl-3 w-8">
+            <input
+                type="checkbox"
+                class="bg-gray-700 border-gray-500 rounded focus:ring-blue-500"
+                .value=${seg.resolvedUrl}
+                ?checked=${isChecked}
+                @change=${handleSegmentCheck}
+            />
+        </td>
+        <td class="py-2">
+            <div class="flex items-center">
+                ${statusHtml}
+                <span class="ml-2">${typeLabel}</span>
+            </div>
+        </td>
         <td class="py-2 text-xs font-mono">${segmentTiming}</td>
         <td
             class="py-2 font-mono text-cyan-400 truncate"
@@ -94,7 +167,8 @@ const segmentTableTemplate = (rep, segmentsToRender) => {
                 <table class="w-full text-left text-sm table-fixed">
                     <thead class="sticky top-0 bg-gray-900 z-10">
                         <tr>
-                            <th class="py-2 pl-3 w-[15%]">Type / Status</th>
+                            <th class="py-2 pl-3 w-8"></th>
+                            <th class="py-2 w-[15%]">Type / Status</th>
                             <th class="py-2 w-[20%]">Timing (s)</th>
                             <th class="py-2 w-[45%]">URL / Template</th>
                             <th class="py-2 pr-3 w-[20%] text-right">
@@ -115,6 +189,10 @@ const segmentTableTemplate = (rep, segmentsToRender) => {
 
 // --- UI INITIALIZATION AND EVENT HANDLERS ---
 export function initializeSegmentExplorer(container, mpd, baseUrl) {
+    currentContainer = container;
+    currentMpd = mpd;
+    currentBaseUrl = baseUrl;
+
     allSegmentsByRep = parseAllSegmentUrls(mpd, baseUrl);
     const isDynamic = mpd.getAttribute('type') === 'dynamic';
 
@@ -141,10 +219,19 @@ export function initializeSegmentExplorer(container, mpd, baseUrl) {
                           </button>`
                         : ''}
                 </div>
-                <div class="segment-filter-controls">
+                 <button
+                    @click=${handleCompareClick}
+                    class="bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    ?disabled=${analysisState.segmentsForCompare.length !== 2}
+                >
+                    Compare Selected (${analysisState.segmentsForCompare.length}/2)
+                </button>
+                <div
+                    class="flex items-center border border-gray-600 rounded-md overflow-hidden"
+                >
                     <select
                         id="segment-filter-type"
-                        class="bg-gray-700 text-white rounded-l-md border-gray-600 p-2 text-sm h-full border-r-0"
+                        class="bg-gray-700 text-white border-0 focus:ring-0 p-2 text-sm h-full"
                     >
                         <option value="number">Segment #</option>
                         <option value="time">Time (s)</option>
@@ -152,24 +239,24 @@ export function initializeSegmentExplorer(container, mpd, baseUrl) {
                     <input
                         type="text"
                         id="segment-filter-from"
-                        class="bg-gray-700 text-white p-2 border-gray-600 w-24 text-sm h-full"
+                        class="bg-gray-700 text-white p-2 border-0 border-l border-gray-600 focus:ring-0 w-24 text-sm h-full"
                         placeholder="From"
                     />
                     <input
                         type="text"
                         id="segment-filter-to"
-                        class="bg-gray-700 text-white p-2 border-gray-600 w-24 text-sm h-full"
+                        class="bg-gray-700 text-white p-2 border-0 border-l border-gray-600 focus:ring-0 w-24 text-sm h-full"
                         placeholder="To"
                     />
                     <button
                         @click=${handleFilter}
-                        class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-3 h-full"
+                        class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-3 h-full border-l border-gray-600"
                     >
                         Filter
                     </button>
                     <button
                         @click=${() => loadAndRenderSegmentRange('first')}
-                        class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-3 rounded-r-md h-full"
+                        class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-3 h-full border-l border-gray-600"
                     >
                         Reset
                     </button>
@@ -182,8 +269,12 @@ export function initializeSegmentExplorer(container, mpd, baseUrl) {
         <div class="dev-watermark">Segment Explorer v3.0</div>
     `;
     render(template, container);
-    // Auto-load the first page for a better user experience
-    loadAndRenderSegmentRange('first');
+    // Auto-load the first page for a better user experience on first init
+    if (
+        !document.querySelector('#segment-explorer-content table')
+    ) {
+        loadAndRenderSegmentRange('first');
+    }
 }
 
 async function loadAndRenderSegmentRange(mode) {
@@ -193,6 +284,7 @@ async function loadAndRenderSegmentRange(mode) {
     render(html`<p class="info">Fetching segment data...</p>`, contentArea);
 
     analysisState.segmentCache.clear();
+    analysisState.segmentsForCompare = [];
     stopSegmentFreshnessChecker();
 
     const segmentsToFetch = Object.values(allSegmentsByRep).flatMap(
@@ -206,7 +298,6 @@ async function loadAndRenderSegmentRange(mode) {
         segmentsToFetch.map((seg) => fetchSegment(seg.resolvedUrl))
     );
 
-    // *** THE FIX IS HERE: Generate the template *after* the cache is populated ***
     const mpd = analysisState.streams.find(
         (s) => s.id === analysisState.activeStreamId
     ).mpd;
@@ -278,7 +369,6 @@ async function handleFilter() {
         segmentsToFetch.map((seg) => fetchSegment(seg.resolvedUrl))
     );
 
-    // *** THE FIX IS HERE: Generate the template *after* the cache is populated ***
     const mpd = analysisState.streams.find(
         (s) => s.id === analysisState.activeStreamId
     ).mpd;
@@ -452,13 +542,12 @@ function updateSegmentFreshness() {
             );
 
             if (isStale && !staleIndicator) {
-                // Surgically add the indicator element without breaking existing content or listeners.
                 const indicator = document.createElement('div');
-                indicator.className = 'stale-segment-indicator';
+                indicator.className =
+                    'stale-segment-indicator flex-shrink-0 w-2.5 h-2.5 rounded-full bg-yellow-400';
                 indicator.title = `This segment is outside the current DVR window (${dvrStartTime.toFixed(1)}s - ${liveEdge.toFixed(1)}s).`;
                 statusCell.prepend(indicator);
             } else if (!isStale && staleIndicator) {
-                // Surgically remove the indicator when the segment is no longer stale.
                 staleIndicator.remove();
             }
         });

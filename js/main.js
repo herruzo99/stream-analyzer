@@ -17,9 +17,13 @@ const MAX_HISTORY_ITEMS = 10;
 dom.addStreamBtn.addEventListener('click', addStreamInput);
 dom.analyzeBtn.addEventListener('click', handleAnalysis);
 dom.tabs.addEventListener('click', handleTabClick);
-dom.closeModalBtn.addEventListener('click', () =>
-    dom.segmentModal.classList.remove('modal-overlay-visible')
-);
+dom.closeModalBtn.addEventListener('click', () => {
+    const modalContent = dom.segmentModal.querySelector('div');
+    dom.segmentModal.classList.add('opacity-0', 'invisible');
+    dom.segmentModal.classList.remove('opacity-100', 'visible');
+    modalContent.classList.add('scale-95');
+    modalContent.classList.remove('scale-100');
+});
 dom.contextSwitcher.addEventListener('change', (e) => {
     const target = /** @type {HTMLSelectElement} */ (e.target);
     analysisState.activeStreamId = parseInt(target.value);
@@ -130,6 +134,12 @@ async function handleAnalysis() {
         analysisState.streams.sort((a, b) => a.id - b.id);
         analysisState.activeStreamId = analysisState.streams[0].id;
 
+        // Set a sensible default for the polling state based on the analysis result.
+        const isSingleDynamicStream =
+            analysisState.streams.length === 1 &&
+            analysisState.streams[0].mpd.getAttribute('type') === 'dynamic';
+        analysisState.isPollingActive = isSingleDynamicStream;
+
         const defaultTab =
             analysisState.streams.length > 1 ? 'comparison' : 'summary';
 
@@ -143,7 +153,7 @@ async function handleAnalysis() {
         dom.results.classList.remove('hidden');
 
         /** @type {HTMLButtonElement} */ (
-            document.querySelector(`.tab[data-tab="${defaultTab}"]`)
+            document.querySelector(`[data-tab="${defaultTab}"]`)
         ).click();
     } catch (_error) {
         // Error is already logged and displayed in the status bar

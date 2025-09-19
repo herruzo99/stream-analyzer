@@ -4,9 +4,6 @@ export function setupGlobalTooltipListener() {
     document.body.addEventListener('mouseover', (e) => {
         const target = /** @type {HTMLElement} */ (e.target);
 
-        // ** THE FIX IS HERE **
-        // The listener now looks for any element with a `data-tooltip` attribute,
-        // not just elements with the `.tooltip` class. This makes it universal.
         const tooltipTrigger = /** @type {HTMLElement} */ (
             target.closest('[data-tooltip]')
         );
@@ -23,7 +20,7 @@ export function setupGlobalTooltipListener() {
 
         if (!text) return;
 
-        const tooltipContent = `${text}${isoRef ? `<span class="iso-ref">${isoRef}</span>` : ''}`;
+        const tooltipContent = `${text}${isoRef ? `<span class="block mt-1 font-medium text-emerald-300">${isoRef}</span>` : ''}`;
 
         dom.globalTooltip.innerHTML = tooltipContent;
 

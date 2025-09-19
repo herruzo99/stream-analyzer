@@ -28,7 +28,7 @@ export function diffMpd(oldMpd, newMpd) {
         const escapedValue = escapeHtml(part.value);
 
         if (part.added) {
-            html += `<span class="diff-added">${escapedValue}</span>`;
+            html += `<span class="bg-emerald-500/40 text-green-50 rounded-sm font-medium">${escapedValue}</span>`;
         } else {
             html += escapedValue;
         }
