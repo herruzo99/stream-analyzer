@@ -15,10 +15,14 @@ const getTagHTML = (tagName) => {
     const tagInfo = mpdTooltipData[cleanTagName];
     const tagClass = 'interactive-xml-tag';
     const tooltipAttrs = tagInfo
-        ? `data-tooltip="${escapeHtml(tagInfo.text)}" data-iso="${escapeHtml(tagInfo.isoRef)}"`
+        ? `data-tooltip="${escapeHtml(tagInfo.text)}" data-iso="${escapeHtml(
+              tagInfo.isoRef
+          )}"`
         : '';
     return unsafeHTML(
-        `&lt;${isClosing ? '/' : ''}<span class="${tagClass}" ${tooltipAttrs}>${cleanTagName}</span>`
+        `&lt;${
+            isClosing ? '/' : ''
+        }<span class="${tagClass}" ${tooltipAttrs}>${cleanTagName}</span>`
     );
 };
 
@@ -28,10 +32,16 @@ const getAttributeHTML = (tagName, attr) => {
     const nameClass = 'interactive-xml-attr-name';
     const valueClass = 'interactive-xml-attr-value';
     const tooltipAttrs = attrInfo
-        ? `data-tooltip="${escapeHtml(attrInfo.text)}" data-iso="${escapeHtml(attrInfo.isoRef)}"`
+        ? `data-tooltip="${escapeHtml(attrInfo.text)}" data-iso="${escapeHtml(
+              attrInfo.isoRef
+          )}"`
         : '';
     return unsafeHTML(
-        `<span class="${nameClass}" ${tooltipAttrs}>${attr.name}</span>=<span class="${valueClass}">"${escapeHtml(attr.value)}"</span>`
+        `<span class="${nameClass}" ${tooltipAttrs}>${
+            attr.name
+        }</span>=<span class="${valueClass}">"${escapeHtml(
+            attr.value
+        )}"</span>`
     );
 };
 
@@ -44,46 +54,51 @@ export function getInteractiveMpdTemplate(mpd) {
         switch (node.nodeType) {
             case Node.ELEMENT_NODE: {
                 const el = /** @type {Element} */ (node);
-                const childNodes = Array.from(el.childNodes);
-                // Filter out empty text nodes to correctly identify childless elements
-                const meaningfulChildren = childNodes.filter(
+                // Filter out insignificant whitespace to prevent rendering artifacts.
+                const childNodes = Array.from(el.childNodes).filter(
                     (n) =>
                         n.nodeType === Node.ELEMENT_NODE ||
+                        n.nodeType === Node.COMMENT_NODE ||
                         (n.nodeType === Node.TEXT_NODE && n.textContent.trim())
                 );
 
-                if (meaningfulChildren.length > 0) {
+                if (childNodes.length > 0) {
                     return html`${indent}${getTagHTML(el.tagName)}${Array.from(
                         el.attributes
                     ).map((a) => html` ${getAttributeHTML(el.tagName, a)}`)}&gt;
-                    ${childNodes.map((c) =>
-                        preformatted(c, depth + 1)
-                    )}${indent}${getTagHTML(`/${el.tagName}`)}&gt; `;
+${childNodes.map((c) => preformatted(c, depth + 1))}${indent}${getTagHTML(
+                        `/${el.tagName}`
+                    )}&gt;
+`;
                 } else {
                     return html`${indent}${getTagHTML(el.tagName)}${Array.from(
                         el.attributes
-                    ).map((a) => html` ${getAttributeHTML(el.tagName, a)}`)}
-                    /&gt; `;
+                    ).map((a) => html` ${getAttributeHTML(el.tagName, a)}`)} /&gt;
+`;
                 }
             }
             case Node.TEXT_NODE: {
-                return node.textContent.trim()
-                    ? html`${indent}<span class="interactive-xml-text"
-                              >${escapeHtml(node.textContent.trim())}</span
-                          > `
-                    : nothing;
+                // This is now only called for non-empty text nodes due to the filter above.
+                return html`${indent}<span class="interactive-xml-text"
+>${escapeHtml(node.textContent.trim())}</span
+>
+`;
             }
             case Node.COMMENT_NODE: {
                 return html`${indent}<span class="interactive-xml-comment"
-                        >&lt;!--${escapeHtml(node.textContent)}--&gt;</span
-                    > `;
+>&lt;!--${escapeHtml(node.textContent)}--&gt;</span
+>
+`;
             }
             default:
                 return nothing;
         }
     };
 
+    // The entire output is now a single template literal, which preserves newlines between recursive calls.
+    const fullTemplate = html`${preformatted(mpd)}`;
+
     return html`<div class="interactive-mpd-container">
-        <pre><code>${preformatted(mpd)}</code></pre>
+<pre><code>${fullTemplate}</code></pre>
     </div>`;
 }
