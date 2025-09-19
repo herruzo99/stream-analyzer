@@ -27,38 +27,40 @@
     <body
         class="bg-gray-900 text-gray-200 min-h-screen p-4 sm:p-6 md:p-8 font-sans"
     >
-        <div class="max-w-7xl mx-auto">
-            <header class="text-center mb-8">
-                <h1 class="text-3xl sm:text-4xl font-bold text-white">
-                    Exhaustive DASH MPD Analyzer
-                </h1>
-                <p class="text-gray-400 mt-2">
-                    Analyze and compare DASH streams against the ISO/IEC
-                    23009-1:2022 standard.
-                </p>
-            </header>
+        <div class="w-full">
+            <div class="max-w-7xl mx-auto">
+                <header class="text-center mb-8">
+                    <h1 class="text-3xl sm:text-4xl font-bold text-white">
+                        Exhaustive DASH MPD Analyzer
+                    </h1>
+                    <p class="text-gray-400 mt-2">
+                        Analyze and compare DASH streams against the ISO/IEC
+                        23009-1:2022 standard.
+                    </p>
+                </header>
 
-            <div class="bg-gray-800 p-6 rounded-lg shadow-lg mb-8">
-                <div id="stream-inputs" class="space-y-6">
-                    <!-- Stream inputs will be dynamically added here -->
+                <div class="bg-gray-800 p-6 rounded-lg shadow-lg mb-8">
+                    <div id="stream-inputs" class="space-y-6">
+                        <!-- Stream inputs will be dynamically added here -->
+                    </div>
+                    <div class="flex flex-col sm:flex-row gap-4 mt-6">
+                        <button
+                            id="add-stream-btn"
+                            class="w-full sm:w-auto flex-grow bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md transition duration-300"
+                        >
+                            Add Another Stream
+                        </button>
+                        <button
+                            id="analyze-btn"
+                            class="w-full sm:w-auto flex-grow bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition duration-300"
+                        >
+                            Analyze & Compare
+                        </button>
+                    </div>
                 </div>
-                <div class="flex flex-col sm:flex-row gap-4 mt-6">
-                    <button
-                        id="add-stream-btn"
-                        class="w-full sm:w-auto flex-grow bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md transition duration-300"
-                    >
-                        Add Another Stream
-                    </button>
-                    <button
-                        id="analyze-btn"
-                        class="w-full sm:w-auto flex-grow bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition duration-300"
-                    >
-                        Analyze & Compare
-                    </button>
-                </div>
+
+                <div id="status" class="text-center my-4"></div>
             </div>
-
-            <div id="status" class="text-center my-4"></div>
 
             <div id="results" class="hidden">
                 <div id="context-switcher-container" class="mb-4 hidden">
@@ -112,6 +114,12 @@
                         </button>
                         <button
                             class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
+                            data-tab="interactive-segment"
+                        >
+                            Interactive Segment
+                        </button>
+                        <button
+                            class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
                             data-tab="interactive-mpd"
                         >
                             Interactive MPD
@@ -131,6 +139,7 @@
                     <div id="tab-features" class="hidden"></div>
                     <div id="tab-compliance" class="hidden"></div>
                     <div id="tab-explorer" class="hidden"></div>
+                    <div id="tab-interactive-segment" class="hidden"></div>
                     <div id="tab-interactive-mpd" class="hidden"></div>
                     <div id="tab-updates" class="hidden">
                         <div id="mpd-updates-content"></div>

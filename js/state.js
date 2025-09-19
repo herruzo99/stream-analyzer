@@ -1,15 +1,62 @@
 /**
+ * @typedef {object} Representation
+ * @property {string} id
+ * @property {string} codecs
+ * @property {number} bandwidth
+ * @property {number} width
+ * @property {number} height
+ */
+
+/**
+ * @typedef {object} ContentProtection
+ * @property {string} schemeIdUri
+ * @property {string} system
+ */
+
+/**
+ * @typedef {object} AdaptationSet
+ * @property {string} id
+ * @property {string} contentType
+ * @property {string} lang
+ * @property {string} mimeType
+ * @property {Representation[]} representations
+ * @property {ContentProtection[]} contentProtection
+ */
+
+/**
+ * @typedef {object} Period
+ * @property {string} id
+ * @property {number} start
+ * @property {number} duration
+ * @property {AdaptationSet[]} adaptationSets
+ */
+
+/**
+ * @typedef {object} Manifest
+ * @property {'static' | 'dynamic'} type
+ * @property {string} profiles
+ * @property {number} minBufferTime
+ * @property {Date | null} publishTime
+ * @property {Date | null} availabilityStartTime
+ * @property {number | null} timeShiftBufferDepth
+ * @property {number | null} minimumUpdatePeriod
+ * @property {number | null} duration
+ * @property {Period[]} periods
+ * @property {Element} rawElement - Reference to the original parsed element for features not yet migrated.
+ */
+
+/**
  * @typedef {object} Stream
  * @property {number} id
  * @property {string} name
  * @property {string} originalUrl
  * @property {string} baseUrl
- * @property {Element} mpd
+ * @property {Manifest} manifest
  * @property {string} rawXml
  */
 
 /**
- * @typedef {object} MpdUpdate
+ * @typedef {object} ManifestUpdate
  * @property {string} timestamp
  * @property {string} diffHtml
  */
@@ -18,12 +65,13 @@
  * @typedef {object} AnalysisState
  * @property {Stream[]} streams
  * @property {number | null} activeStreamId
+ * @property {string | null} activeSegmentUrl
  * @property {number | null} segmentFreshnessChecker
  * @property {number} streamIdCounter
- * @property {MpdUpdate[]} mpdUpdates
- * @property {number} activeMpdUpdateIndex
+ * @property {ManifestUpdate[]} manifestUpdates
+ * @property {number} activeManifestUpdateIndex
  * @property {boolean} isPollingActive
- * @property {Map<string, {status: number, data: ArrayBuffer | null}>} segmentCache
+ * @property {Map<string, {status: number, data: ArrayBuffer | null, parsedData: object | null}>} segmentCache
  * @property {string[]} segmentsForCompare
  */
 
@@ -31,10 +79,11 @@
 export let analysisState = {
     streams: [],
     activeStreamId: null,
+    activeSegmentUrl: null,
     segmentFreshnessChecker: null,
     streamIdCounter: 0,
-    mpdUpdates: [],
-    activeMpdUpdateIndex: 0,
+    manifestUpdates: [],
+    activeManifestUpdateIndex: 0,
     isPollingActive: false,
     segmentCache: new Map(),
     segmentsForCompare: [],
@@ -95,11 +144,14 @@ export const dom = {
         compliance: /** @type {HTMLDivElement} */ (
             document.getElementById('tab-compliance')
         ),
-        'interactive-mpd': /** @type {HTMLDivElement} */ (
-            document.getElementById('tab-interactive-mpd')
-        ),
         explorer: /** @type {HTMLDivElement} */ (
             document.getElementById('tab-explorer')
+        ),
+        'interactive-segment': /** @type {HTMLDivElement} */ (
+            document.getElementById('tab-interactive-segment')
+        ),
+        'interactive-mpd': /** @type {HTMLDivElement} */ (
+            document.getElementById('tab-interactive-mpd')
         ),
         updates: /** @type {HTMLDivElement} */ (
             document.getElementById('tab-updates')
