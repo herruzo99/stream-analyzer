@@ -18,7 +18,8 @@ export function startMpdUpdatePolling(stream) {
     const updatePeriod = parseDuration(updatePeriodAttr) * 1000;
     const pollInterval = Math.max(updatePeriod, 2000); // Poll no more than every 2 seconds
 
-    let originalMpdString = new XMLSerializer().serializeToString(stream.mpd);
+    // Use the raw XML from the state as the ground truth for the original MPD.
+    let originalMpdString = stream.rawXml;
 
     mpdUpdateInterval = setInterval(async () => {
         try {
@@ -32,7 +33,10 @@ export function startMpdUpdatePolling(stream) {
                     stream.baseUrl
                 );
                 const oldMpdForDiff = originalMpdString;
+
+                // Update the stream state with the new parsed MPD and the new raw XML.
                 stream.mpd = newMpd;
+                stream.rawXml = newMpdString;
                 originalMpdString = newMpdString;
 
                 // Pretty print XML before diffing to ensure a clean, format-independent comparison

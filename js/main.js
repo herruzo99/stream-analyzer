@@ -94,14 +94,20 @@ async function handleAnalysis() {
                 `Parsing and resolving remote elements for ${name}...`,
                 'info'
             );
-            // *** THE FIX IS HERE: `await` the async parseMpd function ***
             const { mpd, baseUrl: newBaseUrl } = await parseMpd(
                 xmlString,
                 baseUrl
             );
             baseUrl = newBaseUrl;
 
-            return { id, name, originalUrl, baseUrl, mpd };
+            return {
+                id,
+                name,
+                originalUrl,
+                baseUrl,
+                mpd,
+                rawXml: xmlString,
+            };
         } catch (error) {
             showStatus(
                 `Failed to process stream ${id + 1} (${name}): ${error.message}`,
