@@ -18,3 +18,35 @@ export function parseTrun(box, view) {
      // TODO: Individual sample parsing is complex and omitted for this refactoring,
      // but this is where it would live.
 }
+
+export const trunTooltip = {
+       trun: {
+        name: 'Track Run',
+        text: 'Contains timing, size, and flags for a run of samples.',
+        ref: 'ISO/IEC 14496-12, 8.8.8',
+    },
+    'trun@version': {
+        text: 'Version of this box (0 or 1). Affects signed/unsigned composition time.',
+        ref: 'ISO/IEC 14496-12, 8.8.8.2',
+    },
+    'trun@flags': {
+        text: 'A bitfield indicating which optional per-sample fields are present.',
+        ref: 'ISO/IEC 14496-12, 8.8.8.2',
+    },
+    'trun@sample_count': {
+        text: 'The number of samples in this run.',
+        ref: 'ISO/IEC 14496-12, 8.8.8.3',
+    },
+    'trun@data_offset': {
+        text: 'An optional offset added to the base_data_offset.',
+        ref: 'ISO/IEC 14496-12, 8.8.8.3',
+    },
+    'trun@first_sample_flags': {
+        text: 'Flags for the first sample, overriding the default.',
+        ref: 'ISO/IEC 14496-12, 8.8.8.3',
+    },
+    'trun@samples': {
+        text: 'A table of sample-specific data (duration, size, flags, composition time offset).',
+        ref: 'ISO/IEC 14496-12, 8.8.8.2',
+    },
+}
