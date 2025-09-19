@@ -1,24 +1,30 @@
 import { html, render } from 'lit-html';
 import { dom, analysisState } from './state.js';
-// Corrected imports - only template functions are needed from views
-import { getGlobalSummaryTemplate } from './views/summary.js';
-import { getComplianceReportTemplate } from './views/compliance-report.js';
-import { getTimelineAndVisualsTemplate } from './views/timeline-visuals.js';
-import { getFeaturesAnalysisTemplate } from './views/features.js';
-import { getInteractiveMpdTemplate } from './views/interactive-mpd.js';
+import { getGlobalSummaryTemplate } from './features/summary/view.js';
+import {
+    getComplianceReportTemplate,
+    attachComplianceFilterListeners,
+} from './features/compliance/view.js';
+import { getTimelineAndVisualsTemplate } from './features/timeline-visuals/view.js';
+import { getFeaturesAnalysisTemplate } from './features/feature-analysis/view.js';
+import { getInteractiveManifestTemplate } from './features/interactive-manifest/view.js';
+import { getInteractiveSegmentTemplate } from './features/interactive-segment/view.js';
 import {
     initializeSegmentExplorer,
     startSegmentFreshnessChecker,
     stopSegmentFreshnessChecker,
-} from './views/segment-explorer.js';
-import { getComparisonTemplate } from './views/compare.js';
-import { startMpdUpdatePolling, stopMpdUpdatePolling } from './mpd-poll.js';
+} from './features/segment-explorer/view.js';
+import { getComparisonTemplate } from './features/comparison/view.js';
 import {
-    renderMpdUpdates,
+    startManifestUpdatePolling,
+    stopManifestUpdatePolling,
+} from './features/manifest-updates/poll.js';
+import {
+    renderManifestUpdates,
     updatePollingButton,
-    navigateMpdUpdates,
-} from './views/mpd-updates.js';
-import { exampleStreams } from './helpers/stream-examples.js';
+    navigateManifestUpdates,
+} from './features/manifest-updates/view.js';
+import { exampleStreams } from './data/example-streams.js';
 
 let keyboardNavigationListener = null;
 
@@ -75,7 +81,7 @@ const streamInputTemplate = (
                     type="url"
                     id="url-${streamId}"
                     class="input-url w-full bg-gray-700 text-white rounded-md p-2 border border-gray-600 focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter MPD URL..."
+                    placeholder="Enter Manifest URL..."
                     .value=${isFirstStream && urlHistory.length > 0
                         ? urlHistory[0]
                         : ''}
@@ -90,7 +96,7 @@ const streamInputTemplate = (
                     type="file"
                     id="file-${streamId}"
                     class="input-file hidden"
-                    accept=".mpd, .xml"
+                    accept=".mpd, .xml, .m3u8"
                     @change=${handleFileChange}
                 />
             </div>
@@ -173,7 +179,7 @@ export function handleTabClick(e) {
     if (!targetTab) return;
 
     stopSegmentFreshnessChecker();
-    stopMpdUpdatePolling();
+    stopManifestUpdatePolling();
 
     if (keyboardNavigationListener) {
         document.removeEventListener('keydown', keyboardNavigationListener);
@@ -196,6 +202,14 @@ export function handleTabClick(e) {
     const activeTabContent = dom.tabContents[targetTab.dataset.tab];
     if (activeTabContent) activeTabContent.classList.remove('hidden');
 
+    // Re-render state-dependent tabs when they are clicked
+    if (targetTab.dataset.tab === 'interactive-segment') {
+        render(
+            getInteractiveSegmentTemplate(),
+            dom.tabContents['interactive-segment']
+        );
+    }
+
     if (targetTab.dataset.tab === 'explorer') {
         startSegmentFreshnessChecker();
     } else if (targetTab.dataset.tab === 'updates') {
@@ -203,13 +217,15 @@ export function handleTabClick(e) {
         if (
             analysisState.isPollingActive &&
             analysisState.streams.length === 1 &&
-            analysisState.streams[0].mpd.getAttribute('type') === 'dynamic'
+            analysisState.streams[0].manifest.type === 'dynamic'
         ) {
-            startMpdUpdatePolling(analysisState.streams[0]);
+            const stream = analysisState.streams[0];
+            const onUpdateCallback = () => renderManifestUpdates(stream.id);
+            startManifestUpdatePolling(stream, onUpdateCallback);
         }
         keyboardNavigationListener = (event) => {
-            if (event.key === 'ArrowLeft') navigateMpdUpdates(1);
-            if (event.key === 'ArrowRight') navigateMpdUpdates(-1);
+            if (event.key === 'ArrowLeft') navigateManifestUpdates(1);
+            if (event.key === 'ArrowRight') navigateManifestUpdates(-1);
         };
         document.addEventListener('keydown', keyboardNavigationListener);
     }
@@ -249,26 +265,31 @@ export function renderAllTabs() {
 export function renderSingleStreamTabs(streamId) {
     const stream = analysisState.streams.find((s) => s.id === streamId);
     if (!stream) return;
-    const { mpd, baseUrl } = stream;
+    const { manifest, baseUrl } = stream;
 
     // Only render summary tab if it's a single stream view
     if (analysisState.streams.length === 1) {
-        render(getGlobalSummaryTemplate(mpd), dom.tabContents.summary);
+        render(getGlobalSummaryTemplate(manifest), dom.tabContents.summary);
     }
 
     // Comparison tab is handled by renderAllTabs
 
-    render(getComplianceReportTemplate(mpd), dom.tabContents.compliance);
-    // The compliance view manages its own listeners after render
+    render(getComplianceReportTemplate(manifest.rawElement), dom.tabContents.compliance);
+    // After rendering the compliance template, attach its specific listeners.
+    attachComplianceFilterListeners();
 
     render(
-        getTimelineAndVisualsTemplate(mpd),
+        getTimelineAndVisualsTemplate(manifest.rawElement),
         dom.tabContents['timeline-visuals']
     );
-    render(getFeaturesAnalysisTemplate(mpd), dom.tabContents.features);
-    render(getInteractiveMpdTemplate(mpd), dom.tabContents['interactive-mpd']);
-    initializeSegmentExplorer(dom.tabContents.explorer, mpd, baseUrl); // This view manages its own complex rendering
-    renderMpdUpdates(streamId);
+    render(getFeaturesAnalysisTemplate(manifest), dom.tabContents.features);
+    render(
+        getInteractiveManifestTemplate(manifest.rawElement),
+        dom.tabContents['interactive-mpd']
+    );
+    render(getInteractiveSegmentTemplate(), dom.tabContents['interactive-segment']);
+    initializeSegmentExplorer(dom.tabContents.explorer, manifest, baseUrl); // This view manages its own complex rendering
+    renderManifestUpdates(streamId);
 }
 
 export function showStatus(message, type) {

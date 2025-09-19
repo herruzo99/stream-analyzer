@@ -421,10 +421,11 @@
   var analysisState = {
     streams: [],
     activeStreamId: null,
+    activeSegmentUrl: null,
     segmentFreshnessChecker: null,
     streamIdCounter: 0,
-    mpdUpdates: [],
-    activeMpdUpdateIndex: 0,
+    manifestUpdates: [],
+    activeManifestUpdateIndex: 0,
     isPollingActive: false,
     segmentCache: /* @__PURE__ */ new Map(),
     segmentsForCompare: []
@@ -483,13 +484,17 @@
         /** @type {HTMLDivElement} */
         document.getElementById("tab-compliance")
       ),
-      "interactive-mpd": (
-        /** @type {HTMLDivElement} */
-        document.getElementById("tab-interactive-mpd")
-      ),
       explorer: (
         /** @type {HTMLDivElement} */
         document.getElementById("tab-explorer")
+      ),
+      "interactive-segment": (
+        /** @type {HTMLDivElement} */
+        document.getElementById("tab-interactive-segment")
+      ),
+      "interactive-mpd": (
+        /** @type {HTMLDivElement} */
+        document.getElementById("tab-interactive-mpd")
       ),
       updates: (
         /** @type {HTMLDivElement} */
@@ -775,7 +780,10 @@
     return h2._$AI(t3), h2;
   };
 
-  // js/helpers/drm-helper.js
+  // js/shared/constants.js
+  var tooltipTriggerClasses = "cursor-help border-b border-dotted border-blue-500/40 transition-colors hover:bg-blue-500/15 hover:border-solid";
+
+  // js/shared/utils/drm.js
   var knownDrmSchemes = {
     "urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed": "Widevine",
     "urn:uuid:9a04f079-9840-4286-ab92-e65be0885f95": "PlayReady",
@@ -790,12 +798,12 @@
     return knownDrmSchemes[lowerCaseUri] || `Unknown (${schemeIdUri})`;
   }
 
-  // js/views/summary.js
-  var rowTemplate = (label, value, tooltipText, isoRef) => {
+  // js/features/summary/view.js
+  var statCardTemplate = (label, value, tooltipText, isoRef) => {
     if (value === null || value === void 0 || value === "" || Array.isArray(value) && value.length === 0)
       return "";
     return x` <div
-        class="py-2 flex justify-between border-b border-gray-700 items-center flex-wrap"
+        class="bg-gray-800 p-4 rounded-lg border border-gray-700"
     >
         <dt
             class="text-sm font-medium text-gray-400 ${tooltipTriggerClasses}"
@@ -804,7 +812,9 @@
         >
             ${label}
         </dt>
-        <dd class="text-sm text-right font-mono text-white">${value}</dd>
+        <dd class="text-lg text-left font-mono text-white mt-1 break-words">
+            ${value}
+        </dd>
     </div>`;
   };
   var formatBitrate = (bps) => {
@@ -812,218 +822,191 @@
     if (bps >= 1e6) return `${(bps / 1e6).toFixed(2)} Mbps`;
     return `${(bps / 1e3).toFixed(0)} kbps`;
   };
-  function getGlobalSummaryTemplate(mpd) {
-    if (!mpd) return x`<p class="warn">No MPD data to display.</p>`;
-    const getAttr = (el, attr, defaultVal = "N/A") => el.getAttribute(attr) || defaultVal;
-    const videoSets = Array.from(
-      mpd.querySelectorAll(
-        'AdaptationSet[contentType="video"], AdaptationSet[mimeType^="video"]'
-      )
+  function getGlobalSummaryTemplate(manifest) {
+    if (!manifest) return x`<p class="warn">No manifest data to display.</p>`;
+    const videoSets = manifest.periods.flatMap(
+      (p2) => p2.adaptationSets.filter((as) => as.contentType === "video")
     );
-    const audioSets = Array.from(
-      mpd.querySelectorAll(
-        'AdaptationSet[contentType="audio"], AdaptationSet[mimeType^="audio"]'
-      )
+    const audioSets = manifest.periods.flatMap(
+      (p2) => p2.adaptationSets.filter((as) => as.contentType === "audio")
     );
-    const textSets = Array.from(
-      mpd.querySelectorAll(
-        'AdaptationSet[contentType="text"], AdaptationSet[contentType="application"], AdaptationSet[mimeType^="text"], AdaptationSet[mimeType^="application"]'
+    const textSets = manifest.periods.flatMap(
+      (p2) => p2.adaptationSets.filter(
+        (as) => as.contentType === "text" || as.contentType === "application"
       )
     );
     const protectionSchemes = [
       ...new Set(
-        Array.from(mpd.querySelectorAll("ContentProtection")).map(
-          (cp) => getDrmSystemName(cp.getAttribute("schemeIdUri"))
-        )
+        manifest.periods.flatMap((p2) => p2.adaptationSets).flatMap((as) => as.contentProtection).map((cp) => cp.system)
       )
     ];
     const protectionText = protectionSchemes.length > 0 ? `Yes (${protectionSchemes.join(", ")})` : "No";
-    const allVideoReps = videoSets.flatMap(
-      (as) => Array.from(as.querySelectorAll("Representation"))
-    );
-    const bandwidths = allVideoReps.map((r2) => parseInt(r2.getAttribute("bandwidth"))).filter(Boolean);
+    const allVideoReps = videoSets.flatMap((as) => as.representations);
+    const bandwidths = allVideoReps.map((r2) => r2.bandwidth).filter(Boolean);
     const resolutions = [
-      ...new Set(
-        allVideoReps.map((r2) => {
-          const as = r2.closest("AdaptationSet");
-          const width = r2.getAttribute("width") || as.getAttribute("width");
-          const height = r2.getAttribute("height") || as.getAttribute("height");
-          return `${width}x${height}`;
-        })
-      )
+      ...new Set(allVideoReps.map((r2) => `${r2.width}x${r2.height}`))
     ];
     const videoCodecs = [
-      ...new Set(
-        allVideoReps.map(
-          (r2) => r2.getAttribute("codecs") || r2.closest("AdaptationSet").getAttribute("codecs")
-        )
-      )
+      ...new Set(allVideoReps.map((r2) => r2.codecs))
     ].filter(Boolean);
-    const allAudioReps = audioSets.flatMap(
-      (as) => Array.from(as.querySelectorAll("Representation"))
+    const languages = [...new Set(audioSets.map((as) => as.lang))].filter(
+      Boolean
     );
-    const languages = [
-      ...new Set(audioSets.map((as) => as.getAttribute("lang")))
-    ].filter(Boolean);
     const audioCodecs = [
-      ...new Set(
-        allAudioReps.map(
-          (r2) => r2.getAttribute("codecs") || r2.closest("AdaptationSet").getAttribute("codecs")
-        )
-      )
-    ].filter(Boolean);
-    const channelConfigs = [
-      ...new Set(
-        audioSets.map(
-          (as) => as.querySelector("AudioChannelConfiguration")?.getAttribute("value")
-        )
-      )
+      ...new Set(audioSets.flatMap((as) => as.representations).map((r2) => r2.codecs))
     ].filter(Boolean);
     return x`
-        <h3 class="text-xl font-bold mb-4">Manifest Properties</h3>
-        <dl>
-            ${rowTemplate(
+        <div class="space-y-8">
+            <div>
+                <h3 class="text-xl font-bold mb-4">Manifest Properties</h3>
+                <dl
+                    class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+                >
+                    ${statCardTemplate(
       "Presentation Type",
-      getAttr(mpd, "type"),
+      manifest.type,
       "Defines if the stream is live (`dynamic`) or on-demand (`static`).",
       "Clause 5.3.1.2, Table 3"
     )}
-            ${rowTemplate(
+                    ${statCardTemplate(
       "Profiles",
-      getAttr(mpd, "profiles").replace(
+      (manifest.profiles || "").replace(
         /urn:mpeg:dash:profile:/g,
         " "
       ),
       "Indicates the set of features used in the manifest.",
       "Clause 8.1"
     )}
-            ${rowTemplate(
+                    ${statCardTemplate(
       "Min Buffer Time",
-      getAttr(mpd, "minBufferTime"),
+      manifest.minBufferTime ? `${manifest.minBufferTime}s` : "N/A",
       "The minimum buffer time a client should maintain.",
       "Clause 5.3.1.2, Table 3"
     )}
-            ${getAttr(mpd, "type") === "dynamic" ? x`
-                      ${rowTemplate(
+                    ${manifest.type === "dynamic" ? x`
+                              ${statCardTemplate(
       "Publish Time",
-      new Date(
-        getAttr(mpd, "publishTime")
-      ).toLocaleString(),
-      "The time this MPD version was generated.",
+      manifest.publishTime?.toLocaleString(),
+      "The time this manifest version was generated.",
       "Clause 5.3.1.2, Table 3"
     )}
-                      ${rowTemplate(
+                              ${statCardTemplate(
       "Availability Start Time",
-      new Date(
-        getAttr(mpd, "availabilityStartTime")
-      ).toLocaleString(),
+      manifest.availabilityStartTime?.toLocaleString(),
       "The anchor time for the presentation.",
       "Clause 5.3.1.2, Table 3"
     )}
-                      ${rowTemplate(
+                              ${statCardTemplate(
       "Update Period",
-      getAttr(mpd, "minimumUpdatePeriod"),
-      "How often a client should check for a new MPD.",
+      manifest.minimumUpdatePeriod ? `${manifest.minimumUpdatePeriod}s` : "N/A",
+      "How often a client should check for a new manifest.",
       "Clause 5.3.1.2, Table 3"
     )}
-                      ${rowTemplate(
+                              ${statCardTemplate(
       "Time Shift Buffer Depth",
-      getAttr(mpd, "timeShiftBufferDepth"),
+      manifest.timeShiftBufferDepth ? `${manifest.timeShiftBufferDepth}s` : "N/A",
       "The duration of the seekable live window.",
       "Clause 5.3.1.2, Table 3"
     )}
-                  ` : x`
-                      ${rowTemplate(
+                          ` : x`
+                              ${statCardTemplate(
       "Media Duration",
-      getAttr(mpd, "mediaPresentationDuration"),
+      manifest.duration ? `${manifest.duration}s` : "N/A",
       "The total duration of the content.",
       "Clause 5.3.1.2, Table 3"
     )}
-                  `}
-        </dl>
+                          `}
+                </dl>
+            </div>
 
-        <h3 class="text-xl font-bold mt-6 mb-4">Content Overview</h3>
-        <dl>
-            ${rowTemplate(
+            <div>
+                <h3 class="text-xl font-bold mb-4">Content Overview</h3>
+                <dl
+                    class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+                >
+                    ${statCardTemplate(
       "Periods",
-      mpd.querySelectorAll("Period").length,
+      manifest.periods.length,
       "A Period represents a segment of content.",
       "Clause 5.3.2"
     )}
-            ${rowTemplate(
+                    ${statCardTemplate(
       "Video Tracks",
       videoSets.length,
       "Number of distinct video Adaptation Sets.",
       "Clause 5.3.3"
     )}
-            ${rowTemplate(
+                    ${statCardTemplate(
       "Audio Tracks",
       audioSets.length,
       "Number of distinct audio Adaptation Sets.",
       "Clause 5.3.3"
     )}
-            ${rowTemplate(
+                    ${statCardTemplate(
       "Subtitle/Text Tracks",
       textSets.length,
       "Number of distinct subtitle or text Adaptation Sets.",
       "Clause 5.3.3"
     )}
-            ${rowTemplate(
+                    ${statCardTemplate(
       "Content Protection",
       protectionText,
       "Detected DRM Systems.",
       "Clause 5.8.4.1"
     )}
-        </dl>
+                </dl>
+            </div>
 
-        ${videoSets.length > 0 ? x` <h3 class="text-xl font-bold mt-6 mb-4">Video Details</h3>
-                  <dl>
-                      ${rowTemplate(
+            ${videoSets.length > 0 ? x` <div>
+                      <h3 class="text-xl font-bold mb-4">Video Details</h3>
+                      <dl
+                          class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
+                      >
+                          ${statCardTemplate(
       "Bitrate Range",
       bandwidths.length > 0 ? `${formatBitrate(Math.min(...bandwidths))} - ${formatBitrate(Math.max(...bandwidths))}` : "N/A",
       "The minimum and maximum bitrates for video.",
       "Clause 5.3.5.2, Table 9"
     )}
-                      ${rowTemplate(
+                          ${statCardTemplate(
       "Resolutions",
       resolutions.join(", "),
       "Unique video resolutions available.",
       "Clause 5.3.7.2, Table 14"
     )}
-                      ${rowTemplate(
+                          ${statCardTemplate(
       "Video Codecs",
       videoCodecs.join(", "),
       "Unique video codecs declared.",
       "Clause 5.3.7.2, Table 14"
     )}
-                  </dl>` : ""}
-        ${audioSets.length > 0 ? x` <h3 class="text-xl font-bold mt-6 mb-4">Audio Details</h3>
-                  <dl>
-                      ${rowTemplate(
+                      </dl>
+                  </div>` : ""}
+            ${audioSets.length > 0 ? x` <div>
+                      <h3 class="text-xl font-bold mb-4">Audio Details</h3>
+                      <dl
+                          class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
+                      >
+                          ${statCardTemplate(
       "Languages",
       languages.join(", ") || "Not Specified",
       "Languages declared for audio tracks.",
       "Clause 5.3.3.2, Table 5"
     )}
-                      ${rowTemplate(
+                          ${statCardTemplate(
       "Audio Codecs",
       audioCodecs.join(", "),
       "Unique audio codecs declared.",
       "Clause 5.3.7.2, Table 14"
     )}
-                      ${rowTemplate(
-      "Channel Configurations",
-      channelConfigs.map((c2) => `${c2} channels`).join(", "),
-      "Audio channel layouts (e.g., 2 for stereo).",
-      "Clause 5.8.5.4"
-    )}
-                  </dl>` : ""}
-
-        <div class="dev-watermark">Summary v3.0</div>
+                      </dl>
+                  </div>` : ""}
+        </div>
+        <div class="dev-watermark">Summary v5.0</div>
     `;
   }
 
-  // js/api/rules.js
+  // js/features/compliance/rules.js
   var rules = [
     // --- MPD Level Rules ---
     {
@@ -1338,7 +1321,7 @@
     }
   ];
 
-  // js/api/compliance.js
+  // js/features/compliance/logic.js
   function runChecks(mpd) {
     if (!mpd) {
       const rootCheck = rules.find((r2) => r2.id === "MPD-1");
@@ -1440,8 +1423,39 @@
     return results;
   }
 
-  // js/views/compliance-report.js
+  // js/features/compliance/view.js
   var activeFilter = "all";
+  function attachComplianceFilterListeners() {
+    const container = document.getElementById("tab-compliance");
+    container.addEventListener("click", (e4) => {
+      const button = (
+        /** @type {HTMLElement} */
+        e4.target.closest(
+          "[data-filter]"
+        )
+      );
+      if (!button) return;
+      activeFilter = /** @type {HTMLElement} */
+      button.dataset.filter;
+      const allRows = container.querySelectorAll(
+        ".compliance-card"
+      );
+      allRows.forEach((row) => {
+        row.style.display = activeFilter === "all" || row.classList.contains(`status-${activeFilter}`) ? "grid" : "none";
+      });
+      container.querySelectorAll("[data-filter]").forEach((btn) => {
+        const isActive = (
+          /** @type {HTMLElement} */
+          btn.dataset.filter === activeFilter
+        );
+        btn.classList.toggle("bg-blue-600", isActive);
+        btn.classList.toggle("text-white", isActive);
+        btn.classList.toggle("font-semibold", isActive);
+        btn.classList.toggle("bg-gray-700", !isActive);
+        btn.classList.toggle("text-gray-300", !isActive);
+      });
+    });
+  }
   var complianceRowTemplate = (item) => {
     const icons = {
       pass: { icon: "\u2714", color: "text-green-400", title: "Passed" },
@@ -1455,57 +1469,33 @@
       title: "Unknown"
     };
     return x`
-        <tr
-            class="border-b border-gray-700 last:border-b-0 status-${item.status}"
-            style="display: ${activeFilter === "all" || activeFilter === item.status ? "table-row" : "none"}"
+        <div
+            class="compliance-card bg-gray-800 p-3 rounded-lg border border-gray-700 grid grid-cols-1 md:grid-cols-[auto_1fr_auto] md:items-center gap-x-4 gap-y-2 status-${item.status}"
+            style="display: ${activeFilter === "all" || activeFilter === item.status ? "grid" : "none"}"
         >
-            <td class="p-3 text-center w-20">
-                <span
+            <div class="flex items-center gap-2 md:w-20">
+                 <span
                     class="${status.color} font-bold text-lg"
                     title="${status.title}"
                     >${status.icon}</span
                 >
-            </td>
-            <td class="p-3">
-                <p class="font-semibold text-gray-200">${item.text}</p>
+                 <span class="md:hidden font-semibold text-gray-300">${item.text}</span>
+            </div>
+            <div class="pl-6 md:pl-0">
+                <p class="hidden md:block font-semibold text-gray-200">${item.text}</p>
                 <p class="text-xs text-gray-400 mt-1">${item.details}</p>
-            </td>
-            <td class="p-3 text-xs text-gray-500 font-mono w-40 text-right">
+            </div>
+            <div class="text-left md:text-right text-xs text-gray-500 font-mono pl-6 md:pl-0">
                 ${item.isoRef}
-            </td>
-        </tr>
+            </div>
+        </div>
     `;
   };
   var categoryTemplate = (category, items) => x`
     <div class="mt-8">
         <h4 class="text-lg font-semibold text-gray-300 mb-3">${category}</h4>
-        <div
-            class="bg-gray-800 rounded-lg overflow-hidden border border-gray-700"
-        >
-            <table class="w-full text-left">
-                <thead class="bg-gray-900/50">
-                    <tr>
-                        <th
-                            class="p-3 text-xs font-semibold text-gray-400 uppercase tracking-wider text-center"
-                        >
-                            Status
-                        </th>
-                        <th
-                            class="p-3 text-xs font-semibold text-gray-400 uppercase tracking-wider"
-                        >
-                            Description
-                        </th>
-                        <th
-                            class="p-3 text-xs font-semibold text-gray-400 uppercase tracking-wider text-right"
-                        >
-                            Spec Ref.
-                        </th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-700">
-                    ${items.map((item) => complianceRowTemplate(item))}
-                </tbody>
-            </table>
+        <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+            ${items.map((item) => complianceRowTemplate(item))}
         </div>
     </div>
 `;
@@ -1534,7 +1524,7 @@
         </p>
 
         <div
-            class="flex items-center gap-4 mb-4 p-2 bg-gray-900 rounded-md sticky top-0 z-20 border-b border-gray-700"
+            class="flex items-center gap-4 mb-4 p-2 bg-gray-900/50 rounded-md sticky top-0 z-20 border-b border-gray-700"
         >
             <span class="text-sm font-semibold">Filter by Status:</span>
             ${filterButton("all", "All", checks.length)}
@@ -1547,11 +1537,11 @@
       ([category, items]) => categoryTemplate(category, items)
     )}
 
-        <div class="dev-watermark">Compliance v5.0</div>
+        <div class="dev-watermark">Compliance v7.0</div>
     `;
   };
-  function getComplianceReportTemplate(mpd) {
-    const checks = runChecks(mpd);
+  function getComplianceReportTemplate(manifest) {
+    const checks = runChecks(manifest);
     activeFilter = "all";
     return renderReportForChecks(checks);
   }
@@ -1567,7 +1557,7 @@
     return groups;
   }
 
-  // js/views/timeline-visuals.js
+  // js/features/timeline-visuals/view.js
   var parseDuration = (durationStr) => {
     if (!durationStr) return null;
     const match = durationStr.match(
@@ -1625,8 +1615,8 @@
         </div>`;
     });
   };
-  var staticTimelineTemplate = (mpd) => {
-    const periods = Array.from(mpd.querySelectorAll("Period"));
+  var staticTimelineTemplate = (manifest) => {
+    const periods = Array.from(manifest.querySelectorAll("Period"));
     if (periods.length === 0)
       return x`<p class="info">No Period elements found.</p>`;
     let lastPeriodEnd = 0;
@@ -1639,7 +1629,7 @@
         lastPeriodEnd = start + duration;
       } else if (i3 === periods.length - 1) {
         const mediaPresentationDuration = parseDuration(
-          mpd.getAttribute("mediaPresentationDuration")
+          manifest.getAttribute("mediaPresentationDuration")
         );
         if (mediaPresentationDuration) {
           duration = mediaPresentationDuration - start;
@@ -1653,7 +1643,7 @@
         element: p2
       };
     });
-    const totalDuration = parseDuration(mpd.getAttribute("mediaPresentationDuration")) || lastPeriodEnd;
+    const totalDuration = parseDuration(manifest.getAttribute("mediaPresentationDuration")) || lastPeriodEnd;
     if (totalDuration === 0)
       return x`<div class="analysis-summary warn">
             Could not determine total duration.
@@ -1714,11 +1704,11 @@
         ${abrLadders}
         <div class="dev-watermark">Timeline & Visuals v3.1</div>`;
   };
-  var liveTimelineTemplate = (mpd) => {
-    const period = mpd.querySelector("Period");
+  var liveTimelineTemplate = (manifest) => {
+    const period = manifest.querySelector("Period");
     if (!period) return x`<p class="info">No Period element found.</p>`;
     const timeShiftBufferDepth = parseDuration(
-      mpd.getAttribute("timeShiftBufferDepth")
+      manifest.getAttribute("timeShiftBufferDepth")
     );
     if (!timeShiftBufferDepth)
       return x`<p class="info">No @timeShiftBufferDepth found.</p>`;
@@ -1745,9 +1735,9 @@
         </h4>
         ${abrLadderTemplate(period)}
     </div>`;
-    const publishTime = new Date(mpd.getAttribute("publishTime")).getTime();
+    const publishTime = new Date(manifest.getAttribute("publishTime")).getTime();
     const availabilityStartTime = new Date(
-      mpd.getAttribute("availabilityStartTime")
+      manifest.getAttribute("availabilityStartTime")
     ).getTime();
     const liveEdge = (publishTime - availabilityStartTime) / 1e3;
     const dvrStart = liveEdge - timeShiftBufferDepth;
@@ -1780,9 +1770,9 @@
         ${abrLadders}
         <div class="dev-watermark">Timeline & Visuals v3.1</div>`;
   };
-  function getTimelineAndVisualsTemplate(mpd) {
-    const isLive = mpd.getAttribute("type") === "dynamic";
-    return isLive ? liveTimelineTemplate(mpd) : staticTimelineTemplate(mpd);
+  function getTimelineAndVisualsTemplate(manifest) {
+    const isLive = manifest.getAttribute("type") === "dynamic";
+    return isLive ? liveTimelineTemplate(manifest) : staticTimelineTemplate(manifest);
   }
 
   // node_modules/lit-html/directive.js
@@ -1823,268 +1813,221 @@
   e3.directiveName = "unsafeHTML", e3.resultType = 1;
   var o2 = e2(e3);
 
-  // js/views/features.js
-  var features = [
-    // --- Core Streaming Features ---
+  // js/features/feature-analysis/data.js
+  var featureDefinitions = [
     {
       name: "Presentation Type",
       category: "Core Streaming",
       desc: "Defines if the stream is live (`dynamic`) or on-demand (`static`). This is the most fundamental property of a manifest.",
-      isoRef: "Clause 5.3.1.2",
-      check: (mpd) => ({
-        used: true,
-        details: `<code>${mpd.getAttribute("type")}</code>`
-      })
+      isoRef: "Clause 5.3.1.2"
     },
     {
       name: "Multi-Period Content",
       category: "Core Streaming",
       desc: "The presentation is split into multiple, independent periods. Commonly used for Server-Side Ad Insertion (SSAI) or chaptering.",
-      isoRef: "Clause 5.3.2",
-      check: (mpd) => {
-        const periods = mpd.querySelectorAll("Period");
-        const used = periods.length > 1;
-        const details = used ? `${periods.length} Periods found.` : "Single Period manifest.";
-        return { used, details };
-      }
+      isoRef: "Clause 5.3.2"
     },
     {
       name: "Content Protection (DRM)",
       category: "Core Streaming",
       desc: "Indicates that the content is encrypted using one or more DRM schemes like Widevine, PlayReady, or FairPlay.",
-      isoRef: "Clause 5.8.4.1",
-      check: (mpd) => {
-        const p2 = Array.from(mpd.querySelectorAll("ContentProtection"));
-        if (p2.length === 0)
-          return {
-            used: false,
-            details: "No encryption descriptors found."
-          };
-        const schemes = [
-          ...new Set(
-            p2.map(
-              (cp) => getDrmSystemName(cp.getAttribute("schemeIdUri"))
-            )
-          )
-        ];
-        return {
-          used: true,
-          details: `Systems: <b>${schemes.join(", ")}</b>`
-        };
-      }
+      isoRef: "Clause 5.8.4.1"
     },
     {
       name: "CMAF Compatibility",
       category: "Core Streaming",
       desc: "Content is structured according to the Common Media Application Format (CMAF), enhancing compatibility across players.",
-      isoRef: "Clause 8.12",
-      check: (mpd) => {
-        const p2 = (mpd.getAttribute("profiles") || "").includes("cmaf");
-        const b2 = Array.from(
-          mpd.querySelectorAll(
-            'AdaptationSet[containerProfiles~="cmfc"], AdaptationSet[containerProfiles~="cmf2"]'
-          )
-        );
-        if (!p2 && b2.length === 0)
-          return {
-            used: false,
-            details: "No CMAF profiles or brands detected."
-          };
-        const details = [];
-        if (p2) details.push("MPD declares a CMAF profile.");
-        if (b2.length > 0)
-          details.push(
-            `CMAF brands found in ${b2.length} AdaptationSet(s).`
-          );
-        return { used: true, details: details.join(" ") };
-      }
+      isoRef: "Clause 8.12"
     },
-    // --- Timeline & Segment Management ---
     {
       name: "Segment Templates",
       category: "Timeline & Segment Management",
       desc: "Segment URLs are generated using a template, typically with $Number$ or $Time$ placeholders.",
-      isoRef: "Clause 5.3.9.4",
-      check: (mpd) => ({
-        used: !!mpd.querySelector("SegmentTemplate"),
-        details: "Uses templates for segment URL generation."
-      })
+      isoRef: "Clause 5.3.9.4"
     },
     {
       name: "Segment Timeline",
       category: "Timeline & Segment Management",
       desc: "Provides explicit timing and duration for each segment via <S> elements, allowing for variable segment sizes.",
-      isoRef: "Clause 5.3.9.6",
-      check: (mpd) => ({
-        used: !!mpd.querySelector("SegmentTimeline"),
-        details: "Provides explicit segment timing."
-      })
+      isoRef: "Clause 5.3.9.6"
     },
     {
       name: "Segment List",
       category: "Timeline & Segment Management",
       desc: "Segment URLs are listed explicitly in the manifest. Common for VOD content.",
-      isoRef: "Clause 5.3.9.3",
-      check: (mpd) => ({
-        used: !!mpd.querySelector("SegmentList"),
-        details: "Provides an explicit list of segment URLs."
-      })
+      isoRef: "Clause 5.3.9.3"
     },
-    // --- Live & Dynamic Features ---
     {
       name: "Low Latency Streaming",
       category: "Live & Dynamic",
       desc: "The manifest includes features for low-latency playback, like chunked transfer hints and latency targets.",
-      isoRef: "Annex K.3.2",
-      check: (mpd) => {
-        if (mpd.getAttribute("type") !== "dynamic")
-          return {
-            used: false,
-            details: "Not a dynamic (live) manifest."
-          };
-        const hasLatency = !!mpd.querySelector(
-          "ServiceDescription Latency"
-        );
-        const hasChunkHint = !!mpd.querySelector(
-          'SegmentTemplate[availabilityTimeComplete="false"]'
-        );
-        if (!hasLatency && !hasChunkHint)
-          return {
-            used: false,
-            details: "No specific low-latency signals found."
-          };
-        const details = [];
-        if (hasLatency)
-          details.push("<code>&lt;Latency&gt;</code> target defined.");
-        if (hasChunkHint) details.push("Chunked transfer hint present.");
-        return { used: true, details: details.join(" ") };
-      }
+      isoRef: "Annex K.3.2"
     },
     {
-      name: "MPD Patch Updates",
+      name: "Manifest Patch Updates",
       category: "Live & Dynamic",
-      desc: "Allows efficient manifest updates by sending only the changed parts of the MPD.",
-      isoRef: "Clause 5.15",
-      check: (mpd) => {
-        const p2 = mpd.querySelector("PatchLocation");
-        return {
-          used: !!p2,
-          details: p2 ? `Patch location: <code>${p2.textContent.trim()}</code>` : "Uses full MPD reloads."
-        };
-      }
+      desc: "Allows efficient manifest updates by sending only the changed parts of the manifest.",
+      isoRef: "Clause 5.15"
     },
     {
       name: "UTC Timing Source",
       category: "Live & Dynamic",
       desc: "Provides a source for clients to synchronize their wall-clock time, crucial for live playback.",
-      isoRef: "Clause 5.8.4.11",
-      check: (mpd) => {
-        const u2 = Array.from(mpd.querySelectorAll("UTCTiming"));
-        if (u2.length === 0)
-          return {
-            used: false,
-            details: "No clock synchronization source provided."
-          };
-        const schemes = [
-          ...new Set(
-            u2.map(
-              (el) => `<code>${el.getAttribute("schemeIdUri").split(":").pop()}</code>`
-            )
-          )
-        ];
-        return { used: true, details: `Schemes: ${schemes.join(", ")}` };
-      }
+      isoRef: "Clause 5.8.4.11"
     },
-    // --- Advanced Content Features ---
     {
       name: "Dependent Representations (SVC/MVC)",
       category: "Advanced Content",
       desc: "Uses Representations that depend on others for decoding, enabling scalable video coding (SVC) or multi-view coding (MVC).",
-      isoRef: "Clause 5.3.5.2",
-      check: (mpd) => {
-        const d2 = mpd.querySelectorAll("Representation[dependencyId]");
-        return {
-          used: d2.length > 0,
-          details: d2.length > 0 ? `${d2.length} dependent Representation(s) found.` : "All Representations are self-contained."
-        };
-      }
+      isoRef: "Clause 5.3.5.2"
     },
     {
       name: "Trick Mode Tracks",
       category: "Advanced Content",
       desc: "Provides special, low-framerate or I-Frame only tracks to enable efficient fast-forward and rewind.",
-      isoRef: "Clause 5.3.6",
-      check: (mpd) => {
-        const s2 = mpd.querySelector("SubRepresentation[maxPlayoutRate]");
-        const r2 = mpd.querySelector('AdaptationSet Role[value="trick"]');
-        if (!s2 && !r2)
-          return {
-            used: false,
-            details: "No explicit trick mode signals found."
-          };
-        const details = [];
-        if (s2)
-          details.push(
-            "<code>&lt;SubRepresentation&gt;</code> with <code>@maxPlayoutRate</code>"
-          );
-        if (r2) details.push('<code>Role="trick"</code>');
-        return {
-          used: true,
-          details: `Detected via: ${details.join(", ")}`
-        };
-      }
+      isoRef: "Clause 5.3.6"
     },
-    // --- Accessibility & Metadata ---
     {
       name: "Subtitles & Captions",
       category: "Accessibility & Metadata",
       desc: "Provides text-based tracks for subtitles, closed captions, or other timed text information.",
-      isoRef: "Clause 5.3.3",
-      check: (mpd) => {
-        const t3 = Array.from(
-          mpd.querySelectorAll(
-            'AdaptationSet[contentType="text"], AdaptationSet[mimeType^="application"]'
-          )
-        );
-        if (t3.length === 0)
-          return {
-            used: false,
-            details: "No text or application AdaptationSets found."
-          };
-        const languages = [
-          ...new Set(
-            t3.map((as) => as.getAttribute("lang")).filter(Boolean)
-          )
-        ];
-        return {
-          used: true,
-          details: `Found ${t3.length} track(s). ${languages.length > 0 ? `Languages: <b>${languages.join(", ")}</b>` : ""}`
-        };
-      }
+      isoRef: "Clause 5.3.3"
     },
     {
       name: "Role Descriptors",
       category: "Accessibility & Metadata",
       desc: "Uses <Role> descriptors to semantically describe the purpose of a track (e.g., main, alternate, commentary, dub).",
-      isoRef: "Clause 5.8.4.2",
-      check: (mpd) => {
-        const r2 = Array.from(mpd.querySelectorAll("Role"));
-        if (r2.length === 0)
-          return { used: false, details: "No roles specified." };
-        const roles = [
-          ...new Set(
-            r2.map(
-              (role) => `<code>${role.getAttribute("value")}</code>`
-            )
-          )
-        ];
-        return { used: true, details: `Roles found: ${roles.join(", ")}` };
-      }
+      isoRef: "Clause 5.8.4.2"
     }
   ];
-  var featureRowTemplate = (feature, mpd) => {
-    const result = feature.check(mpd);
-    const badge = result.used ? x`<span
+
+  // js/protocols/dash/feature-analyzer.js
+  function analyzeDashFeatures(manifest) {
+    const results = {};
+    results["Presentation Type"] = {
+      used: true,
+      details: `<code>${manifest.getAttribute("type")}</code>`
+    };
+    const periods = manifest.querySelectorAll("Period");
+    results["Multi-Period Content"] = {
+      used: periods.length > 1,
+      details: periods.length > 1 ? `${periods.length} Periods found.` : "Single Period manifest."
+    };
+    const protection = Array.from(manifest.querySelectorAll("ContentProtection"));
+    if (protection.length > 0) {
+      const schemes = [...new Set(protection.map((cp) => getDrmSystemName(cp.getAttribute("schemeIdUri"))))];
+      results["Content Protection (DRM)"] = {
+        used: true,
+        details: `Systems: <b>${schemes.join(", ")}</b>`
+      };
+    } else {
+      results["Content Protection (DRM)"] = {
+        used: false,
+        details: "No encryption descriptors found."
+      };
+    }
+    const hasCmafProfile = (manifest.getAttribute("profiles") || "").includes("cmaf");
+    const cmafBrands = Array.from(manifest.querySelectorAll('AdaptationSet[containerProfiles~="cmfc"], AdaptationSet[containerProfiles~="cmf2"]'));
+    if (hasCmafProfile || cmafBrands.length > 0) {
+      const details = [];
+      if (hasCmafProfile) details.push("Manifest declares a CMAF profile.");
+      if (cmafBrands.length > 0) details.push(`CMAF brands found in ${cmafBrands.length} AdaptationSet(s).`);
+      results["CMAF Compatibility"] = { used: true, details: details.join(" ") };
+    } else {
+      results["CMAF Compatibility"] = { used: false, details: "No CMAF profiles or brands detected." };
+    }
+    results["Segment Templates"] = {
+      used: !!manifest.querySelector("SegmentTemplate"),
+      details: "Uses templates for segment URL generation."
+    };
+    results["Segment Timeline"] = {
+      used: !!manifest.querySelector("SegmentTimeline"),
+      details: "Provides explicit segment timing."
+    };
+    results["Segment List"] = {
+      used: !!manifest.querySelector("SegmentList"),
+      details: "Provides an explicit list of segment URLs."
+    };
+    if (manifest.getAttribute("type") === "dynamic") {
+      const hasLatency = !!manifest.querySelector("ServiceDescription Latency");
+      const hasChunkHint = !!manifest.querySelector('SegmentTemplate[availabilityTimeComplete="false"]');
+      if (hasLatency || hasChunkHint) {
+        const details = [];
+        if (hasLatency) details.push("<code>&lt;Latency&gt;</code> target defined.");
+        if (hasChunkHint) details.push("Chunked transfer hint present.");
+        results["Low Latency Streaming"] = { used: true, details: details.join(" ") };
+      } else {
+        results["Low Latency Streaming"] = { used: false, details: "No specific low-latency signals found." };
+      }
+    } else {
+      results["Low Latency Streaming"] = { used: false, details: "Not a dynamic (live) manifest." };
+    }
+    const patchLocation = manifest.querySelector("PatchLocation");
+    results["Manifest Patch Updates"] = {
+      used: !!patchLocation,
+      details: patchLocation ? `Patch location: <code>${patchLocation.textContent.trim()}</code>` : "Uses full manifest reloads."
+    };
+    const utcTimings = Array.from(manifest.querySelectorAll("UTCTiming"));
+    if (utcTimings.length > 0) {
+      const schemes = [...new Set(utcTimings.map((el) => `<code>${el.getAttribute("schemeIdUri").split(":").pop()}</code>`))];
+      results["UTC Timing Source"] = { used: true, details: `Schemes: ${schemes.join(", ")}` };
+    } else {
+      results["UTC Timing Source"] = { used: false, details: "No clock synchronization source provided." };
+    }
+    const dependentReps = manifest.querySelectorAll("Representation[dependencyId]");
+    results["Dependent Representations (SVC/MVC)"] = {
+      used: dependentReps.length > 0,
+      details: dependentReps.length > 0 ? `${dependentReps.length} dependent Representation(s) found.` : "All Representations are self-contained."
+    };
+    const subRep = manifest.querySelector("SubRepresentation[maxPlayoutRate]");
+    const trickRole = manifest.querySelector('AdaptationSet Role[value="trick"]');
+    if (subRep || trickRole) {
+      const details = [];
+      if (subRep) details.push("<code>&lt;SubRepresentation&gt;</code> with <code>@maxPlayoutRate</code>");
+      if (trickRole) details.push('<code>Role="trick"</code>');
+      results["Trick Mode Tracks"] = { used: true, details: `Detected via: ${details.join(", ")}` };
+    } else {
+      results["Trick Mode Tracks"] = { used: false, details: "No explicit trick mode signals found." };
+    }
+    const textTracks = Array.from(manifest.querySelectorAll('AdaptationSet[contentType="text"], AdaptationSet[mimeType^="application"]'));
+    if (textTracks.length > 0) {
+      const languages = [...new Set(textTracks.map((as) => as.getAttribute("lang")).filter(Boolean))];
+      results["Subtitles & Captions"] = {
+        used: true,
+        details: `Found ${textTracks.length} track(s). ${languages.length > 0 ? `Languages: <b>${languages.join(", ")}</b>` : ""}`
+      };
+    } else {
+      results["Subtitles & Captions"] = { used: false, details: "No text or application AdaptationSets found." };
+    }
+    const roles = Array.from(manifest.querySelectorAll("Role"));
+    if (roles.length > 0) {
+      const roleValues = [...new Set(roles.map((role) => `<code>${role.getAttribute("value")}</code>`))];
+      results["Role Descriptors"] = { used: true, details: `Roles found: ${roleValues.join(", ")}` };
+    } else {
+      results["Role Descriptors"] = { used: false, details: "No roles specified." };
+    }
+    return results;
+  }
+
+  // js/features/feature-analysis/logic.js
+  function generateFeatureAnalysis(manifest) {
+    const analysisResults = analyzeDashFeatures(manifest.rawElement);
+    const viewModel = featureDefinitions.map((def) => {
+      const result = analysisResults[def.name] || {
+        used: false,
+        details: "Check not implemented."
+      };
+      return {
+        ...def,
+        ...result
+      };
+    });
+    return viewModel;
+  }
+
+  // js/features/feature-analysis/view.js
+  var featureCardTemplate = (feature) => {
+    const badge = feature.used ? x`<span
               class="text-xs font-semibold px-2 py-1 bg-green-800 text-green-200 rounded-full"
               >Used</span
           >` : x`<span
@@ -2093,7 +2036,7 @@
           >`;
     return x`
         <div
-            class="grid grid-cols-[100px_1fr] items-center bg-gray-800 p-3 rounded-md"
+            class="grid grid-cols-[100px_1fr] items-center bg-gray-800 p-3 rounded-lg border border-gray-700"
         >
             <div class="text-center">${badge}</div>
             <div>
@@ -2107,25 +2050,26 @@
                 <p
                     class="text-xs text-gray-400 italic mt-1 font-mono"
                 >
-                    ${o2(result.details)}
+                    ${o2(feature.details)}
                 </p>
             </div>
         </div>
     `;
   };
-  var categoryTemplate2 = (category, categoryFeatures, mpd) => x`
+  var categoryTemplate2 = (category, categoryFeatures) => x`
     <div class="mt-8">
         <h4 class="text-lg font-semibold text-gray-300 mb-3">${category}</h4>
-        <div class="flex flex-col gap-2">
+        <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
             ${categoryFeatures.map(
-    (feature) => featureRowTemplate(feature, mpd)
+    (feature) => featureCardTemplate(feature)
   )}
         </div>
     </div>
 `;
-  function getFeaturesAnalysisTemplate(mpd) {
-    if (!mpd) return x`<p class="warn">No MPD loaded to display.</p>`;
-    const groupedFeatures = features.reduce((acc, feature) => {
+  function getFeaturesAnalysisTemplate(manifest) {
+    if (!manifest) return x`<p class="warn">No manifest loaded to display.</p>`;
+    const viewModel = generateFeatureAnalysis(manifest);
+    const groupedFeatures = viewModel.reduce((acc, feature) => {
       if (!acc[feature.category]) {
         acc[feature.category] = [];
       }
@@ -2139,14 +2083,14 @@
             implementation details.
         </p>
         ${Object.entries(groupedFeatures).map(
-      ([category, features2]) => categoryTemplate2(category, features2, mpd)
+      ([category, features]) => categoryTemplate2(category, features)
     )}
-        <div class="dev-watermark">Features v4.1</div>
+        <div class="dev-watermark">Features v5.0</div>
     `;
   }
 
-  // js/helpers/tooltip-data.js
-  var mpdTooltipData = {
+  // js/features/interactive-manifest/tooltip-data.js
+  var dashTooltipData = {
     // MPD Level
     MPD: {
       text: "The root element of the Media Presentation Description.",
@@ -2347,36 +2291,30 @@
     }
   };
 
-  // js/views/interactive-mpd.js
+  // js/features/interactive-manifest/view.js
   var escapeHtml = (str) => str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   var getTagHTML = (tagName) => {
     const isClosing = tagName.startsWith("/");
     const cleanTagName = isClosing ? tagName.substring(1) : tagName;
-    const tagInfo = mpdTooltipData[cleanTagName];
+    const tagInfo = dashTooltipData[cleanTagName];
     const tagClass = "text-blue-300 rounded-sm px-1 -mx-1 transition-colors hover:bg-slate-700";
     const tooltipAttrs = tagInfo ? `data-tooltip="${escapeHtml(tagInfo.text)}" data-iso="${escapeHtml(
       tagInfo.isoRef
     )}"` : "";
-    return o2(
-      `&lt;${isClosing ? "/" : ""}<span class="${tagClass} ${tagInfo ? tooltipTriggerClasses : ""}" ${tooltipAttrs}>${cleanTagName}</span>`
-    );
+    return `&lt;${isClosing ? "/" : ""}<span class="${tagClass} ${tagInfo ? tooltipTriggerClasses : ""}" ${tooltipAttrs}>${cleanTagName}</span>`;
   };
   var getAttributeHTML = (tagName, attr) => {
     const attrKey = `${tagName}@${attr.name}`;
-    const attrInfo = mpdTooltipData[attrKey];
+    const attrInfo = dashTooltipData[attrKey];
     const nameClass = "text-emerald-300 rounded-sm px-1 -mx-1 transition-colors hover:bg-slate-700";
     const valueClass = "text-yellow-300";
     const tooltipAttrs = attrInfo ? `data-tooltip="${escapeHtml(attrInfo.text)}" data-iso="${escapeHtml(
       attrInfo.isoRef
     )}"` : "";
-    return o2(
-      `<span class="${nameClass} ${attrInfo ? tooltipTriggerClasses : ""}" ${tooltipAttrs}>${attr.name}</span>=<span class="${valueClass}">"${escapeHtml(
-        attr.value
-      )}"</span>`
-    );
+    return `<span class="${nameClass} ${attrInfo ? tooltipTriggerClasses : ""}" ${tooltipAttrs}>${attr.name}</span>=<span class="${valueClass}">"${escapeHtml(attr.value)}"</span>`;
   };
-  function getInteractiveMpdTemplate(mpd) {
-    if (!mpd) return x`<p class="warn">No MPD loaded to display.</p>`;
+  function getInteractiveManifestTemplate(manifest) {
+    if (!manifest) return x`<p class="warn">No Manifest loaded to display.</p>`;
     const preformatted = (node, depth = 0) => {
       const indent = "  ".repeat(depth);
       switch (node.nodeType) {
@@ -2388,46 +2326,181 @@
           const childNodes = Array.from(el.childNodes).filter(
             (n2) => n2.nodeType === Node.ELEMENT_NODE || n2.nodeType === Node.COMMENT_NODE || n2.nodeType === Node.TEXT_NODE && n2.textContent.trim()
           );
+          const attrs = Array.from(el.attributes).map((a2) => ` ${getAttributeHTML(el.tagName, a2)}`).join("");
           if (childNodes.length > 0) {
-            return x`${indent}${getTagHTML(el.tagName)}${Array.from(
-              el.attributes
-            ).map((a2) => x` ${getAttributeHTML(el.tagName, a2)}`)}&gt;
-${childNodes.map((c2) => preformatted(c2, depth + 1))}${indent}${getTagHTML(
-              `/${el.tagName}`
-            )}&gt;
-`;
+            const openingTag = `${indent}${getTagHTML(el.tagName)}${attrs}&gt;`;
+            const childLines = childNodes.flatMap(
+              (c2) => preformatted(c2, depth + 1)
+            );
+            const closingTag = `${indent}${getTagHTML(`/${el.tagName}`)}&gt;`;
+            return [openingTag, ...childLines, closingTag];
           } else {
-            return x`${indent}${getTagHTML(el.tagName)}${Array.from(
-              el.attributes
-            ).map((a2) => x` ${getAttributeHTML(el.tagName, a2)}`)} /&gt;
-`;
+            return [`${indent}${getTagHTML(el.tagName)}${attrs} /&gt;`];
           }
         }
         case Node.TEXT_NODE: {
-          return x`${indent}<span class="text-gray-200"
->${escapeHtml(node.textContent.trim())}</span
->
-`;
+          return [
+            `${indent}<span class="text-gray-200">${escapeHtml(
+              node.textContent.trim()
+            )}</span>`
+          ];
         }
         case Node.COMMENT_NODE: {
-          return x`${indent}<span class="text-gray-500 italic"
->&lt;!--${escapeHtml(node.textContent)}--&gt;</span
->
-`;
+          return [
+            `${indent}<span class="text-gray-500 italic">&lt;!--${escapeHtml(
+              node.textContent
+            )}--&gt;</span>`
+          ];
         }
         default:
-          return E;
+          return [];
       }
     };
-    const fullTemplate = x`${preformatted(mpd)}`;
+    const lines = preformatted(manifest);
     return x`<div
         class="bg-slate-800 rounded-lg p-4 font-mono text-sm leading-relaxed overflow-x-auto"
     >
-        <pre class="m-0 p-0 whitespace-pre"><code>${fullTemplate}</code></pre>
+        ${lines.map(
+      (line, i3) => x`
+                <div class="flex">
+                    <span
+                        class="text-right text-gray-500 pr-4 select-none flex-shrink-0 w-10"
+                        >${i3 + 1}</span
+                    >
+                    <span class="flex-grow whitespace-pre-wrap break-all"
+                        >${o2(line)}</span
+                    >
+                </div>
+            `
+    )}
     </div>`;
   }
 
-  // js/api/ts-parser.js
+  // js/features/interactive-segment/view.js
+  var currentPage = 1;
+  var BYTES_PER_PAGE = 1024;
+  var boxColors = [
+    "bg-red-500/20",
+    "bg-yellow-500/20",
+    "bg-green-500/20",
+    "bg-blue-500/20",
+    "bg-indigo-500/20",
+    "bg-purple-500/20",
+    "bg-pink-500/20"
+  ];
+  function buildByteMap(parsedData) {
+    const byteMap = /* @__PURE__ */ new Map();
+    let colorIndex = 0;
+    const traverse = (boxes) => {
+      for (const box of boxes) {
+        const color = boxColors[colorIndex % boxColors.length];
+        for (let i3 = box.offset; i3 < box.contentOffset; i3++) {
+          byteMap.set(i3, { box, field: "Header", color });
+        }
+        for (const [fieldName, fieldMeta] of Object.entries(box.details)) {
+          for (let i3 = fieldMeta.offset; i3 < fieldMeta.offset + fieldMeta.length; i3++) {
+            byteMap.set(i3, { box, field: fieldName, color });
+          }
+        }
+        colorIndex++;
+        if (box.children.length > 0) {
+          traverse(box.children);
+        }
+      }
+    };
+    traverse(parsedData);
+    return byteMap;
+  }
+  function generateHexAsciiView(buffer, byteMap) {
+    const rows = [];
+    const view = new Uint8Array(buffer);
+    const bytesPerRow = 16;
+    const startByte = (currentPage - 1) * BYTES_PER_PAGE;
+    const endByte = Math.min(startByte + BYTES_PER_PAGE, buffer.byteLength);
+    for (let i3 = startByte; i3 < endByte; i3 += bytesPerRow) {
+      const rowBytes = view.slice(i3, i3 + bytesPerRow);
+      const offset = i3.toString(16).padStart(8, "0").toUpperCase();
+      const hexParts = [];
+      const asciiParts = [];
+      rowBytes.forEach((byte, index) => {
+        const byteOffset = i3 + index;
+        const mapEntry = byteMap.get(byteOffset);
+        let tooltipContent = `<strong>Offset:</strong> 0x${byteOffset.toString(16).toUpperCase()}<br><strong>Dec:</strong> ${byte}`;
+        let cssClass = "cursor-help px-1 -mx-1";
+        if (mapEntry) {
+          tooltipContent += `<hr class="my-1 border-gray-500"><strong>Box:</strong> ${mapEntry.box.type}<br><strong>Field:</strong> ${mapEntry.field}`;
+          cssClass += ` ${mapEntry.color} hover:ring-1 ring-white/50`;
+        }
+        const hexByte = byte.toString(16).padStart(2, "0").toUpperCase();
+        hexParts.push(`<span class="${cssClass}" data-tooltip="${tooltipContent}">${hexByte}</span>`);
+        const asciiChar = byte >= 32 && byte <= 126 ? String.fromCharCode(byte) : ".";
+        asciiParts.push(`<span class="${cssClass}" data-tooltip="${tooltipContent}">${asciiChar}</span>`);
+      });
+      rows.push({
+        offset,
+        hex: hexParts.join(" "),
+        ascii: asciiParts.join("")
+      });
+    }
+    return rows;
+  }
+  var hexViewTemplate = (buffer, parsedData) => {
+    const totalPages = Math.ceil(buffer.byteLength / BYTES_PER_PAGE);
+    const byteMap = buildByteMap(parsedData);
+    const viewModel = generateHexAsciiView(buffer, byteMap);
+    const changePage = (offset) => {
+      const newPage = currentPage + offset;
+      if (newPage >= 1 && newPage <= totalPages) {
+        currentPage = newPage;
+        B(getInteractiveSegmentTemplate(), dom.tabContents["interactive-segment"]);
+      }
+    };
+    return x`
+        <div class="bg-slate-800 rounded-lg p-4 font-mono text-sm leading-relaxed overflow-x-auto">
+            <div class="flex sticky top-0 bg-slate-800 pb-2 mb-2 border-b border-gray-600">
+                <div class="w-32 flex-shrink-0 text-gray-400 font-semibold">Offset (h)</div>
+                <div class="flex-grow text-gray-400 font-semibold" style="max-width: 50ch;">Hexadecimal</div>
+                <div class="w-48 flex-shrink-0 text-gray-400 font-semibold">ASCII</div>
+            </div>
+            ${viewModel.map((row) => x`
+                <div class="flex items-center h-6">
+                    <div class="w-32 flex-shrink-0 text-gray-500">${row.offset}</div>
+                    <div class="flex-grow" style="max-width: 50ch;">${o2(row.hex)}</div>
+                    <div class="w-48 flex-shrink-0 text-cyan-400">${o2(row.ascii)}</div>
+                </div>
+            `)}
+        </div>
+        <div class="flex justify-center items-center mt-4 space-x-4">
+            <button @click=${() => changePage(-1)} ?disabled=${currentPage === 1} class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md disabled:opacity-50 disabled:cursor-not-allowed">&lt; Previous</button>
+            <span class="text-gray-400 font-semibold">Page ${currentPage} of ${totalPages}</span>
+            <button @click=${() => changePage(1)} ?disabled=${currentPage === totalPages} class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md disabled:opacity-50 disabled:cursor-not-allowed">Next &gt;</button>
+        </div>
+    `;
+  };
+  function getInteractiveSegmentTemplate() {
+    const { activeSegmentUrl, segmentCache } = analysisState;
+    if (!activeSegmentUrl) {
+      currentPage = 1;
+      return x`<p class="info text-center">Select a segment from the "Segment Explorer" tab and click "View Raw" to inspect its content here.</p>`;
+    }
+    const cachedSegment = segmentCache.get(activeSegmentUrl);
+    if (!cachedSegment || cachedSegment.status === -1) {
+      return x`<p class="info text-center">Loading and parsing segment data...</p>`;
+    }
+    if (cachedSegment.status !== 200 || !cachedSegment.data) {
+      return x`<p class="fail text-center">Failed to fetch segment. Status: ${cachedSegment.status || "Network Error"}.</p>`;
+    }
+    if (!cachedSegment.parsedData || cachedSegment.parsedData.error) {
+      return x`<p class="warn text-center">Segment is not a recognized ISOBMFF format or failed to parse.</p>`;
+    }
+    return x`
+        <h3 class="text-xl font-bold mb-2">Interactive Segment View</h3>
+        <p class="text-sm text-gray-400 mb-4 font-mono break-all">${activeSegmentUrl}</p>
+        ${hexViewTemplate(cachedSegment.data, cachedSegment.parsedData)}
+    `;
+  }
+
+  // js/features/segment-analysis/ts-parser.js
   var TS_PACKET_SIZE = 188;
   var SYNC_BYTE = 71;
   var streamTypes = {
@@ -2572,108 +2645,8 @@ ${childNodes.map((c2) => preformatted(c2, depth + 1))}${indent}${getTagHTML(
     }
     return { format: "ts", data: analysis };
   }
-  var tsAnalysisTemplate = (analysis) => {
-    const sortedPids = Object.entries(analysis.pids).map(([pid, data]) => ({ pid: parseInt(pid), ...data })).sort((a2, b2) => a2.pid - b2.pid);
-    const dataItem = (label, value, isBoolean = false) => x`
-        <div class="text-xs">
-            <span class="block text-gray-400 mb-0.5">${label}</span>
-            <span
-                class="block font-semibold font-mono ${isBoolean ? value ? "text-green-400" : "text-red-400" : "text-gray-200"}"
-                >${isBoolean ? value ? "Yes" : "No" : value}</span
-            >
-        </div>
-    `;
-    return x`
-        <div
-            class="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3 bg-gray-900 border border-gray-700 rounded p-3 mb-4"
-        >
-            ${dataItem("Type", "MPEG-2 Transport Stream")}
-            ${dataItem("Total Packets", analysis.summary.totalPackets)}
-            ${dataItem("Est. Duration", `${analysis.summary.durationS}s`)}
-            ${dataItem("PAT Found", analysis.summary.patFound, true)}
-            ${dataItem("PMT Found", analysis.summary.pmtFound, true)}
-        </div>
 
-        ${analysis.summary.errors.length > 0 ? x`<div
-                  class="bg-red-900/50 border border-red-700 rounded p-3 mb-4 text-red-300 text-xs"
-              >
-                  <p class="font-bold mb-1">Parsing Errors:</p>
-                  <ul class="list-disc pl-5">
-                      ${analysis.summary.errors.map((e4) => x`<li>${e4}</li>`)}
-                  </ul>
-              </div>` : ""}
-
-        <div>
-            <h4 class="font-semibold text-gray-300 mb-2">
-                Packet Identifier (PID) Streams:
-            </h4>
-            <table class="w-full text-left text-xs border-collapse">
-                <thead class="text-left">
-                    <tr>
-                        <th
-                            class="p-2 border border-gray-700 bg-gray-900/50 w-1/6"
-                        >
-                            PID
-                        </th>
-                        <th
-                            class="p-2 border border-gray-700 bg-gray-900/50 w-1/3"
-                        >
-                            Stream Type
-                        </th>
-                        <th
-                            class="p-2 border border-gray-700 bg-gray-900/50 w-1/6"
-                        >
-                            Packets
-                        </th>
-                        <th
-                            class="p-2 border border-gray-700 bg-gray-900/50 w-1/3"
-                        >
-                            Notes
-                        </th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${sortedPids.map(
-      (pidInfo) => x`
-                            <tr>
-                                <td
-                                    class="p-2 border border-gray-700 font-mono text-gray-400"
-                                >
-                                    0x${pidInfo.pid.toString(16).padStart(4, "0")}
-                                    (${pidInfo.pid})
-                                </td>
-                                <td
-                                    class="p-2 border border-gray-700 text-gray-200"
-                                >
-                                    ${pidInfo.streamType}
-                                </td>
-                                <td
-                                    class="p-2 border border-gray-700 text-gray-200"
-                                >
-                                    ${pidInfo.count}
-                                </td>
-                                <td
-                                    class="p-2 border border-gray-700 text-gray-200"
-                                >
-                                    ${pidInfo.continuityErrors > 0 ? x`<span class="text-yellow-400"
-                                              >CC Errors:
-                                              ${pidInfo.continuityErrors}</span
-                                          >` : ""}
-                                    ${pidInfo.pts.length > 0 ? x`<span
-                                              >PTS Count:
-                                              ${pidInfo.pts.length}</span
-                                          >` : ""}
-                                </td>
-                            </tr>
-                        `
-    )}
-                </tbody>
-            </table>
-        </div>
-    `;
-  };
-
-  // js/api/segment-parser.js
+  // js/features/segment-analysis/isobmff-tooltip-data.js
   var tooltipData = {
     ftyp: {
       name: "File Type",
@@ -3136,6 +3109,321 @@ ${childNodes.map((c2) => preformatted(c2, depth + 1))}${indent}${getTagHTML(
       ref: "ISO/IEC 14496-12, 8.1.1"
     }
   };
+
+  // js/features/segment-analysis/isobmff-box-parsers/ftyp.js
+  function parseFtyp(box, view) {
+    const getString = (start, len) => String.fromCharCode.apply(null, new Uint8Array(view.buffer, view.byteOffset + start, len));
+    box.details["Major Brand"] = { value: getString(8, 4), offset: box.offset + 8, length: 4 };
+    box.details["Minor Version"] = { value: view.getUint32(12), offset: box.offset + 12, length: 4 };
+    let compatibleBrands = [];
+    for (let i3 = 16; i3 < box.size; i3 += 4) {
+      compatibleBrands.push(getString(i3, 4));
+    }
+    box.details["Compatible Brands"] = { value: compatibleBrands.join(", "), offset: box.offset + 16, length: box.size - 16 };
+  }
+
+  // js/features/segment-analysis/isobmff-box-parsers/mvhd.js
+  function parseMvhd(box, view) {
+    const version = view.getUint8(8);
+    box.details["version"] = { value: version, offset: box.offset + 8, length: 1 };
+    if (version === 1) {
+      box.details["creation_time"] = { value: new Date(Number(view.getBigUint64(12)) * 1e3 - 20828448e5).toISOString(), offset: box.offset + 12, length: 8 };
+      box.details["modification_time"] = { value: new Date(Number(view.getBigUint64(20)) * 1e3 - 20828448e5).toISOString(), offset: box.offset + 20, length: 8 };
+      box.details["timescale"] = { value: view.getUint32(28), offset: box.offset + 28, length: 4 };
+      box.details["duration"] = { value: Number(view.getBigUint64(32)), offset: box.offset + 32, length: 8 };
+    } else {
+      box.details["creation_time"] = { value: new Date(view.getUint32(12) * 1e3 - 20828448e5).toISOString(), offset: box.offset + 12, length: 4 };
+      box.details["modification_time"] = { value: new Date(view.getUint32(16) * 1e3 - 20828448e5).toISOString(), offset: box.offset + 16, length: 4 };
+      box.details["timescale"] = { value: view.getUint32(20), offset: box.offset + 20, length: 4 };
+      box.details["duration"] = { value: view.getUint32(24), offset: box.offset + 24, length: 4 };
+    }
+  }
+
+  // js/features/segment-analysis/isobmff-box-parsers/mfhd.js
+  function parseMfhd(box, view) {
+    box.details["sequence_number"] = { value: view.getUint32(12), offset: box.offset + 12, length: 4 };
+  }
+
+  // js/features/segment-analysis/isobmff-box-parsers/tfhd.js
+  function parseTfhd(box, view) {
+    let offset = 12;
+    const flags = view.getUint32(8) & 16777215;
+    box.details["track_ID"] = { value: view.getUint32(offset), offset: box.offset + offset, length: 4 };
+    offset += 4;
+    if (flags & 1) {
+      box.details["base_data_offset"] = { value: Number(view.getBigUint64(offset)), offset: box.offset + offset, length: 8 };
+      offset += 8;
+    }
+    if (flags & 2) {
+      box.details["sample_description_index"] = { value: view.getUint32(offset), offset: box.offset + offset, length: 4 };
+      offset += 4;
+    }
+    if (flags & 8) {
+      box.details["default_sample_duration"] = { value: view.getUint32(offset), offset: box.offset + offset, length: 4 };
+      offset += 4;
+    }
+    if (flags & 16) {
+      box.details["default_sample_size"] = { value: view.getUint32(offset), offset: box.offset + offset, length: 4 };
+      offset += 4;
+    }
+    if (flags & 32) {
+      box.details["default_sample_flags"] = { value: `0x${view.getUint32(offset).toString(16)}`, offset: box.offset + offset, length: 4 };
+    }
+  }
+
+  // js/features/segment-analysis/isobmff-box-parsers/tfdt.js
+  function parseTfdt(box, view) {
+    const version = view.getUint8(8);
+    box.details["version"] = { value: version, offset: box.offset + 8, length: 1 };
+    if (version === 1) {
+      box.details["baseMediaDecodeTime"] = { value: Number(view.getBigUint64(12)), offset: box.offset + 12, length: 8 };
+    } else {
+      box.details["baseMediaDecodeTime"] = { value: view.getUint32(12), offset: box.offset + 12, length: 4 };
+    }
+  }
+
+  // js/features/segment-analysis/isobmff-box-parsers/trun.js
+  function parseTrun(box, view) {
+    let offset = 12;
+    const flags = view.getUint32(8) & 16777215;
+    box.details["sample_count"] = { value: view.getUint32(offset), offset: box.offset + offset, length: 4 };
+    offset += 4;
+    if (flags & 1) {
+      box.details["data_offset"] = { value: view.getInt32(offset), offset: box.offset + offset, length: 4 };
+      offset += 4;
+    }
+    if (flags & 4) {
+      box.details["first_sample_flags"] = { value: `0x${view.getUint32(offset).toString(16)}`, offset: box.offset + offset, length: 4 };
+      offset += 4;
+    }
+  }
+
+  // js/features/segment-analysis/isobmff-box-parsers/sidx.js
+  function parseSidx(box, view) {
+    const version = view.getUint8(8);
+    box.details["version"] = { value: version, offset: box.offset + 8, length: 1 };
+    box.details["reference_ID"] = { value: view.getUint32(12), offset: box.offset + 12, length: 4 };
+    box.details["timescale"] = { value: view.getUint32(16), offset: box.offset + 16, length: 4 };
+    let currentOffset = 20;
+    if (version === 1) {
+      box.details["earliest_presentation_time"] = { value: Number(view.getBigUint64(currentOffset)), offset: box.offset + currentOffset, length: 8 };
+      currentOffset += 8;
+      box.details["first_offset"] = { value: Number(view.getBigUint64(currentOffset)), offset: box.offset + currentOffset, length: 8 };
+      currentOffset += 8;
+    } else {
+      box.details["earliest_presentation_time"] = { value: view.getUint32(currentOffset), offset: box.offset + currentOffset, length: 4 };
+      currentOffset += 4;
+      box.details["first_offset"] = { value: view.getUint32(currentOffset), offset: box.offset + currentOffset, length: 4 };
+      currentOffset += 4;
+    }
+    currentOffset += 2;
+    const reference_count = view.getUint16(currentOffset);
+    box.details["reference_count"] = { value: reference_count, offset: box.offset + currentOffset, length: 2 };
+    currentOffset += 2;
+    if (reference_count > 0) {
+      const ref_type = view.getUint8(currentOffset) >> 7;
+      box.details["reference_type_1"] = { value: ref_type === 1 ? "sidx" : "media", offset: box.offset + currentOffset, length: 4 };
+      box.details["referenced_size_1"] = { value: view.getUint32(currentOffset) & 2147483647, offset: box.offset + currentOffset, length: 4 };
+      currentOffset += 4;
+      box.details["subsegment_duration_1"] = { value: view.getUint32(currentOffset), offset: box.offset + currentOffset, length: 4 };
+    }
+  }
+
+  // js/features/segment-analysis/isobmff-box-parsers/tkhd.js
+  function parseTkhd(box, view) {
+    const version = view.getUint8(8);
+    const flags = view.getUint32(8) & 16777215;
+    box.details["version"] = { value: version, offset: box.offset + 8, length: 1 };
+    box.details["flags"] = { value: `0x${flags.toString(16).padStart(6, "0")}`, offset: box.offset + 8, length: 4 };
+    const idOffset = version === 1 ? 28 : 20;
+    box.details["track_ID"] = { value: view.getUint32(idOffset), offset: box.offset + idOffset, length: 4 };
+    const durationOffset = version === 1 ? 36 : 28;
+    const durationLength = version === 1 ? 8 : 4;
+    box.details["duration"] = { value: version === 1 ? Number(view.getBigUint64(durationOffset)) : view.getUint32(durationOffset), offset: box.offset + durationOffset, length: durationLength };
+    const widthOffset = version === 1 ? 88 : 76;
+    box.details["width"] = { value: `${view.getUint16(widthOffset)}.${view.getUint16(widthOffset + 2)}`, offset: box.offset + widthOffset, length: 4 };
+    box.details["height"] = { value: `${view.getUint16(widthOffset + 4)}.${view.getUint16(widthOffset + 6)}`, offset: box.offset + widthOffset + 4, length: 4 };
+  }
+
+  // js/features/segment-analysis/isobmff-box-parsers/mdhd.js
+  function parseMdhd(box, view) {
+    const version = view.getUint8(8);
+    box.details["version"] = { value: version, offset: box.offset + 8, length: 1 };
+    const tsOffset = version === 1 ? 20 : 12;
+    const durationLength = version === 1 ? 8 : 4;
+    box.details["timescale"] = { value: view.getUint32(tsOffset), offset: box.offset + tsOffset, length: 4 };
+    box.details["duration"] = { value: version === 1 ? Number(view.getBigUint64(tsOffset + 4)) : view.getUint32(tsOffset + 4), offset: box.offset + tsOffset + 4, length: durationLength };
+    const langOffset = tsOffset + durationLength + 4;
+    const lang = view.getUint16(langOffset);
+    const langValue = String.fromCharCode((lang >> 10 & 31) + 96, (lang >> 5 & 31) + 96, (lang & 31) + 96);
+    box.details["language"] = { value: langValue, offset: box.offset + langOffset, length: 2 };
+  }
+
+  // js/features/segment-analysis/isobmff-box-parsers/hdlr.js
+  function parseHdlr(box, view) {
+    const getString = (start, len) => String.fromCharCode.apply(null, new Uint8Array(view.buffer, view.byteOffset + start, len));
+    box.details["handler_type"] = { value: getString(16, 4), offset: box.offset + 16, length: 4 };
+    const nameLength = box.size - 32;
+    box.details["name"] = { value: getString(32, nameLength).replace(/\0/g, ""), offset: box.offset + 32, length: nameLength };
+  }
+
+  // js/features/segment-analysis/isobmff-box-parsers/vmhd.js
+  function parseVmhd(box, view) {
+    const flags = view.getUint32(8) & 16777215;
+    box.details["version"] = { value: view.getUint8(8), offset: box.offset + 8, length: 1 };
+    box.details["flags"] = { value: `0x${flags.toString(16).padStart(6, "0")}`, offset: box.offset + 8, length: 4 };
+    box.details["graphicsmode"] = { value: view.getUint16(12), offset: box.offset + 12, length: 2 };
+    box.details["opcolor"] = { value: `R:${view.getUint16(14)}, G:${view.getUint16(16)}, B:${view.getUint16(18)}`, offset: box.offset + 14, length: 6 };
+  }
+
+  // js/features/segment-analysis/isobmff-box-parsers/stsd.js
+  function parseStsd(box, view) {
+    box.details["version"] = { value: view.getUint8(8), offset: box.offset + 8, length: 1 };
+    box.details["entry_count"] = { value: view.getUint32(12), offset: box.offset + 12, length: 4 };
+  }
+
+  // js/features/segment-analysis/isobmff-box-parsers/stts.js
+  function parseStts(box, view) {
+    box.details["version"] = { value: view.getUint8(8), offset: box.offset + 8, length: 1 };
+    const entryCount = view.getUint32(12);
+    box.details["entry_count"] = { value: entryCount, offset: box.offset + 12, length: 4 };
+    if (entryCount > 0) {
+      box.details["sample_count_1"] = { value: view.getUint32(16), offset: box.offset + 16, length: 4 };
+      box.details["sample_delta_1"] = { value: view.getUint32(20), offset: box.offset + 20, length: 4 };
+    }
+  }
+
+  // js/features/segment-analysis/isobmff-box-parsers/stsc.js
+  function parseStsc(box, view) {
+    box.details["version"] = { value: view.getUint8(8), offset: box.offset + 8, length: 1 };
+    const entryCount = view.getUint32(12);
+    box.details["entry_count"] = { value: entryCount, offset: box.offset + 12, length: 4 };
+    if (entryCount > 0) {
+      box.details["first_chunk_1"] = { value: view.getUint32(16), offset: box.offset + 16, length: 4 };
+      box.details["samples_per_chunk_1"] = { value: view.getUint32(20), offset: box.offset + 20, length: 4 };
+      box.details["sample_description_index_1"] = { value: view.getUint32(24), offset: box.offset + 24, length: 4 };
+    }
+  }
+
+  // js/features/segment-analysis/isobmff-box-parsers/stsz.js
+  function parseStsz(box, view) {
+    box.details["version"] = { value: view.getUint8(8), offset: box.offset + 8, length: 1 };
+    box.details["sample_size"] = { value: view.getUint32(12), offset: box.offset + 12, length: 4 };
+    box.details["sample_count"] = { value: view.getUint32(16), offset: box.offset + 16, length: 4 };
+  }
+
+  // js/features/segment-analysis/isobmff-box-parsers/stco.js
+  function parseStco(box, view) {
+    box.details["version"] = { value: view.getUint8(8), offset: box.offset + 8, length: 1 };
+    const entryCount = view.getUint32(12);
+    box.details["entry_count"] = { value: entryCount, offset: box.offset + 12, length: 4 };
+    if (entryCount > 0) {
+      box.details["chunk_offset_1"] = { value: view.getUint32(16), offset: box.offset + 16, length: 4 };
+    }
+  }
+
+  // js/features/segment-analysis/isobmff-box-parsers/elst.js
+  function parseElst(box, view) {
+    const version = view.getUint8(8);
+    box.details["version"] = { value: version, offset: box.offset + 8, length: 1 };
+    const entryCount = view.getUint32(12);
+    box.details["entry_count"] = { value: entryCount, offset: box.offset + 12, length: 4 };
+    if (entryCount > 0) {
+      const entryOffset = 16;
+      if (version === 1) {
+        box.details["segment_duration_1"] = { value: Number(view.getBigUint64(entryOffset)), offset: box.offset + entryOffset, length: 8 };
+        box.details["media_time_1"] = { value: Number(view.getBigInt64(entryOffset + 8)), offset: box.offset + entryOffset + 8, length: 8 };
+      } else {
+        box.details["segment_duration_1"] = { value: view.getUint32(entryOffset), offset: box.offset + entryOffset, length: 4 };
+        box.details["media_time_1"] = { value: view.getInt32(entryOffset + 4), offset: box.offset + entryOffset + 4, length: 4 };
+      }
+    }
+  }
+
+  // js/features/segment-analysis/isobmff-box-parsers/trex.js
+  function parseTrex(box, view) {
+    box.details["track_ID"] = { value: view.getUint32(12), offset: box.offset + 12, length: 4 };
+    box.details["default_sample_description_index"] = { value: view.getUint32(16), offset: box.offset + 16, length: 4 };
+    box.details["default_sample_duration"] = { value: view.getUint32(20), offset: box.offset + 20, length: 4 };
+    box.details["default_sample_size"] = { value: view.getUint32(24), offset: box.offset + 24, length: 4 };
+    box.details["default_sample_flags"] = { value: `0x${view.getUint32(28).toString(16)}`, offset: box.offset + 28, length: 4 };
+  }
+
+  // js/features/segment-analysis/isobmff-box-parsers/index.js
+  var boxParsers = {
+    ftyp: parseFtyp,
+    styp: parseFtyp,
+    mvhd: parseMvhd,
+    mfhd: parseMfhd,
+    tfhd: parseTfhd,
+    tfdt: parseTfdt,
+    trun: parseTrun,
+    sidx: parseSidx,
+    tkhd: parseTkhd,
+    mdhd: parseMdhd,
+    hdlr: parseHdlr,
+    vmhd: parseVmhd,
+    stsd: parseStsd,
+    stts: parseStts,
+    stsc: parseStsc,
+    stsz: parseStsz,
+    stco: parseStco,
+    elst: parseElst,
+    trex: parseTrex
+  };
+
+  // js/features/segment-analysis/isobmff-parser.js
+  var getTooltipData = () => tooltipData;
+  function parseISOBMFF(buffer, baseOffset = 0) {
+    const boxes = [];
+    let offset = 0;
+    while (offset < buffer.byteLength) {
+      if (offset + 8 > buffer.byteLength) break;
+      const dataView = new DataView(buffer);
+      let size = dataView.getUint32(offset);
+      const type = String.fromCharCode.apply(
+        null,
+        new Uint8Array(buffer, offset + 4, 4)
+      );
+      let headerSize = 8;
+      if (size === 1) {
+        if (offset + 16 > buffer.byteLength) break;
+        size = Number(dataView.getBigUint64(offset + 8));
+        headerSize = 16;
+      } else if (size === 0) {
+        size = buffer.byteLength - offset;
+      }
+      if (offset + size > buffer.byteLength) {
+        size = buffer.byteLength - offset;
+      }
+      const box = { type, size, offset: baseOffset + offset, contentOffset: baseOffset + offset + headerSize, headerSize, children: [], details: {} };
+      parseBoxDetails(box, new DataView(buffer, offset, size));
+      const containerBoxes = ["moof", "traf", "moov", "trak", "mdia", "minf", "stbl", "mvex", "edts"];
+      if (containerBoxes.includes(type)) {
+        const childrenBuffer = buffer.slice(offset + headerSize, offset + size);
+        if (childrenBuffer.byteLength > 0) {
+          box.children = parseISOBMFF(childrenBuffer, box.contentOffset);
+        }
+      }
+      boxes.push(box);
+      offset += size;
+    }
+    return boxes;
+  }
+  function parseBoxDetails(box, view) {
+    try {
+      const parser = boxParsers[box.type];
+      if (parser) {
+        parser(box, view);
+      } else if (box.type === "mdat") {
+        box.details["info"] = { value: "Contains raw media data for samples.", offset: box.contentOffset, length: box.size - box.headerSize };
+      }
+    } catch (_e) {
+      box.details["Parsing Error"] = { value: _e.message, offset: box.offset, length: box.size };
+    }
+  }
+
+  // js/features/segment-analysis/view.js
   function diffObjects(obj1, obj2) {
     const result = [];
     const allKeys = /* @__PURE__ */ new Set([...Object.keys(obj1), ...Object.keys(obj2)]);
@@ -3166,7 +3454,7 @@ ${childNodes.map((c2) => preformatted(c2, depth + 1))}${indent}${getTagHTML(
                 Segment A
             </div>
             <div
-                class="font-semibold p-2 border-b border-gray-700 bg-gray-900/50"
+                class="font-semibold p-2 border-b border-r border-gray-700 bg-gray-900/50"
             >
                 Segment B
             </div>
@@ -3181,23 +3469,128 @@ ${childNodes.map((c2) => preformatted(c2, depth + 1))}${indent}${getTagHTML(
                     <div
                         class="p-2 border-b border-r border-gray-700 font-mono ${item.isDifferent ? "bg-red-900/50 text-red-300" : ""}"
                     >
-                        ${typeof item.val1 === "object" ? o2(item.val1) : item.val1}
+                        ${item.key === "samples" ? x`<div class="bg-gray-900 p-2 rounded">
+                                  <pre>${item.val1}</pre>
+                              </div>` : item.val1}
                     </div>
                     <div
-                        class="p-2 border-b border-gray-700 font-mono ${item.isDifferent ? "bg-red-900/50 text-red-300" : ""}"
+                        class="p-2 border-b border-r border-gray-700 font-mono ${item.isDifferent ? "bg-red-900/50 text-red-300" : ""}"
                     >
-                        ${typeof item.val2 === "object" ? o2(item.val2) : item.val2}
+                         ${item.key === "samples" ? x`<div class="bg-gray-900 p-2 rounded">
+                                  <pre>${item.val2}</pre>
+                              </div>` : item.val2}
                     </div>
                 `
     )}
         </div>
     `;
   };
+  var tsAnalysisTemplate = (analysis) => {
+    const sortedPids = Object.entries(analysis.pids).map(([pid, data]) => ({ pid: parseInt(pid), ...data })).sort((a2, b2) => a2.pid - b2.pid);
+    const dataItem = (label, value, isBoolean = false) => x`
+        <div class="text-xs">
+            <span class="block text-gray-400 mb-0.5">${label}</span>
+            <span
+                class="block font-semibold font-mono ${isBoolean ? value ? "text-green-400" : "text-red-400" : "text-gray-200"}"
+                >${isBoolean ? value ? "Yes" : "No" : value}</span
+            >
+        </div>
+    `;
+    return x`
+        <div
+            class="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3 bg-gray-900 border border-gray-700 rounded p-3 mb-4"
+        >
+            ${dataItem("Type", "MPEG-2 Transport Stream")}
+            ${dataItem("Total Packets", analysis.summary.totalPackets)}
+            ${dataItem("Est. Duration", `${analysis.summary.durationS}s`)}
+            ${dataItem("PAT Found", analysis.summary.patFound, true)}
+            ${dataItem("PMT Found", analysis.summary.pmtFound, true)}
+        </div>
+
+        ${analysis.summary.errors.length > 0 ? x`<div
+                  class="bg-red-900/50 border border-red-700 rounded p-3 mb-4 text-red-300 text-xs"
+              >
+                  <p class="font-bold mb-1">Parsing Errors:</p>
+                  <ul class="list-disc pl-5">
+                      ${analysis.summary.errors.map((e4) => x`<li>${e4}</li>`)}
+                  </ul>
+              </div>` : ""}
+
+        <div>
+            <h4 class="font-semibold text-gray-300 mb-2">
+                Packet Identifier (PID) Streams:
+            </h4>
+            <table class="w-full text-left text-xs border-collapse">
+                <thead class="text-left">
+                    <tr>
+                        <th
+                            class="p-2 border border-gray-700 bg-gray-900/50 w-1/6"
+                        >
+                            PID
+                        </th>
+                        <th
+                            class="p-2 border border-gray-700 bg-gray-900/50 w-1/3"
+                        >
+                            Stream Type
+                        </th>
+                        <th
+                            class="p-2 border border-gray-700 bg-gray-900/50 w-1/6"
+                        >
+                            Packets
+                        </th>
+                        <th
+                            class="p-2 border border-gray-700 bg-gray-900/50 w-1/3"
+                        >
+                            Notes
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${sortedPids.map(
+      (pidInfo) => x`
+                            <tr>
+                                <td
+                                    class="p-2 border border-gray-700 font-mono text-gray-400"
+                                >
+                                    0x${pidInfo.pid.toString(16).padStart(4, "0")}
+                                    (${pidInfo.pid})
+                                </td>
+                                <td
+                                    class="p-2 border border-gray-700 text-gray-200"
+                                >
+                                    ${pidInfo.streamType}
+                                </td>
+                                <td
+                                    class="p-2 border border-gray-700 text-gray-200"
+                                >
+                                    ${pidInfo.count}
+                                </td>
+                                <td
+                                    class="p-2 border border-gray-700 text-gray-200"
+                                >
+                                    ${pidInfo.continuityErrors > 0 ? x`<span class="text-yellow-400"
+                                              >CC Errors:
+                                              ${pidInfo.continuityErrors}</span
+                                          >` : ""}
+                                    ${pidInfo.pts.length > 0 ? x`<span
+                                              >PTS Count:
+                                              ${pidInfo.pts.length}</span
+                                          >` : ""}
+                                </td>
+                            </tr>
+                        `
+    )}
+                </tbody>
+            </table>
+        </div>
+    `;
+  };
   var isoBoxTemplate = (box) => {
-    const boxInfo = tooltipData[box.type] || {};
+    const tooltipData2 = getTooltipData();
+    const boxInfo = tooltipData2[box.type] || {};
     const headerTemplate = x` <div class="font-semibold font-mono">
         <span
-            class="text-emerald-300 ${boxInfo.text ? tooltipTriggerClasses : ""}"
+            class="text-emerald-300 ${boxInfo.text ? tooltipTriggerClasses2 : ""}"
             data-tooltip="${boxInfo.text || ""}"
             data-iso="${boxInfo.ref || ""}"
             >${box.type}</span
@@ -3211,11 +3604,14 @@ ${childNodes.map((c2) => preformatted(c2, depth + 1))}${indent}${getTagHTML(
                   class="mt-2 text-xs border-collapse w-full table-auto"
               >
                   <tbody>
-                      ${Object.entries(box.details).map(([key, value]) => {
-      const fieldTooltip = tooltipData[`${box.type}@${key}`];
+                      ${Object.entries(box.details).map(([key, field]) => {
+      const fieldTooltip = tooltipData2[`${box.type}@${key}`];
+      const valueTemplate = key === "samples" ? x`<div class="bg-gray-900 p-2 rounded">
+                                        <pre>${field.value}</pre>
+                                    </div>` : field.value;
       return x`<tr>
                               <td
-                                  class="border border-gray-700 p-2 text-gray-400 w-1/4 ${fieldTooltip ? tooltipTriggerClasses : ""}"
+                                  class="border border-gray-700 p-2 text-gray-400 w-1/4 ${fieldTooltip ? tooltipTriggerClasses2 : ""}"
                                   data-tooltip="${fieldTooltip?.text || ""}"
                                   data-iso="${fieldTooltip?.ref || ""}"
                               >
@@ -3224,7 +3620,7 @@ ${childNodes.map((c2) => preformatted(c2, depth + 1))}${indent}${getTagHTML(
                               <td
                                   class="border border-gray-700 p-2 text-gray-200 font-mono break-all"
                               >
-                                  ${value}
+                                  ${valueTemplate}
                               </td>
                           </tr>`;
     })}
@@ -3259,13 +3655,13 @@ ${childNodes.map((c2) => preformatted(c2, depth + 1))}${indent}${getTagHTML(
             class="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3 bg-gray-900 border border-gray-700 rounded p-3 mb-4"
         >
             ${dataItem("Type", "Media Segment")}
-            ${dataItem("Sequence #", mfhd.details.sequence_number || "N/A")}
-            ${dataItem("Track ID", tfhd?.details.track_ID || "N/A")}
+            ${dataItem("Sequence #", mfhd.details.sequence_number?.value || "N/A")}
+            ${dataItem("Track ID", tfhd?.details.track_ID?.value || "N/A")}
             ${dataItem(
         "Base Decode Time",
-        tfdt?.details.baseMediaDecodeTime || "N/A"
+        tfdt?.details.baseMediaDecodeTime?.value || "N/A"
       )}
-            ${dataItem("Sample Count", trun?.details.sample_count || "N/A")}
+            ${dataItem("Sample Count", trun?.details.sample_count?.value || "N/A")}
         </div>`;
     } else if (moov) {
       const mvhd = moov.children.find((b2) => b2.type === "mvhd");
@@ -3274,8 +3670,8 @@ ${childNodes.map((c2) => preformatted(c2, depth + 1))}${indent}${getTagHTML(
             class="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3 bg-gray-900 border border-gray-700 rounded p-3 mb-4"
         >
             ${dataItem("Type", "Initialization Segment")}
-            ${dataItem("Timescale", mvhd?.details.timescale || "N/A")}
-            ${dataItem("Duration", mvhd?.details.duration || "N/A")}
+            ${dataItem("Timescale", mvhd?.details.timescale?.value || "N/A")}
+            ${dataItem("Duration", mvhd?.details.duration?.value || "N/A")}
             ${dataItem("Track Count", traks.length)}
         </div>`;
     }
@@ -3289,349 +3685,20 @@ ${childNodes.map((c2) => preformatted(c2, depth + 1))}${indent}${getTagHTML(
         </ul>
     </div>
 `;
-  function parseISOBMFF(buffer) {
-    const boxes = [];
-    let offset = 0;
-    while (offset < buffer.byteLength) {
-      if (offset + 8 > buffer.byteLength) break;
-      const dataView = new DataView(buffer);
-      let size = dataView.getUint32(offset);
-      const type = String.fromCharCode.apply(
-        null,
-        new Uint8Array(buffer, offset + 4, 4)
-      );
-      let headerSize = 8;
-      if (size === 1) {
-        if (offset + 16 > buffer.byteLength) break;
-        size = Number(dataView.getBigUint64(offset + 8));
-        headerSize = 16;
-      } else if (size === 0) {
-        size = buffer.byteLength - offset;
-      }
-      if (offset + size > buffer.byteLength) {
-        size = buffer.byteLength - offset;
-      }
-      const box = { type, size, offset, children: [], details: {} };
-      parseBoxDetails(box, new DataView(buffer, offset, size));
-      const containerBoxes = [
-        "moof",
-        "traf",
-        "moov",
-        "trak",
-        "mdia",
-        "minf",
-        "stbl",
-        "mvex"
-      ];
-      if (containerBoxes.includes(type)) {
-        const childrenBuffer = buffer.slice(
-          offset + headerSize,
-          offset + size
-        );
-        if (childrenBuffer.byteLength > 0) {
-          box.children = parseISOBMFF(childrenBuffer);
-        }
-      }
-      boxes.push(box);
-      offset += size;
-    }
-    return boxes;
-  }
-  function parseBoxDetails(box, view) {
-    try {
-      const getString = (start, len) => String.fromCharCode.apply(
-        null,
-        new Uint8Array(view.buffer, view.byteOffset + start, len)
-      );
-      const version = view.getUint8(8);
-      const flags = view.getUint32(8) & 16777215;
-      switch (box.type) {
-        case "ftyp":
-        case "styp": {
-          box.details["Major Brand"] = getString(8, 4);
-          box.details["Minor Version"] = view.getUint32(12);
-          let compatibleBrands = [];
-          for (let i3 = 16; i3 < box.size; i3 += 4) {
-            compatibleBrands.push(getString(i3, 4));
-          }
-          box.details["Compatible Brands"] = compatibleBrands.join(", ");
-          break;
-        }
-        case "mvhd": {
-          box.details["version"] = version;
-          if (version === 1) {
-            box.details["creation_time"] = new Date(
-              Number(view.getBigUint64(12)) * 1e3 - 20828448e5
-            ).toISOString();
-            box.details["modification_time"] = new Date(
-              Number(view.getBigUint64(20)) * 1e3 - 20828448e5
-            ).toISOString();
-            box.details["timescale"] = view.getUint32(28);
-            box.details["duration"] = Number(view.getBigUint64(32));
-          } else {
-            box.details["creation_time"] = new Date(
-              view.getUint32(12) * 1e3 - 20828448e5
-            ).toISOString();
-            box.details["modification_time"] = new Date(
-              view.getUint32(16) * 1e3 - 20828448e5
-            ).toISOString();
-            box.details["timescale"] = view.getUint32(20);
-            box.details["duration"] = view.getUint32(24);
-          }
-          break;
-        }
-        case "tkhd": {
-          box.details["version"] = version;
-          box.details["flags"] = `0x${flags.toString(16).padStart(6, "0")}`;
-          const idOffset = version === 1 ? 28 : 20;
-          box.details["track_ID"] = view.getUint32(idOffset);
-          const durationOffset = version === 1 ? 36 : 28;
-          box.details["duration"] = version === 1 ? Number(view.getBigUint64(durationOffset)) : view.getUint32(durationOffset);
-          const widthOffset = version === 1 ? 88 : 76;
-          box.details["width"] = `${view.getUint16(widthOffset)}.${view.getUint16(widthOffset + 2)}`;
-          box.details["height"] = `${view.getUint16(widthOffset + 4)}.${view.getUint16(widthOffset + 6)}`;
-          break;
-        }
-        case "mdhd": {
-          box.details["version"] = version;
-          const tsOffset = version === 1 ? 20 : 12;
-          box.details["timescale"] = view.getUint32(tsOffset);
-          box.details["duration"] = version === 1 ? Number(view.getBigUint64(tsOffset + 4)) : view.getUint32(tsOffset + 4);
-          const lang = view.getUint16(tsOffset + 12);
-          box.details["language"] = String.fromCharCode(
-            (lang >> 10 & 31) + 96,
-            (lang >> 5 & 31) + 96,
-            (lang & 31) + 96
-          );
-          break;
-        }
-        case "hdlr": {
-          box.details["handler_type"] = getString(16, 4);
-          box.details["name"] = getString(32, box.size - 32).replace(
-            /\0/g,
-            ""
-          );
-          break;
-        }
-        case "vmhd": {
-          box.details["version"] = version;
-          box.details["flags"] = `0x${flags.toString(16).padStart(6, "0")}`;
-          box.details["graphicsmode"] = view.getUint16(12);
-          box.details["opcolor"] = `R:${view.getUint16(14)}, G:${view.getUint16(16)}, B:${view.getUint16(18)}`;
-          break;
-        }
-        case "stsd": {
-          box.details["version"] = version;
-          box.details["entry_count"] = view.getUint32(12);
-          break;
-        }
-        case "stts": {
-          box.details["version"] = version;
-          box.details["entry_count"] = view.getUint32(12);
-          if (box.details["entry_count"] > 0) {
-            box.details["sample_count_1"] = view.getUint32(16);
-            box.details["sample_delta_1"] = view.getUint32(20);
-          }
-          break;
-        }
-        case "stsc": {
-          box.details["version"] = version;
-          box.details["entry_count"] = view.getUint32(12);
-          if (box.details["entry_count"] > 0) {
-            box.details["first_chunk_1"] = view.getUint32(16);
-            box.details["samples_per_chunk_1"] = view.getUint32(20);
-            box.details["sample_description_index_1"] = view.getUint32(24);
-          }
-          break;
-        }
-        case "stsz": {
-          box.details["version"] = version;
-          box.details["sample_size"] = view.getUint32(12);
-          box.details["sample_count"] = view.getUint32(16);
-          break;
-        }
-        case "stco": {
-          box.details["version"] = version;
-          box.details["entry_count"] = view.getUint32(12);
-          if (box.details["entry_count"] > 0) {
-            box.details["chunk_offset_1"] = view.getUint32(16);
-          }
-          break;
-        }
-        case "elst": {
-          box.details["version"] = version;
-          const entry_count = view.getUint32(12);
-          box.details["entry_count"] = entry_count;
-          if (entry_count > 0) {
-            const entryOffset = 16;
-            if (version === 1) {
-              box.details["segment_duration_1"] = Number(
-                view.getBigUint64(entryOffset)
-              );
-              box.details["media_time_1"] = Number(
-                view.getBigInt64(entryOffset + 8)
-              );
-            } else {
-              box.details["segment_duration_1"] = view.getUint32(entryOffset);
-              box.details["media_time_1"] = view.getInt32(
-                entryOffset + 4
-              );
-            }
-          }
-          break;
-        }
-        case "trex": {
-          box.details["track_ID"] = view.getUint32(12);
-          box.details["default_sample_description_index"] = view.getUint32(16);
-          box.details["default_sample_duration"] = view.getUint32(20);
-          box.details["default_sample_size"] = view.getUint32(24);
-          box.details["default_sample_flags"] = `0x${view.getUint32(28).toString(16)}`;
-          break;
-        }
-        case "sidx": {
-          box.details["version"] = version;
-          box.details["reference_ID"] = view.getUint32(12);
-          box.details["timescale"] = view.getUint32(16);
-          let offset = 20;
-          if (version === 1) {
-            box.details["earliest_presentation_time"] = Number(
-              view.getBigUint64(offset)
-            );
-            offset += 8;
-            box.details["first_offset"] = Number(
-              view.getBigUint64(offset)
-            );
-            offset += 8;
-          } else {
-            box.details["earliest_presentation_time"] = view.getUint32(offset);
-            offset += 4;
-            box.details["first_offset"] = view.getUint32(offset);
-            offset += 4;
-          }
-          offset += 2;
-          const ref_count = view.getUint16(offset);
-          offset += 2;
-          box.details["reference_count"] = ref_count;
-          if (ref_count > 0) {
-            const ref_type = view.getUint8(offset) >> 7;
-            box.details["reference_type_1"] = ref_type === 1 ? "sidx" : "media";
-            box.details["referenced_size_1"] = view.getUint32(offset) & 2147483647;
-            box.details["subsegment_duration_1"] = view.getUint32(
-              offset + 4
-            );
-          }
-          break;
-        }
-        case "mfhd": {
-          box.details["sequence_number"] = view.getUint32(12);
-          break;
-        }
-        case "tfhd": {
-          box.details["track_ID"] = view.getUint32(12);
-          box.details["flags"] = `0x${flags.toString(16).padStart(6, "0")}`;
-          let offset = 16;
-          if (flags & 1) {
-            box.details["base_data_offset"] = Number(
-              view.getBigUint64(offset)
-            );
-            offset += 8;
-          }
-          if (flags & 2) {
-            box.details["sample_description_index"] = view.getUint32(offset);
-            offset += 4;
-          }
-          if (flags & 8) {
-            box.details["default_sample_duration"] = view.getUint32(offset);
-            offset += 4;
-          }
-          if (flags & 16) {
-            box.details["default_sample_size"] = view.getUint32(offset);
-            offset += 4;
-          }
-          if (flags & 32) {
-            box.details["default_sample_flags"] = `0x${view.getUint32(offset).toString(16)}`;
-          }
-          break;
-        }
-        case "tfdt": {
-          box.details["version"] = version;
-          box.details["baseMediaDecodeTime"] = version === 1 ? Number(view.getBigUint64(12)) : view.getUint32(12);
-          break;
-        }
-        case "trun": {
-          box.details["version"] = version;
-          box.details["flags"] = `0x${flags.toString(16).padStart(6, "0")}`;
-          const sample_count = view.getUint32(12);
-          box.details["sample_count"] = sample_count;
-          let offset = 16;
-          if (flags & 1) {
-            box.details["data_offset"] = view.getInt32(offset);
-            offset += 4;
-          }
-          if (flags & 4) {
-            box.details["first_sample_flags"] = `0x${view.getUint32(offset).toString(16)}`;
-            offset += 4;
-          }
-          let samples = [];
-          for (let i3 = 0; i3 < Math.min(sample_count, 10); i3++) {
-            let sample = {};
-            if (flags & 256) {
-              sample.duration = view.getUint32(offset);
-              offset += 4;
-            }
-            if (flags & 512) {
-              sample.size = view.getUint32(offset);
-              offset += 4;
-            }
-            if (flags & 1024) {
-              sample.flags = `0x${view.getUint32(offset).toString(16)}`;
-              offset += 4;
-            }
-            if (flags & 2048) {
-              sample.composition_time_offset = version === 0 ? view.getUint32(offset) : view.getInt32(offset);
-              offset += 4;
-            }
-            samples.push(JSON.stringify(sample));
-          }
-          box.details["samples"] = x`<div
-                    class="bg-gray-900 p-2 rounded"
-                >
-                    <pre>
-${samples.join("\n")}${sample_count > 10 ? `
-... (${sample_count - 10} more)` : ""}</pre
-                    >
-                </div>`;
-          break;
-        }
-        case "mdat": {
-          box.details["info"] = "Contains raw media data for samples.";
-          break;
-        }
-      }
-    } catch (_e) {
-      box.details["Parsing Error"] = _e.message;
-    }
-  }
   function dispatchAndRenderSegmentAnalysis(e4, buffer, bufferB = null) {
     if (!buffer) {
-      B(
-        x`<p class="fail">
-                Segment buffer is not available for analysis.
-            </p>`,
-        dom.modalContentArea
-      );
+      B(x`<p class="fail">Segment buffer not available.</p>`, dom.modalContentArea);
       return;
     }
     const target = (
       /** @type {HTMLElement} */
       e4?.currentTarget
     );
+    const url = target?.dataset.url;
     const repId = target?.dataset.repid;
-    const activeStream = analysisState.streams.find(
-      (s2) => s2.id === analysisState.activeStreamId
-    );
+    const activeStream = analysisState.streams.find((s2) => s2.id === analysisState.activeStreamId);
     if (!activeStream) return;
-    const rep = activeStream.mpd.querySelector(`Representation[id="${repId}"]`);
+    const rep = activeStream.manifest.rawElement.querySelector(`Representation[id="${repId}"]`);
     const as = rep?.closest("AdaptationSet");
     const mimeType = rep?.getAttribute("mimeType") || as?.getAttribute("mimeType");
     try {
@@ -3639,49 +3706,117 @@ ${samples.join("\n")}${sample_count > 10 ? `
         const analysisA = parseTsSegment(buffer);
         if (bufferB) {
           const analysisB = parseTsSegment(bufferB);
-          const diff = diffObjects(
-            analysisA.data.summary,
-            analysisB.data.summary
-          );
+          const diff = diffObjects(analysisA.data.summary, analysisB.data.summary);
           B(segmentCompareTemplate(diff), dom.modalContentArea);
         } else {
-          B(
-            tsAnalysisTemplate(analysisA.data),
-            dom.modalContentArea
-          );
+          B(tsAnalysisTemplate(analysisA.data), dom.modalContentArea);
         }
       } else {
-        const boxesA = parseISOBMFF(buffer);
-        if (bufferB) {
-          const boxesB = parseISOBMFF(bufferB);
-          const essentialA = essentialDataTemplate(boxesA);
-          const essentialB = essentialDataTemplate(boxesB);
-          const diff = diffObjects(
-            boxesA[0]?.details || {},
-            boxesB[0]?.details || {}
-          );
-          B(segmentCompareTemplate(diff), dom.modalContentArea);
+        const cachedA = analysisState.segmentCache.get(url);
+        if (cachedA?.parsedData && !cachedA.parsedData.error) {
+          B(isoAnalysisTemplate(cachedA.parsedData), dom.modalContentArea);
         } else {
-          B(isoAnalysisTemplate(boxesA), dom.modalContentArea);
+          throw new Error("Segment could not be parsed as ISOBMFF, or was not found in cache.");
         }
       }
     } catch (err) {
       console.error("Segment parsing error:", err);
-      B(
-        x`<p class="fail">
-                Could not parse segment buffer: ${err.message}.
-            </p>`,
-        dom.modalContentArea
-      );
+      B(x`<p class="fail">Could not render segment analysis: ${err.message}.</p>`, dom.modalContentArea);
     }
   }
 
-  // js/views/segment-explorer.js
+  // js/features/segment-explorer/parser.js
+  function parseAllSegmentUrls(manifestElement, baseUrl) {
+    const segmentsByRep = {};
+    manifestElement.querySelectorAll("Representation").forEach((rep) => {
+      const repId = rep.getAttribute("id");
+      segmentsByRep[repId] = [];
+      const as = rep.closest("AdaptationSet");
+      const period = rep.closest("Period");
+      const template = rep.querySelector("SegmentTemplate") || as.querySelector("SegmentTemplate") || period.querySelector("SegmentTemplate");
+      if (!template) return;
+      const timescale = parseInt(template.getAttribute("timescale") || "1");
+      const initTemplate = template.getAttribute("initialization");
+      if (initTemplate) {
+        const url = initTemplate.replace(/\$RepresentationID\$/g, repId);
+        segmentsByRep[repId].push({
+          repId,
+          type: "Init",
+          number: 0,
+          resolvedUrl: new URL(url, baseUrl).href,
+          template: url,
+          time: -1,
+          duration: 0,
+          timescale
+        });
+      }
+      const mediaTemplate = template.getAttribute("media");
+      const timeline = template.querySelector("SegmentTimeline");
+      if (mediaTemplate && timeline) {
+        let segmentNumber = parseInt(
+          template.getAttribute("startNumber") || "1"
+        );
+        let currentTime = 0;
+        timeline.querySelectorAll("S").forEach((s2) => {
+          const t3 = s2.hasAttribute("t") ? parseInt(s2.getAttribute("t")) : currentTime;
+          const d2 = parseInt(s2.getAttribute("d"));
+          const r2 = parseInt(s2.getAttribute("r") || "0");
+          for (let i3 = 0; i3 <= r2; i3++) {
+            const segTime = t3 + i3 * d2;
+            const url = mediaTemplate.replace(/\$RepresentationID\$/g, repId).replace(/\$Number(%0\d+d)?\$/g, (match, padding) => {
+              const width = padding ? parseInt(
+                padding.substring(2, padding.length - 1)
+              ) : 1;
+              return String(segmentNumber).padStart(width, "0");
+            }).replace(/\$Time\$/g, String(segTime));
+            segmentsByRep[repId].push({
+              repId,
+              type: "Media",
+              number: segmentNumber,
+              resolvedUrl: new URL(url, baseUrl).href,
+              template: url,
+              time: segTime,
+              duration: d2,
+              timescale
+            });
+            segmentNumber++;
+          }
+          currentTime = t3 + (r2 + 1) * d2;
+        });
+      }
+    });
+    return segmentsByRep;
+  }
+
+  // js/features/segment-explorer/api.js
+  async function fetchSegment(url) {
+    if (analysisState.segmentCache.has(url) && analysisState.segmentCache.get(url).status !== -1)
+      return;
+    try {
+      analysisState.segmentCache.set(url, { status: -1, data: null, parsedData: null });
+      const response = await fetch(url, { method: "GET", cache: "no-store" });
+      const data = response.ok ? await response.arrayBuffer() : null;
+      let parsedData = null;
+      if (data) {
+        try {
+          parsedData = parseISOBMFF(data);
+        } catch (e4) {
+          console.error(`Failed to parse segment ${url}:`, e4);
+          parsedData = { error: e4.message };
+        }
+      }
+      analysisState.segmentCache.set(url, { status: response.status, data, parsedData });
+    } catch (_error) {
+      analysisState.segmentCache.set(url, { status: 0, data: null, parsedData: null });
+    }
+  }
+
+  // js/features/segment-explorer/view.js
   var SEGMENT_PAGE_SIZE = 10;
   var segmentFreshnessInterval = null;
   var allSegmentsByRep = {};
   var currentContainer = null;
-  var currentMpd = null;
+  var currentManifest = null;
   var currentBaseUrl = null;
   function handleSegmentCheck(e4) {
     const checkbox = (
@@ -3700,7 +3835,7 @@ ${samples.join("\n")}${sample_count > 10 ? `
         segmentsForCompare.splice(index, 1);
       }
     }
-    initializeSegmentExplorer(currentContainer, currentMpd, currentBaseUrl);
+    initializeSegmentExplorer(currentContainer, currentManifest, currentBaseUrl);
   }
   function handleCompareClick() {
     const { segmentsForCompare, segmentCache } = analysisState;
@@ -3760,6 +3895,18 @@ ${samples.join("\n")}${sample_count > 10 ? `
       modalContent.classList.add("scale-100");
       dispatchAndRenderSegmentAnalysis(e4, cached?.data);
     };
+    const viewRawHandler = (e4) => {
+      const url = (
+        /** @type {HTMLElement} */
+        e4.currentTarget.dataset.url
+      );
+      analysisState.activeSegmentUrl = url;
+      const targetTab = (
+        /** @type {HTMLButtonElement} */
+        document.querySelector('[data-tab="interactive-segment"]')
+      );
+      targetTab?.click();
+    };
     const segmentTiming = seg.type === "Media" ? x`${(seg.time / seg.timescale).toFixed(2)}s
               (+${(seg.duration / seg.timescale).toFixed(2)}s)` : "N/A";
     return x` <tr
@@ -3790,16 +3937,26 @@ ${samples.join("\n")}${sample_count > 10 ? `
             ${seg.template}
         </td>
         <td class="py-2 pr-3 text-right">
-            <button
-                class="view-details-btn text-xs bg-purple-600 hover:bg-purple-700 px-2 py-1 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                data-url="${seg.resolvedUrl}"
-                data-repid="${seg.repId}"
-                data-number="${seg.number}"
-                ?disabled=${!canAnalyze}
-                @click=${analyzeHandler}
-            >
-                Analyze
-            </button>
+            <div class="flex items-center justify-end space-x-2">
+                <button
+                    class="view-raw-btn text-xs bg-gray-600 hover:bg-gray-700 px-2 py-1 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                    data-url="${seg.resolvedUrl}"
+                    ?disabled=${!canAnalyze}
+                    @click=${viewRawHandler}
+                >
+                    View Raw
+                </button>
+                <button
+                    class="view-details-btn text-xs bg-purple-600 hover:bg-purple-700 px-2 py-1 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                    data-url="${seg.resolvedUrl}"
+                    data-repid="${seg.repId}"
+                    data-number="${seg.number}"
+                    ?disabled=${!canAnalyze}
+                    @click=${analyzeHandler}
+                >
+                    Analyze
+                </button>
+            </div>
         </td>
     </tr>`;
   };
@@ -3834,12 +3991,12 @@ ${samples.join("\n")}${sample_count > 10 ? `
         </details>
     `;
   };
-  function initializeSegmentExplorer(container, mpd, baseUrl) {
+  function initializeSegmentExplorer(container, manifest, baseUrl) {
     currentContainer = container;
-    currentMpd = mpd;
+    currentManifest = manifest;
     currentBaseUrl = baseUrl;
-    allSegmentsByRep = parseAllSegmentUrls(mpd, baseUrl);
-    const isDynamic = mpd.getAttribute("type") === "dynamic";
+    allSegmentsByRep = parseAllSegmentUrls(manifest.rawElement, baseUrl);
+    const isDynamic = manifest.type === "dynamic";
     const template = x`
         <div class="flex flex-wrap justify-between items-center mb-4 gap-4">
             <h3 class="text-xl font-bold">Segment Explorer</h3>
@@ -3908,7 +4065,7 @@ ${samples.join("\n")}${sample_count > 10 ? `
         <div id="segment-explorer-content" class="space-y-4">
             <!-- Content will be rendered here -->
         </div>
-        <div class="dev-watermark">Segment Explorer v3.0</div>
+        <div class="dev-watermark">Segment Explorer v4.0</div>
     `;
     B(template, container);
     if (!document.querySelector("#segment-explorer-content table")) {
@@ -3930,10 +4087,10 @@ ${samples.join("\n")}${sample_count > 10 ? `
     await Promise.all(
       segmentsToFetch.map((seg) => fetchSegment(seg.resolvedUrl))
     );
-    const mpd = analysisState.streams.find(
+    const manifest = analysisState.streams.find(
       (s2) => s2.id === analysisState.activeStreamId
-    ).mpd;
-    const tables = Array.from(mpd.querySelectorAll("Representation")).map(
+    ).manifest;
+    const tables = Array.from(manifest.rawElement.querySelectorAll("Representation")).map(
       (rep) => {
         const repId = rep.getAttribute("id");
         const segments = allSegmentsByRep[repId] || [];
@@ -3942,7 +4099,7 @@ ${samples.join("\n")}${sample_count > 10 ? `
       }
     );
     B(x`${tables}`, contentArea);
-    if (mpd.getAttribute("type") === "dynamic") {
+    if (manifest.type === "dynamic") {
       startSegmentFreshnessChecker();
     }
   }
@@ -3992,10 +4149,10 @@ ${samples.join("\n")}${sample_count > 10 ? `
     await Promise.all(
       segmentsToFetch.map((seg) => fetchSegment(seg.resolvedUrl))
     );
-    const mpd = analysisState.streams.find(
+    const manifest = analysisState.streams.find(
       (s2) => s2.id === analysisState.activeStreamId
-    ).mpd;
-    const tables = Array.from(mpd.querySelectorAll("Representation")).map(
+    ).manifest;
+    const tables = Array.from(manifest.rawElement.querySelectorAll("Representation")).map(
       (rep) => {
         const repId = rep.getAttribute("id");
         const segmentsToRender = filteredSegmentsByRep[repId] || [];
@@ -4021,91 +4178,14 @@ ${samples.join("\n")}${sample_count > 10 ? `
     }
     return results;
   }
-  async function fetchSegment(url) {
-    if (analysisState.segmentCache.has(url) && analysisState.segmentCache.get(url).status !== -1)
-      return;
-    try {
-      analysisState.segmentCache.set(url, { status: -1, data: null });
-      const response = await fetch(url, { method: "GET", cache: "no-store" });
-      const data = response.ok ? await response.arrayBuffer() : null;
-      analysisState.segmentCache.set(url, { status: response.status, data });
-    } catch (_error) {
-      analysisState.segmentCache.set(url, { status: 0, data: null });
-    }
-  }
-  function parseAllSegmentUrls(mpd, baseUrl) {
-    const segmentsByRep = {};
-    mpd.querySelectorAll("Representation").forEach((rep) => {
-      const repId = rep.getAttribute("id");
-      segmentsByRep[repId] = [];
-      const as = rep.closest("AdaptationSet");
-      const period = rep.closest("Period");
-      const template = rep.querySelector("SegmentTemplate") || as.querySelector("SegmentTemplate") || period.querySelector("SegmentTemplate");
-      if (!template) return;
-      const timescale = parseInt(template.getAttribute("timescale") || "1");
-      const initTemplate = template.getAttribute("initialization");
-      if (initTemplate) {
-        const url = initTemplate.replace(/\$RepresentationID\$/g, repId);
-        segmentsByRep[repId].push({
-          repId,
-          type: "Init",
-          number: 0,
-          resolvedUrl: new URL(url, baseUrl).href,
-          template: url,
-          time: -1,
-          duration: 0,
-          timescale
-        });
-      }
-      const mediaTemplate = template.getAttribute("media");
-      const timeline = template.querySelector("SegmentTimeline");
-      if (mediaTemplate && timeline) {
-        let segmentNumber = parseInt(
-          template.getAttribute("startNumber") || "1"
-        );
-        let currentTime = 0;
-        timeline.querySelectorAll("S").forEach((s2) => {
-          const t3 = s2.hasAttribute("t") ? parseInt(s2.getAttribute("t")) : currentTime;
-          const d2 = parseInt(s2.getAttribute("d"));
-          const r2 = parseInt(s2.getAttribute("r") || "0");
-          for (let i3 = 0; i3 <= r2; i3++) {
-            const segTime = t3 + i3 * d2;
-            const url = mediaTemplate.replace(/\$RepresentationID\$/g, repId).replace(/\$Number(%0\d+d)?\$/g, (match, padding) => {
-              const width = padding ? parseInt(
-                padding.substring(2, padding.length - 1)
-              ) : 1;
-              return String(segmentNumber).padStart(width, "0");
-            }).replace(/\$Time\$/g, String(segTime));
-            segmentsByRep[repId].push({
-              repId,
-              type: "Media",
-              number: segmentNumber,
-              resolvedUrl: new URL(url, baseUrl).href,
-              template: url,
-              time: segTime,
-              duration: d2,
-              timescale
-            });
-            segmentNumber++;
-          }
-          currentTime = t3 + (r2 + 1) * d2;
-        });
-      }
-    });
-    return segmentsByRep;
-  }
   function updateSegmentFreshness() {
     const activeStream = analysisState.streams.find(
       (s2) => s2.id === analysisState.activeStreamId
     );
-    if (!activeStream || activeStream.mpd.getAttribute("type") !== "dynamic")
+    if (!activeStream || activeStream.manifest.type !== "dynamic")
       return;
-    const timeShiftBufferDepth = parseIsoDuration(
-      activeStream.mpd.getAttribute("timeShiftBufferDepth")
-    );
-    const availabilityStartTime = new Date(
-      activeStream.mpd.getAttribute("availabilityStartTime")
-    ).getTime();
+    const timeShiftBufferDepth = activeStream.manifest.timeShiftBufferDepth;
+    const availabilityStartTime = activeStream.manifest.availabilityStartTime?.getTime();
     if (!timeShiftBufferDepth || !availabilityStartTime) return;
     const now = Date.now();
     const liveEdge = (now - availabilityStartTime) / 1e3;
@@ -4151,7 +4231,7 @@ ${samples.join("\n")}${sample_count > 10 ? `
     const activeStream = analysisState.streams.find(
       (s2) => s2.id === analysisState.activeStreamId
     );
-    if (activeStream && activeStream.mpd.getAttribute("type") === "dynamic") {
+    if (activeStream && activeStream.manifest.type === "dynamic") {
       updateSegmentFreshness();
       segmentFreshnessInterval = setInterval(updateSegmentFreshness, 2e3);
       analysisState.segmentFreshnessChecker = segmentFreshnessInterval;
@@ -4164,19 +4244,8 @@ ${samples.join("\n")}${sample_count > 10 ? `
       analysisState.segmentFreshnessChecker = null;
     }
   }
-  var parseIsoDuration = (durationStr) => {
-    if (!durationStr) return 0;
-    const match = durationStr.match(
-      /PT(?:(\d+\.?\d*)H)?(?:(\d+\.?\d*)M)?(?:(\d+\.?\d*)S)?/
-    );
-    if (!match) return 0;
-    const hours = parseFloat(match[1] || 0);
-    const minutes = parseFloat(match[2] || 0);
-    const seconds = parseFloat(match[3] || 0);
-    return hours * 3600 + minutes * 60 + seconds;
-  };
 
-  // js/views/compare.js
+  // js/features/comparison/view.js
   var formatBitrate2 = (bps) => {
     if (!bps || isNaN(bps)) return "N/A";
     if (bps >= 1e6) return `${(bps / 1e6).toFixed(2)} Mbps`;
@@ -4188,25 +4257,25 @@ ${samples.join("\n")}${sample_count > 10 ? `
         label: "Type",
         tooltip: "static vs dynamic",
         iso: "Clause 5.3.1.2",
-        accessor: (mpd) => mpd.getAttribute("type")
+        accessor: (manifest) => manifest.getAttribute("type")
       },
       {
         label: "Profiles",
         tooltip: "Declared feature sets",
         iso: "Clause 8.1",
-        accessor: (mpd) => (mpd.getAttribute("profiles") || "").replace(/urn:mpeg:dash:profile:/g, " ").trim()
+        accessor: (manifest) => (manifest.getAttribute("profiles") || "").replace(/urn:mpeg:dash:profile:/g, " ").trim()
       },
       {
         label: "Min Buffer Time",
         tooltip: "Minimum client buffer time.",
         iso: "Clause 5.3.1.2",
-        accessor: (mpd) => mpd.getAttribute("minBufferTime") || "N/A"
+        accessor: (manifest) => manifest.getAttribute("minBufferTime") || "N/A"
       },
       {
         label: "Live Window",
         tooltip: "DVR window for live streams.",
         iso: "Clause 5.3.1.2",
-        accessor: (mpd) => mpd.getAttribute("timeShiftBufferDepth") || "N/A"
+        accessor: (manifest) => manifest.getAttribute("timeShiftBufferDepth") || "N/A"
       }
     ],
     "Content Overview": [
@@ -4214,17 +4283,17 @@ ${samples.join("\n")}${sample_count > 10 ? `
         label: "# of Periods",
         tooltip: "Number of content periods.",
         iso: "Clause 5.3.2",
-        accessor: (mpd) => mpd.querySelectorAll("Period").length
+        accessor: (manifest) => manifest.querySelectorAll("Period").length
       },
       {
         label: "Content Protection",
         tooltip: "Detected DRM systems.",
         iso: "Clause 5.8.4.1",
-        accessor: (mpd) => {
+        accessor: (manifest) => {
           const schemes = [
             ...new Set(
               Array.from(
-                mpd.querySelectorAll("ContentProtection")
+                manifest.querySelectorAll("ContentProtection")
               ).map(
                 (cp) => getDrmSystemName(cp.getAttribute("schemeIdUri"))
               )
@@ -4239,7 +4308,7 @@ ${samples.join("\n")}${sample_count > 10 ? `
         label: "# Video Reps",
         tooltip: "Total number of video quality levels.",
         iso: "Clause 5.3.5",
-        accessor: (mpd) => mpd.querySelectorAll(
+        accessor: (manifest) => manifest.querySelectorAll(
           'AdaptationSet[contentType="video"] Representation, AdaptationSet[mimeType^="video"] Representation'
         ).length
       },
@@ -4247,9 +4316,9 @@ ${samples.join("\n")}${sample_count > 10 ? `
         label: "Video Bitrates",
         tooltip: "Min and Max bandwidth values for video.",
         iso: "Table 9",
-        accessor: (mpd) => {
+        accessor: (manifest) => {
           const b2 = Array.from(
-            mpd.querySelectorAll(
+            manifest.querySelectorAll(
               'AdaptationSet[contentType="video"] Representation, AdaptationSet[mimeType^="video"] Representation'
             )
           ).map((r2) => parseInt(r2.getAttribute("bandwidth")));
@@ -4260,11 +4329,11 @@ ${samples.join("\n")}${sample_count > 10 ? `
         label: "Video Resolutions",
         tooltip: "List of unique video resolutions.",
         iso: "Table 14",
-        accessor: (mpd) => {
+        accessor: (manifest) => {
           const res = [
             ...new Set(
               Array.from(
-                mpd.querySelectorAll(
+                manifest.querySelectorAll(
                   'AdaptationSet[contentType="video"] Representation, AdaptationSet[mimeType^="video"] Representation'
                 )
               ).map((r2) => {
@@ -4282,11 +4351,11 @@ ${samples.join("\n")}${sample_count > 10 ? `
         label: "Video Codecs",
         tooltip: "Unique video codecs.",
         iso: "Table 14",
-        accessor: (mpd) => {
+        accessor: (manifest) => {
           const codecs = [
             ...new Set(
               Array.from(
-                mpd.querySelectorAll(
+                manifest.querySelectorAll(
                   'AdaptationSet[contentType="video"] Representation, AdaptationSet[mimeType^="video"] Representation'
                 )
               ).map(
@@ -4303,7 +4372,7 @@ ${samples.join("\n")}${sample_count > 10 ? `
         label: "# Audio Tracks",
         tooltip: "Groups of audio tracks, often by language.",
         iso: "Clause 5.3.3",
-        accessor: (mpd) => mpd.querySelectorAll(
+        accessor: (manifest) => manifest.querySelectorAll(
           'AdaptationSet[contentType="audio"], AdaptationSet[mimeType^="audio"]'
         ).length
       },
@@ -4311,11 +4380,11 @@ ${samples.join("\n")}${sample_count > 10 ? `
         label: "Audio Languages",
         tooltip: "Declared languages for audio tracks.",
         iso: "Table 5",
-        accessor: (mpd) => {
+        accessor: (manifest) => {
           const langs = [
             ...new Set(
               Array.from(
-                mpd.querySelectorAll(
+                manifest.querySelectorAll(
                   'AdaptationSet[contentType="audio"], AdaptationSet[mimeType^="audio"]'
                 )
               ).map((as) => as.getAttribute("lang"))
@@ -4328,11 +4397,11 @@ ${samples.join("\n")}${sample_count > 10 ? `
         label: "Audio Codecs",
         tooltip: "Unique audio codecs.",
         iso: "Table 14",
-        accessor: (mpd) => {
+        accessor: (manifest) => {
           const codecs = [
             ...new Set(
               Array.from(
-                mpd.querySelectorAll(
+                manifest.querySelectorAll(
                   'AdaptationSet[contentType="audio"] Representation, AdaptationSet[mimeType^="audio"] Representation'
                 )
               ).map(
@@ -4371,7 +4440,7 @@ ${samples.join("\n")}${sample_count > 10 ? `
                 </div>
                 ${streams.map(
       (stream) => x`<div class="p-2 font-mono text-sm border-r border-gray-700">
-                            ${item.accessor(stream.mpd)}
+                            ${item.accessor(stream.manifest.rawElement)}
                         </div>`
     )}
             `
@@ -4391,7 +4460,79 @@ ${samples.join("\n")}${sample_count > 10 ? `
     `;
   }
 
-  // js/api/dash-parser.js
+  // js/protocols/dash/adapter.js
+  var parseDuration2 = (durationStr) => {
+    if (!durationStr) return null;
+    const match = durationStr.match(
+      /PT(?:(\d+(?:\.\d+)?)H)?(?:(\d+(?:\.\d+)?)M)?(?:(\d+(?:\.\d+)?)S)?/
+    );
+    if (!match) return null;
+    const hours = parseFloat(match[1] || "0");
+    const minutes = parseFloat(match[2] || "0");
+    const seconds = parseFloat(match[3] || "0");
+    return hours * 3600 + minutes * 60 + seconds;
+  };
+  function adaptDashToIr(manifestElement) {
+    const getAttr = (el, attr) => el.getAttribute(attr);
+    const manifestIR = {
+      type: getAttr(manifestElement, "type"),
+      profiles: getAttr(manifestElement, "profiles"),
+      minBufferTime: parseDuration2(getAttr(manifestElement, "minBufferTime")),
+      publishTime: getAttr(manifestElement, "publishTime") ? new Date(getAttr(manifestElement, "publishTime")) : null,
+      availabilityStartTime: getAttr(manifestElement, "availabilityStartTime") ? new Date(getAttr(manifestElement, "availabilityStartTime")) : null,
+      timeShiftBufferDepth: parseDuration2(
+        getAttr(manifestElement, "timeShiftBufferDepth")
+      ),
+      minimumUpdatePeriod: parseDuration2(
+        getAttr(manifestElement, "minimumUpdatePeriod")
+      ),
+      duration: parseDuration2(
+        getAttr(manifestElement, "mediaPresentationDuration")
+      ),
+      periods: [],
+      rawElement: manifestElement
+      // Keep a reference for features not yet migrated
+    };
+    manifestElement.querySelectorAll("Period").forEach((periodEl) => {
+      const periodIR = {
+        id: getAttr(periodEl, "id"),
+        start: parseDuration2(getAttr(periodEl, "start")),
+        duration: parseDuration2(getAttr(periodEl, "duration")),
+        adaptationSets: []
+      };
+      periodEl.querySelectorAll("AdaptationSet").forEach((asEl) => {
+        const asIR = {
+          id: getAttr(asEl, "id"),
+          contentType: getAttr(asEl, "contentType") || getAttr(asEl, "mimeType")?.split("/")[0],
+          lang: getAttr(asEl, "lang"),
+          mimeType: getAttr(asEl, "mimeType"),
+          representations: [],
+          contentProtection: []
+        };
+        asEl.querySelectorAll("ContentProtection").forEach((cpEl) => {
+          asIR.contentProtection.push({
+            schemeIdUri: getAttr(cpEl, "schemeIdUri"),
+            system: getDrmSystemName(getAttr(cpEl, "schemeIdUri"))
+          });
+        });
+        asEl.querySelectorAll("Representation").forEach((repEl) => {
+          const repIR = {
+            id: getAttr(repEl, "id"),
+            codecs: getAttr(repEl, "codecs") || getAttr(asEl, "codecs"),
+            bandwidth: parseInt(getAttr(repEl, "bandwidth"), 10),
+            width: parseInt(getAttr(repEl, "width"), 10),
+            height: parseInt(getAttr(repEl, "height"), 10)
+          };
+          asIR.representations.push(repIR);
+        });
+        periodIR.adaptationSets.push(asIR);
+      });
+      manifestIR.periods.push(periodIR);
+    });
+    return manifestIR;
+  }
+
+  // js/protocols/dash/parser.js
   async function resolveXlinks(rootElement, documentUrl, visitedUrls) {
     const XLINK_NS = "http://www.w3.org/1999/xlink";
     let linksToResolve = Array.from(
@@ -4455,22 +4596,23 @@ ${samples.join("\n")}${sample_count > 10 ? `
     }
     rootElement.querySelectorAll("[data-xlink-resolved]").forEach((el) => el.removeAttribute("data-xlink-resolved"));
   }
-  async function parseMpd(xmlString, baseUrl) {
+  async function parseManifest(xmlString, baseUrl) {
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString(xmlString, "application/xml");
     if (xmlDoc.querySelector("parsererror")) {
       throw new Error("Invalid XML. Check console for details.");
     }
-    const mpd = xmlDoc.querySelector("MPD");
-    if (!mpd) {
+    const manifestElement = xmlDoc.querySelector("MPD");
+    if (!manifestElement) {
       throw new Error("No <MPD> element found in the document.");
     }
-    await resolveXlinks(mpd, baseUrl, /* @__PURE__ */ new Set([baseUrl]));
-    const mpdBaseElement = mpd.querySelector(":scope > BaseURL");
-    if (mpdBaseElement && mpdBaseElement.textContent) {
-      baseUrl = new URL(mpdBaseElement.textContent, baseUrl).href;
+    await resolveXlinks(manifestElement, baseUrl, /* @__PURE__ */ new Set([baseUrl]));
+    const manifestBaseElement = manifestElement.querySelector(":scope > BaseURL");
+    if (manifestBaseElement && manifestBaseElement.textContent) {
+      baseUrl = new URL(manifestBaseElement.textContent, baseUrl).href;
     }
-    return { mpd, baseUrl };
+    const manifest = adaptDashToIr(manifestElement);
+    return { manifest, baseUrl };
   }
 
   // node_modules/diff/libesm/diff/base.js
@@ -4916,12 +5058,12 @@ ${samples.join("\n")}${sample_count > 10 ? `
     return wordsWithSpaceDiff.diff(oldStr, newStr, options);
   }
 
-  // js/api/mpd-diff.js
+  // js/features/manifest-updates/diff.js
   function escapeHtml2(str) {
     return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
   }
-  function diffMpd(oldMpd, newMpd) {
-    const changes = diffWords(oldMpd, newMpd);
+  function diffManifest(oldManifest, newManifest) {
+    const changes = diffWords(oldManifest, newManifest);
     let html = "";
     changes.forEach((part) => {
       if (part.removed) {
@@ -4937,136 +5079,114 @@ ${samples.join("\n")}${sample_count > 10 ? `
     return html;
   }
 
-  // js/mpd-poll.js
+  // js/features/manifest-updates/poll.js
   var import_xml_formatter = __toESM(require_cjs2());
-  var mpdUpdateInterval = null;
-  function startMpdUpdatePolling(stream) {
-    if (mpdUpdateInterval) {
-      clearInterval(mpdUpdateInterval);
+  var manifestUpdateInterval = null;
+  function startManifestUpdatePolling(stream, onUpdate) {
+    if (manifestUpdateInterval) {
+      clearInterval(manifestUpdateInterval);
     }
-    const updatePeriodAttr = stream.mpd.getAttribute("minimumUpdatePeriod");
-    if (!updatePeriodAttr) return;
-    const updatePeriod = parseDuration2(updatePeriodAttr) * 1e3;
-    const pollInterval = Math.max(updatePeriod, 2e3);
-    let originalMpdString = stream.rawXml;
-    mpdUpdateInterval = setInterval(async () => {
+    const updatePeriodSeconds = stream.manifest.minimumUpdatePeriod;
+    if (!updatePeriodSeconds) return;
+    const updatePeriodMs = updatePeriodSeconds * 1e3;
+    const pollInterval = Math.max(updatePeriodMs, 2e3);
+    let originalManifestString = stream.rawXml;
+    manifestUpdateInterval = setInterval(async () => {
       try {
         const response = await fetch(stream.originalUrl);
         if (!response.ok) return;
-        const newMpdString = await response.text();
-        if (newMpdString !== originalMpdString) {
-          const { mpd: newMpd } = await parseMpd(
-            newMpdString,
+        const newManifestString = await response.text();
+        if (newManifestString !== originalManifestString) {
+          const { manifest: newManifest } = await parseManifest(
+            newManifestString,
             stream.baseUrl
           );
-          const oldMpdForDiff = originalMpdString;
-          stream.mpd = newMpd;
-          stream.rawXml = newMpdString;
-          originalMpdString = newMpdString;
+          const oldManifestForDiff = originalManifestString;
+          stream.manifest = newManifest;
+          stream.rawXml = newManifestString;
+          originalManifestString = newManifestString;
           const formattingOptions = {
             indentation: "  ",
             lineSeparator: "\n"
           };
-          const formattedOldMpd = (0, import_xml_formatter.default)(
-            oldMpdForDiff,
+          const formattedOldManifest = (0, import_xml_formatter.default)(
+            oldManifestForDiff,
             formattingOptions
           );
-          const formattedNewMpd = (0, import_xml_formatter.default)(
-            newMpdString,
+          const formattedNewManifest = (0, import_xml_formatter.default)(
+            newManifestString,
             formattingOptions
           );
-          const diffHtml = diffMpd(formattedOldMpd, formattedNewMpd);
-          analysisState.mpdUpdates.unshift({
+          const diffHtml = diffManifest(formattedOldManifest, formattedNewManifest);
+          analysisState.manifestUpdates.unshift({
             timestamp: (/* @__PURE__ */ new Date()).toLocaleTimeString(),
             diffHtml
           });
-          if (analysisState.mpdUpdates.length > 20) {
-            analysisState.mpdUpdates.pop();
+          if (analysisState.manifestUpdates.length > 20) {
+            analysisState.manifestUpdates.pop();
           }
-          const activeTab = document.querySelector(".tab-active");
-          if (activeTab && [
-            "summary",
-            "timeline-visuals",
-            "features",
-            "compliance",
-            "explorer",
-            "updates"
-          ].includes(
-            /** @type {HTMLElement} */
-            activeTab.dataset.tab
-          )) {
-            renderSingleStreamTabs(stream.id);
+          if (onUpdate) {
+            onUpdate();
           }
         }
       } catch (e4) {
-        console.error("[MPD-POLL] Error fetching update:", e4);
+        console.error("[MANIFEST-POLL] Error fetching update:", e4);
       }
     }, pollInterval);
   }
-  function stopMpdUpdatePolling() {
-    if (mpdUpdateInterval) {
-      clearInterval(mpdUpdateInterval);
-      mpdUpdateInterval = null;
+  function stopManifestUpdatePolling() {
+    if (manifestUpdateInterval) {
+      clearInterval(manifestUpdateInterval);
+      manifestUpdateInterval = null;
     }
-  }
-  function parseDuration2(durationStr) {
-    if (!durationStr) return 0;
-    const match = durationStr.match(
-      /PT(?:(\d+\.?\d*)H)?(?:(\d+\.?\d*)M)?(?:(\d+\.?\d*)S)?/
-    );
-    if (!match) return 0;
-    const hours = parseFloat(match[1] || "0");
-    const minutes = parseFloat(match[2] || "0");
-    const seconds = parseFloat(match[3] || "0");
-    return hours * 3600 + minutes * 60 + seconds;
   }
 
-  // js/views/mpd-updates.js
-  var import_xml_formatter2 = __toESM(require_cjs2());
+  // js/features/manifest-updates/view.js
   var togglePollingBtn;
-  var mpdUpdatesTemplate = (stream) => {
+  var manifestUpdatesTemplate = (stream) => {
     if (analysisState.streams.length > 1) {
       return x`<p class="warn">
-            MPD update polling is only supported when analyzing a single stream.
+            Manifest update polling is only supported when analyzing a single stream.
         </p>`;
     }
-    if (!stream || stream.mpd.getAttribute("type") !== "dynamic") {
+    if (!stream || stream.manifest.type !== "dynamic") {
       return x`<p class="info">
-            This is a static MPD. No updates are expected.
+            This is a static manifest. No updates are expected.
         </p>`;
     }
-    const { mpdUpdates, activeMpdUpdateIndex } = analysisState;
-    const updateCount = mpdUpdates.length;
-    const currentIndex = updateCount > 0 ? updateCount - activeMpdUpdateIndex : 1;
-    const totalCount = updateCount > 0 ? updateCount : 1;
-    let currentDisplay;
+    const { manifestUpdates, activeManifestUpdateIndex } = analysisState;
+    const updateCount = manifestUpdates.length;
     if (updateCount === 0) {
-      const formattedInitialMpd = (0, import_xml_formatter2.default)(stream.rawXml, {
-        indentation: "  ",
-        lineSeparator: "\n"
-      });
-      currentDisplay = x` <div class="text-sm text-gray-400 mb-2">
-                Initial MPD loaded:
-            </div>
-            <div
-                class="bg-slate-800 rounded-lg p-4 font-mono text-sm leading-relaxed overflow-x-auto whitespace-pre-wrap break-all"
-            >
-                <pre><code>${formattedInitialMpd}</code></pre>
-            </div>`;
-    } else {
-      const currentUpdate = mpdUpdates[activeMpdUpdateIndex];
-      currentDisplay = x` <div class="text-sm text-gray-400 mb-2">
-                Update received at:
-                <span class="font-semibold text-gray-200"
-                    >${currentUpdate.timestamp}</span
-                >
-            </div>
-            <div
-                class="bg-slate-800 rounded-lg p-4 font-mono text-sm leading-relaxed overflow-x-auto whitespace-pre-wrap break-all"
-            >
-                <pre><code>${o2(currentUpdate.diffHtml)}</code></pre>
-            </div>`;
+      return x`<p class="info">Awaiting first manifest update...</p>`;
     }
+    const currentIndex = updateCount - activeManifestUpdateIndex;
+    const currentUpdate = manifestUpdates[activeManifestUpdateIndex];
+    const lines = currentUpdate.diffHtml.split("\n");
+    const updateLabel = activeManifestUpdateIndex === manifestUpdates.length - 1 ? "Initial Manifest loaded:" : "Update received at:";
+    const currentDisplay = x` <div class="text-sm text-gray-400 mb-2">
+            ${updateLabel}
+            <span class="font-semibold text-gray-200"
+                >${currentUpdate.timestamp}</span
+            >
+        </div>
+        <div
+            class="bg-slate-800 rounded-lg p-4 font-mono text-sm leading-relaxed overflow-x-auto"
+        >
+            ${lines.map(
+      (line, i3) => x`
+                    <div class="flex">
+                        <span
+                            class="text-right text-gray-500 pr-4 select-none flex-shrink-0 w-10"
+                            >${i3 + 1}</span
+                        >
+                        <span
+                            class="flex-grow whitespace-pre-wrap break-all"
+                            >${o2(line)}</span
+                        >
+                    </div>
+                `
+    )}
+        </div>`;
     return x` <div
             class="flex flex-col sm:flex-row justify-between items-center mb-4 space-y-2 sm:space-y-0"
         >
@@ -5079,42 +5199,42 @@ ${samples.join("\n")}${sample_count > 10 ? `
             </button>
             <div class="flex items-center space-x-2">
                 <button
-                    id="prev-mpd-btn"
+                    id="prev-manifest-btn"
                     class="px-4 py-2 rounded-md font-bold transition duration-300 text-white bg-gray-600 hover:bg-gray-700 disabled:opacity-50"
                     title="Previous Update (Right Arrow)"
-                    ?disabled=${activeMpdUpdateIndex >= updateCount - 1}
-                    @click=${() => navigateMpdUpdates(1)}
+                    ?disabled=${activeManifestUpdateIndex >= updateCount - 1}
+                    @click=${() => navigateManifestUpdates(1)}
                 >
                     &lt;
                 </button>
                 <span
-                    id="mpd-index-display"
+                    id="manifest-index-display"
                     class="text-gray-400 font-semibold w-16 text-center"
-                    >${currentIndex}/${totalCount}</span
+                    >${currentIndex}/${updateCount}</span
                 >
                 <button
-                    id="next-mpd-btn"
+                    id="next-manifest-btn"
                     class="px-4 py-2 rounded-md font-bold transition duration-300 text-white bg-gray-600 hover:bg-gray-700 disabled:opacity-50"
                     title="Next Update (Left Arrow)"
-                    ?disabled=${activeMpdUpdateIndex <= 0}
-                    @click=${() => navigateMpdUpdates(-1)}
+                    ?disabled=${activeManifestUpdateIndex <= 0}
+                    @click=${() => navigateManifestUpdates(-1)}
                 >
                     &gt;
                 </button>
             </div>
         </div>
-        <div id="current-mpd-update" class="mpd-update-entry">
+        <div id="current-manifest-update" class="manifest-update-entry">
             ${currentDisplay}
         </div>`;
   };
-  function renderMpdUpdates(streamId) {
+  function renderManifestUpdates(streamId) {
     const updatesContainer = (
       /** @type {HTMLDivElement} */
       dom.tabContents.updates.querySelector("#mpd-updates-content")
     );
     if (!updatesContainer) return;
     const stream = analysisState.streams.find((s2) => s2.id === streamId);
-    B(mpdUpdatesTemplate(stream), updatesContainer);
+    B(manifestUpdatesTemplate(stream), updatesContainer);
     togglePollingBtn = document.getElementById("toggle-polling-btn");
     updatePollingButton();
   }
@@ -5124,18 +5244,19 @@ ${samples.join("\n")}${sample_count > 10 ? `
       const stream = analysisState.streams.find(
         (s2) => s2.id === analysisState.activeStreamId
       );
-      if (stream && stream.mpd.getAttribute("type") === "dynamic") {
-        startMpdUpdatePolling(stream);
+      if (stream && stream.manifest.type === "dynamic") {
+        const onUpdateCallback = () => renderManifestUpdates(stream.id);
+        startManifestUpdatePolling(stream, onUpdateCallback);
       }
     } else {
-      stopMpdUpdatePolling();
+      stopManifestUpdatePolling();
     }
     updatePollingButton();
   }
   function updatePollingButton() {
     if (!togglePollingBtn) return;
     const stream = analysisState.streams[0];
-    if (!stream || stream.mpd.getAttribute("type") !== "dynamic" || analysisState.streams.length > 1) {
+    if (!stream || stream.manifest.type !== "dynamic" || analysisState.streams.length > 1) {
       togglePollingBtn.style.display = "none";
       return;
     }
@@ -5158,18 +5279,18 @@ ${samples.join("\n")}${sample_count > 10 ? `
       !analysisState.isPollingActive
     );
   }
-  function navigateMpdUpdates(direction) {
-    const { mpdUpdates } = analysisState;
-    if (mpdUpdates.length === 0) return;
-    let newIndex = analysisState.activeMpdUpdateIndex + direction;
-    newIndex = Math.max(0, Math.min(newIndex, mpdUpdates.length - 1));
-    if (newIndex !== analysisState.activeMpdUpdateIndex) {
-      analysisState.activeMpdUpdateIndex = newIndex;
-      renderMpdUpdates(analysisState.activeStreamId);
+  function navigateManifestUpdates(direction) {
+    const { manifestUpdates } = analysisState;
+    if (manifestUpdates.length === 0) return;
+    let newIndex = analysisState.activeManifestUpdateIndex + direction;
+    newIndex = Math.max(0, Math.min(newIndex, manifestUpdates.length - 1));
+    if (newIndex !== analysisState.activeManifestUpdateIndex) {
+      analysisState.activeManifestUpdateIndex = newIndex;
+      renderManifestUpdates(analysisState.activeStreamId);
     }
   }
 
-  // js/helpers/stream-examples.js
+  // js/data/example-streams.js
   var exampleStreams = [
     {
       name: "DASH-IF: Big Buck Bunny (On-Demand)",
@@ -5199,7 +5320,7 @@ ${samples.join("\n")}${sample_count > 10 ? `
 
   // js/ui.js
   var keyboardNavigationListener = null;
-  var tooltipTriggerClasses = "cursor-help border-b border-dotted border-blue-500/40 transition-colors hover:bg-blue-500/15 hover:border-solid";
+  var tooltipTriggerClasses2 = "cursor-help border-b border-dotted border-blue-500/40 transition-colors hover:bg-blue-500/15 hover:border-solid";
   var streamInputTemplate = (streamId, isFirstStream, urlHistory, exampleStreams2) => {
     const exampleOptions = exampleStreams2.map(
       (stream) => x`<option value="${stream.url}">${stream.name}</option>`
@@ -5237,7 +5358,7 @@ ${samples.join("\n")}${sample_count > 10 ? `
                     type="url"
                     id="url-${streamId}"
                     class="input-url w-full bg-gray-700 text-white rounded-md p-2 border border-gray-600 focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter MPD URL..."
+                    placeholder="Enter Manifest URL..."
                     .value=${isFirstStream && urlHistory.length > 0 ? urlHistory[0] : ""}
                 />
                 <span class="text-gray-500">OR</span>
@@ -5250,7 +5371,7 @@ ${samples.join("\n")}${sample_count > 10 ? `
                     type="file"
                     id="file-${streamId}"
                     class="input-file hidden"
-                    accept=".mpd, .xml"
+                    accept=".mpd, .xml, .m3u8"
                     @change=${handleFileChange}
                 />
             </div>
@@ -5328,7 +5449,7 @@ ${samples.join("\n")}${sample_count > 10 ? `
     );
     if (!targetTab) return;
     stopSegmentFreshnessChecker();
-    stopMpdUpdatePolling();
+    stopManifestUpdatePolling();
     if (keyboardNavigationListener) {
       document.removeEventListener("keydown", keyboardNavigationListener);
       keyboardNavigationListener = null;
@@ -5346,15 +5467,23 @@ ${samples.join("\n")}${sample_count > 10 ? `
     });
     const activeTabContent = dom.tabContents[targetTab.dataset.tab];
     if (activeTabContent) activeTabContent.classList.remove("hidden");
+    if (targetTab.dataset.tab === "interactive-segment") {
+      B(
+        getInteractiveSegmentTemplate(),
+        dom.tabContents["interactive-segment"]
+      );
+    }
     if (targetTab.dataset.tab === "explorer") {
       startSegmentFreshnessChecker();
     } else if (targetTab.dataset.tab === "updates") {
-      if (analysisState.isPollingActive && analysisState.streams.length === 1 && analysisState.streams[0].mpd.getAttribute("type") === "dynamic") {
-        startMpdUpdatePolling(analysisState.streams[0]);
+      if (analysisState.isPollingActive && analysisState.streams.length === 1 && analysisState.streams[0].manifest.type === "dynamic") {
+        const stream = analysisState.streams[0];
+        const onUpdateCallback = () => renderManifestUpdates(stream.id);
+        startManifestUpdatePolling(stream, onUpdateCallback);
       }
       keyboardNavigationListener = (event) => {
-        if (event.key === "ArrowLeft") navigateMpdUpdates(1);
-        if (event.key === "ArrowRight") navigateMpdUpdates(-1);
+        if (event.key === "ArrowLeft") navigateManifestUpdates(1);
+        if (event.key === "ArrowRight") navigateManifestUpdates(-1);
       };
       document.addEventListener("keydown", keyboardNavigationListener);
     }
@@ -5384,19 +5513,24 @@ ${samples.join("\n")}${sample_count > 10 ? `
   function renderSingleStreamTabs(streamId) {
     const stream = analysisState.streams.find((s2) => s2.id === streamId);
     if (!stream) return;
-    const { mpd, baseUrl } = stream;
+    const { manifest, baseUrl } = stream;
     if (analysisState.streams.length === 1) {
-      B(getGlobalSummaryTemplate(mpd), dom.tabContents.summary);
+      B(getGlobalSummaryTemplate(manifest), dom.tabContents.summary);
     }
-    B(getComplianceReportTemplate(mpd), dom.tabContents.compliance);
+    B(getComplianceReportTemplate(manifest.rawElement), dom.tabContents.compliance);
+    attachComplianceFilterListeners();
     B(
-      getTimelineAndVisualsTemplate(mpd),
+      getTimelineAndVisualsTemplate(manifest.rawElement),
       dom.tabContents["timeline-visuals"]
     );
-    B(getFeaturesAnalysisTemplate(mpd), dom.tabContents.features);
-    B(getInteractiveMpdTemplate(mpd), dom.tabContents["interactive-mpd"]);
-    initializeSegmentExplorer(dom.tabContents.explorer, mpd, baseUrl);
-    renderMpdUpdates(streamId);
+    B(getFeaturesAnalysisTemplate(manifest), dom.tabContents.features);
+    B(
+      getInteractiveManifestTemplate(manifest.rawElement),
+      dom.tabContents["interactive-mpd"]
+    );
+    B(getInteractiveSegmentTemplate(), dom.tabContents["interactive-segment"]);
+    initializeSegmentExplorer(dom.tabContents.explorer, manifest, baseUrl);
+    renderManifestUpdates(streamId);
   }
   function showStatus(message, type) {
     const colors = {
@@ -5460,6 +5594,7 @@ ${samples.join("\n")}${sample_count > 10 ? `
   }
 
   // js/main.js
+  var import_xml_formatter2 = __toESM(require_cjs2());
   var HISTORY_KEY = "dash_analyzer_history";
   var MAX_HISTORY_ITEMS = 10;
   dom.addStreamBtn.addEventListener("click", addStreamInput);
@@ -5495,9 +5630,11 @@ ${samples.join("\n")}${sample_count > 10 ? `
     localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
   }
   async function handleAnalysis() {
-    stopMpdUpdatePolling();
+    stopManifestUpdatePolling();
     showStatus("Starting analysis...", "info");
     analysisState.streams = [];
+    analysisState.manifestUpdates = [];
+    analysisState.activeManifestUpdateIndex = 0;
     const inputGroups = dom.streamInputs.querySelectorAll(
       ".stream-input-group"
     );
@@ -5542,7 +5679,7 @@ ${samples.join("\n")}${sample_count > 10 ? `
           `Parsing and resolving remote elements for ${name}...`,
           "info"
         );
-        const { mpd, baseUrl: newBaseUrl } = await parseMpd(
+        const { manifest, baseUrl: newBaseUrl } = await parseManifest(
           xmlString,
           baseUrl
         );
@@ -5552,7 +5689,7 @@ ${samples.join("\n")}${sample_count > 10 ? `
           name,
           originalUrl,
           baseUrl,
-          mpd,
+          manifest,
           rawXml: xmlString
         };
       } catch (error) {
@@ -5573,8 +5710,24 @@ ${samples.join("\n")}${sample_count > 10 ? `
       }
       analysisState.streams.sort((a2, b2) => a2.id - b2.id);
       analysisState.activeStreamId = analysisState.streams[0].id;
-      const isSingleDynamicStream = analysisState.streams.length === 1 && analysisState.streams[0].mpd.getAttribute("type") === "dynamic";
+      const isSingleDynamicStream = analysisState.streams.length === 1 && analysisState.streams[0].manifest.type === "dynamic";
       analysisState.isPollingActive = isSingleDynamicStream;
+      if (isSingleDynamicStream) {
+        const stream = analysisState.streams[0];
+        const formattingOptions = {
+          indentation: "  ",
+          lineSeparator: "\n"
+        };
+        const formattedInitial = (0, import_xml_formatter2.default)(
+          stream.rawXml,
+          formattingOptions
+        );
+        const initialDiffHtml = diffManifest("", formattedInitial);
+        analysisState.manifestUpdates.push({
+          timestamp: (/* @__PURE__ */ new Date()).toLocaleTimeString(),
+          diffHtml: initialDiffHtml
+        });
+      }
       const defaultTab = analysisState.streams.length > 1 ? "comparison" : "summary";
       populateContextSwitcher();
       renderAllTabs();
