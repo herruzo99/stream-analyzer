@@ -204,75 +204,98 @@ export const tsAnalysisTemplate = (analysis) => {
         .map(([pid, data]) => ({ pid: parseInt(pid), ...data }))
         .sort((a, b) => a.pid - b.pid);
 
+    const dataItem = (label, value, isBoolean = false) => html`
+        <div class="text-xs">
+            <span class="block text-gray-400 mb-0.5">${label}</span>
+            <span
+                class="block font-semibold font-mono ${isBoolean
+                    ? value
+                        ? 'text-green-400'
+                        : 'text-red-400'
+                    : 'text-gray-200'}"
+                >${isBoolean ? (value ? 'Yes' : 'No') : value}</span
+            >
+        </div>
+    `;
+
     return html`
-        <div class="segment-essential-data">
-            <div>
-                <span class="label">Type</span
-                ><span class="value">MPEG-2 Transport Stream</span>
-            </div>
-            <div>
-                <span class="label">Total Packets</span
-                ><span class="value">${analysis.summary.totalPackets}</span>
-            </div>
-            <div>
-                <span class="label">Est. Duration</span
-                ><span class="value">${analysis.summary.durationS}s</span>
-            </div>
-            <div>
-                <span class="label">PAT Found</span
-                ><span
-                    class="value ${analysis.summary.patFound ? 'pass' : 'fail'}"
-                    >${analysis.summary.patFound ? 'Yes' : 'No'}</span
-                >
-            </div>
-            <div>
-                <span class="label">PMT Found</span
-                ><span
-                    class="value ${analysis.summary.pmtFound ? 'pass' : 'fail'}"
-                    >${analysis.summary.pmtFound ? 'Yes' : 'No'}</span
-                >
-            </div>
+        <div
+            class="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3 bg-gray-900 border border-gray-700 rounded p-3 mb-4"
+        >
+            ${dataItem('Type', 'MPEG-2 Transport Stream')}
+            ${dataItem('Total Packets', analysis.summary.totalPackets)}
+            ${dataItem('Est. Duration', `${analysis.summary.durationS}s`)}
+            ${dataItem('PAT Found', analysis.summary.patFound, true)}
+            ${dataItem('PMT Found', analysis.summary.pmtFound, true)}
         </div>
 
         ${analysis.summary.errors.length > 0
-            ? html`<div class="analysis-summary fail">
-                  <p class="font-bold">Parsing Errors:</p>
-                  <ul class="list-disc pl-5 mt-1">
+            ? html`<div
+                  class="bg-red-900/50 border border-red-700 rounded p-3 mb-4 text-red-300 text-xs"
+              >
+                  <p class="font-bold mb-1">Parsing Errors:</p>
+                  <ul class="list-disc pl-5">
                       ${analysis.summary.errors.map((e) => html`<li>${e}</li>`)}
                   </ul>
               </div>`
             : ''}
 
-        <div class="box-tree-view">
+        <div>
             <h4 class="font-semibold text-gray-300 mb-2">
                 Packet Identifier (PID) Streams:
             </h4>
-            <table class="box-details-table w-full">
+            <table class="w-full text-left text-xs border-collapse">
                 <thead class="text-left">
                     <tr>
-                        <th class="w-1/6">PID</th>
-                        <th class="w-1/3">Stream Type</th>
-                        <th class="w-1/6">Packets</th>
-                        <th class="w-1/3">Notes</th>
+                        <th
+                            class="p-2 border border-gray-700 bg-gray-900/50 w-1/6"
+                        >
+                            PID
+                        </th>
+                        <th
+                            class="p-2 border border-gray-700 bg-gray-900/50 w-1/3"
+                        >
+                            Stream Type
+                        </th>
+                        <th
+                            class="p-2 border border-gray-700 bg-gray-900/50 w-1/6"
+                        >
+                            Packets
+                        </th>
+                        <th
+                            class="p-2 border border-gray-700 bg-gray-900/50 w-1/3"
+                        >
+                            Notes
+                        </th>
                     </tr>
                 </thead>
                 <tbody>
                     ${sortedPids.map(
                         (pidInfo) => html`
                             <tr>
-                                <td class="field-name">
+                                <td
+                                    class="p-2 border border-gray-700 font-mono text-gray-400"
+                                >
                                     0x${pidInfo.pid
                                         .toString(16)
                                         .padStart(4, '0')}
                                     (${pidInfo.pid})
                                 </td>
-                                <td class="field-value">
+                                <td
+                                    class="p-2 border border-gray-700 text-gray-200"
+                                >
                                     ${pidInfo.streamType}
                                 </td>
-                                <td class="field-value">${pidInfo.count}</td>
-                                <td class="field-value">
+                                <td
+                                    class="p-2 border border-gray-700 text-gray-200"
+                                >
+                                    ${pidInfo.count}
+                                </td>
+                                <td
+                                    class="p-2 border border-gray-700 text-gray-200"
+                                >
                                     ${pidInfo.continuityErrors > 0
-                                        ? html`<span class="warn"
+                                        ? html`<span class="text-yellow-400"
                                               >CC Errors:
                                               ${pidInfo.continuityErrors}</span
                                           >`

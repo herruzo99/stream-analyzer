@@ -1,6 +1,6 @@
 import { html } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
-import { createInfoTooltip } from '../ui.js';
+import { tooltipTriggerClasses } from '../ui.js';
 import { getDrmSystemName } from '../helpers/drm-helper.js';
 
 /**
@@ -292,69 +292,46 @@ const features = [
 
 const featureRowTemplate = (feature, mpd) => {
     const result = feature.check(mpd);
-
-    const statusIcon = result.used
-        ? html`<span class="text-green-400 font-bold text-lg" title="Used"
-              >✔</span
+    const badge = result.used
+        ? html`<span
+              class="text-xs font-semibold px-2 py-1 bg-green-800 text-green-200 rounded-full"
+              >Used</span
           >`
-        : html`<span class="text-gray-500 font-bold text-lg" title="Not Used"
-              >—</span
+        : html`<span
+              class="text-xs font-semibold px-2 py-1 bg-gray-600 text-gray-300 rounded-full"
+              >Not Used</span
           >`;
 
     return html`
-        <tr class="border-b border-gray-700 last:border-b-0">
-            <td class="p-3 text-center w-20">${statusIcon}</td>
-            <td class="p-3 font-semibold text-gray-200">
-                ${feature.name}
-                ${createInfoTooltip(feature.desc, feature.isoRef)}
-            </td>
-            <td class="p-3 text-sm text-gray-300 font-mono">
-                ${unsafeHTML(result.details)}
-            </td>
-            <td class="p-3 text-xs text-gray-500 font-mono w-40 text-right">
-                ${feature.isoRef}
-            </td>
-        </tr>
+        <div
+            class="grid grid-cols-[100px_1fr] items-center bg-gray-800 p-3 rounded-md"
+        >
+            <div class="text-center">${badge}</div>
+            <div>
+                <p
+                    class="font-medium ${tooltipTriggerClasses}"
+                    data-tooltip="${feature.desc}"
+                    data-iso="${feature.isoRef}"
+                >
+                    ${feature.name}
+                </p>
+                <p
+                    class="text-xs text-gray-400 italic mt-1 font-mono"
+                >
+                    ${unsafeHTML(result.details)}
+                </p>
+            </div>
+        </div>
     `;
 };
 
 const categoryTemplate = (category, categoryFeatures, mpd) => html`
     <div class="mt-8">
         <h4 class="text-lg font-semibold text-gray-300 mb-3">${category}</h4>
-        <div
-            class="bg-gray-800 rounded-lg overflow-hidden border border-gray-700"
-        >
-            <table class="w-full text-left">
-                <thead class="bg-gray-900/50">
-                    <tr>
-                        <th
-                            class="p-3 text-xs font-semibold text-gray-400 uppercase tracking-wider text-center"
-                        >
-                            Status
-                        </th>
-                        <th
-                            class="p-3 text-xs font-semibold text-gray-400 uppercase tracking-wider"
-                        >
-                            Feature
-                        </th>
-                        <th
-                            class="p-3 text-xs font-semibold text-gray-400 uppercase tracking-wider"
-                        >
-                            Details
-                        </th>
-                        <th
-                            class="p-3 text-xs font-semibold text-gray-400 uppercase tracking-wider text-right"
-                        >
-                            Spec Ref.
-                        </th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-700">
-                    ${categoryFeatures.map((feature) =>
-                        featureRowTemplate(feature, mpd)
-                    )}
-                </tbody>
-            </table>
+        <div class="flex flex-col gap-2">
+            ${categoryFeatures.map((feature) =>
+                featureRowTemplate(feature, mpd)
+            )}
         </div>
     </div>
 `;

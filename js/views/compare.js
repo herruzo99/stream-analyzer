@@ -1,6 +1,6 @@
 import { html } from 'lit-html';
 import { analysisState } from '../state.js';
-import { createInfoTooltip } from '../ui.js';
+import { tooltipTriggerClasses } from '../ui.js';
 import { getDrmSystemName } from '../helpers/drm-helper.js';
 
 const formatBitrate = (bps) => {
@@ -196,14 +196,14 @@ const sections = {
 const sectionTemplate = (title, items, streams) => html`
     <h3 class="text-xl font-bold mt-6 mb-2">${title}</h3>
     <div
-        class="grid comparison-grid-container"
+        class="grid border-t border-l border-gray-700 divide-y divide-gray-700"
         style="grid-template-columns: 200px repeat(${streams.length}, 1fr);"
     >
         <!-- Header Row -->
-        <div class="font-semibold text-gray-400 p-2">Property</div>
+        <div class="font-semibold text-gray-400 p-2 border-r border-b border-gray-700">Property</div>
         ${streams.map(
             (stream) =>
-                html`<div class="font-semibold text-gray-400 p-2">
+                html`<div class="font-semibold text-gray-400 p-2 border-r border-b border-gray-700">
                     ${stream.name}
                 </div>`
         )}
@@ -211,12 +211,16 @@ const sectionTemplate = (title, items, streams) => html`
         <!-- Data Rows -->
         ${items.map(
             (item) => html`
-                <div class="prop-col p-2">
-                    ${item.label}${createInfoTooltip(item.tooltip, item.iso)}
+                <div
+                    class="font-medium text-gray-400 p-2 border-r border-gray-700 ${tooltipTriggerClasses}"
+                    data-tooltip="${item.tooltip}"
+                    data-iso="${item.iso}"
+                >
+                    ${item.label}
                 </div>
                 ${streams.map(
                     (stream) =>
-                        html`<div class="p-2 font-mono text-sm">
+                        html`<div class="p-2 font-mono text-sm border-r border-gray-700">
                             ${item.accessor(stream.mpd)}
                         </div>`
                 )}

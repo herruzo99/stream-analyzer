@@ -5,15 +5,28 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Exhaustive DASH MPD Analyzer</title>
         <script src="https://cdn.tailwindcss.com"></script>
+        <script>
+            tailwind.config = {
+                theme: {
+                    extend: {
+                        fontFamily: {
+                            sans: ['Inter', 'sans-serif'],
+                            mono: ['Fira Code', 'monospace'],
+                        },
+                    },
+                },
+            };
+        </script>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
         <link
             href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap"
             rel="stylesheet"
         />
-        <link rel="stylesheet" href="css/style.css" />
     </head>
-    <body class="bg-gray-900 text-gray-200 min-h-screen p-4 sm:p-6 md:p-8">
+    <body
+        class="bg-gray-900 text-gray-200 min-h-screen p-4 sm:p-6 md:p-8 font-sans"
+    >
         <div class="max-w-7xl mx-auto">
             <header class="text-center mb-8">
                 <h1 class="text-3xl sm:text-4xl font-bold text-white">
@@ -62,49 +75,49 @@
                 <div class="mb-4 border-b border-gray-700">
                     <nav class="flex -mb-px flex-wrap" id="tabs">
                         <button
-                            class="tab py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium"
+                            class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
                             data-tab="comparison"
                         >
                             Comparison
                         </button>
                         <button
-                            class="tab py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium"
+                            class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
                             data-tab="summary"
                         >
                             Global Summary
                         </button>
                         <button
-                            class="tab py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium"
+                            class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
                             data-tab="timeline-visuals"
                         >
                             Timeline &amp; Visuals
                         </button>
                         <button
-                            class="tab py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium"
+                            class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
                             data-tab="features"
                         >
                             Features
                         </button>
                         <button
-                            class="tab py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium"
+                            class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
                             data-tab="compliance"
                         >
                             Compliance Report
                         </button>
                         <button
-                            class="tab py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium"
+                            class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
                             data-tab="explorer"
                         >
                             Segment Explorer
                         </button>
                         <button
-                            class="tab py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium"
+                            class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
                             data-tab="interactive-mpd"
                         >
                             Interactive MPD
                         </button>
                         <button
-                            class="tab py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium"
+                            class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
                             data-tab="updates"
                         >
                             MPD Updates
@@ -112,24 +125,31 @@
                     </nav>
                 </div>
                 <div class="bg-gray-800 p-2 sm:p-6 rounded-lg shadow-lg">
-                    <div id="tab-comparison" class="tab-content"></div>
-                    <div id="tab-summary" class="tab-content"></div>
-                    <div id="tab-timeline-visuals" class="tab-content"></div>
-                    <div id="tab-features" class="tab-content"></div>
-                    <div id="tab-compliance" class="tab-content"></div>
-                    <div id="tab-explorer" class="tab-content"></div>
-                    <div id="tab-interactive-mpd" class="tab-content"></div>
-                    <div id="tab-updates" class="tab-content">
+                    <div id="tab-comparison" class="hidden"></div>
+                    <div id="tab-summary" class="hidden"></div>
+                    <div id="tab-timeline-visuals" class="hidden"></div>
+                    <div id="tab-features" class="hidden"></div>
+                    <div id="tab-compliance" class="hidden"></div>
+                    <div id="tab-explorer" class="hidden"></div>
+                    <div id="tab-interactive-mpd" class="hidden"></div>
+                    <div id="tab-updates" class="hidden">
                         <div id="mpd-updates-content"></div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div id="segment-modal" class="modal-overlay">
-            <div class="modal-content">
+        <div
+            id="segment-modal"
+            class="fixed inset-0 bg-gray-900/80 flex items-center justify-center opacity-0 invisible transition-all duration-300 z-50"
+        >
+            <div
+                class="bg-gray-800 p-6 rounded-lg transform scale-95 transition-all duration-300 max-h-[90vh] overflow-y-auto w-11/12 max-w-4xl"
+            >
                 <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-xl font-bold">Segment Analysis</h3>
+                    <h3 id="modal-title" class="text-xl font-bold">
+                        Segment Analysis
+                    </h3>
                     <button
                         id="close-modal-btn"
                         class="text-2xl text-gray-400 hover:text-white"
@@ -148,7 +168,10 @@
             </div>
         </div>
 
-        <div id="global-tooltip"></div>
+        <div
+            id="global-tooltip"
+            class="fixed z-[100] p-2.5 rounded-md bg-gray-900 text-white text-left text-xs leading-relaxed border border-gray-700 min-w-[200px] max-w-sm pointer-events-none invisible opacity-0 transition-opacity"
+        ></div>
 
         <script src="dist/main.js"></script>
     </body>
