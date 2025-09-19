@@ -1,5 +1,4 @@
-import { tooltipData } from './isobmff-tooltip-data.js';
-import { boxParsers } from './isobmff-box-parsers/index.js';
+import { boxParsers, tooltipData} from './isobmff-box-parsers/index.js';
 
 /**
  * @typedef {object} Box

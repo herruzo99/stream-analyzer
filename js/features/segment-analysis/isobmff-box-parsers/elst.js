@@ -18,3 +18,27 @@ export function parseElst(box, view) {
         }
     }
 }
+
+export const elstTooltip = {
+elst: {
+        name: 'Edit List',
+        text: 'Maps the media time-line to the presentation time-line.',
+        ref: 'ISO/IEC 14496-12, 8.6.6',
+    },
+    'elst@version': {
+        text: 'Version of this box (0 or 1). Affects the size of duration and time fields.',
+        ref: 'ISO/IEC 14496-12, 8.6.6.3',
+    },
+    'elst@entry_count': {
+        text: 'The number of entries in the edit list.',
+        ref: 'ISO/IEC 14496-12, 8.6.6.3',
+    },
+    'elst@segment_duration_1': {
+        text: 'The duration of this edit segment in movie timescale units.',
+        ref: 'ISO/IEC 14496-12, 8.6.6.3',
+    },
+    'elst@media_time_1': {
+        text: 'The starting time within the media of this edit segment. A value of -1 indicates an empty edit.',
+        ref: 'ISO/IEC 14496-12, 8.6.6.3',
+    },
+};

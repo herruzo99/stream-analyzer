@@ -19,3 +19,35 @@ export function parseTkhd(box, view) {
     box.details['width'] = { value: `${view.getUint16(widthOffset)}.${view.getUint16(widthOffset + 2)}`, offset: box.offset + widthOffset, length: 4 };
     box.details['height'] = { value: `${view.getUint16(widthOffset + 4)}.${view.getUint16(widthOffset + 6)}`, offset: box.offset + widthOffset + 4, length: 4 };
 }
+
+export const tkhdTooltip = {
+    tkhd: {
+        name: 'Track Header',
+        text: 'Specifies characteristics of a single track.',
+        ref: 'ISO/IEC 14496-12, 8.3.2',
+    },
+    'tkhd@version': {
+        text: 'Version of this box (0 or 1). Affects the size of time and duration fields.',
+        ref: 'ISO/IEC 14496-12, 8.3.2.3',
+    },
+    'tkhd@flags': {
+        text: 'A bitmask of track properties (enabled, in movie, in preview).',
+        ref: 'ISO/IEC 14496-12, 8.3.2.3',
+    },
+    'tkhd@track_ID': {
+        text: 'A unique integer that identifies this track.',
+        ref: 'ISO/IEC 14496-12, 8.3.2.3',
+    },
+    'tkhd@duration': {
+        text: "The duration of this track in the movie's timescale.",
+        ref: 'ISO/IEC 14496-12, 8.3.2.3',
+    },
+    'tkhd@width': {
+        text: 'The visual presentation width of the track as a fixed-point 16.16 number.',
+        ref: 'ISO/IEC 14496-12, 8.3.2.3',
+    },
+    'tkhd@height': {
+        text: 'The visual presentation height of the track as a fixed-point 16.16 number.',
+        ref: 'ISO/IEC 14496-12, 8.3.2.3',
+    },
+}
