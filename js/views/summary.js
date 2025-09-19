@@ -1,5 +1,5 @@
 import { html } from 'lit-html';
-import { createInfoTooltip } from '../ui.js';
+import { tooltipTriggerClasses } from '../ui.js';
 import { getDrmSystemName } from '../helpers/drm-helper.js';
 
 const rowTemplate = (label, value, tooltipText, isoRef) => {
@@ -13,8 +13,12 @@ const rowTemplate = (label, value, tooltipText, isoRef) => {
     return html` <div
         class="py-2 flex justify-between border-b border-gray-700 items-center flex-wrap"
     >
-        <dt class="text-sm font-medium text-gray-400">
-            ${label}${createInfoTooltip(tooltipText, isoRef)}
+        <dt
+            class="text-sm font-medium text-gray-400 ${tooltipTriggerClasses}"
+            data-tooltip="${tooltipText}"
+            data-iso="${isoRef}"
+        >
+            ${label}
         </dt>
         <dd class="text-sm text-right font-mono text-white">${value}</dd>
     </div>`;

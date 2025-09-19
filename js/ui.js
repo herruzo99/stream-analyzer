@@ -22,6 +22,9 @@ import { exampleStreams } from './helpers/stream-examples.js';
 
 let keyboardNavigationListener = null;
 
+export const tooltipTriggerClasses =
+    'cursor-help border-b border-dotted border-blue-500/40 transition-colors hover:bg-blue-500/15 hover:border-solid';
+
 const streamInputTemplate = (
     streamId,
     isFirstStream,
@@ -166,8 +169,8 @@ export function addStreamInput() {
 
 export function handleTabClick(e) {
     const target = /** @type {HTMLElement} */ (e.target);
-    if (!target.classList.contains('tab') || target.offsetParent === null)
-        return;
+    const targetTab = /** @type {HTMLElement} */ (target.closest('[data-tab]'));
+    if (!targetTab) return;
 
     stopSegmentFreshnessChecker();
     stopMpdUpdatePolling();
@@ -177,25 +180,31 @@ export function handleTabClick(e) {
         keyboardNavigationListener = null;
     }
 
-    dom.tabs
-        .querySelectorAll('.tab')
-        .forEach((t) => t.classList.remove('tab-active'));
-    target.classList.add('tab-active');
+    const activeClasses = ['border-blue-600', 'text-gray-100', 'bg-gray-700'];
+    const inactiveClasses = ['border-transparent'];
+
+    dom.tabs.querySelectorAll('[data-tab]').forEach((t) => {
+        t.classList.remove(...activeClasses);
+        t.classList.add(...inactiveClasses);
+    });
+    targetTab.classList.add(...activeClasses);
+    targetTab.classList.remove(...inactiveClasses);
 
     Object.values(dom.tabContents).forEach((c) => {
-        if (c) c.classList.remove('tab-content-active');
+        if (c) c.classList.add('hidden');
     });
-    const activeTabContent = dom.tabContents[target.dataset.tab];
-    if (activeTabContent) activeTabContent.classList.add('tab-content-active');
+    const activeTabContent = dom.tabContents[targetTab.dataset.tab];
+    if (activeTabContent) activeTabContent.classList.remove('hidden');
 
-    if (target.dataset.tab === 'explorer') {
+    if (targetTab.dataset.tab === 'explorer') {
         startSegmentFreshnessChecker();
-    } else if (target.dataset.tab === 'updates') {
+    } else if (targetTab.dataset.tab === 'updates') {
+        // Only start polling if the state indicates it should be active.
         if (
+            analysisState.isPollingActive &&
             analysisState.streams.length === 1 &&
             analysisState.streams[0].mpd.getAttribute('type') === 'dynamic'
         ) {
-            analysisState.isPollingActive = true;
             startMpdUpdatePolling(analysisState.streams[0]);
         }
         keyboardNavigationListener = (event) => {
@@ -224,10 +233,10 @@ export function renderAllTabs() {
     const hasMultipleStreams = analysisState.streams.length > 1;
 
     /** @type {HTMLElement} */
-    (document.querySelector('.tab[data-tab="comparison"]')).style.display =
+    (document.querySelector('[data-tab="comparison"]')).style.display =
         hasMultipleStreams ? 'block' : 'none';
     /** @type {HTMLElement} */
-    (document.querySelector('.tab[data-tab="summary"]')).style.display =
+    (document.querySelector('[data-tab="summary"]')).style.display =
         hasMultipleStreams ? 'none' : 'block';
 
     if (hasMultipleStreams) {
@@ -271,13 +280,4 @@ export function showStatus(message, type) {
     };
     dom.status.textContent = message;
     dom.status.className = `text-center my-4 ${colors[type]}`;
-}
-
-export function createInfoTooltip(text, isoRef) {
-    return html`<span
-        class="info-icon"
-        data-tooltip="${text}"
-        data-iso="${isoRef}"
-        >[?]</span
-    >`;
 }

@@ -15,7 +15,7 @@ export function attachComplianceFilterListeners() {
 
     container.addEventListener('click', (e) => {
         const button = /** @type {HTMLElement} */ (e.target).closest(
-            '.compliance-filter-btn'
+            '[data-filter]'
         );
         if (!button) return;
 
@@ -23,7 +23,7 @@ export function attachComplianceFilterListeners() {
 
         // A simple and efficient way to apply the filter without a full re-render
         const allRows = container.querySelectorAll(
-            '.compliance-report-table tbody tr'
+            'table > tbody > tr'
         );
         allRows.forEach((row) => {
             /** @type {HTMLElement} */ (row).style.display =
@@ -34,11 +34,15 @@ export function attachComplianceFilterListeners() {
         });
 
         // Update active state on buttons
-        container.querySelectorAll('.compliance-filter-btn').forEach((btn) => {
-            btn.classList.toggle(
-                'filter-active',
-                /** @type {HTMLElement} */ (btn).dataset.filter === activeFilter
-            );
+        container.querySelectorAll('[data-filter]').forEach((btn) => {
+            const isActive =
+                /** @type {HTMLElement} */ (btn).dataset.filter ===
+                activeFilter;
+            btn.classList.toggle('bg-blue-600', isActive);
+            btn.classList.toggle('text-white', isActive);
+            btn.classList.toggle('font-semibold', isActive);
+            btn.classList.toggle('bg-gray-700', !isActive);
+            btn.classList.toggle('text-gray-300', !isActive);
         });
     });
 }
@@ -59,7 +63,7 @@ const complianceRowTemplate = (item) => {
 
     return html`
         <tr
-            class="compliance-row status-${item.status}"
+            class="border-b border-gray-700 last:border-b-0 status-${item.status}"
             style="display: ${activeFilter === 'all' ||
             activeFilter === item.status
                 ? 'table-row'
@@ -89,7 +93,7 @@ const categoryTemplate = (category, items) => html`
         <div
             class="bg-gray-800 rounded-lg overflow-hidden border border-gray-700"
         >
-            <table class="compliance-report-table w-full text-left">
+            <table class="w-full text-left">
                 <thead class="bg-gray-900/50">
                     <tr>
                         <th
@@ -125,6 +129,18 @@ const renderReportForChecks = (checks) => {
 
     const groupedChecks = groupChecks(checks);
 
+    const filterButton = (filter, label, count) => {
+        const isActive = activeFilter === filter;
+        return html`<button
+            class="px-3 py-1 rounded-full text-xs transition-colors duration-200 ${isActive
+                ? 'bg-blue-600 text-white font-semibold'
+                : 'bg-gray-700 text-gray-300'}"
+            data-filter="${filter}"
+        >
+            ${label} (${count})
+        </button>`;
+    };
+
     return html`
         <h3 class="text-xl font-bold mb-2">
             Compliance & Best Practices Report
@@ -138,38 +154,10 @@ const renderReportForChecks = (checks) => {
             class="flex items-center gap-4 mb-4 p-2 bg-gray-900 rounded-md sticky top-0 z-20 border-b border-gray-700"
         >
             <span class="text-sm font-semibold">Filter by Status:</span>
-            <button
-                class="compliance-filter-btn ${activeFilter === 'all'
-                    ? 'filter-active'
-                    : ''}"
-                data-filter="all"
-            >
-                All (${checks.length})
-            </button>
-            <button
-                class="compliance-filter-btn ${activeFilter === 'fail'
-                    ? 'filter-active'
-                    : ''}"
-                data-filter="fail"
-            >
-                Errors (${counts.fail})
-            </button>
-            <button
-                class="compliance-filter-btn ${activeFilter === 'warn'
-                    ? 'filter-active'
-                    : ''}"
-                data-filter="warn"
-            >
-                Warnings (${counts.warn})
-            </button>
-            <button
-                class="compliance-filter-btn ${activeFilter === 'pass'
-                    ? 'filter-active'
-                    : ''}"
-                data-filter="pass"
-            >
-                Passed (${counts.pass})
-            </button>
+            ${filterButton('all', 'All', checks.length)}
+            ${filterButton('fail', 'Errors', counts.fail)}
+            ${filterButton('warn', 'Warnings', counts.warn)}
+            ${filterButton('pass', 'Passed', counts.pass)}
         </div>
 
         ${Object.entries(groupedChecks).map(([category, items]) =>

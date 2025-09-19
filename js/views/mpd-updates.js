@@ -34,7 +34,9 @@ const mpdUpdatesTemplate = (stream) => {
         currentDisplay = html` <div class="text-sm text-gray-400 mb-2">
                 Initial MPD loaded:
             </div>
-            <div class="diff-container">
+            <div
+                class="bg-slate-800 rounded-lg p-4 font-mono text-sm leading-relaxed overflow-x-auto whitespace-pre-wrap break-all"
+            >
                 <pre><code>${formattedInitialMpd}</code></pre>
             </div>`;
     } else {
@@ -45,7 +47,9 @@ const mpdUpdatesTemplate = (stream) => {
                     >${currentUpdate.timestamp}</span
                 >
             </div>
-            <div class="diff-container">
+            <div
+                class="bg-slate-800 rounded-lg p-4 font-mono text-sm leading-relaxed overflow-x-auto whitespace-pre-wrap break-all"
+            >
                 <pre><code>${unsafeHTML(currentUpdate.diffHtml)}</code></pre>
             </div>`;
     }

@@ -108,6 +108,13 @@ const staticTimelineTemplate = (mpd) => {
         .map((p) => `${(p.duration / totalDuration) * 100}%`)
         .join(' ');
 
+    const adaptationSetClasses = (contentType) => {
+        let borderColor = 'border-yellow-500'; // Default for text/application
+        if (contentType === 'video') borderColor = 'border-indigo-400';
+        if (contentType === 'audio') borderColor = 'border-green-400';
+        return `bg-slate-800/50 rounded p-1 px-2 mb-1 text-xs whitespace-nowrap overflow-hidden text-ellipsis border-l-4 ${borderColor} cursor-help`;
+    };
+
     const timelinePeriods = periodData.map((p) => {
         const adaptationSets = Array.from(
             p.element.querySelectorAll('AdaptationSet')
@@ -121,14 +128,21 @@ const staticTimelineTemplate = (mpd) => {
                 as.getAttribute('mimeType')?.split('/')[0] ||
                 'unknown';
             return html`<div
-                class="timeline-adaptation-set ${contentType}"
+                class="${adaptationSetClasses(contentType)}"
                 title="AdaptationSet ID: ${as.getAttribute('id') || 'N/A'}"
             >
                 ${contentType}${langText}
             </div>`;
         });
-        return html` <div class="timeline-period" title="Period ID: ${p.id}">
-            <div class="timeline-period-title">Period ${p.id}</div>
+        return html` <div
+            class="bg-gray-700 rounded p-2 overflow-hidden border-r-2 border-gray-900 last:border-r-0"
+            title="Period ID: ${p.id}"
+        >
+            <div
+                class="font-semibold text-sm text-gray-300 mb-2 whitespace-nowrap"
+            >
+                Period ${p.id}
+            </div>
             <div class="space-y-1">${adaptationSetTemplates}</div>
         </div>`;
     });
@@ -144,9 +158,9 @@ const staticTimelineTemplate = (mpd) => {
     );
 
     return html` <h3 class="text-xl font-bold mb-4">Timeline Visualization</h3>
-        <div class="timeline-container-static">
+        <div class="bg-gray-900 rounded-lg p-2">
             <div
-                class="timeline-grid"
+                class="grid grid-flow-col auto-cols-fr min-h-[80px]"
                 style="grid-template-columns: ${gridTemplateColumns}"
             >
                 ${timelinePeriods}
@@ -169,6 +183,13 @@ const liveTimelineTemplate = (mpd) => {
     if (!timeShiftBufferDepth)
         return html`<p class="info">No @timeShiftBufferDepth found.</p>`;
 
+    const adaptationSetClasses = (contentType) => {
+        let borderColor = 'border-yellow-500'; // Default for text/application
+        if (contentType === 'video') borderColor = 'border-indigo-400';
+        if (contentType === 'audio') borderColor = 'border-green-400';
+        return `bg-slate-800/50 rounded p-1 px-2 mb-1 text-xs whitespace-nowrap overflow-hidden text-ellipsis border-l-4 ${borderColor} cursor-help`;
+    };
+
     const adaptationSets = Array.from(period.querySelectorAll('AdaptationSet'));
     const adaptationSetTemplates = adaptationSets.map((as) => {
         const langText = as.getAttribute('lang')
@@ -179,7 +200,7 @@ const liveTimelineTemplate = (mpd) => {
             as.getAttribute('mimeType')?.split('/')[0] ||
             'unknown';
         return html`<div
-            class="timeline-adaptation-set ${contentType}"
+            class="${adaptationSetClasses(contentType)}"
             title="AdaptationSet ID: ${as.getAttribute('id') || 'N/A'}"
         >
             ${contentType}${langText}
@@ -204,16 +225,23 @@ const liveTimelineTemplate = (mpd) => {
             Live Timeline Visualization
         </h3>
         <div
-            class="timeline-container-live"
+            class="bg-gray-900 rounded-lg p-2 relative"
             title="DVR Window: ${timeShiftBufferDepth.toFixed(2)}s"
         >
-            <div class="timeline-grid">
-                <div class="timeline-period" style="grid-column: 1 / -1;">
-                    <div class="timeline-period-title">Available Media</div>
+            <div class="grid min-h-[80px]">
+                <div class="bg-gray-700 rounded p-2 overflow-hidden col-span-full">
+                    <div
+                        class="font-semibold text-sm text-gray-300 mb-2 whitespace-nowrap"
+                    >
+                        Available Media
+                    </div>
                     <div class="space-y-1">${adaptationSetTemplates}</div>
                 </div>
             </div>
-            <div class="timeline-live-edge" title="Live Edge"></div>
+            <div
+                class="absolute right-2 top-0 bottom-0 w-1 bg-red-500 rounded-full"
+                title="Live Edge"
+            ></div>
         </div>
         <div class="text-xs text-gray-400 mt-2 flex justify-between">
             <span>Start of DVR Window (${dvrStart.toFixed(2)}s)</span>

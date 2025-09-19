@@ -426,7 +426,8 @@
     mpdUpdates: [],
     activeMpdUpdateIndex: 0,
     isPollingActive: false,
-    segmentCache: /* @__PURE__ */ new Map()
+    segmentCache: /* @__PURE__ */ new Map(),
+    segmentsForCompare: []
   };
   var dom = {
     streamInputs: (
@@ -498,6 +499,10 @@
     segmentModal: (
       /** @type {HTMLDivElement} */
       document.getElementById("segment-modal")
+    ),
+    modalTitle: (
+      /** @type {HTMLHeadingElement} */
+      document.getElementById("modal-title")
     ),
     modalSegmentUrl: (
       /** @type {HTMLParagraphElement} */
@@ -792,8 +797,12 @@
     return x` <div
         class="py-2 flex justify-between border-b border-gray-700 items-center flex-wrap"
     >
-        <dt class="text-sm font-medium text-gray-400">
-            ${label}${createInfoTooltip(tooltipText, isoRef)}
+        <dt
+            class="text-sm font-medium text-gray-400 ${tooltipTriggerClasses}"
+            data-tooltip="${tooltipText}"
+            data-iso="${isoRef}"
+        >
+            ${label}
         </dt>
         <dd class="text-sm text-right font-mono text-white">${value}</dd>
     </div>`;
@@ -1447,7 +1456,7 @@
     };
     return x`
         <tr
-            class="compliance-row status-${item.status}"
+            class="border-b border-gray-700 last:border-b-0 status-${item.status}"
             style="display: ${activeFilter === "all" || activeFilter === item.status ? "table-row" : "none"}"
         >
             <td class="p-3 text-center w-20">
@@ -1473,7 +1482,7 @@
         <div
             class="bg-gray-800 rounded-lg overflow-hidden border border-gray-700"
         >
-            <table class="compliance-report-table w-full text-left">
+            <table class="w-full text-left">
                 <thead class="bg-gray-900/50">
                     <tr>
                         <th
@@ -1506,6 +1515,15 @@
       (check) => counts[check.status] = (counts[check.status] || 0) + 1
     );
     const groupedChecks = groupChecks(checks);
+    const filterButton = (filter, label, count) => {
+      const isActive = activeFilter === filter;
+      return x`<button
+            class="px-3 py-1 rounded-full text-xs transition-colors duration-200 ${isActive ? "bg-blue-600 text-white font-semibold" : "bg-gray-700 text-gray-300"}"
+            data-filter="${filter}"
+        >
+            ${label} (${count})
+        </button>`;
+    };
     return x`
         <h3 class="text-xl font-bold mb-2">
             Compliance & Best Practices Report
@@ -1519,30 +1537,10 @@
             class="flex items-center gap-4 mb-4 p-2 bg-gray-900 rounded-md sticky top-0 z-20 border-b border-gray-700"
         >
             <span class="text-sm font-semibold">Filter by Status:</span>
-            <button
-                class="compliance-filter-btn ${activeFilter === "all" ? "filter-active" : ""}"
-                data-filter="all"
-            >
-                All (${checks.length})
-            </button>
-            <button
-                class="compliance-filter-btn ${activeFilter === "fail" ? "filter-active" : ""}"
-                data-filter="fail"
-            >
-                Errors (${counts.fail})
-            </button>
-            <button
-                class="compliance-filter-btn ${activeFilter === "warn" ? "filter-active" : ""}"
-                data-filter="warn"
-            >
-                Warnings (${counts.warn})
-            </button>
-            <button
-                class="compliance-filter-btn ${activeFilter === "pass" ? "filter-active" : ""}"
-                data-filter="pass"
-            >
-                Passed (${counts.pass})
-            </button>
+            ${filterButton("all", "All", checks.length)}
+            ${filterButton("fail", "Errors", counts.fail)}
+            ${filterButton("warn", "Warnings", counts.warn)}
+            ${filterButton("pass", "Passed", counts.pass)}
         </div>
 
         ${Object.entries(groupedChecks).map(
@@ -1661,6 +1659,12 @@
             Could not determine total duration.
         </div>`;
     const gridTemplateColumns = periodData.map((p2) => `${p2.duration / totalDuration * 100}%`).join(" ");
+    const adaptationSetClasses = (contentType) => {
+      let borderColor = "border-yellow-500";
+      if (contentType === "video") borderColor = "border-indigo-400";
+      if (contentType === "audio") borderColor = "border-green-400";
+      return `bg-slate-800/50 rounded p-1 px-2 mb-1 text-xs whitespace-nowrap overflow-hidden text-ellipsis border-l-4 ${borderColor} cursor-help`;
+    };
     const timelinePeriods = periodData.map((p2) => {
       const adaptationSets = Array.from(
         p2.element.querySelectorAll("AdaptationSet")
@@ -1669,14 +1673,21 @@
         const langText = as.getAttribute("lang") ? ` (${as.getAttribute("lang")})` : "";
         const contentType = as.getAttribute("contentType") || as.getAttribute("mimeType")?.split("/")[0] || "unknown";
         return x`<div
-                class="timeline-adaptation-set ${contentType}"
+                class="${adaptationSetClasses(contentType)}"
                 title="AdaptationSet ID: ${as.getAttribute("id") || "N/A"}"
             >
                 ${contentType}${langText}
             </div>`;
       });
-      return x` <div class="timeline-period" title="Period ID: ${p2.id}">
-            <div class="timeline-period-title">Period ${p2.id}</div>
+      return x` <div
+            class="bg-gray-700 rounded p-2 overflow-hidden border-r-2 border-gray-900 last:border-r-0"
+            title="Period ID: ${p2.id}"
+        >
+            <div
+                class="font-semibold text-sm text-gray-300 mb-2 whitespace-nowrap"
+            >
+                Period ${p2.id}
+            </div>
             <div class="space-y-1">${adaptationSetTemplates}</div>
         </div>`;
     });
@@ -1689,9 +1700,9 @@
             </div>`
     );
     return x` <h3 class="text-xl font-bold mb-4">Timeline Visualization</h3>
-        <div class="timeline-container-static">
+        <div class="bg-gray-900 rounded-lg p-2">
             <div
-                class="timeline-grid"
+                class="grid grid-flow-col auto-cols-fr min-h-[80px]"
                 style="grid-template-columns: ${gridTemplateColumns}"
             >
                 ${timelinePeriods}
@@ -1711,12 +1722,18 @@
     );
     if (!timeShiftBufferDepth)
       return x`<p class="info">No @timeShiftBufferDepth found.</p>`;
+    const adaptationSetClasses = (contentType) => {
+      let borderColor = "border-yellow-500";
+      if (contentType === "video") borderColor = "border-indigo-400";
+      if (contentType === "audio") borderColor = "border-green-400";
+      return `bg-slate-800/50 rounded p-1 px-2 mb-1 text-xs whitespace-nowrap overflow-hidden text-ellipsis border-l-4 ${borderColor} cursor-help`;
+    };
     const adaptationSets = Array.from(period.querySelectorAll("AdaptationSet"));
     const adaptationSetTemplates = adaptationSets.map((as) => {
       const langText = as.getAttribute("lang") ? ` (${as.getAttribute("lang")})` : "";
       const contentType = as.getAttribute("contentType") || as.getAttribute("mimeType")?.split("/")[0] || "unknown";
       return x`<div
-            class="timeline-adaptation-set ${contentType}"
+            class="${adaptationSetClasses(contentType)}"
             title="AdaptationSet ID: ${as.getAttribute("id") || "N/A"}"
         >
             ${contentType}${langText}
@@ -1738,16 +1755,23 @@
             Live Timeline Visualization
         </h3>
         <div
-            class="timeline-container-live"
+            class="bg-gray-900 rounded-lg p-2 relative"
             title="DVR Window: ${timeShiftBufferDepth.toFixed(2)}s"
         >
-            <div class="timeline-grid">
-                <div class="timeline-period" style="grid-column: 1 / -1;">
-                    <div class="timeline-period-title">Available Media</div>
+            <div class="grid min-h-[80px]">
+                <div class="bg-gray-700 rounded p-2 overflow-hidden col-span-full">
+                    <div
+                        class="font-semibold text-sm text-gray-300 mb-2 whitespace-nowrap"
+                    >
+                        Available Media
+                    </div>
                     <div class="space-y-1">${adaptationSetTemplates}</div>
                 </div>
             </div>
-            <div class="timeline-live-edge" title="Live Edge"></div>
+            <div
+                class="absolute right-2 top-0 bottom-0 w-1 bg-red-500 rounded-full"
+                title="Live Edge"
+            ></div>
         </div>
         <div class="text-xs text-gray-400 mt-2 flex justify-between">
             <span>Start of DVR Window (${dvrStart.toFixed(2)}s)</span>
@@ -2060,64 +2084,42 @@
   ];
   var featureRowTemplate = (feature, mpd) => {
     const result = feature.check(mpd);
-    const statusIcon = result.used ? x`<span class="text-green-400 font-bold text-lg" title="Used"
-              >✔</span
-          >` : x`<span class="text-gray-500 font-bold text-lg" title="Not Used"
-              >—</span
+    const badge = result.used ? x`<span
+              class="text-xs font-semibold px-2 py-1 bg-green-800 text-green-200 rounded-full"
+              >Used</span
+          >` : x`<span
+              class="text-xs font-semibold px-2 py-1 bg-gray-600 text-gray-300 rounded-full"
+              >Not Used</span
           >`;
     return x`
-        <tr class="border-b border-gray-700 last:border-b-0">
-            <td class="p-3 text-center w-20">${statusIcon}</td>
-            <td class="p-3 font-semibold text-gray-200">
-                ${feature.name}
-                ${createInfoTooltip(feature.desc, feature.isoRef)}
-            </td>
-            <td class="p-3 text-sm text-gray-300 font-mono">
-                ${o2(result.details)}
-            </td>
-            <td class="p-3 text-xs text-gray-500 font-mono w-40 text-right">
-                ${feature.isoRef}
-            </td>
-        </tr>
+        <div
+            class="grid grid-cols-[100px_1fr] items-center bg-gray-800 p-3 rounded-md"
+        >
+            <div class="text-center">${badge}</div>
+            <div>
+                <p
+                    class="font-medium ${tooltipTriggerClasses}"
+                    data-tooltip="${feature.desc}"
+                    data-iso="${feature.isoRef}"
+                >
+                    ${feature.name}
+                </p>
+                <p
+                    class="text-xs text-gray-400 italic mt-1 font-mono"
+                >
+                    ${o2(result.details)}
+                </p>
+            </div>
+        </div>
     `;
   };
   var categoryTemplate2 = (category, categoryFeatures, mpd) => x`
     <div class="mt-8">
         <h4 class="text-lg font-semibold text-gray-300 mb-3">${category}</h4>
-        <div
-            class="bg-gray-800 rounded-lg overflow-hidden border border-gray-700"
-        >
-            <table class="w-full text-left">
-                <thead class="bg-gray-900/50">
-                    <tr>
-                        <th
-                            class="p-3 text-xs font-semibold text-gray-400 uppercase tracking-wider text-center"
-                        >
-                            Status
-                        </th>
-                        <th
-                            class="p-3 text-xs font-semibold text-gray-400 uppercase tracking-wider"
-                        >
-                            Feature
-                        </th>
-                        <th
-                            class="p-3 text-xs font-semibold text-gray-400 uppercase tracking-wider"
-                        >
-                            Details
-                        </th>
-                        <th
-                            class="p-3 text-xs font-semibold text-gray-400 uppercase tracking-wider text-right"
-                        >
-                            Spec Ref.
-                        </th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-700">
-                    ${categoryFeatures.map(
+        <div class="flex flex-col gap-2">
+            ${categoryFeatures.map(
     (feature) => featureRowTemplate(feature, mpd)
   )}
-                </tbody>
-            </table>
         </div>
     </div>
 `;
@@ -2351,24 +2353,24 @@
     const isClosing = tagName.startsWith("/");
     const cleanTagName = isClosing ? tagName.substring(1) : tagName;
     const tagInfo = mpdTooltipData[cleanTagName];
-    const tagClass = "interactive-xml-tag";
+    const tagClass = "text-blue-300 rounded-sm px-1 -mx-1 transition-colors hover:bg-slate-700";
     const tooltipAttrs = tagInfo ? `data-tooltip="${escapeHtml(tagInfo.text)}" data-iso="${escapeHtml(
       tagInfo.isoRef
     )}"` : "";
     return o2(
-      `&lt;${isClosing ? "/" : ""}<span class="${tagClass}" ${tooltipAttrs}>${cleanTagName}</span>`
+      `&lt;${isClosing ? "/" : ""}<span class="${tagClass} ${tagInfo ? tooltipTriggerClasses : ""}" ${tooltipAttrs}>${cleanTagName}</span>`
     );
   };
   var getAttributeHTML = (tagName, attr) => {
     const attrKey = `${tagName}@${attr.name}`;
     const attrInfo = mpdTooltipData[attrKey];
-    const nameClass = "interactive-xml-attr-name";
-    const valueClass = "interactive-xml-attr-value";
+    const nameClass = "text-emerald-300 rounded-sm px-1 -mx-1 transition-colors hover:bg-slate-700";
+    const valueClass = "text-yellow-300";
     const tooltipAttrs = attrInfo ? `data-tooltip="${escapeHtml(attrInfo.text)}" data-iso="${escapeHtml(
       attrInfo.isoRef
     )}"` : "";
     return o2(
-      `<span class="${nameClass}" ${tooltipAttrs}>${attr.name}</span>=<span class="${valueClass}">"${escapeHtml(
+      `<span class="${nameClass} ${attrInfo ? tooltipTriggerClasses : ""}" ${tooltipAttrs}>${attr.name}</span>=<span class="${valueClass}">"${escapeHtml(
         attr.value
       )}"</span>`
     );
@@ -2402,13 +2404,13 @@ ${childNodes.map((c2) => preformatted(c2, depth + 1))}${indent}${getTagHTML(
           }
         }
         case Node.TEXT_NODE: {
-          return x`${indent}<span class="interactive-xml-text"
+          return x`${indent}<span class="text-gray-200"
 >${escapeHtml(node.textContent.trim())}</span
 >
 `;
         }
         case Node.COMMENT_NODE: {
-          return x`${indent}<span class="interactive-xml-comment"
+          return x`${indent}<span class="text-gray-500 italic"
 >&lt;!--${escapeHtml(node.textContent)}--&gt;</span
 >
 `;
@@ -2418,8 +2420,10 @@ ${childNodes.map((c2) => preformatted(c2, depth + 1))}${indent}${getTagHTML(
       }
     };
     const fullTemplate = x`${preformatted(mpd)}`;
-    return x`<div class="interactive-mpd-container">
-<pre><code>${fullTemplate}</code></pre>
+    return x`<div
+        class="bg-slate-800 rounded-lg p-4 font-mono text-sm leading-relaxed overflow-x-auto"
+    >
+        <pre class="m-0 p-0 whitespace-pre"><code>${fullTemplate}</code></pre>
     </div>`;
   }
 
@@ -2570,70 +2574,88 @@ ${childNodes.map((c2) => preformatted(c2, depth + 1))}${indent}${getTagHTML(
   }
   var tsAnalysisTemplate = (analysis) => {
     const sortedPids = Object.entries(analysis.pids).map(([pid, data]) => ({ pid: parseInt(pid), ...data })).sort((a2, b2) => a2.pid - b2.pid);
+    const dataItem = (label, value, isBoolean = false) => x`
+        <div class="text-xs">
+            <span class="block text-gray-400 mb-0.5">${label}</span>
+            <span
+                class="block font-semibold font-mono ${isBoolean ? value ? "text-green-400" : "text-red-400" : "text-gray-200"}"
+                >${isBoolean ? value ? "Yes" : "No" : value}</span
+            >
+        </div>
+    `;
     return x`
-        <div class="segment-essential-data">
-            <div>
-                <span class="label">Type</span
-                ><span class="value">MPEG-2 Transport Stream</span>
-            </div>
-            <div>
-                <span class="label">Total Packets</span
-                ><span class="value">${analysis.summary.totalPackets}</span>
-            </div>
-            <div>
-                <span class="label">Est. Duration</span
-                ><span class="value">${analysis.summary.durationS}s</span>
-            </div>
-            <div>
-                <span class="label">PAT Found</span
-                ><span
-                    class="value ${analysis.summary.patFound ? "pass" : "fail"}"
-                    >${analysis.summary.patFound ? "Yes" : "No"}</span
-                >
-            </div>
-            <div>
-                <span class="label">PMT Found</span
-                ><span
-                    class="value ${analysis.summary.pmtFound ? "pass" : "fail"}"
-                    >${analysis.summary.pmtFound ? "Yes" : "No"}</span
-                >
-            </div>
+        <div
+            class="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3 bg-gray-900 border border-gray-700 rounded p-3 mb-4"
+        >
+            ${dataItem("Type", "MPEG-2 Transport Stream")}
+            ${dataItem("Total Packets", analysis.summary.totalPackets)}
+            ${dataItem("Est. Duration", `${analysis.summary.durationS}s`)}
+            ${dataItem("PAT Found", analysis.summary.patFound, true)}
+            ${dataItem("PMT Found", analysis.summary.pmtFound, true)}
         </div>
 
-        ${analysis.summary.errors.length > 0 ? x`<div class="analysis-summary fail">
-                  <p class="font-bold">Parsing Errors:</p>
-                  <ul class="list-disc pl-5 mt-1">
+        ${analysis.summary.errors.length > 0 ? x`<div
+                  class="bg-red-900/50 border border-red-700 rounded p-3 mb-4 text-red-300 text-xs"
+              >
+                  <p class="font-bold mb-1">Parsing Errors:</p>
+                  <ul class="list-disc pl-5">
                       ${analysis.summary.errors.map((e4) => x`<li>${e4}</li>`)}
                   </ul>
               </div>` : ""}
 
-        <div class="box-tree-view">
+        <div>
             <h4 class="font-semibold text-gray-300 mb-2">
                 Packet Identifier (PID) Streams:
             </h4>
-            <table class="box-details-table w-full">
+            <table class="w-full text-left text-xs border-collapse">
                 <thead class="text-left">
                     <tr>
-                        <th class="w-1/6">PID</th>
-                        <th class="w-1/3">Stream Type</th>
-                        <th class="w-1/6">Packets</th>
-                        <th class="w-1/3">Notes</th>
+                        <th
+                            class="p-2 border border-gray-700 bg-gray-900/50 w-1/6"
+                        >
+                            PID
+                        </th>
+                        <th
+                            class="p-2 border border-gray-700 bg-gray-900/50 w-1/3"
+                        >
+                            Stream Type
+                        </th>
+                        <th
+                            class="p-2 border border-gray-700 bg-gray-900/50 w-1/6"
+                        >
+                            Packets
+                        </th>
+                        <th
+                            class="p-2 border border-gray-700 bg-gray-900/50 w-1/3"
+                        >
+                            Notes
+                        </th>
                     </tr>
                 </thead>
                 <tbody>
                     ${sortedPids.map(
       (pidInfo) => x`
                             <tr>
-                                <td class="field-name">
+                                <td
+                                    class="p-2 border border-gray-700 font-mono text-gray-400"
+                                >
                                     0x${pidInfo.pid.toString(16).padStart(4, "0")}
                                     (${pidInfo.pid})
                                 </td>
-                                <td class="field-value">
+                                <td
+                                    class="p-2 border border-gray-700 text-gray-200"
+                                >
                                     ${pidInfo.streamType}
                                 </td>
-                                <td class="field-value">${pidInfo.count}</td>
-                                <td class="field-value">
-                                    ${pidInfo.continuityErrors > 0 ? x`<span class="warn"
+                                <td
+                                    class="p-2 border border-gray-700 text-gray-200"
+                                >
+                                    ${pidInfo.count}
+                                </td>
+                                <td
+                                    class="p-2 border border-gray-700 text-gray-200"
+                                >
+                                    ${pidInfo.continuityErrors > 0 ? x`<span class="text-yellow-400"
                                               >CC Errors:
                                               ${pidInfo.continuityErrors}</span
                                           >` : ""}
@@ -2675,7 +2697,6 @@ ${childNodes.map((c2) => preformatted(c2, depth + 1))}${indent}${getTagHTML(
       text: "Declares the segment's brand and compatibility.",
       ref: "ISO/IEC 14496-12, 8.16.2"
     },
-    // NOTE: styp fields share the same semantics as ftyp fields.
     "styp@Major Brand": {
       text: "The 'best use' specification for the segment.",
       ref: "ISO/IEC 14496-12, 4.3.3"
@@ -3115,40 +3136,103 @@ ${childNodes.map((c2) => preformatted(c2, depth + 1))}${indent}${getTagHTML(
       ref: "ISO/IEC 14496-12, 8.1.1"
     }
   };
+  function diffObjects(obj1, obj2) {
+    const result = [];
+    const allKeys = /* @__PURE__ */ new Set([...Object.keys(obj1), ...Object.keys(obj2)]);
+    for (const key of allKeys) {
+      const val1 = obj1[key];
+      const val2 = obj2[key];
+      const isDifferent = JSON.stringify(val1) !== JSON.stringify(val2);
+      result.push({
+        key,
+        val1: val1 !== void 0 ? val1 : "---",
+        val2: val2 !== void 0 ? val2 : "---",
+        isDifferent
+      });
+    }
+    return result;
+  }
+  var segmentCompareTemplate = (diffData) => {
+    return x`
+        <div class="grid grid-cols-[1fr_2fr_2fr] text-xs">
+            <div
+                class="font-semibold p-2 border-b border-r border-gray-700 bg-gray-900/50"
+            >
+                Property
+            </div>
+            <div
+                class="font-semibold p-2 border-b border-r border-gray-700 bg-gray-900/50"
+            >
+                Segment A
+            </div>
+            <div
+                class="font-semibold p-2 border-b border-gray-700 bg-gray-900/50"
+            >
+                Segment B
+            </div>
+
+            ${diffData.map(
+      (item) => x`
+                    <div
+                        class="p-2 border-b border-r border-gray-700 font-medium text-gray-400"
+                    >
+                        ${item.key}
+                    </div>
+                    <div
+                        class="p-2 border-b border-r border-gray-700 font-mono ${item.isDifferent ? "bg-red-900/50 text-red-300" : ""}"
+                    >
+                        ${typeof item.val1 === "object" ? o2(item.val1) : item.val1}
+                    </div>
+                    <div
+                        class="p-2 border-b border-gray-700 font-mono ${item.isDifferent ? "bg-red-900/50 text-red-300" : ""}"
+                    >
+                        ${typeof item.val2 === "object" ? o2(item.val2) : item.val2}
+                    </div>
+                `
+    )}
+        </div>
+    `;
+  };
   var isoBoxTemplate = (box) => {
     const boxInfo = tooltipData[box.type] || {};
-    const headerTemplate = x` <div class="box-header">
+    const headerTemplate = x` <div class="font-semibold font-mono">
         <span
-            class="type"
+            class="text-emerald-300 ${boxInfo.text ? tooltipTriggerClasses : ""}"
             data-tooltip="${boxInfo.text || ""}"
             data-iso="${boxInfo.ref || ""}"
             >${box.type}</span
         >
-        <span class="size"
+        <span class="text-gray-500 text-xs"
             >${boxInfo.name ? `(${boxInfo.name}) ` : ""}(${box.size}
             bytes)</span
         >
     </div>`;
-    const detailsTemplate = Object.keys(box.details).length > 0 ? x` <table class="box-details-table">
+    const detailsTemplate = Object.keys(box.details).length > 0 ? x` <table
+                  class="mt-2 text-xs border-collapse w-full table-auto"
+              >
                   <tbody>
                       ${Object.entries(box.details).map(([key, value]) => {
       const fieldTooltip = tooltipData[`${box.type}@${key}`];
       return x`<tr>
                               <td
-                                  class="field-name"
+                                  class="border border-gray-700 p-2 text-gray-400 w-1/4 ${fieldTooltip ? tooltipTriggerClasses : ""}"
                                   data-tooltip="${fieldTooltip?.text || ""}"
                                   data-iso="${fieldTooltip?.ref || ""}"
                               >
                                   ${key}
                               </td>
-                              <td class="field-value">${value}</td>
+                              <td
+                                  class="border border-gray-700 p-2 text-gray-200 font-mono break-all"
+                              >
+                                  ${value}
+                              </td>
                           </tr>`;
     })}
                   </tbody>
               </table>` : "";
-    const childrenTemplate = box.children.length > 0 ? x`<ul>
+    const childrenTemplate = box.children.length > 0 ? x`<ul class="list-none pl-6 mt-2 border-l border-gray-600">
                   ${box.children.map(
-      (child) => x`<li>${isoBoxTemplate(child)}</li>`
+      (child) => x`<li class="mt-2">${isoBoxTemplate(child)}</li>`
     )}
               </ul>` : "";
     return x`${headerTemplate}${detailsTemplate}${childrenTemplate}`;
@@ -3156,6 +3240,14 @@ ${childNodes.map((c2) => preformatted(c2, depth + 1))}${indent}${getTagHTML(
   var essentialDataTemplate = (boxes) => {
     const moof = boxes.find((b2) => b2.type === "moof");
     const moov = boxes.find((b2) => b2.type === "moov");
+    const dataItem = (label, value) => x`
+        <div class="text-xs">
+            <span class="block text-gray-400 mb-0.5">${label}</span>
+            <span class="block text-gray-200 font-semibold font-mono"
+                >${value}</span
+            >
+        </div>
+    `;
     if (moof) {
       const mfhd = moof.children.find((b2) => b2.type === "mfhd");
       const traf = moof.children.find((b2) => b2.type === "traf");
@@ -3163,62 +3255,36 @@ ${childNodes.map((c2) => preformatted(c2, depth + 1))}${indent}${getTagHTML(
       const tfhd = traf.children.find((b2) => b2.type === "tfhd");
       const tfdt = traf.children.find((b2) => b2.type === "tfdt");
       const trun = traf.children.find((b2) => b2.type === "trun");
-      return x` <div class="segment-essential-data">
-            <div>
-                <span class="label">Type</span
-                ><span class="value">Media Segment</span>
-            </div>
-            <div>
-                <span class="label">Sequence #</span
-                ><span class="value"
-                    >${mfhd.details.sequence_number || "N/A"}</span
-                >
-            </div>
-            <div>
-                <span class="label">Track ID</span
-                ><span class="value">${tfhd?.details.track_ID || "N/A"}</span>
-            </div>
-            <div>
-                <span class="label">Base Decode Time</span
-                ><span class="value"
-                    >${tfdt?.details.baseMediaDecodeTime || "N/A"}</span
-                >
-            </div>
-            <div>
-                <span class="label">Sample Count</span
-                ><span class="value"
-                    >${trun?.details.sample_count || "N/A"}</span
-                >
-            </div>
+      return x` <div
+            class="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3 bg-gray-900 border border-gray-700 rounded p-3 mb-4"
+        >
+            ${dataItem("Type", "Media Segment")}
+            ${dataItem("Sequence #", mfhd.details.sequence_number || "N/A")}
+            ${dataItem("Track ID", tfhd?.details.track_ID || "N/A")}
+            ${dataItem(
+        "Base Decode Time",
+        tfdt?.details.baseMediaDecodeTime || "N/A"
+      )}
+            ${dataItem("Sample Count", trun?.details.sample_count || "N/A")}
         </div>`;
     } else if (moov) {
       const mvhd = moov.children.find((b2) => b2.type === "mvhd");
       const traks = moov.children.filter((b2) => b2.type === "trak");
-      return x` <div class="segment-essential-data">
-            <div>
-                <span class="label">Type</span
-                ><span class="value">Initialization Segment</span>
-            </div>
-            <div>
-                <span class="label">Timescale</span
-                ><span class="value">${mvhd?.details.timescale || "N/A"}</span>
-            </div>
-            <div>
-                <span class="label">Duration</span
-                ><span class="value">${mvhd?.details.duration || "N/A"}</span>
-            </div>
-            <div>
-                <span class="label">Track Count</span
-                ><span class="value">${traks.length}</span>
-            </div>
+      return x` <div
+            class="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3 bg-gray-900 border border-gray-700 rounded p-3 mb-4"
+        >
+            ${dataItem("Type", "Initialization Segment")}
+            ${dataItem("Timescale", mvhd?.details.timescale || "N/A")}
+            ${dataItem("Duration", mvhd?.details.duration || "N/A")}
+            ${dataItem("Track Count", traks.length)}
         </div>`;
     }
     return x``;
   };
   var isoAnalysisTemplate = (boxes) => x`
     ${essentialDataTemplate(boxes)}
-    <div class="box-tree-view">
-        <ul>
+    <div>
+        <ul class="list-none p-0">
             ${boxes.map((box) => x`<li>${isoBoxTemplate(box)}</li>`)}
         </ul>
     </div>
@@ -3527,7 +3593,9 @@ ${childNodes.map((c2) => preformatted(c2, depth + 1))}${indent}${getTagHTML(
             }
             samples.push(JSON.stringify(sample));
           }
-          box.details["samples"] = x`<div class="sample-data">
+          box.details["samples"] = x`<div
+                    class="bg-gray-900 p-2 rounded"
+                >
                     <pre>
 ${samples.join("\n")}${sample_count > 10 ? `
 ... (${sample_count - 10} more)` : ""}</pre
@@ -3544,7 +3612,7 @@ ${samples.join("\n")}${sample_count > 10 ? `
       box.details["Parsing Error"] = _e.message;
     }
   }
-  function dispatchAndRenderSegmentAnalysis(e4, buffer) {
+  function dispatchAndRenderSegmentAnalysis(e4, buffer, bufferB = null) {
     if (!buffer) {
       B(
         x`<p class="fail">
@@ -3556,24 +3624,46 @@ ${samples.join("\n")}${sample_count > 10 ? `
     }
     const target = (
       /** @type {HTMLElement} */
-      e4.currentTarget
+      e4?.currentTarget
     );
-    const repId = target.dataset.repid;
+    const repId = target?.dataset.repid;
     const activeStream = analysisState.streams.find(
       (s2) => s2.id === analysisState.activeStreamId
     );
     if (!activeStream) return;
     const rep = activeStream.mpd.querySelector(`Representation[id="${repId}"]`);
-    if (!rep) return;
-    const as = rep.closest("AdaptationSet");
-    const mimeType = rep.getAttribute("mimeType") || as?.getAttribute("mimeType");
+    const as = rep?.closest("AdaptationSet");
+    const mimeType = rep?.getAttribute("mimeType") || as?.getAttribute("mimeType");
     try {
       if (mimeType === "video/mp2t") {
-        const analysis = parseTsSegment(buffer);
-        B(tsAnalysisTemplate(analysis.data), dom.modalContentArea);
+        const analysisA = parseTsSegment(buffer);
+        if (bufferB) {
+          const analysisB = parseTsSegment(bufferB);
+          const diff = diffObjects(
+            analysisA.data.summary,
+            analysisB.data.summary
+          );
+          B(segmentCompareTemplate(diff), dom.modalContentArea);
+        } else {
+          B(
+            tsAnalysisTemplate(analysisA.data),
+            dom.modalContentArea
+          );
+        }
       } else {
-        const boxes = parseISOBMFF(buffer);
-        B(isoAnalysisTemplate(boxes), dom.modalContentArea);
+        const boxesA = parseISOBMFF(buffer);
+        if (bufferB) {
+          const boxesB = parseISOBMFF(bufferB);
+          const essentialA = essentialDataTemplate(boxesA);
+          const essentialB = essentialDataTemplate(boxesB);
+          const diff = diffObjects(
+            boxesA[0]?.details || {},
+            boxesB[0]?.details || {}
+          );
+          B(segmentCompareTemplate(diff), dom.modalContentArea);
+        } else {
+          B(isoAnalysisTemplate(boxesA), dom.modalContentArea);
+        }
       }
     } catch (err) {
       console.error("Segment parsing error:", err);
@@ -3590,34 +3680,84 @@ ${samples.join("\n")}${sample_count > 10 ? `
   var SEGMENT_PAGE_SIZE = 10;
   var segmentFreshnessInterval = null;
   var allSegmentsByRep = {};
+  var currentContainer = null;
+  var currentMpd = null;
+  var currentBaseUrl = null;
+  function handleSegmentCheck(e4) {
+    const checkbox = (
+      /** @type {HTMLInputElement} */
+      e4.target
+    );
+    const url = checkbox.value;
+    const { segmentsForCompare } = analysisState;
+    if (checkbox.checked) {
+      if (!segmentsForCompare.includes(url)) {
+        segmentsForCompare.push(url);
+      }
+    } else {
+      const index = segmentsForCompare.indexOf(url);
+      if (index > -1) {
+        segmentsForCompare.splice(index, 1);
+      }
+    }
+    initializeSegmentExplorer(currentContainer, currentMpd, currentBaseUrl);
+  }
+  function handleCompareClick() {
+    const { segmentsForCompare, segmentCache } = analysisState;
+    if (segmentsForCompare.length !== 2) return;
+    const [urlA, urlB] = segmentsForCompare;
+    const segmentA = segmentCache.get(urlA);
+    const segmentB = segmentCache.get(urlB);
+    if (!segmentA?.data || !segmentB?.data) {
+      alert("One or both selected segments have not been fetched successfully.");
+      return;
+    }
+    dom.modalTitle.textContent = "Segment Comparison";
+    dom.modalSegmentUrl.textContent = `Comparing Segment A vs. Segment B`;
+    const modalContent = dom.segmentModal.querySelector("div");
+    dom.segmentModal.classList.remove("opacity-0", "invisible");
+    dom.segmentModal.classList.add("opacity-100", "visible");
+    modalContent.classList.remove("scale-95");
+    modalContent.classList.add("scale-100");
+    dispatchAndRenderSegmentAnalysis(null, segmentA.data, segmentB.data);
+  }
   var segmentRowTemplate = (seg) => {
     const cacheEntry = analysisState.segmentCache.get(seg.resolvedUrl);
     let statusHtml;
     if (!cacheEntry || cacheEntry.status === -1) {
-      statusHtml = x`<span
-            class="segment-status-indicator status-pending"
+      statusHtml = x`<div
+            class="flex-shrink-0 w-2.5 h-2.5 rounded-full bg-gray-500 animate-pulse"
             title="Status: Pending"
-        ></span>`;
+        ></div>`;
     } else if (cacheEntry.status !== 200) {
       const statusText = cacheEntry.status === 0 ? "Network Error" : `HTTP ${cacheEntry.status}`;
-      statusHtml = x`<span
-                class="segment-status-indicator status-fail"
+      statusHtml = x`<div
+                class="flex-shrink-0 w-2.5 h-2.5 rounded-full bg-red-500"
                 title="Status: ${statusText}"
-            ></span
-            ><span class="text-xs text-red-400 ml-1">[${statusText}]</span>`;
+            ></div>
+            <span class="text-xs text-red-400 ml-2">[${statusText}]</span>`;
     } else {
-      statusHtml = x``;
+      statusHtml = x`<div
+            class="flex-shrink-0 w-2.5 h-2.5 rounded-full bg-green-500"
+            title="Status: OK (200)"
+        ></div>`;
     }
     const typeLabel = seg.type === "Init" ? "Init" : `Media #${seg.number}`;
     const canAnalyze = cacheEntry && cacheEntry.status === 200 && cacheEntry.data;
+    const isChecked = analysisState.segmentsForCompare.includes(seg.resolvedUrl);
     const analyzeHandler = (e4) => {
+      dom.modalTitle.textContent = "Segment Analysis";
       const url = (
         /** @type {HTMLElement} */
         e4.currentTarget.dataset.url
       );
       const cached = analysisState.segmentCache.get(url);
       dom.modalSegmentUrl.textContent = url;
-      dom.segmentModal.classList.add("modal-overlay-visible");
+      const modalContent = dom.segmentModal.querySelector("div");
+      dom.segmentModal.classList.remove("opacity-0", "invisible");
+      dom.segmentModal.classList.add("opacity-100", "visible");
+      modalContent.classList.remove("scale-95");
+      modalContent.classList.add("scale-100");
       dispatchAndRenderSegmentAnalysis(e4, cached?.data);
     };
     const segmentTiming = seg.type === "Media" ? x`${(seg.time / seg.timescale).toFixed(2)}s
@@ -3627,7 +3767,21 @@ ${samples.join("\n")}${sample_count > 10 ? `
         data-url="${seg.resolvedUrl}"
         data-time="${seg.time}"
     >
-        <td class="py-2 pl-3 status-cell">${statusHtml}${typeLabel}</td>
+        <td class="py-2 pl-3 w-8">
+            <input
+                type="checkbox"
+                class="bg-gray-700 border-gray-500 rounded focus:ring-blue-500"
+                .value=${seg.resolvedUrl}
+                ?checked=${isChecked}
+                @change=${handleSegmentCheck}
+            />
+        </td>
+        <td class="py-2">
+            <div class="flex items-center">
+                ${statusHtml}
+                <span class="ml-2">${typeLabel}</span>
+            </div>
+        </td>
         <td class="py-2 text-xs font-mono">${segmentTiming}</td>
         <td
             class="py-2 font-mono text-cyan-400 truncate"
@@ -3661,7 +3815,8 @@ ${samples.join("\n")}${sample_count > 10 ? `
                 <table class="w-full text-left text-sm table-fixed">
                     <thead class="sticky top-0 bg-gray-900 z-10">
                         <tr>
-                            <th class="py-2 pl-3 w-[15%]">Type / Status</th>
+                            <th class="py-2 pl-3 w-8"></th>
+                            <th class="py-2 w-[15%]">Type / Status</th>
                             <th class="py-2 w-[20%]">Timing (s)</th>
                             <th class="py-2 w-[45%]">URL / Template</th>
                             <th class="py-2 pr-3 w-[20%] text-right">
@@ -3680,6 +3835,9 @@ ${samples.join("\n")}${sample_count > 10 ? `
     `;
   };
   function initializeSegmentExplorer(container, mpd, baseUrl) {
+    currentContainer = container;
+    currentMpd = mpd;
+    currentBaseUrl = baseUrl;
     allSegmentsByRep = parseAllSegmentUrls(mpd, baseUrl);
     const isDynamic = mpd.getAttribute("type") === "dynamic";
     const template = x`
@@ -3703,10 +3861,19 @@ ${samples.join("\n")}${sample_count > 10 ? `
                               Last ${SEGMENT_PAGE_SIZE}
                           </button>` : ""}
                 </div>
-                <div class="segment-filter-controls">
+                 <button
+                    @click=${handleCompareClick}
+                    class="bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    ?disabled=${analysisState.segmentsForCompare.length !== 2}
+                >
+                    Compare Selected (${analysisState.segmentsForCompare.length}/2)
+                </button>
+                <div
+                    class="flex items-center border border-gray-600 rounded-md overflow-hidden"
+                >
                     <select
                         id="segment-filter-type"
-                        class="bg-gray-700 text-white rounded-l-md border-gray-600 p-2 text-sm h-full border-r-0"
+                        class="bg-gray-700 text-white border-0 focus:ring-0 p-2 text-sm h-full"
                     >
                         <option value="number">Segment #</option>
                         <option value="time">Time (s)</option>
@@ -3714,24 +3881,24 @@ ${samples.join("\n")}${sample_count > 10 ? `
                     <input
                         type="text"
                         id="segment-filter-from"
-                        class="bg-gray-700 text-white p-2 border-gray-600 w-24 text-sm h-full"
+                        class="bg-gray-700 text-white p-2 border-0 border-l border-gray-600 focus:ring-0 w-24 text-sm h-full"
                         placeholder="From"
                     />
                     <input
                         type="text"
                         id="segment-filter-to"
-                        class="bg-gray-700 text-white p-2 border-gray-600 w-24 text-sm h-full"
+                        class="bg-gray-700 text-white p-2 border-0 border-l border-gray-600 focus:ring-0 w-24 text-sm h-full"
                         placeholder="To"
                     />
                     <button
                         @click=${handleFilter}
-                        class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-3 h-full"
+                        class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-3 h-full border-l border-gray-600"
                     >
                         Filter
                     </button>
                     <button
                         @click=${() => loadAndRenderSegmentRange("first")}
-                        class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-3 rounded-r-md h-full"
+                        class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-3 h-full border-l border-gray-600"
                     >
                         Reset
                     </button>
@@ -3744,7 +3911,9 @@ ${samples.join("\n")}${sample_count > 10 ? `
         <div class="dev-watermark">Segment Explorer v3.0</div>
     `;
     B(template, container);
-    loadAndRenderSegmentRange("first");
+    if (!document.querySelector("#segment-explorer-content table")) {
+      loadAndRenderSegmentRange("first");
+    }
   }
   async function loadAndRenderSegmentRange(mode) {
     const contentArea = (
@@ -3753,6 +3922,7 @@ ${samples.join("\n")}${sample_count > 10 ? `
     );
     B(x`<p class="info">Fetching segment data...</p>`, contentArea);
     analysisState.segmentCache.clear();
+    analysisState.segmentsForCompare = [];
     stopSegmentFreshnessChecker();
     const segmentsToFetch = Object.values(allSegmentsByRep).flatMap(
       (segments) => mode === "first" ? segments.slice(0, SEGMENT_PAGE_SIZE) : segments.slice(-SEGMENT_PAGE_SIZE)
@@ -3968,7 +4138,7 @@ ${samples.join("\n")}${sample_count > 10 ? `
       );
       if (isStale && !staleIndicator) {
         const indicator = document.createElement("div");
-        indicator.className = "stale-segment-indicator";
+        indicator.className = "stale-segment-indicator flex-shrink-0 w-2.5 h-2.5 rounded-full bg-yellow-400";
         indicator.title = `This segment is outside the current DVR window (${dvrStartTime.toFixed(1)}s - ${liveEdge.toFixed(1)}s).`;
         statusCell.prepend(indicator);
       } else if (!isStale && staleIndicator) {
@@ -4178,13 +4348,13 @@ ${samples.join("\n")}${sample_count > 10 ? `
   var sectionTemplate = (title, items, streams) => x`
     <h3 class="text-xl font-bold mt-6 mb-2">${title}</h3>
     <div
-        class="grid comparison-grid-container"
+        class="grid border-t border-l border-gray-700 divide-y divide-gray-700"
         style="grid-template-columns: 200px repeat(${streams.length}, 1fr);"
     >
         <!-- Header Row -->
-        <div class="font-semibold text-gray-400 p-2">Property</div>
+        <div class="font-semibold text-gray-400 p-2 border-r border-b border-gray-700">Property</div>
         ${streams.map(
-    (stream) => x`<div class="font-semibold text-gray-400 p-2">
+    (stream) => x`<div class="font-semibold text-gray-400 p-2 border-r border-b border-gray-700">
                     ${stream.name}
                 </div>`
   )}
@@ -4192,11 +4362,15 @@ ${samples.join("\n")}${sample_count > 10 ? `
         <!-- Data Rows -->
         ${items.map(
     (item) => x`
-                <div class="prop-col p-2">
-                    ${item.label}${createInfoTooltip(item.tooltip, item.iso)}
+                <div
+                    class="font-medium text-gray-400 p-2 border-r border-gray-700 ${tooltipTriggerClasses}"
+                    data-tooltip="${item.tooltip}"
+                    data-iso="${item.iso}"
+                >
+                    ${item.label}
                 </div>
                 ${streams.map(
-      (stream) => x`<div class="p-2 font-mono text-sm">
+      (stream) => x`<div class="p-2 font-mono text-sm border-r border-gray-700">
                             ${item.accessor(stream.mpd)}
                         </div>`
     )}
@@ -4755,7 +4929,7 @@ ${samples.join("\n")}${sample_count > 10 ? `
       }
       const escapedValue = escapeHtml2(part.value);
       if (part.added) {
-        html += `<span class="diff-added">${escapedValue}</span>`;
+        html += `<span class="bg-emerald-500/40 text-green-50 rounded-sm font-medium">${escapedValue}</span>`;
       } else {
         html += escapedValue;
       }
@@ -4874,7 +5048,9 @@ ${samples.join("\n")}${sample_count > 10 ? `
       currentDisplay = x` <div class="text-sm text-gray-400 mb-2">
                 Initial MPD loaded:
             </div>
-            <div class="diff-container">
+            <div
+                class="bg-slate-800 rounded-lg p-4 font-mono text-sm leading-relaxed overflow-x-auto whitespace-pre-wrap break-all"
+            >
                 <pre><code>${formattedInitialMpd}</code></pre>
             </div>`;
     } else {
@@ -4885,7 +5061,9 @@ ${samples.join("\n")}${sample_count > 10 ? `
                     >${currentUpdate.timestamp}</span
                 >
             </div>
-            <div class="diff-container">
+            <div
+                class="bg-slate-800 rounded-lg p-4 font-mono text-sm leading-relaxed overflow-x-auto whitespace-pre-wrap break-all"
+            >
                 <pre><code>${o2(currentUpdate.diffHtml)}</code></pre>
             </div>`;
     }
@@ -5021,6 +5199,7 @@ ${samples.join("\n")}${sample_count > 10 ? `
 
   // js/ui.js
   var keyboardNavigationListener = null;
+  var tooltipTriggerClasses = "cursor-help border-b border-dotted border-blue-500/40 transition-colors hover:bg-blue-500/15 hover:border-solid";
   var streamInputTemplate = (streamId, isFirstStream, urlHistory, exampleStreams2) => {
     const exampleOptions = exampleStreams2.map(
       (stream) => x`<option value="${stream.url}">${stream.name}</option>`
@@ -5143,26 +5322,34 @@ ${samples.join("\n")}${sample_count > 10 ? `
       /** @type {HTMLElement} */
       e4.target
     );
-    if (!target.classList.contains("tab") || target.offsetParent === null)
-      return;
+    const targetTab = (
+      /** @type {HTMLElement} */
+      target.closest("[data-tab]")
+    );
+    if (!targetTab) return;
     stopSegmentFreshnessChecker();
     stopMpdUpdatePolling();
     if (keyboardNavigationListener) {
       document.removeEventListener("keydown", keyboardNavigationListener);
       keyboardNavigationListener = null;
     }
-    dom.tabs.querySelectorAll(".tab").forEach((t3) => t3.classList.remove("tab-active"));
-    target.classList.add("tab-active");
-    Object.values(dom.tabContents).forEach((c2) => {
-      if (c2) c2.classList.remove("tab-content-active");
+    const activeClasses = ["border-blue-600", "text-gray-100", "bg-gray-700"];
+    const inactiveClasses = ["border-transparent"];
+    dom.tabs.querySelectorAll("[data-tab]").forEach((t3) => {
+      t3.classList.remove(...activeClasses);
+      t3.classList.add(...inactiveClasses);
     });
-    const activeTabContent = dom.tabContents[target.dataset.tab];
-    if (activeTabContent) activeTabContent.classList.add("tab-content-active");
-    if (target.dataset.tab === "explorer") {
+    targetTab.classList.add(...activeClasses);
+    targetTab.classList.remove(...inactiveClasses);
+    Object.values(dom.tabContents).forEach((c2) => {
+      if (c2) c2.classList.add("hidden");
+    });
+    const activeTabContent = dom.tabContents[targetTab.dataset.tab];
+    if (activeTabContent) activeTabContent.classList.remove("hidden");
+    if (targetTab.dataset.tab === "explorer") {
       startSegmentFreshnessChecker();
-    } else if (target.dataset.tab === "updates") {
-      if (analysisState.streams.length === 1 && analysisState.streams[0].mpd.getAttribute("type") === "dynamic") {
-        analysisState.isPollingActive = true;
+    } else if (targetTab.dataset.tab === "updates") {
+      if (analysisState.isPollingActive && analysisState.streams.length === 1 && analysisState.streams[0].mpd.getAttribute("type") === "dynamic") {
         startMpdUpdatePolling(analysisState.streams[0]);
       }
       keyboardNavigationListener = (event) => {
@@ -5187,8 +5374,8 @@ ${samples.join("\n")}${sample_count > 10 ? `
   }
   function renderAllTabs() {
     const hasMultipleStreams = analysisState.streams.length > 1;
-    document.querySelector('.tab[data-tab="comparison"]').style.display = hasMultipleStreams ? "block" : "none";
-    document.querySelector('.tab[data-tab="summary"]').style.display = hasMultipleStreams ? "none" : "block";
+    document.querySelector('[data-tab="comparison"]').style.display = hasMultipleStreams ? "block" : "none";
+    document.querySelector('[data-tab="summary"]').style.display = hasMultipleStreams ? "none" : "block";
     if (hasMultipleStreams) {
       B(getComparisonTemplate(), dom.tabContents.comparison);
     }
@@ -5221,14 +5408,6 @@ ${samples.join("\n")}${sample_count > 10 ? `
     dom.status.textContent = message;
     dom.status.className = `text-center my-4 ${colors[type]}`;
   }
-  function createInfoTooltip(text, isoRef) {
-    return x`<span
-        class="info-icon"
-        data-tooltip="${text}"
-        data-iso="${isoRef}"
-        >[?]</span
-    >`;
-  }
 
   // js/tooltip.js
   function setupGlobalTooltipListener() {
@@ -5249,7 +5428,7 @@ ${samples.join("\n")}${sample_count > 10 ? `
       const text = tooltipTrigger.dataset.tooltip || "";
       const isoRef = tooltipTrigger.dataset.iso || "";
       if (!text) return;
-      const tooltipContent = `${text}${isoRef ? `<span class="iso-ref">${isoRef}</span>` : ""}`;
+      const tooltipContent = `${text}${isoRef ? `<span class="block mt-1 font-medium text-emerald-300">${isoRef}</span>` : ""}`;
       dom.globalTooltip.innerHTML = tooltipContent;
       const targetRect = tooltipTrigger.getBoundingClientRect();
       const tooltipRect = dom.globalTooltip.getBoundingClientRect();
@@ -5286,10 +5465,13 @@ ${samples.join("\n")}${sample_count > 10 ? `
   dom.addStreamBtn.addEventListener("click", addStreamInput);
   dom.analyzeBtn.addEventListener("click", handleAnalysis);
   dom.tabs.addEventListener("click", handleTabClick);
-  dom.closeModalBtn.addEventListener(
-    "click",
-    () => dom.segmentModal.classList.remove("modal-overlay-visible")
-  );
+  dom.closeModalBtn.addEventListener("click", () => {
+    const modalContent = dom.segmentModal.querySelector("div");
+    dom.segmentModal.classList.add("opacity-0", "invisible");
+    dom.segmentModal.classList.remove("opacity-100", "visible");
+    modalContent.classList.add("scale-95");
+    modalContent.classList.remove("scale-100");
+  });
   dom.contextSwitcher.addEventListener("change", (e4) => {
     const target = (
       /** @type {HTMLSelectElement} */
@@ -5391,6 +5573,8 @@ ${samples.join("\n")}${sample_count > 10 ? `
       }
       analysisState.streams.sort((a2, b2) => a2.id - b2.id);
       analysisState.activeStreamId = analysisState.streams[0].id;
+      const isSingleDynamicStream = analysisState.streams.length === 1 && analysisState.streams[0].mpd.getAttribute("type") === "dynamic";
+      analysisState.isPollingActive = isSingleDynamicStream;
       const defaultTab = analysisState.streams.length > 1 ? "comparison" : "summary";
       populateContextSwitcher();
       renderAllTabs();
@@ -5399,7 +5583,7 @@ ${samples.join("\n")}${sample_count > 10 ? `
         "pass"
       );
       dom.results.classList.remove("hidden");
-      document.querySelector(`.tab[data-tab="${defaultTab}"]`).click();
+      document.querySelector(`[data-tab="${defaultTab}"]`).click();
     } catch (_error) {
       dom.results.classList.add("hidden");
     }
