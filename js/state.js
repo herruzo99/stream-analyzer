@@ -5,6 +5,7 @@
  * @property {string} originalUrl
  * @property {string} baseUrl
  * @property {Element} mpd
+ * @property {string} rawXml
  */
 
 /**

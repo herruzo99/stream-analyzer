@@ -6,13 +6,6 @@ import xmlFormatter from 'xml-formatter';
 
 let togglePollingBtn; // Still need a reference for external updates
 
-const escapeHtml = (str) =>
-    str
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
-
 const mpdUpdatesTemplate = (stream) => {
     if (analysisState.streams.length > 1) {
         return html`<p class="warn">
@@ -33,10 +26,8 @@ const mpdUpdatesTemplate = (stream) => {
 
     let currentDisplay;
     if (updateCount === 0) {
-        const initialMpdString = new XMLSerializer().serializeToString(
-            stream.mpd
-        );
-        const formattedInitialMpd = xmlFormatter(initialMpdString, {
+        // Use the raw XML from the state for the initial render.
+        const formattedInitialMpd = xmlFormatter(stream.rawXml, {
             indentation: '  ',
             lineSeparator: '\n',
         });
@@ -44,7 +35,7 @@ const mpdUpdatesTemplate = (stream) => {
                 Initial MPD loaded:
             </div>
             <div class="diff-container">
-                <span>${escapeHtml(formattedInitialMpd)}</span>
+                <pre><code>${formattedInitialMpd}</code></pre>
             </div>`;
     } else {
         const currentUpdate = mpdUpdates[activeMpdUpdateIndex];
@@ -55,7 +46,7 @@ const mpdUpdatesTemplate = (stream) => {
                 >
             </div>
             <div class="diff-container">
-                ${unsafeHTML(currentUpdate.diffHtml)}
+                <pre><code>${unsafeHTML(currentUpdate.diffHtml)}</code></pre>
             </div>`;
     }
 
