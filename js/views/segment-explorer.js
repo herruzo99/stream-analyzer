@@ -35,7 +35,6 @@ const segmentRowTemplate = (seg) => {
         statusHtml = html``;
     }
 
-
     const typeLabel = seg.type === 'Init' ? 'Init' : `Media #${seg.number}`;
     const canAnalyze =
         cacheEntry && cacheEntry.status === 200 && cacheEntry.data;
@@ -48,9 +47,11 @@ const segmentRowTemplate = (seg) => {
         dispatchAndRenderSegmentAnalysis(e, cached?.data);
     };
 
-    const segmentTiming = seg.type === 'Media'
-        ? html`${(seg.time / seg.timescale).toFixed(2)}s (+${(seg.duration / seg.timescale).toFixed(2)}s)`
-        : 'N/A';
+    const segmentTiming =
+        seg.type === 'Media'
+            ? html`${(seg.time / seg.timescale).toFixed(2)}s
+              (+${(seg.duration / seg.timescale).toFixed(2)}s)`
+            : 'N/A';
 
     return html` <tr
         class="border-t border-gray-700 segment-row"
@@ -96,7 +97,9 @@ const segmentTableTemplate = (rep, segmentsToRender) => {
                             <th class="py-2 pl-3 w-[15%]">Type / Status</th>
                             <th class="py-2 w-[20%]">Timing (s)</th>
                             <th class="py-2 w-[45%]">URL / Template</th>
-                            <th class="py-2 pr-3 w-[20%] text-right">Actions</th>
+                            <th class="py-2 pr-3 w-[20%] text-right">
+                                Actions
+                            </th>
                         </tr>
                     </thead>
                     <tbody data-repid="${repId}">
@@ -138,9 +141,7 @@ export function initializeSegmentExplorer(container, mpd, baseUrl) {
                           </button>`
                         : ''}
                 </div>
-                <div
-                    class="segment-filter-controls"
-                >
+                <div class="segment-filter-controls">
                     <select
                         id="segment-filter-type"
                         class="bg-gray-700 text-white rounded-l-md border-gray-600 p-2 text-sm h-full border-r-0"
@@ -189,10 +190,7 @@ async function loadAndRenderSegmentRange(mode) {
     const contentArea = /** @type {HTMLDivElement} */ (
         document.querySelector('#segment-explorer-content')
     );
-    render(
-        html`<p class="info">Fetching segment data...</p>`,
-        contentArea
-    );
+    render(html`<p class="info">Fetching segment data...</p>`, contentArea);
 
     analysisState.segmentCache.clear();
     stopSegmentFreshnessChecker();
@@ -225,7 +223,6 @@ async function loadAndRenderSegmentRange(mode) {
     );
     render(html`${tables}`, contentArea);
 
-
     if (mpd.getAttribute('type') === 'dynamic') {
         startSegmentFreshnessChecker();
     }
@@ -245,21 +242,35 @@ async function handleFilter() {
         document.querySelector('#segment-filter-to')
     );
 
-    const fromValue = fromInput.value !== '' ? parseFloat(fromInput.value) : -Infinity;
+    const fromValue =
+        fromInput.value !== '' ? parseFloat(fromInput.value) : -Infinity;
     const toValue = toInput.value !== '' ? parseFloat(toInput.value) : Infinity;
 
     if (isNaN(fromValue) || isNaN(toValue)) {
-        render(html`<p class="warn">Please enter valid numbers for the filter range.</p>`, contentArea);
+        render(
+            html`<p class="warn">
+                Please enter valid numbers for the filter range.
+            </p>`,
+            contentArea
+        );
         return;
     }
 
-    render(html`<p class="info">Filtering and fetching segments...</p>`, contentArea);
+    render(
+        html`<p class="info">Filtering and fetching segments...</p>`,
+        contentArea
+    );
 
     const filteredSegmentsByRep = getFilteredSegments(fromValue, toValue, type);
     const segmentsToFetch = Object.values(filteredSegmentsByRep).flat();
 
     if (segmentsToFetch.length === 0) {
-        render(html`<p class="warn">No segments found matching the specified filter.</p>`, contentArea);
+        render(
+            html`<p class="warn">
+                No segments found matching the specified filter.
+            </p>`,
+            contentArea
+        );
         return;
     }
 
@@ -288,12 +299,13 @@ function getFilteredSegments(from, to, type) {
     const results = {};
     for (const repId in allSegmentsByRep) {
         const segments = allSegmentsByRep[repId];
-        results[repId] = segments.filter(segment => {
+        results[repId] = segments.filter((segment) => {
             if (segment.type !== 'Media') return false; // Only filter media segments
             let value;
             if (type === 'number') {
                 value = segment.number;
-            } else { // time
+            } else {
+                // time
                 value = segment.time / segment.timescale;
             }
             return value >= from && value <= to;
@@ -422,7 +434,7 @@ function updateSegmentFreshness() {
 
             const tableBody = rowEl.closest('tbody');
             if (!tableBody) return;
-            const repId = (/** @type {HTMLElement} */ (tableBody)).dataset.repid;
+            const repId = /** @type {HTMLElement} */ (tableBody).dataset.repid;
             const segmentData = allSegmentsByRep[repId]?.find(
                 (s) => s.resolvedUrl === rowEl.dataset.url
             );

@@ -206,26 +206,47 @@ export const tsAnalysisTemplate = (analysis) => {
 
     return html`
         <div class="segment-essential-data">
-            <div><span class="label">Type</span><span class="value">MPEG-2 Transport Stream</span></div>
-            <div><span class="label">Total Packets</span><span class="value">${analysis.summary.totalPackets}</span></div>
-            <div><span class="label">Est. Duration</span><span class="value">${analysis.summary.durationS}s</span></div>
-            <div><span class="label">PAT Found</span><span class="value ${analysis.summary.patFound ? 'pass' : 'fail'}">${analysis.summary.patFound ? 'Yes' : 'No'}</span></div>
-            <div><span class="label">PMT Found</span><span class="value ${analysis.summary.pmtFound ? 'pass' : 'fail'}">${analysis.summary.pmtFound ? 'Yes' : 'No'}</span></div>
+            <div>
+                <span class="label">Type</span
+                ><span class="value">MPEG-2 Transport Stream</span>
+            </div>
+            <div>
+                <span class="label">Total Packets</span
+                ><span class="value">${analysis.summary.totalPackets}</span>
+            </div>
+            <div>
+                <span class="label">Est. Duration</span
+                ><span class="value">${analysis.summary.durationS}s</span>
+            </div>
+            <div>
+                <span class="label">PAT Found</span
+                ><span
+                    class="value ${analysis.summary.patFound ? 'pass' : 'fail'}"
+                    >${analysis.summary.patFound ? 'Yes' : 'No'}</span
+                >
+            </div>
+            <div>
+                <span class="label">PMT Found</span
+                ><span
+                    class="value ${analysis.summary.pmtFound ? 'pass' : 'fail'}"
+                    >${analysis.summary.pmtFound ? 'Yes' : 'No'}</span
+                >
+            </div>
         </div>
 
         ${analysis.summary.errors.length > 0
             ? html`<div class="analysis-summary fail">
                   <p class="font-bold">Parsing Errors:</p>
                   <ul class="list-disc pl-5 mt-1">
-                      ${analysis.summary.errors.map(
-                          (e) => html`<li>${e}</li>`
-                      )}
+                      ${analysis.summary.errors.map((e) => html`<li>${e}</li>`)}
                   </ul>
               </div>`
             : ''}
 
         <div class="box-tree-view">
-            <h4 class="font-semibold text-gray-300 mb-2">Packet Identifier (PID) Streams:</h4>
+            <h4 class="font-semibold text-gray-300 mb-2">
+                Packet Identifier (PID) Streams:
+            </h4>
             <table class="box-details-table w-full">
                 <thead class="text-left">
                     <tr>
@@ -239,12 +260,29 @@ export const tsAnalysisTemplate = (analysis) => {
                     ${sortedPids.map(
                         (pidInfo) => html`
                             <tr>
-                                <td class="field-name">0x${pidInfo.pid.toString(16).padStart(4, '0')} (${pidInfo.pid})</td>
-                                <td class="field-value">${pidInfo.streamType}</td>
+                                <td class="field-name">
+                                    0x${pidInfo.pid
+                                        .toString(16)
+                                        .padStart(4, '0')}
+                                    (${pidInfo.pid})
+                                </td>
+                                <td class="field-value">
+                                    ${pidInfo.streamType}
+                                </td>
                                 <td class="field-value">${pidInfo.count}</td>
                                 <td class="field-value">
-                                    ${pidInfo.continuityErrors > 0 ? html`<span class="warn">CC Errors: ${pidInfo.continuityErrors}</span>` : ''}
-                                    ${pidInfo.pts.length > 0 ? html`<span>PTS Count: ${pidInfo.pts.length}</span>` : ''}
+                                    ${pidInfo.continuityErrors > 0
+                                        ? html`<span class="warn"
+                                              >CC Errors:
+                                              ${pidInfo.continuityErrors}</span
+                                          >`
+                                        : ''}
+                                    ${pidInfo.pts.length > 0
+                                        ? html`<span
+                                              >PTS Count:
+                                              ${pidInfo.pts.length}</span
+                                          >`
+                                        : ''}
                                 </td>
                             </tr>
                         `
