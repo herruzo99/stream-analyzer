@@ -6,9 +6,11 @@ import {
     renderAllTabs,
     showStatus,
 } from './ui.js';
-import { parseMpd } from './api/dash-parser.js';
+import { parseManifest } from './protocols/dash/parser.js';
 import { setupGlobalTooltipListener } from './tooltip.js';
-import { stopMpdUpdatePolling } from './mpd-poll.js';
+import { stopManifestUpdatePolling } from './features/manifest-updates/poll.js';
+import { diffManifest } from './features/manifest-updates/diff.js';
+import xmlFormatter from 'xml-formatter';
 
 const HISTORY_KEY = 'dash_analyzer_history';
 const MAX_HISTORY_ITEMS = 10;
@@ -52,9 +54,12 @@ function saveUrlToHistory(url) {
 
 // --- CORE LOGIC ---
 async function handleAnalysis() {
-    stopMpdUpdatePolling();
+    stopManifestUpdatePolling();
     showStatus('Starting analysis...', 'info');
     analysisState.streams = [];
+    analysisState.manifestUpdates = [];
+    analysisState.activeManifestUpdateIndex = 0;
+
     const inputGroups = dom.streamInputs.querySelectorAll(
         '.stream-input-group'
     );
@@ -98,7 +103,7 @@ async function handleAnalysis() {
                 `Parsing and resolving remote elements for ${name}...`,
                 'info'
             );
-            const { mpd, baseUrl: newBaseUrl } = await parseMpd(
+            const { manifest, baseUrl: newBaseUrl } = await parseManifest(
                 xmlString,
                 baseUrl
             );
@@ -109,7 +114,7 @@ async function handleAnalysis() {
                 name,
                 originalUrl,
                 baseUrl,
-                mpd,
+                manifest,
                 rawXml: xmlString,
             };
         } catch (error) {
@@ -134,11 +139,30 @@ async function handleAnalysis() {
         analysisState.streams.sort((a, b) => a.id - b.id);
         analysisState.activeStreamId = analysisState.streams[0].id;
 
-        // Set a sensible default for the polling state based on the analysis result.
         const isSingleDynamicStream =
             analysisState.streams.length === 1 &&
-            analysisState.streams[0].mpd.getAttribute('type') === 'dynamic';
+            analysisState.streams[0].manifest.type === 'dynamic';
         analysisState.isPollingActive = isSingleDynamicStream;
+
+        // Pre-populate the manifest updates state for a consistent UI start.
+        if (isSingleDynamicStream) {
+            const stream = analysisState.streams[0];
+            const formattingOptions = {
+                indentation: '  ',
+                lineSeparator: '\n',
+            };
+            const formattedInitial = xmlFormatter(
+                stream.rawXml,
+                formattingOptions
+            );
+            // Diff against an empty string to get a fully-highlighted initial view.
+            const initialDiffHtml = diffManifest('', formattedInitial);
+
+            analysisState.manifestUpdates.push({
+                timestamp: new Date().toLocaleTimeString(),
+                diffHtml: initialDiffHtml,
+            });
+        }
 
         const defaultTab =
             analysisState.streams.length > 1 ? 'comparison' : 'summary';
