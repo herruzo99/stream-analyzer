@@ -34,3 +34,47 @@ export function parseSidx(box, view) {
         box.details['subsegment_duration_1'] = { value: view.getUint32(currentOffset), offset: box.offset + currentOffset, length: 4 };
     }
 }
+
+export const sidxTooltip = {
+        sidx: {
+        name: 'Segment Index',
+        text: 'Provides a compact index of media stream chunks within a segment.',
+        ref: 'ISO/IEC 14496-12, 8.16.3',
+    },
+    'sidx@version': {
+        text: 'Version of this box (0 or 1). Affects the size of time and offset fields.',
+        ref: 'ISO/IEC 14496-12, 8.16.3.2',
+    },
+    'sidx@reference_ID': {
+        text: 'The stream ID for the reference stream (typically the track ID).',
+        ref: 'ISO/IEC 14496-12, 8.16.3.3',
+    },
+    'sidx@timescale': {
+        text: 'The timescale for time and duration fields in this box, in ticks per second.',
+        ref: 'ISO/IEC 14496-12, 8.16.3.3',
+    },
+    'sidx@earliest_presentation_time': {
+        text: 'The earliest presentation time of any access unit in the first subsegment.',
+        ref: 'ISO/IEC 14496-12, 8.16.3.3',
+    },
+    'sidx@first_offset': {
+        text: 'The byte offset from the end of this box to the first byte of the indexed material.',
+        ref: 'ISO/IEC 14496-12, 8.16.3.3',
+    },
+    'sidx@reference_count': {
+        text: 'The number of subsegment references that follow.',
+        ref: 'ISO/IEC 14496-12, 8.16.3.3',
+    },
+    'sidx@reference_type_1': {
+        text: 'The type of the first reference (0 = media, 1 = sidx box).',
+        ref: 'ISO/IEC 14496-12, 8.16.3.3',
+    },
+    'sidx@referenced_size_1': {
+        text: 'The size in bytes of the referenced item.',
+        ref: 'ISO/IEC 14496-12, 8.16.3.3',
+    },
+    'sidx@subsegment_duration_1': {
+        text: 'The duration of the referenced subsegment in the timescale.',
+        ref: 'ISO/IEC 14496-12, 8.16.3.3',
+    },
+}

@@ -27,3 +27,27 @@ export function parseTfhd(box, view) {
         box.details['default_sample_flags'] = { value: `0x${view.getUint32(offset).toString(16)}`, offset: box.offset + offset, length: 4 };
     }
 }
+
+export const tfhdTooltip = {
+    tfhd: {
+        name: 'Track Fragment Header',
+        text: 'Declares defaults for a track fragment.',
+        ref: 'ISO/IEC 14496-12, 8.8.7',
+    },
+    'tfhd@track_ID': {
+        text: 'The unique identifier of the track for this fragment.',
+        ref: 'ISO/IEC 14496-12, 8.8.7.2',
+    },
+    'tfhd@flags': {
+        text: 'A bitfield indicating which optional fields are present.',
+        ref: 'ISO/IEC 14496-12, 8.8.7.2',
+    },
+    'tfhd@base_data_offset': {
+        text: 'The base offset for data within the current mdat.',
+        ref: 'ISO/IEC 14496-12, 8.8.7.2',
+    },
+    'tfhd@sample_description_index': {
+        text: 'The index of the sample description for this fragment.',
+        ref: 'ISO/IEC 14496-12, 8.8.7.2',
+    },
+}

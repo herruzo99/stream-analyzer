@@ -8,3 +8,20 @@ export function parseHdlr(box, view) {
     const nameLength = box.size - 32;
     box.details['name'] = { value: getString(32, nameLength).replace(/\0/g, ''), offset: box.offset + 32, length: nameLength };
 }
+
+export const hdlrTooltip = {
+
+    hdlr: {
+        name: 'Handler Reference',
+        text: "Declares the media type of the track (e.g., 'vide', 'soun').",
+        ref: 'ISO/IEC 14496-12, 8.4.3',
+    },
+    'hdlr@handler_type': {
+        text: "A four-character code identifying the media type (e.g., 'vide', 'soun', 'hint').",
+        ref: 'ISO/IEC 14496-12, 8.4.3.3',
+    },
+    'hdlr@name': {
+        text: 'A human-readable name for the track type (for debugging).',
+        ref: 'ISO/IEC 14496-12, 8.4.3.3',
+    },
+}

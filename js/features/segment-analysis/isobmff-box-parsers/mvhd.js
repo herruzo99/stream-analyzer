@@ -17,3 +17,31 @@ export function parseMvhd(box, view) {
         box.details['duration'] = { value: view.getUint32(24), offset: box.offset + 24, length: 4 };
     }
 }
+
+export const mvhdTooltip = {
+    mvhd: {
+        name: 'Movie Header',
+        text: 'Contains global information for the presentation (timescale, duration).',
+        ref: 'ISO/IEC 14496-12, 8.2.2',
+    },
+    'mvhd@version': {
+        text: 'Version of this box (0 or 1). Affects the size of time and duration fields.',
+        ref: 'ISO/IEC 14496-12, 8.2.2.3',
+    },
+    'mvhd@creation_time': {
+        text: 'The creation time of the presentation (in seconds since midnight, Jan. 1, 1904, UTC).',
+        ref: 'ISO/IEC 14496-12, 8.2.2.3',
+    },
+    'mvhd@modification_time': {
+        text: 'The most recent time the presentation was modified.',
+        ref: 'ISO/IEC 14496-12, 8.2.2.3',
+    },
+    'mvhd@timescale': {
+        text: 'The number of time units that pass in one second for the presentation.',
+        ref: 'ISO/IEC 14496-12, 8.2.2.3',
+    },
+    'mvhd@duration': {
+        text: 'The duration of the presentation in units of the timescale.',
+        ref: 'ISO/IEC 14496-12, 8.2.2.3',
+    },
+}

@@ -2646,24 +2646,48 @@
     return { format: "ts", data: analysis };
   }
 
-  // js/features/segment-analysis/isobmff-tooltip-data.js
-  var tooltipData = {
+  // js/features/segment-analysis/isobmff-box-parsers/ftyp.js
+  function parseFtyp(dataView, offset, size) {
+    const majorBrand = String.fromCharCode(
+      dataView.getUint8(offset),
+      dataView.getUint8(offset + 1),
+      dataView.getUint8(offset + 2),
+      dataView.getUint8(offset + 3)
+    );
+    const minorVersion = dataView.getUint32(offset + 4);
+    const compatibleBrands = [];
+    for (let i3 = 8; i3 < size; i3 += 4) {
+      compatibleBrands.push(
+        String.fromCharCode(
+          dataView.getUint8(offset + i3),
+          dataView.getUint8(offset + i3 + 1),
+          dataView.getUint8(offset + i3 + 2),
+          dataView.getUint8(offset + i3 + 3)
+        )
+      );
+    }
+    return {
+      majorBrand,
+      minorVersion,
+      compatibleBrands
+    };
+  }
+  var ftypTooltip = {
     ftyp: {
-      name: "File Type",
-      text: "Declares the file's brand and compatibility.",
-      ref: "ISO/IEC 14496-12, 4.3"
+      text: "File Type Box: declares the major brand, minor version, and compatible brands for the file.",
+      isoRef: "ISO/IEC 14496-12:2022, Section 4.3"
     },
-    "ftyp@Major Brand": {
-      text: "The 'best use' specification for the file.",
-      ref: "ISO/IEC 14496-12, 4.3.3"
+    "ftyp.majorBrand": {
+      text: "The major brand of the file, indicating its primary specification.",
+      isoRef: "ISO/IEC 14496-12:2022, Section 4.3"
     },
-    "ftyp@Minor Version": {
-      text: "An informative integer for the minor version of the major brand.",
-      ref: "ISO/IEC 14496-12, 4.3.3"
+    "ftyp.minorVersion": {
+      text: "The minor version of the major brand.",
+      isoRef: "ISO/IEC 14496-12:2022, Section 4.3"
     },
-    "ftyp@Compatible Brands": {
-      text: "A list of other specifications to which the file complies.",
-      ref: "ISO/IEC 14496-12, 4.3.3"
+    "ftyp.compatibleBrands": {
+      text: "Other brands that the file is compatible with.",
+      isoRef: "ISO/IEC 14496-12:2022, Section 4.3"
     },
     styp: {
       name: "Segment Type",
@@ -2681,7 +2705,223 @@
     "styp@Compatible Brands": {
       text: "A list of other specifications to which the segment complies.",
       ref: "ISO/IEC 14496-12, 4.3.3"
+    }
+  };
+
+  // js/features/segment-analysis/isobmff-box-parsers/mvhd.js
+  function parseMvhd(box, view) {
+    const version = view.getUint8(8);
+    box.details["version"] = { value: version, offset: box.offset + 8, length: 1 };
+    if (version === 1) {
+      box.details["creation_time"] = { value: new Date(Number(view.getBigUint64(12)) * 1e3 - 20828448e5).toISOString(), offset: box.offset + 12, length: 8 };
+      box.details["modification_time"] = { value: new Date(Number(view.getBigUint64(20)) * 1e3 - 20828448e5).toISOString(), offset: box.offset + 20, length: 8 };
+      box.details["timescale"] = { value: view.getUint32(28), offset: box.offset + 28, length: 4 };
+      box.details["duration"] = { value: Number(view.getBigUint64(32)), offset: box.offset + 32, length: 8 };
+    } else {
+      box.details["creation_time"] = { value: new Date(view.getUint32(12) * 1e3 - 20828448e5).toISOString(), offset: box.offset + 12, length: 4 };
+      box.details["modification_time"] = { value: new Date(view.getUint32(16) * 1e3 - 20828448e5).toISOString(), offset: box.offset + 16, length: 4 };
+      box.details["timescale"] = { value: view.getUint32(20), offset: box.offset + 20, length: 4 };
+      box.details["duration"] = { value: view.getUint32(24), offset: box.offset + 24, length: 4 };
+    }
+  }
+  var mvhdTooltip = {
+    mvhd: {
+      name: "Movie Header",
+      text: "Contains global information for the presentation (timescale, duration).",
+      ref: "ISO/IEC 14496-12, 8.2.2"
     },
+    "mvhd@version": {
+      text: "Version of this box (0 or 1). Affects the size of time and duration fields.",
+      ref: "ISO/IEC 14496-12, 8.2.2.3"
+    },
+    "mvhd@creation_time": {
+      text: "The creation time of the presentation (in seconds since midnight, Jan. 1, 1904, UTC).",
+      ref: "ISO/IEC 14496-12, 8.2.2.3"
+    },
+    "mvhd@modification_time": {
+      text: "The most recent time the presentation was modified.",
+      ref: "ISO/IEC 14496-12, 8.2.2.3"
+    },
+    "mvhd@timescale": {
+      text: "The number of time units that pass in one second for the presentation.",
+      ref: "ISO/IEC 14496-12, 8.2.2.3"
+    },
+    "mvhd@duration": {
+      text: "The duration of the presentation in units of the timescale.",
+      ref: "ISO/IEC 14496-12, 8.2.2.3"
+    }
+  };
+
+  // js/features/segment-analysis/isobmff-box-parsers/mfhd.js
+  function parseMfhd(box, view) {
+    box.details["sequence_number"] = { value: view.getUint32(12), offset: box.offset + 12, length: 4 };
+  }
+  var mfhdTooltip = {
+    mfhd: {
+      name: "Movie Fragment Header",
+      text: "Contains the sequence number of this fragment.",
+      ref: "ISO/IEC 14496-12, 8.8.5"
+    },
+    "mfhd@sequence_number": {
+      text: "The ordinal number of this fragment, in increasing order.",
+      ref: "ISO/IEC 14496-12, 8.8.5.3"
+    }
+  };
+
+  // js/features/segment-analysis/isobmff-box-parsers/tfhd.js
+  function parseTfhd(box, view) {
+    let offset = 12;
+    const flags = view.getUint32(8) & 16777215;
+    box.details["track_ID"] = { value: view.getUint32(offset), offset: box.offset + offset, length: 4 };
+    offset += 4;
+    if (flags & 1) {
+      box.details["base_data_offset"] = { value: Number(view.getBigUint64(offset)), offset: box.offset + offset, length: 8 };
+      offset += 8;
+    }
+    if (flags & 2) {
+      box.details["sample_description_index"] = { value: view.getUint32(offset), offset: box.offset + offset, length: 4 };
+      offset += 4;
+    }
+    if (flags & 8) {
+      box.details["default_sample_duration"] = { value: view.getUint32(offset), offset: box.offset + offset, length: 4 };
+      offset += 4;
+    }
+    if (flags & 16) {
+      box.details["default_sample_size"] = { value: view.getUint32(offset), offset: box.offset + offset, length: 4 };
+      offset += 4;
+    }
+    if (flags & 32) {
+      box.details["default_sample_flags"] = { value: `0x${view.getUint32(offset).toString(16)}`, offset: box.offset + offset, length: 4 };
+    }
+  }
+  var tfhdTooltip = {
+    tfhd: {
+      name: "Track Fragment Header",
+      text: "Declares defaults for a track fragment.",
+      ref: "ISO/IEC 14496-12, 8.8.7"
+    },
+    "tfhd@track_ID": {
+      text: "The unique identifier of the track for this fragment.",
+      ref: "ISO/IEC 14496-12, 8.8.7.2"
+    },
+    "tfhd@flags": {
+      text: "A bitfield indicating which optional fields are present.",
+      ref: "ISO/IEC 14496-12, 8.8.7.2"
+    },
+    "tfhd@base_data_offset": {
+      text: "The base offset for data within the current mdat.",
+      ref: "ISO/IEC 14496-12, 8.8.7.2"
+    },
+    "tfhd@sample_description_index": {
+      text: "The index of the sample description for this fragment.",
+      ref: "ISO/IEC 14496-12, 8.8.7.2"
+    }
+  };
+
+  // js/features/segment-analysis/isobmff-box-parsers/tfdt.js
+  function parseTfdt(box, view) {
+    const version = view.getUint8(8);
+    box.details["version"] = { value: version, offset: box.offset + 8, length: 1 };
+    if (version === 1) {
+      box.details["baseMediaDecodeTime"] = { value: Number(view.getBigUint64(12)), offset: box.offset + 12, length: 8 };
+    } else {
+      box.details["baseMediaDecodeTime"] = { value: view.getUint32(12), offset: box.offset + 12, length: 4 };
+    }
+  }
+  var tfdtTooltip = {
+    tfdt: {
+      name: "Track Fragment Decode Time",
+      text: "Provides the absolute decode time for the first sample.",
+      ref: "ISO/IEC 14496-12, 8.8.12"
+    },
+    "tfdt@version": {
+      text: "Version of this box (0 or 1). Affects the size of the decode time field.",
+      ref: "ISO/IEC 14496-12, 8.8.12.3"
+    },
+    "tfdt@baseMediaDecodeTime": {
+      text: "The absolute decode time, in media timescale units, for the first sample in this fragment.",
+      ref: "ISO/IEC 14496-12, 8.8.12.3"
+    }
+  };
+
+  // js/features/segment-analysis/isobmff-box-parsers/trun.js
+  function parseTrun(box, view) {
+    let offset = 12;
+    const flags = view.getUint32(8) & 16777215;
+    box.details["sample_count"] = { value: view.getUint32(offset), offset: box.offset + offset, length: 4 };
+    offset += 4;
+    if (flags & 1) {
+      box.details["data_offset"] = { value: view.getInt32(offset), offset: box.offset + offset, length: 4 };
+      offset += 4;
+    }
+    if (flags & 4) {
+      box.details["first_sample_flags"] = { value: `0x${view.getUint32(offset).toString(16)}`, offset: box.offset + offset, length: 4 };
+      offset += 4;
+    }
+  }
+  var trunTooltip = {
+    trun: {
+      name: "Track Run",
+      text: "Contains timing, size, and flags for a run of samples.",
+      ref: "ISO/IEC 14496-12, 8.8.8"
+    },
+    "trun@version": {
+      text: "Version of this box (0 or 1). Affects signed/unsigned composition time.",
+      ref: "ISO/IEC 14496-12, 8.8.8.2"
+    },
+    "trun@flags": {
+      text: "A bitfield indicating which optional per-sample fields are present.",
+      ref: "ISO/IEC 14496-12, 8.8.8.2"
+    },
+    "trun@sample_count": {
+      text: "The number of samples in this run.",
+      ref: "ISO/IEC 14496-12, 8.8.8.3"
+    },
+    "trun@data_offset": {
+      text: "An optional offset added to the base_data_offset.",
+      ref: "ISO/IEC 14496-12, 8.8.8.3"
+    },
+    "trun@first_sample_flags": {
+      text: "Flags for the first sample, overriding the default.",
+      ref: "ISO/IEC 14496-12, 8.8.8.3"
+    },
+    "trun@samples": {
+      text: "A table of sample-specific data (duration, size, flags, composition time offset).",
+      ref: "ISO/IEC 14496-12, 8.8.8.2"
+    }
+  };
+
+  // js/features/segment-analysis/isobmff-box-parsers/sidx.js
+  function parseSidx(box, view) {
+    const version = view.getUint8(8);
+    box.details["version"] = { value: version, offset: box.offset + 8, length: 1 };
+    box.details["reference_ID"] = { value: view.getUint32(12), offset: box.offset + 12, length: 4 };
+    box.details["timescale"] = { value: view.getUint32(16), offset: box.offset + 16, length: 4 };
+    let currentOffset = 20;
+    if (version === 1) {
+      box.details["earliest_presentation_time"] = { value: Number(view.getBigUint64(currentOffset)), offset: box.offset + currentOffset, length: 8 };
+      currentOffset += 8;
+      box.details["first_offset"] = { value: Number(view.getBigUint64(currentOffset)), offset: box.offset + currentOffset, length: 8 };
+      currentOffset += 8;
+    } else {
+      box.details["earliest_presentation_time"] = { value: view.getUint32(currentOffset), offset: box.offset + currentOffset, length: 4 };
+      currentOffset += 4;
+      box.details["first_offset"] = { value: view.getUint32(currentOffset), offset: box.offset + currentOffset, length: 4 };
+      currentOffset += 4;
+    }
+    currentOffset += 2;
+    const reference_count = view.getUint16(currentOffset);
+    box.details["reference_count"] = { value: reference_count, offset: box.offset + currentOffset, length: 2 };
+    currentOffset += 2;
+    if (reference_count > 0) {
+      const ref_type = view.getUint8(currentOffset) >> 7;
+      box.details["reference_type_1"] = { value: ref_type === 1 ? "sidx" : "media", offset: box.offset + currentOffset, length: 4 };
+      box.details["referenced_size_1"] = { value: view.getUint32(currentOffset) & 2147483647, offset: box.offset + currentOffset, length: 4 };
+      currentOffset += 4;
+      box.details["subsegment_duration_1"] = { value: view.getUint32(currentOffset), offset: box.offset + currentOffset, length: 4 };
+    }
+  }
+  var sidxTooltip = {
     sidx: {
       name: "Segment Index",
       text: "Provides a compact index of media stream chunks within a segment.",
@@ -2722,42 +2962,25 @@
     "sidx@subsegment_duration_1": {
       text: "The duration of the referenced subsegment in the timescale.",
       ref: "ISO/IEC 14496-12, 8.16.3.3"
-    },
-    moov: {
-      name: "Movie",
-      text: "Container for all metadata defining the presentation.",
-      ref: "ISO/IEC 14496-12, 8.2.1"
-    },
-    mvhd: {
-      name: "Movie Header",
-      text: "Contains global information for the presentation (timescale, duration).",
-      ref: "ISO/IEC 14496-12, 8.2.2"
-    },
-    "mvhd@version": {
-      text: "Version of this box (0 or 1). Affects the size of time and duration fields.",
-      ref: "ISO/IEC 14496-12, 8.2.2.3"
-    },
-    "mvhd@creation_time": {
-      text: "The creation time of the presentation (in seconds since midnight, Jan. 1, 1904, UTC).",
-      ref: "ISO/IEC 14496-12, 8.2.2.3"
-    },
-    "mvhd@modification_time": {
-      text: "The most recent time the presentation was modified.",
-      ref: "ISO/IEC 14496-12, 8.2.2.3"
-    },
-    "mvhd@timescale": {
-      text: "The number of time units that pass in one second for the presentation.",
-      ref: "ISO/IEC 14496-12, 8.2.2.3"
-    },
-    "mvhd@duration": {
-      text: "The duration of the presentation in units of the timescale.",
-      ref: "ISO/IEC 14496-12, 8.2.2.3"
-    },
-    trak: {
-      name: "Track",
-      text: "Container for a single track.",
-      ref: "ISO/IEC 14496-12, 8.3.1"
-    },
+    }
+  };
+
+  // js/features/segment-analysis/isobmff-box-parsers/tkhd.js
+  function parseTkhd(box, view) {
+    const version = view.getUint8(8);
+    const flags = view.getUint32(8) & 16777215;
+    box.details["version"] = { value: version, offset: box.offset + 8, length: 1 };
+    box.details["flags"] = { value: `0x${flags.toString(16).padStart(6, "0")}`, offset: box.offset + 8, length: 4 };
+    const idOffset = version === 1 ? 28 : 20;
+    box.details["track_ID"] = { value: view.getUint32(idOffset), offset: box.offset + idOffset, length: 4 };
+    const durationOffset = version === 1 ? 36 : 28;
+    const durationLength = version === 1 ? 8 : 4;
+    box.details["duration"] = { value: version === 1 ? Number(view.getBigUint64(durationOffset)) : view.getUint32(durationOffset), offset: box.offset + durationOffset, length: durationLength };
+    const widthOffset = version === 1 ? 88 : 76;
+    box.details["width"] = { value: `${view.getUint16(widthOffset)}.${view.getUint16(widthOffset + 2)}`, offset: box.offset + widthOffset, length: 4 };
+    box.details["height"] = { value: `${view.getUint16(widthOffset + 4)}.${view.getUint16(widthOffset + 6)}`, offset: box.offset + widthOffset + 4, length: 4 };
+  }
+  var tkhdTooltip = {
     tkhd: {
       name: "Track Header",
       text: "Specifies characteristics of a single track.",
@@ -2786,17 +3009,23 @@
     "tkhd@height": {
       text: "The visual presentation height of the track as a fixed-point 16.16 number.",
       ref: "ISO/IEC 14496-12, 8.3.2.3"
-    },
-    meta: {
-      name: "Metadata",
-      text: "A container for metadata.",
-      ref: "ISO/IEC 14496-12, 8.11.1"
-    },
-    mdia: {
-      name: "Media",
-      text: "Container for media data information.",
-      ref: "ISO/IEC 14496-12, 8.4.1"
-    },
+    }
+  };
+
+  // js/features/segment-analysis/isobmff-box-parsers/mdhd.js
+  function parseMdhd(box, view) {
+    const version = view.getUint8(8);
+    box.details["version"] = { value: version, offset: box.offset + 8, length: 1 };
+    const tsOffset = version === 1 ? 20 : 12;
+    const durationLength = version === 1 ? 8 : 4;
+    box.details["timescale"] = { value: view.getUint32(tsOffset), offset: box.offset + tsOffset, length: 4 };
+    box.details["duration"] = { value: version === 1 ? Number(view.getBigUint64(tsOffset + 4)) : view.getUint32(tsOffset + 4), offset: box.offset + tsOffset + 4, length: durationLength };
+    const langOffset = tsOffset + durationLength + 4;
+    const lang = view.getUint16(langOffset);
+    const langValue = String.fromCharCode((lang >> 10 & 31) + 96, (lang >> 5 & 31) + 96, (lang & 31) + 96);
+    box.details["language"] = { value: langValue, offset: box.offset + langOffset, length: 2 };
+  }
+  var mdhdTooltip = {
     mdhd: {
       name: "Media Header",
       text: "Declares media information (timescale, language).",
@@ -2817,7 +3046,17 @@
     "mdhd@language": {
       text: "The ISO-639-2/T language code for this media.",
       ref: "ISO/IEC 14496-12, 8.4.2.3"
-    },
+    }
+  };
+
+  // js/features/segment-analysis/isobmff-box-parsers/hdlr.js
+  function parseHdlr(box, view) {
+    const getString = (start, len) => String.fromCharCode.apply(null, new Uint8Array(view.buffer, view.byteOffset + start, len));
+    box.details["handler_type"] = { value: getString(16, 4), offset: box.offset + 16, length: 4 };
+    const nameLength = box.size - 32;
+    box.details["name"] = { value: getString(32, nameLength).replace(/\0/g, ""), offset: box.offset + 32, length: nameLength };
+  }
+  var hdlrTooltip = {
     hdlr: {
       name: "Handler Reference",
       text: "Declares the media type of the track (e.g., 'vide', 'soun').",
@@ -2830,12 +3069,18 @@
     "hdlr@name": {
       text: "A human-readable name for the track type (for debugging).",
       ref: "ISO/IEC 14496-12, 8.4.3.3"
-    },
-    minf: {
-      name: "Media Information",
-      text: "Container for characteristic information of the media.",
-      ref: "ISO/IEC 14496-12, 8.4.4"
-    },
+    }
+  };
+
+  // js/features/segment-analysis/isobmff-box-parsers/vmhd.js
+  function parseVmhd(box, view) {
+    const flags = view.getUint32(8) & 16777215;
+    box.details["version"] = { value: view.getUint8(8), offset: box.offset + 8, length: 1 };
+    box.details["flags"] = { value: `0x${flags.toString(16).padStart(6, "0")}`, offset: box.offset + 8, length: 4 };
+    box.details["graphicsmode"] = { value: view.getUint16(12), offset: box.offset + 12, length: 2 };
+    box.details["opcolor"] = { value: `R:${view.getUint16(14)}, G:${view.getUint16(16)}, B:${view.getUint16(18)}`, offset: box.offset + 14, length: 6 };
+  }
+  var vmhdTooltip = {
     vmhd: {
       name: "Video Media Header",
       text: "Contains header information specific to video media.",
@@ -2856,17 +3101,15 @@
     "vmhd@opcolor": {
       text: "A set of RGB color values available for use by graphics modes.",
       ref: "ISO/IEC 14496-12, 8.4.5.2.2"
-    },
-    dinf: {
-      name: "Data Information",
-      text: "Container for objects that declare where media data is located.",
-      ref: "ISO/IEC 14496-12, 8.7.1"
-    },
-    stbl: {
-      name: "Sample Table",
-      text: "Contains all time and data indexing for samples.",
-      ref: "ISO/IEC 14496-12, 8.5.1"
-    },
+    }
+  };
+
+  // js/features/segment-analysis/isobmff-box-parsers/stsd.js
+  function parseStsd(box, view) {
+    box.details["version"] = { value: view.getUint8(8), offset: box.offset + 8, length: 1 };
+    box.details["entry_count"] = { value: view.getUint32(12), offset: box.offset + 12, length: 4 };
+  }
+  var stsdTooltip = {
     stsd: {
       name: "Sample Description",
       text: "Stores information for decoding samples (codec type).",
@@ -2879,7 +3122,20 @@
     "stsd@entry_count": {
       text: "The number of sample entries that follow.",
       ref: "ISO/IEC 14496-12, 8.5.2.3"
-    },
+    }
+  };
+
+  // js/features/segment-analysis/isobmff-box-parsers/stts.js
+  function parseStts(box, view) {
+    box.details["version"] = { value: view.getUint8(8), offset: box.offset + 8, length: 1 };
+    const entryCount = view.getUint32(12);
+    box.details["entry_count"] = { value: entryCount, offset: box.offset + 12, length: 4 };
+    if (entryCount > 0) {
+      box.details["sample_count_1"] = { value: view.getUint32(16), offset: box.offset + 16, length: 4 };
+      box.details["sample_delta_1"] = { value: view.getUint32(20), offset: box.offset + 20, length: 4 };
+    }
+  }
+  var sttsTooltip = {
     stts: {
       name: "Decoding Time to Sample",
       text: "Maps decoding times to sample numbers.",
@@ -2900,7 +3156,21 @@
     "stts@sample_delta_1": {
       text: "The delta (duration) for each sample in this run for the first table entry.",
       ref: "ISO/IEC 14496-12, 8.6.1.2.3"
-    },
+    }
+  };
+
+  // js/features/segment-analysis/isobmff-box-parsers/stsc.js
+  function parseStsc(box, view) {
+    box.details["version"] = { value: view.getUint8(8), offset: box.offset + 8, length: 1 };
+    const entryCount = view.getUint32(12);
+    box.details["entry_count"] = { value: entryCount, offset: box.offset + 12, length: 4 };
+    if (entryCount > 0) {
+      box.details["first_chunk_1"] = { value: view.getUint32(16), offset: box.offset + 16, length: 4 };
+      box.details["samples_per_chunk_1"] = { value: view.getUint32(20), offset: box.offset + 20, length: 4 };
+      box.details["sample_description_index_1"] = { value: view.getUint32(24), offset: box.offset + 24, length: 4 };
+    }
+  }
+  var stscTooltip = {
     stsc: {
       name: "Sample To Chunk",
       text: "Maps samples to chunks.",
@@ -2925,7 +3195,16 @@
     "stsc@sample_description_index_1": {
       text: "The index of the sample description for the samples in this run.",
       ref: "ISO/IEC 14496-12, 8.7.4.3"
-    },
+    }
+  };
+
+  // js/features/segment-analysis/isobmff-box-parsers/stsz.js
+  function parseStsz(box, view) {
+    box.details["version"] = { value: view.getUint8(8), offset: box.offset + 8, length: 1 };
+    box.details["sample_size"] = { value: view.getUint32(12), offset: box.offset + 12, length: 4 };
+    box.details["sample_count"] = { value: view.getUint32(16), offset: box.offset + 16, length: 4 };
+  }
+  var stszTooltip = {
     stsz: {
       name: "Sample Size",
       text: "Specifies the size of each sample.",
@@ -2942,7 +3221,19 @@
     "stsz@sample_count": {
       text: "The total number of samples in the track.",
       ref: "ISO/IEC 14496-12, 8.7.3.2.2"
-    },
+    }
+  };
+
+  // js/features/segment-analysis/isobmff-box-parsers/stco.js
+  function parseStco(box, view) {
+    box.details["version"] = { value: view.getUint8(8), offset: box.offset + 8, length: 1 };
+    const entryCount = view.getUint32(12);
+    box.details["entry_count"] = { value: entryCount, offset: box.offset + 12, length: 4 };
+    if (entryCount > 0) {
+      box.details["chunk_offset_1"] = { value: view.getUint32(16), offset: box.offset + 16, length: 4 };
+    }
+  }
+  var stcoTooltip = {
     stco: {
       name: "Chunk Offset",
       text: "Specifies the offset of each chunk into the file.",
@@ -2959,12 +3250,27 @@
     "stco@chunk_offset_1": {
       text: "The file offset of the first chunk.",
       ref: "ISO/IEC 14496-12, 8.7.5.3"
-    },
-    edts: {
-      name: "Edit Box",
-      text: "A container for an edit list.",
-      ref: "ISO/IEC 14496-12, 8.6.5"
-    },
+    }
+  };
+
+  // js/features/segment-analysis/isobmff-box-parsers/elst.js
+  function parseElst(box, view) {
+    const version = view.getUint8(8);
+    box.details["version"] = { value: version, offset: box.offset + 8, length: 1 };
+    const entryCount = view.getUint32(12);
+    box.details["entry_count"] = { value: entryCount, offset: box.offset + 12, length: 4 };
+    if (entryCount > 0) {
+      const entryOffset = 16;
+      if (version === 1) {
+        box.details["segment_duration_1"] = { value: Number(view.getBigUint64(entryOffset)), offset: box.offset + entryOffset, length: 8 };
+        box.details["media_time_1"] = { value: Number(view.getBigInt64(entryOffset + 8)), offset: box.offset + entryOffset + 8, length: 8 };
+      } else {
+        box.details["segment_duration_1"] = { value: view.getUint32(entryOffset), offset: box.offset + entryOffset, length: 4 };
+        box.details["media_time_1"] = { value: view.getInt32(entryOffset + 4), offset: box.offset + entryOffset + 4, length: 4 };
+      }
+    }
+  }
+  var elstTooltip = {
     elst: {
       name: "Edit List",
       text: "Maps the media time-line to the presentation time-line.",
@@ -2985,12 +3291,18 @@
     "elst@media_time_1": {
       text: "The starting time within the media of this edit segment. A value of -1 indicates an empty edit.",
       ref: "ISO/IEC 14496-12, 8.6.6.3"
-    },
-    mvex: {
-      name: "Movie Extends",
-      text: "Signals that the movie may contain fragments.",
-      ref: "ISO/IEC 14496-12, 8.8.1"
-    },
+    }
+  };
+
+  // js/features/segment-analysis/isobmff-box-parsers/trex.js
+  function parseTrex(box, view) {
+    box.details["track_ID"] = { value: view.getUint32(12), offset: box.offset + 12, length: 4 };
+    box.details["default_sample_description_index"] = { value: view.getUint32(16), offset: box.offset + 16, length: 4 };
+    box.details["default_sample_duration"] = { value: view.getUint32(20), offset: box.offset + 20, length: 4 };
+    box.details["default_sample_size"] = { value: view.getUint32(24), offset: box.offset + 24, length: 4 };
+    box.details["default_sample_flags"] = { value: `0x${view.getUint32(28).toString(16)}`, offset: box.offset + 28, length: 4 };
+  }
+  var trexTooltip = {
     trex: {
       name: "Track Extends",
       text: "Sets default values for samples in fragments.",
@@ -3015,88 +3327,65 @@
     "trex@default_sample_flags": {
       text: "The default flags for samples in fragments.",
       ref: "ISO/IEC 14496-12, 8.8.3.3"
+    }
+  };
+
+  // js/features/segment-analysis/isobmff-box-parsers/groups/default.js
+  var groupTooltipData = {
+    moov: {
+      name: "Movie",
+      text: "Container for all metadata defining the presentation.",
+      ref: "ISO/IEC 14496-12, 8.2.1"
+    },
+    trak: {
+      name: "Track",
+      text: "Container for a single track.",
+      ref: "ISO/IEC 14496-12, 8.3.1"
+    },
+    meta: {
+      name: "Metadata",
+      text: "A container for metadata.",
+      ref: "ISO/IEC 14496-12, 8.11.1"
+    },
+    mdia: {
+      name: "Media",
+      text: "Container for media data information.",
+      ref: "ISO/IEC 14496-12, 8.4.1"
+    },
+    minf: {
+      name: "Media Information",
+      text: "Container for characteristic information of the media.",
+      ref: "ISO/IEC 14496-12, 8.4.4"
+    },
+    dinf: {
+      name: "Data Information",
+      text: "Container for objects that declare where media data is located.",
+      ref: "ISO/IEC 14496-12, 8.7.1"
+    },
+    stbl: {
+      name: "Sample Table",
+      text: "Contains all time and data indexing for samples.",
+      ref: "ISO/IEC 14496-12, 8.5.1"
+    },
+    edts: {
+      name: "Edit Box",
+      text: "A container for an edit list.",
+      ref: "ISO/IEC 14496-12, 8.6.5"
+    },
+    mvex: {
+      name: "Movie Extends",
+      text: "Signals that the movie may contain fragments.",
+      ref: "ISO/IEC 14496-12, 8.8.1"
     },
     moof: {
       name: "Movie Fragment",
       text: "Container for all metadata for a single fragment.",
       ref: "ISO/IEC 14496-12, 8.8.4"
     },
-    mfhd: {
-      name: "Movie Fragment Header",
-      text: "Contains the sequence number of this fragment.",
-      ref: "ISO/IEC 14496-12, 8.8.5"
-    },
-    "mfhd@sequence_number": {
-      text: "The ordinal number of this fragment, in increasing order.",
-      ref: "ISO/IEC 14496-12, 8.8.5.3"
-    },
     traf: {
       name: "Track Fragment",
       text: "Container for metadata for a single track's fragment.",
       ref: "ISO/IEC 14496-12, 8.8.6"
-    },
-    tfhd: {
-      name: "Track Fragment Header",
-      text: "Declares defaults for a track fragment.",
-      ref: "ISO/IEC 14496-12, 8.8.7"
-    },
-    "tfhd@track_ID": {
-      text: "The unique identifier of the track for this fragment.",
-      ref: "ISO/IEC 14496-12, 8.8.7.2"
-    },
-    "tfhd@flags": {
-      text: "A bitfield indicating which optional fields are present.",
-      ref: "ISO/IEC 14496-12, 8.8.7.2"
-    },
-    "tfhd@base_data_offset": {
-      text: "The base offset for data within the current mdat.",
-      ref: "ISO/IEC 14496-12, 8.8.7.2"
-    },
-    "tfhd@sample_description_index": {
-      text: "The index of the sample description for this fragment.",
-      ref: "ISO/IEC 14496-12, 8.8.7.2"
-    },
-    tfdt: {
-      name: "Track Fragment Decode Time",
-      text: "Provides the absolute decode time for the first sample.",
-      ref: "ISO/IEC 14496-12, 8.8.12"
-    },
-    "tfdt@version": {
-      text: "Version of this box (0 or 1). Affects the size of the decode time field.",
-      ref: "ISO/IEC 14496-12, 8.8.12.3"
-    },
-    "tfdt@baseMediaDecodeTime": {
-      text: "The absolute decode time, in media timescale units, for the first sample in this fragment.",
-      ref: "ISO/IEC 14496-12, 8.8.12.3"
-    },
-    trun: {
-      name: "Track Run",
-      text: "Contains timing, size, and flags for a run of samples.",
-      ref: "ISO/IEC 14496-12, 8.8.8"
-    },
-    "trun@version": {
-      text: "Version of this box (0 or 1). Affects signed/unsigned composition time.",
-      ref: "ISO/IEC 14496-12, 8.8.8.2"
-    },
-    "trun@flags": {
-      text: "A bitfield indicating which optional per-sample fields are present.",
-      ref: "ISO/IEC 14496-12, 8.8.8.2"
-    },
-    "trun@sample_count": {
-      text: "The number of samples in this run.",
-      ref: "ISO/IEC 14496-12, 8.8.8.3"
-    },
-    "trun@data_offset": {
-      text: "An optional offset added to the base_data_offset.",
-      ref: "ISO/IEC 14496-12, 8.8.8.3"
-    },
-    "trun@first_sample_flags": {
-      text: "Flags for the first sample, overriding the default.",
-      ref: "ISO/IEC 14496-12, 8.8.8.3"
-    },
-    "trun@samples": {
-      text: "A table of sample-specific data (duration, size, flags, composition time offset).",
-      ref: "ISO/IEC 14496-12, 8.8.8.2"
     },
     pssh: {
       name: "Protection System Specific Header",
@@ -3109,245 +3398,6 @@
       ref: "ISO/IEC 14496-12, 8.1.1"
     }
   };
-
-  // js/features/segment-analysis/isobmff-box-parsers/ftyp.js
-  function parseFtyp(box, view) {
-    const getString = (start, len) => String.fromCharCode.apply(null, new Uint8Array(view.buffer, view.byteOffset + start, len));
-    box.details["Major Brand"] = { value: getString(8, 4), offset: box.offset + 8, length: 4 };
-    box.details["Minor Version"] = { value: view.getUint32(12), offset: box.offset + 12, length: 4 };
-    let compatibleBrands = [];
-    for (let i3 = 16; i3 < box.size; i3 += 4) {
-      compatibleBrands.push(getString(i3, 4));
-    }
-    box.details["Compatible Brands"] = { value: compatibleBrands.join(", "), offset: box.offset + 16, length: box.size - 16 };
-  }
-
-  // js/features/segment-analysis/isobmff-box-parsers/mvhd.js
-  function parseMvhd(box, view) {
-    const version = view.getUint8(8);
-    box.details["version"] = { value: version, offset: box.offset + 8, length: 1 };
-    if (version === 1) {
-      box.details["creation_time"] = { value: new Date(Number(view.getBigUint64(12)) * 1e3 - 20828448e5).toISOString(), offset: box.offset + 12, length: 8 };
-      box.details["modification_time"] = { value: new Date(Number(view.getBigUint64(20)) * 1e3 - 20828448e5).toISOString(), offset: box.offset + 20, length: 8 };
-      box.details["timescale"] = { value: view.getUint32(28), offset: box.offset + 28, length: 4 };
-      box.details["duration"] = { value: Number(view.getBigUint64(32)), offset: box.offset + 32, length: 8 };
-    } else {
-      box.details["creation_time"] = { value: new Date(view.getUint32(12) * 1e3 - 20828448e5).toISOString(), offset: box.offset + 12, length: 4 };
-      box.details["modification_time"] = { value: new Date(view.getUint32(16) * 1e3 - 20828448e5).toISOString(), offset: box.offset + 16, length: 4 };
-      box.details["timescale"] = { value: view.getUint32(20), offset: box.offset + 20, length: 4 };
-      box.details["duration"] = { value: view.getUint32(24), offset: box.offset + 24, length: 4 };
-    }
-  }
-
-  // js/features/segment-analysis/isobmff-box-parsers/mfhd.js
-  function parseMfhd(box, view) {
-    box.details["sequence_number"] = { value: view.getUint32(12), offset: box.offset + 12, length: 4 };
-  }
-
-  // js/features/segment-analysis/isobmff-box-parsers/tfhd.js
-  function parseTfhd(box, view) {
-    let offset = 12;
-    const flags = view.getUint32(8) & 16777215;
-    box.details["track_ID"] = { value: view.getUint32(offset), offset: box.offset + offset, length: 4 };
-    offset += 4;
-    if (flags & 1) {
-      box.details["base_data_offset"] = { value: Number(view.getBigUint64(offset)), offset: box.offset + offset, length: 8 };
-      offset += 8;
-    }
-    if (flags & 2) {
-      box.details["sample_description_index"] = { value: view.getUint32(offset), offset: box.offset + offset, length: 4 };
-      offset += 4;
-    }
-    if (flags & 8) {
-      box.details["default_sample_duration"] = { value: view.getUint32(offset), offset: box.offset + offset, length: 4 };
-      offset += 4;
-    }
-    if (flags & 16) {
-      box.details["default_sample_size"] = { value: view.getUint32(offset), offset: box.offset + offset, length: 4 };
-      offset += 4;
-    }
-    if (flags & 32) {
-      box.details["default_sample_flags"] = { value: `0x${view.getUint32(offset).toString(16)}`, offset: box.offset + offset, length: 4 };
-    }
-  }
-
-  // js/features/segment-analysis/isobmff-box-parsers/tfdt.js
-  function parseTfdt(box, view) {
-    const version = view.getUint8(8);
-    box.details["version"] = { value: version, offset: box.offset + 8, length: 1 };
-    if (version === 1) {
-      box.details["baseMediaDecodeTime"] = { value: Number(view.getBigUint64(12)), offset: box.offset + 12, length: 8 };
-    } else {
-      box.details["baseMediaDecodeTime"] = { value: view.getUint32(12), offset: box.offset + 12, length: 4 };
-    }
-  }
-
-  // js/features/segment-analysis/isobmff-box-parsers/trun.js
-  function parseTrun(box, view) {
-    let offset = 12;
-    const flags = view.getUint32(8) & 16777215;
-    box.details["sample_count"] = { value: view.getUint32(offset), offset: box.offset + offset, length: 4 };
-    offset += 4;
-    if (flags & 1) {
-      box.details["data_offset"] = { value: view.getInt32(offset), offset: box.offset + offset, length: 4 };
-      offset += 4;
-    }
-    if (flags & 4) {
-      box.details["first_sample_flags"] = { value: `0x${view.getUint32(offset).toString(16)}`, offset: box.offset + offset, length: 4 };
-      offset += 4;
-    }
-  }
-
-  // js/features/segment-analysis/isobmff-box-parsers/sidx.js
-  function parseSidx(box, view) {
-    const version = view.getUint8(8);
-    box.details["version"] = { value: version, offset: box.offset + 8, length: 1 };
-    box.details["reference_ID"] = { value: view.getUint32(12), offset: box.offset + 12, length: 4 };
-    box.details["timescale"] = { value: view.getUint32(16), offset: box.offset + 16, length: 4 };
-    let currentOffset = 20;
-    if (version === 1) {
-      box.details["earliest_presentation_time"] = { value: Number(view.getBigUint64(currentOffset)), offset: box.offset + currentOffset, length: 8 };
-      currentOffset += 8;
-      box.details["first_offset"] = { value: Number(view.getBigUint64(currentOffset)), offset: box.offset + currentOffset, length: 8 };
-      currentOffset += 8;
-    } else {
-      box.details["earliest_presentation_time"] = { value: view.getUint32(currentOffset), offset: box.offset + currentOffset, length: 4 };
-      currentOffset += 4;
-      box.details["first_offset"] = { value: view.getUint32(currentOffset), offset: box.offset + currentOffset, length: 4 };
-      currentOffset += 4;
-    }
-    currentOffset += 2;
-    const reference_count = view.getUint16(currentOffset);
-    box.details["reference_count"] = { value: reference_count, offset: box.offset + currentOffset, length: 2 };
-    currentOffset += 2;
-    if (reference_count > 0) {
-      const ref_type = view.getUint8(currentOffset) >> 7;
-      box.details["reference_type_1"] = { value: ref_type === 1 ? "sidx" : "media", offset: box.offset + currentOffset, length: 4 };
-      box.details["referenced_size_1"] = { value: view.getUint32(currentOffset) & 2147483647, offset: box.offset + currentOffset, length: 4 };
-      currentOffset += 4;
-      box.details["subsegment_duration_1"] = { value: view.getUint32(currentOffset), offset: box.offset + currentOffset, length: 4 };
-    }
-  }
-
-  // js/features/segment-analysis/isobmff-box-parsers/tkhd.js
-  function parseTkhd(box, view) {
-    const version = view.getUint8(8);
-    const flags = view.getUint32(8) & 16777215;
-    box.details["version"] = { value: version, offset: box.offset + 8, length: 1 };
-    box.details["flags"] = { value: `0x${flags.toString(16).padStart(6, "0")}`, offset: box.offset + 8, length: 4 };
-    const idOffset = version === 1 ? 28 : 20;
-    box.details["track_ID"] = { value: view.getUint32(idOffset), offset: box.offset + idOffset, length: 4 };
-    const durationOffset = version === 1 ? 36 : 28;
-    const durationLength = version === 1 ? 8 : 4;
-    box.details["duration"] = { value: version === 1 ? Number(view.getBigUint64(durationOffset)) : view.getUint32(durationOffset), offset: box.offset + durationOffset, length: durationLength };
-    const widthOffset = version === 1 ? 88 : 76;
-    box.details["width"] = { value: `${view.getUint16(widthOffset)}.${view.getUint16(widthOffset + 2)}`, offset: box.offset + widthOffset, length: 4 };
-    box.details["height"] = { value: `${view.getUint16(widthOffset + 4)}.${view.getUint16(widthOffset + 6)}`, offset: box.offset + widthOffset + 4, length: 4 };
-  }
-
-  // js/features/segment-analysis/isobmff-box-parsers/mdhd.js
-  function parseMdhd(box, view) {
-    const version = view.getUint8(8);
-    box.details["version"] = { value: version, offset: box.offset + 8, length: 1 };
-    const tsOffset = version === 1 ? 20 : 12;
-    const durationLength = version === 1 ? 8 : 4;
-    box.details["timescale"] = { value: view.getUint32(tsOffset), offset: box.offset + tsOffset, length: 4 };
-    box.details["duration"] = { value: version === 1 ? Number(view.getBigUint64(tsOffset + 4)) : view.getUint32(tsOffset + 4), offset: box.offset + tsOffset + 4, length: durationLength };
-    const langOffset = tsOffset + durationLength + 4;
-    const lang = view.getUint16(langOffset);
-    const langValue = String.fromCharCode((lang >> 10 & 31) + 96, (lang >> 5 & 31) + 96, (lang & 31) + 96);
-    box.details["language"] = { value: langValue, offset: box.offset + langOffset, length: 2 };
-  }
-
-  // js/features/segment-analysis/isobmff-box-parsers/hdlr.js
-  function parseHdlr(box, view) {
-    const getString = (start, len) => String.fromCharCode.apply(null, new Uint8Array(view.buffer, view.byteOffset + start, len));
-    box.details["handler_type"] = { value: getString(16, 4), offset: box.offset + 16, length: 4 };
-    const nameLength = box.size - 32;
-    box.details["name"] = { value: getString(32, nameLength).replace(/\0/g, ""), offset: box.offset + 32, length: nameLength };
-  }
-
-  // js/features/segment-analysis/isobmff-box-parsers/vmhd.js
-  function parseVmhd(box, view) {
-    const flags = view.getUint32(8) & 16777215;
-    box.details["version"] = { value: view.getUint8(8), offset: box.offset + 8, length: 1 };
-    box.details["flags"] = { value: `0x${flags.toString(16).padStart(6, "0")}`, offset: box.offset + 8, length: 4 };
-    box.details["graphicsmode"] = { value: view.getUint16(12), offset: box.offset + 12, length: 2 };
-    box.details["opcolor"] = { value: `R:${view.getUint16(14)}, G:${view.getUint16(16)}, B:${view.getUint16(18)}`, offset: box.offset + 14, length: 6 };
-  }
-
-  // js/features/segment-analysis/isobmff-box-parsers/stsd.js
-  function parseStsd(box, view) {
-    box.details["version"] = { value: view.getUint8(8), offset: box.offset + 8, length: 1 };
-    box.details["entry_count"] = { value: view.getUint32(12), offset: box.offset + 12, length: 4 };
-  }
-
-  // js/features/segment-analysis/isobmff-box-parsers/stts.js
-  function parseStts(box, view) {
-    box.details["version"] = { value: view.getUint8(8), offset: box.offset + 8, length: 1 };
-    const entryCount = view.getUint32(12);
-    box.details["entry_count"] = { value: entryCount, offset: box.offset + 12, length: 4 };
-    if (entryCount > 0) {
-      box.details["sample_count_1"] = { value: view.getUint32(16), offset: box.offset + 16, length: 4 };
-      box.details["sample_delta_1"] = { value: view.getUint32(20), offset: box.offset + 20, length: 4 };
-    }
-  }
-
-  // js/features/segment-analysis/isobmff-box-parsers/stsc.js
-  function parseStsc(box, view) {
-    box.details["version"] = { value: view.getUint8(8), offset: box.offset + 8, length: 1 };
-    const entryCount = view.getUint32(12);
-    box.details["entry_count"] = { value: entryCount, offset: box.offset + 12, length: 4 };
-    if (entryCount > 0) {
-      box.details["first_chunk_1"] = { value: view.getUint32(16), offset: box.offset + 16, length: 4 };
-      box.details["samples_per_chunk_1"] = { value: view.getUint32(20), offset: box.offset + 20, length: 4 };
-      box.details["sample_description_index_1"] = { value: view.getUint32(24), offset: box.offset + 24, length: 4 };
-    }
-  }
-
-  // js/features/segment-analysis/isobmff-box-parsers/stsz.js
-  function parseStsz(box, view) {
-    box.details["version"] = { value: view.getUint8(8), offset: box.offset + 8, length: 1 };
-    box.details["sample_size"] = { value: view.getUint32(12), offset: box.offset + 12, length: 4 };
-    box.details["sample_count"] = { value: view.getUint32(16), offset: box.offset + 16, length: 4 };
-  }
-
-  // js/features/segment-analysis/isobmff-box-parsers/stco.js
-  function parseStco(box, view) {
-    box.details["version"] = { value: view.getUint8(8), offset: box.offset + 8, length: 1 };
-    const entryCount = view.getUint32(12);
-    box.details["entry_count"] = { value: entryCount, offset: box.offset + 12, length: 4 };
-    if (entryCount > 0) {
-      box.details["chunk_offset_1"] = { value: view.getUint32(16), offset: box.offset + 16, length: 4 };
-    }
-  }
-
-  // js/features/segment-analysis/isobmff-box-parsers/elst.js
-  function parseElst(box, view) {
-    const version = view.getUint8(8);
-    box.details["version"] = { value: version, offset: box.offset + 8, length: 1 };
-    const entryCount = view.getUint32(12);
-    box.details["entry_count"] = { value: entryCount, offset: box.offset + 12, length: 4 };
-    if (entryCount > 0) {
-      const entryOffset = 16;
-      if (version === 1) {
-        box.details["segment_duration_1"] = { value: Number(view.getBigUint64(entryOffset)), offset: box.offset + entryOffset, length: 8 };
-        box.details["media_time_1"] = { value: Number(view.getBigInt64(entryOffset + 8)), offset: box.offset + entryOffset + 8, length: 8 };
-      } else {
-        box.details["segment_duration_1"] = { value: view.getUint32(entryOffset), offset: box.offset + entryOffset, length: 4 };
-        box.details["media_time_1"] = { value: view.getInt32(entryOffset + 4), offset: box.offset + entryOffset + 4, length: 4 };
-      }
-    }
-  }
-
-  // js/features/segment-analysis/isobmff-box-parsers/trex.js
-  function parseTrex(box, view) {
-    box.details["track_ID"] = { value: view.getUint32(12), offset: box.offset + 12, length: 4 };
-    box.details["default_sample_description_index"] = { value: view.getUint32(16), offset: box.offset + 16, length: 4 };
-    box.details["default_sample_duration"] = { value: view.getUint32(20), offset: box.offset + 20, length: 4 };
-    box.details["default_sample_size"] = { value: view.getUint32(24), offset: box.offset + 24, length: 4 };
-    box.details["default_sample_flags"] = { value: `0x${view.getUint32(28).toString(16)}`, offset: box.offset + 28, length: 4 };
-  }
 
   // js/features/segment-analysis/isobmff-box-parsers/index.js
   var boxParsers = {
@@ -3370,6 +3420,27 @@
     stco: parseStco,
     elst: parseElst,
     trex: parseTrex
+  };
+  var tooltipData = {
+    ...groupTooltipData,
+    ...ftypTooltip,
+    ...elstTooltip,
+    ...hdlrTooltip,
+    ...mvhdTooltip,
+    ...tfhdTooltip,
+    ...tfdtTooltip,
+    ...trunTooltip,
+    ...sidxTooltip,
+    ...tkhdTooltip,
+    ...mdhdTooltip,
+    ...vmhdTooltip,
+    ...stsdTooltip,
+    ...sttsTooltip,
+    ...stscTooltip,
+    ...stszTooltip,
+    ...stcoTooltip,
+    ...trexTooltip,
+    ...mfhdTooltip
   };
 
   // js/features/segment-analysis/isobmff-parser.js

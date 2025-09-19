@@ -16,3 +16,28 @@ export function parseMdhd(box, view) {
     const langValue = String.fromCharCode(((lang >> 10) & 0x1f) + 0x60, ((lang >> 5) & 0x1f) + 0x60, (lang & 0x1f) + 0x60);
     box.details['language'] = { value: langValue, offset: box.offset + langOffset, length: 2 };
 }
+
+export const mdhdTooltip = {
+    
+    mdhd: {
+        name: 'Media Header',
+        text: 'Declares media information (timescale, language).',
+        ref: 'ISO/IEC 14496-12, 8.4.2',
+    },
+    'mdhd@version': {
+        text: 'Version of this box (0 or 1). Affects the size of time and duration fields.',
+        ref: 'ISO/IEC 14496-12, 8.4.2.3',
+    },
+    'mdhd@timescale': {
+        text: "The number of time units that pass in one second for this track's media.",
+        ref: 'ISO/IEC 14496-12, 8.4.2.3',
+    },
+    'mdhd@duration': {
+        text: "The duration of this track's media in units of its own timescale.",
+        ref: 'ISO/IEC 14496-12, 8.4.2.3',
+    },
+    'mdhd@language': {
+        text: 'The ISO-639-2/T language code for this media.',
+        ref: 'ISO/IEC 14496-12, 8.4.2.3',
+    },
+}
