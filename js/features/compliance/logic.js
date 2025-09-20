@@ -1,12 +1,31 @@
-import { rules } from './rules.js';
+import { rules as dashRules } from './dash-rules.js';
+import { rules as hlsRules } from './hls-rules.js';
 
 /**
- * Runs a set of predefined compliance checks against a parsed MPD.
- * @param {Element} mpd - The root MPD element to check.
+ * Runs a set of predefined compliance checks against a manifest.
+ * @param {Element | object} manifest - The raw manifest element or object.
+ * @param {'dash' | 'hls'} protocol - The protocol of the manifest.
  * @returns {Array<object>} An array of check result objects.
  */
-export function runChecks(mpd) {
-    if (!mpd) {
+export function runChecks(manifest, protocol) {
+    if (protocol === 'hls') {
+        // HLS not implemented yet
+        return [
+            {
+                text: 'HLS Compliance Checks',
+                status: 'info',
+                details: 'HLS compliance checks are not yet implemented.',
+                isoRef: 'N/A',
+                category: 'HLS',
+            },
+        ];
+    }
+
+    // --- DASH Logic ---
+    const mpd = /** @type {Element} */ (manifest);
+    const rules = dashRules;
+
+    if (!mpd || typeof mpd.getAttribute !== 'function') {
         // Handle case where MPD parsing failed entirely
         const rootCheck = rules.find((r) => r.id === 'MPD-1');
         return [

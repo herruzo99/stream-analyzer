@@ -42,7 +42,11 @@
  * @property {number | null} minimumUpdatePeriod
  * @property {number | null} duration
  * @property {Period[]} periods
- * @property {Element} rawElement - Reference to the original parsed element for features not yet migrated.
+ * @property {Element | object} rawElement - Reference to the original parsed element or object.
+ */
+
+/**
+ * @typedef {{ manifest: Manifest, rawManifest: string, lastFetched: Date }} MediaPlaylist
  */
 
 /**
@@ -51,8 +55,11 @@
  * @property {string} name
  * @property {string} originalUrl
  * @property {string} baseUrl
- * @property {Manifest} manifest
- * @property {string} rawXml
+ * @property {'dash' | 'hls' | 'unknown'} protocol
+ * @property {Manifest | null} manifest - The currently active manifest (master or media).
+ * @property {string} rawManifest - The raw text of the currently active manifest.
+ * @property {Map<string, MediaPlaylist>} mediaPlaylists - A cache of fetched media playlists for HLS.
+ * @property {string | null} activeMediaPlaylistUrl - The URL of the currently viewed media playlist.
  */
 
 /**
@@ -150,8 +157,8 @@ export const dom = {
         'interactive-segment': /** @type {HTMLDivElement} */ (
             document.getElementById('tab-interactive-segment')
         ),
-        'interactive-mpd': /** @type {HTMLDivElement} */ (
-            document.getElementById('tab-interactive-mpd')
+        'interactive-manifest': /** @type {HTMLDivElement} */ (
+            document.getElementById('tab-interactive-manifest')
         ),
         updates: /** @type {HTMLDivElement} */ (
             document.getElementById('tab-updates')

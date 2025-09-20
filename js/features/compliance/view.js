@@ -122,8 +122,8 @@ const renderReportForChecks = (checks) => {
             Compliance & Best Practices Report
         </h3>
         <p class="text-sm text-gray-400 mb-4">
-            An analysis of the manifest against the ISO/IEC 23009-1:2022
-            standard and common best practices.
+            An analysis of the manifest against industry standards and common
+            best practices.
         </p>
 
         <div
@@ -134,18 +134,19 @@ const renderReportForChecks = (checks) => {
             ${filterButton('fail', 'Errors', counts.fail)}
             ${filterButton('warn', 'Warnings', counts.warn)}
             ${filterButton('pass', 'Passed', counts.pass)}
+            ${counts.info > 0 ? filterButton('info', 'Info', counts.info) : ''}
         </div>
 
         ${Object.entries(groupedChecks).map(([category, items]) =>
             categoryTemplate(category, items)
         )}
 
-        <div class="dev-watermark">Compliance v7.0</div>
     `;
 };
 
-export function getComplianceReportTemplate(manifest) {
-    const checks = runChecks(manifest);
+export function getComplianceReportTemplate(manifest, protocol) {
+    if (!manifest) return html``;
+    const checks = runChecks(manifest.rawElement, protocol);
     // Reset filter to 'all' whenever a new report is generated
     activeFilter = 'all';
     return renderReportForChecks(checks);

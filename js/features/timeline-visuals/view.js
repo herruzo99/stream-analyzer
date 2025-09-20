@@ -1,5 +1,69 @@
 import { html } from 'lit-html';
 
+// --- HLS IMPLEMENTATION ---
+
+const hlsAbrLadderTemplate = (hlsManifest) => {
+    const variants = hlsManifest.variants || [];
+    if (variants.length === 0) return html``;
+
+    const maxBw = Math.max(...variants.map(v => v.attributes.BANDWIDTH));
+
+    const repTemplate = variants.sort((a,b) => a.attributes.BANDWIDTH - b.attributes.BANDWIDTH).map(variant => {
+        const bw = variant.attributes.BANDWIDTH;
+        const widthPercentage = (bw / maxBw) * 100;
+        const resolutionText = variant.attributes.RESOLUTION || 'Audio Only';
+        const codecs = variant.attributes.CODECS || 'N/A';
+
+        return html`
+            <div class="flex items-center" title="Codecs: ${codecs}">
+                <div class="w-28 text-xs text-gray-400 font-mono flex-shrink-0">${resolutionText}</div>
+                <div class="w-full bg-gray-700 rounded-full h-5">
+                    <div class="bg-blue-600 h-5 rounded-full text-xs font-medium text-blue-100 text-center p-0.5 leading-none" style="width: ${widthPercentage}%">
+                        ${(bw / 1000).toFixed(0)} kbps
+                    </div>
+                </div>
+            </div>`;
+    });
+
+    return html`
+        <div class="mt-6">
+            <h4 class="text-lg font-bold">ABR Bitrate Ladder</h4>
+            <div class="bg-gray-900 p-4 rounded-md mt-4 space-y-2">
+                ${repTemplate}
+            </div>
+        </div>`;
+};
+
+
+const hlsTimelineTemplate = (hlsManifest) => {
+    const segments = hlsManifest.segments || [];
+    const totalDuration = segments.reduce((acc, seg) => acc + seg.duration, 0);
+    if (totalDuration === 0) return html`<p class="info">No segments found or total duration is zero.</p>`;
+
+    const gridTemplateColumns = segments.map(s => `${(s.duration / totalDuration) * 100}%`).join(' ');
+
+    const timelineSegments = segments.map(seg => {
+        return html`
+            <div class="bg-gray-700 rounded h-10 border-r-2 border-gray-900 last:border-r-0" title="Duration: ${seg.duration.toFixed(3)}s">
+            </div>
+        `;
+    });
+
+    return html`
+        <h3 class="text-xl font-bold mb-4">Timeline Visualization</h3>
+        <div class="bg-gray-900 rounded-lg p-2">
+            <div class="grid grid-flow-col auto-cols-fr" style="grid-template-columns: ${gridTemplateColumns}">
+                ${timelineSegments}
+            </div>
+        </div>
+        <div class="text-xs text-gray-400 mt-2 text-right">
+            Total Duration: ${totalDuration.toFixed(2)}s
+        </div>
+    `;
+};
+
+
+// --- DASH IMPLEMENTATION ---
 const parseDuration = (durationStr) => {
     if (!durationStr) return null;
     const match = durationStr.match(
@@ -12,7 +76,7 @@ const parseDuration = (durationStr) => {
     return hours * 3600 + minutes * 60 + seconds;
 };
 
-const abrLadderTemplate = (period) => {
+const dashAbrLadderTemplate = (period) => {
     const videoSets = Array.from(
         period.querySelectorAll(
             'AdaptationSet[contentType="video"], AdaptationSet[mimeType^="video"]'
@@ -66,8 +130,8 @@ const abrLadderTemplate = (period) => {
     });
 };
 
-const staticTimelineTemplate = (manifest) => {
-    const periods = Array.from(manifest.querySelectorAll('Period'));
+const staticTimelineTemplate = (dashElement) => {
+    const periods = Array.from(dashElement.querySelectorAll('Period'));
     if (periods.length === 0)
         return html`<p class="info">No Period elements found.</p>`;
 
@@ -81,7 +145,7 @@ const staticTimelineTemplate = (manifest) => {
             lastPeriodEnd = start + duration;
         } else if (i === periods.length - 1) {
             const mediaPresentationDuration = parseDuration(
-                manifest.getAttribute('mediaPresentationDuration')
+                dashElement.getAttribute('mediaPresentationDuration')
             );
             if (mediaPresentationDuration) {
                 duration = mediaPresentationDuration - start;
@@ -97,7 +161,7 @@ const staticTimelineTemplate = (manifest) => {
     });
 
     const totalDuration =
-        parseDuration(manifest.getAttribute('mediaPresentationDuration')) ||
+        parseDuration(dashElement.getAttribute('mediaPresentationDuration')) ||
         lastPeriodEnd;
     if (totalDuration === 0)
         return html`<div class="analysis-summary warn">
@@ -153,7 +217,7 @@ const staticTimelineTemplate = (manifest) => {
                 <h4 class="text-lg font-bold">
                     ABR Bitrate Ladder for Period: ${p.id}
                 </h4>
-                ${abrLadderTemplate(p.element)}
+                ${dashAbrLadderTemplate(p.element)}
             </div>`
     );
 
@@ -169,16 +233,15 @@ const staticTimelineTemplate = (manifest) => {
         <div class="text-xs text-gray-400 mt-2 text-right">
             Total Duration: ${totalDuration.toFixed(2)}s
         </div>
-        ${abrLadders}
-        <div class="dev-watermark">Timeline & Visuals v3.1</div>`;
+        ${abrLadders}`;
 };
 
-const liveTimelineTemplate = (manifest) => {
-    const period = manifest.querySelector('Period');
+const liveTimelineTemplate = (dashElement) => {
+    const period = dashElement.querySelector('Period');
     if (!period) return html`<p class="info">No Period element found.</p>`;
 
     const timeShiftBufferDepth = parseDuration(
-        manifest.getAttribute('timeShiftBufferDepth')
+        dashElement.getAttribute('timeShiftBufferDepth')
     );
     if (!timeShiftBufferDepth)
         return html`<p class="info">No @timeShiftBufferDepth found.</p>`;
@@ -211,12 +274,12 @@ const liveTimelineTemplate = (manifest) => {
         <h4 class="text-lg font-bold">
             ABR Bitrate Ladder for Period: ${period.getAttribute('id') || '0'}
         </h4>
-        ${abrLadderTemplate(period)}
+        ${dashAbrLadderTemplate(period)}
     </div>`;
 
-    const publishTime = new Date(manifest.getAttribute('publishTime')).getTime();
+    const publishTime = new Date(dashElement.getAttribute('publishTime')).getTime();
     const availabilityStartTime = new Date(
-        manifest.getAttribute('availabilityStartTime')
+        dashElement.getAttribute('availabilityStartTime')
     ).getTime();
     const liveEdge = (publishTime - availabilityStartTime) / 1000;
     const dvrStart = liveEdge - timeShiftBufferDepth;
@@ -247,11 +310,37 @@ const liveTimelineTemplate = (manifest) => {
             <span>Start of DVR Window (${dvrStart.toFixed(2)}s)</span>
             <span>Live Edge (${liveEdge.toFixed(2)}s)</span>
         </div>
-        ${abrLadders}
-        <div class="dev-watermark">Timeline & Visuals v3.1</div>`;
+        ${abrLadders}`;
 };
 
-export function getTimelineAndVisualsTemplate(manifest) {
-    const isLive = manifest.getAttribute('type') === 'dynamic';
-    return isLive ? liveTimelineTemplate(manifest) : staticTimelineTemplate(manifest);
+
+// --- DISPATCHER ---
+
+export function getTimelineAndVisualsTemplate(manifest, protocol) {
+    if (!manifest) return html``;
+    const rawElement = manifest.rawElement;
+
+    if (protocol === 'hls') {
+        if (rawElement.isMaster) {
+            return html`
+                <h3 class="text-xl font-bold mb-4">HLS Master Playlist</h3>
+                <p class="text-sm text-gray-400">A master playlist defines available variants but does not have a monolithic timeline.</p>
+                ${hlsAbrLadderTemplate(rawElement)}
+            `;
+        }
+        return html`
+            ${hlsTimelineTemplate(rawElement)}
+        `;
+    }
+
+    // --- DASH Logic ---
+    if (!rawElement || typeof rawElement.getAttribute !== 'function') {
+        return html`<p class="warn">Cannot display timeline for this manifest type.</p>`;
+    }
+    const isLive = rawElement.getAttribute('type') === 'dynamic';
+    const template = isLive
+        ? liveTimelineTemplate(rawElement)
+        : staticTimelineTemplate(rawElement);
+    
+    return html`${template}`;
 }

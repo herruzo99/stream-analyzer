@@ -48,10 +48,10 @@ const categoryTemplate = (category, categoryFeatures) => html`
     </div>
 `;
 
-export function getFeaturesAnalysisTemplate(manifest) {
+export function getFeaturesAnalysisTemplate(manifest, protocol) {
     if (!manifest) return html`<p class="warn">No manifest loaded to display.</p>`;
 
-    const viewModel = generateFeatureAnalysis(manifest);
+    const viewModel = generateFeatureAnalysis(manifest, protocol);
 
     const groupedFeatures = viewModel.reduce((acc, feature) => {
         if (!acc[feature.category]) {
@@ -70,6 +70,5 @@ export function getFeaturesAnalysisTemplate(manifest) {
         ${Object.entries(groupedFeatures).map(([category, features]) =>
             categoryTemplate(category, features)
         )}
-        <div class="dev-watermark">Features v5.0</div>
     `;
 }

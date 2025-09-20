@@ -81,7 +81,7 @@ const streamInputTemplate = (
                     type="url"
                     id="url-${streamId}"
                     class="input-url w-full bg-gray-700 text-white rounded-md p-2 border border-gray-600 focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter Manifest URL..."
+                    placeholder="Enter Manifest URL (.mpd, .m3u8)..."
                     .value=${isFirstStream && urlHistory.length > 0
                         ? urlHistory[0]
                         : ''}
@@ -199,20 +199,25 @@ export function handleTabClick(e) {
     Object.values(dom.tabContents).forEach((c) => {
         if (c) c.classList.add('hidden');
     });
-    const activeTabContent = dom.tabContents[targetTab.dataset.tab];
+
+    const activeTabName = targetTab.dataset.tab;
+    const activeTabContent = dom.tabContents[activeTabName];
     if (activeTabContent) activeTabContent.classList.remove('hidden');
 
     // Re-render state-dependent tabs when they are clicked
-    if (targetTab.dataset.tab === 'interactive-segment') {
+    if (activeTabName === 'interactive-segment') {
         render(
             getInteractiveSegmentTemplate(),
             dom.tabContents['interactive-segment']
         );
     }
+    if (activeTabName === 'interactive-manifest') {
+        renderSingleStreamTabs(analysisState.activeStreamId);
+    }
 
-    if (targetTab.dataset.tab === 'explorer') {
+    if (activeTabName === 'explorer') {
         startSegmentFreshnessChecker();
-    } else if (targetTab.dataset.tab === 'updates') {
+    } else if (activeTabName === 'updates') {
         // Only start polling if the state indicates it should be active.
         if (
             analysisState.isPollingActive &&
@@ -236,7 +241,7 @@ export function populateContextSwitcher() {
     if (analysisState.streams.length > 1) {
         dom.contextSwitcherContainer.classList.remove('hidden');
         const optionsTemplate = analysisState.streams.map(
-            (s) => html`<option value="${s.id}">${s.name}</option>`
+            (s) => html`<option value="${s.id}">${s.name} (${s.protocol.toUpperCase()})</option>`
         );
         render(optionsTemplate, dom.contextSwitcher);
         dom.contextSwitcher.value = String(analysisState.activeStreamId);
@@ -254,42 +259,15 @@ export function renderAllTabs() {
     /** @type {HTMLElement} */
     (document.querySelector('[data-tab="summary"]')).style.display =
         hasMultipleStreams ? 'none' : 'block';
+    
+    // FIX: Target the content pane, not the tab button itself.
+    dom.tabContents['interactive-manifest'].innerHTML = ''; // Clear previous content
 
     if (hasMultipleStreams) {
         render(getComparisonTemplate(), dom.tabContents.comparison);
     }
 
     renderSingleStreamTabs(analysisState.activeStreamId);
-}
-
-export function renderSingleStreamTabs(streamId) {
-    const stream = analysisState.streams.find((s) => s.id === streamId);
-    if (!stream) return;
-    const { manifest, baseUrl } = stream;
-
-    // Only render summary tab if it's a single stream view
-    if (analysisState.streams.length === 1) {
-        render(getGlobalSummaryTemplate(manifest), dom.tabContents.summary);
-    }
-
-    // Comparison tab is handled by renderAllTabs
-
-    render(getComplianceReportTemplate(manifest.rawElement), dom.tabContents.compliance);
-    // After rendering the compliance template, attach its specific listeners.
-    attachComplianceFilterListeners();
-
-    render(
-        getTimelineAndVisualsTemplate(manifest.rawElement),
-        dom.tabContents['timeline-visuals']
-    );
-    render(getFeaturesAnalysisTemplate(manifest), dom.tabContents.features);
-    render(
-        getInteractiveManifestTemplate(manifest.rawElement),
-        dom.tabContents['interactive-mpd']
-    );
-    render(getInteractiveSegmentTemplate(), dom.tabContents['interactive-segment']);
-    initializeSegmentExplorer(dom.tabContents.explorer, manifest, baseUrl); // This view manages its own complex rendering
-    renderManifestUpdates(streamId);
 }
 
 export function showStatus(message, type) {
@@ -301,4 +279,32 @@ export function showStatus(message, type) {
     };
     dom.status.textContent = message;
     dom.status.className = `text-center my-4 ${colors[type]}`;
+}
+
+export function renderSingleStreamTabs(streamId) {
+    const stream = analysisState.streams.find((s) => s.id === streamId);
+    if (!stream) return;
+    const { manifest, protocol } = stream;
+
+    if (protocol === 'hls' && !stream.mediaPlaylists.has('master')) {
+        stream.mediaPlaylists.set('master', {
+            manifest: stream.manifest,
+            rawManifest: stream.rawManifest,
+            lastFetched: new Date(),
+        });
+    }
+
+    if (analysisState.streams.length === 1) {
+        render(getGlobalSummaryTemplate(manifest), dom.tabContents.summary);
+    }
+
+    render(getComplianceReportTemplate(manifest, protocol), dom.tabContents.compliance);
+    attachComplianceFilterListeners();
+
+    render(getTimelineAndVisualsTemplate(manifest, protocol), dom.tabContents['timeline-visuals']);
+    render(getFeaturesAnalysisTemplate(manifest, protocol), dom.tabContents.features);
+    render(getInteractiveManifestTemplate(stream), dom.tabContents['interactive-manifest']);
+    render(getInteractiveSegmentTemplate(), dom.tabContents['interactive-segment']);
+    initializeSegmentExplorer(dom.tabContents.explorer, stream);
+    renderManifestUpdates(streamId);
 }

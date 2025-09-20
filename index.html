@@ -29,7 +29,7 @@
 </style>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Exhaustive DASH MPD Analyzer</title>
+        <title>Exhaustive Stream Analyzer</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <script>
             tailwind.config = {
@@ -57,11 +57,11 @@
             <div class="max-w-7xl mx-auto">
                 <header class="text-center mb-8">
                     <h1 class="text-3xl sm:text-4xl font-bold text-white">
-                        Exhaustive DASH MPD Analyzer
+                        Exhaustive Stream Analyzer
                     </h1>
                     <p class="text-gray-400 mt-2">
-                        Analyze and compare DASH streams against the ISO/IEC
-                        23009-1:2022 standard.
+                        Analyze and compare DASH & HLS streams against industry
+                        standards.
                     </p>
                 </header>
 
@@ -146,15 +146,15 @@
                         </button>
                         <button
                             class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
-                            data-tab="interactive-mpd"
+                            data-tab="interactive-manifest"
                         >
-                            Interactive MPD
+                            Interactive Manifest
                         </button>
                         <button
                             class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
                             data-tab="updates"
                         >
-                            MPD Updates
+                            Manifest Updates
                         </button>
                     </nav>
                 </div>
@@ -166,7 +166,7 @@
                     <div id="tab-compliance" class="hidden"></div>
                     <div id="tab-explorer" class="hidden"></div>
                     <div id="tab-interactive-segment" class="hidden"></div>
-                    <div id="tab-interactive-mpd" class="hidden"></div>
+                    <div id="tab-interactive-manifest" class="hidden"></div>
                     <div id="tab-updates" class="hidden">
                         <div id="mpd-updates-content"></div>
                     </div>
