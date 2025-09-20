@@ -7,17 +7,26 @@
 
 /**
  * Creates a lookup map for byte offsets to their box/field metadata.
- * This version is refactored for 100% coverage of all bytes within boxes.
+ * This version is refactored for 100% coverage of all bytes within boxes and to attach color info.
  * @param {import('../segment-analysis/isobmff-parser.js').Box[]} parsedData - Array of parsed box data
- * @returns {Map<number, {box: object, field: string, color: string}>}
+ * @returns {Map<number, {box: object, field: string, color: object}>}
  */
 function buildByteMap(parsedData) {
     const byteMap = new Map();
     const boxColors = [
-        'bg-red-500/20', 'bg-yellow-500/20', 'bg-green-500/20',
-        'bg-blue-500/20', 'bg-indigo-500/20', 'bg-purple-500/20', 'bg-pink-500/20',
-        'bg-teal-500/20', 'bg-orange-500/20', 'bg-lime-500/20', 'bg-rose-500/20'
+        { bg: 'bg-red-500/20', border: 'border-red-500' },
+        { bg: 'bg-yellow-500/20', border: 'border-yellow-500' },
+        { bg: 'bg-green-500/20', border: 'border-green-500' },
+        { bg: 'bg-blue-500/20', border: 'border-blue-500' },
+        { bg: 'bg-indigo-500/20', border: 'border-indigo-500' },
+        { bg: 'bg-purple-500/20', border: 'border-purple-500' },
+        { bg: 'bg-pink-500/20', border: 'border-pink-500' },
+        { bg: 'bg-teal-500/20', border: 'border-teal-500' },
+        { bg: 'bg-orange-500/20', border: 'border-orange-500' },
+        { bg: 'bg-lime-500/20', border: 'border-lime-500' },
+        { bg: 'bg-rose-500/20', border: 'border-rose-500' }
     ];
+    const reservedColor = { bg: 'bg-gray-700/50' };
     let colorIndex = 0;
 
     const traverse = (boxes) => {
@@ -25,39 +34,29 @@ function buildByteMap(parsedData) {
 
         for (const box of boxes) {
             const color = boxColors[colorIndex % boxColors.length];
+            box.color = color; // Attach the color object directly to the box
             const boxStart = box.offset;
             const boxEnd = box.offset + box.size;
             
-            // Step 1: Map the entire box area with a base "Box Content" label.
-            // This ensures 100% coverage for this box from the start.
             for (let i = boxStart; i < boxEnd; i++) {
                 byteMap.set(i, { box, field: 'Box Content', color });
             }
 
-            // Step 2: Map the header specifically.
-            for (let i = boxStart; i < box.contentOffset; i++) {
-                byteMap.set(i, { box, field: 'Header', color });
-            }
-
-            // Step 3: Map detailed fields, overwriting the generic "Box Content".
             if (box.details) {
                 for (const [fieldName, fieldMeta] of Object.entries(box.details)) {
                     if (fieldMeta.offset !== undefined && fieldMeta.length !== undefined) {
+                        const fieldColor = (fieldName.includes('reserved') || fieldName.includes('Padding')) ? reservedColor : color;
                         for (let i = fieldMeta.offset; i < fieldMeta.offset + fieldMeta.length; i++) {
-                            byteMap.set(i, { box, field: fieldName, color });
+                            byteMap.set(i, { box, field: fieldName, color: fieldColor });
                         }
                     }
                 }
             }
             
-            // Step 4: Recursively map children. This will overwrite the parent's generic
-            // "Box Content" mapping with more specific child data.
             if (box.children && box.children.length > 0) {
                 traverse(box.children);
             }
             
-            // Step 5: Map any remaining gaps within a container as "Container Padding".
-            // This covers areas inside a container that are not children boxes.
             if (box.children && box.children.length > 0) {
                  let lastChildEnd = box.contentOffset;
                  if (box.children.length > 0) {
@@ -67,11 +66,10 @@ function buildByteMap(parsedData) {
                  
                  if (boxEnd > lastChildEnd) {
                     for (let i = lastChildEnd; i < boxEnd; i++) {
-                        byteMap.set(i, { box, field: 'Container Padding', color: 'bg-gray-500/20' });
+                        byteMap.set(i, { box, field: 'Container Padding', color: reservedColor });
                     }
                  }
             }
-
 
             colorIndex++;
         }
@@ -81,14 +79,13 @@ function buildByteMap(parsedData) {
         traverse(parsedData);
     }
     
-    // Final gap check for data between top-level boxes (should be rare)
     const maxOffset = parsedData.reduce((max, box) => Math.max(max, box.offset + box.size), 0);
     for (let i = 0; i < maxOffset; i++) {
         if (!byteMap.has(i)) {
             byteMap.set(i, {
                 box: { type: 'UNKNOWN', offset: i, size: 1 },
                 field: 'Unmapped Data',
-                color: 'bg-gray-700/50'
+                color: reservedColor
             });
         }
     }
@@ -99,7 +96,6 @@ function buildByteMap(parsedData) {
 
 /**
  * Generates a view model for a hex/ASCII view.
- * The tooltip content is now deferred to the view to handle dynamically.
  * @param {ArrayBuffer} buffer The segment data.
  * @param {object[]} parsedData The parsed box structure data.
  * @param {number} startOffset The starting byte offset for this view.
@@ -121,44 +117,61 @@ export function generateHexAsciiView(buffer, parsedData = null, startOffset = 0,
         const rowBytes = view.slice(i, rowEndByte);
         const offset = i.toString(16).padStart(8, '0').toUpperCase();
 
-        const hexParts = [];
-        const asciiParts = [];
+        let hexHtml = '';
+        let asciiHtml = '';
 
         const baseHexClass = 'inline-block h-6 leading-6 w-7 text-center align-middle transition-colors duration-150 cursor-pointer';
         const baseAsciiClass = 'inline-block h-6 leading-6 w-4 text-center align-middle transition-colors duration-150 tracking-tight cursor-pointer';
-        const hoverDefault = 'hover:bg-gray-600/50';
+        const fieldDelimiterClass = 'border-l border-gray-400/50';
+
+        let currentFieldGroup = [];
+        let currentAsciiGroup = [];
+        let lastMapEntry = null;
+
+        const flushGroup = () => {
+            if (currentFieldGroup.length === 0 || !lastMapEntry) return;
+            const { box, field, color } = lastMapEntry;
+            const dataAttrs = `data-box-offset="${box.offset}" data-field-name="${field}"`;
+            const groupClass = `${color ? color.bg : ''}`;
+            hexHtml += `<span class="inline-block ${groupClass}" ${dataAttrs}>${currentFieldGroup.join('')}</span>`;
+            asciiHtml += `<span class="inline-block ${groupClass}" ${dataAttrs}>${currentAsciiGroup.join('')}</span>`;
+            currentFieldGroup = [];
+            currentAsciiGroup = [];
+        };
 
         rowBytes.forEach((byte, index) => {
             const byteOffset = i + index;
             const mapEntry = byteMap.get(byteOffset);
+            
+            if (lastMapEntry && (mapEntry?.box !== lastMapEntry.box || mapEntry?.field !== lastMapEntry.field)) {
+                flushGroup();
+            }
 
             let hexCssClass = baseHexClass;
             let asciiCssClass = baseAsciiClass;
-            let dataAttrs = `data-byte-offset="${byteOffset}"`;
-
-            if (mapEntry) {
-                hexCssClass += ` ${mapEntry.color}`;
-                asciiCssClass += ` ${mapEntry.color}`;
-                dataAttrs += ` data-box-offset="${mapEntry.box.offset}" data-field-name="${mapEntry.field}"`;
-            } else {
-                hexCssClass += ` ${hoverDefault}`;
-                asciiCssClass += ` ${hoverDefault}`;
+            
+            if (lastMapEntry && mapEntry?.box === lastMapEntry.box && mapEntry?.field !== lastMapEntry.field) {
+                 hexCssClass += ` ${fieldDelimiterClass}`;
+                 asciiCssClass += ` ${fieldDelimiterClass}`;
             }
 
+            const dataAttrs = `data-byte-offset="${byteOffset}"`;
+
             const hexByte = byte.toString(16).padStart(2, '0').toUpperCase();
-            hexParts.push(`<span class="${hexCssClass}" ${dataAttrs}>${hexByte}</span>`);
+            currentFieldGroup.push(`<span class="${hexCssClass}" ${dataAttrs}>${hexByte}</span>`);
 
             const asciiChar = (byte >= 32 && byte <= 126) ? String.fromCharCode(byte).replace('<', '&lt;') : '.';
-            asciiParts.push(`<span class="${asciiCssClass}" ${dataAttrs}>${asciiChar}</span>`);
-        });
+            currentAsciiGroup.push(`<span class="${asciiCssClass}" ${dataAttrs}>${asciiChar}</span>`);
 
-        while (hexParts.length < bytesPerRow) {
-            hexParts.push(`<span class="${baseHexClass} text-gray-700 select-none"></span>`);
-            asciiParts.push(`<span class="${baseAsciiClass} text-gray-700 select-none"></span>`);
+            lastMapEntry = mapEntry;
+        });
+        flushGroup();
+
+        const remaining = bytesPerRow - rowBytes.length;
+        if (remaining > 0) {
+            hexHtml += `<span class="inline-block h-6" style="width: ${remaining * 1.75}rem"></span>`;
+            asciiHtml += `<span class="inline-block h-6" style="width: ${remaining * 1}rem"></span>`;
         }
-        
-        const hexHtml = `<div class="flex gap-0">${hexParts.join('')}</div>`;
-        const asciiHtml = `<div class="flex gap-0">${asciiParts.join('')}</div>`;
 
         rows.push({ offset, hex: hexHtml, ascii: asciiHtml });
     }

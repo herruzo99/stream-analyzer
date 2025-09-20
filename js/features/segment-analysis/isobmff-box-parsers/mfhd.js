@@ -3,7 +3,13 @@
  * @param {DataView} view
  */
 export function parseMfhd(box, view) {
-    box.details['sequence_number'] = { value: view.getUint32(12), offset: box.offset + 12, length: 4 };
+    let currentParseOffset = box.headerSize; // Start immediately after the standard box header
+
+    // Skip version (1 byte) and flags (3 bytes)
+    currentParseOffset += 4;
+
+    box.details['sequence_number'] = { value: view.getUint32(currentParseOffset), offset: box.offset + currentParseOffset, length: 4 };
+    // currentParseOffset += 4; // Not needed as it's the last parsed field
 }
 
 export const mfhdTooltip = {

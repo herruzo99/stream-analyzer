@@ -16,40 +16,38 @@ export const getTooltipData = () => tooltipData;
 /**
  * @param {ArrayBuffer} buffer
  * @param {number} baseOffset
- * @param {boolean} isSampleDescription
  * @returns {Box[]}
  */
-export function parseISOBMFF(buffer, baseOffset = 0, isSampleDescription = false) {
+export function parseISOBMFF(buffer, baseOffset = 0) {
     /** @type {Box[]} */
     const boxes = [];
     let offset = 0;
     const dataView = new DataView(buffer);
 
     while (offset < buffer.byteLength) {
-        if (offset + 8 > buffer.byteLength) break;
+        if (offset + 8 > buffer.byteLength) break; // Minimum box size (size + type)
         let size = dataView.getUint32(offset);
         const type = String.fromCharCode.apply(
             null,
             new Uint8Array(buffer, offset + 4, 4)
         );
-        //TODO: This is wrong the headerSize is the first 4 bytes of the box, need to get it from there.
-        let headerSize = 8;
         
-        // Sample Descriptions inside 'stsd' have a slightly different header structure
-        // and are not standard boxes.
-        if (isSampleDescription) {
-            headerSize = 8 + 28; // size, type, plus 28 bytes of reserved/template fields
-        }
+        let headerSize = 8; // Default size + type
+        let actualSize = size;
+        let sizeFieldLength = 4;
 
         if (size === 1) {
-            if (offset + 16 > buffer.byteLength) break;
-            size = Number(dataView.getBigUint64(offset + 8));
-            headerSize = isSampleDescription ? headerSize : 16;
+            if (offset + 16 > buffer.byteLength) break; // Need 16 bytes for large size
+            actualSize = Number(dataView.getBigUint64(offset + 8));
+            headerSize = 16; // size (4) + type (4) + largesize (8)
+            sizeFieldLength = 12; // size(4) + largesize(8)
         } else if (size === 0) {
-            size = buffer.byteLength - offset;
+            // Box extends to end of file, or until next box in a container
+            // For now, assume it extends to the end of the current buffer
+            actualSize = buffer.byteLength - offset;
         }
 
-        if (offset + size > buffer.byteLength || size < headerSize) {
+        if (offset + actualSize > buffer.byteLength || actualSize < headerSize) {
             // Malformed box, stop parsing this level
             break;
         }
@@ -57,33 +55,49 @@ export function parseISOBMFF(buffer, baseOffset = 0, isSampleDescription = false
         /** @type {Box} */
         const box = {
             type,
-            size,
+            size: actualSize,
             offset: baseOffset + offset,
-            contentOffset: baseOffset + offset + headerSize,
+            contentOffset: baseOffset + offset + headerSize, // Content starts after the standard header
             headerSize,
             children: [],
             details: {},
         };
-        parseBoxDetails(box, new DataView(buffer, offset, size));
 
-        const containerBoxes = [ 'moof', 'traf', 'moov', 'trak', 'mdia', 'minf', 'stbl', 'mvex', 'edts', 'avc1', 'mp4a' ];
-        if (containerBoxes.includes(type) || (isSampleDescription)) {
-            const childrenBuffer = buffer.slice(offset + headerSize, offset + size);
-            if (childrenBuffer.byteLength > 0) {
-                box.children = parseISOBMFF(childrenBuffer, box.contentOffset);
+        // Deconstruct header into semantic fields
+        box.details['size'] = { value: `${actualSize} bytes`, offset: box.offset, length: sizeFieldLength };
+        box.details['type'] = { value: type, offset: box.offset + 4, length: 4 };
+
+        parseBoxDetails(box, new DataView(buffer, offset, actualSize));
+
+        // Container boxes whose children should be parsed
+        const containerBoxes = [ 'moof', 'traf', 'moov', 'trak', 'mdia', 'minf', 'stbl', 'mvex', 'edts', 'avc1', 'mp4a', 'styp' ]; 
+        if (containerBoxes.includes(type)) {
+            let childrenParseOffset = box.contentOffset;
+            if (type === 'avc1' || type === 'mp4a') {
+                childrenParseOffset += 28;
+            }
+
+            const childrenBufferStart = offset + (childrenParseOffset - box.offset);
+            const childrenBufferEnd = offset + actualSize;
+
+            if (childrenBufferStart < childrenBufferEnd) {
+                const childrenBuffer = buffer.slice(childrenBufferStart, childrenBufferEnd);
+                if (childrenBuffer.byteLength > 0) {
+                    box.children = parseISOBMFF(childrenBuffer, childrenParseOffset);
+                }
             }
         }
         
-        // Special handling for stsd box children
         if (type === 'stsd') {
-             const childrenBuffer = buffer.slice(offset + 16, offset + size); // After entry_count
+             const stsdHeaderLength = 16; 
+             const childrenBuffer = buffer.slice(offset + stsdHeaderLength, offset + actualSize);
              if(childrenBuffer.byteLength > 0) {
-                box.children = parseISOBMFF(childrenBuffer, box.offset + 16, true);
+                box.children = parseISOBMFF(childrenBuffer, box.offset + stsdHeaderLength);
              }
         }
 
         boxes.push(box);
-        offset += size;
+        offset += actualSize;
     }
     return boxes;
 }
