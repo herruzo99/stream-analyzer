@@ -3,9 +3,15 @@
  * @param {DataView} view
  */
 export function parseStsz(box, view) {
-    box.details['version'] = { value: view.getUint8(8), offset: box.offset + 8, length: 1 };
-    box.details['sample_size'] = { value: view.getUint32(12), offset: box.offset + 12, length: 4 };
-    box.details['sample_count'] = { value: view.getUint32(16), offset: box.offset + 16, length: 4 };
+    let currentParseOffset = box.headerSize; // Start immediately after the standard box header
+
+    box.details['version'] = { value: view.getUint8(currentParseOffset), offset: box.offset + currentParseOffset, length: 1 };
+    currentParseOffset += 4; // Skip version (1 byte) and flags (3 bytes)
+
+    box.details['sample_size'] = { value: view.getUint32(currentParseOffset), offset: box.offset + currentParseOffset, length: 4 };
+    currentParseOffset += 4;
+    box.details['sample_count'] = { value: view.getUint32(currentParseOffset), offset: box.offset + currentParseOffset, length: 4 };
+    // currentParseOffset += 4; // Not needed if no more fields are parsed
 }
 
 export const stszTooltip = {

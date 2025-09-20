@@ -2380,36 +2380,36 @@
   function buildByteMap(parsedData) {
     const byteMap = /* @__PURE__ */ new Map();
     const boxColors = [
-      "bg-red-500/20",
-      "bg-yellow-500/20",
-      "bg-green-500/20",
-      "bg-blue-500/20",
-      "bg-indigo-500/20",
-      "bg-purple-500/20",
-      "bg-pink-500/20",
-      "bg-teal-500/20",
-      "bg-orange-500/20",
-      "bg-lime-500/20",
-      "bg-rose-500/20"
+      { bg: "bg-red-500/20", border: "border-red-500" },
+      { bg: "bg-yellow-500/20", border: "border-yellow-500" },
+      { bg: "bg-green-500/20", border: "border-green-500" },
+      { bg: "bg-blue-500/20", border: "border-blue-500" },
+      { bg: "bg-indigo-500/20", border: "border-indigo-500" },
+      { bg: "bg-purple-500/20", border: "border-purple-500" },
+      { bg: "bg-pink-500/20", border: "border-pink-500" },
+      { bg: "bg-teal-500/20", border: "border-teal-500" },
+      { bg: "bg-orange-500/20", border: "border-orange-500" },
+      { bg: "bg-lime-500/20", border: "border-lime-500" },
+      { bg: "bg-rose-500/20", border: "border-rose-500" }
     ];
+    const reservedColor = { bg: "bg-gray-700/50" };
     let colorIndex = 0;
     const traverse = (boxes) => {
       if (!boxes) return;
       for (const box of boxes) {
         const color = boxColors[colorIndex % boxColors.length];
+        box.color = color;
         const boxStart = box.offset;
         const boxEnd = box.offset + box.size;
         for (let i3 = boxStart; i3 < boxEnd; i3++) {
           byteMap.set(i3, { box, field: "Box Content", color });
         }
-        for (let i3 = boxStart; i3 < box.contentOffset; i3++) {
-          byteMap.set(i3, { box, field: "Header", color });
-        }
         if (box.details) {
           for (const [fieldName, fieldMeta] of Object.entries(box.details)) {
             if (fieldMeta.offset !== void 0 && fieldMeta.length !== void 0) {
+              const fieldColor = fieldName.includes("reserved") || fieldName.includes("Padding") ? reservedColor : color;
               for (let i3 = fieldMeta.offset; i3 < fieldMeta.offset + fieldMeta.length; i3++) {
-                byteMap.set(i3, { box, field: fieldName, color });
+                byteMap.set(i3, { box, field: fieldName, color: fieldColor });
               }
             }
           }
@@ -2425,7 +2425,7 @@
           }
           if (boxEnd > lastChildEnd) {
             for (let i3 = lastChildEnd; i3 < boxEnd; i3++) {
-              byteMap.set(i3, { box, field: "Container Padding", color: "bg-gray-500/20" });
+              byteMap.set(i3, { box, field: "Container Padding", color: reservedColor });
             }
           }
         }
@@ -2441,7 +2441,7 @@
         byteMap.set(i3, {
           box: { type: "UNKNOWN", offset: i3, size: 1 },
           field: "Unmapped Data",
-          color: "bg-gray-700/50"
+          color: reservedColor
         });
       }
     }
@@ -2458,98 +2458,108 @@
       const rowEndByte = Math.min(i3 + bytesPerRow, endByte);
       const rowBytes = view.slice(i3, rowEndByte);
       const offset = i3.toString(16).padStart(8, "0").toUpperCase();
-      const hexParts = [];
-      const asciiParts = [];
+      let hexHtml = "";
+      let asciiHtml = "";
       const baseHexClass = "inline-block h-6 leading-6 w-7 text-center align-middle transition-colors duration-150 cursor-pointer";
-      const baseAsciiClass = "inline-block h-6 leading-6 w-4 text-center align-middle transition-colors duration-150 tracking-tight cursor-pointer";
-      const hoverDefault = "hover:bg-gray-600/50";
+      const baseAsciiClass2 = "inline-block h-6 leading-6 w-4 text-center align-middle transition-colors duration-150 tracking-tight cursor-pointer";
+      const fieldDelimiterClass = "border-l border-gray-400/50";
+      let currentFieldGroup = [];
+      let currentAsciiGroup = [];
+      let lastMapEntry = null;
+      const flushGroup = () => {
+        if (currentFieldGroup.length === 0 || !lastMapEntry) return;
+        const { box, field, color } = lastMapEntry;
+        const dataAttrs = `data-box-offset="${box.offset}" data-field-name="${field}"`;
+        const groupClass = `${color ? color.bg : ""}`;
+        hexHtml += `<span class="inline-block ${groupClass}" ${dataAttrs}>${currentFieldGroup.join("")}</span>`;
+        asciiHtml += `<span class="inline-block ${groupClass}" ${dataAttrs}>${currentAsciiGroup.join("")}</span>`;
+        currentFieldGroup = [];
+        currentAsciiGroup = [];
+      };
       rowBytes.forEach((byte, index) => {
         const byteOffset = i3 + index;
         const mapEntry = byteMap.get(byteOffset);
-        let hexCssClass = baseHexClass;
-        let asciiCssClass = baseAsciiClass;
-        let dataAttrs = `data-byte-offset="${byteOffset}"`;
-        if (mapEntry) {
-          hexCssClass += ` ${mapEntry.color}`;
-          asciiCssClass += ` ${mapEntry.color}`;
-          dataAttrs += ` data-box-offset="${mapEntry.box.offset}" data-field-name="${mapEntry.field}"`;
-        } else {
-          hexCssClass += ` ${hoverDefault}`;
-          asciiCssClass += ` ${hoverDefault}`;
+        if (lastMapEntry && (mapEntry?.box !== lastMapEntry.box || mapEntry?.field !== lastMapEntry.field)) {
+          flushGroup();
         }
+        let hexCssClass = baseHexClass;
+        let asciiCssClass = baseAsciiClass2;
+        if (lastMapEntry && mapEntry?.box === lastMapEntry.box && mapEntry?.field !== lastMapEntry.field) {
+          hexCssClass += ` ${fieldDelimiterClass}`;
+          asciiCssClass += ` ${fieldDelimiterClass}`;
+        }
+        const dataAttrs = `data-byte-offset="${byteOffset}"`;
         const hexByte = byte.toString(16).padStart(2, "0").toUpperCase();
-        hexParts.push(`<span class="${hexCssClass}" ${dataAttrs}>${hexByte}</span>`);
+        currentFieldGroup.push(`<span class="${hexCssClass}" ${dataAttrs}>${hexByte}</span>`);
         const asciiChar = byte >= 32 && byte <= 126 ? String.fromCharCode(byte).replace("<", "&lt;") : ".";
-        asciiParts.push(`<span class="${asciiCssClass}" ${dataAttrs}>${asciiChar}</span>`);
+        currentAsciiGroup.push(`<span class="${asciiCssClass}" ${dataAttrs}>${asciiChar}</span>`);
+        lastMapEntry = mapEntry;
       });
-      while (hexParts.length < bytesPerRow) {
-        hexParts.push(`<span class="${baseHexClass} text-gray-700 select-none"></span>`);
-        asciiParts.push(`<span class="${baseAsciiClass} text-gray-700 select-none"></span>`);
+      flushGroup();
+      const remaining = bytesPerRow - rowBytes.length;
+      if (remaining > 0) {
+        hexHtml += `<span class="inline-block h-6" style="width: ${remaining * 1.75}rem"></span>`;
+        asciiHtml += `<span class="inline-block h-6" style="width: ${remaining * 1}rem"></span>`;
       }
-      const hexHtml = `<div class="flex gap-0">${hexParts.join("")}</div>`;
-      const asciiHtml = `<div class="flex gap-0">${asciiParts.join("")}</div>`;
       rows.push({ offset, hex: hexHtml, ascii: asciiHtml });
     }
     return rows;
   }
 
   // js/features/segment-analysis/isobmff-box-parsers/ftyp.js
-  function parseFtyp(dataView, offset, size) {
-    const majorBrand = String.fromCharCode(
-      dataView.getUint8(offset),
-      dataView.getUint8(offset + 1),
-      dataView.getUint8(offset + 2),
-      dataView.getUint8(offset + 3)
-    );
-    const minorVersion = dataView.getUint32(offset + 4);
+  function parseFtypStyp(box, view) {
+    let currentParseOffset = box.headerSize;
+    const majorBrandBytes = new Uint8Array(view.buffer, view.byteOffset + currentParseOffset, 4);
+    const majorBrand = String.fromCharCode(...majorBrandBytes);
+    box.details["majorBrand"] = { value: majorBrand, offset: box.offset + currentParseOffset, length: 4 };
+    currentParseOffset += 4;
+    const minorVersion = view.getUint32(currentParseOffset);
+    box.details["minorVersion"] = { value: minorVersion, offset: box.offset + currentParseOffset, length: 4 };
+    currentParseOffset += 4;
     const compatibleBrands = [];
-    for (let i3 = 8; i3 < size; i3 += 4) {
-      compatibleBrands.push(
-        String.fromCharCode(
-          dataView.getUint8(offset + i3),
-          dataView.getUint8(offset + i3 + 1),
-          dataView.getUint8(offset + i3 + 2),
-          dataView.getUint8(offset + i3 + 3)
-        )
-      );
+    let compatibleBrandsOffset = currentParseOffset;
+    while (currentParseOffset < box.size) {
+      if (currentParseOffset + 4 > box.size) break;
+      const brandBytes = new Uint8Array(view.buffer, view.byteOffset + currentParseOffset, 4);
+      compatibleBrands.push(String.fromCharCode(...brandBytes));
+      currentParseOffset += 4;
     }
-    return {
-      majorBrand,
-      minorVersion,
-      compatibleBrands
-    };
+    if (compatibleBrands.length > 0) {
+      box.details["compatibleBrands"] = { value: compatibleBrands.join(", "), offset: box.offset + compatibleBrandsOffset, length: currentParseOffset - compatibleBrandsOffset };
+    }
   }
-  var ftypTooltip = {
+  var ftypStypTooltip = {
     ftyp: {
+      name: "File Type",
       text: "File Type Box: declares the major brand, minor version, and compatible brands for the file.",
-      isoRef: "ISO/IEC 14496-12:2022, Section 4.3"
+      ref: "ISO/IEC 14496-12:2022, Section 4.3"
     },
-    "ftyp.majorBrand": {
+    "ftyp@majorBrand": {
       text: "The major brand of the file, indicating its primary specification.",
-      isoRef: "ISO/IEC 14496-12:2022, Section 4.3"
+      ref: "ISO/IEC 14496-12:2022, Section 4.3"
     },
-    "ftyp.minorVersion": {
+    "ftyp@minorVersion": {
       text: "The minor version of the major brand.",
-      isoRef: "ISO/IEC 14496-12:2022, Section 4.3"
+      ref: "ISO/IEC 14496-12:2022, Section 4.3"
     },
-    "ftyp.compatibleBrands": {
+    "ftyp@compatibleBrands": {
       text: "Other brands that the file is compatible with.",
-      isoRef: "ISO/IEC 14496-12:2022, Section 4.3"
+      ref: "ISO/IEC 14496-12:2022, Section 4.3"
     },
     styp: {
       name: "Segment Type",
       text: "Declares the segment's brand and compatibility.",
       ref: "ISO/IEC 14496-12, 8.16.2"
     },
-    "styp@Major Brand": {
+    "styp@majorBrand": {
       text: "The 'best use' specification for the segment.",
       ref: "ISO/IEC 14496-12, 4.3.3"
     },
-    "styp@Minor Version": {
+    "styp@minorVersion": {
       text: "An informative integer for the minor version of the major brand.",
       ref: "ISO/IEC 14496-12, 4.3.3"
     },
-    "styp@Compatible Brands": {
+    "styp@compatibleBrands": {
       text: "A list of other specifications to which the segment complies.",
       ref: "ISO/IEC 14496-12, 4.3.3"
     }
@@ -2557,19 +2567,44 @@
 
   // js/features/segment-analysis/isobmff-box-parsers/mvhd.js
   function parseMvhd(box, view) {
-    const version = view.getUint8(8);
-    box.details["version"] = { value: version, offset: box.offset + 8, length: 1 };
+    let currentParseOffset = box.headerSize;
+    const version = view.getUint8(currentParseOffset);
+    box.details["version"] = { value: version, offset: box.offset + currentParseOffset, length: 1 };
+    currentParseOffset += 4;
     if (version === 1) {
-      box.details["creation_time"] = { value: new Date(Number(view.getBigUint64(12)) * 1e3 - 20828448e5).toISOString(), offset: box.offset + 12, length: 8 };
-      box.details["modification_time"] = { value: new Date(Number(view.getBigUint64(20)) * 1e3 - 20828448e5).toISOString(), offset: box.offset + 20, length: 8 };
-      box.details["timescale"] = { value: view.getUint32(28), offset: box.offset + 28, length: 4 };
-      box.details["duration"] = { value: Number(view.getBigUint64(32)), offset: box.offset + 32, length: 8 };
+      box.details["creation_time"] = { value: new Date(Number(view.getBigUint64(currentParseOffset)) * 1e3 - 20828448e5).toISOString(), offset: box.offset + currentParseOffset, length: 8 };
+      currentParseOffset += 8;
+      box.details["modification_time"] = { value: new Date(Number(view.getBigUint64(currentParseOffset)) * 1e3 - 20828448e5).toISOString(), offset: box.offset + currentParseOffset, length: 8 };
+      currentParseOffset += 8;
+      box.details["timescale"] = { value: view.getUint32(currentParseOffset), offset: box.offset + currentParseOffset, length: 4 };
+      currentParseOffset += 4;
+      box.details["duration"] = { value: Number(view.getBigUint64(currentParseOffset)), offset: box.offset + currentParseOffset, length: 8 };
+      currentParseOffset += 8;
     } else {
-      box.details["creation_time"] = { value: new Date(view.getUint32(12) * 1e3 - 20828448e5).toISOString(), offset: box.offset + 12, length: 4 };
-      box.details["modification_time"] = { value: new Date(view.getUint32(16) * 1e3 - 20828448e5).toISOString(), offset: box.offset + 16, length: 4 };
-      box.details["timescale"] = { value: view.getUint32(20), offset: box.offset + 20, length: 4 };
-      box.details["duration"] = { value: view.getUint32(24), offset: box.offset + 24, length: 4 };
+      box.details["creation_time"] = { value: new Date(view.getUint32(currentParseOffset) * 1e3 - 20828448e5).toISOString(), offset: box.offset + currentParseOffset, length: 4 };
+      currentParseOffset += 4;
+      box.details["modification_time"] = { value: new Date(view.getUint32(currentParseOffset) * 1e3 - 20828448e5).toISOString(), offset: box.offset + currentParseOffset, length: 4 };
+      currentParseOffset += 4;
+      box.details["timescale"] = { value: view.getUint32(currentParseOffset), offset: box.offset + currentParseOffset, length: 4 };
+      currentParseOffset += 4;
+      box.details["duration"] = { value: view.getUint32(currentParseOffset), offset: box.offset + currentParseOffset, length: 4 };
+      currentParseOffset += 4;
     }
+    box.details["rate"] = { value: `${view.getInt16(currentParseOffset)}.${view.getUint16(currentParseOffset + 2)}`, offset: box.offset + currentParseOffset, length: 4 };
+    currentParseOffset += 4;
+    box.details["volume"] = { value: `${view.getInt8(currentParseOffset)}.${view.getUint8(currentParseOffset + 1)}`, offset: box.offset + currentParseOffset, length: 2 };
+    currentParseOffset += 2;
+    box.details["reserved"] = { value: "10 bytes", offset: box.offset + currentParseOffset, length: 10 };
+    currentParseOffset += 10;
+    const matrixValues = [];
+    for (let i3 = 0; i3 < 9; i3++) {
+      matrixValues.push(view.getInt32(currentParseOffset + i3 * 4));
+    }
+    box.details["matrix"] = { value: `[${matrixValues.join(", ")}]`, offset: box.offset + currentParseOffset, length: 36 };
+    currentParseOffset += 36;
+    box.details["pre_defined"] = { value: "24 bytes", offset: box.offset + currentParseOffset, length: 24 };
+    currentParseOffset += 24;
+    box.details["next_track_ID"] = { value: view.getUint32(currentParseOffset), offset: box.offset + currentParseOffset, length: 4 };
   }
   var mvhdTooltip = {
     mvhd: {
@@ -2596,12 +2631,30 @@
     "mvhd@duration": {
       text: "The duration of the presentation in units of the timescale.",
       ref: "ISO/IEC 14496-12, 8.2.2.3"
+    },
+    "mvhd@rate": {
+      text: "A fixed-point 16.16 number that specifies the preferred playback rate (1.0 is normal speed).",
+      ref: "ISO/IEC 14496-12, 8.2.2.3"
+    },
+    "mvhd@volume": {
+      text: "A fixed-point 8.8 number that specifies the preferred playback volume (1.0 is full volume).",
+      ref: "ISO/IEC 14496-12, 8.2.2.3"
+    },
+    "mvhd@matrix": {
+      text: "A transformation matrix for the video, mapping points from video coordinates to display coordinates.",
+      ref: "ISO/IEC 14496-12, 8.2.2.3"
+    },
+    "mvhd@next_track_ID": {
+      text: "A non-zero integer indicating a value for the track ID of the next track to be added to this presentation.",
+      ref: "ISO/IEC 14496-12, 8.2.2.3"
     }
   };
 
   // js/features/segment-analysis/isobmff-box-parsers/mfhd.js
   function parseMfhd(box, view) {
-    box.details["sequence_number"] = { value: view.getUint32(12), offset: box.offset + 12, length: 4 };
+    let currentParseOffset = box.headerSize;
+    currentParseOffset += 4;
+    box.details["sequence_number"] = { value: view.getUint32(currentParseOffset), offset: box.offset + currentParseOffset, length: 4 };
   }
   var mfhdTooltip = {
     mfhd: {
@@ -2617,28 +2670,31 @@
 
   // js/features/segment-analysis/isobmff-box-parsers/tfhd.js
   function parseTfhd(box, view) {
-    let offset = 12;
-    const flags = view.getUint32(8) & 16777215;
-    box.details["track_ID"] = { value: view.getUint32(offset), offset: box.offset + offset, length: 4 };
-    offset += 4;
+    let currentParseOffset = box.headerSize;
+    const flags = view.getUint32(currentParseOffset) & 16777215;
+    box.details["version"] = { value: view.getUint8(currentParseOffset), offset: box.offset + currentParseOffset, length: 1 };
+    box.details["flags"] = { value: `0x${flags.toString(16).padStart(6, "0")}`, offset: box.offset + currentParseOffset, length: 4 };
+    currentParseOffset += 4;
+    box.details["track_ID"] = { value: view.getUint32(currentParseOffset), offset: box.offset + currentParseOffset, length: 4 };
+    currentParseOffset += 4;
     if (flags & 1) {
-      box.details["base_data_offset"] = { value: Number(view.getBigUint64(offset)), offset: box.offset + offset, length: 8 };
-      offset += 8;
+      box.details["base_data_offset"] = { value: Number(view.getBigUint64(currentParseOffset)), offset: box.offset + currentParseOffset, length: 8 };
+      currentParseOffset += 8;
     }
     if (flags & 2) {
-      box.details["sample_description_index"] = { value: view.getUint32(offset), offset: box.offset + offset, length: 4 };
-      offset += 4;
+      box.details["sample_description_index"] = { value: view.getUint32(currentParseOffset), offset: box.offset + currentParseOffset, length: 4 };
+      currentParseOffset += 4;
     }
     if (flags & 8) {
-      box.details["default_sample_duration"] = { value: view.getUint32(offset), offset: box.offset + offset, length: 4 };
-      offset += 4;
+      box.details["default_sample_duration"] = { value: view.getUint32(currentParseOffset), offset: box.offset + currentParseOffset, length: 4 };
+      currentParseOffset += 4;
     }
     if (flags & 16) {
-      box.details["default_sample_size"] = { value: view.getUint32(offset), offset: box.offset + offset, length: 4 };
-      offset += 4;
+      box.details["default_sample_size"] = { value: view.getUint32(currentParseOffset), offset: box.offset + currentParseOffset, length: 4 };
+      currentParseOffset += 4;
     }
     if (flags & 32) {
-      box.details["default_sample_flags"] = { value: `0x${view.getUint32(offset).toString(16)}`, offset: box.offset + offset, length: 4 };
+      box.details["default_sample_flags"] = { value: `0x${view.getUint32(currentParseOffset).toString(16)}`, offset: box.offset + currentParseOffset, length: 4 };
     }
   }
   var tfhdTooltip = {
@@ -2662,17 +2718,35 @@
     "tfhd@sample_description_index": {
       text: "The index of the sample description for this fragment.",
       ref: "ISO/IEC 14496-12, 8.8.7.2"
+    },
+    "tfhd@version": {
+      text: "Version of this box (0 or 1). Affects the size of the decode time field.",
+      ref: "ISO/IEC 14496-12, 8.8.7.2"
+    },
+    "tfhd@default_sample_duration": {
+      text: "Default duration of samples in this track fragment.",
+      ref: "ISO/IEC 14496-12, 8.8.7.2"
+    },
+    "tfhd@default_sample_size": {
+      text: "Default size of samples in this track fragment.",
+      ref: "ISO/IEC 14496-12, 8.8.7.2"
+    },
+    "tfhd@default_sample_flags": {
+      text: "Default flags for samples in this track fragment.",
+      ref: "ISO/IEC 14496-12, 8.8.7.2"
     }
   };
 
   // js/features/segment-analysis/isobmff-box-parsers/tfdt.js
   function parseTfdt(box, view) {
-    const version = view.getUint8(8);
-    box.details["version"] = { value: version, offset: box.offset + 8, length: 1 };
+    let currentParseOffset = box.headerSize;
+    const version = view.getUint8(currentParseOffset);
+    box.details["version"] = { value: version, offset: box.offset + currentParseOffset, length: 1 };
+    currentParseOffset += 4;
     if (version === 1) {
-      box.details["baseMediaDecodeTime"] = { value: Number(view.getBigUint64(12)), offset: box.offset + 12, length: 8 };
+      box.details["baseMediaDecodeTime"] = { value: Number(view.getBigUint64(currentParseOffset)), offset: box.offset + currentParseOffset, length: 8 };
     } else {
-      box.details["baseMediaDecodeTime"] = { value: view.getUint32(12), offset: box.offset + 12, length: 4 };
+      box.details["baseMediaDecodeTime"] = { value: view.getUint32(currentParseOffset), offset: box.offset + currentParseOffset, length: 4 };
     }
   }
   var tfdtTooltip = {
@@ -2693,43 +2767,52 @@
 
   // js/features/segment-analysis/isobmff-box-parsers/trun.js
   function parseTrun(box, view) {
-    const version = view.getUint8(8);
-    const flags = view.getUint32(8) & 16777215;
-    let offset = 12;
-    const sample_count = view.getUint32(offset);
-    box.details["sample_count"] = { value: sample_count, offset: box.offset + offset, length: 4 };
-    offset += 4;
+    let currentParseOffset = box.headerSize;
+    const version = view.getUint8(currentParseOffset);
+    box.details["version"] = { value: version, offset: box.offset + currentParseOffset, length: 1 };
+    const flags = view.getUint32(currentParseOffset) & 16777215;
+    box.details["flags"] = { value: `0x${flags.toString(16).padStart(6, "0")}`, offset: box.offset + currentParseOffset, length: 4 };
+    currentParseOffset += 4;
+    const sample_count = view.getUint32(currentParseOffset);
+    box.details["sample_count"] = { value: sample_count, offset: box.offset + currentParseOffset, length: 4 };
+    currentParseOffset += 4;
     if (flags & 1) {
-      box.details["data_offset"] = { value: view.getInt32(offset), offset: box.offset + offset, length: 4 };
-      offset += 4;
+      box.details["data_offset"] = { value: view.getInt32(currentParseOffset), offset: box.offset + currentParseOffset, length: 4 };
+      currentParseOffset += 4;
     }
     if (flags & 4) {
-      box.details["first_sample_flags"] = { value: `0x${view.getUint32(offset).toString(16)}`, offset: box.offset + offset, length: 4 };
-      offset += 4;
+      box.details["first_sample_flags"] = { value: `0x${view.getUint32(currentParseOffset).toString(16)}`, offset: box.offset + currentParseOffset, length: 4 };
+      currentParseOffset += 4;
     }
-    if (sample_count > 0) {
+    if (sample_count > 0 && currentParseOffset < box.size) {
       let sample_details = "";
+      const sample1DetailsStartOffset = currentParseOffset;
       if (flags & 256) {
-        const duration = view.getUint32(offset);
+        if (currentParseOffset + 4 > box.size) return;
+        const duration = view.getUint32(currentParseOffset);
         sample_details += `Duration: ${duration}`;
-        offset += 4;
+        currentParseOffset += 4;
       }
       if (flags & 512) {
-        const size = view.getUint32(offset);
+        if (currentParseOffset + 4 > box.size) return;
+        const size = view.getUint32(currentParseOffset);
         sample_details += `${sample_details ? ", " : ""}Size: ${size}`;
-        offset += 4;
+        currentParseOffset += 4;
       }
       if (flags & 1024) {
-        const sFlags = view.getUint32(offset);
+        if (currentParseOffset + 4 > box.size) return;
+        const sFlags = view.getUint32(currentParseOffset);
         sample_details += `${sample_details ? ", " : ""}Flags: 0x${sFlags.toString(16)}`;
-        offset += 4;
+        currentParseOffset += 4;
       }
       if (flags & 2048) {
-        const compOffset = version === 0 ? view.getUint32(offset) : view.getInt32(offset);
+        if (currentParseOffset + 4 > box.size) return;
+        const compOffset = version === 0 ? view.getUint32(currentParseOffset) : view.getInt32(currentParseOffset);
         sample_details += `${sample_details ? ", " : ""}Comp. Offset: ${compOffset}`;
+        currentParseOffset += 4;
       }
       if (sample_details) {
-        box.details["sample_1_details"] = { value: sample_details, offset: box.offset + 12, length: offset - 12 };
+        box.details["sample_1_details"] = { value: sample_details, offset: box.offset + sample1DetailsStartOffset, length: currentParseOffset - sample1DetailsStartOffset };
       }
     }
   }
@@ -2767,32 +2850,42 @@
 
   // js/features/segment-analysis/isobmff-box-parsers/sidx.js
   function parseSidx(box, view) {
-    const version = view.getUint8(8);
-    box.details["version"] = { value: version, offset: box.offset + 8, length: 1 };
-    box.details["reference_ID"] = { value: view.getUint32(12), offset: box.offset + 12, length: 4 };
-    box.details["timescale"] = { value: view.getUint32(16), offset: box.offset + 16, length: 4 };
-    let currentOffset = 20;
+    let currentParseOffset = box.headerSize;
+    const version = view.getUint8(currentParseOffset);
+    box.details["version"] = { value: version, offset: box.offset + currentParseOffset, length: 1 };
+    box.details["flags"] = { value: `0x${(view.getUint32(currentParseOffset) & 16777215).toString(16)}`, offset: box.offset + currentParseOffset, length: 4 };
+    currentParseOffset += 4;
+    box.details["reference_ID"] = { value: view.getUint32(currentParseOffset), offset: box.offset + currentParseOffset, length: 4 };
+    currentParseOffset += 4;
+    box.details["timescale"] = { value: view.getUint32(currentParseOffset), offset: box.offset + currentParseOffset, length: 4 };
+    currentParseOffset += 4;
     if (version === 1) {
-      box.details["earliest_presentation_time"] = { value: Number(view.getBigUint64(currentOffset)), offset: box.offset + currentOffset, length: 8 };
-      currentOffset += 8;
-      box.details["first_offset"] = { value: Number(view.getBigUint64(currentOffset)), offset: box.offset + currentOffset, length: 8 };
-      currentOffset += 8;
+      box.details["earliest_presentation_time"] = { value: Number(view.getBigUint64(currentParseOffset)), offset: box.offset + currentParseOffset, length: 8 };
+      currentParseOffset += 8;
+      box.details["first_offset"] = { value: Number(view.getBigUint64(currentParseOffset)), offset: box.offset + currentParseOffset, length: 8 };
+      currentParseOffset += 8;
     } else {
-      box.details["earliest_presentation_time"] = { value: view.getUint32(currentOffset), offset: box.offset + currentOffset, length: 4 };
-      currentOffset += 4;
-      box.details["first_offset"] = { value: view.getUint32(currentOffset), offset: box.offset + currentOffset, length: 4 };
-      currentOffset += 4;
+      box.details["earliest_presentation_time"] = { value: view.getUint32(currentParseOffset), offset: box.offset + currentParseOffset, length: 4 };
+      currentParseOffset += 4;
+      box.details["first_offset"] = { value: view.getUint32(currentParseOffset), offset: box.offset + currentParseOffset, length: 4 };
+      currentParseOffset += 4;
     }
-    currentOffset += 2;
-    const reference_count = view.getUint16(currentOffset);
-    box.details["reference_count"] = { value: reference_count, offset: box.offset + currentOffset, length: 2 };
-    currentOffset += 2;
-    if (reference_count > 0) {
-      const ref_type = view.getUint8(currentOffset) >> 7;
-      box.details["reference_type_1"] = { value: ref_type === 1 ? "sidx" : "media", offset: box.offset + currentOffset, length: 4 };
-      box.details["referenced_size_1"] = { value: view.getUint32(currentOffset) & 2147483647, offset: box.offset + currentOffset, length: 4 };
-      currentOffset += 4;
-      box.details["subsegment_duration_1"] = { value: view.getUint32(currentOffset), offset: box.offset + currentOffset, length: 4 };
+    box.details["reserved"] = { value: "0", offset: box.offset + currentParseOffset, length: 2 };
+    currentParseOffset += 2;
+    const reference_count = view.getUint16(currentParseOffset);
+    box.details["reference_count"] = { value: reference_count, offset: box.offset + currentParseOffset, length: 2 };
+    currentParseOffset += 2;
+    for (let i3 = 0; i3 < reference_count; i3++) {
+      if (currentParseOffset + 12 > box.size) break;
+      const ref_type_and_size = view.getUint32(currentParseOffset);
+      box.details[`reference_${i3 + 1}_type`] = { value: ref_type_and_size >> 31 === 1 ? "sidx" : "media", offset: box.offset + currentParseOffset, length: 4 };
+      box.details[`reference_${i3 + 1}_size`] = { value: ref_type_and_size & 2147483647, offset: box.offset + currentParseOffset, length: 4 };
+      currentParseOffset += 4;
+      box.details[`reference_${i3 + 1}_duration`] = { value: view.getUint32(currentParseOffset), offset: box.offset + currentParseOffset, length: 4 };
+      currentParseOffset += 4;
+      const sap_byte = view.getUint32(currentParseOffset);
+      box.details[`reference_${i3 + 1}_sap_info`] = { value: `0x${sap_byte.toString(16)}`, offset: box.offset + currentParseOffset, length: 4 };
+      currentParseOffset += 4;
     }
   }
   var sidxTooltip = {
@@ -2841,18 +2934,50 @@
 
   // js/features/segment-analysis/isobmff-box-parsers/tkhd.js
   function parseTkhd(box, view) {
-    const version = view.getUint8(8);
-    const flags = view.getUint32(8) & 16777215;
-    box.details["version"] = { value: version, offset: box.offset + 8, length: 1 };
-    box.details["flags"] = { value: `0x${flags.toString(16).padStart(6, "0")}`, offset: box.offset + 8, length: 4 };
-    const idOffset = version === 1 ? 28 : 20;
-    box.details["track_ID"] = { value: view.getUint32(idOffset), offset: box.offset + idOffset, length: 4 };
-    const durationOffset = version === 1 ? 36 : 28;
+    let currentParseOffset = box.headerSize;
+    const version = view.getUint8(currentParseOffset);
+    box.details["version"] = { value: version, offset: box.offset + currentParseOffset, length: 1 };
+    const flags = view.getUint32(currentParseOffset) & 16777215;
+    box.details["flags"] = { value: `0x${flags.toString(16).padStart(6, "0")}`, offset: box.offset + currentParseOffset, length: 4 };
+    currentParseOffset += 4;
+    if (version === 1) {
+      box.details["creation_time"] = { value: new Date(Number(view.getBigUint64(currentParseOffset)) * 1e3 - 20828448e5).toISOString(), offset: box.offset + currentParseOffset, length: 8 };
+      currentParseOffset += 8;
+      box.details["modification_time"] = { value: new Date(Number(view.getBigUint64(currentParseOffset)) * 1e3 - 20828448e5).toISOString(), offset: box.offset + currentParseOffset, length: 8 };
+      currentParseOffset += 8;
+    } else {
+      box.details["creation_time"] = { value: new Date(view.getUint32(currentParseOffset) * 1e3 - 20828448e5).toISOString(), offset: box.offset + currentParseOffset, length: 4 };
+      currentParseOffset += 4;
+      box.details["modification_time"] = { value: new Date(view.getUint32(currentParseOffset) * 1e3 - 20828448e5).toISOString(), offset: box.offset + currentParseOffset, length: 4 };
+      currentParseOffset += 4;
+    }
+    box.details["track_ID"] = { value: view.getUint32(currentParseOffset), offset: box.offset + currentParseOffset, length: 4 };
+    currentParseOffset += 4;
+    box.details["reserved_1"] = { value: "4 bytes", offset: box.offset + currentParseOffset, length: 4 };
+    currentParseOffset += 4;
     const durationLength = version === 1 ? 8 : 4;
-    box.details["duration"] = { value: version === 1 ? Number(view.getBigUint64(durationOffset)) : view.getUint32(durationOffset), offset: box.offset + durationOffset, length: durationLength };
-    const widthOffset = version === 1 ? 88 : 76;
-    box.details["width"] = { value: `${view.getUint16(widthOffset)}.${view.getUint16(widthOffset + 2)}`, offset: box.offset + widthOffset, length: 4 };
-    box.details["height"] = { value: `${view.getUint16(widthOffset + 4)}.${view.getUint16(widthOffset + 6)}`, offset: box.offset + widthOffset + 4, length: 4 };
+    const duration = version === 1 ? Number(view.getBigUint64(currentParseOffset)) : view.getUint32(currentParseOffset);
+    box.details["duration"] = { value: duration, offset: box.offset + currentParseOffset, length: durationLength };
+    currentParseOffset += durationLength;
+    box.details["reserved_2"] = { value: "8 bytes", offset: box.offset + currentParseOffset, length: 8 };
+    currentParseOffset += 8;
+    box.details["layer"] = { value: view.getInt16(currentParseOffset), offset: box.offset + currentParseOffset, length: 2 };
+    currentParseOffset += 2;
+    box.details["alternate_group"] = { value: view.getInt16(currentParseOffset), offset: box.offset + currentParseOffset, length: 2 };
+    currentParseOffset += 2;
+    box.details["volume"] = { value: `${view.getInt8(currentParseOffset)}.${view.getUint8(currentParseOffset + 1)}`, offset: box.offset + currentParseOffset, length: 2 };
+    currentParseOffset += 2;
+    box.details["reserved_3"] = { value: "2 bytes", offset: box.offset + currentParseOffset, length: 2 };
+    currentParseOffset += 2;
+    const matrixValues = [];
+    for (let i3 = 0; i3 < 9; i3++) {
+      matrixValues.push(view.getInt32(currentParseOffset + i3 * 4));
+    }
+    box.details["matrix"] = { value: `[${matrixValues.join(", ")}]`, offset: box.offset + currentParseOffset, length: 36 };
+    currentParseOffset += 36;
+    box.details["width"] = { value: `${view.getUint16(currentParseOffset)}.${view.getUint16(currentParseOffset + 2)}`, offset: box.offset + currentParseOffset, length: 4 };
+    currentParseOffset += 4;
+    box.details["height"] = { value: `${view.getUint16(currentParseOffset)}.${view.getUint16(currentParseOffset + 2)}`, offset: box.offset + currentParseOffset, length: 4 };
   }
   var tkhdTooltip = {
     tkhd: {
@@ -2865,7 +2990,15 @@
       ref: "ISO/IEC 14496-12, 8.3.2.3"
     },
     "tkhd@flags": {
-      text: "A bitmask of track properties (enabled, in movie, in preview).",
+      text: "A bitmask of track properties (1=enabled, 2=in movie, 4=in preview).",
+      ref: "ISO/IEC 14496-12, 8.3.2.3"
+    },
+    "tkhd@creation_time": {
+      text: "The creation time of this track (in seconds since midnight, Jan. 1, 1904, UTC).",
+      ref: "ISO/IEC 14496-12, 8.3.2.3"
+    },
+    "tkhd@modification_time": {
+      text: "The most recent time the track was modified.",
       ref: "ISO/IEC 14496-12, 8.3.2.3"
     },
     "tkhd@track_ID": {
@@ -2874,6 +3007,22 @@
     },
     "tkhd@duration": {
       text: "The duration of this track in the movie's timescale.",
+      ref: "ISO/IEC 14496-12, 8.3.2.3"
+    },
+    "tkhd@layer": {
+      text: "Specifies the front-to-back ordering of video tracks; tracks with lower numbers are closer to the viewer.",
+      ref: "ISO/IEC 14496-12, 8.3.2.3"
+    },
+    "tkhd@alternate_group": {
+      text: "An integer that specifies a group of tracks that are alternatives to each other.",
+      ref: "ISO/IEC 14496-12, 8.3.2.3"
+    },
+    "tkhd@volume": {
+      text: "For audio tracks, a fixed-point 8.8 number indicating the track's relative volume.",
+      ref: "ISO/IEC 14496-12, 8.3.2.3"
+    },
+    "tkhd@matrix": {
+      text: "A transformation matrix for the video in this track.",
       ref: "ISO/IEC 14496-12, 8.3.2.3"
     },
     "tkhd@width": {
@@ -2888,16 +3037,21 @@
 
   // js/features/segment-analysis/isobmff-box-parsers/mdhd.js
   function parseMdhd(box, view) {
-    const version = view.getUint8(8);
-    box.details["version"] = { value: version, offset: box.offset + 8, length: 1 };
-    const tsOffset = version === 1 ? 20 : 12;
+    let currentParseOffset = box.headerSize;
+    const version = view.getUint8(currentParseOffset);
+    box.details["version"] = { value: version, offset: box.offset + currentParseOffset, length: 1 };
+    currentParseOffset += 4;
+    currentParseOffset += version === 1 ? 16 : 8;
+    const timescale = view.getUint32(currentParseOffset);
+    box.details["timescale"] = { value: timescale, offset: box.offset + currentParseOffset, length: 4 };
+    currentParseOffset += 4;
     const durationLength = version === 1 ? 8 : 4;
-    box.details["timescale"] = { value: view.getUint32(tsOffset), offset: box.offset + tsOffset, length: 4 };
-    box.details["duration"] = { value: version === 1 ? Number(view.getBigUint64(tsOffset + 4)) : view.getUint32(tsOffset + 4), offset: box.offset + tsOffset + 4, length: durationLength };
-    const langOffset = tsOffset + durationLength + 4;
-    const lang = view.getUint16(langOffset);
+    const duration = version === 1 ? Number(view.getBigUint64(currentParseOffset)) : view.getUint32(currentParseOffset);
+    box.details["duration"] = { value: duration, offset: box.offset + currentParseOffset, length: durationLength };
+    currentParseOffset += durationLength;
+    const lang = view.getUint16(currentParseOffset);
     const langValue = String.fromCharCode((lang >> 10 & 31) + 96, (lang >> 5 & 31) + 96, (lang & 31) + 96);
-    box.details["language"] = { value: langValue, offset: box.offset + langOffset, length: 2 };
+    box.details["language"] = { value: langValue, offset: box.offset + currentParseOffset, length: 2 };
   }
   var mdhdTooltip = {
     mdhd: {
@@ -2925,10 +3079,24 @@
 
   // js/features/segment-analysis/isobmff-box-parsers/hdlr.js
   function parseHdlr(box, view) {
-    const getString = (start, len) => String.fromCharCode.apply(null, new Uint8Array(view.buffer, view.byteOffset + start, len));
-    box.details["handler_type"] = { value: getString(16, 4), offset: box.offset + 16, length: 4 };
-    const nameLength = box.size - 32;
-    box.details["name"] = { value: getString(32, nameLength).replace(/\0/g, ""), offset: box.offset + 32, length: nameLength };
+    let currentParseOffset = box.headerSize;
+    box.details["version"] = { value: view.getUint8(currentParseOffset), offset: box.offset + currentParseOffset, length: 1 };
+    box.details["flags"] = { value: `0x${(view.getUint32(currentParseOffset) & 16777215).toString(16)}`, offset: box.offset + currentParseOffset, length: 4 };
+    currentParseOffset += 4;
+    box.details["pre_defined"] = { value: "0", offset: box.offset + currentParseOffset, length: 4 };
+    currentParseOffset += 4;
+    const handlerTypeBytes = new Uint8Array(view.buffer, view.byteOffset + currentParseOffset, 4);
+    box.details["handler_type"] = { value: String.fromCharCode(...handlerTypeBytes), offset: box.offset + currentParseOffset, length: 4 };
+    currentParseOffset += 4;
+    box.details["reserved"] = { value: "12 bytes", offset: box.offset + currentParseOffset, length: 12 };
+    currentParseOffset += 12;
+    const nameLength = box.size - currentParseOffset;
+    if (nameLength > 0) {
+      const nameBytes = new Uint8Array(view.buffer, view.byteOffset + currentParseOffset, nameLength);
+      const name = String.fromCharCode(...nameBytes).replace(/\0/g, "");
+      box.details["name"] = { value: name, offset: box.offset + currentParseOffset, length: nameLength };
+      currentParseOffset += nameLength;
+    }
   }
   var hdlrTooltip = {
     hdlr: {
@@ -2948,11 +3116,14 @@
 
   // js/features/segment-analysis/isobmff-box-parsers/vmhd.js
   function parseVmhd(box, view) {
-    const flags = view.getUint32(8) & 16777215;
-    box.details["version"] = { value: view.getUint8(8), offset: box.offset + 8, length: 1 };
-    box.details["flags"] = { value: `0x${flags.toString(16).padStart(6, "0")}`, offset: box.offset + 8, length: 4 };
-    box.details["graphicsmode"] = { value: view.getUint16(12), offset: box.offset + 12, length: 2 };
-    box.details["opcolor"] = { value: `R:${view.getUint16(14)}, G:${view.getUint16(16)}, B:${view.getUint16(18)}`, offset: box.offset + 14, length: 6 };
+    let currentParseOffset = box.headerSize;
+    const flags = view.getUint32(currentParseOffset) & 16777215;
+    box.details["version"] = { value: view.getUint8(currentParseOffset), offset: box.offset + currentParseOffset, length: 1 };
+    box.details["flags"] = { value: `0x${flags.toString(16).padStart(6, "0")}`, offset: box.offset + currentParseOffset, length: 4 };
+    currentParseOffset += 4;
+    box.details["graphicsmode"] = { value: view.getUint16(currentParseOffset), offset: box.offset + currentParseOffset, length: 2 };
+    currentParseOffset += 2;
+    box.details["opcolor"] = { value: `R:${view.getUint16(currentParseOffset)}, G:${view.getUint16(currentParseOffset + 2)}, B:${view.getUint16(currentParseOffset + 4)}`, offset: box.offset + currentParseOffset, length: 6 };
   }
   var vmhdTooltip = {
     vmhd: {
@@ -2980,8 +3151,10 @@
 
   // js/features/segment-analysis/isobmff-box-parsers/stsd.js
   function parseStsd(box, view) {
-    box.details["version"] = { value: view.getUint8(8), offset: box.offset + 8, length: 1 };
-    box.details["entry_count"] = { value: view.getUint32(12), offset: box.offset + 12, length: 4 };
+    let currentParseOffset = box.headerSize;
+    box.details["version"] = { value: view.getUint8(currentParseOffset), offset: box.offset + currentParseOffset, length: 1 };
+    currentParseOffset += 4;
+    box.details["entry_count"] = { value: view.getUint32(currentParseOffset), offset: box.offset + currentParseOffset, length: 4 };
   }
   var stsdTooltip = {
     stsd: {
@@ -2993,27 +3166,25 @@
       text: "The number of sample entries that follow.",
       ref: "ISO/IEC 14496-12, 8.5.2.3"
     },
-    // Tooltips for common sample entries
-    avc1: {
-      name: "AVC Sample Entry",
-      text: "Defines a video sample encoded with H.264/AVC. Contains an avcC box.",
-      ref: "ISO/IEC 14496-15, D.2.1"
-    },
-    mp4a: {
-      name: "MP4 Audio Sample Entry",
-      text: "Defines an audio sample for MPEG-4 audio. Contains an esds box.",
-      ref: "ISO/IEC 14496-14, 5.6.1"
+    "stsd@version": {
+      text: "Version of this box, always 0.",
+      ref: "ISO/IEC 14496-12, 8.5.2.3"
     }
+    // Tooltips for common sample entries (avc1, mp4a) are handled via their own boxes now.
   };
 
   // js/features/segment-analysis/isobmff-box-parsers/stts.js
   function parseStts(box, view) {
-    box.details["version"] = { value: view.getUint8(8), offset: box.offset + 8, length: 1 };
-    const entryCount = view.getUint32(12);
-    box.details["entry_count"] = { value: entryCount, offset: box.offset + 12, length: 4 };
+    let currentParseOffset = box.headerSize;
+    box.details["version"] = { value: view.getUint8(currentParseOffset), offset: box.offset + currentParseOffset, length: 1 };
+    currentParseOffset += 4;
+    const entryCount = view.getUint32(currentParseOffset);
+    box.details["entry_count"] = { value: entryCount, offset: box.offset + currentParseOffset, length: 4 };
+    currentParseOffset += 4;
     if (entryCount > 0) {
-      box.details["sample_count_1"] = { value: view.getUint32(16), offset: box.offset + 16, length: 4 };
-      box.details["sample_delta_1"] = { value: view.getUint32(20), offset: box.offset + 20, length: 4 };
+      box.details["sample_count_1"] = { value: view.getUint32(currentParseOffset), offset: box.offset + currentParseOffset, length: 4 };
+      currentParseOffset += 4;
+      box.details["sample_delta_1"] = { value: view.getUint32(currentParseOffset), offset: box.offset + currentParseOffset, length: 4 };
     }
   }
   var sttsTooltip = {
@@ -3042,13 +3213,18 @@
 
   // js/features/segment-analysis/isobmff-box-parsers/stsc.js
   function parseStsc(box, view) {
-    box.details["version"] = { value: view.getUint8(8), offset: box.offset + 8, length: 1 };
-    const entryCount = view.getUint32(12);
-    box.details["entry_count"] = { value: entryCount, offset: box.offset + 12, length: 4 };
+    let currentParseOffset = box.headerSize;
+    box.details["version"] = { value: view.getUint8(currentParseOffset), offset: box.offset + currentParseOffset, length: 1 };
+    currentParseOffset += 4;
+    const entryCount = view.getUint32(currentParseOffset);
+    box.details["entry_count"] = { value: entryCount, offset: box.offset + currentParseOffset, length: 4 };
+    currentParseOffset += 4;
     if (entryCount > 0) {
-      box.details["first_chunk_1"] = { value: view.getUint32(16), offset: box.offset + 16, length: 4 };
-      box.details["samples_per_chunk_1"] = { value: view.getUint32(20), offset: box.offset + 20, length: 4 };
-      box.details["sample_description_index_1"] = { value: view.getUint32(24), offset: box.offset + 24, length: 4 };
+      box.details["first_chunk_1"] = { value: view.getUint32(currentParseOffset), offset: box.offset + currentParseOffset, length: 4 };
+      currentParseOffset += 4;
+      box.details["samples_per_chunk_1"] = { value: view.getUint32(currentParseOffset), offset: box.offset + currentParseOffset, length: 4 };
+      currentParseOffset += 4;
+      box.details["sample_description_index_1"] = { value: view.getUint32(currentParseOffset), offset: box.offset + currentParseOffset, length: 4 };
     }
   }
   var stscTooltip = {
@@ -3081,9 +3257,12 @@
 
   // js/features/segment-analysis/isobmff-box-parsers/stsz.js
   function parseStsz(box, view) {
-    box.details["version"] = { value: view.getUint8(8), offset: box.offset + 8, length: 1 };
-    box.details["sample_size"] = { value: view.getUint32(12), offset: box.offset + 12, length: 4 };
-    box.details["sample_count"] = { value: view.getUint32(16), offset: box.offset + 16, length: 4 };
+    let currentParseOffset = box.headerSize;
+    box.details["version"] = { value: view.getUint8(currentParseOffset), offset: box.offset + currentParseOffset, length: 1 };
+    currentParseOffset += 4;
+    box.details["sample_size"] = { value: view.getUint32(currentParseOffset), offset: box.offset + currentParseOffset, length: 4 };
+    currentParseOffset += 4;
+    box.details["sample_count"] = { value: view.getUint32(currentParseOffset), offset: box.offset + currentParseOffset, length: 4 };
   }
   var stszTooltip = {
     stsz: {
@@ -3107,11 +3286,14 @@
 
   // js/features/segment-analysis/isobmff-box-parsers/stco.js
   function parseStco(box, view) {
-    box.details["version"] = { value: view.getUint8(8), offset: box.offset + 8, length: 1 };
-    const entryCount = view.getUint32(12);
-    box.details["entry_count"] = { value: entryCount, offset: box.offset + 12, length: 4 };
+    let currentParseOffset = box.headerSize;
+    box.details["version"] = { value: view.getUint8(currentParseOffset), offset: box.offset + currentParseOffset, length: 1 };
+    currentParseOffset += 4;
+    const entryCount = view.getUint32(currentParseOffset);
+    box.details["entry_count"] = { value: entryCount, offset: box.offset + currentParseOffset, length: 4 };
+    currentParseOffset += 4;
     if (entryCount > 0) {
-      box.details["chunk_offset_1"] = { value: view.getUint32(16), offset: box.offset + 16, length: 4 };
+      box.details["chunk_offset_1"] = { value: view.getUint32(currentParseOffset), offset: box.offset + currentParseOffset, length: 4 };
     }
   }
   var stcoTooltip = {
@@ -3136,18 +3318,24 @@
 
   // js/features/segment-analysis/isobmff-box-parsers/elst.js
   function parseElst(box, view) {
-    const version = view.getUint8(8);
-    box.details["version"] = { value: version, offset: box.offset + 8, length: 1 };
-    const entryCount = view.getUint32(12);
-    box.details["entry_count"] = { value: entryCount, offset: box.offset + 12, length: 4 };
+    let currentParseOffset = box.headerSize;
+    const version = view.getUint8(currentParseOffset);
+    box.details["version"] = { value: version, offset: box.offset + currentParseOffset, length: 1 };
+    currentParseOffset += 4;
+    const entryCount = view.getUint32(currentParseOffset);
+    box.details["entry_count"] = { value: entryCount, offset: box.offset + currentParseOffset, length: 4 };
+    currentParseOffset += 4;
     if (entryCount > 0) {
-      const entryOffset = 16;
       if (version === 1) {
-        box.details["segment_duration_1"] = { value: Number(view.getBigUint64(entryOffset)), offset: box.offset + entryOffset, length: 8 };
-        box.details["media_time_1"] = { value: Number(view.getBigInt64(entryOffset + 8)), offset: box.offset + entryOffset + 8, length: 8 };
+        box.details["segment_duration_1"] = { value: Number(view.getBigUint64(currentParseOffset)), offset: box.offset + currentParseOffset, length: 8 };
+        currentParseOffset += 8;
+        box.details["media_time_1"] = { value: Number(view.getBigInt64(currentParseOffset)), offset: box.offset + currentParseOffset, length: 8 };
+        currentParseOffset += 8;
       } else {
-        box.details["segment_duration_1"] = { value: view.getUint32(entryOffset), offset: box.offset + entryOffset, length: 4 };
-        box.details["media_time_1"] = { value: view.getInt32(entryOffset + 4), offset: box.offset + entryOffset + 4, length: 4 };
+        box.details["segment_duration_1"] = { value: view.getUint32(currentParseOffset), offset: box.offset + currentParseOffset, length: 4 };
+        currentParseOffset += 4;
+        box.details["media_time_1"] = { value: view.getInt32(currentParseOffset), offset: box.offset + currentParseOffset, length: 4 };
+        currentParseOffset += 4;
       }
     }
   }
@@ -3177,11 +3365,17 @@
 
   // js/features/segment-analysis/isobmff-box-parsers/trex.js
   function parseTrex(box, view) {
-    box.details["track_ID"] = { value: view.getUint32(12), offset: box.offset + 12, length: 4 };
-    box.details["default_sample_description_index"] = { value: view.getUint32(16), offset: box.offset + 16, length: 4 };
-    box.details["default_sample_duration"] = { value: view.getUint32(20), offset: box.offset + 20, length: 4 };
-    box.details["default_sample_size"] = { value: view.getUint32(24), offset: box.offset + 24, length: 4 };
-    box.details["default_sample_flags"] = { value: `0x${view.getUint32(28).toString(16)}`, offset: box.offset + 28, length: 4 };
+    let currentParseOffset = box.headerSize;
+    currentParseOffset += 4;
+    box.details["track_ID"] = { value: view.getUint32(currentParseOffset), offset: box.offset + currentParseOffset, length: 4 };
+    currentParseOffset += 4;
+    box.details["default_sample_description_index"] = { value: view.getUint32(currentParseOffset), offset: box.offset + currentParseOffset, length: 4 };
+    currentParseOffset += 4;
+    box.details["default_sample_duration"] = { value: view.getUint32(currentParseOffset), offset: box.offset + currentParseOffset, length: 4 };
+    currentParseOffset += 4;
+    box.details["default_sample_size"] = { value: view.getUint32(currentParseOffset), offset: box.offset + currentParseOffset, length: 4 };
+    currentParseOffset += 4;
+    box.details["default_sample_flags"] = { value: `0x${view.getUint32(currentParseOffset).toString(16)}`, offset: box.offset + currentParseOffset, length: 4 };
   }
   var trexTooltip = {
     trex: {
@@ -3282,27 +3476,38 @@
 
   // js/features/segment-analysis/isobmff-box-parsers/avcc.js
   function parseAvcc(box, view) {
-    let offset = box.contentOffset - box.offset + 8;
-    box.details["configurationVersion"] = { value: view.getUint8(offset), offset: box.offset + offset, length: 1 };
-    offset += 1;
-    box.details["AVCProfileIndication"] = { value: view.getUint8(offset), offset: box.offset + offset, length: 1 };
-    offset += 1;
-    box.details["profile_compatibility"] = { value: view.getUint8(offset), offset: box.offset + offset, length: 1 };
-    offset += 1;
-    box.details["AVCLevelIndication"] = { value: view.getUint8(offset), offset: box.offset + offset, length: 1 };
-    offset += 1;
-    const spsCount = view.getUint8(offset + 1) & 31;
-    box.details["numOfSequenceParameterSets"] = { value: spsCount, offset: box.offset + offset + 1, length: 1 };
-    offset += 2;
-    if (spsCount > 0) {
-      const spsLength = view.getUint16(offset);
-      box.details["sps_1_length"] = { value: spsLength, offset: box.offset + offset, length: 2 };
-      offset += 2;
-      box.details["sps_1_nal_unit"] = { value: `... ${spsLength} bytes`, offset: box.offset + offset, length: spsLength };
-      offset += spsLength;
+    let currentParseOffset = box.headerSize;
+    box.details["configurationVersion"] = { value: view.getUint8(currentParseOffset), offset: box.offset + currentParseOffset, length: 1 };
+    currentParseOffset += 1;
+    box.details["AVCProfileIndication"] = { value: view.getUint8(currentParseOffset), offset: box.offset + currentParseOffset, length: 1 };
+    currentParseOffset += 1;
+    box.details["profile_compatibility"] = { value: view.getUint8(currentParseOffset), offset: box.offset + currentParseOffset, length: 1 };
+    currentParseOffset += 1;
+    box.details["AVCLevelIndication"] = { value: view.getUint8(currentParseOffset), offset: box.offset + currentParseOffset, length: 1 };
+    currentParseOffset += 1;
+    const spsByte = view.getUint8(currentParseOffset);
+    box.details["lengthSizeMinusOne"] = { value: spsByte >> 5 & 3, offset: box.offset + currentParseOffset, length: 1 };
+    box.details["reserved_1"] = { value: spsByte >> 5 & 7, offset: box.offset + currentParseOffset, length: 1 };
+    const spsCount = spsByte & 31;
+    box.details["numOfSequenceParameterSets"] = { value: spsCount, offset: box.offset + currentParseOffset, length: 1 };
+    currentParseOffset += 1;
+    for (let i3 = 0; i3 < spsCount; i3++) {
+      const spsLength = view.getUint16(currentParseOffset);
+      box.details[`sps_${i3 + 1}_length`] = { value: spsLength, offset: box.offset + currentParseOffset, length: 2 };
+      currentParseOffset += 2;
+      box.details[`sps_${i3 + 1}_nal_unit`] = { value: `... ${spsLength} bytes`, offset: box.offset + currentParseOffset, length: spsLength };
+      currentParseOffset += spsLength;
     }
-    const ppsCount = view.getUint8(offset);
-    box.details["numOfPictureParameterSets"] = { value: ppsCount, offset: box.offset + offset, length: 1 };
+    const ppsCount = view.getUint8(currentParseOffset);
+    box.details["numOfPictureParameterSets"] = { value: ppsCount, offset: box.offset + currentParseOffset, length: 1 };
+    currentParseOffset += 1;
+    for (let i3 = 0; i3 < ppsCount; i3++) {
+      const ppsLength = view.getUint16(currentParseOffset);
+      box.details[`pps_${i3 + 1}_length`] = { value: ppsLength, offset: box.offset + currentParseOffset, length: 2 };
+      currentParseOffset += 2;
+      box.details[`pps_${i3 + 1}_nal_unit`] = { value: `... ${ppsLength} bytes`, offset: box.offset + currentParseOffset, length: ppsLength };
+      currentParseOffset += ppsLength;
+    }
   }
   var avccTooltip = {
     avcC: {
@@ -3317,20 +3522,46 @@
     "avcC@AVCLevelIndication": {
       text: "Specifies the level to which the stream conforms.",
       ref: "ISO/IEC 14496-10"
+    },
+    "avcC@configurationVersion": {
+      text: "The version of the AVC profile and level indication.",
+      ref: "ISO/IEC 14496-15, 5.3.3.1.2"
+    },
+    "avcC@profile_compatibility": {
+      text: "Flags that indicate compatibility of the stream with AVC profiles.",
+      ref: "ISO/IEC 14496-15, 5.3.3.1.2"
+    },
+    "avcC@numOfSequenceParameterSets": {
+      text: "The number of Sequence Parameter Sets (SPS) in this configuration.",
+      ref: "ISO/IEC 14496-15, 5.3.3.1.2"
+    },
+    "avcC@sps_1_length": {
+      text: "The length in bytes of the first SPS NAL unit.",
+      ref: "ISO/IEC 14496-15, 5.3.3.1.2"
+    },
+    "avcC@sps_1_nal_unit": {
+      text: "The raw bytes of the first SPS NAL unit.",
+      ref: "ISO/IEC 14496-15, 5.3.3.1.2"
+    },
+    "avcC@numOfPictureParameterSets": {
+      text: "The number of Picture Parameter Sets (PPS) in this configuration.",
+      ref: "ISO/IEC 14496-15, 5.3.3.1.2"
     }
   };
 
   // js/features/segment-analysis/isobmff-box-parsers/esds.js
   function parseEsds(box, view) {
-    let offset = box.contentOffset - box.offset + 4;
-    while (offset < box.size - 5) {
-      if (view.getUint8(offset) === 4) {
-        box.details["decoderConfigDescriptorTag"] = { value: "0x04", offset: box.offset + offset, length: 1 };
-        const audioObjectType = view.getUint8(offset + 2) >> 3;
-        box.details["audioObjectType"] = { value: audioObjectType, offset: box.offset + offset + 2, length: 1 };
+    let currentParseOffset = box.headerSize + 4;
+    while (currentParseOffset < box.size) {
+      if (view.getUint8(currentParseOffset) === 4) {
+        box.details["decoderConfigDescriptorTag"] = { value: "0x04", offset: box.offset + currentParseOffset, length: 1 };
+        if (currentParseOffset + 2 < box.size) {
+          const audioObjectType = view.getUint8(currentParseOffset + 2) >> 3;
+          box.details["audioObjectType"] = { value: audioObjectType, offset: box.offset + currentParseOffset + 2, length: 1 };
+        }
         break;
       }
-      offset++;
+      currentParseOffset++;
     }
   }
   var esdsTooltip = {
@@ -3347,8 +3578,10 @@
 
   // js/features/segment-analysis/isobmff-box-parsers/smhd.js
   function parseSmhd(box, view) {
-    box.details["version"] = { value: view.getUint8(8), offset: box.offset + 8, length: 1 };
-    box.details["balance"] = { value: view.getInt16(12), offset: box.offset + 12, length: 2 };
+    let currentParseOffset = box.headerSize;
+    box.details["version"] = { value: view.getUint8(currentParseOffset), offset: box.offset + currentParseOffset, length: 1 };
+    currentParseOffset += 4;
+    box.details["balance"] = { value: view.getInt16(currentParseOffset), offset: box.offset + currentParseOffset, length: 2 };
   }
   var smhdTooltip = {
     smhd: {
@@ -3359,29 +3592,41 @@
     "smhd@balance": {
       text: "A fixed-point 8.8 number that places mono audio tracks in a stereo space (0 = center).",
       ref: "ISO/IEC 14496-12, 8.4.5.3.2"
+    },
+    "smhd@version": {
+      text: "Version of this box, always 0.",
+      ref: "ISO/IEC 14496-12, 8.4.5.3.2"
     }
   };
 
   // js/features/segment-analysis/isobmff-box-parsers/pssh.js
   function parsePssh(box, view) {
-    const version = view.getUint8(8);
-    box.details["version"] = { value: version, offset: box.offset + 8, length: 1 };
-    let offset = 12;
+    let currentParseOffset = box.headerSize;
+    const version = view.getUint8(currentParseOffset);
+    box.details["version"] = { value: version, offset: box.offset + currentParseOffset, length: 1 };
+    currentParseOffset += 4;
     const systemIdBytes = [];
     for (let i3 = 0; i3 < 16; i3++) {
-      systemIdBytes.push(view.getUint8(offset + i3).toString(16).padStart(2, "0"));
+      systemIdBytes.push(view.getUint8(currentParseOffset + i3).toString(16).padStart(2, "0"));
     }
-    box.details["System ID"] = { value: systemIdBytes.join("-"), offset: box.offset + offset, length: 16 };
-    offset += 16;
+    box.details["System ID"] = { value: systemIdBytes.join("-"), offset: box.offset + currentParseOffset, length: 16 };
+    currentParseOffset += 16;
     if (version > 0) {
-      const keyIdCount = view.getUint32(offset);
-      box.details["Key ID Count"] = { value: keyIdCount, offset: box.offset + offset, length: 4 };
-      offset += 4 + keyIdCount * 16;
+      const keyIdCount = view.getUint32(currentParseOffset);
+      box.details["Key ID Count"] = { value: keyIdCount, offset: box.offset + currentParseOffset, length: 4 };
+      currentParseOffset += 4;
+      currentParseOffset += keyIdCount * 16;
     }
-    const dataSize = view.getUint32(offset);
-    box.details["Data Size"] = { value: dataSize, offset: box.offset + offset, length: 4 };
+    const dataSize = view.getUint32(currentParseOffset);
+    box.details["Data Size"] = { value: dataSize, offset: box.offset + currentParseOffset, length: 4 };
+    currentParseOffset += 4;
   }
   var psshTooltip = {
+    pssh: {
+      name: "Protection System Specific Header",
+      text: "Contains DRM initialization data.",
+      ref: "ISO/IEC 23001-7"
+    },
     "pssh@System ID": {
       text: "A 16-byte UUID that uniquely identifies the DRM system (e.g., Widevine, PlayReady).",
       ref: "ISO/IEC 23001-7, 5.1.2"
@@ -3389,13 +3634,23 @@
     "pssh@Data Size": {
       text: "The size of the system-specific initialization data that follows.",
       ref: "ISO/IEC 23001-7, 5.1.2"
+    },
+    "pssh@version": {
+      text: "Version of this box (0 or 1). Version 1 includes key IDs.",
+      ref: "ISO/IEC 23001-7, 5.1.2"
+    },
+    "pssh@Key ID Count": {
+      text: "The number of key IDs present in the box (only for version 1).",
+      ref: "ISO/IEC 23001-7, 5.1.2"
     }
   };
 
   // js/features/segment-analysis/isobmff-box-parsers/index.js
   var boxParsers = {
-    ftyp: parseFtyp,
-    styp: parseFtyp,
+    ftyp: parseFtypStyp,
+    // Use the unified parser
+    styp: parseFtypStyp,
+    // Use the unified parser
     mvhd: parseMvhd,
     mfhd: parseMfhd,
     tfhd: parseTfhd,
@@ -3420,7 +3675,8 @@
   };
   var tooltipData = {
     ...groupTooltipData,
-    ...ftypTooltip,
+    ...ftypStypTooltip,
+    // Use the unified tooltip data
     ...elstTooltip,
     ...hdlrTooltip,
     ...mvhdTooltip,
@@ -3446,7 +3702,7 @@
 
   // js/features/segment-analysis/isobmff-parser.js
   var getTooltipData = () => tooltipData;
-  function parseISOBMFF(buffer, baseOffset = 0, isSampleDescription = false) {
+  function parseISOBMFF(buffer, baseOffset = 0) {
     const boxes = [];
     let offset = 0;
     const dataView = new DataView(buffer);
@@ -3458,44 +3714,56 @@
         new Uint8Array(buffer, offset + 4, 4)
       );
       let headerSize = 8;
-      if (isSampleDescription) {
-        headerSize = 8 + 28;
-      }
+      let actualSize = size;
+      let sizeFieldLength = 4;
       if (size === 1) {
         if (offset + 16 > buffer.byteLength) break;
-        size = Number(dataView.getBigUint64(offset + 8));
-        headerSize = isSampleDescription ? headerSize : 16;
+        actualSize = Number(dataView.getBigUint64(offset + 8));
+        headerSize = 16;
+        sizeFieldLength = 12;
       } else if (size === 0) {
-        size = buffer.byteLength - offset;
+        actualSize = buffer.byteLength - offset;
       }
-      if (offset + size > buffer.byteLength || size < headerSize) {
+      if (offset + actualSize > buffer.byteLength || actualSize < headerSize) {
         break;
       }
       const box = {
         type,
-        size,
+        size: actualSize,
         offset: baseOffset + offset,
         contentOffset: baseOffset + offset + headerSize,
+        // Content starts after the standard header
         headerSize,
         children: [],
         details: {}
       };
-      parseBoxDetails(box, new DataView(buffer, offset, size));
-      const containerBoxes = ["moof", "traf", "moov", "trak", "mdia", "minf", "stbl", "mvex", "edts", "avc1", "mp4a"];
-      if (containerBoxes.includes(type) || isSampleDescription) {
-        const childrenBuffer = buffer.slice(offset + headerSize, offset + size);
-        if (childrenBuffer.byteLength > 0) {
-          box.children = parseISOBMFF(childrenBuffer, box.contentOffset);
+      box.details["size"] = { value: `${actualSize} bytes`, offset: box.offset, length: sizeFieldLength };
+      box.details["type"] = { value: type, offset: box.offset + 4, length: 4 };
+      parseBoxDetails(box, new DataView(buffer, offset, actualSize));
+      const containerBoxes = ["moof", "traf", "moov", "trak", "mdia", "minf", "stbl", "mvex", "edts", "avc1", "mp4a", "styp"];
+      if (containerBoxes.includes(type)) {
+        let childrenParseOffset = box.contentOffset;
+        if (type === "avc1" || type === "mp4a") {
+          childrenParseOffset += 28;
+        }
+        const childrenBufferStart = offset + (childrenParseOffset - box.offset);
+        const childrenBufferEnd = offset + actualSize;
+        if (childrenBufferStart < childrenBufferEnd) {
+          const childrenBuffer = buffer.slice(childrenBufferStart, childrenBufferEnd);
+          if (childrenBuffer.byteLength > 0) {
+            box.children = parseISOBMFF(childrenBuffer, childrenParseOffset);
+          }
         }
       }
       if (type === "stsd") {
-        const childrenBuffer = buffer.slice(offset + 16, offset + size);
+        const stsdHeaderLength = 16;
+        const childrenBuffer = buffer.slice(offset + stsdHeaderLength, offset + actualSize);
         if (childrenBuffer.byteLength > 0) {
-          box.children = parseISOBMFF(childrenBuffer, box.offset + 16, true);
+          box.children = parseISOBMFF(childrenBuffer, box.offset + stsdHeaderLength);
         }
       }
       boxes.push(box);
-      offset += size;
+      offset += actualSize;
     }
     return boxes;
   }
@@ -3525,6 +3793,8 @@
   var BYTES_PER_PAGE = 1024;
   var parsedSegmentData = null;
   var boxTooltipData = getTooltipData();
+  var selectedBoxOffset = null;
+  var keydownListener = null;
   function findBoxByOffset(boxes, offset) {
     for (const box of boxes) {
       if (box.offset === offset) {
@@ -3537,72 +3807,156 @@
     }
     return null;
   }
+  function updateInspectorPanel(box, highlightedField = null) {
+    const inspector = dom.tabContents["interactive-segment"].querySelector(".segment-inspector-panel");
+    if (!inspector) return;
+    if (box) {
+      B(createInspectorTemplate(box, highlightedField), inspector);
+      inspector.classList.remove("opacity-0");
+      if (highlightedField) {
+        const fieldRow = inspector.querySelector(`[data-field-name="${highlightedField}"]`);
+        fieldRow?.scrollIntoView({ block: "nearest" });
+      }
+    } else {
+      B(x``, inspector);
+      inspector.classList.add("opacity-0");
+    }
+  }
+  function applySelectionHighlight() {
+    const container = dom.tabContents["interactive-segment"];
+    container.querySelectorAll(".is-highlighted").forEach((el) => el.classList.remove("is-highlighted"));
+    if (selectedBoxOffset !== null) {
+      container.querySelectorAll(`[data-box-offset="${selectedBoxOffset}"]`).forEach((el) => {
+        el.classList.add("is-highlighted");
+      });
+    }
+  }
   function initializeSegmentViewInteractivity() {
     const container = dom.tabContents["interactive-segment"];
     if (!container || !parsedSegmentData) return;
-    const tooltip = container.querySelector(".segment-inspector-tooltip");
-    const hexView = container.querySelector(".hex-viewer-area");
-    container.addEventListener("mousemove", (e4) => {
-      const target = e4.target.closest("[data-box-offset]");
-      if (target && tooltip) {
-        const boxOffset = parseInt(target.dataset.boxOffset);
-        const fieldName = target.dataset.fieldName;
-        const box = findBoxByOffset(parsedSegmentData, boxOffset);
-        if (box) {
-          tooltip.innerHTML = createInspectorTooltipHTML(box, fieldName);
-          tooltip.style.display = "block";
-          const containerRect = container.getBoundingClientRect();
-          const x2 = e4.clientX - containerRect.left + 20;
-          const y2 = e4.clientY - containerRect.top + 20;
-          tooltip.style.transform = `translate(${x2}px, ${y2}px)`;
-        }
-      } else if (tooltip) {
-        tooltip.style.display = "none";
+    selectedBoxOffset = null;
+    if (keydownListener) {
+      document.removeEventListener("keydown", keydownListener);
+    }
+    keydownListener = (e4) => {
+      if (e4.key === "Escape" && selectedBoxOffset !== null) {
+        selectedBoxOffset = null;
+        applySelectionHighlight();
+        updateInspectorPanel(null);
       }
-    });
-    container.addEventListener("click", (e4) => {
-      const treeNode = e4.target.closest("[data-tree-offset]");
-      const hexNode = e4.target.closest("[data-byte-offset]");
-      let targetOffset = -1;
-      if (treeNode) {
-        targetOffset = parseInt(treeNode.dataset.treeOffset);
-        const targetRowOffset = Math.floor(targetOffset / 16) * 16;
-        const rowEl = hexView.querySelector(`[data-row-offset="${targetRowOffset}"]`);
-        rowEl?.scrollIntoView({ behavior: "smooth", block: "center" });
-      } else if (hexNode) {
-        targetOffset = parseInt(hexNode.dataset.boxOffset);
-      }
-      container.querySelectorAll(".is-highlighted").forEach((el) => el.classList.remove("is-highlighted"));
-      if (targetOffset > -1) {
-        container.querySelectorAll(`[data-tree-offset="${targetOffset}"], [data-box-offset="${targetOffset}"]`).forEach((el) => {
-          el.classList.add("is-highlighted");
+    };
+    document.addEventListener("keydown", keydownListener);
+    const handleHover = (e4) => {
+      const target = e4.target.closest("[data-byte-offset]");
+      if (!target) return;
+      const byteOffset = parseInt(target.dataset.byteOffset);
+      const fieldEl = target.closest("[data-field-name]");
+      if (!fieldEl) return;
+      const boxOffset = parseInt(fieldEl.dataset.boxOffset);
+      const fieldName = fieldEl.dataset.fieldName;
+      container.querySelectorAll(".is-field-highlighted, .is-char-highlighted").forEach(
+        (el) => el.classList.remove("is-field-highlighted", "is-char-highlighted")
+      );
+      const charEl = container.querySelector(`[data-byte-offset="${byteOffset}"].${CSS.escape(baseAsciiClass.split(" ").join("."))}`);
+      if (charEl) charEl.classList.add("is-char-highlighted");
+      if (boxOffset >= 0 && fieldName) {
+        container.querySelectorAll(`[data-box-offset="${boxOffset}"][data-field-name="${fieldName}"]`).forEach((el) => {
+          el.classList.add("is-field-highlighted");
+        });
+        container.querySelectorAll(`[data-box-offset="${boxOffset}"][data-field-name="tree-view"]`).forEach((el) => {
+          el.classList.add("is-field-highlighted");
         });
       }
+      if (selectedBoxOffset === null) {
+        const box = findBoxByOffset(parsedSegmentData, boxOffset);
+        const isReserved = fieldName && (fieldName.includes("reserved") || fieldName.includes("Padding"));
+        updateInspectorPanel(box, isReserved ? null : fieldName);
+      }
+    };
+    const handleMouseOut = (e4) => {
+      if (!e4.currentTarget.contains(e4.relatedTarget)) {
+        container.querySelectorAll(".is-field-highlighted, .is-char-highlighted").forEach(
+          (el) => el.classList.remove("is-field-highlighted", "is-char-highlighted")
+        );
+      }
+    };
+    container.addEventListener("mouseover", handleHover);
+    container.addEventListener("mouseout", handleMouseOut);
+    container.addEventListener("click", (e4) => {
+      const summary = e4.target.closest("summary");
+      if (summary) {
+        e4.preventDefault();
+      }
+      const targetNode = e4.target.closest("[data-box-offset]");
+      if (!targetNode) return;
+      const targetOffset = parseInt(targetNode.dataset.boxOffset);
+      if (selectedBoxOffset === targetOffset) {
+        selectedBoxOffset = null;
+        updateInspectorPanel(null);
+      } else {
+        selectedBoxOffset = targetOffset;
+        const box = findBoxByOffset(parsedSegmentData, selectedBoxOffset);
+        updateInspectorPanel(box);
+      }
+      applySelectionHighlight();
+      if (targetNode.closest(".box-tree-area")) {
+        const hexView = container.querySelector(".hex-viewer-area");
+        const targetRowOffset = Math.floor(targetOffset / 16) * 16;
+        const rowEl = hexView?.querySelector(`[data-row-offset="${targetRowOffset}"]`);
+        rowEl?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
     });
-  }
-  function createInspectorTooltipHTML(box, highlightedField) {
-    const boxInfo = boxTooltipData[box.type] || {};
-    let fieldsHtml = '<tr><td colspan="2" class="p-1 text-xs text-gray-400">No parsed details.</td></tr>';
-    const allFields = { Header: { value: `${box.headerSize} bytes`, ...box }, ...box.details };
-    if (Object.keys(allFields).length > 0) {
-      fieldsHtml = Object.entries(allFields).map(([key, field]) => {
-        const isHighlighted = key === highlightedField ? "bg-blue-500/30" : "";
-        const fieldInfo = boxTooltipData[`${box.type}@${key}`] || {};
-        return `
-                <tr class="${isHighlighted}">
-                    <td class="p-1 pr-2 text-xs text-gray-400 align-top" title="${fieldInfo.text || ""}">${key}</td>
-                    <td class="p-1 text-xs font-mono text-white break-all">${field.value !== void 0 ? field.value : "N/A"}</td>
-                </tr>
-            `;
-      }).join("");
+    if (parsedSegmentData.length > 0) {
+      updateInspectorPanel(parsedSegmentData[0]);
     }
-    return `
-        <div class="font-bold text-base mb-1">${box.type} <span class="text-sm text-gray-400">(${box.size} bytes)</span></div>
-        <div class="text-xs text-emerald-400 mb-2 font-mono">${boxInfo.ref || ""}</div>
-        <p class="text-xs text-gray-300 mb-2">${boxInfo.text || "No description available."}</p>
-        <table class="w-full">${fieldsHtml}</table>
-    `;
   }
+  var createInspectorTemplate = (box, highlightedField) => {
+    const boxInfo = boxTooltipData[box.type] || {};
+    const fields = Object.entries(box.details).map(([key, field]) => {
+      const highlightClass = key === highlightedField ? "bg-blue-900/50" : "";
+      const fieldInfo = boxTooltipData[`${box.type}@${key}`];
+      return x`
+            <tr class="${highlightClass}" data-field-name="${key}">
+                <td class="p-1 pr-2 text-xs text-gray-400 align-top" title="${fieldInfo?.text || ""}">${key}</td>
+                <td class="p-1 text-xs font-mono text-white break-all">${field.value !== void 0 ? String(field.value) : "N/A"}</td>
+            </tr>
+        `;
+    });
+    return x`
+        <div class="p-3 border-b border-gray-700">
+            <div class="font-bold text-base mb-1">${box.type} <span class="text-sm text-gray-400">(${box.size} bytes)</span></div>
+            <div class="text-xs text-emerald-400 mb-2 font-mono">${boxInfo.ref || ""}</div>
+            <p class="text-xs text-gray-300">${boxInfo.text || "No description available."}</p>
+        </div>
+        <div class="overflow-y-auto">
+            <table class="w-full table-fixed"><colgroup><col class="w-1/3"><col class="w-2/3"></colgroup><tbody>${fields}</tbody></table>
+        </div>
+    `;
+  };
+  var baseAsciiClass = "inline-block h-6 leading-6 w-4 text-center align-middle transition-colors duration-150 tracking-tight cursor-pointer";
+  var renderBoxNode = (box) => x`
+    <details class="text-sm" open>
+        <summary class="cursor-pointer p-1 rounded hover:bg-gray-700/50 flex items-center gap-2 border-l-4 ${box.color?.border || "border-transparent"}"
+                 data-box-offset="${box.offset}"
+                 data-field-name="tree-view">
+            <strong class="font-mono">${box.type}</strong>
+            <span class="text-xs text-gray-500">@${box.offset}, ${box.size}b</span>
+        </summary>
+        ${box.children && box.children.length > 0 ? x`
+            <div class="pl-4 border-l border-gray-700 ml-[7px]">
+                ${box.children.map(renderBoxNode)}
+            </div>
+        ` : ""}
+    </details>
+`;
+  var treeViewTemplate = (parsedData) => x`
+    <div>
+        <h4 class="text-base font-bold text-gray-300 mb-2">Box Structure</h4>
+        <div class="box-tree-area bg-gray-900/50 p-2 rounded max-h-[calc(100vh-30rem)] overflow-y-auto">
+            ${parsedData.map(renderBoxNode)}
+        </div>
+    </div>
+`;
   var hexViewTemplate = (buffer, parsedData) => {
     const totalPages = Math.ceil(buffer.byteLength / BYTES_PER_PAGE);
     const startOffset = (currentPage - 1) * BYTES_PER_PAGE;
@@ -3615,18 +3969,18 @@
       }
     };
     return x`
-        <div class="bg-slate-800 rounded-lg p-4 font-mono text-sm leading-relaxed overflow-x-auto hex-viewer-area">
-            <div class="flex sticky top-0 bg-slate-800 pb-2 mb-2 border-b border-gray-600">
+        <div class="bg-slate-800 rounded-lg p-4 font-mono text-sm leading-relaxed overflow-x-auto hex-viewer-area h-full">
+            <div class="flex sticky top-0 bg-slate-800 pb-2 mb-2 border-b border-gray-600 z-10">
                 <div class="w-24 flex-shrink-0 text-gray-400 font-semibold">Offset</div>
-                <div class="flex-grow text-gray-400 font-semibold">Hexadecimal</div>
-                <div class="w-64 flex-shrink-0 text-gray-400 font-semibold pl-4">ASCII</div>
+                <div class="text-gray-400 font-semibold">Hexadecimal</div>
+                <div class="w-64 flex-shrink-0 text-gray-400 font-semibold ml-4">ASCII</div>
             </div>
             
             ${viewModel.map((row) => x`
                 <div class="flex items-center hover:bg-slate-700/50" data-row-offset="${parseInt(row.offset, 16)}">
                     <div class="w-24 flex-shrink-0 text-gray-500 font-mono">${row.offset}</div>
-                    <div class="flex-grow font-mono">${o2(row.hex)}</div>
-                    <div class="w-64 flex-shrink-0 text-cyan-400 font-mono tracking-wider pl-4">${o2(row.ascii)}</div>
+                    <div class="font-mono flex items-center">${o2(row.hex)}</div>
+                    <div class="w-64 flex-shrink-0 text-cyan-400 font-mono tracking-wider ml-4 flex items-center">${o2(row.ascii)}</div>
                 </div>
             `)}
         </div>
@@ -3635,9 +3989,9 @@
             <div class="text-center text-sm text-gray-500 mt-2">
                 Showing bytes ${startOffset} - ${Math.min(startOffset + BYTES_PER_PAGE - 1, buffer.byteLength - 1)}
                 of ${buffer.byteLength} (${(buffer.byteLength / 1024).toFixed(2)} KB)
-                <button @click=${() => changePage(-1)} ?disabled=${currentPage === 1}>&lt;</button>
+                <button @click=${() => changePage(-1)} ?disabled=${currentPage === 1} class="px-2 py-1 rounded bg-gray-600 hover:bg-gray-500 disabled:opacity-50 mx-1">&lt;</button>
                 Page ${currentPage} of ${totalPages}
-                <button @click=${() => changePage(1)} ?disabled=${currentPage === totalPages}>&gt;</button>
+                <button @click=${() => changePage(1)} ?disabled=${currentPage === totalPages} class="px-2 py-1 rounded bg-gray-600 hover:bg-gray-500 disabled:opacity-50 mx-1">&gt;</button>
             </div>
         ` : ""}
     `;
@@ -3646,6 +4000,7 @@
     const { activeSegmentUrl, segmentCache } = analysisState;
     if (!activeSegmentUrl) {
       currentPage = 1;
+      if (keydownListener) document.removeEventListener("keydown", keydownListener);
       return x`
             <div class="text-center py-12">
                 <div class="text-gray-400 text-lg mb-4">📄 Interactive Segment View</div>
@@ -3678,14 +4033,19 @@
             <p class="text-sm text-gray-400 mb-4 font-mono break-all bg-gray-800 p-2 rounded">${activeSegmentUrl}</p>
         </div>
         
-        <div class="grid grid-cols-1 gap-4 relative">
-            
+        <div class="grid grid-cols-1 lg:grid-cols-[minmax(300px,25%)_1fr] gap-4">
+            <div class="sticky top-4 h-max">
+                <div class="flex flex-col gap-4">
+                <div class="segment-inspector-panel rounded-md bg-gray-900/90 border border-gray-700 transition-opacity duration-200 h-96 overflow-hidden flex flex-col">
+                    <!-- Inspector content is rendered here by JS -->
+                </div>
+                ${parsedSegmentData ? treeViewTemplate(parsedSegmentData) : ""}
+                </div>
+            </div>
+
             <div class="overflow-auto">
                  ${hexViewTemplate(cachedSegment.data, parsedSegmentData)}
             </div>
-
-            <div class="segment-inspector-tooltip fixed top-0 left-0 z-50 p-3 rounded-md bg-gray-900/90 text-white text-left text-xs leading-relaxed border border-gray-700 min-w-[300px] max-w-md pointer-events-none" style="display: none;">
-                </div>
         </div>
     `;
   }

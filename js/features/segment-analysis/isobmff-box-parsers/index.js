@@ -23,8 +23,8 @@ import { parseSmhd, smhdTooltip } from './smhd.js';
 import { parsePssh, psshTooltip } from './pssh.js';
 
 export const boxParsers = {
-    ftyp: parseFtypStyp,
-    styp: parseFtypStyp,
+    ftyp: parseFtypStyp, // Use the unified parser
+    styp: parseFtypStyp, // Use the unified parser
     mvhd: parseMvhd,
     mfhd: parseMfhd,
     tfhd: parseTfhd,
@@ -54,7 +54,7 @@ export const boxParsers = {
  */
 export const tooltipData = {
     ...groupTooltipData,
-    ...ftypStypTooltip,
+    ...ftypStypTooltip, // Use the unified tooltip data
     ...elstTooltip,
     ...hdlrTooltip,
     ...mvhdTooltip,

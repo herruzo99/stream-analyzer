@@ -3,11 +3,18 @@
  * @param {DataView} view
  */
 export function parseVmhd(box, view) {
-    const flags = view.getUint32(8) & 0x00ffffff;
-    box.details['version'] = { value: view.getUint8(8), offset: box.offset + 8, length: 1 };
-    box.details['flags'] = { value: `0x${flags.toString(16).padStart(6, '0')}`, offset: box.offset + 8, length: 4 };
-    box.details['graphicsmode'] = { value: view.getUint16(12), offset: box.offset + 12, length: 2 };
-    box.details['opcolor'] = { value: `R:${view.getUint16(14)}, G:${view.getUint16(16)}, B:${view.getUint16(18)}`, offset: box.offset + 14, length: 6 };
+    let currentParseOffset = box.headerSize; // Start immediately after the standard box header
+
+    const flags = view.getUint32(currentParseOffset) & 0x00ffffff; // Flags are part of the full 4-byte field with version
+    box.details['version'] = { value: view.getUint8(currentParseOffset), offset: box.offset + currentParseOffset, length: 1 };
+    box.details['flags'] = { value: `0x${flags.toString(16).padStart(6, '0')}`, offset: box.offset + currentParseOffset, length: 4 };
+    currentParseOffset += 4; // Move past version and flags
+
+    box.details['graphicsmode'] = { value: view.getUint16(currentParseOffset), offset: box.offset + currentParseOffset, length: 2 };
+    currentParseOffset += 2;
+
+    box.details['opcolor'] = { value: `R:${view.getUint16(currentParseOffset)}, G:${view.getUint16(currentParseOffset + 2)}, B:${view.getUint16(currentParseOffset + 4)}`, offset: box.offset + currentParseOffset, length: 6 };
+    // currentParseOffset += 6; // Not needed as it's the last parsed field
 }
 
 export const vmhdTooltip = {
