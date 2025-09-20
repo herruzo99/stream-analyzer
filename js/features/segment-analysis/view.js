@@ -1,5 +1,4 @@
 import { html, render } from 'lit-html';
-import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { analysisState, dom } from '../../state.js';
 import { parseTsSegment } from './ts-parser.js';
 import { getTooltipData } from './isobmff-parser.js';
@@ -333,18 +332,26 @@ export function dispatchAndRenderSegmentAnalysis(e, buffer, bufferB = null) {
         return;
     }
 
-    const target = /** @type {HTMLElement} */ (e?.currentTarget);
-    const url = target?.dataset.url;
-    const repId = target?.dataset.repid;
     const activeStream = analysisState.streams.find(s => s.id === analysisState.activeStreamId);
     if (!activeStream) return;
+    
+    let segmentMimeType = '';
 
-    const rep = activeStream.manifest.rawElement.querySelector(`Representation[id="${repId}"]`);
-    const as = rep?.closest('AdaptationSet');
-    const mimeType = rep?.getAttribute('mimeType') || as?.getAttribute('mimeType');
+    if (activeStream.protocol === 'hls') {
+        // For HLS, infer from #EXT-X-MAP tag. Default to TS.
+        // This assumes the active manifest is the relevant media playlist.
+        segmentMimeType = activeStream.manifest.rawElement.map ? 'video/mp4' : 'video/mp2t';
+    } else {
+        // For DASH, query the manifest for the mimeType.
+        const target = /** @type {HTMLElement} */ (e?.currentTarget);
+        const repId = target?.dataset.repid;
+        const rep = /** @type {Element} */ (activeStream.manifest.rawElement).querySelector(`Representation[id="${repId}"]`);
+        const as = rep?.closest('AdaptationSet');
+        segmentMimeType = rep?.getAttribute('mimeType') || as?.getAttribute('mimeType');
+    }
 
     try {
-        if (mimeType === 'video/mp2t') {
+        if (segmentMimeType === 'video/mp2t') {
             const analysisA = parseTsSegment(buffer);
             if (bufferB) {
                 const analysisB = parseTsSegment(bufferB);
@@ -354,7 +361,8 @@ export function dispatchAndRenderSegmentAnalysis(e, buffer, bufferB = null) {
                 render(tsAnalysisTemplate(analysisA.data), dom.modalContentArea);
             }
         } else {
-            // Default to ISOBMFF, using pre-parsed data from the cache
+            // Default to ISOBMFF.
+            const url = /** @type {HTMLElement} */ (e?.currentTarget).dataset.url;
             const cachedA = analysisState.segmentCache.get(url);
             if (cachedA?.parsedData && !cachedA.parsedData.error) {
                 render(isoAnalysisTemplate(cachedA.parsedData), dom.modalContentArea);

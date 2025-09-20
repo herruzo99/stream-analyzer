@@ -31,7 +31,8 @@ export async function fetchSegment(url) {
         }
 
         analysisState.segmentCache.set(url, { status: response.status, data, parsedData });
-    } catch (_error) {
+    } catch (error) {
+        console.error(`Failed to fetch segment ${url}:`, error);
         analysisState.segmentCache.set(url, { status: 0, data: null, parsedData: null }); // Network error
     }
 }

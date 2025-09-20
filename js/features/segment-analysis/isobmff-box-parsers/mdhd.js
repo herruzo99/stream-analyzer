@@ -7,12 +7,14 @@ export function parseMdhd(box, view) {
 
     const version = view.getUint8(currentParseOffset);
     box.details['version'] = { value: version, offset: box.offset + currentParseOffset, length: 1 };
+    box.details['flags'] = { value: `0x${(view.getUint32(currentParseOffset) & 0x00ffffff).toString(16)}`, offset: box.offset + currentParseOffset, length: 4 };
     currentParseOffset += 4; // Skip version (1 byte) and flags (3 bytes)
 
-    // Creation Time & Modification Time (handled by mvhd, mdhd has pre_defined here)
-    // pre_defined (4 or 8 bytes depending on version)
-    currentParseOffset += (version === 1 ? 16 : 8); // For mdhd, these are pre_defined and not actual times.
-                                                  // Skipping creation_time and modification_time equivalent for version 1
+    const timeFieldLength = version === 1 ? 8 : 4;
+    box.details['creation_time'] = { value: '...', offset: box.offset + currentParseOffset, length: timeFieldLength };
+    currentParseOffset += timeFieldLength;
+    box.details['modification_time'] = { value: '...', offset: box.offset + currentParseOffset, length: timeFieldLength };
+    currentParseOffset += timeFieldLength;
 
     const timescale = view.getUint32(currentParseOffset);
     box.details['timescale'] = { value: timescale, offset: box.offset + currentParseOffset, length: 4 };
@@ -23,11 +25,12 @@ export function parseMdhd(box, view) {
     box.details['duration'] = { value: duration, offset: box.offset + currentParseOffset, length: durationLength };
     currentParseOffset += durationLength;
 
-    // Language (16 bits)
-    const lang = view.getUint16(currentParseOffset);
-    const langValue = String.fromCharCode(((lang >> 10) & 0x1f) + 0x60, ((lang >> 5) & 0x1f) + 0x60, (lang & 0x1f) + 0x60);
+    const langBits = view.getUint16(currentParseOffset);
+    const langValue = String.fromCharCode(((langBits >> 10) & 0x1f) + 0x60, ((langBits >> 5) & 0x1f) + 0x60, (langBits & 0x1f) + 0x60);
     box.details['language'] = { value: langValue, offset: box.offset + currentParseOffset, length: 2 };
-    // currentParseOffset += 2; // Not strictly needed if no more fields are parsed after this
+    currentParseOffset += 2;
+    
+    box.details['pre-defined'] = { value: '0', offset: box.offset + currentParseOffset, length: 2 };
 }
 
 export const mdhdTooltip = {
