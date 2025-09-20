@@ -1,5 +1,5 @@
 import { html } from 'lit-html';
-import { analysisState } from '../../state.js';
+import { analysisState } from '../../core/state.js';
 import { tooltipTriggerClasses } from '../../shared/constants.js';
 import { getDrmSystemName } from '../../shared/utils/drm.js';
 
@@ -30,7 +30,8 @@ const sections = {
             label: 'Min Buffer Time',
             tooltip: 'Minimum client buffer time.',
             iso: 'Clause 5.3.1.2',
-            accessor: (manifest) => manifest.getAttribute('minBufferTime') || 'N/A',
+            accessor: (manifest) =>
+                manifest.getAttribute('minBufferTime') || 'N/A',
         },
         {
             label: 'Live Window',
@@ -86,7 +87,9 @@ const sections = {
                     )
                 ).map((r) => parseInt(r.getAttribute('bandwidth')));
                 return b.length
-                    ? `${formatBitrate(Math.min(...b))} - ${formatBitrate(Math.max(...b))}`
+                    ? `${formatBitrate(Math.min(...b))} - ${formatBitrate(
+                          Math.max(...b)
+                      )}`
                     : 'N/A';
             },
         },
@@ -136,7 +139,9 @@ const sections = {
                         )
                     ),
                 ];
-                return codecs.filter(Boolean).map((c) => html`<div>${c}</div>`);
+                return codecs
+                    .filter(Boolean)
+                    .map((c) => html`<div>${c}</div>`);
             },
         },
     ],
@@ -187,7 +192,9 @@ const sections = {
                         )
                     ),
                 ];
-                return codecs.filter(Boolean).map((c) => html`<div>${c}</div>`);
+                return codecs
+                    .filter(Boolean)
+                    .map((c) => html`<div>${c}</div>`);
             },
         },
     ],
@@ -200,14 +207,19 @@ const sectionTemplate = (title, items, streams) => html`
         style="grid-template-columns: 200px repeat(${streams.length}, 1fr);"
     >
         <!-- Header Row -->
-        <div class="font-semibold text-gray-400 p-2 border-r border-b border-gray-700">Property</div>
+        <div
+            class="font-semibold text-gray-400 p-2 border-r border-b border-gray-700"
+        >
+            Property
+        </div>
         ${streams.map(
             (stream) =>
-                html`<div class="font-semibold text-gray-400 p-2 border-r border-b border-gray-700">
+                html`<div
+                    class="font-semibold text-gray-400 p-2 border-r border-b border-gray-700"
+                >
                     ${stream.name}
                 </div>`
         )}
-
         <!-- Data Rows -->
         ${items.map(
             (item) => html`
@@ -220,9 +232,13 @@ const sectionTemplate = (title, items, streams) => html`
                 </div>
                 ${streams.map(
                     (stream) =>
-                        html`<div class="p-2 font-mono text-sm border-r border-gray-700">
+                        html`<div
+                            class="p-2 font-mono text-sm border-r border-gray-700"
+                        >
                             ${item.accessor(
-                                /** @type {Element} */ (stream.manifest.rawElement)
+                                /** @type {Element} */ (
+                                    stream.manifest.rawElement
+                                )
                             )}
                         </div>`
                 )}

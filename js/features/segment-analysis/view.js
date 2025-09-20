@@ -1,8 +1,8 @@
 import { html, render } from 'lit-html';
-import { analysisState, dom } from '../../state.js';
+import { analysisState, dom } from '../../core/state.js';
 import { parseTsSegment } from './ts-parser.js';
 import { getTooltipData } from './isobmff-parser.js';
-import { tooltipTriggerClasses } from '../../ui.js';
+import { tooltipTriggerClasses } from '../../shared/constants.js';
 
 // --- UTILITY ---
 
@@ -69,7 +69,7 @@ const segmentCompareTemplate = (diffData) => {
                             ? 'bg-red-900/50 text-red-300'
                             : ''}"
                     >
-                         ${item.key === 'samples'
+                        ${item.key === 'samples'
                             ? html`<div class="bg-gray-900 p-2 rounded">
                                   <pre>${item.val2}</pre>
                               </div>`
@@ -260,7 +260,8 @@ const isoBoxTemplate = (box) => {
         box.children.length > 0
             ? html`<ul class="list-none pl-6 mt-2 border-l border-gray-600">
                   ${box.children.map(
-                      (child) => html`<li class="mt-2">${isoBoxTemplate(child)}</li>`
+                      (child) =>
+                          html`<li class="mt-2">${isoBoxTemplate(child)}</li>`
                   )}
               </ul>`
             : '';
@@ -292,13 +293,19 @@ const essentialDataTemplate = (boxes) => {
             class="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3 bg-gray-900 border border-gray-700 rounded p-3 mb-4"
         >
             ${dataItem('Type', 'Media Segment')}
-            ${dataItem('Sequence #', mfhd.details.sequence_number?.value || 'N/A')}
+            ${dataItem(
+                'Sequence #',
+                mfhd.details.sequence_number?.value || 'N/A'
+            )}
             ${dataItem('Track ID', tfhd?.details.track_ID?.value || 'N/A')}
             ${dataItem(
                 'Base Decode Time',
                 tfdt?.details.baseMediaDecodeTime?.value || 'N/A'
             )}
-            ${dataItem('Sample Count', trun?.details.sample_count?.value || 'N/A')}
+            ${dataItem(
+                'Sample Count',
+                trun?.details.sample_count?.value || 'N/A'
+            )}
         </div>`;
     } else if (moov) {
         const mvhd = moov.children.find((b) => b.type === 'mvhd');
@@ -328,26 +335,36 @@ const isoAnalysisTemplate = (boxes) => html`
 
 export function dispatchAndRenderSegmentAnalysis(e, buffer, bufferB = null) {
     if (!buffer) {
-        render(html`<p class="fail">Segment buffer not available.</p>`, dom.modalContentArea);
+        render(
+            html`<p class="fail">Segment buffer not available.</p>`,
+            dom.modalContentArea
+        );
         return;
     }
 
-    const activeStream = analysisState.streams.find(s => s.id === analysisState.activeStreamId);
+    const activeStream = analysisState.streams.find(
+        (s) => s.id === analysisState.activeStreamId
+    );
     if (!activeStream) return;
-    
+
     let segmentMimeType = '';
 
     if (activeStream.protocol === 'hls') {
         // For HLS, infer from #EXT-X-MAP tag. Default to TS.
         // This assumes the active manifest is the relevant media playlist.
-        segmentMimeType = activeStream.manifest.rawElement.map ? 'video/mp4' : 'video/mp2t';
+        segmentMimeType = activeStream.manifest.rawElement.map
+            ? 'video/mp4'
+            : 'video/mp2t';
     } else {
         // For DASH, query the manifest for the mimeType.
         const target = /** @type {HTMLElement} */ (e?.currentTarget);
         const repId = target?.dataset.repid;
-        const rep = /** @type {Element} */ (activeStream.manifest.rawElement).querySelector(`Representation[id="${repId}"]`);
+        const rep = /** @type {Element} */ (
+            activeStream.manifest.rawElement
+        ).querySelector(`Representation[id="${repId}"]`);
         const as = rep?.closest('AdaptationSet');
-        segmentMimeType = rep?.getAttribute('mimeType') || as?.getAttribute('mimeType');
+        segmentMimeType =
+            rep?.getAttribute('mimeType') || as?.getAttribute('mimeType');
     }
 
     try {
@@ -355,23 +372,37 @@ export function dispatchAndRenderSegmentAnalysis(e, buffer, bufferB = null) {
             const analysisA = parseTsSegment(buffer);
             if (bufferB) {
                 const analysisB = parseTsSegment(bufferB);
-                const diff = diffObjects(analysisA.data.summary, analysisB.data.summary);
+                const diff = diffObjects(
+                    analysisA.data.summary,
+                    analysisB.data.summary
+                );
                 render(segmentCompareTemplate(diff), dom.modalContentArea);
             } else {
                 render(tsAnalysisTemplate(analysisA.data), dom.modalContentArea);
             }
         } else {
             // Default to ISOBMFF.
-            const url = /** @type {HTMLElement} */ (e?.currentTarget).dataset.url;
+            const url = /** @type {HTMLElement} */ (e?.currentTarget).dataset
+                .url;
             const cachedA = analysisState.segmentCache.get(url);
             if (cachedA?.parsedData && !cachedA.parsedData.error) {
-                render(isoAnalysisTemplate(cachedA.parsedData), dom.modalContentArea);
+                render(
+                    isoAnalysisTemplate(cachedA.parsedData),
+                    dom.modalContentArea
+                );
             } else {
-                throw new Error('Segment could not be parsed as ISOBMFF, or was not found in cache.');
+                throw new Error(
+                    'Segment could not be parsed as ISOBMFF, or was not found in cache.'
+                );
             }
         }
     } catch (err) {
         console.error('Segment parsing error:', err);
-        render(html`<p class="fail">Could not render segment analysis: ${err.message}.</p>`, dom.modalContentArea);
+        render(
+            html`<p class="fail">
+                Could not render segment analysis: ${err.message}.
+            </p>`,
+            dom.modalContentArea
+        );
     }
 }

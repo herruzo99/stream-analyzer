@@ -1,12 +1,26 @@
 import { adaptHlsToIr } from './adapter.js';
 
 /**
+ * @typedef {object} HlsSegment
+ * @property {number} duration
+ * @property {string} title
+ * @property {any[]} tags
+ * @property {Record<string, string|number> | null} key
+ * @property {string} [uri]
+ * @property {string} [resolvedUri]
+ * @property {string} [byteRange]
+ * @property {boolean} [discontinuity]
+ * @property {string} [dateTime]
+ */
+
+/**
  * Parses an attribute list string (e.g., 'BANDWIDTH=1280000,CODECS="..."')
  * into a key-value object.
  * @param {string} attrString
  * @returns {Record<string, string | number>}
  */
 function parseAttributeList(attrString) {
+    /** @type {Record<string, string | number>} */
     const attributes = {};
     // This regex splits by comma, but not inside quotes.
     const parts = attrString.match(/("[^"]*")|[^,]+/g) || [];
@@ -16,7 +30,9 @@ function parseAttributeList(attrString) {
         const key = part.substring(0, eqIndex);
         const value = part.substring(eqIndex + 1).replace(/"/g, '');
         // Attempt to convert numbers
-        const numValue = /^-?\d+(\.\d+)?$/.test(value) ? parseFloat(value) : value;
+        const numValue = /^-?\d+(\.\d+)?$/.test(value)
+            ? parseFloat(value)
+            : value;
         attributes[key] = numValue;
     });
     return attributes;
@@ -27,7 +43,7 @@ function parseAttributeList(attrString) {
  * This implementation covers key tags from RFC 8216 for structural analysis.
  * @param {string} manifestString The raw HLS playlist.
  * @param {string} baseUrl The URL from which the playlist was fetched.
- * @returns {Promise<{manifest: import('../../state.js').Manifest, baseUrl: string}>}
+ * @returns {Promise<{manifest: import('../../core/state.js').Manifest, baseUrl: string}>}
  */
 export async function parseManifest(manifestString, baseUrl) {
     const lines = manifestString.split(/\r?\n/);
@@ -47,6 +63,7 @@ export async function parseManifest(manifestString, baseUrl) {
         baseUrl: baseUrl,
     };
 
+    /** @type {HlsSegment | null} */
     let currentSegment = null;
     let currentKey = null;
 
@@ -134,7 +151,10 @@ export async function parseManifest(manifestString, baseUrl) {
                 // Default for other tags
                 default:
                     if (currentSegment) {
-                        currentSegment.tags.push({ name: tagName, value: tagValue });
+                        currentSegment.tags.push({
+                            name: tagName,
+                            value: tagValue,
+                        });
                     } else {
                         parsed.tags.push({ name: tagName, value: tagValue });
                     }

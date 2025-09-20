@@ -1,4 +1,4 @@
-import { boxParsers, tooltipData } from './isobmff-box-parsers/index.js';
+import { boxParsers, tooltipData } from './isobmff/index.js';
 
 /**
  * @typedef {object} Box
@@ -31,7 +31,7 @@ export function parseISOBMFF(buffer, baseOffset = 0) {
             null,
             new Uint8Array(buffer, offset + 4, 4)
         );
-        
+
         let headerSize = 8; // Default size + type
         let actualSize = size;
         let sizeFieldLength = 4;
@@ -47,7 +47,10 @@ export function parseISOBMFF(buffer, baseOffset = 0) {
             actualSize = buffer.byteLength - offset;
         }
 
-        if (offset + actualSize > buffer.byteLength || actualSize < headerSize) {
+        if (
+            offset + actualSize > buffer.byteLength ||
+            actualSize < headerSize
+        ) {
             // Malformed box, stop parsing this level
             break;
         }
@@ -64,36 +67,70 @@ export function parseISOBMFF(buffer, baseOffset = 0) {
         };
 
         // Deconstruct header into semantic fields
-        box.details['size'] = { value: `${actualSize} bytes`, offset: box.offset, length: sizeFieldLength };
-        box.details['type'] = { value: type, offset: box.offset + 4, length: 4 };
+        box.details['size'] = {
+            value: `${actualSize} bytes`,
+            offset: box.offset,
+            length: sizeFieldLength,
+        };
+        box.details['type'] = {
+            value: type,
+            offset: box.offset + 4,
+            length: 4,
+        };
 
         parseBoxDetails(box, new DataView(buffer, offset, actualSize));
 
         // Container boxes whose children should be parsed
-        const containerBoxes = [ 'moof', 'traf', 'moov', 'trak', 'mdia', 'minf', 'stbl', 'mvex', 'edts', 'avc1', 'mp4a', 'styp' ]; 
+        const containerBoxes = [
+            'moof',
+            'traf',
+            'moov',
+            'trak',
+            'mdia',
+            'minf',
+            'stbl',
+            'mvex',
+            'edts',
+            'avc1',
+            'mp4a',
+            'styp',
+        ];
         if (containerBoxes.includes(type)) {
             let childrenParseOffset = box.contentOffset;
             if (type === 'avc1' || type === 'mp4a') {
                 childrenParseOffset += 28;
             }
 
-            const childrenBufferStart = offset + (childrenParseOffset - box.offset);
+            const childrenBufferStart =
+                offset + (childrenParseOffset - box.offset);
             const childrenBufferEnd = offset + actualSize;
 
             if (childrenBufferStart < childrenBufferEnd) {
-                const childrenBuffer = buffer.slice(childrenBufferStart, childrenBufferEnd);
+                const childrenBuffer = buffer.slice(
+                    childrenBufferStart,
+                    childrenBufferEnd
+                );
                 if (childrenBuffer.byteLength > 0) {
-                    box.children = parseISOBMFF(childrenBuffer, childrenParseOffset);
+                    box.children = parseISOBMFF(
+                        childrenBuffer,
+                        childrenParseOffset
+                    );
                 }
             }
         }
-        
+
         if (type === 'stsd') {
-             const stsdHeaderLength = 16; 
-             const childrenBuffer = buffer.slice(offset + stsdHeaderLength, offset + actualSize);
-             if(childrenBuffer.byteLength > 0) {
-                box.children = parseISOBMFF(childrenBuffer, box.offset + stsdHeaderLength);
-             }
+            const stsdHeaderLength = 16;
+            const childrenBuffer = buffer.slice(
+                offset + stsdHeaderLength,
+                offset + actualSize
+            );
+            if (childrenBuffer.byteLength > 0) {
+                box.children = parseISOBMFF(
+                    childrenBuffer,
+                    box.offset + stsdHeaderLength
+                );
+            }
         }
 
         boxes.push(box);

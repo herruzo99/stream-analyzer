@@ -1,6 +1,6 @@
 import { html, render } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
-import { analysisState, dom } from '../../state.js';
+import { analysisState, dom } from '../../core/state.js';
 import {
     startManifestUpdatePolling,
     stopManifestUpdatePolling,
@@ -12,7 +12,8 @@ let togglePollingBtn; // Still need a reference for external updates
 const manifestUpdatesTemplate = (stream) => {
     if (analysisState.streams.length > 1) {
         return html`<p class="warn">
-            Manifest update polling is only supported when analyzing a single stream.
+            Manifest update polling is only supported when analyzing a single
+            stream.
         </p>`;
     }
     if (!stream || stream.manifest.type !== 'dynamic') {
