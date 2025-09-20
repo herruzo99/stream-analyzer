@@ -3,12 +3,18 @@
  * @param {DataView} view
  */
 export function parseTfdt(box, view) {
-    const version = view.getUint8(8);
-    box.details['version'] = { value: version, offset: box.offset + 8, length: 1 };
+    let currentParseOffset = box.headerSize; // Start immediately after the standard box header
+
+    const version = view.getUint8(currentParseOffset);
+    box.details['version'] = { value: version, offset: box.offset + currentParseOffset, length: 1 };
+    currentParseOffset += 4; // Skip version (1 byte) and flags (3 bytes)
+
     if (version === 1) {
-        box.details['baseMediaDecodeTime'] = { value: Number(view.getBigUint64(12)), offset: box.offset + 12, length: 8 };
+        box.details['baseMediaDecodeTime'] = { value: Number(view.getBigUint64(currentParseOffset)), offset: box.offset + currentParseOffset, length: 8 };
+        // currentParseOffset += 8; // Not needed as it's the last parsed field
     } else {
-        box.details['baseMediaDecodeTime'] = { value: view.getUint32(12), offset: box.offset + 12, length: 4 };
+        box.details['baseMediaDecodeTime'] = { value: view.getUint32(currentParseOffset), offset: box.offset + currentParseOffset, length: 4 };
+        // currentParseOffset += 4; // Not needed as it's the last parsed field
     }
 }
 

@@ -3,24 +3,35 @@
  * @param {DataView} view
  */
 export function parseElst(box, view) {
-    const version = view.getUint8(8);
-    box.details['version'] = { value: version, offset: box.offset + 8, length: 1 };
-    const entryCount = view.getUint32(12);
-    box.details['entry_count'] = { value: entryCount, offset: box.offset + 12, length: 4 };
+    let currentParseOffset = box.headerSize; // Start immediately after the standard box header
+
+    const version = view.getUint8(currentParseOffset);
+    box.details['version'] = { value: version, offset: box.offset + currentParseOffset, length: 1 };
+    currentParseOffset += 4; // Skip version (1 byte) and flags (3 bytes)
+
+    const entryCount = view.getUint32(currentParseOffset);
+    box.details['entry_count'] = { value: entryCount, offset: box.offset + currentParseOffset, length: 4 };
+    currentParseOffset += 4;
+
     if (entryCount > 0) {
-        const entryOffset = 16;
+        // For simplicity, only parse the first entry
         if (version === 1) {
-            box.details['segment_duration_1'] = { value: Number(view.getBigUint64(entryOffset)), offset: box.offset + entryOffset, length: 8 };
-            box.details['media_time_1'] = { value: Number(view.getBigInt64(entryOffset + 8)), offset: box.offset + entryOffset + 8, length: 8 };
+            box.details['segment_duration_1'] = { value: Number(view.getBigUint64(currentParseOffset)), offset: box.offset + currentParseOffset, length: 8 };
+            currentParseOffset += 8;
+            box.details['media_time_1'] = { value: Number(view.getBigInt64(currentParseOffset)), offset: box.offset + currentParseOffset, length: 8 };
+            currentParseOffset += 8;
         } else {
-            box.details['segment_duration_1'] = { value: view.getUint32(entryOffset), offset: box.offset + entryOffset, length: 4 };
-            box.details['media_time_1'] = { value: view.getInt32(entryOffset + 4), offset: box.offset + entryOffset + 4, length: 4 };
+            box.details['segment_duration_1'] = { value: view.getUint32(currentParseOffset), offset: box.offset + currentParseOffset, length: 4 };
+            currentParseOffset += 4;
+            box.details['media_time_1'] = { value: view.getInt32(currentParseOffset), offset: box.offset + currentParseOffset, length: 4 };
+            currentParseOffset += 4;
         }
+        // If there are more entries, they would follow. We are only parsing the first for now.
     }
 }
 
 export const elstTooltip = {
-elst: {
+    elst: {
         name: 'Edit List',
         text: 'Maps the media time-line to the presentation time-line.',
         ref: 'ISO/IEC 14496-12, 8.6.6',

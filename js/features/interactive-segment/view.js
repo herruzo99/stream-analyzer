@@ -9,15 +9,11 @@ let currentPage = 1;
 const BYTES_PER_PAGE = 1024; // 1KB per page
 let parsedSegmentData = null; // Cache parsed data for the view
 const boxTooltipData = getTooltipData(); // Get all box/field tooltips
+let selectedBoxOffset = null;
+let keydownListener = null;
 
 // --- INTERACTIVITY & HELPERS ---
 
-/**
- * Finds a box within the parsed structure by its byte offset.
- * @param {object[]} boxes The array of parsed boxes to search.
- * @param {number} offset The byte offset of the box to find.
- * @returns {object | null} The found box object or null.
- */
 function findBoxByOffset(boxes, offset) {
     for (const box of boxes) {
         if (box.offset === offset) {
@@ -31,116 +27,187 @@ function findBoxByOffset(boxes, offset) {
     return null;
 }
 
-/**
- * Sets up all interactivity for the segment view: tooltips, tree clicks, etc.
- */
+function updateInspectorPanel(box, highlightedField = null) {
+    const inspector = dom.tabContents['interactive-segment'].querySelector('.segment-inspector-panel');
+    if (!inspector) return;
+
+    if (box) {
+        render(createInspectorTemplate(box, highlightedField), inspector);
+        inspector.classList.remove('opacity-0');
+
+        if (highlightedField) {
+            const fieldRow = inspector.querySelector(`[data-field-name="${highlightedField}"]`);
+            fieldRow?.scrollIntoView({ block: 'nearest' });
+        }
+    } else {
+        render(html``, inspector); // Clear the inspector
+        inspector.classList.add('opacity-0');
+    }
+}
+
+function applySelectionHighlight() {
+    const container = dom.tabContents['interactive-segment'];
+    container.querySelectorAll('.is-highlighted').forEach(el => el.classList.remove('is-highlighted'));
+    if (selectedBoxOffset !== null) {
+        container.querySelectorAll(`[data-box-offset="${selectedBoxOffset}"]`).forEach(el => {
+            el.classList.add('is-highlighted');
+        });
+    }
+}
+
 function initializeSegmentViewInteractivity() {
     const container = dom.tabContents['interactive-segment'];
     if (!container || !parsedSegmentData) return;
-
-    const tooltip = container.querySelector('.segment-inspector-tooltip');
-    const hexView = container.querySelector('.hex-viewer-area');
-
-    container.addEventListener('mousemove', (e) => {
-        const target = e.target.closest('[data-box-offset]');
-        if (target && tooltip) {
-            const boxOffset = parseInt(target.dataset.boxOffset);
-            const fieldName = target.dataset.fieldName;
-            const box = findBoxByOffset(parsedSegmentData, boxOffset);
-
-            if (box) {
-                tooltip.innerHTML = createInspectorTooltipHTML(box, fieldName);
-                tooltip.style.display = 'block';
-                const containerRect = container.getBoundingClientRect();
-                const x = e.clientX - containerRect.left + 20;
-                const y = e.clientY - containerRect.top + 20;
-                tooltip.style.transform = `translate(${x}px, ${y}px)`;
-            }
-        } else if (tooltip) {
-            tooltip.style.display = 'none';
+    
+    selectedBoxOffset = null;
+    if (keydownListener) {
+        document.removeEventListener('keydown', keydownListener);
+    }
+    keydownListener = (e) => {
+        if (e.key === 'Escape' && selectedBoxOffset !== null) {
+            selectedBoxOffset = null;
+            applySelectionHighlight();
+            updateInspectorPanel(null); // Clear panel on deselect
         }
-    });
+    };
+    document.addEventListener('keydown', keydownListener);
 
-    container.addEventListener('click', (e) => {
-        const treeNode = e.target.closest('[data-tree-offset]');
-        const hexNode = e.target.closest('[data-byte-offset]');
-        let targetOffset = -1;
 
-        if (treeNode) {
-            targetOffset = parseInt(treeNode.dataset.treeOffset);
-            // Scroll hex view to the target
-            const targetRowOffset = Math.floor(targetOffset / 16) * 16;
-            const rowEl = hexView.querySelector(`[data-row-offset="${targetRowOffset}"]`);
-            rowEl?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        } else if (hexNode) {
-            targetOffset = parseInt(hexNode.dataset.boxOffset);
-        }
+    const handleHover = (e) => {
+        const target = e.target.closest('[data-byte-offset]');
+        if (!target) return;
 
-        // Remove previous highlights
-        container.querySelectorAll('.is-highlighted').forEach(el => el.classList.remove('is-highlighted'));
+        const byteOffset = parseInt(target.dataset.byteOffset);
+        const fieldEl = target.closest('[data-field-name]');
+        if (!fieldEl) return;
 
-        if (targetOffset > -1) {
-            // Add new highlights
-            container.querySelectorAll(`[data-tree-offset="${targetOffset}"], [data-box-offset="${targetOffset}"]`).forEach(el => {
-                el.classList.add('is-highlighted');
+        const boxOffset = parseInt(fieldEl.dataset.boxOffset);
+        const fieldName = fieldEl.dataset.fieldName;
+        
+        container.querySelectorAll('.is-field-highlighted, .is-char-highlighted').forEach(el => 
+            el.classList.remove('is-field-highlighted', 'is-char-highlighted')
+        );
+
+        const charEl = container.querySelector(`[data-byte-offset="${byteOffset}"].${CSS.escape(baseAsciiClass.split(' ').join('.'))}`);
+        if(charEl) charEl.classList.add('is-char-highlighted');
+
+        if (boxOffset >= 0 && fieldName) {
+            container.querySelectorAll(`[data-box-offset="${boxOffset}"][data-field-name="${fieldName}"]`).forEach(el => {
+                el.classList.add('is-field-highlighted');
+            });
+            container.querySelectorAll(`[data-box-offset="${boxOffset}"][data-field-name="tree-view"]`).forEach(el => {
+                el.classList.add('is-field-highlighted');
             });
         }
+        
+        if (selectedBoxOffset === null) {
+            const box = findBoxByOffset(parsedSegmentData, boxOffset);
+            const isReserved = fieldName && (fieldName.includes('reserved') || fieldName.includes('Padding'));
+            updateInspectorPanel(box, isReserved ? null : fieldName);
+        }
+    };
+
+    const handleMouseOut = (e) => {
+        if (!e.currentTarget.contains(e.relatedTarget)) {
+            container.querySelectorAll('.is-field-highlighted, .is-char-highlighted').forEach(el => 
+                el.classList.remove('is-field-highlighted', 'is-char-highlighted')
+            );
+        }
+    };
+
+    container.addEventListener('mouseover', handleHover);
+    container.addEventListener('mouseout', handleMouseOut);
+
+    container.addEventListener('click', (e) => {
+        const summary = e.target.closest('summary');
+        if (summary) {
+            e.preventDefault(); // Prevent details toggling
+        }
+
+        const targetNode = e.target.closest('[data-box-offset]');
+        if (!targetNode) return;
+
+        const targetOffset = parseInt(targetNode.dataset.boxOffset);
+        
+        if (selectedBoxOffset === targetOffset) {
+            selectedBoxOffset = null; // Toggle off
+            updateInspectorPanel(null); // Clear panel
+        } else {
+            selectedBoxOffset = targetOffset; // Select new
+            const box = findBoxByOffset(parsedSegmentData, selectedBoxOffset);
+            updateInspectorPanel(box); // Lock panel to selected box
+        }
+        applySelectionHighlight();
+
+        if (targetNode.closest('.box-tree-area')) {
+            const hexView = container.querySelector('.hex-viewer-area');
+            const targetRowOffset = Math.floor(targetOffset / 16) * 16;
+            const rowEl = hexView?.querySelector(`[data-row-offset="${targetRowOffset}"]`);
+            rowEl?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
     });
-}
 
-/**
- * Creates the HTML for the rich inspector tooltip.
- * @param {object} box The full parsed box object.
- * @param {string} highlightedField The name of the field to highlight.
- * @returns {string} The inner HTML for the tooltip element.
- */
-function createInspectorTooltipHTML(box, highlightedField) {
-    const boxInfo = boxTooltipData[box.type] || {};
-    let fieldsHtml = '<tr><td colspan="2" class="p-1 text-xs text-gray-400">No parsed details.</td></tr>';
-
-    const allFields = { Header: { value: `${box.headerSize} bytes`, ...box }, ...box.details };
-    
-    if (Object.keys(allFields).length > 0) {
-        fieldsHtml = Object.entries(allFields).map(([key, field]) => {
-            const isHighlighted = key === highlightedField ? 'bg-blue-500/30' : '';
-            const fieldInfo = boxTooltipData[`${box.type}@${key}`] || {};
-            return `
-                <tr class="${isHighlighted}">
-                    <td class="p-1 pr-2 text-xs text-gray-400 align-top" title="${fieldInfo.text || ''}">${key}</td>
-                    <td class="p-1 text-xs font-mono text-white break-all">${field.value !== undefined ? field.value : 'N/A'}</td>
-                </tr>
-            `;
-        }).join('');
+    if (parsedSegmentData.length > 0) {
+        updateInspectorPanel(parsedSegmentData[0]);
     }
-
-    return `
-        <div class="font-bold text-base mb-1">${box.type} <span class="text-sm text-gray-400">(${box.size} bytes)</span></div>
-        <div class="text-xs text-emerald-400 mb-2 font-mono">${boxInfo.ref || ''}</div>
-        <p class="text-xs text-gray-300 mb-2">${boxInfo.text || 'No description available.'}</p>
-        <table class="w-full">${fieldsHtml}</table>
-    `;
 }
+
+const createInspectorTemplate = (box, highlightedField) => {
+    const boxInfo = boxTooltipData[box.type] || {};
+    
+    const fields = Object.entries(box.details).map(([key, field]) => {
+        const highlightClass = key === highlightedField ? 'bg-blue-900/50' : '';
+        const fieldInfo = boxTooltipData[`${box.type}@${key}`];
+        return html`
+            <tr class="${highlightClass}" data-field-name="${key}">
+                <td class="p-1 pr-2 text-xs text-gray-400 align-top" title="${fieldInfo?.text || ''}">${key}</td>
+                <td class="p-1 text-xs font-mono text-white break-all">${field.value !== undefined ? String(field.value) : 'N/A'}</td>
+            </tr>
+        `;
+    });
+
+    return html`
+        <div class="p-3 border-b border-gray-700">
+            <div class="font-bold text-base mb-1">${box.type} <span class="text-sm text-gray-400">(${box.size} bytes)</span></div>
+            <div class="text-xs text-emerald-400 mb-2 font-mono">${boxInfo.ref || ''}</div>
+            <p class="text-xs text-gray-300">${boxInfo.text || 'No description available.'}</p>
+        </div>
+        <div class="overflow-y-auto">
+            <table class="w-full table-fixed"><colgroup><col class="w-1/3"><col class="w-2/3"></colgroup><tbody>${fields}</tbody></table>
+        </div>
+    `;
+};
 
 // --- TEMPLATES ---
+const baseAsciiClass = 'inline-block h-6 leading-6 w-4 text-center align-middle transition-colors duration-150 tracking-tight cursor-pointer';
 
-const boxTreeTemplate = (boxes) => html`
-    <ul class="text-sm font-mono list-none p-0 pl-3">
-        ${boxes.map(box => html`
-            <li>
-                <details open>
-                    <summary class="cursor-pointer p-1 rounded hover:bg-gray-700 data-[tree-offset]:bg-blue-900/50" data-tree-offset="${box.offset}">
-                        <span class="text-emerald-300">${box.type}</span>
-                        <span class="text-gray-500 text-xs">@${box.offset}, ${box.size}b</span>
-                    </summary>
-                    ${box.children && box.children.length > 0 ? boxTreeTemplate(box.children) : ''}
-                </details>
-            </li>
-        `)}
-    </ul>
+const renderBoxNode = (box) => html`
+    <details class="text-sm" open>
+        <summary class="cursor-pointer p-1 rounded hover:bg-gray-700/50 flex items-center gap-2 border-l-4 ${box.color?.border || 'border-transparent'}"
+                 data-box-offset="${box.offset}"
+                 data-field-name="tree-view">
+            <strong class="font-mono">${box.type}</strong>
+            <span class="text-xs text-gray-500">@${box.offset}, ${box.size}b</span>
+        </summary>
+        ${box.children && box.children.length > 0 ? html`
+            <div class="pl-4 border-l border-gray-700 ml-[7px]">
+                ${box.children.map(renderBoxNode)}
+            </div>
+        ` : ''}
+    </details>
 `;
 
+const treeViewTemplate = (parsedData) => html`
+    <div>
+        <h4 class="text-base font-bold text-gray-300 mb-2">Box Structure</h4>
+        <div class="box-tree-area bg-gray-900/50 p-2 rounded max-h-[calc(100vh-30rem)] overflow-y-auto">
+            ${parsedData.map(renderBoxNode)}
+        </div>
+    </div>
+`;
+
+
 const hexViewTemplate = (buffer, parsedData) => {
-    // ... (pagination logic from your original file, no changes needed here) ...
     const totalPages = Math.ceil(buffer.byteLength / BYTES_PER_PAGE);
     const startOffset = (currentPage - 1) * BYTES_PER_PAGE;
     const viewModel = generateHexAsciiView(buffer, parsedData, startOffset, BYTES_PER_PAGE);
@@ -154,18 +221,18 @@ const hexViewTemplate = (buffer, parsedData) => {
     };
 
     return html`
-        <div class="bg-slate-800 rounded-lg p-4 font-mono text-sm leading-relaxed overflow-x-auto hex-viewer-area">
-            <div class="flex sticky top-0 bg-slate-800 pb-2 mb-2 border-b border-gray-600">
+        <div class="bg-slate-800 rounded-lg p-4 font-mono text-sm leading-relaxed overflow-x-auto hex-viewer-area h-full">
+            <div class="flex sticky top-0 bg-slate-800 pb-2 mb-2 border-b border-gray-600 z-10">
                 <div class="w-24 flex-shrink-0 text-gray-400 font-semibold">Offset</div>
-                <div class="flex-grow text-gray-400 font-semibold">Hexadecimal</div>
-                <div class="w-64 flex-shrink-0 text-gray-400 font-semibold pl-4">ASCII</div>
+                <div class="text-gray-400 font-semibold">Hexadecimal</div>
+                <div class="w-64 flex-shrink-0 text-gray-400 font-semibold ml-4">ASCII</div>
             </div>
             
             ${viewModel.map(row => html`
                 <div class="flex items-center hover:bg-slate-700/50" data-row-offset="${parseInt(row.offset, 16)}">
                     <div class="w-24 flex-shrink-0 text-gray-500 font-mono">${row.offset}</div>
-                    <div class="flex-grow font-mono">${unsafeHTML(row.hex)}</div>
-                    <div class="w-64 flex-shrink-0 text-cyan-400 font-mono tracking-wider pl-4">${unsafeHTML(row.ascii)}</div>
+                    <div class="font-mono flex items-center">${unsafeHTML(row.hex)}</div>
+                    <div class="w-64 flex-shrink-0 text-cyan-400 font-mono tracking-wider ml-4 flex items-center">${unsafeHTML(row.ascii)}</div>
                 </div>
             `)}
         </div>
@@ -174,9 +241,9 @@ const hexViewTemplate = (buffer, parsedData) => {
             <div class="text-center text-sm text-gray-500 mt-2">
                 Showing bytes ${startOffset} - ${Math.min(startOffset + BYTES_PER_PAGE - 1, buffer.byteLength - 1)}
                 of ${buffer.byteLength} (${(buffer.byteLength / 1024).toFixed(2)} KB)
-                <button @click=${() => changePage(-1)} ?disabled=${currentPage === 1}>&lt;</button>
+                <button @click=${() => changePage(-1)} ?disabled=${currentPage === 1} class="px-2 py-1 rounded bg-gray-600 hover:bg-gray-500 disabled:opacity-50 mx-1">&lt;</button>
                 Page ${currentPage} of ${totalPages}
-                <button @click=${() => changePage(1)} ?disabled=${currentPage === totalPages}>&gt;</button>
+                <button @click=${() => changePage(1)} ?disabled=${currentPage === totalPages} class="px-2 py-1 rounded bg-gray-600 hover:bg-gray-500 disabled:opacity-50 mx-1">&gt;</button>
             </div>
         ` : ''}
     `;
@@ -187,6 +254,7 @@ export function getInteractiveSegmentTemplate() {
 
     if (!activeSegmentUrl) {
         currentPage = 1;
+        if (keydownListener) document.removeEventListener('keydown', keydownListener);
         return html`
             <div class="text-center py-12">
                 <div class="text-gray-400 text-lg mb-4">📄 Interactive Segment View</div>
@@ -215,10 +283,8 @@ export function getInteractiveSegmentTemplate() {
         `;
     }
 
-    // Cache the parsed data at the module level for the interactivity handlers to access
     parsedSegmentData = (cachedSegment.parsedData && !cachedSegment.parsedData.error) ? cachedSegment.parsedData : null;
 
-    // Initialize interactivity after the template is rendered
     setTimeout(() => initializeSegmentViewInteractivity(), 0);
 
     return html`
@@ -227,18 +293,19 @@ export function getInteractiveSegmentTemplate() {
             <p class="text-sm text-gray-400 mb-4 font-mono break-all bg-gray-800 p-2 rounded">${activeSegmentUrl}</p>
         </div>
         
-        <div class="grid grid-cols-1 lg:grid-cols-[350px_1fr] gap-4 relative">
-            <div class="bg-gray-800 p-3 rounded-lg max-h-[70vh] overflow-auto">
-                <h4 class="font-bold mb-2 sticky top-0 bg-gray-800 pb-2">Box Structure</h4>
-                ${parsedSegmentData ? boxTreeTemplate(parsedSegmentData) : html`<p class="text-xs text-gray-500">No ISOBMFF structure found.</p>`}
+        <div class="grid grid-cols-1 lg:grid-cols-[minmax(300px,25%)_1fr] gap-4">
+            <div class="sticky top-4 h-max">
+                <div class="flex flex-col gap-4">
+                <div class="segment-inspector-panel rounded-md bg-gray-900/90 border border-gray-700 transition-opacity duration-200 h-96 overflow-hidden flex flex-col">
+                    <!-- Inspector content is rendered here by JS -->
+                </div>
+                ${parsedSegmentData ? treeViewTemplate(parsedSegmentData) : ''}
+                </div>
             </div>
-            
+
             <div class="overflow-auto">
                  ${hexViewTemplate(cachedSegment.data, parsedSegmentData)}
             </div>
-
-            <div class="segment-inspector-tooltip fixed top-0 left-0 z-50 p-3 rounded-md bg-gray-900/90 text-white text-left text-xs leading-relaxed border border-gray-700 min-w-[300px] max-w-md pointer-events-none" style="display: none;">
-                </div>
         </div>
     `;
 }
