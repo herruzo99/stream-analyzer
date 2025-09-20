@@ -97,7 +97,7 @@ async function resolveXlinks(rootElement, documentUrl, visitedUrls) {
  * Parses a DASH Manifest XML string and returns a protocol-agnostic Intermediate Representation.
  * @param {string} xmlString The raw MPD XML.
  * @param {string} baseUrl The URL from which the MPD was fetched.
- * @returns {Promise<{manifest: import('../../state.js').Manifest, baseUrl: string}>}
+ * @returns {Promise<{manifest: import('../../core/state.js').Manifest, baseUrl: string}>}
  */
 export async function parseManifest(xmlString, baseUrl) {
     const parser = new DOMParser();
@@ -113,7 +113,8 @@ export async function parseManifest(xmlString, baseUrl) {
 
     await resolveXlinks(manifestElement, baseUrl, new Set([baseUrl]));
 
-    const manifestBaseElement = manifestElement.querySelector(':scope > BaseURL');
+    const manifestBaseElement =
+        manifestElement.querySelector(':scope > BaseURL');
     if (manifestBaseElement && manifestBaseElement.textContent) {
         baseUrl = new URL(manifestBaseElement.textContent, baseUrl).href;
     }

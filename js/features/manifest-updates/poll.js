@@ -1,12 +1,12 @@
 import { parseManifest as parseDashManifest } from '../../protocols/dash/parser.js';
-import { analysisState } from '../../state.js';
+import { analysisState } from '../../core/state.js';
 import { diffManifest } from './diff.js';
 import xmlFormatter from 'xml-formatter';
 
 let manifestUpdateInterval = null;
 
 /**
- * @param {import('../../state.js').Stream} stream
+ * @param {import('../../core/state.js').Stream} stream
  * @param {() => void} onUpdate - A callback function to execute when a new manifest is processed.
  * */
 export function startManifestUpdatePolling(stream, onUpdate) {
@@ -20,7 +20,7 @@ export function startManifestUpdatePolling(stream, onUpdate) {
     const updatePeriodMs = updatePeriodSeconds * 1000;
     const pollInterval = Math.max(updatePeriodMs, 2000); // Poll no more than every 2 seconds
 
-    let originalManifestString = stream.rawXml;
+    let originalManifestString = stream.rawManifest;
 
     manifestUpdateInterval = setInterval(async () => {
         try {
@@ -36,7 +36,7 @@ export function startManifestUpdatePolling(stream, onUpdate) {
                 const oldManifestForDiff = originalManifestString;
 
                 stream.manifest = newManifest;
-                stream.rawXml = newManifestString;
+                stream.rawManifest = newManifestString;
                 originalManifestString = newManifestString;
 
                 const formattingOptions = {
@@ -52,7 +52,10 @@ export function startManifestUpdatePolling(stream, onUpdate) {
                     formattingOptions
                 );
 
-                const diffHtml = diffManifest(formattedOldManifest, formattedNewManifest);
+                const diffHtml = diffManifest(
+                    formattedOldManifest,
+                    formattedNewManifest
+                );
 
                 analysisState.manifestUpdates.unshift({
                     timestamp: new Date().toLocaleTimeString(),

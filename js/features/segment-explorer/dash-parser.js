@@ -5,6 +5,7 @@
  * @returns {Record<string, object[]>} A map of Representation IDs to their segment lists.
  */
 export function parseAllSegmentUrls(manifestElement, baseUrl) {
+    /** @type {Record<string, object[]>} */
     const segmentsByRep = {};
     manifestElement.querySelectorAll('Representation').forEach((rep) => {
         const repId = rep.getAttribute('id');

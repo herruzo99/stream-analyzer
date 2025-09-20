@@ -1,4 +1,4 @@
-import { analysisState } from '../../state.js';
+import { analysisState } from '../../core/state.js';
 import { parseISOBMFF } from '../segment-analysis/isobmff-parser.js';
 
 /**
@@ -14,8 +14,15 @@ export async function fetchSegment(url) {
     )
         return;
     try {
-        analysisState.segmentCache.set(url, { status: -1, data: null, parsedData: null }); // Pending
-        const response = await fetch(url, { method: 'GET', cache: 'no-store' });
+        analysisState.segmentCache.set(url, {
+            status: -1,
+            data: null,
+            parsedData: null,
+        }); // Pending
+        const response = await fetch(url, {
+            method: 'GET',
+            cache: 'no-store',
+        });
         const data = response.ok ? await response.arrayBuffer() : null;
 
         let parsedData = null;
@@ -30,9 +37,17 @@ export async function fetchSegment(url) {
             }
         }
 
-        analysisState.segmentCache.set(url, { status: response.status, data, parsedData });
+        analysisState.segmentCache.set(url, {
+            status: response.status,
+            data,
+            parsedData,
+        });
     } catch (error) {
         console.error(`Failed to fetch segment ${url}:`, error);
-        analysisState.segmentCache.set(url, { status: 0, data: null, parsedData: null }); // Network error
+        analysisState.segmentCache.set(url, {
+            status: 0,
+            data: null,
+            parsedData: null,
+        }); // Network error
     }
 }
