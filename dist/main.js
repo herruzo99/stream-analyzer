@@ -492,9 +492,9 @@
         /** @type {HTMLDivElement} */
         document.getElementById("tab-interactive-segment")
       ),
-      "interactive-mpd": (
+      "interactive-manifest": (
         /** @type {HTMLDivElement} */
-        document.getElementById("tab-interactive-mpd")
+        document.getElementById("tab-interactive-manifest")
       ),
       updates: (
         /** @type {HTMLDivElement} */
@@ -783,21 +783,6 @@
   // js/shared/constants.js
   var tooltipTriggerClasses = "cursor-help border-b border-dotted border-blue-500/40 transition-colors hover:bg-blue-500/15 hover:border-solid";
 
-  // js/shared/utils/drm.js
-  var knownDrmSchemes = {
-    "urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed": "Widevine",
-    "urn:uuid:9a04f079-9840-4286-ab92-e65be0885f95": "PlayReady",
-    "urn:uuid:f239e769-efa3-4850-9c16-a903c6932efb": "Adobe PrimeTime",
-    "urn:uuid:1077efec-c0b2-4d02-ace3-3c1e52e2fb4b": "ClearKey",
-    "urn:uuid:94ce86fb-07ff-4f43-adb8-93d2fa968ca2": "FairPlay",
-    "urn:mpeg:dash:mp4protection:2011": "MPEG Common Encryption (CENC)"
-  };
-  function getDrmSystemName(schemeIdUri) {
-    if (!schemeIdUri) return "Unknown Scheme";
-    const lowerCaseUri = schemeIdUri.toLowerCase();
-    return knownDrmSchemes[lowerCaseUri] || `Unknown (${schemeIdUri})`;
-  }
-
   // js/features/summary/view.js
   var statCardTemplate = (label, value, tooltipText, isoRef) => {
     if (value === null || value === void 0 || value === "" || Array.isArray(value) && value.length === 0)
@@ -845,7 +830,7 @@
     const bandwidths = allVideoReps.map((r2) => r2.bandwidth).filter(Boolean);
     const resolutions = [
       ...new Set(allVideoReps.map((r2) => `${r2.width}x${r2.height}`))
-    ];
+    ].filter((r2) => r2 !== "nullxnull");
     const videoCodecs = [
       ...new Set(allVideoReps.map((r2) => r2.codecs))
     ].filter(Boolean);
@@ -866,54 +851,51 @@
       "Presentation Type",
       manifest.type,
       "Defines if the stream is live (`dynamic`) or on-demand (`static`).",
-      "Clause 5.3.1.2, Table 3"
+      "DASH: 5.3.1.2 / HLS: 4.3.3.5"
     )}
                     ${statCardTemplate(
-      "Profiles",
-      (manifest.profiles || "").replace(
-        /urn:mpeg:dash:profile:/g,
-        " "
-      ),
+      "Profiles / Version",
+      manifest.profiles,
       "Indicates the set of features used in the manifest.",
-      "Clause 8.1"
+      "DASH: 8.1 / HLS: 4.3.1.2"
     )}
                     ${statCardTemplate(
-      "Min Buffer Time",
+      "Min Buffer Time / Target Duration",
       manifest.minBufferTime ? `${manifest.minBufferTime}s` : "N/A",
-      "The minimum buffer time a client should maintain.",
-      "Clause 5.3.1.2, Table 3"
+      "The minimum buffer a client should maintain (DASH) or the max segment duration (HLS).",
+      "DASH: 5.3.1.2 / HLS: 4.3.3.1"
     )}
                     ${manifest.type === "dynamic" ? x`
                               ${statCardTemplate(
       "Publish Time",
       manifest.publishTime?.toLocaleString(),
       "The time this manifest version was generated.",
-      "Clause 5.3.1.2, Table 3"
+      "DASH: 5.3.1.2"
     )}
                               ${statCardTemplate(
       "Availability Start Time",
       manifest.availabilityStartTime?.toLocaleString(),
       "The anchor time for the presentation.",
-      "Clause 5.3.1.2, Table 3"
+      "DASH: 5.3.1.2"
     )}
                               ${statCardTemplate(
       "Update Period",
       manifest.minimumUpdatePeriod ? `${manifest.minimumUpdatePeriod}s` : "N/A",
       "How often a client should check for a new manifest.",
-      "Clause 5.3.1.2, Table 3"
+      "DASH: 5.3.1.2"
     )}
                               ${statCardTemplate(
       "Time Shift Buffer Depth",
       manifest.timeShiftBufferDepth ? `${manifest.timeShiftBufferDepth}s` : "N/A",
       "The duration of the seekable live window.",
-      "Clause 5.3.1.2, Table 3"
+      "DASH: 5.3.1.2"
     )}
                           ` : x`
                               ${statCardTemplate(
       "Media Duration",
-      manifest.duration ? `${manifest.duration}s` : "N/A",
+      manifest.duration ? `${manifest.duration.toFixed(2)}s` : "N/A",
       "The total duration of the content.",
-      "Clause 5.3.1.2, Table 3"
+      "DASH: 5.3.1.2"
     )}
                           `}
                 </dl>
@@ -927,32 +909,32 @@
                     ${statCardTemplate(
       "Periods",
       manifest.periods.length,
-      "A Period represents a segment of content.",
-      "Clause 5.3.2"
+      "A Period represents a segment of content (DASH). HLS is treated as a single period.",
+      "DASH: 5.3.2"
     )}
                     ${statCardTemplate(
-      "Video Tracks",
+      "Video Tracks / Variants",
       videoSets.length,
-      "Number of distinct video Adaptation Sets.",
-      "Clause 5.3.3"
+      "Number of distinct video tracks or variants.",
+      "DASH: 5.3.3 / HLS: 4.3.4.2"
     )}
                     ${statCardTemplate(
-      "Audio Tracks",
+      "Audio Tracks / Renditions",
       audioSets.length,
-      "Number of distinct audio Adaptation Sets.",
-      "Clause 5.3.3"
+      "Number of distinct audio tracks or renditions.",
+      "DASH: 5.3.3 / HLS: 4.3.4.1"
     )}
                     ${statCardTemplate(
       "Subtitle/Text Tracks",
       textSets.length,
-      "Number of distinct subtitle or text Adaptation Sets.",
-      "Clause 5.3.3"
+      "Number of distinct subtitle or text tracks.",
+      "DASH: 5.3.3 / HLS: 4.3.4.1"
     )}
                     ${statCardTemplate(
       "Content Protection",
       protectionText,
-      "Detected DRM Systems.",
-      "Clause 5.8.4.1"
+      "Detected DRM Systems or encryption methods.",
+      "DASH: 5.8.4.1 / HLS: 4.3.2.4"
     )}
                 </dl>
             </div>
@@ -966,19 +948,19 @@
       "Bitrate Range",
       bandwidths.length > 0 ? `${formatBitrate(Math.min(...bandwidths))} - ${formatBitrate(Math.max(...bandwidths))}` : "N/A",
       "The minimum and maximum bitrates for video.",
-      "Clause 5.3.5.2, Table 9"
+      "DASH: 5.3.5.2 / HLS: 4.3.4.2"
     )}
                           ${statCardTemplate(
       "Resolutions",
       resolutions.join(", "),
       "Unique video resolutions available.",
-      "Clause 5.3.7.2, Table 14"
+      "DASH: 5.3.7.2 / HLS: 4.3.4.2"
     )}
                           ${statCardTemplate(
       "Video Codecs",
       videoCodecs.join(", "),
       "Unique video codecs declared.",
-      "Clause 5.3.7.2, Table 14"
+      "DASH: 5.3.7.2 / HLS: 4.3.4.2"
     )}
                       </dl>
                   </div>` : ""}
@@ -991,22 +973,21 @@
       "Languages",
       languages.join(", ") || "Not Specified",
       "Languages declared for audio tracks.",
-      "Clause 5.3.3.2, Table 5"
+      "DASH: 5.3.3.2 / HLS: 4.3.4.1"
     )}
                           ${statCardTemplate(
       "Audio Codecs",
       audioCodecs.join(", "),
       "Unique audio codecs declared.",
-      "Clause 5.3.7.2, Table 14"
+      "DASH: 5.3.7.2 / HLS: 4.3.4.2"
     )}
                       </dl>
                   </div>` : ""}
         </div>
-        <div class="dev-watermark">Summary v5.0</div>
     `;
   }
 
-  // js/features/compliance/rules.js
+  // js/features/compliance/dash-rules.js
   var rules = [
     // --- MPD Level Rules ---
     {
@@ -1322,9 +1303,25 @@
   ];
 
   // js/features/compliance/logic.js
-  function runChecks(mpd) {
-    if (!mpd) {
-      const rootCheck = rules.find((r2) => r2.id === "MPD-1");
+  function runChecks(manifest, protocol) {
+    if (protocol === "hls") {
+      return [
+        {
+          text: "HLS Compliance Checks",
+          status: "info",
+          details: "HLS compliance checks are not yet implemented.",
+          isoRef: "N/A",
+          category: "HLS"
+        }
+      ];
+    }
+    const mpd = (
+      /** @type {Element} */
+      manifest
+    );
+    const rules3 = rules;
+    if (!mpd || typeof mpd.getAttribute !== "function") {
+      const rootCheck = rules3.find((r2) => r2.id === "MPD-1");
       return [
         {
           text: rootCheck.text,
@@ -1342,7 +1339,7 @@
     const getDetails = (detail, element, detailContext) => {
       return typeof detail === "function" ? detail(element, detailContext) : detail;
     };
-    rules.filter((rule) => rule.scope === "MPD").forEach((rule) => {
+    rules3.filter((rule) => rule.scope === "MPD").forEach((rule) => {
       const result = rule.check(mpd, context);
       if (result !== "skip") {
         const status = result ? "pass" : rule.severity;
@@ -1364,7 +1361,7 @@
         Array.from(period.querySelectorAll("Representation")).map((r2) => r2.getAttribute("id")).filter(Boolean)
       );
       const periodContext = { ...context, allRepIdsInPeriod };
-      rules.filter((rule) => rule.scope === "Period").forEach((rule) => {
+      rules3.filter((rule) => rule.scope === "Period").forEach((rule) => {
         const result = rule.check(period, periodContext);
         if (result !== "skip") {
           const status = result ? "pass" : rule.severity;
@@ -1382,7 +1379,7 @@
         }
       });
       period.querySelectorAll("AdaptationSet").forEach((as) => {
-        rules.filter((rule) => rule.scope === "AdaptationSet").forEach((rule) => {
+        rules3.filter((rule) => rule.scope === "AdaptationSet").forEach((rule) => {
           const result = rule.check(as, periodContext);
           if (result !== "skip") {
             const status = result ? "pass" : rule.severity;
@@ -1400,7 +1397,7 @@
           }
         });
         as.querySelectorAll("Representation").forEach((rep) => {
-          rules.filter((rule) => rule.scope === "Representation").forEach((rule) => {
+          rules3.filter((rule) => rule.scope === "Representation").forEach((rule) => {
             const result = rule.check(rep, periodContext);
             if (result !== "skip") {
               const status = result ? "pass" : rule.severity;
@@ -1519,8 +1516,8 @@
             Compliance & Best Practices Report
         </h3>
         <p class="text-sm text-gray-400 mb-4">
-            An analysis of the manifest against the ISO/IEC 23009-1:2022
-            standard and common best practices.
+            An analysis of the manifest against industry standards and common
+            best practices.
         </p>
 
         <div
@@ -1531,17 +1528,18 @@
             ${filterButton("fail", "Errors", counts.fail)}
             ${filterButton("warn", "Warnings", counts.warn)}
             ${filterButton("pass", "Passed", counts.pass)}
+            ${counts.info > 0 ? filterButton("info", "Info", counts.info) : ""}
         </div>
 
         ${Object.entries(groupedChecks).map(
       ([category, items]) => categoryTemplate(category, items)
     )}
 
-        <div class="dev-watermark">Compliance v7.0</div>
     `;
   };
-  function getComplianceReportTemplate(manifest) {
-    const checks = runChecks(manifest);
+  function getComplianceReportTemplate(manifest, protocol) {
+    if (!manifest) return x``;
+    const checks = runChecks(manifest.rawElement, protocol);
     activeFilter = "all";
     return renderReportForChecks(checks);
   }
@@ -1558,6 +1556,56 @@
   }
 
   // js/features/timeline-visuals/view.js
+  var hlsAbrLadderTemplate = (hlsManifest) => {
+    const variants = hlsManifest.variants || [];
+    if (variants.length === 0) return x``;
+    const maxBw = Math.max(...variants.map((v2) => v2.attributes.BANDWIDTH));
+    const repTemplate = variants.sort((a2, b2) => a2.attributes.BANDWIDTH - b2.attributes.BANDWIDTH).map((variant) => {
+      const bw = variant.attributes.BANDWIDTH;
+      const widthPercentage = bw / maxBw * 100;
+      const resolutionText = variant.attributes.RESOLUTION || "Audio Only";
+      const codecs = variant.attributes.CODECS || "N/A";
+      return x`
+            <div class="flex items-center" title="Codecs: ${codecs}">
+                <div class="w-28 text-xs text-gray-400 font-mono flex-shrink-0">${resolutionText}</div>
+                <div class="w-full bg-gray-700 rounded-full h-5">
+                    <div class="bg-blue-600 h-5 rounded-full text-xs font-medium text-blue-100 text-center p-0.5 leading-none" style="width: ${widthPercentage}%">
+                        ${(bw / 1e3).toFixed(0)} kbps
+                    </div>
+                </div>
+            </div>`;
+    });
+    return x`
+        <div class="mt-6">
+            <h4 class="text-lg font-bold">ABR Bitrate Ladder</h4>
+            <div class="bg-gray-900 p-4 rounded-md mt-4 space-y-2">
+                ${repTemplate}
+            </div>
+        </div>`;
+  };
+  var hlsTimelineTemplate = (hlsManifest) => {
+    const segments = hlsManifest.segments || [];
+    const totalDuration = segments.reduce((acc, seg) => acc + seg.duration, 0);
+    if (totalDuration === 0) return x`<p class="info">No segments found or total duration is zero.</p>`;
+    const gridTemplateColumns = segments.map((s2) => `${s2.duration / totalDuration * 100}%`).join(" ");
+    const timelineSegments = segments.map((seg) => {
+      return x`
+            <div class="bg-gray-700 rounded h-10 border-r-2 border-gray-900 last:border-r-0" title="Duration: ${seg.duration.toFixed(3)}s">
+            </div>
+        `;
+    });
+    return x`
+        <h3 class="text-xl font-bold mb-4">Timeline Visualization</h3>
+        <div class="bg-gray-900 rounded-lg p-2">
+            <div class="grid grid-flow-col auto-cols-fr" style="grid-template-columns: ${gridTemplateColumns}">
+                ${timelineSegments}
+            </div>
+        </div>
+        <div class="text-xs text-gray-400 mt-2 text-right">
+            Total Duration: ${totalDuration.toFixed(2)}s
+        </div>
+    `;
+  };
   var parseDuration = (durationStr) => {
     if (!durationStr) return null;
     const match = durationStr.match(
@@ -1569,7 +1617,7 @@
     const seconds = parseFloat(match[3] || 0);
     return hours * 3600 + minutes * 60 + seconds;
   };
-  var abrLadderTemplate = (period) => {
+  var dashAbrLadderTemplate = (period) => {
     const videoSets = Array.from(
       period.querySelectorAll(
         'AdaptationSet[contentType="video"], AdaptationSet[mimeType^="video"]'
@@ -1615,8 +1663,8 @@
         </div>`;
     });
   };
-  var staticTimelineTemplate = (manifest) => {
-    const periods = Array.from(manifest.querySelectorAll("Period"));
+  var staticTimelineTemplate = (dashElement) => {
+    const periods = Array.from(dashElement.querySelectorAll("Period"));
     if (periods.length === 0)
       return x`<p class="info">No Period elements found.</p>`;
     let lastPeriodEnd = 0;
@@ -1629,7 +1677,7 @@
         lastPeriodEnd = start + duration;
       } else if (i3 === periods.length - 1) {
         const mediaPresentationDuration = parseDuration(
-          manifest.getAttribute("mediaPresentationDuration")
+          dashElement.getAttribute("mediaPresentationDuration")
         );
         if (mediaPresentationDuration) {
           duration = mediaPresentationDuration - start;
@@ -1643,7 +1691,7 @@
         element: p2
       };
     });
-    const totalDuration = parseDuration(manifest.getAttribute("mediaPresentationDuration")) || lastPeriodEnd;
+    const totalDuration = parseDuration(dashElement.getAttribute("mediaPresentationDuration")) || lastPeriodEnd;
     if (totalDuration === 0)
       return x`<div class="analysis-summary warn">
             Could not determine total duration.
@@ -1686,7 +1734,7 @@
                 <h4 class="text-lg font-bold">
                     ABR Bitrate Ladder for Period: ${p2.id}
                 </h4>
-                ${abrLadderTemplate(p2.element)}
+                ${dashAbrLadderTemplate(p2.element)}
             </div>`
     );
     return x` <h3 class="text-xl font-bold mb-4">Timeline Visualization</h3>
@@ -1701,14 +1749,13 @@
         <div class="text-xs text-gray-400 mt-2 text-right">
             Total Duration: ${totalDuration.toFixed(2)}s
         </div>
-        ${abrLadders}
-        <div class="dev-watermark">Timeline & Visuals v3.1</div>`;
+        ${abrLadders}`;
   };
-  var liveTimelineTemplate = (manifest) => {
-    const period = manifest.querySelector("Period");
+  var liveTimelineTemplate = (dashElement) => {
+    const period = dashElement.querySelector("Period");
     if (!period) return x`<p class="info">No Period element found.</p>`;
     const timeShiftBufferDepth = parseDuration(
-      manifest.getAttribute("timeShiftBufferDepth")
+      dashElement.getAttribute("timeShiftBufferDepth")
     );
     if (!timeShiftBufferDepth)
       return x`<p class="info">No @timeShiftBufferDepth found.</p>`;
@@ -1733,11 +1780,11 @@
         <h4 class="text-lg font-bold">
             ABR Bitrate Ladder for Period: ${period.getAttribute("id") || "0"}
         </h4>
-        ${abrLadderTemplate(period)}
+        ${dashAbrLadderTemplate(period)}
     </div>`;
-    const publishTime = new Date(manifest.getAttribute("publishTime")).getTime();
+    const publishTime = new Date(dashElement.getAttribute("publishTime")).getTime();
     const availabilityStartTime = new Date(
-      manifest.getAttribute("availabilityStartTime")
+      dashElement.getAttribute("availabilityStartTime")
     ).getTime();
     const liveEdge = (publishTime - availabilityStartTime) / 1e3;
     const dvrStart = liveEdge - timeShiftBufferDepth;
@@ -1767,12 +1814,29 @@
             <span>Start of DVR Window (${dvrStart.toFixed(2)}s)</span>
             <span>Live Edge (${liveEdge.toFixed(2)}s)</span>
         </div>
-        ${abrLadders}
-        <div class="dev-watermark">Timeline & Visuals v3.1</div>`;
+        ${abrLadders}`;
   };
-  function getTimelineAndVisualsTemplate(manifest) {
-    const isLive = manifest.getAttribute("type") === "dynamic";
-    return isLive ? liveTimelineTemplate(manifest) : staticTimelineTemplate(manifest);
+  function getTimelineAndVisualsTemplate(manifest, protocol) {
+    if (!manifest) return x``;
+    const rawElement = manifest.rawElement;
+    if (protocol === "hls") {
+      if (rawElement.isMaster) {
+        return x`
+                <h3 class="text-xl font-bold mb-4">HLS Master Playlist</h3>
+                <p class="text-sm text-gray-400">A master playlist defines available variants but does not have a monolithic timeline.</p>
+                ${hlsAbrLadderTemplate(rawElement)}
+            `;
+      }
+      return x`
+            ${hlsTimelineTemplate(rawElement)}
+        `;
+    }
+    if (!rawElement || typeof rawElement.getAttribute !== "function") {
+      return x`<p class="warn">Cannot display timeline for this manifest type.</p>`;
+    }
+    const isLive = rawElement.getAttribute("type") === "dynamic";
+    const template = isLive ? liveTimelineTemplate(rawElement) : staticTimelineTemplate(rawElement);
+    return x`${template}`;
   }
 
   // node_modules/lit-html/directive.js
@@ -1818,88 +1882,115 @@
     {
       name: "Presentation Type",
       category: "Core Streaming",
-      desc: "Defines if the stream is live (`dynamic`) or on-demand (`static`). This is the most fundamental property of a manifest.",
-      isoRef: "Clause 5.3.1.2"
+      desc: "Defines if the stream is live (`dynamic`/`EVENT`) or on-demand (`static`/`VOD`).",
+      isoRef: "DASH: 5.3.1.2 / HLS: 4.3.3.5"
     },
     {
-      name: "Multi-Period Content",
+      name: "Master Playlist (HLS)",
       category: "Core Streaming",
-      desc: "The presentation is split into multiple, independent periods. Commonly used for Server-Side Ad Insertion (SSAI) or chaptering.",
-      isoRef: "Clause 5.3.2"
+      desc: "The manifest is an HLS master playlist that references multiple variant streams at different bitrates.",
+      isoRef: "HLS: 4.3.4.2"
     },
     {
-      name: "Content Protection (DRM)",
+      name: "Multi-Period (DASH) / Discontinuity (HLS)",
       category: "Core Streaming",
-      desc: "Indicates that the content is encrypted using one or more DRM schemes like Widevine, PlayReady, or FairPlay.",
-      isoRef: "Clause 5.8.4.1"
+      desc: "The presentation is split into multiple, independent periods (DASH) or contains discontinuity tags (HLS). Commonly used for Server-Side Ad Insertion (SSAI).",
+      isoRef: "DASH: 5.3.2 / HLS: 4.3.2.3"
     },
     {
-      name: "CMAF Compatibility",
+      name: "Content Protection",
       category: "Core Streaming",
-      desc: "Content is structured according to the Common Media Application Format (CMAF), enhancing compatibility across players.",
-      isoRef: "Clause 8.12"
+      desc: "Indicates that the content is encrypted using one or more schemes like CENC (DASH) or AES-128/SAMPLE-AES (HLS).",
+      isoRef: "DASH: 5.8.4.1 / HLS: 4.3.2.4"
     },
     {
-      name: "Segment Templates",
-      category: "Timeline & Segment Management",
-      desc: "Segment URLs are generated using a template, typically with $Number$ or $Time$ placeholders.",
-      isoRef: "Clause 5.3.9.4"
+      name: "Fragmented MP4 Segments",
+      category: "Core Streaming",
+      desc: "Content is structured using fMP4 segments instead of MPEG-2 Transport Stream (TS). Indicated by #EXT-X-MAP in HLS.",
+      isoRef: "HLS: 4.3.2.5"
     },
     {
-      name: "Segment Timeline",
+      name: "Segment Templates (DASH)",
       category: "Timeline & Segment Management",
-      desc: "Provides explicit timing and duration for each segment via <S> elements, allowing for variable segment sizes.",
-      isoRef: "Clause 5.3.9.6"
+      desc: "Segment URLs are generated using a template, typically with $Number$ or $Time$ placeholders. (DASH-specific).",
+      isoRef: "DASH: 5.3.9.4"
     },
     {
-      name: "Segment List",
+      name: "Segment Timeline (DASH)",
       category: "Timeline & Segment Management",
-      desc: "Segment URLs are listed explicitly in the manifest. Common for VOD content.",
-      isoRef: "Clause 5.3.9.3"
+      desc: "Provides explicit timing and duration for each segment via <S> elements, allowing for variable segment sizes. (DASH-specific).",
+      isoRef: "DASH: 5.3.9.6"
+    },
+    {
+      name: "Segment List (DASH)",
+      category: "Timeline & Segment Management",
+      desc: "Segment URLs are listed explicitly in the manifest. Common for VOD content. (DASH-specific).",
+      isoRef: "DASH: 5.3.9.3"
     },
     {
       name: "Low Latency Streaming",
       category: "Live & Dynamic",
-      desc: "The manifest includes features for low-latency playback, like chunked transfer hints and latency targets.",
-      isoRef: "Annex K.3.2"
+      desc: "The manifest includes features for low-latency playback. HLS low-latency is a separate specification from the DASH features shown here.",
+      isoRef: "DASH: Annex K.3.2"
     },
     {
-      name: "Manifest Patch Updates",
+      name: "Manifest Patch Updates (DASH)",
       category: "Live & Dynamic",
-      desc: "Allows efficient manifest updates by sending only the changed parts of the manifest.",
-      isoRef: "Clause 5.15"
+      desc: "Allows efficient manifest updates by sending only the changed parts of the manifest. (DASH-specific).",
+      isoRef: "DASH: 5.15"
     },
     {
-      name: "UTC Timing Source",
+      name: "Date Ranges / Timed Metadata",
       category: "Live & Dynamic",
-      desc: "Provides a source for clients to synchronize their wall-clock time, crucial for live playback.",
-      isoRef: "Clause 5.8.4.11"
+      desc: "The manifest includes timed metadata, such as HLS #EXT-X-DATERANGE, typically used for ad insertion signaling (SCTE-35).",
+      isoRef: "HLS: 4.3.2.7"
     },
     {
-      name: "Dependent Representations (SVC/MVC)",
-      category: "Advanced Content",
-      desc: "Uses Representations that depend on others for decoding, enabling scalable video coding (SVC) or multi-view coding (MVC).",
-      isoRef: "Clause 5.3.5.2"
+      name: "UTC Timing Source (DASH)",
+      category: "Live & Dynamic",
+      desc: "Provides a source for clients to synchronize their wall-clock time, crucial for live playback. (DASH-specific).",
+      isoRef: "DASH: 5.8.4.11"
     },
     {
-      name: "Trick Mode Tracks",
+      name: "Dependent Representations (DASH)",
       category: "Advanced Content",
-      desc: "Provides special, low-framerate or I-Frame only tracks to enable efficient fast-forward and rewind.",
-      isoRef: "Clause 5.3.6"
+      desc: "Uses Representations that depend on others for decoding, enabling scalable video coding (SVC) or multi-view coding (MVC). (DASH-specific).",
+      isoRef: "DASH: 5.3.5.2"
+    },
+    {
+      name: "I-Frame Playlists / Trick Modes",
+      category: "Advanced Content",
+      desc: "Provides special, I-Frame only playlists or tracks to enable efficient fast-forward and rewind.",
+      isoRef: "DASH: 5.3.6 / HLS: 4.3.4.3"
+    },
+    {
+      name: "Alternative Renditions / Roles",
+      category: "Accessibility & Metadata",
+      desc: "Uses #EXT-X-MEDIA (HLS) or Role Descriptors (DASH) to provide alternative tracks for language, commentary, or camera angles.",
+      isoRef: "DASH: 5.8.4.2 / HLS: 4.3.4.1"
     },
     {
       name: "Subtitles & Captions",
       category: "Accessibility & Metadata",
       desc: "Provides text-based tracks for subtitles, closed captions, or other timed text information.",
-      isoRef: "Clause 5.3.3"
-    },
-    {
-      name: "Role Descriptors",
-      category: "Accessibility & Metadata",
-      desc: "Uses <Role> descriptors to semantically describe the purpose of a track (e.g., main, alternate, commentary, dub).",
-      isoRef: "Clause 5.8.4.2"
+      isoRef: "DASH: 5.3.3 / HLS: 4.3.4.1"
     }
   ];
+
+  // js/shared/utils/drm.js
+  var knownDrmSchemes = {
+    "urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed": "Widevine",
+    "urn:uuid:9a04f079-9840-4286-ab92-e65be0885f95": "PlayReady",
+    "urn:uuid:f239e769-efa3-4850-9c16-a903c6932efb": "Adobe PrimeTime",
+    "urn:uuid:1077efec-c0b2-4d02-ace3-3c1e52e2fb4b": "ClearKey",
+    "urn:uuid:94ce86fb-07ff-4f43-adb8-93d2fa968ca2": "FairPlay",
+    "urn:mpeg:dash:mp4protection:2011": "MPEG Common Encryption (CENC)"
+  };
+  function getDrmSystemName(schemeIdUri) {
+    if (!schemeIdUri) return "Unknown Scheme";
+    const lowerCaseUri = schemeIdUri.toLowerCase();
+    return knownDrmSchemes[lowerCaseUri] || `Unknown (${schemeIdUri})`;
+  }
 
   // js/protocols/dash/feature-analyzer.js
   function analyzeDashFeatures(manifest) {
@@ -1909,42 +2000,32 @@
       details: `<code>${manifest.getAttribute("type")}</code>`
     };
     const periods = manifest.querySelectorAll("Period");
-    results["Multi-Period Content"] = {
+    results["Multi-Period (DASH) / Discontinuity (HLS)"] = {
       used: periods.length > 1,
       details: periods.length > 1 ? `${periods.length} Periods found.` : "Single Period manifest."
     };
     const protection = Array.from(manifest.querySelectorAll("ContentProtection"));
     if (protection.length > 0) {
       const schemes = [...new Set(protection.map((cp) => getDrmSystemName(cp.getAttribute("schemeIdUri"))))];
-      results["Content Protection (DRM)"] = {
+      results["Content Protection"] = {
         used: true,
         details: `Systems: <b>${schemes.join(", ")}</b>`
       };
     } else {
-      results["Content Protection (DRM)"] = {
+      results["Content Protection"] = {
         used: false,
         details: "No encryption descriptors found."
       };
     }
-    const hasCmafProfile = (manifest.getAttribute("profiles") || "").includes("cmaf");
-    const cmafBrands = Array.from(manifest.querySelectorAll('AdaptationSet[containerProfiles~="cmfc"], AdaptationSet[containerProfiles~="cmf2"]'));
-    if (hasCmafProfile || cmafBrands.length > 0) {
-      const details = [];
-      if (hasCmafProfile) details.push("Manifest declares a CMAF profile.");
-      if (cmafBrands.length > 0) details.push(`CMAF brands found in ${cmafBrands.length} AdaptationSet(s).`);
-      results["CMAF Compatibility"] = { used: true, details: details.join(" ") };
-    } else {
-      results["CMAF Compatibility"] = { used: false, details: "No CMAF profiles or brands detected." };
-    }
-    results["Segment Templates"] = {
+    results["Segment Templates (DASH)"] = {
       used: !!manifest.querySelector("SegmentTemplate"),
       details: "Uses templates for segment URL generation."
     };
-    results["Segment Timeline"] = {
+    results["Segment Timeline (DASH)"] = {
       used: !!manifest.querySelector("SegmentTimeline"),
-      details: "Provides explicit segment timing."
+      details: "Provides explicit segment timing via <code>&lt;S&gt;</code> elements."
     };
-    results["Segment List"] = {
+    results["Segment List (DASH)"] = {
       used: !!manifest.querySelector("SegmentList"),
       details: "Provides an explicit list of segment URLs."
     };
@@ -1963,19 +2044,19 @@
       results["Low Latency Streaming"] = { used: false, details: "Not a dynamic (live) manifest." };
     }
     const patchLocation = manifest.querySelector("PatchLocation");
-    results["Manifest Patch Updates"] = {
+    results["Manifest Patch Updates (DASH)"] = {
       used: !!patchLocation,
       details: patchLocation ? `Patch location: <code>${patchLocation.textContent.trim()}</code>` : "Uses full manifest reloads."
     };
     const utcTimings = Array.from(manifest.querySelectorAll("UTCTiming"));
     if (utcTimings.length > 0) {
       const schemes = [...new Set(utcTimings.map((el) => `<code>${el.getAttribute("schemeIdUri").split(":").pop()}</code>`))];
-      results["UTC Timing Source"] = { used: true, details: `Schemes: ${schemes.join(", ")}` };
+      results["UTC Timing Source (DASH)"] = { used: true, details: `Schemes: ${schemes.join(", ")}` };
     } else {
-      results["UTC Timing Source"] = { used: false, details: "No clock synchronization source provided." };
+      results["UTC Timing Source (DASH)"] = { used: false, details: "No clock synchronization source provided." };
     }
     const dependentReps = manifest.querySelectorAll("Representation[dependencyId]");
-    results["Dependent Representations (SVC/MVC)"] = {
+    results["Dependent Representations (DASH)"] = {
       used: dependentReps.length > 0,
       details: dependentReps.length > 0 ? `${dependentReps.length} dependent Representation(s) found.` : "All Representations are self-contained."
     };
@@ -1985,9 +2066,9 @@
       const details = [];
       if (subRep) details.push("<code>&lt;SubRepresentation&gt;</code> with <code>@maxPlayoutRate</code>");
       if (trickRole) details.push('<code>Role="trick"</code>');
-      results["Trick Mode Tracks"] = { used: true, details: `Detected via: ${details.join(", ")}` };
+      results["I-Frame Playlists / Trick Modes"] = { used: true, details: `Detected via: ${details.join(", ")}` };
     } else {
-      results["Trick Mode Tracks"] = { used: false, details: "No explicit trick mode signals found." };
+      results["I-Frame Playlists / Trick Modes"] = { used: false, details: "No explicit trick mode signals found." };
     }
     const textTracks = Array.from(manifest.querySelectorAll('AdaptationSet[contentType="text"], AdaptationSet[mimeType^="application"]'));
     if (textTracks.length > 0) {
@@ -2002,20 +2083,86 @@
     const roles = Array.from(manifest.querySelectorAll("Role"));
     if (roles.length > 0) {
       const roleValues = [...new Set(roles.map((role) => `<code>${role.getAttribute("value")}</code>`))];
-      results["Role Descriptors"] = { used: true, details: `Roles found: ${roleValues.join(", ")}` };
+      results["Alternative Renditions / Roles"] = { used: true, details: `Roles found: ${roleValues.join(", ")}` };
     } else {
-      results["Role Descriptors"] = { used: false, details: "No roles specified." };
+      results["Alternative Renditions / Roles"] = { used: false, details: "No roles specified." };
     }
     return results;
   }
 
+  // js/protocols/hls/feature-analyzer.js
+  function analyzeHlsFeatures(hlsParsed) {
+    const results = {};
+    results["Presentation Type"] = {
+      used: true,
+      details: hlsParsed.isLive ? "<code>EVENT</code> or Live" : "<code>VOD</code>"
+    };
+    results["Master Playlist (HLS)"] = {
+      used: hlsParsed.isMaster,
+      details: hlsParsed.isMaster ? `${hlsParsed.variants.length} Variant Streams found.` : "Media Playlist."
+    };
+    const hasDiscontinuity = hlsParsed.segments.some((s2) => s2.discontinuity);
+    results["Multi-Period (DASH) / Discontinuity (HLS)"] = {
+      used: hasDiscontinuity,
+      details: hasDiscontinuity ? "Contains #EXT-X-DISCONTINUITY tags." : "No discontinuities found."
+    };
+    const hasKey = hlsParsed.segments.some((s2) => s2.key && s2.key.METHOD !== "NONE");
+    if (hasKey) {
+      const methods = [
+        ...new Set(
+          hlsParsed.segments.filter((s2) => s2.key).map((s2) => s2.key.METHOD)
+        )
+      ];
+      results["Content Protection"] = {
+        used: true,
+        details: `Methods: <b>${methods.join(", ")}</b>`
+      };
+    } else {
+      results["Content Protection"] = {
+        used: false,
+        details: "No #EXT-X-KEY tags found."
+      };
+    }
+    const hasFmp4 = hlsParsed.tags.some((t3) => t3.name === "EXT-X-MAP");
+    results["Fragmented MP4 Segments"] = {
+      used: hasFmp4,
+      details: hasFmp4 ? "Uses #EXT-X-MAP, indicating fMP4 segments." : "Likely Transport Stream (TS) segments."
+    };
+    results["I-Frame Playlists / Trick Modes"] = {
+      used: hlsParsed.tags.some((t3) => t3.name === "EXT-X-I-FRAME-STREAM-INF"),
+      details: "Provides dedicated playlists for trick-play modes."
+    };
+    results["Alternative Renditions / Roles"] = {
+      used: hlsParsed.media.length > 0,
+      details: hlsParsed.media.length > 0 ? `${hlsParsed.media.length} #EXT-X-MEDIA tags found.` : "No separate audio/video/subtitle renditions declared."
+    };
+    results["Date Ranges / Timed Metadata"] = {
+      used: hlsParsed.tags.some((t3) => t3.name === "EXT-X-DATERANGE"),
+      details: "Carries timed metadata, often used for ad insertion signaling."
+    };
+    const hasSubtitles = hlsParsed.media.some((m2) => m2.TYPE === "SUBTITLES");
+    results["Subtitles & Captions"] = {
+      used: hasSubtitles,
+      details: hasSubtitles ? "Contains #EXT-X-MEDIA tags with TYPE=SUBTITLES." : "No subtitle renditions declared."
+    };
+    return results;
+  }
+
   // js/features/feature-analysis/logic.js
-  function generateFeatureAnalysis(manifest) {
-    const analysisResults = analyzeDashFeatures(manifest.rawElement);
+  function generateFeatureAnalysis(manifest, protocol) {
+    let analysisResults = {};
+    if (protocol === "dash") {
+      analysisResults = analyzeDashFeatures(
+        /** @type {Element} */
+        manifest.rawElement
+      );
+    } else {
+      analysisResults = analyzeHlsFeatures(manifest.rawElement);
+    }
     const viewModel = featureDefinitions.map((def) => {
       const result = analysisResults[def.name] || {
         used: false,
-        details: "Check not implemented."
+        details: "Check not applicable for this protocol."
       };
       return {
         ...def,
@@ -2066,9 +2213,9 @@
         </div>
     </div>
 `;
-  function getFeaturesAnalysisTemplate(manifest) {
+  function getFeaturesAnalysisTemplate(manifest, protocol) {
     if (!manifest) return x`<p class="warn">No manifest loaded to display.</p>`;
-    const viewModel = generateFeatureAnalysis(manifest);
+    const viewModel = generateFeatureAnalysis(manifest, protocol);
     const groupedFeatures = viewModel.reduce((acc, feature) => {
       if (!acc[feature.category]) {
         acc[feature.category] = [];
@@ -2085,7 +2232,6 @@
         ${Object.entries(groupedFeatures).map(
       ([category, features]) => categoryTemplate2(category, features)
     )}
-        <div class="dev-watermark">Features v5.0</div>
     `;
   }
 
@@ -2291,8 +2437,494 @@
     }
   };
 
+  // js/features/interactive-manifest/hls-tooltip-data.js
+  var hlsTooltipData = {
+    // --- Basic Tags ---
+    EXTM3U: {
+      text: "Indicates that the file is an Extended M3U Playlist file. It MUST be the first line of every Media Playlist and every Master Playlist.",
+      isoRef: "RFC 8216, Section 4.3.1.1"
+    },
+    "EXT-X-VERSION": {
+      text: "Indicates the compatibility version of the Playlist file. It applies to the entire Playlist file.",
+      isoRef: "RFC 8216, Section 4.3.1.2"
+    },
+    // --- Media Segment Tags ---
+    EXTINF: {
+      text: "Specifies the duration of a Media Segment in seconds. It applies only to the Media Segment that follows it.",
+      isoRef: "RFC 8216, Section 4.3.2.1"
+    },
+    "EXT-X-BYTERANGE": {
+      text: "Indicates that a Media Segment is a sub-range of the resource identified by its URI.",
+      isoRef: "RFC 8216, Section 4.3.2.2"
+    },
+    "EXT-X-DISCONTINUITY": {
+      text: "Indicates a discontinuity between the Media Segment that follows it and the one that preceded it (e.g., format or timestamp change).",
+      isoRef: "RFC 8216, Section 4.3.2.3"
+    },
+    "EXT-X-KEY": {
+      text: "Specifies how to decrypt Media Segments. It applies to every Media Segment that appears after it until the next EXT-X-KEY tag.",
+      isoRef: "RFC 8216, Section 4.3.2.4"
+    },
+    "EXT-X-KEY@METHOD": { text: "The encryption method. Valid values are NONE, AES-128, and SAMPLE-AES.", isoRef: "RFC 8216, Section 4.3.2.4" },
+    "EXT-X-KEY@URI": { text: "The URI that specifies how to obtain the encryption key.", isoRef: "RFC 8216, Section 4.3.2.4" },
+    "EXT-X-KEY@IV": { text: "A hexadecimal-sequence that specifies a 128-bit unsigned integer Initialization Vector.", isoRef: "RFC 8216, Section 4.3.2.4" },
+    "EXT-X-KEY@KEYFORMAT": { text: "Specifies how the key is represented in the resource identified by the URI.", isoRef: "RFC 8216, Section 4.3.2.4" },
+    "EXT-X-KEY@KEYFORMATVERSIONS": { text: "Indicates which version(s) of a KEYFORMAT this instance complies with.", isoRef: "RFC 8216, Section 4.3.2.4" },
+    "EXT-X-MAP": {
+      text: "Specifies how to obtain the Media Initialization Section required to parse the applicable Media Segments.",
+      isoRef: "RFC 8216, Section 4.3.2.5"
+    },
+    "EXT-X-MAP@URI": { text: "The URI that identifies a resource containing the Media Initialization Section.", isoRef: "RFC 8216, Section 4.3.2.5" },
+    "EXT-X-MAP@BYTERANGE": { text: "A byte range into the resource identified by the URI.", isoRef: "RFC 8216, Section 4.3.2.5" },
+    "EXT-X-PROGRAM-DATE-TIME": {
+      text: "Associates the first sample of a Media Segment with an absolute date and/or time.",
+      isoRef: "RFC 8216, Section 4.3.2.6"
+    },
+    "EXT-X-DATERANGE": {
+      text: "Associates a Date Range with a set of attribute/value pairs, often for carrying SCTE-35 ad signaling.",
+      isoRef: "RFC 8216, Section 4.3.2.7"
+    },
+    // --- Media Playlist Tags ---
+    "EXT-X-TARGETDURATION": {
+      text: "Specifies the maximum Media Segment duration in seconds. This tag is REQUIRED for all Media Playlists.",
+      isoRef: "RFC 8216, Section 4.3.3.1"
+    },
+    "EXT-X-MEDIA-SEQUENCE": {
+      text: "Indicates the Media Sequence Number of the first Media Segment that appears in a Playlist file.",
+      isoRef: "RFC 8216, Section 4.3.3.2"
+    },
+    "EXT-X-DISCONTINUITY-SEQUENCE": {
+      text: "Allows synchronization between different Renditions of the same Variant Stream.",
+      isoRef: "RFC 8216, Section 4.3.3.3"
+    },
+    "EXT-X-ENDLIST": {
+      text: "Indicates that no more Media Segments will be added to the Media Playlist file.",
+      isoRef: "RFC 8216, Section 4.3.3.4"
+    },
+    "EXT-X-PLAYLIST-TYPE": {
+      text: "Provides mutability information about the Media Playlist file. Can be EVENT or VOD.",
+      isoRef: "RFC 8216, Section 4.3.3.5"
+    },
+    "EXT-X-I-FRAMES-ONLY": {
+      text: "Indicates that each Media Segment in the Playlist describes a single I-frame.",
+      isoRef: "RFC 8216, Section 4.3.3.6"
+    },
+    // --- Master Playlist Tags ---
+    "EXT-X-MEDIA": {
+      text: "Used to relate Media Playlists that contain alternative Renditions (e.g., audio, video, subtitles) of the same content.",
+      isoRef: "RFC 8216, Section 4.3.4.1"
+    },
+    "EXT-X-MEDIA@TYPE": { text: "The type of the rendition. Valid strings are AUDIO, VIDEO, SUBTITLES, and CLOSED-CAPTIONS.", isoRef: "RFC 8216, Section 4.3.4.1" },
+    "EXT-X-MEDIA@URI": { text: "A URI that identifies the Media Playlist file of the rendition.", isoRef: "RFC 8216, Section 4.3.4.1" },
+    "EXT-X-MEDIA@GROUP-ID": { text: "A string that specifies the group to which the Rendition belongs.", isoRef: "RFC 8216, Section 4.3.4.1" },
+    "EXT-X-MEDIA@LANGUAGE": { text: "Identifies the primary language used in the Rendition.", isoRef: "RFC 8216, Section 4.3.4.1" },
+    "EXT-X-MEDIA@NAME": { text: "A human-readable description of the Rendition.", isoRef: "RFC 8216, Section 4.3.4.1" },
+    "EXT-X-MEDIA@DEFAULT": { text: "If YES, the client SHOULD play this Rendition in the absence of other choices.", isoRef: "RFC 8216, Section 4.3.4.1" },
+    "EXT-X-MEDIA@AUTOSELECT": { text: "If YES, the client MAY choose this Rendition due to matching the current playback environment.", isoRef: "RFC 8216, Section 4.3.4.1" },
+    "EXT-X-MEDIA@CHANNELS": { text: "Specifies the number of independent audio channels.", isoRef: "RFC 8216, Section 4.3.4.1" },
+    "EXT-X-STREAM-INF": {
+      text: "Specifies a Variant Stream. The URI of the Media Playlist follows on the next line.",
+      isoRef: "RFC 8216, Section 4.3.4.2"
+    },
+    "EXT-X-STREAM-INF@BANDWIDTH": { text: "The peak segment bit rate of the Variant Stream in bits per second.", isoRef: "RFC 8216, Section 4.3.4.2" },
+    "EXT-X-STREAM-INF@AVERAGE-BANDWIDTH": { text: "The average segment bit rate of the Variant Stream in bits per second.", isoRef: "RFC 8216, Section 4.3.4.2" },
+    "EXT-X-STREAM-INF@CODECS": { text: "A comma-separated list of formats specifying media sample types present in the Variant Stream.", isoRef: "RFC 8216, Section 4.3.4.2" },
+    "EXT-X-STREAM-INF@RESOLUTION": { text: "The optimal pixel resolution at which to display all video in the Variant Stream.", isoRef: "RFC 8216, Section 4.3.4.2" },
+    "EXT-X-STREAM-INF@FRAME-RATE": { text: "The maximum frame rate for all video in the Variant Stream.", isoRef: "RFC 8216, Section 4.3.4.2" },
+    "EXT-X-STREAM-INF@AUDIO": { text: "The GROUP-ID of the audio renditions that should be used with this variant.", isoRef: "RFC 8216, Section 4.3.4.2" },
+    "EXT-X-STREAM-INF@VIDEO": { text: "The GROUP-ID of the video renditions that should be used with this variant.", isoRef: "RFC 8216, Section 4.3.4.2" },
+    "EXT-X-STREAM-INF@SUBTITLES": { text: "The GROUP-ID of the subtitle renditions that can be used with this variant.", isoRef: "RFC 8216, Section 4.3.4.2" },
+    "EXT-X-I-FRAME-STREAM-INF": {
+      text: "Identifies a Media Playlist file containing the I-frames of a multimedia presentation, for use in trick-play modes.",
+      isoRef: "RFC 8216, Section 4.3.4.3"
+    },
+    "EXT-X-SESSION-DATA": {
+      text: "Allows arbitrary session data to be carried in a Master Playlist.",
+      isoRef: "RFC 8216, Section 4.3.4.4"
+    },
+    "EXT-X-SESSION-KEY": {
+      text: "Allows encryption keys from Media Playlists to be specified in a Master Playlist, enabling key preloading.",
+      isoRef: "RFC 8216, Section 4.3.4.5"
+    },
+    // --- Media or Master Playlist Tags ---
+    "EXT-X-INDEPENDENT-SEGMENTS": {
+      text: "Indicates that all media samples in a Media Segment can be decoded without information from other segments.",
+      isoRef: "RFC 8216, Section 4.3.5.1"
+    },
+    "EXT-X-START": {
+      text: "Indicates a preferred point at which to start playing a Playlist.",
+      isoRef: "RFC 8216, Section 4.3.5.2"
+    },
+    "EXT-X-START@TIME-OFFSET": { text: "A time offset in seconds from the beginning of the Playlist (positive) or from the end (negative).", isoRef: "RFC 8216, Section 4.3.5.2" },
+    "EXT-X-START@PRECISE": { text: "Whether clients should start playback precisely at the TIME-OFFSET (YES) or at the beginning of the segment (NO).", isoRef: "RFC 8216, Section 4.3.5.2" }
+  };
+
+  // js/protocols/hls/adapter.js
+  function adaptHlsToIr(hlsParsed) {
+    const manifestIR = {
+      type: hlsParsed.isLive ? "dynamic" : "static",
+      profiles: `HLS v${hlsParsed.version}`,
+      minBufferTime: hlsParsed.targetDuration || 0,
+      publishTime: null,
+      availabilityStartTime: null,
+      timeShiftBufferDepth: null,
+      minimumUpdatePeriod: hlsParsed.isLive ? hlsParsed.targetDuration : null,
+      duration: hlsParsed.segments.reduce((sum, seg) => sum + seg.duration, 0),
+      periods: [],
+      rawElement: hlsParsed
+    };
+    const periodIR = {
+      id: "hls-period-0",
+      start: 0,
+      duration: manifestIR.duration,
+      adaptationSets: []
+    };
+    if (hlsParsed.isMaster) {
+      const mediaGroups = hlsParsed.media.reduce((acc, media) => {
+        const groupId = media["GROUP-ID"];
+        if (!acc[groupId]) {
+          acc[groupId] = [];
+        }
+        acc[groupId].push(media);
+        return acc;
+      }, {});
+      hlsParsed.variants.forEach((variant, index) => {
+        const resolution = variant.attributes.RESOLUTION;
+        const asIR = {
+          id: `variant-${index}`,
+          contentType: resolution ? "video" : "audio",
+          lang: null,
+          mimeType: resolution ? "video/mp2t" : "audio/mp2t",
+          representations: [],
+          contentProtection: []
+          // Master playlists can have session keys
+        };
+        const repIR = {
+          id: `variant-${index}-rep-0`,
+          codecs: variant.attributes.CODECS,
+          bandwidth: variant.attributes.BANDWIDTH,
+          width: resolution ? parseInt(String(resolution).split("x")[0], 10) : null,
+          height: resolution ? parseInt(String(resolution).split("x")[1], 10) : null
+        };
+        asIR.representations.push(repIR);
+        periodIR.adaptationSets.push(asIR);
+        const audioGroupId = variant.attributes.AUDIO;
+        if (audioGroupId && mediaGroups[audioGroupId]) {
+          mediaGroups[audioGroupId].forEach((media, mediaIndex) => {
+            periodIR.adaptationSets.push({
+              id: `audio-rendition-${audioGroupId}-${mediaIndex}`,
+              contentType: "audio",
+              lang: media.LANGUAGE,
+              mimeType: "audio/mp2t",
+              representations: [],
+              // In IR, these are just AS-level properties
+              contentProtection: []
+            });
+          });
+        }
+      });
+    } else {
+      const asIR = {
+        id: "media-0",
+        contentType: "unknown",
+        // Cannot be determined from media playlist alone
+        lang: null,
+        mimeType: "video/mp2t",
+        representations: [
+          { id: "media-0-rep-0", codecs: null, bandwidth: 0, width: null, height: null }
+        ],
+        contentProtection: []
+      };
+      const keyTag = hlsParsed.segments.find((s2) => s2.key)?.key;
+      if (keyTag && keyTag.METHOD !== "NONE") {
+        asIR.contentProtection.push({
+          schemeIdUri: keyTag.KEYFORMAT || "identity",
+          system: keyTag.METHOD
+        });
+      }
+      periodIR.adaptationSets.push(asIR);
+    }
+    manifestIR.periods.push(periodIR);
+    return manifestIR;
+  }
+
+  // js/protocols/hls/parser.js
+  function parseAttributeList(attrString) {
+    const attributes = {};
+    const parts = attrString.match(/("[^"]*")|[^,]+/g) || [];
+    parts.forEach((part) => {
+      const eqIndex = part.indexOf("=");
+      if (eqIndex === -1) return;
+      const key = part.substring(0, eqIndex);
+      const value = part.substring(eqIndex + 1).replace(/"/g, "");
+      const numValue = /^-?\d+(\.\d+)?$/.test(value) ? parseFloat(value) : value;
+      attributes[key] = numValue;
+    });
+    return attributes;
+  }
+  async function parseManifest(manifestString, baseUrl) {
+    const lines = manifestString.split(/\r?\n/);
+    if (!lines[0] || lines[0].trim() !== "#EXTM3U") {
+      throw new Error("Invalid HLS playlist. Must start with #EXTM3U.");
+    }
+    const parsed = {
+      isMaster: false,
+      version: 1,
+      tags: [],
+      segments: [],
+      variants: [],
+      media: [],
+      raw: manifestString,
+      baseUrl
+    };
+    let currentSegment = null;
+    let currentKey = null;
+    for (let i3 = 1; i3 < lines.length; i3++) {
+      const line = lines[i3].trim();
+      if (!line) continue;
+      if (line.startsWith("#EXT")) {
+        const separatorIndex = line.indexOf(":");
+        let tagName, tagValue;
+        if (separatorIndex === -1) {
+          tagName = line.substring(1);
+          tagValue = null;
+        } else {
+          tagName = line.substring(1, separatorIndex);
+          tagValue = line.substring(separatorIndex + 1);
+        }
+        switch (tagName) {
+          // Master Playlist Tags
+          case "EXT-X-STREAM-INF":
+            parsed.isMaster = true;
+            const attributes = parseAttributeList(tagValue);
+            const uri = lines[++i3].trim();
+            parsed.variants.push({
+              attributes,
+              uri,
+              resolvedUri: new URL(uri, baseUrl).href
+            });
+            break;
+          case "EXT-X-MEDIA":
+            parsed.isMaster = true;
+            parsed.media.push(parseAttributeList(tagValue));
+            break;
+          case "EXT-X-I-FRAME-STREAM-INF":
+            parsed.isMaster = true;
+            parsed.tags.push({ name: tagName, value: tagValue });
+            break;
+          // Media Playlist Tags
+          case "EXTINF":
+            const [duration, title] = tagValue.split(",");
+            currentSegment = {
+              duration: parseFloat(duration),
+              title: title || "",
+              tags: [],
+              key: currentKey
+            };
+            break;
+          case "EXT-X-BYTERANGE":
+            if (currentSegment) currentSegment.byteRange = tagValue;
+            break;
+          case "EXT-X-DISCONTINUITY":
+            if (currentSegment) currentSegment.discontinuity = true;
+            break;
+          case "EXT-X-KEY":
+            currentKey = parseAttributeList(tagValue);
+            break;
+          case "EXT-X-MAP":
+            parsed.map = parseAttributeList(tagValue);
+            break;
+          case "EXT-X-PROGRAM-DATE-TIME":
+            if (currentSegment) currentSegment.dateTime = tagValue;
+            break;
+          case "EXT-X-TARGETDURATION":
+            parsed.targetDuration = parseInt(tagValue, 10);
+            break;
+          case "EXT-X-MEDIA-SEQUENCE":
+            parsed.mediaSequence = parseInt(tagValue, 10);
+            break;
+          case "EXT-X-PLAYLIST-TYPE":
+            parsed.playlistType = tagValue;
+            break;
+          case "EXT-X-ENDLIST":
+            parsed.isLive = false;
+            break;
+          // Common Tags
+          case "EXT-X-VERSION":
+            parsed.version = parseInt(tagValue, 10);
+            break;
+          // Default for other tags
+          default:
+            if (currentSegment) {
+              currentSegment.tags.push({ name: tagName, value: tagValue });
+            } else {
+              parsed.tags.push({ name: tagName, value: tagValue });
+            }
+            break;
+        }
+      } else if (!line.startsWith("#")) {
+        if (currentSegment) {
+          currentSegment.uri = line;
+          currentSegment.resolvedUri = new URL(line, baseUrl).href;
+          parsed.segments.push(currentSegment);
+          currentSegment = null;
+        }
+      }
+    }
+    if (!parsed.isMaster && typeof parsed.isLive === "undefined") {
+      parsed.isLive = true;
+    }
+    const manifest = adaptHlsToIr(parsed);
+    return { manifest, baseUrl };
+  }
+
   // js/features/interactive-manifest/view.js
   var escapeHtml = (str) => str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  async function fetchAndActivateMediaPlaylist(stream, url) {
+    showStatus(`Fetching HLS media playlist: ${url}`, "info");
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`HTTP error ${response.status}`);
+      const manifestString = await response.text();
+      const { manifest } = await parseManifest(manifestString, url);
+      stream.mediaPlaylists.set(url, {
+        manifest,
+        rawManifest: manifestString,
+        lastFetched: /* @__PURE__ */ new Date()
+      });
+      stream.activeMediaPlaylistUrl = url;
+      stream.manifest = manifest;
+      stream.rawManifest = manifestString;
+      renderSingleStreamTabs(stream.id);
+      showStatus("Media playlist loaded.", "pass");
+    } catch (e4) {
+      console.error("Failed to fetch or parse media playlist:", e4);
+      showStatus(`Failed to load media playlist: ${e4.message}`, "fail");
+    }
+  }
+  var hlsSubNavTemplate = (stream) => {
+    const masterPlaylist = stream.mediaPlaylists.get("master");
+    if (!masterPlaylist) return x``;
+    const variants = masterPlaylist.manifest.rawElement.variants || [];
+    const handleNavClick = (e4) => {
+      const url = e4.target.dataset.url;
+      if (url === "master") {
+        const master = stream.mediaPlaylists.get("master");
+        stream.manifest = master.manifest;
+        stream.rawManifest = master.rawManifest;
+        stream.activeMediaPlaylistUrl = null;
+        renderSingleStreamTabs(stream.id);
+        return;
+      }
+      if (stream.mediaPlaylists.has(url)) {
+        const mediaPlaylist = stream.mediaPlaylists.get(url);
+        stream.manifest = mediaPlaylist.manifest;
+        stream.rawManifest = mediaPlaylist.rawManifest;
+        stream.activeMediaPlaylistUrl = url;
+        renderSingleStreamTabs(stream.id);
+      } else {
+        fetchAndActivateMediaPlaylist(stream, url);
+      }
+    };
+    const navItem = (label, url, isActive) => x`
+        <button
+            class="px-3 py-1.5 text-sm rounded-md transition-colors ${isActive ? "bg-blue-600 text-white font-semibold" : "bg-gray-900 hover:bg-gray-700"}"
+            data-url="${url}"
+            @click=${handleNavClick}
+        >
+            ${label}
+        </button>
+    `;
+    return x`
+        <div class="mb-4 p-2 bg-gray-900/50 rounded-lg flex flex-wrap gap-2">
+            ${navItem(
+      "Master Playlist",
+      "master",
+      !stream.activeMediaPlaylistUrl
+    )}
+            ${variants.map(
+      (v2) => navItem(
+        `Variant (BW: ${(v2.attributes.BANDWIDTH / 1e3).toFixed(0)}k)`,
+        v2.resolvedUri,
+        stream.activeMediaPlaylistUrl === v2.resolvedUri
+      )
+    )}
+        </div>
+    `;
+  };
+  var getHlsLineHTML = (line) => {
+    line = line.trim();
+    if (!line.startsWith("#EXT")) {
+      const isComment = line.startsWith("#");
+      return `<span class="${isComment ? "text-gray-500 italic" : "text-cyan-400"}">${escapeHtml(line)}</span>`;
+    }
+    const tagClass = "text-purple-300";
+    const attributeClass = "text-emerald-300";
+    const valueClass = "text-yellow-300";
+    const tooltipClass = `rounded-sm px-1 -mx-1 transition-colors hover:bg-slate-700 ${tooltipTriggerClasses}`;
+    const separatorIndex = line.indexOf(":");
+    if (separatorIndex === -1) {
+      const tagName2 = line.substring(1);
+      const tagInfo2 = hlsTooltipData[tagName2];
+      const tooltipAttrs = tagInfo2 ? `data-tooltip="${escapeHtml(tagInfo2.text)}" data-iso="${escapeHtml(
+        tagInfo2.isoRef
+      )}"` : "";
+      return `#<span class="${tagClass} ${tagInfo2 ? tooltipClass : ""}" ${tooltipAttrs}>${tagName2}</span>`;
+    }
+    const tagName = line.substring(1, separatorIndex);
+    const tagValue = line.substring(separatorIndex + 1);
+    const tagInfo = hlsTooltipData[tagName];
+    const tagTooltipAttrs = tagInfo ? `data-tooltip="${escapeHtml(tagInfo.text)}" data-iso="${escapeHtml(
+      tagInfo.isoRef
+    )}"` : "";
+    let valueHtml = "";
+    if (tagValue.includes("=")) {
+      const parts = tagValue.match(/("[^"]*")|[^,]+/g) || [];
+      valueHtml = parts.map((part) => {
+        const eqIndex = part.indexOf("=");
+        if (eqIndex === -1) return escapeHtml(part);
+        const attr = part.substring(0, eqIndex);
+        const val = part.substring(eqIndex + 1);
+        const attrKey = `${tagName}@${attr}`;
+        const attrInfo = hlsTooltipData[attrKey];
+        const attrTooltipAttrs = attrInfo ? `data-tooltip="${escapeHtml(
+          attrInfo.text
+        )}" data-iso="${escapeHtml(attrInfo.isoRef)}"` : "";
+        return `<span class="${attributeClass} ${attrInfo ? tooltipClass : ""}" ${attrTooltipAttrs}>${escapeHtml(
+          attr
+        )}</span>=<span class="${valueClass}">${escapeHtml(val)}</span>`;
+      }).join('<span class="text-gray-400">,</span>');
+    } else {
+      valueHtml = `<span class="${valueClass}">${escapeHtml(tagValue)}</span>`;
+    }
+    return `#<span class="${tagClass} ${tagInfo ? tooltipClass : ""}" ${tagTooltipAttrs}>${tagName}</span>:<span class="font-normal">${valueHtml}</span>`;
+  };
+  var hlsManifestTemplate = (stream) => {
+    const manifestString = stream.rawManifest;
+    const isMaster = stream.mediaPlaylists.get("master")?.manifest.rawElement.isMaster;
+    const lines = manifestString.split(/\r?\n/);
+    return x`
+        <h3 class="text-xl font-bold mb-2">Interactive Manifest</h3>
+        ${isMaster ? hlsSubNavTemplate(stream) : ""}
+        <div
+            class="bg-slate-800 rounded-lg p-4 font-mono text-sm leading-relaxed overflow-x-auto"
+        >
+            ${lines.map(
+      (line, i3) => x`
+                    <div class="flex">
+                        <span
+                            class="text-right text-gray-500 pr-4 select-none flex-shrink-0 w-10"
+                            >${i3 + 1}</span
+                        >
+                        <span class="flex-grow whitespace-pre-wrap break-all"
+                            >${o2(getHlsLineHTML(line))}</span
+                        >
+                    </div>
+                `
+    )}
+        </div>
+    `;
+  };
   var getTagHTML = (tagName) => {
     const isClosing = tagName.startsWith("/");
     const cleanTagName = isClosing ? tagName.substring(1) : tagName;
@@ -2313,51 +2945,52 @@
     )}"` : "";
     return `<span class="${nameClass} ${attrInfo ? tooltipTriggerClasses : ""}" ${tooltipAttrs}>${attr.name}</span>=<span class="${valueClass}">"${escapeHtml(attr.value)}"</span>`;
   };
-  function getInteractiveManifestTemplate(manifest) {
-    if (!manifest) return x`<p class="warn">No Manifest loaded to display.</p>`;
-    const preformatted = (node, depth = 0) => {
-      const indent = "  ".repeat(depth);
-      switch (node.nodeType) {
-        case Node.ELEMENT_NODE: {
-          const el = (
-            /** @type {Element} */
-            node
+  var preformattedDash = (node, depth = 0) => {
+    const indent = "  ".repeat(depth);
+    switch (node.nodeType) {
+      case Node.ELEMENT_NODE: {
+        const el = (
+          /** @type {Element} */
+          node
+        );
+        const childNodes = Array.from(el.childNodes).filter(
+          (n2) => n2.nodeType === Node.ELEMENT_NODE || n2.nodeType === Node.COMMENT_NODE || n2.nodeType === Node.TEXT_NODE && n2.textContent.trim()
+        );
+        const attrs = Array.from(el.attributes).map((a2) => ` ${getAttributeHTML(el.tagName, a2)}`).join("");
+        if (childNodes.length > 0) {
+          const openingTag = `${indent}${getTagHTML(el.tagName)}${attrs}&gt;`;
+          const childLines = childNodes.flatMap(
+            (c2) => preformattedDash(c2, depth + 1)
           );
-          const childNodes = Array.from(el.childNodes).filter(
-            (n2) => n2.nodeType === Node.ELEMENT_NODE || n2.nodeType === Node.COMMENT_NODE || n2.nodeType === Node.TEXT_NODE && n2.textContent.trim()
-          );
-          const attrs = Array.from(el.attributes).map((a2) => ` ${getAttributeHTML(el.tagName, a2)}`).join("");
-          if (childNodes.length > 0) {
-            const openingTag = `${indent}${getTagHTML(el.tagName)}${attrs}&gt;`;
-            const childLines = childNodes.flatMap(
-              (c2) => preformatted(c2, depth + 1)
-            );
-            const closingTag = `${indent}${getTagHTML(`/${el.tagName}`)}&gt;`;
-            return [openingTag, ...childLines, closingTag];
-          } else {
-            return [`${indent}${getTagHTML(el.tagName)}${attrs} /&gt;`];
-          }
+          const closingTag = `${indent}${getTagHTML(`/${el.tagName}`)}&gt;`;
+          return [openingTag, ...childLines, closingTag];
+        } else {
+          return [`${indent}${getTagHTML(el.tagName)}${attrs} /&gt;`];
         }
-        case Node.TEXT_NODE: {
-          return [
-            `${indent}<span class="text-gray-200">${escapeHtml(
-              node.textContent.trim()
-            )}</span>`
-          ];
-        }
-        case Node.COMMENT_NODE: {
-          return [
-            `${indent}<span class="text-gray-500 italic">&lt;!--${escapeHtml(
-              node.textContent
-            )}--&gt;</span>`
-          ];
-        }
-        default:
-          return [];
       }
-    };
-    const lines = preformatted(manifest);
-    return x`<div
+      case Node.TEXT_NODE: {
+        return [
+          `${indent}<span class="text-gray-200">${escapeHtml(
+            node.textContent.trim()
+          )}</span>`
+        ];
+      }
+      case Node.COMMENT_NODE: {
+        return [
+          `${indent}<span class="text-gray-500 italic">&lt;!--${escapeHtml(
+            node.textContent
+          )}--&gt;</span>`
+        ];
+      }
+      default:
+        return [];
+    }
+  };
+  var dashManifestTemplate = (manifestElement) => {
+    const lines = preformattedDash(manifestElement);
+    return x`
+        <h3 class="text-xl font-bold mb-2">Interactive Manifest</h3>
+        <div
         class="bg-slate-800 rounded-lg p-4 font-mono text-sm leading-relaxed overflow-x-auto"
     >
         ${lines.map(
@@ -2374,6 +3007,17 @@
             `
     )}
     </div>`;
+  };
+  function getInteractiveManifestTemplate(stream) {
+    if (!stream || !stream.manifest)
+      return x`<p class="warn">No Manifest loaded to display.</p>`;
+    if (stream.protocol === "hls") {
+      return hlsManifestTemplate(stream);
+    }
+    return dashManifestTemplate(
+      /** @type {Element} */
+      stream.manifest.rawElement
+    );
   }
 
   // js/features/interactive-segment/logic.js
@@ -3040,8 +3684,13 @@
     let currentParseOffset = box.headerSize;
     const version = view.getUint8(currentParseOffset);
     box.details["version"] = { value: version, offset: box.offset + currentParseOffset, length: 1 };
+    box.details["flags"] = { value: `0x${(view.getUint32(currentParseOffset) & 16777215).toString(16)}`, offset: box.offset + currentParseOffset, length: 4 };
     currentParseOffset += 4;
-    currentParseOffset += version === 1 ? 16 : 8;
+    const timeFieldLength = version === 1 ? 8 : 4;
+    box.details["creation_time"] = { value: "...", offset: box.offset + currentParseOffset, length: timeFieldLength };
+    currentParseOffset += timeFieldLength;
+    box.details["modification_time"] = { value: "...", offset: box.offset + currentParseOffset, length: timeFieldLength };
+    currentParseOffset += timeFieldLength;
     const timescale = view.getUint32(currentParseOffset);
     box.details["timescale"] = { value: timescale, offset: box.offset + currentParseOffset, length: 4 };
     currentParseOffset += 4;
@@ -3049,9 +3698,11 @@
     const duration = version === 1 ? Number(view.getBigUint64(currentParseOffset)) : view.getUint32(currentParseOffset);
     box.details["duration"] = { value: duration, offset: box.offset + currentParseOffset, length: durationLength };
     currentParseOffset += durationLength;
-    const lang = view.getUint16(currentParseOffset);
-    const langValue = String.fromCharCode((lang >> 10 & 31) + 96, (lang >> 5 & 31) + 96, (lang & 31) + 96);
+    const langBits = view.getUint16(currentParseOffset);
+    const langValue = String.fromCharCode((langBits >> 10 & 31) + 96, (langBits >> 5 & 31) + 96, (langBits & 31) + 96);
     box.details["language"] = { value: langValue, offset: box.offset + currentParseOffset, length: 2 };
+    currentParseOffset += 2;
+    box.details["pre-defined"] = { value: "0", offset: box.offset + currentParseOffset, length: 2 };
   }
   var mdhdTooltip = {
     mdhd: {
@@ -3779,9 +4430,10 @@
           length: box.size - box.headerSize
         };
       }
-    } catch (_e) {
+    } catch (e4) {
+      console.error(`Error parsing ISOBMFF box "${box.type}":`, e4);
       box.details["Parsing Error"] = {
-        value: _e.message,
+        value: e4.message,
         offset: box.offset,
         length: box.size
       };
@@ -4463,19 +5115,26 @@
       B(x`<p class="fail">Segment buffer not available.</p>`, dom.modalContentArea);
       return;
     }
-    const target = (
-      /** @type {HTMLElement} */
-      e4?.currentTarget
-    );
-    const url = target?.dataset.url;
-    const repId = target?.dataset.repid;
     const activeStream = analysisState.streams.find((s2) => s2.id === analysisState.activeStreamId);
     if (!activeStream) return;
-    const rep = activeStream.manifest.rawElement.querySelector(`Representation[id="${repId}"]`);
-    const as = rep?.closest("AdaptationSet");
-    const mimeType = rep?.getAttribute("mimeType") || as?.getAttribute("mimeType");
+    let segmentMimeType = "";
+    if (activeStream.protocol === "hls") {
+      segmentMimeType = activeStream.manifest.rawElement.map ? "video/mp4" : "video/mp2t";
+    } else {
+      const target = (
+        /** @type {HTMLElement} */
+        e4?.currentTarget
+      );
+      const repId = target?.dataset.repid;
+      const rep = (
+        /** @type {Element} */
+        activeStream.manifest.rawElement.querySelector(`Representation[id="${repId}"]`)
+      );
+      const as = rep?.closest("AdaptationSet");
+      segmentMimeType = rep?.getAttribute("mimeType") || as?.getAttribute("mimeType");
+    }
     try {
-      if (mimeType === "video/mp2t") {
+      if (segmentMimeType === "video/mp2t") {
         const analysisA = parseTsSegment(buffer);
         if (bufferB) {
           const analysisB = parseTsSegment(bufferB);
@@ -4485,6 +5144,10 @@
           B(tsAnalysisTemplate(analysisA.data), dom.modalContentArea);
         }
       } else {
+        const url = (
+          /** @type {HTMLElement} */
+          (e4?.currentTarget).dataset.url
+        );
         const cachedA = analysisState.segmentCache.get(url);
         if (cachedA?.parsedData && !cachedA.parsedData.error) {
           B(isoAnalysisTemplate(cachedA.parsedData), dom.modalContentArea);
@@ -4498,7 +5161,7 @@
     }
   }
 
-  // js/features/segment-explorer/parser.js
+  // js/features/segment-explorer/dash-parser.js
   function parseAllSegmentUrls(manifestElement, baseUrl) {
     const segmentsByRep = {};
     manifestElement.querySelectorAll("Representation").forEach((rep) => {
@@ -4561,6 +5224,53 @@
     return segmentsByRep;
   }
 
+  // js/features/segment-explorer/hls-parser.js
+  function parseAllSegmentUrls2(parsedMediaPlaylist) {
+    if (!parsedMediaPlaylist || !parsedMediaPlaylist.segments) {
+      return {};
+    }
+    const segments = [];
+    const mediaSequence = parsedMediaPlaylist.mediaSequence || 0;
+    let currentTime = 0;
+    const hlsTimescale = 9e4;
+    if (parsedMediaPlaylist.map) {
+      segments.push({
+        repId: "hls-media",
+        type: "Init",
+        number: 0,
+        resolvedUrl: new URL(parsedMediaPlaylist.map.URI, parsedMediaPlaylist.baseUrl).href,
+        template: parsedMediaPlaylist.map.URI,
+        time: -1,
+        duration: 0,
+        timescale: hlsTimescale
+      });
+    }
+    parsedMediaPlaylist.segments.forEach((seg, index) => {
+      segments.push({
+        repId: "hls-media",
+        type: "Media",
+        number: mediaSequence + index,
+        resolvedUrl: seg.resolvedUri,
+        template: seg.uri,
+        time: Math.round(currentTime * hlsTimescale),
+        duration: Math.round(seg.duration * hlsTimescale),
+        timescale: hlsTimescale
+      });
+      currentTime += seg.duration;
+    });
+    return {
+      "media-playlist": segments
+    };
+  }
+
+  // js/features/segment-explorer/parser.js
+  function parseAllSegmentUrls3(stream) {
+    if (stream.protocol === "hls") {
+      return parseAllSegmentUrls2(stream.manifest.rawElement);
+    }
+    return parseAllSegmentUrls(stream.manifest.rawElement, stream.baseUrl);
+  }
+
   // js/features/segment-explorer/api.js
   async function fetchSegment(url) {
     if (analysisState.segmentCache.has(url) && analysisState.segmentCache.get(url).status !== -1)
@@ -4579,18 +5289,22 @@
         }
       }
       analysisState.segmentCache.set(url, { status: response.status, data, parsedData });
-    } catch (_error) {
+    } catch (error) {
+      console.error(`Failed to fetch segment ${url}:`, error);
       analysisState.segmentCache.set(url, { status: 0, data: null, parsedData: null });
     }
   }
 
   // js/features/segment-explorer/view.js
   var SEGMENT_PAGE_SIZE = 10;
+  var HLS_PARTIAL_LOAD_COUNT = 10;
   var segmentFreshnessInterval = null;
   var allSegmentsByRep = {};
   var currentContainer = null;
-  var currentManifest = null;
-  var currentBaseUrl = null;
+  var currentStream = null;
+  var expandedVariants = /* @__PURE__ */ new Set();
+  var hlsSegmentCache = /* @__PURE__ */ new Map();
+  var hlsLoadingVariants = /* @__PURE__ */ new Set();
   function handleSegmentCheck(e4) {
     const checkbox = (
       /** @type {HTMLInputElement} */
@@ -4599,6 +5313,10 @@
     const url = checkbox.value;
     const { segmentsForCompare } = analysisState;
     if (checkbox.checked) {
+      if (segmentsForCompare.length >= 2) {
+        checkbox.checked = false;
+        return;
+      }
       if (!segmentsForCompare.includes(url)) {
         segmentsForCompare.push(url);
       }
@@ -4608,7 +5326,11 @@
         segmentsForCompare.splice(index, 1);
       }
     }
-    initializeSegmentExplorer(currentContainer, currentManifest, currentBaseUrl);
+    const compareButton = currentContainer.querySelector("#segment-compare-btn");
+    if (compareButton) {
+      compareButton.textContent = `Compare Selected (${segmentsForCompare.length}/2)`;
+      compareButton.toggleAttribute("disabled", segmentsForCompare.length !== 2);
+    }
   }
   function handleCompareClick() {
     const { segmentsForCompare, segmentCache } = analysisState;
@@ -4629,26 +5351,109 @@
     modalContent.classList.add("scale-100");
     dispatchAndRenderSegmentAnalysis(null, segmentA.data, segmentB.data);
   }
+  async function loadHlsVariant(variantUri, limit = Infinity) {
+    if (hlsSegmentCache.has(variantUri)) {
+      expandedVariants.add(variantUri);
+      renderHlsExplorer();
+      return;
+    }
+    hlsLoadingVariants.add(variantUri);
+    expandedVariants.add(variantUri);
+    renderHlsExplorer();
+    try {
+      const response = await fetch(variantUri);
+      if (!response.ok) throw new Error(`HTTP Error ${response.status}`);
+      const rawManifest = await response.text();
+      const { manifest } = await parseManifest(rawManifest, variantUri);
+      const segments = parseAllSegmentUrls2(manifest.rawElement)["media-playlist"];
+      hlsSegmentCache.set(variantUri, segments);
+      hlsLoadingVariants.delete(variantUri);
+      renderHlsExplorer();
+      const segmentsToFetch = segments.slice(0, limit);
+      segmentsToFetch.forEach((s2) => {
+        fetchSegment(s2.resolvedUrl).then(() => {
+          if (expandedVariants.has(variantUri)) {
+            renderHlsExplorer();
+          }
+        });
+      });
+    } catch (err) {
+      console.error(`Error loading HLS media playlist ${variantUri}:`, err);
+      hlsSegmentCache.set(variantUri, { error: err.message });
+      hlsLoadingVariants.delete(variantUri);
+      renderHlsExplorer();
+    }
+  }
+  var hlsRowTemplate = (rowData) => {
+    switch (rowData.type) {
+      case "variant":
+        const isExpanded = expandedVariants.has(rowData.uri);
+        const segments = hlsSegmentCache.get(rowData.uri);
+        const isLoading = hlsLoadingVariants.has(rowData.uri);
+        const hasError = segments?.error;
+        const toggleExpand = (e4) => {
+          if (e4.target.tagName === "BUTTON") return;
+          if (isExpanded) {
+            expandedVariants.delete(rowData.uri);
+            renderHlsExplorer();
+          } else {
+            loadHlsVariant(rowData.uri, HLS_PARTIAL_LOAD_COUNT);
+          }
+        };
+        return x`
+                <details class="bg-gray-800 rounded-lg overflow-hidden border border-gray-700" ?open=${isExpanded}>
+                    <summary @click=${toggleExpand} class="font-semibold cursor-pointer p-3 hover:bg-gray-700/70 transition-colors flex justify-between items-center list-none">
+                        <div>
+                            <span class="transform transition-transform inline-block ${isExpanded ? "rotate-90" : ""}">▶</span>
+                            <span class="ml-2 font-semibold text-gray-200">Variant Stream ${rowData.index + 1}</span>
+                            <span class="ml-3 text-xs text-gray-400 font-mono">(BW: ${rowData.bw} kbps, Res: ${rowData.res})</span>
+                        </div>
+                        ${hasError ? x`<span class="text-xs text-red-400">Error Loading Playlist</span>` : ""}
+                    </summary>
+                    <div class="p-4 border-t border-gray-600">
+                        ${isLoading ? x`<div class="flex items-center justify-center p-4">
+                                <div class="animate-spin inline-block w-6 h-6 border-4 border-blue-500 border-t-transparent rounded-full"></div>
+                                <span class="ml-3 text-gray-400">Loading Media Playlist...</span>
+                            </div>` : !Array.isArray(segments) ? x`
+                                <div class="flex gap-4">
+                                    <button @click=${() => loadHlsVariant(rowData.uri, HLS_PARTIAL_LOAD_COUNT)} class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition duration-300">Load First ${HLS_PARTIAL_LOAD_COUNT} Segments</button>
+                                    <button @click=${() => loadHlsVariant(rowData.uri)} class="w-full bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md transition duration-300">Load All Segments</button>
+                                </div>
+                            ` : x`<table class="w-full text-left text-sm table-fixed">
+                                <thead class="sticky top-0 bg-gray-800 z-10">
+                                    <tr>
+                                        <th class="py-2 pl-3 w-8"></th><th class="py-2 w-[15%]">Type / Status</th><th class="py-2 w-[20%]">Timing (s)</th><th class="py-2 w-[45%]">URL</th><th class="py-2 pr-3 w-[20%] text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>${segments.map((s2) => segmentRowTemplate(s2))}</tbody>
+                            </table>`}
+                    </div>
+                </details>`;
+      default:
+        return x``;
+    }
+  };
+  var hlsMasterExplorerTemplate = () => {
+    const variants = currentStream.manifest.rawElement.variants || [];
+    const rows = variants.map((variant, index) => ({
+      type: "variant",
+      index,
+      uri: variant.resolvedUri,
+      bw: (variant.attributes.BANDWIDTH / 1e3).toFixed(0),
+      res: variant.attributes.RESOLUTION || "N/A"
+    }));
+    return x`${rows.map(hlsRowTemplate)}`;
+  };
   var segmentRowTemplate = (seg) => {
     const cacheEntry = analysisState.segmentCache.get(seg.resolvedUrl);
     let statusHtml;
     if (!cacheEntry || cacheEntry.status === -1) {
-      statusHtml = x`<div
-            class="flex-shrink-0 w-2.5 h-2.5 rounded-full bg-gray-500 animate-pulse"
-            title="Status: Pending"
-        ></div>`;
+      statusHtml = x`<div class="flex-shrink-0 w-2.5 h-2.5 rounded-full bg-gray-500 animate-pulse" title="Status: Pending"></div>`;
     } else if (cacheEntry.status !== 200) {
       const statusText = cacheEntry.status === 0 ? "Network Error" : `HTTP ${cacheEntry.status}`;
-      statusHtml = x`<div
-                class="flex-shrink-0 w-2.5 h-2.5 rounded-full bg-red-500"
-                title="Status: ${statusText}"
-            ></div>
-            <span class="text-xs text-red-400 ml-2">[${statusText}]</span>`;
+      statusHtml = x`<div class="flex-shrink-0 w-2.5 h-2.5 rounded-full bg-red-500" title="Status: ${statusText}"></div><span class="text-xs text-red-400 ml-2">[${statusText}]</span>`;
     } else {
-      statusHtml = x`<div
-            class="flex-shrink-0 w-2.5 h-2.5 rounded-full bg-green-500"
-            title="Status: OK (200)"
-        ></div>`;
+      statusHtml = x`<div class="flex-shrink-0 w-2.5 h-2.5 rounded-full bg-green-500" title="Status: OK (200)"></div>`;
     }
     const typeLabel = seg.type === "Init" ? "Init" : `Media #${seg.number}`;
     const canAnalyze = cacheEntry && cacheEntry.status === 200 && cacheEntry.data;
@@ -4680,176 +5485,22 @@
       );
       targetTab?.click();
     };
-    const segmentTiming = seg.type === "Media" ? x`${(seg.time / seg.timescale).toFixed(2)}s
-              (+${(seg.duration / seg.timescale).toFixed(2)}s)` : "N/A";
-    return x` <tr
-        class="border-t border-gray-700 segment-row"
-        data-url="${seg.resolvedUrl}"
-        data-time="${seg.time}"
-    >
-        <td class="py-2 pl-3 w-8">
-            <input
-                type="checkbox"
-                class="bg-gray-700 border-gray-500 rounded focus:ring-blue-500"
-                .value=${seg.resolvedUrl}
-                ?checked=${isChecked}
-                @change=${handleSegmentCheck}
-            />
-        </td>
-        <td class="py-2">
-            <div class="flex items-center">
-                ${statusHtml}
-                <span class="ml-2">${typeLabel}</span>
-            </div>
-        </td>
+    const segmentTiming = seg.type === "Media" ? x`${(seg.time / seg.timescale).toFixed(2)}s (+${(seg.duration / seg.timescale).toFixed(2)}s)` : "N/A";
+    return x`<tr class="border-t border-gray-700 segment-row" data-url="${seg.resolvedUrl}" data-time="${seg.time}">
+        <td class="py-2 pl-3"><input type="checkbox" class="bg-gray-700 border-gray-500 rounded focus:ring-blue-500" .value=${seg.resolvedUrl} ?checked=${isChecked} @change=${handleSegmentCheck}/></td>
+        <td class="py-2"><div class="flex items-center">${statusHtml}<span class="ml-2">${typeLabel}</span></div></td>
         <td class="py-2 text-xs font-mono">${segmentTiming}</td>
-        <td
-            class="py-2 font-mono text-cyan-400 truncate"
-            title="${seg.resolvedUrl}"
-        >
-            ${seg.template}
-        </td>
+        <td class="py-2 font-mono text-cyan-400 truncate" title="${seg.resolvedUrl}">${seg.template}</td>
         <td class="py-2 pr-3 text-right">
             <div class="flex items-center justify-end space-x-2">
-                <button
-                    class="view-raw-btn text-xs bg-gray-600 hover:bg-gray-700 px-2 py-1 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                    data-url="${seg.resolvedUrl}"
-                    ?disabled=${!canAnalyze}
-                    @click=${viewRawHandler}
-                >
-                    View Raw
-                </button>
-                <button
-                    class="view-details-btn text-xs bg-purple-600 hover:bg-purple-700 px-2 py-1 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                    data-url="${seg.resolvedUrl}"
-                    data-repid="${seg.repId}"
-                    data-number="${seg.number}"
-                    ?disabled=${!canAnalyze}
-                    @click=${analyzeHandler}
-                >
-                    Analyze
-                </button>
+                <button class="view-raw-btn text-xs bg-gray-600 hover:bg-gray-700 px-2 py-1 rounded disabled:opacity-50 disabled:cursor-not-allowed" data-url="${seg.resolvedUrl}" ?disabled=${!canAnalyze} @click=${viewRawHandler}>View Raw</button>
+                <button class="view-details-btn text-xs bg-purple-600 hover:bg-purple-700 px-2 py-1 rounded disabled:opacity-50 disabled:cursor-not-allowed" data-url="${seg.resolvedUrl}" data-repid="${seg.repId}" data-number="${seg.number}" ?disabled=${!canAnalyze} @click=${analyzeHandler}>Analyze</button>
             </div>
         </td>
     </tr>`;
   };
-  var segmentTableTemplate = (rep, segmentsToRender) => {
-    const repId = rep.getAttribute("id");
-    const bandwidth = parseInt(rep.getAttribute("bandwidth"));
-    return x`
-        <details class="bg-gray-900 p-3 rounded" open>
-            <summary class="font-semibold cursor-pointer">
-                Representation: ${repId} (${(bandwidth / 1e3).toFixed(0)} kbps)
-            </summary>
-            <div class="mt-2 pl-4 max-h-96 overflow-y-auto">
-                <table class="w-full text-left text-sm table-fixed">
-                    <thead class="sticky top-0 bg-gray-900 z-10">
-                        <tr>
-                            <th class="py-2 pl-3 w-8"></th>
-                            <th class="py-2 w-[15%]">Type / Status</th>
-                            <th class="py-2 w-[20%]">Timing (s)</th>
-                            <th class="py-2 w-[45%]">URL / Template</th>
-                            <th class="py-2 pr-3 w-[20%] text-right">
-                                Actions
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody data-repid="${repId}">
-                        ${segmentsToRender.map(
-      (seg) => segmentRowTemplate(seg)
-    )}
-                    </tbody>
-                </table>
-            </div>
-        </details>
-    `;
-  };
-  function initializeSegmentExplorer(container, manifest, baseUrl) {
-    currentContainer = container;
-    currentManifest = manifest;
-    currentBaseUrl = baseUrl;
-    allSegmentsByRep = parseAllSegmentUrls(manifest.rawElement, baseUrl);
-    const isDynamic = manifest.type === "dynamic";
-    const template = x`
-        <div class="flex flex-wrap justify-between items-center mb-4 gap-4">
-            <h3 class="text-xl font-bold">Segment Explorer</h3>
-            <div
-                id="segment-explorer-controls"
-                class="flex items-center flex-wrap gap-4"
-            >
-                <div class="flex items-center gap-2">
-                    <button
-                        @click=${() => loadAndRenderSegmentRange("first")}
-                        class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-md transition-colors"
-                    >
-                        First ${SEGMENT_PAGE_SIZE}
-                    </button>
-                    ${isDynamic ? x`<button
-                              @click=${() => loadAndRenderSegmentRange("last")}
-                              class="bg-orange-600 hover:bg-orange-700 text-white font-bold py-2 px-3 rounded-md transition-colors"
-                          >
-                              Last ${SEGMENT_PAGE_SIZE}
-                          </button>` : ""}
-                </div>
-                 <button
-                    @click=${handleCompareClick}
-                    class="bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    ?disabled=${analysisState.segmentsForCompare.length !== 2}
-                >
-                    Compare Selected (${analysisState.segmentsForCompare.length}/2)
-                </button>
-                <div
-                    class="flex items-center border border-gray-600 rounded-md overflow-hidden"
-                >
-                    <select
-                        id="segment-filter-type"
-                        class="bg-gray-700 text-white border-0 focus:ring-0 p-2 text-sm h-full"
-                    >
-                        <option value="number">Segment #</option>
-                        <option value="time">Time (s)</option>
-                    </select>
-                    <input
-                        type="text"
-                        id="segment-filter-from"
-                        class="bg-gray-700 text-white p-2 border-0 border-l border-gray-600 focus:ring-0 w-24 text-sm h-full"
-                        placeholder="From"
-                    />
-                    <input
-                        type="text"
-                        id="segment-filter-to"
-                        class="bg-gray-700 text-white p-2 border-0 border-l border-gray-600 focus:ring-0 w-24 text-sm h-full"
-                        placeholder="To"
-                    />
-                    <button
-                        @click=${handleFilter}
-                        class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-3 h-full border-l border-gray-600"
-                    >
-                        Filter
-                    </button>
-                    <button
-                        @click=${() => loadAndRenderSegmentRange("first")}
-                        class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-3 h-full border-l border-gray-600"
-                    >
-                        Reset
-                    </button>
-                </div>
-            </div>
-        </div>
-        <div id="segment-explorer-content" class="space-y-4">
-            <!-- Content will be rendered here -->
-        </div>
-        <div class="dev-watermark">Segment Explorer v4.0</div>
-    `;
-    B(template, container);
-    if (!document.querySelector("#segment-explorer-content table")) {
-      loadAndRenderSegmentRange("first");
-    }
-  }
-  async function loadAndRenderSegmentRange(mode) {
-    const contentArea = (
-      /** @type {HTMLDivElement} */
-      document.querySelector("#segment-explorer-content")
-    );
+  async function loadAndRenderDashSegmentRange(mode) {
+    const contentArea = document.getElementById("segment-explorer-content");
     B(x`<p class="info">Fetching segment data...</p>`, contentArea);
     analysisState.segmentCache.clear();
     analysisState.segmentsForCompare = [];
@@ -4857,164 +5508,103 @@
     const segmentsToFetch = Object.values(allSegmentsByRep).flatMap(
       (segments) => mode === "first" ? segments.slice(0, SEGMENT_PAGE_SIZE) : segments.slice(-SEGMENT_PAGE_SIZE)
     );
-    await Promise.all(
-      segmentsToFetch.map((seg) => fetchSegment(seg.resolvedUrl))
-    );
-    const manifest = analysisState.streams.find(
-      (s2) => s2.id === analysisState.activeStreamId
-    ).manifest;
-    const tables = Array.from(manifest.rawElement.querySelectorAll("Representation")).map(
-      (rep) => {
-        const repId = rep.getAttribute("id");
-        const segments = allSegmentsByRep[repId] || [];
-        const segmentsToRender = mode === "first" ? segments.slice(0, SEGMENT_PAGE_SIZE) : segments.slice(-SEGMENT_PAGE_SIZE);
-        return segmentTableTemplate(rep, segmentsToRender);
-      }
-    );
+    await Promise.all(segmentsToFetch.map((seg) => fetchSegment(seg.resolvedUrl)));
+    const tables = Array.from(
+      /** @type {Element} */
+      currentStream.manifest.rawElement.querySelectorAll("Representation")
+    ).map((rep) => {
+      const repId = rep.getAttribute("id");
+      const segments = allSegmentsByRep[repId] || [];
+      const segmentsToRender = mode === "first" ? segments.slice(0, SEGMENT_PAGE_SIZE) : segments.slice(-SEGMENT_PAGE_SIZE);
+      return dashSegmentTableTemplate(rep, segmentsToRender);
+    });
     B(x`${tables}`, contentArea);
-    if (manifest.type === "dynamic") {
+    if (currentStream.manifest.type === "dynamic") {
       startSegmentFreshnessChecker();
     }
   }
-  async function handleFilter() {
-    const contentArea = (
-      /** @type {HTMLDivElement} */
-      document.querySelector("#segment-explorer-content")
-    );
-    const type = (
-      /** @type {HTMLSelectElement} */
-      document.querySelector("#segment-filter-type").value
-    );
-    const fromInput = (
-      /** @type {HTMLInputElement} */
-      document.querySelector("#segment-filter-from")
-    );
-    const toInput = (
-      /** @type {HTMLInputElement} */
-      document.querySelector("#segment-filter-to")
-    );
-    const fromValue = fromInput.value !== "" ? parseFloat(fromInput.value) : -Infinity;
-    const toValue = toInput.value !== "" ? parseFloat(toInput.value) : Infinity;
-    if (isNaN(fromValue) || isNaN(toValue)) {
-      B(
-        x`<p class="warn">
-                Please enter valid numbers for the filter range.
-            </p>`,
-        contentArea
-      );
-      return;
-    }
-    B(
-      x`<p class="info">Filtering and fetching segments...</p>`,
-      contentArea
-    );
-    const filteredSegmentsByRep = getFilteredSegments(fromValue, toValue, type);
-    const segmentsToFetch = Object.values(filteredSegmentsByRep).flat();
-    if (segmentsToFetch.length === 0) {
-      B(
-        x`<p class="warn">
-                No segments found matching the specified filter.
-            </p>`,
-        contentArea
-      );
-      return;
-    }
-    await Promise.all(
-      segmentsToFetch.map((seg) => fetchSegment(seg.resolvedUrl))
-    );
-    const manifest = analysisState.streams.find(
-      (s2) => s2.id === analysisState.activeStreamId
-    ).manifest;
-    const tables = Array.from(manifest.rawElement.querySelectorAll("Representation")).map(
-      (rep) => {
-        const repId = rep.getAttribute("id");
-        const segmentsToRender = filteredSegmentsByRep[repId] || [];
-        return segmentsToRender.length > 0 ? segmentTableTemplate(rep, segmentsToRender) : "";
-      }
-    );
-    B(x`${tables.filter(Boolean)}`, contentArea);
+  var dashSegmentTableTemplate = (rep, segmentsToRender) => {
+    const repId = rep.getAttribute("id");
+    const bandwidth = parseInt(rep.getAttribute("bandwidth"));
+    return x`<details class="bg-gray-800 rounded-lg overflow-hidden border border-gray-700" open>
+        <summary class="font-semibold cursor-pointer p-3 hover:bg-gray-700/70 transition-colors flex justify-between items-center list-none">Representation: ${repId} (${(bandwidth / 1e3).toFixed(0)} kbps)</summary>
+        <div class="max-h-96 overflow-y-auto">
+            <table class="w-full text-left text-sm table-fixed">
+                <thead class="sticky top-0 bg-gray-800 z-10">
+                    <tr>
+                        <th class="py-2 pl-3 w-8"></th><th class="py-2 w-[15%]">Type / Status</th><th class="py-2 w-[20%]">Timing (s)</th><th class="py-2 w-[45%]">URL</th><th class="py-2 pr-3 w-[20%] text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>${segmentsToRender.map((seg) => segmentRowTemplate(seg))}</tbody>
+            </table>
+        </div>
+    </details>`;
+  };
+  function renderHlsExplorer() {
+    const contentArea = document.getElementById("segment-explorer-content");
+    if (contentArea) B(hlsMasterExplorerTemplate(), contentArea);
   }
-  function getFilteredSegments(from, to, type) {
-    const results = {};
-    for (const repId in allSegmentsByRep) {
-      const segments = allSegmentsByRep[repId];
-      results[repId] = segments.filter((segment) => {
-        if (segment.type !== "Media") return false;
-        let value;
-        if (type === "number") {
-          value = segment.number;
-        } else {
-          value = segment.time / segment.timescale;
-        }
-        return value >= from && value <= to;
-      });
-    }
-    return results;
-  }
-  function updateSegmentFreshness() {
-    const activeStream = analysisState.streams.find(
-      (s2) => s2.id === analysisState.activeStreamId
-    );
-    if (!activeStream || activeStream.manifest.type !== "dynamic")
-      return;
-    const timeShiftBufferDepth = activeStream.manifest.timeShiftBufferDepth;
-    const availabilityStartTime = activeStream.manifest.availabilityStartTime?.getTime();
-    if (!timeShiftBufferDepth || !availabilityStartTime) return;
-    const now = Date.now();
-    const liveEdge = (now - availabilityStartTime) / 1e3;
-    const dvrStartTime = liveEdge - timeShiftBufferDepth;
-    document.querySelectorAll("#segment-explorer-content .segment-row").forEach((row) => {
-      const rowEl = (
-        /** @type {HTMLTableRowElement} */
-        row
-      );
-      if (rowEl.dataset.time === "-1") return;
-      const tableBody = rowEl.closest("tbody");
-      if (!tableBody) return;
-      const repId = (
-        /** @type {HTMLElement} */
-        tableBody.dataset.repid
-      );
-      const segmentData = allSegmentsByRep[repId]?.find(
-        (s2) => s2.resolvedUrl === rowEl.dataset.url
-      );
-      if (!segmentData) return;
-      const segmentTime = segmentData.time / segmentData.timescale;
-      const statusCell = (
-        /** @type {HTMLTableCellElement} */
-        rowEl.querySelector(".status-cell")
-      );
-      if (!statusCell) return;
-      const isStale = segmentTime < dvrStartTime;
-      const staleIndicator = statusCell.querySelector(
-        ".stale-segment-indicator"
-      );
-      if (isStale && !staleIndicator) {
-        const indicator = document.createElement("div");
-        indicator.className = "stale-segment-indicator flex-shrink-0 w-2.5 h-2.5 rounded-full bg-yellow-400";
-        indicator.title = `This segment is outside the current DVR window (${dvrStartTime.toFixed(1)}s - ${liveEdge.toFixed(1)}s).`;
-        statusCell.prepend(indicator);
-      } else if (!isStale && staleIndicator) {
-        staleIndicator.remove();
+  function initializeSegmentExplorer(container, stream) {
+    currentContainer = container;
+    currentStream = stream;
+    analysisState.segmentsForCompare = [];
+    allSegmentsByRep = stream.protocol === "dash" ? parseAllSegmentUrls3(stream) : {};
+    expandedVariants.clear();
+    hlsSegmentCache.clear();
+    hlsLoadingVariants.clear();
+    const isHlsMaster = stream.protocol === "hls" && stream.manifest?.rawElement?.isMaster;
+    const template = x`
+        <div class="flex flex-wrap justify-between items-center mb-4 gap-4">
+            <h3 class="text-xl font-bold">Segment Explorer</h3>
+            <div id="segment-explorer-controls" class="flex items-center flex-wrap gap-4">
+                ${stream.protocol === "dash" ? x`
+                    <button @click=${() => loadAndRenderDashSegmentRange("first")} class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-md transition-colors">First ${SEGMENT_PAGE_SIZE}</button>
+                    ${stream.manifest.type === "dynamic" ? x`<button @click=${() => loadAndRenderDashSegmentRange("last")} class="bg-orange-600 hover:bg-orange-700 text-white font-bold py-2 px-3 rounded-md transition-colors">Last ${SEGMENT_PAGE_SIZE}</button>` : ""}
+                ` : ""}
+                <button id="segment-compare-btn" @click=${handleCompareClick} class="bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                    Compare Selected (0/2)
+                </button>
+            </div>
+        </div>
+        <div id="segment-explorer-content" class="space-y-4"></div>
+    `;
+    B(template, container);
+    const contentArea = document.getElementById("segment-explorer-content");
+    if (stream.protocol === "dash") {
+      loadAndRenderDashSegmentRange("first");
+    } else {
+      if (isHlsMaster) {
+        renderHlsExplorer();
+      } else {
+        const segments = parseAllSegmentUrls3(stream)["media-playlist"] || [];
+        segments.forEach((s2) => fetchSegment(s2.resolvedUrl).then(() => renderHlsExplorer()));
+        const tableHtml = x`<div class="bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
+                <div class="max-h-96 overflow-y-auto">
+                    <table class="w-full text-left text-sm table-fixed">
+                         <thead class="sticky top-0 bg-gray-800 z-10">
+                            <tr>
+                                <th class="py-2 pl-3 w-8"></th><th class="py-2 w-[15%]">Type / Status</th><th class="py-2 w-[20%]">Timing (s)</th><th class="py-2 w-[45%]">URL</th><th class="py-2 pr-3 w-[20%] text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>${segments.map((seg) => segmentRowTemplate(seg))}</tbody>
+                    </table>
+                </div>
+            </div>`;
+        B(tableHtml, contentArea);
       }
-    });
+    }
   }
   function startSegmentFreshnessChecker() {
     stopSegmentFreshnessChecker();
-    const activeStream = analysisState.streams.find(
-      (s2) => s2.id === analysisState.activeStreamId
-    );
-    if (activeStream && activeStream.manifest.type === "dynamic") {
-      updateSegmentFreshness();
-      segmentFreshnessInterval = setInterval(updateSegmentFreshness, 2e3);
-      analysisState.segmentFreshnessChecker = segmentFreshnessInterval;
+    if (currentStream && currentStream.manifest.type === "dynamic" && currentStream.protocol === "dash") {
+      segmentFreshnessInterval = setInterval(() => {
+      }, 2e3);
     }
   }
   function stopSegmentFreshnessChecker() {
     if (segmentFreshnessInterval) {
       clearInterval(segmentFreshnessInterval);
       segmentFreshnessInterval = null;
-      analysisState.segmentFreshnessChecker = null;
     }
   }
 
@@ -5213,7 +5803,10 @@
                 </div>
                 ${streams.map(
       (stream) => x`<div class="p-2 font-mono text-sm border-r border-gray-700">
-                            ${item.accessor(stream.manifest.rawElement)}
+                            ${item.accessor(
+        /** @type {Element} */
+        stream.manifest.rawElement
+      )}
                         </div>`
     )}
             `
@@ -5221,15 +5814,26 @@
     </div>
 `;
   function getComparisonTemplate() {
-    const streams = analysisState.streams;
-    if (streams.length < 2) {
+    const dashStreams = analysisState.streams.filter(
+      (s2) => s2.protocol === "dash"
+    );
+    if (analysisState.streams.length < 2) {
       return x``;
+    }
+    if (dashStreams.length < 2) {
+      return x`<div class="text-center p-8">
+            <p class="text-lg text-gray-400">
+                Comparison view currently only supports DASH streams.
+            </p>
+            <p class="text-sm text-gray-500 mt-2">
+                Please select at least two DASH streams to compare.
+            </p>
+        </div>`;
     }
     return x`
         ${Object.entries(sections).map(
-      ([title, items]) => sectionTemplate(title, items, streams)
+      ([title, items]) => sectionTemplate(title, items, dashStreams)
     )}
-        <div class="dev-watermark">Comparison v4.2</div>
     `;
   }
 
@@ -5369,7 +5973,7 @@
     }
     rootElement.querySelectorAll("[data-xlink-resolved]").forEach((el) => el.removeAttribute("data-xlink-resolved"));
   }
-  async function parseManifest(xmlString, baseUrl) {
+  async function parseManifest2(xmlString, baseUrl) {
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString(xmlString, "application/xml");
     if (xmlDoc.querySelector("parsererror")) {
@@ -5870,7 +6474,7 @@
         if (!response.ok) return;
         const newManifestString = await response.text();
         if (newManifestString !== originalManifestString) {
-          const { manifest: newManifest } = await parseManifest(
+          const { manifest: newManifest } = await parseManifest2(
             newManifestString,
             stream.baseUrl
           );
@@ -6074,20 +6678,20 @@
       url: "https://livesim.dashif.org/livesim/scte35_2/testpic_2s/Manifest.mpd"
     },
     {
-      name: "Shaka Packager: Sintel (Clear, On-Demand)",
-      url: "https://storage.googleapis.com/shaka-demo-assets/sintel/dash.mpd"
-    },
-    {
-      name: "Shaka Packager: Angel One (Widevine)",
-      url: "https://storage.googleapis.com/shaka-demo-assets/angel-one-widevine/dash.mpd"
-    },
-    {
-      name: "Bitmovin: Art of Motion (On-Demand)",
+      name: "Bitmovin: Art of Motion (DASH)",
       url: "https://bitmovin-a.akamaihd.net/content/MI201109210084_1/mpds/f08e80da-bf1d-4e3d-8899-f0f6155f6efa.mpd"
     },
     {
-      name: "Microsoft: Azure Media Services (Smooth to DASH)",
-      url: "https://amssamples.streaming.mediaservices.windows.net/683f7e47-bd83-4427-b0a3-26a6c4547782/BigBuckBunny.ism/manifest(format=mpd-time-csf)"
+      name: "Apple: Bip-Bop (HLS, Master)",
+      url: "https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_4x3/bipbop_4x3_variant.m3u8"
+    },
+    {
+      name: "Akamai: Sintel (HLS, fMP4)",
+      url: "https://stream.akamaized.net/s/sintel/multi/multi.m3u8"
+    },
+    {
+      name: "Unified Streaming: Tears of Steel (HLS, Live)",
+      url: "https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8"
     }
   ];
 
@@ -6131,7 +6735,7 @@
                     type="url"
                     id="url-${streamId}"
                     class="input-url w-full bg-gray-700 text-white rounded-md p-2 border border-gray-600 focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter Manifest URL..."
+                    placeholder="Enter Manifest URL (.mpd, .m3u8)..."
                     .value=${isFirstStream && urlHistory.length > 0 ? urlHistory[0] : ""}
                 />
                 <span class="text-gray-500">OR</span>
@@ -6238,17 +6842,21 @@
     Object.values(dom.tabContents).forEach((c2) => {
       if (c2) c2.classList.add("hidden");
     });
-    const activeTabContent = dom.tabContents[targetTab.dataset.tab];
+    const activeTabName = targetTab.dataset.tab;
+    const activeTabContent = dom.tabContents[activeTabName];
     if (activeTabContent) activeTabContent.classList.remove("hidden");
-    if (targetTab.dataset.tab === "interactive-segment") {
+    if (activeTabName === "interactive-segment") {
       B(
         getInteractiveSegmentTemplate(),
         dom.tabContents["interactive-segment"]
       );
     }
-    if (targetTab.dataset.tab === "explorer") {
+    if (activeTabName === "interactive-manifest") {
+      renderSingleStreamTabs(analysisState.activeStreamId);
+    }
+    if (activeTabName === "explorer") {
       startSegmentFreshnessChecker();
-    } else if (targetTab.dataset.tab === "updates") {
+    } else if (activeTabName === "updates") {
       if (analysisState.isPollingActive && analysisState.streams.length === 1 && analysisState.streams[0].manifest.type === "dynamic") {
         const stream = analysisState.streams[0];
         const onUpdateCallback = () => renderManifestUpdates(stream.id);
@@ -6266,7 +6874,7 @@
     if (analysisState.streams.length > 1) {
       dom.contextSwitcherContainer.classList.remove("hidden");
       const optionsTemplate = analysisState.streams.map(
-        (s2) => x`<option value="${s2.id}">${s2.name}</option>`
+        (s2) => x`<option value="${s2.id}">${s2.name} (${s2.protocol.toUpperCase()})</option>`
       );
       B(optionsTemplate, dom.contextSwitcher);
       dom.contextSwitcher.value = String(analysisState.activeStreamId);
@@ -6278,32 +6886,11 @@
     const hasMultipleStreams = analysisState.streams.length > 1;
     document.querySelector('[data-tab="comparison"]').style.display = hasMultipleStreams ? "block" : "none";
     document.querySelector('[data-tab="summary"]').style.display = hasMultipleStreams ? "none" : "block";
+    dom.tabContents["interactive-manifest"].innerHTML = "";
     if (hasMultipleStreams) {
       B(getComparisonTemplate(), dom.tabContents.comparison);
     }
     renderSingleStreamTabs(analysisState.activeStreamId);
-  }
-  function renderSingleStreamTabs(streamId) {
-    const stream = analysisState.streams.find((s2) => s2.id === streamId);
-    if (!stream) return;
-    const { manifest, baseUrl } = stream;
-    if (analysisState.streams.length === 1) {
-      B(getGlobalSummaryTemplate(manifest), dom.tabContents.summary);
-    }
-    B(getComplianceReportTemplate(manifest.rawElement), dom.tabContents.compliance);
-    attachComplianceFilterListeners();
-    B(
-      getTimelineAndVisualsTemplate(manifest.rawElement),
-      dom.tabContents["timeline-visuals"]
-    );
-    B(getFeaturesAnalysisTemplate(manifest), dom.tabContents.features);
-    B(
-      getInteractiveManifestTemplate(manifest.rawElement),
-      dom.tabContents["interactive-mpd"]
-    );
-    B(getInteractiveSegmentTemplate(), dom.tabContents["interactive-segment"]);
-    initializeSegmentExplorer(dom.tabContents.explorer, manifest, baseUrl);
-    renderManifestUpdates(streamId);
   }
   function showStatus(message, type) {
     const colors = {
@@ -6314,6 +6901,29 @@
     };
     dom.status.textContent = message;
     dom.status.className = `text-center my-4 ${colors[type]}`;
+  }
+  function renderSingleStreamTabs(streamId) {
+    const stream = analysisState.streams.find((s2) => s2.id === streamId);
+    if (!stream) return;
+    const { manifest, protocol } = stream;
+    if (protocol === "hls" && !stream.mediaPlaylists.has("master")) {
+      stream.mediaPlaylists.set("master", {
+        manifest: stream.manifest,
+        rawManifest: stream.rawManifest,
+        lastFetched: /* @__PURE__ */ new Date()
+      });
+    }
+    if (analysisState.streams.length === 1) {
+      B(getGlobalSummaryTemplate(manifest), dom.tabContents.summary);
+    }
+    B(getComplianceReportTemplate(manifest, protocol), dom.tabContents.compliance);
+    attachComplianceFilterListeners();
+    B(getTimelineAndVisualsTemplate(manifest, protocol), dom.tabContents["timeline-visuals"]);
+    B(getFeaturesAnalysisTemplate(manifest, protocol), dom.tabContents.features);
+    B(getInteractiveManifestTemplate(stream), dom.tabContents["interactive-manifest"]);
+    B(getInteractiveSegmentTemplate(), dom.tabContents["interactive-segment"]);
+    initializeSegmentExplorer(dom.tabContents.explorer, stream);
+    renderManifestUpdates(streamId);
   }
 
   // js/tooltip.js
@@ -6424,46 +7034,65 @@
         /** @type {HTMLInputElement} */
         group.querySelector(".input-file")
       );
-      let xmlString = "";
+      let manifestString = "";
       let name = `Stream ${id + 1}`;
       let originalUrl = "";
       let baseUrl = "";
+      let protocol = "unknown";
       try {
         if (urlInput.value) {
           originalUrl = urlInput.value;
           name = new URL(originalUrl).hostname;
           baseUrl = new URL(originalUrl, window.location.href).href;
+          if (originalUrl.toLowerCase().includes(".m3u8")) {
+            protocol = "hls";
+          } else if (originalUrl.toLowerCase().includes(".mpd")) {
+            protocol = "dash";
+          } else {
+            protocol = "dash";
+          }
           showStatus(`Fetching ${name}...`, "info");
           const response = await fetch(originalUrl);
           if (!response.ok)
             throw new Error(`HTTP Error ${response.status}`);
-          xmlString = await response.text();
+          manifestString = await response.text();
           saveUrlToHistory(originalUrl);
         } else if (fileInput.files.length > 0) {
           const file = fileInput.files[0];
           name = file.name;
           baseUrl = window.location.href;
+          if (name.toLowerCase().includes(".m3u8")) {
+            protocol = "hls";
+          } else {
+            protocol = "dash";
+          }
           showStatus(`Reading ${name}...`, "info");
-          xmlString = await file.text();
+          manifestString = await file.text();
         } else {
           return null;
         }
         showStatus(
-          `Parsing and resolving remote elements for ${name}...`,
+          `Parsing (${protocol.toUpperCase()}) and resolving remote elements for ${name}...`,
           "info"
         );
-        const { manifest, baseUrl: newBaseUrl } = await parseManifest(
-          xmlString,
-          baseUrl
-        );
+        let parseResult;
+        if (protocol === "hls") {
+          parseResult = await parseManifest(manifestString, baseUrl);
+        } else {
+          parseResult = await parseManifest2(manifestString, baseUrl);
+        }
+        const { manifest, baseUrl: newBaseUrl } = parseResult;
         baseUrl = newBaseUrl;
         return {
           id,
           name,
           originalUrl,
           baseUrl,
+          protocol,
           manifest,
-          rawXml: xmlString
+          rawManifest: manifestString,
+          mediaPlaylists: /* @__PURE__ */ new Map(),
+          activeMediaPlaylistUrl: null
         };
       } catch (error) {
         showStatus(
@@ -6483,19 +7112,24 @@
       }
       analysisState.streams.sort((a2, b2) => a2.id - b2.id);
       analysisState.activeStreamId = analysisState.streams[0].id;
-      const isSingleDynamicStream = analysisState.streams.length === 1 && analysisState.streams[0].manifest.type === "dynamic";
+      const activeStream = analysisState.streams[0];
+      const isSingleDynamicStream = analysisState.streams.length === 1 && activeStream.manifest.type === "dynamic";
       analysisState.isPollingActive = isSingleDynamicStream;
       if (isSingleDynamicStream) {
-        const stream = analysisState.streams[0];
-        const formattingOptions = {
-          indentation: "  ",
-          lineSeparator: "\n"
-        };
-        const formattedInitial = (0, import_xml_formatter2.default)(
-          stream.rawXml,
-          formattingOptions
-        );
-        const initialDiffHtml = diffManifest("", formattedInitial);
+        let initialDiffHtml;
+        if (activeStream.protocol === "dash") {
+          const formattingOptions = {
+            indentation: "  ",
+            lineSeparator: "\n"
+          };
+          const formattedInitial = (0, import_xml_formatter2.default)(
+            activeStream.rawManifest,
+            formattingOptions
+          );
+          initialDiffHtml = diffManifest("", formattedInitial);
+        } else {
+          initialDiffHtml = diffManifest("", activeStream.rawManifest);
+        }
         analysisState.manifestUpdates.push({
           timestamp: (/* @__PURE__ */ new Date()).toLocaleTimeString(),
           diffHtml: initialDiffHtml
@@ -6510,7 +7144,12 @@
       );
       dom.results.classList.remove("hidden");
       document.querySelector(`[data-tab="${defaultTab}"]`).click();
-    } catch (_error) {
+    } catch (error) {
+      console.error("A critical error occurred during analysis:", error);
+      showStatus(
+        `A critical error occurred: ${error.message}. Check console for details.`,
+        "fail"
+      );
       dom.results.classList.add("hidden");
     }
   }

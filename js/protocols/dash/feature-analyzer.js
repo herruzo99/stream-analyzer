@@ -21,7 +21,7 @@ export function analyzeDashFeatures(manifest) {
     };
 
     const periods = manifest.querySelectorAll('Period');
-    results['Multi-Period Content'] = {
+    results['Multi-Period (DASH) / Discontinuity (HLS)'] = {
         used: periods.length > 1,
         details: periods.length > 1
             ? `${periods.length} Periods found.`
@@ -31,37 +31,26 @@ export function analyzeDashFeatures(manifest) {
     const protection = Array.from(manifest.querySelectorAll('ContentProtection'));
     if (protection.length > 0) {
         const schemes = [...new Set(protection.map((cp) => getDrmSystemName(cp.getAttribute('schemeIdUri'))))];
-        results['Content Protection (DRM)'] = {
+        results['Content Protection'] = {
             used: true,
             details: `Systems: <b>${schemes.join(', ')}</b>`,
         };
     } else {
-        results['Content Protection (DRM)'] = {
+        results['Content Protection'] = {
             used: false,
             details: 'No encryption descriptors found.',
         };
     }
 
-    const hasCmafProfile = (manifest.getAttribute('profiles') || '').includes('cmaf');
-    const cmafBrands = Array.from(manifest.querySelectorAll('AdaptationSet[containerProfiles~="cmfc"], AdaptationSet[containerProfiles~="cmf2"]'));
-    if (hasCmafProfile || cmafBrands.length > 0) {
-        const details = [];
-        if (hasCmafProfile) details.push('Manifest declares a CMAF profile.');
-        if (cmafBrands.length > 0) details.push(`CMAF brands found in ${cmafBrands.length} AdaptationSet(s).`);
-        results['CMAF Compatibility'] = { used: true, details: details.join(' ') };
-    } else {
-        results['CMAF Compatibility'] = { used: false, details: 'No CMAF profiles or brands detected.' };
-    }
-
-    results['Segment Templates'] = {
+    results['Segment Templates (DASH)'] = {
         used: !!manifest.querySelector('SegmentTemplate'),
         details: 'Uses templates for segment URL generation.',
     };
-    results['Segment Timeline'] = {
+    results['Segment Timeline (DASH)'] = {
         used: !!manifest.querySelector('SegmentTimeline'),
-        details: 'Provides explicit segment timing.',
+        details: 'Provides explicit segment timing via <code>&lt;S&gt;</code> elements.',
     };
-    results['Segment List'] = {
+    results['Segment List (DASH)'] = {
         used: !!manifest.querySelector('SegmentList'),
         details: 'Provides an explicit list of segment URLs.',
     };
@@ -82,7 +71,7 @@ export function analyzeDashFeatures(manifest) {
     }
 
     const patchLocation = manifest.querySelector('PatchLocation');
-    results['Manifest Patch Updates'] = {
+    results['Manifest Patch Updates (DASH)'] = {
         used: !!patchLocation,
         details: patchLocation ? `Patch location: <code>${patchLocation.textContent.trim()}</code>` : 'Uses full manifest reloads.',
     };
@@ -90,13 +79,13 @@ export function analyzeDashFeatures(manifest) {
     const utcTimings = Array.from(manifest.querySelectorAll('UTCTiming'));
     if(utcTimings.length > 0) {
         const schemes = [...new Set(utcTimings.map((el) => `<code>${el.getAttribute('schemeIdUri').split(':').pop()}</code>`))];
-        results['UTC Timing Source'] = { used: true, details: `Schemes: ${schemes.join(', ')}` };
+        results['UTC Timing Source (DASH)'] = { used: true, details: `Schemes: ${schemes.join(', ')}` };
     } else {
-        results['UTC Timing Source'] = { used: false, details: 'No clock synchronization source provided.'};
+        results['UTC Timing Source (DASH)'] = { used: false, details: 'No clock synchronization source provided.'};
     }
 
     const dependentReps = manifest.querySelectorAll('Representation[dependencyId]');
-    results['Dependent Representations (SVC/MVC)'] = {
+    results['Dependent Representations (DASH)'] = {
         used: dependentReps.length > 0,
         details: dependentReps.length > 0 ? `${dependentReps.length} dependent Representation(s) found.` : 'All Representations are self-contained.',
     };
@@ -107,9 +96,9 @@ export function analyzeDashFeatures(manifest) {
         const details = [];
         if (subRep) details.push('<code>&lt;SubRepresentation&gt;</code> with <code>@maxPlayoutRate</code>');
         if (trickRole) details.push('<code>Role="trick"</code>');
-        results['Trick Mode Tracks'] = { used: true, details: `Detected via: ${details.join(', ')}` };
+        results['I-Frame Playlists / Trick Modes'] = { used: true, details: `Detected via: ${details.join(', ')}` };
     } else {
-        results['Trick Mode Tracks'] = { used: false, details: 'No explicit trick mode signals found.' };
+        results['I-Frame Playlists / Trick Modes'] = { used: false, details: 'No explicit trick mode signals found.' };
     }
 
     const textTracks = Array.from(manifest.querySelectorAll('AdaptationSet[contentType="text"], AdaptationSet[mimeType^="application"]'));
@@ -126,9 +115,9 @@ export function analyzeDashFeatures(manifest) {
     const roles = Array.from(manifest.querySelectorAll('Role'));
     if(roles.length > 0) {
         const roleValues = [...new Set(roles.map((role) => `<code>${role.getAttribute('value')}</code>`))];
-        results['Role Descriptors'] = { used: true, details: `Roles found: ${roleValues.join(', ')}` };
+        results['Alternative Renditions / Roles'] = { used: true, details: `Roles found: ${roleValues.join(', ')}` };
     } else {
-        results['Role Descriptors'] = { used: false, details: 'No roles specified.' };
+        results['Alternative Renditions / Roles'] = { used: false, details: 'No roles specified.' };
     }
 
     return results;

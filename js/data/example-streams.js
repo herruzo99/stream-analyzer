@@ -1,5 +1,5 @@
 /**
- * A curated list of public DASH streams for testing and demonstration purposes.
+ * A curated list of public DASH & HLS streams for testing and demonstration purposes.
  */
 export const exampleStreams = [
     {
@@ -11,19 +11,19 @@ export const exampleStreams = [
         url: 'https://livesim.dashif.org/livesim/scte35_2/testpic_2s/Manifest.mpd',
     },
     {
-        name: 'Shaka Packager: Sintel (Clear, On-Demand)',
-        url: 'https://storage.googleapis.com/shaka-demo-assets/sintel/dash.mpd',
-    },
-    {
-        name: 'Shaka Packager: Angel One (Widevine)',
-        url: 'https://storage.googleapis.com/shaka-demo-assets/angel-one-widevine/dash.mpd',
-    },
-    {
-        name: 'Bitmovin: Art of Motion (On-Demand)',
+        name: 'Bitmovin: Art of Motion (DASH)',
         url: 'https://bitmovin-a.akamaihd.net/content/MI201109210084_1/mpds/f08e80da-bf1d-4e3d-8899-f0f6155f6efa.mpd',
     },
     {
-        name: 'Microsoft: Azure Media Services (Smooth to DASH)',
-        url: 'https://amssamples.streaming.mediaservices.windows.net/683f7e47-bd83-4427-b0a3-26a6c4547782/BigBuckBunny.ism/manifest(format=mpd-time-csf)',
+        name: 'Apple: Bip-Bop (HLS, Master)',
+        url: 'https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_4x3/bipbop_4x3_variant.m3u8',
+    },
+    {
+        name: 'Akamai: Sintel (HLS, fMP4)',
+        url: 'https://stream.akamaized.net/s/sintel/multi/multi.m3u8',
+    },
+    {
+        name: 'Unified Streaming: Tears of Steel (HLS, Live)',
+        url: 'https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8',
     },
 ];

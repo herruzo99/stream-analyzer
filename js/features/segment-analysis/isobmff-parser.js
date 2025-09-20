@@ -118,9 +118,10 @@ function parseBoxDetails(box, view) {
                 length: box.size - box.headerSize,
             };
         }
-    } catch (_e) {
+    } catch (e) {
+        console.error(`Error parsing ISOBMFF box "${box.type}":`, e);
         box.details['Parsing Error'] = {
-            value: _e.message,
+            value: e.message,
             offset: box.offset,
             length: box.size,
         };

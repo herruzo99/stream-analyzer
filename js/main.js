@@ -6,7 +6,8 @@ import {
     renderAllTabs,
     showStatus,
 } from './ui.js';
-import { parseManifest } from './protocols/dash/parser.js';
+import { parseManifest as parseDashManifest } from './protocols/dash/parser.js';
+import { parseManifest as parseHlsManifest } from './protocols/hls/parser.js';
 import { setupGlobalTooltipListener } from './tooltip.js';
 import { stopManifestUpdatePolling } from './features/manifest-updates/poll.js';
 import { diffManifest } from './features/manifest-updates/diff.js';
@@ -73,40 +74,63 @@ async function handleAnalysis() {
             group.querySelector('.input-file')
         );
 
-        let xmlString = '';
+        let manifestString = '';
         let name = `Stream ${id + 1}`;
         let originalUrl = '';
         let baseUrl = '';
+        let protocol = 'unknown';
 
         try {
             if (urlInput.value) {
                 originalUrl = urlInput.value;
                 name = new URL(originalUrl).hostname;
                 baseUrl = new URL(originalUrl, window.location.href).href;
+
+                // Protocol Detection
+                if (originalUrl.toLowerCase().includes('.m3u8')) {
+                    protocol = 'hls';
+                } else if (originalUrl.toLowerCase().includes('.mpd')) {
+                    protocol = 'dash';
+                } else {
+                    protocol = 'dash'; // Default to DASH
+                }
+
                 showStatus(`Fetching ${name}...`, 'info');
                 const response = await fetch(originalUrl);
                 if (!response.ok)
                     throw new Error(`HTTP Error ${response.status}`);
-                xmlString = await response.text();
+                manifestString = await response.text();
                 saveUrlToHistory(originalUrl);
             } else if (fileInput.files.length > 0) {
                 const file = fileInput.files[0];
                 name = file.name;
                 baseUrl = window.location.href; // Use page location as base for local files
+
+                // Protocol Detection
+                if (name.toLowerCase().includes('.m3u8')) {
+                    protocol = 'hls';
+                } else {
+                    protocol = 'dash'; // Default to DASH
+                }
+
                 showStatus(`Reading ${name}...`, 'info');
-                xmlString = await file.text();
+                manifestString = await file.text();
             } else {
                 return null; // Skip empty input group
             }
 
             showStatus(
-                `Parsing and resolving remote elements for ${name}...`,
+                `Parsing (${protocol.toUpperCase()}) and resolving remote elements for ${name}...`,
                 'info'
             );
-            const { manifest, baseUrl: newBaseUrl } = await parseManifest(
-                xmlString,
-                baseUrl
-            );
+
+            let parseResult;
+            if (protocol === 'hls') {
+                parseResult = await parseHlsManifest(manifestString, baseUrl);
+            } else {
+                parseResult = await parseDashManifest(manifestString, baseUrl);
+            }
+            const { manifest, baseUrl: newBaseUrl } = parseResult;
             baseUrl = newBaseUrl;
 
             return {
@@ -114,8 +138,11 @@ async function handleAnalysis() {
                 name,
                 originalUrl,
                 baseUrl,
-                manifest,
-                rawXml: xmlString,
+                protocol,
+                manifest: manifest,
+                rawManifest: manifestString,
+                mediaPlaylists: new Map(),
+                activeMediaPlaylistUrl: null,
             };
         } catch (error) {
             showStatus(
@@ -139,24 +166,29 @@ async function handleAnalysis() {
         analysisState.streams.sort((a, b) => a.id - b.id);
         analysisState.activeStreamId = analysisState.streams[0].id;
 
+        const activeStream = analysisState.streams[0];
         const isSingleDynamicStream =
             analysisState.streams.length === 1 &&
-            analysisState.streams[0].manifest.type === 'dynamic';
+            activeStream.manifest.type === 'dynamic';
         analysisState.isPollingActive = isSingleDynamicStream;
 
         // Pre-populate the manifest updates state for a consistent UI start.
         if (isSingleDynamicStream) {
-            const stream = analysisState.streams[0];
-            const formattingOptions = {
-                indentation: '  ',
-                lineSeparator: '\n',
-            };
-            const formattedInitial = xmlFormatter(
-                stream.rawXml,
-                formattingOptions
-            );
-            // Diff against an empty string to get a fully-highlighted initial view.
-            const initialDiffHtml = diffManifest('', formattedInitial);
+            let initialDiffHtml;
+            if (activeStream.protocol === 'dash') {
+                const formattingOptions = {
+                    indentation: '  ',
+                    lineSeparator: '\n',
+                };
+                const formattedInitial = xmlFormatter(
+                    activeStream.rawManifest,
+                    formattingOptions
+                );
+                initialDiffHtml = diffManifest('', formattedInitial);
+            } else {
+                // For HLS, just highlight the whole thing as an addition.
+                initialDiffHtml = diffManifest('', activeStream.rawManifest);
+            }
 
             analysisState.manifestUpdates.push({
                 timestamp: new Date().toLocaleTimeString(),
@@ -179,8 +211,13 @@ async function handleAnalysis() {
         /** @type {HTMLButtonElement} */ (
             document.querySelector(`[data-tab="${defaultTab}"]`)
         ).click();
-    } catch (_error) {
-        // Error is already logged and displayed in the status bar
+    } catch (error) {
+        // This outer catch now provides critical debugging information.
+        console.error('A critical error occurred during analysis:', error);
+        showStatus(
+            `A critical error occurred: ${error.message}. Check console for details.`,
+            'fail'
+        );
         dom.results.classList.add('hidden');
     }
 }

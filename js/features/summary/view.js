@@ -1,6 +1,5 @@
 import { html } from 'lit-html';
 import { tooltipTriggerClasses } from '../../shared/constants.js';
-import { getDrmSystemName } from '../../shared/utils/drm.js';
 
 const statCardTemplate = (label, value, tooltipText, isoRef) => {
     if (
@@ -64,7 +63,7 @@ export function getGlobalSummaryTemplate(manifest) {
     const bandwidths = allVideoReps.map((r) => r.bandwidth).filter(Boolean);
     const resolutions = [
         ...new Set(allVideoReps.map((r) => `${r.width}x${r.height}`)),
-    ];
+    ].filter((r) => r !== 'nullxnull');
     const videoCodecs = [
         ...new Set(allVideoReps.map((r) => r.codecs)),
     ].filter(Boolean);
@@ -87,22 +86,19 @@ export function getGlobalSummaryTemplate(manifest) {
                         'Presentation Type',
                         manifest.type,
                         'Defines if the stream is live (`dynamic`) or on-demand (`static`).',
-                        'Clause 5.3.1.2, Table 3'
+                        'DASH: 5.3.1.2 / HLS: 4.3.3.5'
                     )}
                     ${statCardTemplate(
-                        'Profiles',
-                        (manifest.profiles || '').replace(
-                            /urn:mpeg:dash:profile:/g,
-                            ' '
-                        ),
+                        'Profiles / Version',
+                        manifest.profiles,
                         'Indicates the set of features used in the manifest.',
-                        'Clause 8.1'
+                        'DASH: 8.1 / HLS: 4.3.1.2'
                     )}
                     ${statCardTemplate(
-                        'Min Buffer Time',
+                        'Min Buffer Time / Target Duration',
                         manifest.minBufferTime ? `${manifest.minBufferTime}s` : 'N/A',
-                        'The minimum buffer time a client should maintain.',
-                        'Clause 5.3.1.2, Table 3'
+                        'The minimum buffer a client should maintain (DASH) or the max segment duration (HLS).',
+                        'DASH: 5.3.1.2 / HLS: 4.3.3.1'
                     )}
                     ${manifest.type === 'dynamic'
                         ? html`
@@ -110,13 +106,13 @@ export function getGlobalSummaryTemplate(manifest) {
                                   'Publish Time',
                                   manifest.publishTime?.toLocaleString(),
                                   'The time this manifest version was generated.',
-                                  'Clause 5.3.1.2, Table 3'
+                                  'DASH: 5.3.1.2'
                               )}
                               ${statCardTemplate(
                                   'Availability Start Time',
                                   manifest.availabilityStartTime?.toLocaleString(),
                                   'The anchor time for the presentation.',
-                                  'Clause 5.3.1.2, Table 3'
+                                  'DASH: 5.3.1.2'
                               )}
                               ${statCardTemplate(
                                   'Update Period',
@@ -124,7 +120,7 @@ export function getGlobalSummaryTemplate(manifest) {
                                       ? `${manifest.minimumUpdatePeriod}s`
                                       : 'N/A',
                                   'How often a client should check for a new manifest.',
-                                  'Clause 5.3.1.2, Table 3'
+                                  'DASH: 5.3.1.2'
                               )}
                               ${statCardTemplate(
                                   'Time Shift Buffer Depth',
@@ -132,15 +128,15 @@ export function getGlobalSummaryTemplate(manifest) {
                                       ? `${manifest.timeShiftBufferDepth}s`
                                       : 'N/A',
                                   'The duration of the seekable live window.',
-                                  'Clause 5.3.1.2, Table 3'
+                                  'DASH: 5.3.1.2'
                               )}
                           `
                         : html`
                               ${statCardTemplate(
                                   'Media Duration',
-                                  manifest.duration ? `${manifest.duration}s` : 'N/A',
+                                  manifest.duration ? `${manifest.duration.toFixed(2)}s` : 'N/A',
                                   'The total duration of the content.',
-                                  'Clause 5.3.1.2, Table 3'
+                                  'DASH: 5.3.1.2'
                               )}
                           `}
                 </dl>
@@ -154,32 +150,32 @@ export function getGlobalSummaryTemplate(manifest) {
                     ${statCardTemplate(
                         'Periods',
                         manifest.periods.length,
-                        'A Period represents a segment of content.',
-                        'Clause 5.3.2'
+                        'A Period represents a segment of content (DASH). HLS is treated as a single period.',
+                        'DASH: 5.3.2'
                     )}
                     ${statCardTemplate(
-                        'Video Tracks',
+                        'Video Tracks / Variants',
                         videoSets.length,
-                        'Number of distinct video Adaptation Sets.',
-                        'Clause 5.3.3'
+                        'Number of distinct video tracks or variants.',
+                        'DASH: 5.3.3 / HLS: 4.3.4.2'
                     )}
                     ${statCardTemplate(
-                        'Audio Tracks',
+                        'Audio Tracks / Renditions',
                         audioSets.length,
-                        'Number of distinct audio Adaptation Sets.',
-                        'Clause 5.3.3'
+                        'Number of distinct audio tracks or renditions.',
+                        'DASH: 5.3.3 / HLS: 4.3.4.1'
                     )}
                     ${statCardTemplate(
                         'Subtitle/Text Tracks',
                         textSets.length,
-                        'Number of distinct subtitle or text Adaptation Sets.',
-                        'Clause 5.3.3'
+                        'Number of distinct subtitle or text tracks.',
+                        'DASH: 5.3.3 / HLS: 4.3.4.1'
                     )}
                     ${statCardTemplate(
                         'Content Protection',
                         protectionText,
-                        'Detected DRM Systems.',
-                        'Clause 5.8.4.1'
+                        'Detected DRM Systems or encryption methods.',
+                        'DASH: 5.8.4.1 / HLS: 4.3.2.4'
                     )}
                 </dl>
             </div>
@@ -196,19 +192,19 @@ export function getGlobalSummaryTemplate(manifest) {
                                   ? `${formatBitrate(Math.min(...bandwidths))} - ${formatBitrate(Math.max(...bandwidths))}`
                                   : 'N/A',
                               'The minimum and maximum bitrates for video.',
-                              'Clause 5.3.5.2, Table 9'
+                              'DASH: 5.3.5.2 / HLS: 4.3.4.2'
                           )}
                           ${statCardTemplate(
                               'Resolutions',
                               resolutions.join(', '),
                               'Unique video resolutions available.',
-                              'Clause 5.3.7.2, Table 14'
+                              'DASH: 5.3.7.2 / HLS: 4.3.4.2'
                           )}
                           ${statCardTemplate(
                               'Video Codecs',
                               videoCodecs.join(', '),
                               'Unique video codecs declared.',
-                              'Clause 5.3.7.2, Table 14'
+                              'DASH: 5.3.7.2 / HLS: 4.3.4.2'
                           )}
                       </dl>
                   </div>`
@@ -223,18 +219,17 @@ export function getGlobalSummaryTemplate(manifest) {
                               'Languages',
                               languages.join(', ') || 'Not Specified',
                               'Languages declared for audio tracks.',
-                              'Clause 5.3.3.2, Table 5'
+                              'DASH: 5.3.3.2 / HLS: 4.3.4.1'
                           )}
                           ${statCardTemplate(
                               'Audio Codecs',
                               audioCodecs.join(', '),
                               'Unique audio codecs declared.',
-                              'Clause 5.3.7.2, Table 14'
+                              'DASH: 5.3.7.2 / HLS: 4.3.4.2'
                           )}
                       </dl>
                   </div>`
                 : ''}
         </div>
-        <div class="dev-watermark">Summary v5.0</div>
     `;
 }

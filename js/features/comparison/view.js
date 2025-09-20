@@ -221,7 +221,9 @@ const sectionTemplate = (title, items, streams) => html`
                 ${streams.map(
                     (stream) =>
                         html`<div class="p-2 font-mono text-sm border-r border-gray-700">
-                            ${item.accessor(stream.manifest.rawElement)}
+                            ${item.accessor(
+                                /** @type {Element} */ (stream.manifest.rawElement)
+                            )}
                         </div>`
                 )}
             `
@@ -230,15 +232,28 @@ const sectionTemplate = (title, items, streams) => html`
 `;
 
 export function getComparisonTemplate() {
-    const streams = analysisState.streams;
-    if (streams.length < 2) {
-        return html``; // Return an empty template if not in comparison mode
+    const dashStreams = analysisState.streams.filter(
+        (s) => s.protocol === 'dash'
+    );
+
+    if (analysisState.streams.length < 2) {
+        return html``; // Should not be visible anyway
+    }
+
+    if (dashStreams.length < 2) {
+        return html`<div class="text-center p-8">
+            <p class="text-lg text-gray-400">
+                Comparison view currently only supports DASH streams.
+            </p>
+            <p class="text-sm text-gray-500 mt-2">
+                Please select at least two DASH streams to compare.
+            </p>
+        </div>`;
     }
 
     return html`
         ${Object.entries(sections).map(([title, items]) =>
-            sectionTemplate(title, items, streams)
+            sectionTemplate(title, items, dashStreams)
         )}
-        <div class="dev-watermark">Comparison v4.2</div>
     `;
 }
