@@ -3,11 +3,11 @@
  */
 
 /**
- * @typedef {'Manifest Structure' | 'Live Stream Properties' | 'Segment & Timing Info' | 'Profile Conformance' | 'General Best Practices'} RuleCategory
+ * @typedef {'Manifest Structure' | 'Live Stream Properties' | 'Segment & Timing Info' | 'Profile Conformance' | 'General Best Practices' | 'HLS Structure'} RuleCategory
  */
 
 /**
- * @typedef {'MPD' | 'Period' | 'AdaptationSet' | 'Representation'} RuleScope
+ * @typedef {'MPD' | 'Period' | 'AdaptationSet' | 'Representation' | 'Playlist'} RuleScope
  */
 
 /**
@@ -161,7 +161,9 @@ export const rules = [
             isDynamic ? period.hasAttribute('id') : 'skip',
         passDetails: 'OK',
         failDetails: (period) =>
-            `Period (start="${period.getAttribute('start')}") requires an @id in dynamic manifests.`,
+            `Period (start="${period.getAttribute(
+                'start'
+            )}") requires an @id in dynamic manifests.`,
     },
     {
         id: 'PERIOD-2',
@@ -264,7 +266,9 @@ export const rules = [
         },
         passDetails: 'OK',
         failDetails: (rep) =>
-            `One or more IDs in @dependencyId="${rep.getAttribute('dependencyId')}" do not exist in this Period.`,
+            `One or more IDs in @dependencyId="${rep.getAttribute(
+                'dependencyId'
+            )}" do not exist in this Period.`,
     },
 
     // --- Segment Info Rules ---
@@ -346,14 +350,18 @@ export const rules = [
         category: 'Profile Conformance',
         check: (mpd, { profiles }) => {
             if (
-                !profiles.includes('urn:mpeg:dash:profile:isoff-on-demand:2011')
+                !profiles.includes(
+                    'urn:mpeg:dash:profile:isoff-on-demand:2011'
+                )
             )
                 return 'skip';
             return mpd.getAttribute('type') === 'static';
         },
         passDetails: 'OK',
         failDetails: (mpd) =>
-            `Profile requires 'static', but found '${mpd.getAttribute('type')}'`,
+            `Profile requires 'static', but found '${mpd.getAttribute(
+                'type'
+            )}'`,
     },
 
     // --- Profile: ISO BMFF Live ---

@@ -1,8 +1,8 @@
 /**
- * @typedef {import('../../state.js').Manifest} Manifest
- * @typedef {import('../../state.js').Period} Period
- * @typedef {import('../../state.js').AdaptationSet} AdaptationSet
- * @typedef {import('../../state.js').Representation} Representation
+ * @typedef {import('../../core/state.js').Manifest} Manifest
+ * @typedef {import('../../core/state.js').Period} Period
+ * @typedef {import('../../core/state.js').AdaptationSet} AdaptationSet
+ * @typedef {import('../../core/state.js').Representation} Representation
  */
 
 import { getDrmSystemName } from '../../shared/utils/drm.js';
@@ -36,7 +36,9 @@ export function adaptDashToIr(manifestElement) {
     const manifestIR = {
         type: getAttr(manifestElement, 'type'),
         profiles: getAttr(manifestElement, 'profiles'),
-        minBufferTime: parseDuration(getAttr(manifestElement, 'minBufferTime')),
+        minBufferTime: parseDuration(
+            getAttr(manifestElement, 'minBufferTime')
+        ),
         publishTime: getAttr(manifestElement, 'publishTime')
             ? new Date(getAttr(manifestElement, 'publishTime'))
             : null,
@@ -89,7 +91,8 @@ export function adaptDashToIr(manifestElement) {
                 /** @type {Representation} */
                 const repIR = {
                     id: getAttr(repEl, 'id'),
-                    codecs: getAttr(repEl, 'codecs') || getAttr(asEl, 'codecs'),
+                    codecs:
+                        getAttr(repEl, 'codecs') || getAttr(asEl, 'codecs'),
                     bandwidth: parseInt(getAttr(repEl, 'bandwidth'), 10),
                     width: parseInt(getAttr(repEl, 'width'), 10),
                     height: parseInt(getAttr(repEl, 'height'), 10),

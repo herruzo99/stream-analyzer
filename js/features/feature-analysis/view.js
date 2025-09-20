@@ -27,9 +27,7 @@ const featureCardTemplate = (feature) => {
                 >
                     ${feature.name}
                 </p>
-                <p
-                    class="text-xs text-gray-400 italic mt-1 font-mono"
-                >
+                <p class="text-xs text-gray-400 italic mt-1 font-mono">
                     ${unsafeHTML(feature.details)}
                 </p>
             </div>
@@ -41,15 +39,14 @@ const categoryTemplate = (category, categoryFeatures) => html`
     <div class="mt-8">
         <h4 class="text-lg font-semibold text-gray-300 mb-3">${category}</h4>
         <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-            ${categoryFeatures.map((feature) =>
-                featureCardTemplate(feature)
-            )}
+            ${categoryFeatures.map((feature) => featureCardTemplate(feature))}
         </div>
     </div>
 `;
 
 export function getFeaturesAnalysisTemplate(manifest, protocol) {
-    if (!manifest) return html`<p class="warn">No manifest loaded to display.</p>`;
+    if (!manifest)
+        return html`<p class="warn">No manifest loaded to display.</p>`;
 
     const viewModel = generateFeatureAnalysis(manifest, protocol);
 

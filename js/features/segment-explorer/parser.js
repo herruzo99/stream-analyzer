@@ -4,7 +4,7 @@ import { parseAllSegmentUrls as parseHlsSegments } from './hls-parser.js';
 /**
  * Parses all segment URLs from a manifest.
  * Dispatches to the correct protocol-specific parser.
- * @param {import('../../state.js').Stream} stream
+ * @param {import('../../core/state.js').Stream} stream
  * @returns {Record<string, object[]>} A map of Representation/Variant IDs to their segment lists.
  */
 export function parseAllSegmentUrls(stream) {

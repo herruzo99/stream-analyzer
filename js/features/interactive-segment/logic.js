@@ -24,7 +24,7 @@ function buildByteMap(parsedData) {
         { bg: 'bg-teal-500/20', border: 'border-teal-500' },
         { bg: 'bg-orange-500/20', border: 'border-orange-500' },
         { bg: 'bg-lime-500/20', border: 'border-lime-500' },
-        { bg: 'bg-rose-500/20', border: 'border-rose-500' }
+        { bg: 'bg-rose-500/20', border: 'border-rose-500' },
     ];
     const reservedColor = { bg: 'bg-gray-700/50' };
     let colorIndex = 0;
@@ -37,62 +37,86 @@ function buildByteMap(parsedData) {
             box.color = color; // Attach the color object directly to the box
             const boxStart = box.offset;
             const boxEnd = box.offset + box.size;
-            
+
             for (let i = boxStart; i < boxEnd; i++) {
                 byteMap.set(i, { box, field: 'Box Content', color });
             }
 
             if (box.details) {
-                for (const [fieldName, fieldMeta] of Object.entries(box.details)) {
-                    if (fieldMeta.offset !== undefined && fieldMeta.length !== undefined) {
-                        const fieldColor = (fieldName.includes('reserved') || fieldName.includes('Padding')) ? reservedColor : color;
-                        for (let i = fieldMeta.offset; i < fieldMeta.offset + fieldMeta.length; i++) {
-                            byteMap.set(i, { box, field: fieldName, color: fieldColor });
+                for (const [fieldName, fieldMeta] of Object.entries(
+                    box.details
+                )) {
+                    if (
+                        fieldMeta.offset !== undefined &&
+                        fieldMeta.length !== undefined
+                    ) {
+                        const fieldColor =
+                            fieldName.includes('reserved') ||
+                            fieldName.includes('Padding')
+                                ? reservedColor
+                                : color;
+                        for (
+                            let i = fieldMeta.offset;
+                            i < fieldMeta.offset + fieldMeta.length;
+                            i++
+                        ) {
+                            byteMap.set(i, {
+                                box,
+                                field: fieldName,
+                                color: fieldColor,
+                            });
                         }
                     }
                 }
             }
-            
+
             if (box.children && box.children.length > 0) {
                 traverse(box.children);
             }
-            
+
             if (box.children && box.children.length > 0) {
-                 let lastChildEnd = box.contentOffset;
-                 if (box.children.length > 0) {
-                    const lastChild = box.children[box.children.length - 1];
+                let lastChildEnd = box.contentOffset;
+                if (box.children.length > 0) {
+                    const lastChild =
+                        box.children[box.children.length - 1];
                     lastChildEnd = lastChild.offset + lastChild.size;
-                 }
-                 
-                 if (boxEnd > lastChildEnd) {
+                }
+
+                if (boxEnd > lastChildEnd) {
                     for (let i = lastChildEnd; i < boxEnd; i++) {
-                        byteMap.set(i, { box, field: 'Container Padding', color: reservedColor });
+                        byteMap.set(i, {
+                            box,
+                            field: 'Container Padding',
+                            color: reservedColor,
+                        });
                     }
-                 }
+                }
             }
 
             colorIndex++;
         }
     };
-    
+
     if (parsedData && Array.isArray(parsedData)) {
         traverse(parsedData);
     }
-    
-    const maxOffset = parsedData.reduce((max, box) => Math.max(max, box.offset + box.size), 0);
+
+    const maxOffset = parsedData.reduce(
+        (max, box) => Math.max(max, box.offset + box.size),
+        0
+    );
     for (let i = 0; i < maxOffset; i++) {
         if (!byteMap.has(i)) {
             byteMap.set(i, {
                 box: { type: 'UNKNOWN', offset: i, size: 1 },
                 field: 'Unmapped Data',
-                color: reservedColor
+                color: reservedColor,
             });
         }
     }
 
     return byteMap;
 }
-
 
 /**
  * Generates a view model for a hex/ASCII view.
@@ -102,15 +126,22 @@ function buildByteMap(parsedData) {
  * @param {number} maxBytes Maximum number of bytes to process.
  * @returns {HexRow[]} An array of row objects for rendering.
  */
-export function generateHexAsciiView(buffer, parsedData = null, startOffset = 0, maxBytes = null) {
+export function generateHexAsciiView(
+    buffer,
+    parsedData = null,
+    startOffset = 0,
+    maxBytes = null
+) {
     if (!buffer) return [];
 
     const rows = [];
     const view = new Uint8Array(buffer);
     const bytesPerRow = 16;
     const byteMap = parsedData ? buildByteMap(parsedData) : new Map();
-    
-    const endByte = maxBytes ? Math.min(startOffset + maxBytes, view.length) : view.length;
+
+    const endByte = maxBytes
+        ? Math.min(startOffset + maxBytes, view.length)
+        : view.length;
 
     for (let i = startOffset; i < endByte; i += bytesPerRow) {
         const rowEndByte = Math.min(i + bytesPerRow, endByte);
@@ -120,8 +151,10 @@ export function generateHexAsciiView(buffer, parsedData = null, startOffset = 0,
         let hexHtml = '';
         let asciiHtml = '';
 
-        const baseHexClass = 'inline-block h-6 leading-6 w-7 text-center align-middle transition-colors duration-150 cursor-pointer';
-        const baseAsciiClass = 'inline-block h-6 leading-6 w-4 text-center align-middle transition-colors duration-150 tracking-tight cursor-pointer';
+        const baseHexClass =
+            'inline-block h-6 leading-6 w-7 text-center align-middle transition-colors duration-150 cursor-pointer';
+        const baseAsciiClass =
+            'inline-block h-6 leading-6 w-4 text-center align-middle transition-colors duration-150 tracking-tight cursor-pointer';
         const fieldDelimiterClass = 'border-l border-gray-400/50';
 
         let currentFieldGroup = [];
@@ -133,8 +166,12 @@ export function generateHexAsciiView(buffer, parsedData = null, startOffset = 0,
             const { box, field, color } = lastMapEntry;
             const dataAttrs = `data-box-offset="${box.offset}" data-field-name="${field}"`;
             const groupClass = `${color ? color.bg : ''}`;
-            hexHtml += `<span class="inline-block ${groupClass}" ${dataAttrs}>${currentFieldGroup.join('')}</span>`;
-            asciiHtml += `<span class="inline-block ${groupClass}" ${dataAttrs}>${currentAsciiGroup.join('')}</span>`;
+            hexHtml += `<span class="inline-block ${groupClass}" ${dataAttrs}>${currentFieldGroup.join(
+                ''
+            )}</span>`;
+            asciiHtml += `<span class="inline-block ${groupClass}" ${dataAttrs}>${currentAsciiGroup.join(
+                ''
+            )}</span>`;
             currentFieldGroup = [];
             currentAsciiGroup = [];
         };
@@ -142,26 +179,41 @@ export function generateHexAsciiView(buffer, parsedData = null, startOffset = 0,
         rowBytes.forEach((byte, index) => {
             const byteOffset = i + index;
             const mapEntry = byteMap.get(byteOffset);
-            
-            if (lastMapEntry && (mapEntry?.box !== lastMapEntry.box || mapEntry?.field !== lastMapEntry.field)) {
+
+            if (
+                lastMapEntry &&
+                (mapEntry?.box !== lastMapEntry.box ||
+                    mapEntry?.field !== lastMapEntry.field)
+            ) {
                 flushGroup();
             }
 
             let hexCssClass = baseHexClass;
             let asciiCssClass = baseAsciiClass;
-            
-            if (lastMapEntry && mapEntry?.box === lastMapEntry.box && mapEntry?.field !== lastMapEntry.field) {
-                 hexCssClass += ` ${fieldDelimiterClass}`;
-                 asciiCssClass += ` ${fieldDelimiterClass}`;
+
+            if (
+                lastMapEntry &&
+                mapEntry?.box === lastMapEntry.box &&
+                mapEntry?.field !== lastMapEntry.field
+            ) {
+                hexCssClass += ` ${fieldDelimiterClass}`;
+                asciiCssClass += ` ${fieldDelimiterClass}`;
             }
 
             const dataAttrs = `data-byte-offset="${byteOffset}"`;
 
             const hexByte = byte.toString(16).padStart(2, '0').toUpperCase();
-            currentFieldGroup.push(`<span class="${hexCssClass}" ${dataAttrs}>${hexByte}</span>`);
+            currentFieldGroup.push(
+                `<span class="${hexCssClass}" ${dataAttrs}>${hexByte}</span>`
+            );
 
-            const asciiChar = (byte >= 32 && byte <= 126) ? String.fromCharCode(byte).replace('<', '&lt;') : '.';
-            currentAsciiGroup.push(`<span class="${asciiCssClass}" ${dataAttrs}>${asciiChar}</span>`);
+            const asciiChar =
+                byte >= 32 && byte <= 126
+                    ? String.fromCharCode(byte).replace('<', '&lt;')
+                    : '.';
+            currentAsciiGroup.push(
+                `<span class="${asciiCssClass}" ${dataAttrs}>${asciiChar}</span>`
+            );
 
             lastMapEntry = mapEntry;
         });
@@ -169,8 +221,12 @@ export function generateHexAsciiView(buffer, parsedData = null, startOffset = 0,
 
         const remaining = bytesPerRow - rowBytes.length;
         if (remaining > 0) {
-            hexHtml += `<span class="inline-block h-6" style="width: ${remaining * 1.75}rem"></span>`;
-            asciiHtml += `<span class="inline-block h-6" style="width: ${remaining * 1}rem"></span>`;
+            hexHtml += `<span class="inline-block h-6" style="width: ${
+                remaining * 1.75
+            }rem"></span>`;
+            asciiHtml += `<span class="inline-block h-6" style="width: ${
+                remaining * 1
+            }rem"></span>`;
         }
 
         rows.push({ offset, hex: hexHtml, ascii: asciiHtml });

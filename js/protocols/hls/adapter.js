@@ -1,8 +1,8 @@
 /**
- * @typedef {import('../../state.js').Manifest} Manifest
- * @typedef {import('../../state.js').Period} Period
- * @typedef {import('../../state.js').AdaptationSet} AdaptationSet
- * @typedef {import('../../state.js').Representation} Representation
+ * @typedef {import('../../core/state.js').Manifest} Manifest
+ * @typedef {import('../../core/state.js').Period} Period
+ * @typedef {import('../../core/state.js').AdaptationSet} AdaptationSet
+ * @typedef {import('../../core/state.js').Representation} Representation
  */
 import { getDrmSystemName } from '../../shared/utils/drm.js';
 
@@ -20,8 +20,13 @@ export function adaptHlsToIr(hlsParsed) {
         publishTime: null,
         availabilityStartTime: null,
         timeShiftBufferDepth: null,
-        minimumUpdatePeriod: hlsParsed.isLive ? hlsParsed.targetDuration : null,
-        duration: hlsParsed.segments.reduce((sum, seg) => sum + seg.duration, 0),
+        minimumUpdatePeriod: hlsParsed.isLive
+            ? hlsParsed.targetDuration
+            : null,
+        duration: hlsParsed.segments.reduce(
+            (sum, seg) => sum + seg.duration,
+            0
+        ),
         periods: [],
         rawElement: hlsParsed,
     };
@@ -61,8 +66,12 @@ export function adaptHlsToIr(hlsParsed) {
                 id: `variant-${index}-rep-0`,
                 codecs: variant.attributes.CODECS,
                 bandwidth: variant.attributes.BANDWIDTH,
-                width: resolution ? parseInt(String(resolution).split('x')[0], 10) : null,
-                height: resolution ? parseInt(String(resolution).split('x')[1], 10) : null,
+                width: resolution
+                    ? parseInt(String(resolution).split('x')[0], 10)
+                    : null,
+                height: resolution
+                    ? parseInt(String(resolution).split('x')[1], 10)
+                    : null,
             };
             asIR.representations.push(repIR);
             periodIR.adaptationSets.push(asIR);
@@ -90,12 +99,18 @@ export function adaptHlsToIr(hlsParsed) {
             lang: null,
             mimeType: 'video/mp2t',
             representations: [
-                { id: 'media-0-rep-0', codecs: null, bandwidth: 0, width: null, height: null },
+                {
+                    id: 'media-0-rep-0',
+                    codecs: null,
+                    bandwidth: 0,
+                    width: null,
+                    height: null,
+                },
             ],
             contentProtection: [],
         };
         // Check for encryption in media playlist
-        const keyTag = hlsParsed.segments.find(s => s.key)?.key;
+        const keyTag = hlsParsed.segments.find((s) => s.key)?.key;
         if (keyTag && keyTag.METHOD !== 'NONE') {
             asIR.contentProtection.push({
                 schemeIdUri: keyTag.KEYFORMAT || 'identity',
