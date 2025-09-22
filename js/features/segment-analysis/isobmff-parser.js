@@ -93,12 +93,19 @@ export function parseISOBMFF(buffer, baseOffset = 0) {
             'edts',
             'avc1',
             'mp4a',
-            'styp',
+            //'styp',
         ];
         if (containerBoxes.includes(type)) {
             let childrenParseOffset = box.contentOffset;
-            if (type === 'avc1' || type === 'mp4a') {
-                childrenParseOffset += 28;
+            // Sample Entries ('avc1', 'mp4a') have internal fields before their child boxes.
+            if (type === 'avc1') {
+                // VisualSampleEntry header is 78 bytes total before children.
+                // 8 (SampleEntry) + 70 (VisualSampleEntry fields)
+                childrenParseOffset += 78 - box.headerSize;
+            } else if (type === 'mp4a') {
+                // AudioSampleEntry header is 28 bytes total before children.
+                // 8 (SampleEntry) + 20 (AudioSampleEntry fields)
+                childrenParseOffset += 28 - box.headerSize;
             }
 
             const childrenBufferStart =
@@ -120,15 +127,19 @@ export function parseISOBMFF(buffer, baseOffset = 0) {
         }
 
         if (type === 'stsd') {
-            const stsdHeaderLength = 16;
+            // stsd contains version/flags(4) and entry_count(4) before the sample entry boxes.
+            const stsdPayloadHeaderLength = 8;
+            const childrenStartOffset = box.contentOffset + stsdPayloadHeaderLength;
+            const childrenBufferStart = offset + box.headerSize + stsdPayloadHeaderLength;
+
             const childrenBuffer = buffer.slice(
-                offset + stsdHeaderLength,
+                childrenBufferStart,
                 offset + actualSize
             );
             if (childrenBuffer.byteLength > 0) {
                 box.children = parseISOBMFF(
                     childrenBuffer,
-                    box.offset + stsdHeaderLength
+                    childrenStartOffset
                 );
             }
         }

@@ -1,11 +1,7 @@
 import { html, render } from 'lit-html';
 import { dom, analysisState } from '../core/state.js';
 import { getInteractiveSegmentTemplate } from '../features/interactive-segment/view.js';
-import {
-    initializeSegmentExplorer,
-    startSegmentFreshnessChecker,
-    stopSegmentFreshnessChecker,
-} from '../features/segment-explorer/view.js';
+import { initializeSegmentExplorer } from '../features/segment-explorer/view.js';
 import {
     startManifestUpdatePolling,
     stopManifestUpdatePolling,
@@ -16,6 +12,10 @@ import {
     navigateManifestUpdates,
 } from '../features/manifest-updates/view.js';
 import { renderSingleStreamTabs } from './rendering.js';
+import {
+    startLiveSegmentHighlighter,
+    stopLiveSegmentHighlighter,
+} from '../features/segment-explorer/hls-explorer-view.js';
 
 let keyboardNavigationListener = null;
 
@@ -26,8 +26,9 @@ export function handleTabClick(e) {
     );
     if (!targetTab) return;
 
-    stopSegmentFreshnessChecker();
+    // --- Stop all timers on any tab change ---
     stopManifestUpdatePolling();
+    stopLiveSegmentHighlighter();
 
     if (keyboardNavigationListener) {
         document.removeEventListener('keydown', keyboardNavigationListener);
@@ -63,8 +64,9 @@ export function handleTabClick(e) {
         renderSingleStreamTabs(analysisState.activeStreamId);
     }
 
+    // --- Start timers for specific tabs ---
     if (activeTabName === 'explorer') {
-        startSegmentFreshnessChecker();
+        startLiveSegmentHighlighter();
     } else if (activeTabName === 'updates') {
         // Only start polling if the state indicates it should be active.
         if (

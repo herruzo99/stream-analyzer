@@ -13,12 +13,15 @@ const escapeHtml = (str) =>
 
 const hlsSubNavTemplate = (stream) => {
     const masterPlaylist = stream.mediaPlaylists.get('master');
-    if (!masterPlaylist) return html``;
+    if (!masterPlaylist || !masterPlaylist.manifest.rawElement.isMaster)
+        return html``;
 
     const variants = masterPlaylist.manifest.rawElement.variants || [];
 
     const handleNavClick = (e) => {
-        const url = (/** @type {HTMLElement} */ (e.target)).dataset.url;
+        const button = /** @type {HTMLElement} */ (e.target).closest('button');
+        if (!button) return;
+        const url = button.dataset.url;
         eventBus.dispatch('hls:media-playlist-activate', {
             streamId: stream.id,
             url,
@@ -31,14 +34,16 @@ const hlsSubNavTemplate = (stream) => {
                 ? 'bg-blue-600 text-white font-semibold'
                 : 'bg-gray-900 hover:bg-gray-700'}"
             data-url="${url}"
-            @click=${handleNavClick}
         >
             ${label}
         </button>
     `;
 
     return html`
-        <div class="mb-4 p-2 bg-gray-900/50 rounded-lg flex flex-wrap gap-2">
+        <div
+            class="mb-4 p-2 bg-gray-900/50 rounded-lg flex flex-wrap gap-2"
+            @click=${handleNavClick}
+        >
             ${navItem(
                 'Master Playlist',
                 'master',
@@ -133,14 +138,15 @@ const getHlsLineHTML = (line) => {
 };
 
 export const hlsManifestTemplate = (stream) => {
-    const manifestString = stream.rawManifest;
-    const isMaster =
-        stream.mediaPlaylists.get('master')?.manifest.rawElement.isMaster;
-    const lines = manifestString.split(/\r?\n/);
+    // Determine which manifest to display: the actively viewed one, or the root.
+    const manifestToDisplay = stream.activeManifestForView || stream.manifest;
+    const manifestString = manifestToDisplay.rawElement.raw;
+
+    const lines = manifestString ? manifestString.split(/\r?\n/) : [];
 
     return html`
         <h3 class="text-xl font-bold mb-2">Interactive Manifest</h3>
-        ${isMaster ? hlsSubNavTemplate(stream) : ''}
+        ${hlsSubNavTemplate(stream)}
         <div
             class="bg-slate-800 rounded-lg p-4 font-mono text-sm leading-relaxed overflow-x-auto"
         >

@@ -39,8 +39,6 @@ export function renderAllTabs() {
     (document.querySelector('[data-tab="summary"]')).style.display =
         hasMultipleStreams ? 'none' : 'block';
 
-    dom.tabContents['interactive-manifest'].innerHTML = ''; // Clear previous content
-
     if (hasMultipleStreams) {
         render(getComparisonTemplate(), dom.tabContents.comparison);
     }
@@ -78,10 +76,7 @@ export function renderSingleStreamTabs(streamId) {
         getTimelineAndVisualsTemplate(manifest, protocol),
         dom.tabContents['timeline-visuals']
     );
-    render(
-        getFeaturesAnalysisTemplate(manifest, protocol),
-        dom.tabContents.features
-    );
+    render(getFeaturesAnalysisTemplate(stream), dom.tabContents.features);
     render(
         getInteractiveManifestTemplate(stream),
         dom.tabContents['interactive-manifest']

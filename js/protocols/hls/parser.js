@@ -49,7 +49,14 @@ export async function parseManifest(manifestString, baseUrl) {
     const lines = manifestString.split(/\r?\n/);
 
     if (!lines[0] || lines[0].trim() !== '#EXTM3U') {
-        throw new Error('Invalid HLS playlist. Must start with #EXTM3U.');
+        // HLS media playlists can be served directly without a master.
+        // A simple check to see if it looks like a media playlist.
+        if (manifestString.includes('#EXTINF:')) {
+            // It's likely a media playlist, prepend the required tag.
+            lines.unshift('#EXTM3U');
+        } else {
+            throw new Error('Invalid HLS playlist. Must start with #EXTM3U.');
+        }
     }
 
     const parsed = {
@@ -61,6 +68,7 @@ export async function parseManifest(manifestString, baseUrl) {
         media: [],
         raw: manifestString,
         baseUrl: baseUrl,
+        isLive: true, // Default to live, will be changed by tags
     };
 
     /** @type {HlsSegment | null} */
@@ -138,6 +146,9 @@ export async function parseManifest(manifestString, baseUrl) {
                     break;
                 case 'EXT-X-PLAYLIST-TYPE':
                     parsed.playlistType = tagValue;
+                    if (tagValue === 'VOD') {
+                        parsed.isLive = false;
+                    }
                     break;
                 case 'EXT-X-ENDLIST':
                     parsed.isLive = false;
@@ -170,10 +181,6 @@ export async function parseManifest(manifestString, baseUrl) {
             }
         }
         // Lines starting with '#' but not '#EXT' are comments and are ignored.
-    }
-
-    if (!parsed.isMaster && typeof parsed.isLive === 'undefined') {
-        parsed.isLive = true;
     }
 
     const manifest = adaptHlsToIr(parsed);

@@ -1,7 +1,7 @@
 import { html } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { tooltipTriggerClasses } from '../../shared/constants.js';
-import { generateFeatureAnalysis } from './logic.js';
+import { createFeatureViewModel } from './logic.js';
 
 const featureCardTemplate = (feature) => {
     const badge = feature.used
@@ -44,11 +44,12 @@ const categoryTemplate = (category, categoryFeatures) => html`
     </div>
 `;
 
-export function getFeaturesAnalysisTemplate(manifest, protocol) {
-    if (!manifest)
-        return html`<p class="warn">No manifest loaded to display.</p>`;
+export function getFeaturesAnalysisTemplate(stream) {
+    if (!stream)
+        return html`<p class="warn">No stream loaded to display.</p>`;
 
-    const viewModel = generateFeatureAnalysis(manifest, protocol);
+    const { results, manifestCount } = stream.featureAnalysis;
+    const viewModel = createFeatureViewModel(results, stream.protocol);
 
     const groupedFeatures = viewModel.reduce((acc, feature) => {
         if (!acc[feature.category]) {
@@ -58,9 +59,86 @@ export function getFeaturesAnalysisTemplate(manifest, protocol) {
         return acc;
     }, {});
 
+    const getStatusIndicator = () => {
+        if (stream.manifest?.type !== 'dynamic') {
+            return html`
+                <div
+                    class="bg-gray-900/50 border border-gray-700 rounded-lg p-3 flex items-center gap-3 mb-6"
+                >
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        class="h-6 w-6 text-gray-400 flex-shrink-0"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                    >
+                        <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                        />
+                    </svg>
+                    <div>
+                        <p class="font-semibold text-gray-200">
+                            Static Manifest
+                        </p>
+                        <p class="text-xs text-gray-400">
+                            Feature analysis is based on the initial manifest
+                            load.
+                        </p>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Dynamic stream
+        return html`
+            <div
+                class="bg-gray-900/50 border border-gray-700 rounded-lg p-3 flex items-center gap-3 mb-6"
+            >
+                <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-6 w-6 text-cyan-400 flex-shrink-0 animate-spin"
+                    style="animation-duration: 3s;"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                >
+                    <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M4 4v5h5M20 20v-5h-5"
+                    />
+                    <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M4 9a9 9 0 0114.65-5.65M20 15a9 9 0 01-14.65 5.65"
+                    />
+                </svg>
+                <div>
+                    <p class="font-semibold text-gray-200">
+                        Live Analysis Active
+                    </p>
+                    <p class="text-xs text-gray-400">
+                        Based on an analysis of
+                        <b class="text-cyan-300 font-bold"
+                            >${manifestCount}</b
+                        >
+                        manifest version(s). New features will be detected
+                        automatically.
+                    </p>
+                </div>
+            </div>
+        `;
+    };
+
     return html`
         <h3 class="text-xl font-bold mb-2">Feature Usage Analysis</h3>
-        <p class="text-sm text-gray-400 mb-4">
+        ${getStatusIndicator()}
+        <p class="text-sm text-gray-500 mb-4">
             A breakdown of key features detected in the manifest and their
             implementation details.
         </p>

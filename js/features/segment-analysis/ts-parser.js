@@ -1,198 +1,183 @@
+/**
+ * @typedef {object} TSPacket
+ * @property {number} offset
+ * @property {number} pid
+ * @property {object} header
+ * @property {object | null} adaptationField
+ * @property {string} payloadType
+ * @property {object | null} pes
+ * @property {object | null} psi
+ * @property {Record<string, { offset: number, length: number }>} fieldOffsets
+ */
+
 const TS_PACKET_SIZE = 188;
 const SYNC_BYTE = 0x47;
+const NULL_PACKET_PID = 0x1FFF;
 
 const streamTypes = {
-    0x02: 'MPEG-2 Video',
-    0x1b: 'H.264/AVC Video',
-    0x24: 'H.265/HEVC Video',
-    0x03: 'MPEG-1 Audio',
-    0x04: 'MPEG-2 Audio',
-    0x0f: 'AAC Audio (ADTS)',
-    0x11: 'AAC Audio (LATM)',
-    0x81: 'AC-3 Audio',
-    0x87: 'E-AC-3 Audio',
-    0x06: 'Private Data (e.g., Subtitles, SCTE-35)',
+    0x02: 'MPEG-2 Video', 0x1b: 'H.264/AVC Video', 0x24: 'H.265/HEVC Video',
+    0x03: 'MPEG-1 Audio', 0x04: 'MPEG-2 Audio', 0x0f: 'AAC Audio (ADTS)',
+    0x11: 'AAC Audio (LATM)', 0x81: 'AC-3 Audio', 0x87: 'E-AC-3 Audio',
+    0x06: 'Private Data (e.g., SCTE-35)',
 };
+const tableIds = { 0x00: 'PAT', 0x01: 'CAT', 0x02: 'PMT', 0x40: 'NIT', 0x42: 'SDT', 0x70: 'TDT' };
 
 function parseTimestamp(view, offset) {
     const byte1 = view.getUint8(offset);
     const byte2 = view.getUint16(offset + 1);
     const byte3 = view.getUint16(offset + 3);
-    const high = (byte1 & 0x0e) >> 1;
-    const mid = byte2 >> 1;
-    const low = byte3 >> 1;
-    return high * (1 << 30) + mid * (1 << 15) + low;
+    return (((byte1 & 0x0e) >> 1) * (1 << 30)) + ((byte2 >> 1) * (1 << 15)) + (byte3 >> 1);
 }
 
-export function parseTsSegment(buffer) {
-    const analysis = {
-        summary: {
-            totalPackets: 0,
-            patFound: false,
-            pmtFound: false,
-            errors: [],
-            durationS: 0,
-            ptsRange: { min: null, max: null },
-        },
-        pids: {},
-    };
+function parsePat(sectionData, summary) {
+    let pmtPid = null;
+    for (let pos = 8; pos < sectionData.byteLength - 4; pos += 4) {
+        if (sectionData.getUint16(pos) !== 0) {
+            pmtPid = sectionData.getUint16(pos + 2) & 0x1fff;
+            summary.programMap[pmtPid] = { streams: {} };
+        }
+    }
+    return pmtPid;
+}
 
+function parsePmt(sectionData, summary, pmtPid) {
+    summary.pcrPid = sectionData.getUint16(8) & 0x1fff;
+    const programInfoLength = sectionData.getUint16(10) & 0x0fff;
+    let offset = 12 + programInfoLength;
+    while (offset < sectionData.byteLength - 4) {
+        const streamType = sectionData.getUint8(offset);
+        const elementaryPid = sectionData.getUint16(offset + 1) & 0x1fff;
+        const esInfoLength = sectionData.getUint16(offset + 3) & 0x0fff;
+        summary.programMap[pmtPid].streams[elementaryPid] = streamTypes[streamType] || `Unknown (0x${streamType.toString(16)})`;
+        offset += 5 + esInfoLength;
+    }
+}
+
+/**
+ * Performs a deep parse of an MPEG-2 Transport Stream segment.
+ * @param {ArrayBuffer} buffer
+ * @returns {{format: 'ts', data: {summary: object, packets: TSPacket[]}}}
+ */
+export function parseTsSegment(buffer) {
+    const packets = [];
+    const summary = { totalPackets: 0, programMap: {}, pids: {}, errors: [], pcrPid: null };
+    const psiContinuity = {};
     const dataView = new DataView(buffer);
     let pmtPid = null;
-    let programMap = {};
 
-    for (
-        let offset = 0;
-        offset + TS_PACKET_SIZE <= buffer.byteLength;
-        offset += TS_PACKET_SIZE
-    ) {
+    for (let offset = 0; offset + TS_PACKET_SIZE <= buffer.byteLength; offset += TS_PACKET_SIZE) {
         if (dataView.getUint8(offset) !== SYNC_BYTE) {
-            analysis.summary.errors.push(
-                `Sync byte missing at offset ${offset}. Attempting to recover.`
-            );
-            let nextSync = -1;
-            for (
-                let i = offset + 1;
-                i < offset + TS_PACKET_SIZE * 2 && i < buffer.byteLength;
-                i++
-            ) {
-                if (dataView.getUint8(i) === SYNC_BYTE) {
-                    nextSync = i;
-                    break;
-                }
-            }
-            if (nextSync !== -1) {
-                offset = nextSync - TS_PACKET_SIZE;
-                continue;
-            } else {
-                analysis.summary.errors.push(
-                    'Unrecoverable sync loss. Halting parse.'
-                );
-                break;
-            }
+            summary.errors.push(`Sync byte missing at offset ${offset}.`);
+            continue;
         }
+        summary.totalPackets++;
 
-        analysis.summary.totalPackets++;
-        const header = dataView.getUint32(offset);
-        const pid = (header >> 8) & 0x1fff;
-        const payloadUnitStart = (header >> 22) & 1;
-        const adaptationFieldControl = (header >> 20) & 3;
-        const continuityCounter = (header >> 24) & 0xf;
+        const byte1 = dataView.getUint8(offset + 1);
+        const byte2 = dataView.getUint8(offset + 2);
+        const byte3 = dataView.getUint8(offset + 3);
+        
+        const pid = ((byte1 & 0x1F) << 8) | byte2;
 
-        if (!analysis.pids[pid]) {
-            analysis.pids[pid] = {
-                count: 0,
-                streamType: 'Unknown',
-                continuityErrors: 0,
-                lastContinuityCounter: null,
-                pts: [],
-                dts: [],
-            };
+        const packet = {
+            offset, pid, header: {}, adaptationField: null, payloadType: 'Data', pes: null, psi: null,
+            fieldOffsets: { header: { offset, length: 4 } }
+        };
+
+        packet.header = {
+            transportErrorIndicator: (byte1 >> 7) & 1,
+            payloadUnitStartIndicator: (byte1 >> 6) & 1,
+            transportPriority: (byte1 >> 5) & 1,
+            scramblingControl: (byte3 >> 6) & 3,
+            adaptationFieldControl: (byte3 >> 4) & 3,
+            continuityCounter: byte3 & 0xF,
+        };
+
+        if (!summary.pids[pid]) summary.pids[pid] = { count: 0, type: 'Unknown' };
+        summary.pids[pid].count++;
+
+        if (pid === NULL_PACKET_PID) {
+            packet.payloadType = 'Null Packet';
+            summary.pids[pid].type = 'Null';
+            packets.push(packet);
+            continue;
         }
-        const pidData = analysis.pids[pid];
-        pidData.count++;
-
-        if (
-            pidData.lastContinuityCounter !== null &&
-            adaptationFieldControl & 1
-        ) {
-            const expectedCounter = (pidData.lastContinuityCounter + 1) % 16;
-            if (continuityCounter !== expectedCounter) {
-                pidData.continuityErrors++;
-            }
-        }
-        pidData.lastContinuityCounter = continuityCounter;
 
         let payloadOffset = offset + 4;
-        if (adaptationFieldControl & 2) {
-            const adaptationFieldLength = dataView.getUint8(payloadOffset);
-            payloadOffset += adaptationFieldLength + 1;
-        }
-
-        if (
-            payloadUnitStart &&
-            adaptationFieldControl & 1 &&
-            payloadOffset < offset + TS_PACKET_SIZE
-        ) {
-            if (pid === 0x0000) {
-                // PAT
-                analysis.summary.patFound = true;
-                const pointerField = dataView.getUint8(payloadOffset);
-                const tableOffset = payloadOffset + pointerField + 1;
-                if (tableOffset + 12 < offset + TS_PACKET_SIZE) {
-                    pmtPid = dataView.getUint16(tableOffset + 10) & 0x1fff;
-                    pidData.streamType = 'PAT';
-                }
-            } else if (pid === pmtPid) {
-                // PMT
-                analysis.summary.pmtFound = true;
-                const pointerField = dataView.getUint8(payloadOffset);
-                const tableOffset = payloadOffset + pointerField + 1;
-                const sectionLength =
-                    dataView.getUint16(tableOffset + 1) & 0xfff;
-                const programInfoLength =
-                    dataView.getUint16(tableOffset + 10) & 0xfff;
-                let streamInfoOffset = tableOffset + 12 + programInfoLength;
-                const endOfStreams = tableOffset + 3 + sectionLength - 4;
-                pidData.streamType = `PMT`;
-
-                while (
-                    streamInfoOffset < endOfStreams &&
-                    streamInfoOffset + 5 <= offset + TS_PACKET_SIZE
-                ) {
-                    const streamType = dataView.getUint8(streamInfoOffset);
-                    const elementaryPid =
-                        dataView.getUint16(streamInfoOffset + 1) & 0x1fff;
-                    const esInfoLength =
-                        dataView.getUint16(streamInfoOffset + 3) & 0xfff;
-                    programMap[elementaryPid] =
-                        streamTypes[streamType] ||
-                        `Unknown (0x${streamType.toString(16)})`;
-                    streamInfoOffset += 5 + esInfoLength;
-                }
-            } else if (
-                payloadOffset + 6 < offset + TS_PACKET_SIZE &&
-                dataView.getUint32(payloadOffset) >>> 8 === 0x000001
-            ) {
-                // PES
-                const ptsDtsFlags = dataView.getUint8(payloadOffset + 7) >> 6;
-                let timestampOffset = payloadOffset + 9;
-
-                if (ptsDtsFlags & 2) {
-                    const pts = parseTimestamp(dataView, timestampOffset);
-                    pidData.pts.push(pts);
-                    if (
-                        analysis.summary.ptsRange.min === null ||
-                        pts < analysis.summary.ptsRange.min
-                    )
-                        analysis.summary.ptsRange.min = pts;
-                    if (
-                        analysis.summary.ptsRange.max === null ||
-                        pts > analysis.summary.ptsRange.max
-                    )
-                        analysis.summary.ptsRange.max = pts;
-                    timestampOffset += 5;
-                }
-                if (ptsDtsFlags & 1) {
-                    const dts = parseTimestamp(dataView, timestampOffset);
-                    pidData.dts.push(dts);
+        if (packet.header.adaptationFieldControl & 2) {
+            const afLength = dataView.getUint8(payloadOffset);
+            packet.fieldOffsets.adaptationField = { offset: payloadOffset, length: afLength + 1 };
+            if (afLength > 0) {
+                const afFlags = dataView.getUint8(payloadOffset + 1);
+                packet.adaptationField = {
+                    length: afLength, discontinuityIndicator: (afFlags >> 7) & 1,
+                    randomAccessIndicator: (afFlags >> 6) & 1, esPriorityIndicator: (afFlags >> 5) & 1,
+                    pcrFlag: (afFlags >> 4) & 1, opcrFlag: (afFlags >> 3) & 1,
+                    splicingPointFlag: (afFlags >> 2) & 1, transportPrivateDataFlag: (afFlags >> 1) & 1,
+                    adaptationFieldExtensionFlag: afFlags & 1, pcr: null,
+                };
+                if (packet.adaptationField.pcrFlag && afLength >= 6) {
+                    const pcrBase = (dataView.getUint32(payloadOffset + 2) * 2) + ((dataView.getUint8(payloadOffset + 6) >> 7) & 1);
+                    packet.adaptationField.pcr = (pcrBase * 300) + (dataView.getUint16(payloadOffset + 6) & 0x1ff);
                 }
             }
+            payloadOffset += afLength + 1;
         }
+        
+        if ((packet.header.adaptationFieldControl & 1) && payloadOffset < offset + TS_PACKET_SIZE) {
+            let payloadView = new DataView(buffer, payloadOffset, offset + TS_PACKET_SIZE - payloadOffset);
+            if (packet.header.payloadUnitStartIndicator) {
+                const pointerField = payloadView.getUint8(0);
+                if (payloadOffset + pointerField + 1 < offset + TS_PACKET_SIZE) {
+                   payloadOffset += pointerField + 1;
+                   payloadView = new DataView(buffer, payloadOffset, offset + TS_PACKET_SIZE - payloadOffset);
+                }
+            }
+            
+            if (pid === 0 || pid === pmtPid || [0x11, 0x14].includes(pid)) {
+                if (packet.header.payloadUnitStartIndicator) {
+                    const tableId = payloadView.getUint8(0);
+                    const sectionLength = payloadView.getUint16(1) & 0x0FFF;
+                    psiContinuity[pid] = { buffer: new Uint8Array(sectionLength + 3), bytesWritten: 0, expectedLength: sectionLength + 3, tableId };
+                }
+                if (psiContinuity[pid]) {
+                    const state = psiContinuity[pid];
+                    const bytesToCopy = Math.min(payloadView.byteLength, state.expectedLength - state.bytesWritten);
+                    state.buffer.set(new Uint8Array(payloadView.buffer, payloadView.byteOffset, bytesToCopy), state.bytesWritten);
+                    state.bytesWritten += bytesToCopy;
+                    if (state.bytesWritten >= state.expectedLength) {
+                        const sectionView = new DataView(state.buffer.buffer);
+                        packet.payloadType = `PSI (${tableIds[state.tableId] || 'Unknown'})`;
+                        summary.pids[pid].type = tableIds[state.tableId] || `PSI ${state.tableId}`;
+                        if (state.tableId === 0x00) pmtPid = parsePat(sectionView, summary) || pmtPid;
+                        else if (state.tableId === 0x02) parsePmt(sectionView, summary, pid);
+                        delete psiContinuity[pid];
+                    }
+                }
+            } else if (packet.header.payloadUnitStartIndicator && (payloadOffset + 8 < offset + TS_PACKET_SIZE) && dataView.getUint32(payloadOffset) >>> 8 === 0x000001) {
+                packet.payloadType = 'PES';
+                packet.pes = { streamId: dataView.getUint8(payloadOffset + 3), packetLength: dataView.getUint16(payloadOffset + 4), pts: null, dts: null };
+                packet.fieldOffsets.pesHeader = { offset: payloadOffset, length: 9 + dataView.getUint8(payloadOffset + 8) };
+                const ptsDtsFlags = dataView.getUint8(payloadOffset + 7) >> 6;
+                if (ptsDtsFlags & 2) packet.pes.pts = parseTimestamp(dataView, payloadOffset + 9);
+                if (ptsDtsFlags & 1) packet.pes.dts = parseTimestamp(dataView, payloadOffset + 14);
+            }
+        }
+        packets.push(packet);
+    }
+    
+    // --- Final Pass: Update packet payload types from parsed PMT ---
+    const pidTypeMap = {};
+    if (pmtPid && summary.programMap[pmtPid]) {
+        Object.entries(summary.programMap[pmtPid].streams).forEach(([pid, type]) => {
+            pidTypeMap[pid] = type;
+        });
     }
 
-    Object.entries(programMap).forEach(([pid, type]) => {
-        if (analysis.pids[pid]) analysis.pids[pid].streamType = type;
+    packets.forEach(packet => {
+        if (pidTypeMap[packet.pid] && packet.payloadType === 'Data') {
+            packet.payloadType = pidTypeMap[packet.pid];
+        }
     });
-    if (analysis.summary.ptsRange.max !== null) {
-        analysis.summary.durationS = parseFloat(
-            (
-                (analysis.summary.ptsRange.max -
-                    (analysis.summary.ptsRange.min || 0)) /
-                90000
-            ).toFixed(3)
-        );
-    }
 
-    return { format: 'ts', data: analysis };
+    return { format: 'ts', data: { summary, packets } };
 }

@@ -1,15 +1,14 @@
+
 import { parseManifest as parseDashManifest } from '../protocols/dash/parser.js';
 import { parseManifest as parseHlsManifest } from '../protocols/hls/parser.js';
 import { diffManifest } from '../features/manifest-updates/diff.js';
 import xmlFormatter from 'xml-formatter';
 import { eventBus } from '../core/event-bus.js';
 import { analysisState } from '../core/state.js';
+import { generateFeatureAnalysis } from '../features/feature-analysis/logic.js';
 
 /**
- * @typedef {object} StreamInput
- * @property {number} id
- * @property {string} url
- * @property {File} [file]
+ * @typedef {import('../core/state.js').StreamInput} StreamInput
  */
 
 async function analyzeStreams(inputs) {
@@ -64,6 +63,46 @@ async function analyzeStreams(inputs) {
             const { manifest, baseUrl: newBaseUrl } = parseResult;
             baseUrl = newBaseUrl;
 
+            // --- Deep Liveness Check for HLS Master Playlists ---
+            if (protocol === 'hls' && manifest.rawElement.isMaster) {
+                const firstVariant = manifest.rawElement.variants?.[0];
+                if (firstVariant) {
+                    try {
+                        const variantResponse = await fetch(
+                            firstVariant.resolvedUri
+                        );
+                        if (variantResponse.ok) {
+                            const variantManifestStr =
+                                await variantResponse.text();
+                            const { manifest: variantManifest } =
+                                await parseHlsManifest(
+                                    variantManifestStr,
+                                    firstVariant.resolvedUri
+                                );
+                            // Overwrite master's presumed type with the media's ground truth.
+                            manifest.type = variantManifest.type;
+                        }
+                    } catch (e) {
+                        console.warn(
+                            'Could not fetch first variant for liveness check, relying on master playlist properties.',
+                            e
+                        );
+                    }
+                }
+            }
+
+            const rawInitialAnalysis = generateFeatureAnalysis(
+                manifest,
+                protocol
+            );
+            const featureAnalysisResults = new Map();
+            Object.entries(rawInitialAnalysis).forEach(([name, result]) => {
+                featureAnalysisResults.set(name, {
+                    used: result.used,
+                    details: result.details,
+                });
+            });
+
             const streamObject = {
                 id: input.id,
                 name,
@@ -74,6 +113,11 @@ async function analyzeStreams(inputs) {
                 rawManifest: manifestString,
                 mediaPlaylists: new Map(),
                 activeMediaPlaylistUrl: null,
+                activeManifestForView: manifest, // Initially, the view shows the main manifest
+                featureAnalysis: {
+                    results: featureAnalysisResults,
+                    manifestCount: 1,
+                },
             };
 
             // Correctly initialize master playlist cache at creation time
@@ -101,11 +145,7 @@ async function analyzeStreams(inputs) {
     try {
         const results = (await Promise.all(promises)).filter(Boolean);
         if (results.length === 0) {
-            eventBus.dispatch('analysis:completed', {
-                streams: [],
-                message: 'No valid streams to analyze.',
-                status: 'warn',
-            });
+            eventBus.dispatch('analysis:failed');
             return;
         }
         results.sort((a, b) => a.id - b.id);
@@ -134,6 +174,10 @@ async function analyzeStreams(inputs) {
             isPollingActive: isSingleDynamicStream,
         });
     } catch (error) {
+        console.error(
+            'An unhandled error occurred during stream analysis:',
+            error
+        );
         eventBus.dispatch('analysis:failed');
     }
 }
@@ -148,8 +192,7 @@ async function activateHlsMediaPlaylist({ streamId, url }) {
             eventBus.dispatch('state:stream-updated', {
                 streamId,
                 updatedStreamData: {
-                    manifest: master.manifest,
-                    rawManifest: master.rawManifest,
+                    activeManifestForView: master.manifest,
                     activeMediaPlaylistUrl: null,
                 },
             });
@@ -162,14 +205,13 @@ async function activateHlsMediaPlaylist({ streamId, url }) {
         eventBus.dispatch('state:stream-updated', {
             streamId,
             updatedStreamData: {
-                manifest: mediaPlaylist.manifest,
-                rawManifest: mediaPlaylist.rawManifest,
+                activeManifestForView: mediaPlaylist.manifest,
                 activeMediaPlaylistUrl: url,
             },
         });
     } else {
         eventBus.dispatch('ui:show-status', {
-            message: `Fetching HLS media playlist: ${url}`,
+            message: `Fetching HLS media playlist...`,
             type: 'info',
         });
         try {
@@ -189,8 +231,7 @@ async function activateHlsMediaPlaylist({ streamId, url }) {
                 streamId,
                 updatedStreamData: {
                     mediaPlaylists: newPlaylists,
-                    manifest,
-                    rawManifest: manifestString,
+                    activeManifestForView: manifest,
                     activeMediaPlaylistUrl: url,
                 },
             });

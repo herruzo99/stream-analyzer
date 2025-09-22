@@ -1,6 +1,6 @@
 import { html, render } from 'lit-html';
 import { analysisState, dom } from '../../core/state.js';
-import { parseTsSegment } from './ts-parser.js';
+import { parse as parseTsSegment } from './ts/ts-parser.js';
 import { getTooltipData } from './isobmff-parser.js';
 import { tooltipTriggerClasses } from '../../shared/constants.js';
 
@@ -83,21 +83,16 @@ const segmentCompareTemplate = (diffData) => {
 
 // --- TEMPLATES (TS) ---
 
-export const tsAnalysisTemplate = (analysis) => {
-    const sortedPids = Object.entries(analysis.pids)
-        .map(([pid, data]) => ({ pid: parseInt(pid), ...data }))
-        .sort((a, b) => a.pid - b.pid);
+const tsAnalysisTemplate = (analysis) => {
+    const { summary, packets } = analysis.data;
+    const pmtPid = Object.keys(summary.programMap)[0];
+    const program = pmtPid ? summary.programMap[pmtPid] : null;
 
-    const dataItem = (label, value, isBoolean = false) => html`
+    const dataItem = (label, value) => html`
         <div class="text-xs">
             <span class="block text-gray-400 mb-0.5">${label}</span>
-            <span
-                class="block font-semibold font-mono ${isBoolean
-                    ? value
-                        ? 'text-green-400'
-                        : 'text-red-400'
-                    : 'text-gray-200'}"
-                >${isBoolean ? (value ? 'Yes' : 'No') : value}</span
+            <span class="block font-semibold font-mono text-gray-200"
+                >${value}</span
             >
         </div>
     `;
@@ -107,96 +102,72 @@ export const tsAnalysisTemplate = (analysis) => {
             class="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3 bg-gray-900 border border-gray-700 rounded p-3 mb-4"
         >
             ${dataItem('Type', 'MPEG-2 Transport Stream')}
-            ${dataItem('Total Packets', analysis.summary.totalPackets)}
-            ${dataItem('Est. Duration', `${analysis.summary.durationS}s`)}
-            ${dataItem('PAT Found', analysis.summary.patFound, true)}
-            ${dataItem('PMT Found', analysis.summary.pmtFound, true)}
+            ${dataItem('Total Packets', summary.totalPackets)}
+            ${dataItem('PCR PID', summary.pcrPid || 'N/A')}
+            ${program ? dataItem('Program #', program.programNumber) : ''}
         </div>
 
-        ${analysis.summary.errors.length > 0
+        ${summary.errors.length > 0
             ? html`<div
                   class="bg-red-900/50 border border-red-700 rounded p-3 mb-4 text-red-300 text-xs"
               >
                   <p class="font-bold mb-1">Parsing Errors:</p>
                   <ul class="list-disc pl-5">
-                      ${analysis.summary.errors.map((e) => html`<li>${e}</li>`)}
+                      ${summary.errors.map((e) => html`<li>${e}</li>`)}
                   </ul>
               </div>`
             : ''}
-
-        <div>
-            <h4 class="font-semibold text-gray-300 mb-2">
-                Packet Identifier (PID) Streams:
-            </h4>
-            <table class="w-full text-left text-xs border-collapse">
-                <thead class="text-left">
-                    <tr>
-                        <th
-                            class="p-2 border border-gray-700 bg-gray-900/50 w-1/6"
-                        >
-                            PID
-                        </th>
-                        <th
-                            class="p-2 border border-gray-700 bg-gray-900/50 w-1/3"
-                        >
-                            Stream Type
-                        </th>
-                        <th
-                            class="p-2 border border-gray-700 bg-gray-900/50 w-1/6"
-                        >
-                            Packets
-                        </th>
-                        <th
-                            class="p-2 border border-gray-700 bg-gray-900/50 w-1/3"
-                        >
-                            Notes
-                        </th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${sortedPids.map(
-                        (pidInfo) => html`
-                            <tr>
-                                <td
-                                    class="p-2 border border-gray-700 font-mono text-gray-400"
-                                >
-                                    0x${pidInfo.pid
-                                        .toString(16)
-                                        .padStart(4, '0')}
-                                    (${pidInfo.pid})
-                                </td>
-                                <td
-                                    class="p-2 border border-gray-700 text-gray-200"
-                                >
-                                    ${pidInfo.streamType}
-                                </td>
-                                <td
-                                    class="p-2 border border-gray-700 text-gray-200"
-                                >
-                                    ${pidInfo.count}
-                                </td>
-                                <td
-                                    class="p-2 border border-gray-700 text-gray-200"
-                                >
-                                    ${pidInfo.continuityErrors > 0
-                                        ? html`<span class="text-yellow-400"
-                                              >CC Errors:
-                                              ${pidInfo.continuityErrors}</span
-                                          >`
-                                        : ''}
-                                    ${pidInfo.pts.length > 0
-                                        ? html`<span
-                                              >PTS Count:
-                                              ${pidInfo.pts.length}</span
-                                          >`
-                                        : ''}
-                                </td>
-                            </tr>
-                        `
-                    )}
-                </tbody>
-            </table>
-        </div>
+        ${program
+            ? html` <div class="mb-4">
+                  <h4 class="font-semibold text-gray-300 mb-2">
+                      Elementary Streams (from PMT):
+                  </h4>
+                  <table class="w-full text-left text-xs border-collapse">
+                      <thead class="text-left">
+                          <tr>
+                              <th
+                                  class="p-2 border border-gray-700 bg-gray-900/50"
+                              >
+                                  PID
+                              </th>
+                              <th
+                                  class="p-2 border border-gray-700 bg-gray-900/50"
+                              >
+                                  Stream Type
+                              </th>
+                              <th
+                                  class="p-2 border border-gray-700 bg-gray-900/50"
+                              >
+                                  Packets
+                              </th>
+                          </tr>
+                      </thead>
+                      <tbody>
+                          ${Object.entries(program.streams).map(
+                              ([pid, type]) => html`
+                                  <tr>
+                                      <td
+                                          class="p-2 border border-gray-700 font-mono text-gray-400"
+                                      >
+                                          ${pid}
+                                      </td>
+                                      <td
+                                          class="p-2 border border-gray-700 text-gray-200"
+                                      >
+                                          ${type}
+                                      </td>
+                                      <td
+                                          class="p-2 border border-gray-700 text-gray-200"
+                                      >
+                                          ${summary.pids[pid]?.count || 0}
+                                      </td>
+                                  </tr>
+                              `
+                          )}
+                      </tbody>
+                  </table>
+              </div>`
+            : ''}
     `;
 };
 
@@ -342,49 +313,28 @@ export function dispatchAndRenderSegmentAnalysis(e, buffer, bufferB = null) {
         return;
     }
 
-    const activeStream = analysisState.streams.find(
-        (s) => s.id === analysisState.activeStreamId
-    );
-    if (!activeStream) return;
-
-    let segmentMimeType = '';
-
-    if (activeStream.protocol === 'hls') {
-        // For HLS, infer from #EXT-X-MAP tag. Default to TS.
-        // This assumes the active manifest is the relevant media playlist.
-        segmentMimeType = activeStream.manifest.rawElement.map
-            ? 'video/mp4'
-            : 'video/mp2t';
-    } else {
-        // For DASH, query the manifest for the mimeType.
-        const target = /** @type {HTMLElement} */ (e?.currentTarget);
-        const repId = target?.dataset.repid;
-        const rep = /** @type {Element} */ (
-            activeStream.manifest.rawElement
-        ).querySelector(`Representation[id="${repId}"]`);
-        const as = rep?.closest('AdaptationSet');
-        segmentMimeType =
-            rep?.getAttribute('mimeType') || as?.getAttribute('mimeType');
-    }
+    const urlA =
+        /** @type {HTMLElement} */ (e?.currentTarget)?.dataset.url ||
+        analysisState.segmentsForCompare[0];
+    const cachedA = analysisState.segmentCache.get(urlA);
 
     try {
-        if (segmentMimeType === 'video/mp2t') {
-            const analysisA = parseTsSegment(buffer);
+        if (cachedA?.parsedData?.format === 'ts') {
+            const analysisA = cachedA.parsedData;
             if (bufferB) {
-                const analysisB = parseTsSegment(bufferB);
+                const urlB = analysisState.segmentsForCompare[1];
+                const cachedB = analysisState.segmentCache.get(urlB);
+                const analysisB = cachedB.parsedData;
                 const diff = diffObjects(
                     analysisA.data.summary,
                     analysisB.data.summary
                 );
                 render(segmentCompareTemplate(diff), dom.modalContentArea);
             } else {
-                render(tsAnalysisTemplate(analysisA.data), dom.modalContentArea);
+                render(tsAnalysisTemplate(analysisA), dom.modalContentArea);
             }
         } else {
             // Default to ISOBMFF.
-            const url = /** @type {HTMLElement} */ (e?.currentTarget).dataset
-                .url;
-            const cachedA = analysisState.segmentCache.get(url);
             if (cachedA?.parsedData && !cachedA.parsedData.error) {
                 render(
                     isoAnalysisTemplate(cachedA.parsedData),

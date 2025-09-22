@@ -41,12 +41,25 @@
  * @property {number | null} timeShiftBufferDepth
  * @property {number | null} minimumUpdatePeriod
  * @property {number | null} duration
+ * @property {'isobmff' | 'ts' | 'unknown'} segmentFormat
  * @property {Period[]} periods
  * @property {Element | object} rawElement - Reference to the original parsed element or object.
  */
 
 /**
  * @typedef {{ manifest: Manifest, rawManifest: string, lastFetched: Date }} MediaPlaylist
+ */
+
+/**
+ * @typedef {object} FeatureAnalysisResult
+ * @property {boolean} used
+ * @property {string} details
+ */
+
+/**
+ * @typedef {object} FeatureAnalysisState
+ * @property {Map<string, FeatureAnalysisResult>} results
+ * @property {number} manifestCount
  */
 
 /**
@@ -60,6 +73,8 @@
  * @property {string} rawManifest - The raw text of the currently active manifest.
  * @property {Map<string, MediaPlaylist>} mediaPlaylists - A cache of fetched media playlists for HLS.
  * @property {string | null} activeMediaPlaylistUrl - The URL of the currently viewed media playlist.
+ * @property {Manifest | null} activeManifestForView - The manifest to be displayed in the interactive view.
+ * @property {FeatureAnalysisState} featureAnalysis - Aggregated feature analysis results.
  */
 
 /**
@@ -103,6 +118,8 @@ export let analysisState = {
  * @property {HTMLButtonElement} analyzeBtn
  * @property {HTMLDivElement} status
  * @property {HTMLDivElement} results
+ * @property {HTMLDivElement} inputSection
+ * @property {HTMLButtonElement} newAnalysisBtn
  * @property {HTMLElement} tabs
  * @property {HTMLDivElement} contextSwitcherContainer
  * @property {HTMLSelectElement} contextSwitcher
@@ -129,6 +146,12 @@ export const dom = {
     status: /** @type {HTMLDivElement} */ (document.getElementById('status')),
     results: /** @type {HTMLDivElement} */ (
         document.getElementById('results')
+    ),
+    inputSection: /** @type {HTMLDivElement} */ (
+        document.getElementById('input-section')
+    ),
+    newAnalysisBtn: /** @type {HTMLButtonElement} */ (
+        document.getElementById('new-analysis-btn')
     ),
     tabs: /** @type {HTMLElement} */ (document.getElementById('tabs')),
     contextSwitcherContainer: /** @type {HTMLDivElement} */ (
