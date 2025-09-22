@@ -6,24 +6,35 @@ const hlsAbrLadderTemplate = (hlsManifest) => {
     const variants = hlsManifest.variants || [];
     if (variants.length === 0) return html``;
 
-    const maxBw = Math.max(...variants.map(v => v.attributes.BANDWIDTH));
+    const maxBw = Math.max(...variants.map((v) => v.attributes.BANDWIDTH));
 
-    const repTemplate = variants.sort((a,b) => a.attributes.BANDWIDTH - b.attributes.BANDWIDTH).map(variant => {
-        const bw = variant.attributes.BANDWIDTH;
-        const widthPercentage = (bw / maxBw) * 100;
-        const resolutionText = variant.attributes.RESOLUTION || 'Audio Only';
-        const codecs = variant.attributes.CODECS || 'N/A';
+    const repTemplate = variants
+        .sort((a, b) => a.attributes.BANDWIDTH - b.attributes.BANDWIDTH)
+        .map((variant) => {
+            const bw = variant.attributes.BANDWIDTH;
+            const widthPercentage = (bw / maxBw) * 100;
+            const resolutionText =
+                variant.attributes.RESOLUTION || 'Audio Only';
+            const codecs = variant.attributes.CODECS || 'N/A';
 
-        return html`
-            <div class="flex items-center" title="Codecs: ${codecs}">
-                <div class="w-28 text-xs text-gray-400 font-mono flex-shrink-0">${resolutionText}</div>
-                <div class="w-full bg-gray-700 rounded-full h-5">
-                    <div class="bg-blue-600 h-5 rounded-full text-xs font-medium text-blue-100 text-center p-0.5 leading-none" style="width: ${widthPercentage}%">
-                        ${(bw / 1000).toFixed(0)} kbps
+            return html`
+                <div class="flex items-center" title="Codecs: ${codecs}">
+                    <div
+                        class="w-28 text-xs text-gray-400 font-mono flex-shrink-0"
+                    >
+                        ${resolutionText}
+                    </div>
+                    <div class="w-full bg-gray-700 rounded-full h-5">
+                        <div
+                            class="bg-blue-600 h-5 rounded-full text-xs font-medium text-blue-100 text-center p-0.5 leading-none"
+                            style="width: ${widthPercentage}%"
+                        >
+                            ${(bw / 1000).toFixed(0)} kbps
+                        </div>
                     </div>
                 </div>
-            </div>`;
-    });
+            `;
+        });
 
     return html`
         <div class="mt-6">
@@ -31,28 +42,52 @@ const hlsAbrLadderTemplate = (hlsManifest) => {
             <div class="bg-gray-900 p-4 rounded-md mt-4 space-y-2">
                 ${repTemplate}
             </div>
-        </div>`;
+        </div>
+    `;
 };
 
+const hlsTimelineTemplate = (manifest) => {
+    const hlsManifest = manifest.rawElement;
+    if (manifest.type === 'dynamic') {
+        return html`
+            <h3 class="text-xl font-bold mb-4">Live Timeline Visualization</h3>
+            <div class="bg-gray-900 rounded-lg p-4 text-center">
+                <p class="text-gray-400">
+                    This is a live HLS stream. Timeline visualization for live
+                    HLS is represented by the continuously updating segment
+                    list in the 'Segment Explorer' tab.
+                </p>
+            </div>
+        `;
+    }
 
-const hlsTimelineTemplate = (hlsManifest) => {
     const segments = hlsManifest.segments || [];
     const totalDuration = segments.reduce((acc, seg) => acc + seg.duration, 0);
-    if (totalDuration === 0) return html`<p class="info">No segments found or total duration is zero.</p>`;
+    if (totalDuration === 0)
+        return html`<p class="info">
+            No segments found or total duration is zero.
+        </p>`;
 
-    const gridTemplateColumns = segments.map(s => `${(s.duration / totalDuration) * 100}%`).join(' ');
+    const gridTemplateColumns = segments
+        .map((s) => `${(s.duration / totalDuration) * 100}%`)
+        .join(' ');
 
-    const timelineSegments = segments.map(seg => {
+    const timelineSegments = segments.map((seg) => {
         return html`
-            <div class="bg-gray-700 rounded h-10 border-r-2 border-gray-900 last:border-r-0" title="Duration: ${seg.duration.toFixed(3)}s">
-            </div>
+            <div
+                class="bg-gray-700 rounded h-10 border-r-2 border-gray-900 last:border-r-0"
+                title="Duration: ${seg.duration.toFixed(3)}s"
+            ></div>
         `;
     });
 
     return html`
         <h3 class="text-xl font-bold mb-4">Timeline Visualization</h3>
         <div class="bg-gray-900 rounded-lg p-2">
-            <div class="grid grid-flow-col auto-cols-fr" style="grid-template-columns: ${gridTemplateColumns}">
+            <div
+                class="grid grid-flow-col auto-cols-fr"
+                style="grid-template-columns: ${gridTemplateColumns}"
+            >
                 ${timelineSegments}
             </div>
         </div>
@@ -61,7 +96,6 @@ const hlsTimelineTemplate = (hlsManifest) => {
         </div>
     `;
 };
-
 
 // --- DASH IMPLEMENTATION ---
 const parseDuration = (durationStr) => {
@@ -277,7 +311,9 @@ const liveTimelineTemplate = (dashElement) => {
         ${dashAbrLadderTemplate(period)}
     </div>`;
 
-    const publishTime = new Date(dashElement.getAttribute('publishTime')).getTime();
+    const publishTime = new Date(
+        dashElement.getAttribute('publishTime')
+    ).getTime();
     const availabilityStartTime = new Date(
         dashElement.getAttribute('availabilityStartTime')
     ).getTime();
@@ -313,34 +349,36 @@ const liveTimelineTemplate = (dashElement) => {
         ${abrLadders}`;
 };
 
-
 // --- DISPATCHER ---
 
 export function getTimelineAndVisualsTemplate(manifest, protocol) {
     if (!manifest) return html``;
-    const rawElement = manifest.rawElement;
 
     if (protocol === 'hls') {
-        if (rawElement.isMaster) {
+        if (manifest.rawElement.isMaster) {
             return html`
                 <h3 class="text-xl font-bold mb-4">HLS Master Playlist</h3>
-                <p class="text-sm text-gray-400">A master playlist defines available variants but does not have a monolithic timeline.</p>
-                ${hlsAbrLadderTemplate(rawElement)}
+                <p class="text-sm text-gray-400">
+                    A master playlist defines available variants but does not
+                    have a monolithic timeline.
+                </p>
+                ${hlsAbrLadderTemplate(manifest.rawElement)}
             `;
         }
-        return html`
-            ${hlsTimelineTemplate(rawElement)}
-        `;
+        return html` ${hlsTimelineTemplate(manifest)} `;
     }
 
     // --- DASH Logic ---
+    const rawElement = manifest.rawElement;
     if (!rawElement || typeof rawElement.getAttribute !== 'function') {
-        return html`<p class="warn">Cannot display timeline for this manifest type.</p>`;
+        return html`<p class="warn">
+            Cannot display timeline for this manifest type.
+        </p>`;
     }
     const isLive = rawElement.getAttribute('type') === 'dynamic';
     const template = isLive
         ? liveTimelineTemplate(rawElement)
         : staticTimelineTemplate(rawElement);
-    
+
     return html`${template}`;
 }

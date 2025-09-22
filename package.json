@@ -8,7 +8,7 @@
         "typecheck": "tsc --noEmit -p jsconfig.json",
         "lint": "eslint . --ext .js",
         "format": "prettier --write .",
-        "build": "esbuild js/main.js --bundle --outfile=dist/main.js"
+        "build": "esbuild js/core/app.js --bundle --outfile=dist/main.js"
     },
     "keywords": [],
     "author": "",

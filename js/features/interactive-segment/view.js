@@ -3,31 +3,8 @@ import { analysisState } from '../../core/state.js';
 import { getInteractiveIsobmffTemplate } from './isobmff-view.js';
 import { getInteractiveTsTemplate } from './ts-view.js';
 
-function getSegmentMimeType(activeStream, segmentUrl) {
-    if (!activeStream) return 'video/mp4'; // Default guess
-
-    if (activeStream.protocol === 'hls') {
-        return activeStream.manifest.rawElement.map ? 'video/mp4' : 'video/mp2t';
-    } else {
-        // Find the representation for this segment
-        for (const p of activeStream.manifest.periods) {
-            for (const as of p.adaptationSets) {
-                for (const rep of as.representations) {
-                    // This is a simplification; a real implementation would need to
-                    // parse segment templates to map URL back to a rep.
-                    // For now, we assume the first rep's mimeType is representative.
-                    return as.mimeType;
-                }
-            }
-        }
-    }
-    return 'video/mp4';
-}
-
-
 export function getInteractiveSegmentTemplate() {
-    const { activeSegmentUrl, segmentCache, activeStreamId, streams } =
-        analysisState;
+    const { activeSegmentUrl, segmentCache } = analysisState;
 
     if (!activeSegmentUrl) {
         return html`
@@ -68,14 +45,12 @@ export function getInteractiveSegmentTemplate() {
         `;
     }
 
-    const activeStream = streams.find(s => s.id === activeStreamId);
-    const mimeType = getSegmentMimeType(activeStream, activeSegmentUrl);
-
     let contentTemplate;
-    if (mimeType === 'video/mp2t') {
+    // Dispatch to the correct view based on the parsed data format
+    if (cachedSegment.parsedData?.format === 'ts') {
         contentTemplate = getInteractiveTsTemplate();
     } else {
-        // Default to ISOBMFF view for video/mp4, audio/mp4, etc.
+        // Default to ISOBMFF view for everything else
         contentTemplate = getInteractiveIsobmffTemplate();
     }
 

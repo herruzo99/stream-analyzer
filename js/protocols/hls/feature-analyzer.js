@@ -95,5 +95,24 @@ export function analyzeHlsFeatures(hlsParsed) {
             : 'No subtitle renditions declared.',
     };
 
+    // --- NEW CHECKS ---
+    results['Session Data (HLS)'] = {
+        used: hlsParsed.tags.some((t) => t.name === 'EXT-X-SESSION-DATA'),
+        details: 'Carries arbitrary session data in the master playlist.',
+    };
+    results['Session Keys (HLS)'] = {
+        used: hlsParsed.tags.some((t) => t.name === 'EXT-X-SESSION-KEY'),
+        details:
+            'Allows pre-loading of encryption keys from the master playlist.',
+    };
+    results['Independent Segments (HLS)'] = {
+        used: hlsParsed.tags.some((t) => t.name === 'EXT-X-INDEPENDENT-SEGMENTS'),
+        details: 'All segments are self-contained for decoding.',
+    };
+    results['Start Offset (HLS)'] = {
+        used: hlsParsed.tags.some((t) => t.name === 'EXT-X-START'),
+        details: 'Specifies a preferred starting position in the playlist.',
+    };
+
     return results;
 }

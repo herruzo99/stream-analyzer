@@ -1,5 +1,6 @@
 import { analysisState } from '../core/state.js';
 import { parseISOBMFF } from '../features/segment-analysis/isobmff-parser.js';
+import { parse as parseTsSegment } from '../features/segment-analysis/ts/ts-parser.js';
 import { eventBus } from '../core/event-bus.js';
 
 /**
@@ -32,8 +33,13 @@ async function fetchSegment(url) {
         let parsedData = null;
         if (data) {
             try {
-                // Future work: determine parser based on mimeType. For now, assume ISOBMFF.
-                parsedData = parseISOBMFF(data);
+                // Determine parser based on URL extension.
+                if (url.toLowerCase().endsWith('.ts')) {
+                    parsedData = parseTsSegment(data);
+                } else {
+                    // Default to ISOBMFF for .mp4, .m4s, etc.
+                    parsedData = parseISOBMFF(data);
+                }
             } catch (e) {
                 console.error(`Failed to parse segment ${url}:`, e);
                 parsedData = { error: e.message };

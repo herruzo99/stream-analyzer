@@ -1,11 +1,10 @@
 import { html, render } from 'lit-html';
-import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { analysisState, dom } from '../../core/state.js';
-import { generateHexAsciiView } from './logic.js';
 import { getTooltipData } from '../segment-analysis/isobmff-parser.js';
+import { hexViewTemplate } from './hex-view.js';
 
 // --- STATE & CONFIG ---
-let currentPage = 1;
+let hexCurrentPage = 1;
 const BYTES_PER_PAGE = 1024; // 1KB per page
 let parsedSegmentData = null; // Cache parsed data for the view
 const boxTooltipData = getTooltipData(); // Get all box/field tooltips
@@ -285,99 +284,6 @@ const treeViewTemplate = (parsedData) => html`
     </div>
 `;
 
-const hexViewTemplate = (buffer, parsedData) => {
-    const totalPages = Math.ceil(buffer.byteLength / BYTES_PER_PAGE);
-    const startOffset = (currentPage - 1) * BYTES_PER_PAGE;
-    const viewModel = generateHexAsciiView(
-        buffer,
-        parsedData,
-        startOffset,
-        BYTES_PER_PAGE
-    );
-
-    const changePage = (offset) => {
-        const newPage = currentPage + offset;
-        if (newPage >= 1 && newPage <= totalPages) {
-            currentPage = newPage;
-            // Re-render is now handled by the main dispatcher view
-            const newContent = getInteractiveIsobmffTemplate();
-            render(newContent, dom.tabContents['interactive-segment']);
-        }
-    };
-
-    return html`
-        <div
-            class="bg-slate-800 rounded-lg p-4 font-mono text-sm leading-relaxed overflow-x-auto hex-viewer-area h-full"
-        >
-            <div
-                class="flex sticky top-0 bg-slate-800 pb-2 mb-2 border-b border-gray-600 z-10"
-            >
-                <div class="w-24 flex-shrink-0 text-gray-400 font-semibold">
-                    Offset
-                </div>
-                <div class="text-gray-400 font-semibold">Hexadecimal</div>
-                <div
-                    class="w-64 flex-shrink-0 text-gray-400 font-semibold ml-4"
-                >
-                    ASCII
-                </div>
-            </div>
-
-            ${viewModel.map(
-                (row) => html`
-                    <div
-                        class="flex items-center hover:bg-slate-700/50"
-                        data-row-offset="${parseInt(row.offset, 16)}"
-                    >
-                        <div
-                            class="w-24 flex-shrink-0 text-gray-500 font-mono"
-                        >
-                            ${row.offset}
-                        </div>
-                        <div class="font-mono flex items-center">
-                            ${unsafeHTML(row.hex)}
-                        </div>
-                        <div
-                            class="w-64 flex-shrink-0 text-cyan-400 font-mono tracking-wider ml-4 flex items-center"
-                        >
-                            ${unsafeHTML(row.ascii)}
-                        </div>
-                    </div>
-                `
-            )}
-        </div>
-
-        ${totalPages > 1
-            ? html`
-                  <div class="text-center text-sm text-gray-500 mt-2">
-                      Showing bytes ${startOffset} -
-                      ${Math.min(
-                          startOffset + BYTES_PER_PAGE - 1,
-                          buffer.byteLength - 1
-                      )}
-                      of ${buffer.byteLength} ($
-                      {(buffer.byteLength / 1024).toFixed(2)} KB)
-                      <button
-                          @click=${() => changePage(-1)}
-                          ?disabled=${currentPage === 1}
-                          class="px-2 py-1 rounded bg-gray-600 hover:bg-gray-500 disabled:opacity-50 mx-1"
-                      >
-                          &lt;
-                      </button>
-                      Page ${currentPage} of ${totalPages}
-                      <button
-                          @click=${() => changePage(1)}
-                          ?disabled=${currentPage === totalPages}
-                          class="px-2 py-1 rounded bg-gray-600 hover:bg-gray-500 disabled:opacity-50 mx-1"
-                      >
-                          &gt;
-                      </button>
-                  </div>
-              `
-            : ''}
-    `;
-};
-
 export function getInteractiveIsobmffTemplate() {
     const { activeSegmentUrl, segmentCache } = analysisState;
     const cachedSegment = segmentCache.get(activeSegmentUrl);
@@ -388,6 +294,16 @@ export function getInteractiveIsobmffTemplate() {
             : null;
 
     setTimeout(() => initializeSegmentViewInteractivity(), 0);
+
+    const onPageChange = (offset) => {
+        const totalPages = Math.ceil(cachedSegment.data.byteLength / BYTES_PER_PAGE);
+        const newPage = hexCurrentPage + offset;
+        if (newPage >= 1 && newPage <= totalPages) {
+            hexCurrentPage = newPage;
+            const newContent = getInteractiveIsobmffTemplate();
+            render(newContent, dom.tabContents['interactive-segment']);
+        }
+    };
 
     return html`
         <div class="grid grid-cols-1 lg:grid-cols-[minmax(300px,25%)_1fr] gap-4">
@@ -405,7 +321,7 @@ export function getInteractiveIsobmffTemplate() {
             </div>
 
             <div class="overflow-auto">
-                ${hexViewTemplate(cachedSegment.data, parsedSegmentData)}
+                ${hexViewTemplate(cachedSegment.data, parsedSegmentData, hexCurrentPage, BYTES_PER_PAGE, onPageChange)}
             </div>
         </div>
     `;
