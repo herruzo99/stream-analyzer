@@ -2,7 +2,6 @@ import { html, render } from 'lit-html';
 import { analysisState, dom } from '../../core/state.js';
 import { dispatchAndRenderSegmentAnalysis } from '../segment-analysis/view.js';
 import { parseAllSegmentUrls } from './parser.js';
-import { fetchSegment } from './api.js';
 import { renderDashExplorer } from './dash-explorer-view.js';
 import { renderHlsExplorer } from './hls-explorer-view.js';
 import { eventBus } from '../../core/event-bus.js';
@@ -11,11 +10,25 @@ import { eventBus } from '../../core/event-bus.js';
 const SEGMENT_PAGE_SIZE = 10;
 
 // --- MODULE STATE ---
-let segmentFreshnessInterval = null;
 /** @type {Record<string, object[]>} */
 let allSegmentsByRep = {}; // Cache for DASH segments
 let currentContainer = null;
 let currentStream = null;
+let segmentLoadedUnsubscribe = null;
+
+// --- STATE MANAGEMENT ---
+function resetExplorerState() {
+    allSegmentsByRep = {};
+    currentStream = null;
+    if (segmentLoadedUnsubscribe) {
+        segmentLoadedUnsubscribe();
+        segmentLoadedUnsubscribe = null;
+    }
+    if (currentContainer) {
+        currentContainer.innerHTML = '';
+    }
+    currentContainer = null;
+}
 
 // --- SHARED EVENT HANDLERS ---
 function handleCompareClick() {
@@ -43,31 +56,30 @@ function handleCompareClick() {
 }
 
 // --- DASH-SPECIFIC ORCHESTRATION ---
-async function loadAndRenderDashSegmentRange(mode) {
+function loadAndRenderDashSegmentRange(mode) {
     const contentArea = document.getElementById('segment-explorer-content');
+    if (!contentArea) return;
     render(html`<p class="info">Fetching segment data...</p>`, contentArea);
     eventBus.dispatch('compare:clear');
-    stopSegmentFreshnessChecker();
 
     const segmentsToFetch = Object.values(allSegmentsByRep).flatMap((segments) =>
         mode === 'first'
             ? segments.slice(0, SEGMENT_PAGE_SIZE)
             : segments.slice(-SEGMENT_PAGE_SIZE)
     );
-    await Promise.all(
-        segmentsToFetch.map((seg) => fetchSegment(seg.resolvedUrl))
-    );
 
+    // Dispatch fetch requests for all visible segments. The UI will update reactively.
+    segmentsToFetch.forEach((seg) => {
+        eventBus.dispatch('segment:fetch', { url: seg.resolvedUrl });
+    });
+
+    // Initial render is with placeholders, segment:loaded will trigger re-renders
     renderDashExplorer(
         currentStream,
         allSegmentsByRep,
         SEGMENT_PAGE_SIZE,
         mode
     );
-
-    if (currentStream.manifest.type === 'dynamic') {
-        startSegmentFreshnessChecker();
-    }
 }
 
 // --- DISPATCHER & MAIN TEMPLATE ---
@@ -76,6 +88,9 @@ export function initializeSegmentExplorer(container, stream) {
     if (currentStream && currentStream.id === stream.id) {
         return;
     }
+
+    // Reset internal state before initializing a new view
+    resetExplorerState();
 
     currentContainer = container;
     currentStream = stream;
@@ -124,28 +139,20 @@ export function initializeSegmentExplorer(container, stream) {
     render(template, container);
 
     if (stream.protocol === 'dash') {
+        // Subscribe to segment loaded events to re-render the DASH explorer
+        segmentLoadedUnsubscribe = eventBus.subscribe('segment:loaded', () => {
+            if (!currentStream) return; // Guard against updates after reset
+            const mode = 'first'; // This could be enhanced to track current mode
+            renderDashExplorer(
+                currentStream,
+                allSegmentsByRep,
+                SEGMENT_PAGE_SIZE,
+                mode
+            );
+        });
         loadAndRenderDashSegmentRange('first');
     } else {
         renderHlsExplorer(stream);
-    }
-}
-
-export function startSegmentFreshnessChecker() {
-    stopSegmentFreshnessChecker();
-    if (
-        currentStream &&
-        currentStream.manifest.type === 'dynamic' &&
-        currentStream.protocol === 'dash'
-    ) {
-        // This logic is now protocol-specific and will be moved.
-        // segmentFreshnessInterval = setInterval(() => { /* TODO */ }, 2000);
-    }
-}
-
-export function stopSegmentFreshnessChecker() {
-    if (segmentFreshnessInterval) {
-        clearInterval(segmentFreshnessInterval);
-        segmentFreshnessInterval = null;
     }
 }
 
@@ -157,3 +164,6 @@ eventBus.subscribe('state:compare-list-changed', ({ count }) => {
         compareButton.toggleAttribute('disabled', count !== 2);
     }
 });
+
+// Subscribe to the global analysis start event to clean up module state
+eventBus.subscribe('analysis:started', resetExplorerState);

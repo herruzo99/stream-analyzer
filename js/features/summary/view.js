@@ -72,8 +72,15 @@ export function getGlobalSummaryTemplate(manifest) {
         Boolean
     );
     const audioCodecs = [
-        ...new Set(audioSets.flatMap((as) => as.representations).map((r) => r.codecs)),
+        ...new Set(
+            audioSets.flatMap((as) => as.representations).map((r) => r.codecs)
+        ),
     ].filter(Boolean);
+
+    const streamType =
+        manifest.type === 'dynamic' ? 'Live / Dynamic' : 'VOD / Static';
+    const streamTypeColor =
+        manifest.type === 'dynamic' ? 'text-red-400' : 'text-blue-400';
 
     return html`
         <div class="space-y-8">
@@ -82,12 +89,22 @@ export function getGlobalSummaryTemplate(manifest) {
                 <dl
                     class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
                 >
-                    ${statCardTemplate(
-                        'Presentation Type',
-                        manifest.type,
-                        'Defines if the stream is live (`dynamic`) or on-demand (`static`).',
-                        'DASH: 5.3.1.2 / HLS: 4.3.3.5'
-                    )}
+                    <div
+                        class="bg-gray-800 p-4 rounded-lg border border-gray-700"
+                    >
+                        <dt
+                            class="text-sm font-medium text-gray-400 ${tooltipTriggerClasses}"
+                            data-tooltip="Indicates if the stream is live or on-demand."
+                            data-iso="DASH: 5.3.1.2 / HLS: 4.3.3.5"
+                        >
+                            Stream Type
+                        </dt>
+                        <dd
+                            class="text-lg font-semibold mt-1 break-words ${streamTypeColor}"
+                        >
+                            ${streamType}
+                        </dd>
+                    </div>
                     ${statCardTemplate(
                         'Profiles / Version',
                         manifest.profiles,
@@ -95,8 +112,16 @@ export function getGlobalSummaryTemplate(manifest) {
                         'DASH: 8.1 / HLS: 4.3.1.2'
                     )}
                     ${statCardTemplate(
+                        'Segment Format',
+                        manifest.segmentFormat?.toUpperCase(),
+                        'The container format used for media segments (e.g., ISOBMFF or MPEG-2 TS).',
+                        'DASH: 5.3.7 / HLS: 4.3.2.5'
+                    )}
+                    ${statCardTemplate(
                         'Min Buffer Time / Target Duration',
-                        manifest.minBufferTime ? `${manifest.minBufferTime}s` : 'N/A',
+                        manifest.minBufferTime
+                            ? `${manifest.minBufferTime}s`
+                            : 'N/A',
                         'The minimum buffer a client should maintain (DASH) or the max segment duration (HLS).',
                         'DASH: 5.3.1.2 / HLS: 4.3.3.1'
                     )}
@@ -134,7 +159,9 @@ export function getGlobalSummaryTemplate(manifest) {
                         : html`
                               ${statCardTemplate(
                                   'Media Duration',
-                                  manifest.duration ? `${manifest.duration.toFixed(2)}s` : 'N/A',
+                                  manifest.duration
+                                      ? `${manifest.duration.toFixed(2)}s`
+                                      : 'N/A',
                                   'The total duration of the content.',
                                   'DASH: 5.3.1.2'
                               )}
@@ -189,7 +216,11 @@ export function getGlobalSummaryTemplate(manifest) {
                           ${statCardTemplate(
                               'Bitrate Range',
                               bandwidths.length > 0
-                                  ? `${formatBitrate(Math.min(...bandwidths))} - ${formatBitrate(Math.max(...bandwidths))}`
+                                  ? `${formatBitrate(
+                                        Math.min(...bandwidths)
+                                    )} - ${formatBitrate(
+                                        Math.max(...bandwidths)
+                                    )}`
                                   : 'N/A',
                               'The minimum and maximum bitrates for video.',
                               'DASH: 5.3.5.2 / HLS: 4.3.4.2'

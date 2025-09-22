@@ -1,3 +1,4 @@
+
 /**
  * @typedef {import('../../core/state.js').Manifest} Manifest
  * @typedef {import('../../core/state.js').Period} Period
@@ -27,6 +28,7 @@ export function adaptHlsToIr(hlsParsed) {
             (sum, seg) => sum + seg.duration,
             0
         ),
+        segmentFormat: hlsParsed.map ? 'isobmff' : 'ts',
         periods: [],
         rawElement: hlsParsed,
     };
@@ -57,7 +59,7 @@ export function adaptHlsToIr(hlsParsed) {
                 id: `variant-${index}`,
                 contentType: resolution ? 'video' : 'audio',
                 lang: null,
-                mimeType: resolution ? 'video/mp2t' : 'audio/mp2t',
+                mimeType: hlsParsed.map ? 'video/mp4' : 'video/mp2t',
                 representations: [],
                 contentProtection: [], // Master playlists can have session keys
             };
@@ -95,14 +97,14 @@ export function adaptHlsToIr(hlsParsed) {
         // For a Media Playlist, create a single virtual AdaptationSet and Representation.
         const asIR = {
             id: 'media-0',
-            contentType: 'unknown', // Cannot be determined from media playlist alone
+            contentType: 'video', // Assume video content if not specified
             lang: null,
-            mimeType: 'video/mp2t',
+            mimeType: hlsParsed.map ? 'video/mp4' : 'video/mp2t',
             representations: [
                 {
                     id: 'media-0-rep-0',
-                    codecs: null,
-                    bandwidth: 0,
+                    codecs: null, // Not available at this level
+                    bandwidth: 0, // Not available at this level
                     width: null,
                     height: null,
                 },

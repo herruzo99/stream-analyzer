@@ -11,14 +11,24 @@ let togglePollingBtn; // Still need a reference for external updates
 
 const manifestUpdatesTemplate = (stream) => {
     if (analysisState.streams.length > 1) {
-        return html`<p class="warn">
+        return html`<p class="info">
             Manifest update polling is only supported when analyzing a single
             stream.
         </p>`;
     }
-    if (!stream || stream.manifest.type !== 'dynamic') {
+    if (!stream) {
+        return html`<p class="warn">No active stream to monitor.</p>`;
+    }
+    if (stream.manifest.type !== 'dynamic') {
         return html`<p class="info">
-            This is a static manifest. No updates are expected.
+            This is a VOD/static manifest. No updates are expected.
+        </p>`;
+    }
+    if (stream.protocol === 'hls') {
+        return html`<p class="info">
+            Live manifest update diffing is currently only supported for DASH
+            streams. For HLS, please observe segment changes in the Segment
+            Explorer.
         </p>`;
     }
 
@@ -105,10 +115,16 @@ const manifestUpdatesTemplate = (stream) => {
 };
 
 export function renderManifestUpdates(streamId) {
-    const updatesContainer = /** @type {HTMLDivElement} */ (
+    let updatesContainer = /** @type {HTMLDivElement} */ (
         dom.tabContents.updates.querySelector('#mpd-updates-content')
     );
-    if (!updatesContainer) return;
+    if (!updatesContainer) {
+        // Create the container if it doesn't exist
+        const newContainer = document.createElement('div');
+        newContainer.id = 'mpd-updates-content';
+        dom.tabContents.updates.appendChild(newContainer);
+        updatesContainer = newContainer;
+    }
     const stream = analysisState.streams.find((s) => s.id === streamId);
     render(manifestUpdatesTemplate(stream), updatesContainer);
     // Keep a reference to the button for external updates
@@ -139,6 +155,7 @@ export function updatePollingButton() {
     if (
         !stream ||
         stream.manifest.type !== 'dynamic' ||
+        stream.protocol === 'hls' ||
         analysisState.streams.length > 1
     ) {
         togglePollingBtn.style.display = 'none';
