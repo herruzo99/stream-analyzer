@@ -4,7 +4,17 @@
         "module": "es2022",
         "moduleResolution": "node",
         "checkJs": true,
-        "noEmit": true
+        "noEmit": true,
+        "types": ["node"],
+        "baseUrl": ".",
+        "paths": {
+            "@js/*": ["js/*"],
+            "@tests/*": ["tests/*"]
+        },
+        "skipLibCheck": true,
+        "allowJs": true,
+        "maxNodeModuleJsDepth": 0
     },
-    "include": ["js/**/*.js"]
+    "include": ["js/**/*.js", "tests/**/*.js"],
+    "exclude": ["node_modules", "dist"]
 }

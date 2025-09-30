@@ -1,15 +1,43 @@
 import { analysisState } from '../core/state.js';
-import { parseISOBMFF } from '../features/segment-analysis/isobmff-parser.js';
-import { parse as parseTsSegment } from '../features/segment-analysis/ts/ts-parser.js';
 import { eventBus } from '../core/event-bus.js';
+
+// Initialize the worker once using a module-relative URL.
+// This allows build tools and test runners to correctly resolve the path.
+// parser.js
+// js/services/segmentService.js
+const parsingWorker = new Worker('/dist/worker.js', {
+    type: 'module',
+});
+
+// Listen for messages from the worker.
+parsingWorker.onmessage = (event) => {
+    const { url, parsedData, error } = event.data;
+
+    const entry = analysisState.segmentCache.get(url);
+    if (!entry) return; // Should not happen if request tracking is correct
+
+    const finalEntry = {
+        status: error ? 500 : entry.status, // Use existing status if no error
+        data: entry.data,
+        parsedData: parsedData,
+    };
+
+    analysisState.segmentCache.set(url, finalEntry);
+    eventBus.dispatch('segment:loaded', { url, entry: finalEntry });
+};
+
+parsingWorker.onerror = (error) => {
+    console.error('An error occurred in the parsing worker:', error);
+    // Potentially handle catastrophic worker failures here.
+};
 
 /**
  * Fetches a segment if it's not already in the cache.
- * Manages the state of the segment cache, including parsing the data,
- * and dispatches an event upon completion.
+ * Manages the state of the segment cache, dispatches the data to the
+ * worker for parsing, and dispatches an event upon completion.
  * @param {string} url The URL of the segment to fetch.
  */
-async function fetchSegment(url) {
+export async function fetchSegment(url) {
     if (
         analysisState.segmentCache.has(url) &&
         analysisState.segmentCache.get(url).status !== -1
@@ -30,25 +58,29 @@ async function fetchSegment(url) {
         const response = await fetch(url, { method: 'GET', cache: 'no-store' });
         const data = response.ok ? await response.arrayBuffer() : null;
 
-        let parsedData = null;
-        if (data) {
-            try {
-                // Determine parser based on URL extension.
-                if (url.toLowerCase().endsWith('.ts')) {
-                    parsedData = parseTsSegment(data);
-                } else {
-                    // Default to ISOBMFF for .mp4, .m4s, etc.
-                    parsedData = parseISOBMFF(data);
-                }
-            } catch (e) {
-                console.error(`Failed to parse segment ${url}:`, e);
-                parsedData = { error: e.message };
-            }
-        }
+        const entryWithData = {
+            status: response.status,
+            data,
+            parsedData: null,
+        };
+        analysisState.segmentCache.set(url, entryWithData);
 
-        const finalEntry = { status: response.status, data, parsedData };
-        analysisState.segmentCache.set(url, finalEntry);
-        eventBus.dispatch('segment:loaded', { url, entry: finalEntry });
+        if (data) {
+            // Offload parsing to the worker
+            parsingWorker.postMessage({
+                type: 'parse-segment',
+                payload: { url, data },
+            });
+        } else {
+            // If fetch failed, no need to parse, finalize the entry
+            const errorEntry = {
+                status: response.status,
+                data: null,
+                parsedData: { error: `HTTP ${response.status}` },
+            };
+            analysisState.segmentCache.set(url, errorEntry);
+            eventBus.dispatch('segment:loaded', { url, entry: errorEntry });
+        }
     } catch (error) {
         console.error(`Failed to fetch segment ${url}:`, error);
         const errorEntry = {
