@@ -1,0 +1,1 @@
+http://localhost:3000/?url=https%3A%2F%2Fdash.akamaized.net%2Fakamai%2Fbbb_30fps%2Fbbb_30fps.mpd&url=https%3A%2F%2Flivesim.dashif.org%2Flivesim%2Ftestpic_2s%2FManifest.mpd&url=https%3A%2F%2Ftest-streams.mux.dev%2Fx36xhzz%2Fx36xhzz.m3u8&url=https%3A%2F%2Fstream.mux.com%2Fv69RSHhFelSm4701snP22dYz2jICy4E4FUyk02rW4gxRM.m3u8

@@ -3,12 +3,13 @@
     "version": "1.0.0",
     "main": "index.js",
     "scripts": {
-        "test": "echo \"Error: no test specified\" && exit 1",
         "start": "serve .",
         "typecheck": "tsc --noEmit -p jsconfig.json",
         "lint": "eslint . --ext .js",
         "format": "prettier --write .",
-        "build": "esbuild js/core/app.js --bundle --outfile=dist/main.js"
+        "build:css": "tailwindcss -i css/main.css -o dist/main.css --minify",
+        "build:js": "esbuild js/core/app.js --bundle --minify --outfile=dist/main.js && esbuild js/worker.js --bundle --minify --outfile=dist/worker.js",
+        "build": "npm run build:css && npm run build:js"
     },
     "keywords": [],
     "author": "",
@@ -17,18 +18,32 @@
     "dependencies": {
         "@emmetio/xml-diff": "^2.2.0",
         "diff": "^8.0.2",
+        "fast-xml-parser": "^5.2.5",
         "lit-html": "^3.3.1",
         "serve": "^14.2.5",
-        "xml-formatter": "^3.6.6"
+        "xml-formatter": "^3.6.7"
     },
     "devDependencies": {
         "@eslint/js": "^9.35.0",
-        "esbuild": "^0.25.9",
-        "eslint": "^9.35.0",
+        "@types/lodash-es": "^4.17.12",
+        "@types/node": "^20.19.17",
+        "esbuild": "^0.25.10",
+        "eslint": "^9.36.0",
         "eslint-config-prettier": "^10.1.8",
         "eslint-plugin-prettier": "^5.5.4",
         "globals": "^16.4.0",
+        "jsdom": "^27.0.0",
+        "lodash-es": "^4.17.21",
+        "msw": "^2.11.3",
+        "playwright": "^1.54.1",
+        "postcss": "^8.4.38",
         "prettier": "^3.6.2",
+        "tailwindcss": "^3.4.4",
         "typescript": "^5.9.2"
+    },
+    "msw": {
+        "workerDirectory": [
+            "public"
+        ]
     }
 }

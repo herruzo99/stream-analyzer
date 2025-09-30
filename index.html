@@ -2,91 +2,34 @@
 <html lang="en">
     <head>
         <style>
-            /* For highlighting selected items in tree and hex view */
             .is-highlighted {
-                background-color: rgba(59, 130, 246, 0.4) !important; /* bg-blue-500/40 */
-                outline: 1px solid rgba(96, 165, 250, 0.6); /* outline-blue-400/60 */
+                background-color: rgba(59, 130, 246, 0.5) !important;
+                border-color: rgba(59, 130, 246, 0.5) !important;
             }
 
-            /* For highlighting specific fields on hover from the inspector */
+            .is-inspector-hover-highlighted {
+                background-color: rgba(168, 85, 247, 0.4) !important;
+                border-color: rgba(168, 85, 247, 0.4) !important;
+            }
+
+            .is-field-boundary-highlighted {
+                border-color: rgba(250, 204, 21, 0.9) !important;
+                z-index: 15 !important;
+            }
+
             .is-field-highlighted {
-                background-color: rgba(234, 179, 8, 0.4) !important; /* bg-yellow-500/40 */
-                outline: 1px solid rgba(252, 211, 77, 0.6); /* outline-yellow-400/60 */
-            }
-
-            /* For highlighting a single ASCII char counterpart */
-            .is-char-highlighted {
-                background-color: rgba(156, 163, 175, 0.4); /* bg-gray-400/40 */
-            }
-
-            /* --- New Styles for Collapsible Tree View --- */
-
-            /* Hide default summary marker */
-            details > summary {
-                list-style: none;
-            }
-            details > summary::-webkit-details-marker {
-                display: none;
-            }
-            /* Style for the summary/header of a collapsible section */
-            details > summary {
-                display: flex;
-                align-items: center;
-                gap: 0.5rem;
-                padding: 0.5rem 0.75rem;
-                background-color: rgba(55, 65, 81, 0.5); /* bg-gray-700/50 */
-                border-radius: 0.375rem;
-                transition: background-color 0.2s;
-            }
-            details > summary:hover {
-                background-color: rgba(75, 85, 99, 0.7); /* bg-gray-600/70 */
-            }
-            /* Arrow icon for the summary */
-            details > summary::before {
-                content: '►';
-                font-size: 0.65rem;
-                transition: transform 0.2s ease-in-out;
-                transform-origin: center;
-            }
-            /* Rotate arrow when the details element is open */
-            details[open] > summary::before {
-                transform: rotate(90deg);
-            }
-            /* Styling for the content area within a collapsible section */
-            details > div {
-                padding-left: 1rem;
-                margin-top: 0.5rem;
-                border-left: 1px solid rgba(75, 85, 99, 1); /* border-gray-600 */
-            }
-            
-            /* --- New Styles for Isolated Hex/ASCII Selection --- */
-            .hex-row-container {
-                user-select: none;
-                -webkit-user-select: none;
-                -moz-user-select: none;
-            }
-            .hex-content, .ascii-content {
-                user-select: text;
-                -webkit-user-select: text;
-                -moz-user-select: text;
+                .missing-tooltip-trigger {
+                    border-bottom: 1px dotted rgba(248, 113, 113, 0.7) !important;
+                    cursor: help;
+                }
+                background-color: rgba(234, 179, 8, 0.4) !important;
+                border-color: rgba(234, 179, 8, 0.4) !important;
             }
         </style>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Exhaustive Stream Analyzer</title>
-        <script src="https://cdn.tailwindcss.com"></script>
-        <script>
-            tailwind.config = {
-                theme: {
-                    extend: {
-                        fontFamily: {
-                            sans: ['Inter', 'sans-serif'],
-                            mono: ['Fira Code', 'monospace'],
-                        },
-                    },
-                },
-            };
-        </script>
+        <link rel="stylesheet" href="/dist/main.css" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
         <link
@@ -99,24 +42,46 @@
     >
         <div class="w-full">
             <div class="max-w-7xl mx-auto">
-                <header class="text-center mb-8 relative">
-                    <h1 class="text-3xl sm:text-4xl font-bold text-white">
-                        Exhaustive Stream Analyzer
-                    </h1>
-                    <p class="text-gray-400 mt-2">
-                        Analyze and compare DASH & HLS streams against industry
-                        standards.
-                    </p>
-                    <button
-                        id="new-analysis-btn"
-                        class="hidden absolute top-0 right-0 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition duration-300"
+                <header
+                    id="main-header"
+                    class="flex justify-center items-center mb-8"
+                >
+                    <div id="header-title-group" class="text-center">
+                        <h1 class="text-3xl sm:text-4xl font-bold text-white">
+                            Exhaustive Stream Analyzer
+                        </h1>
+                        <p class="text-gray-400 mt-2">
+                            Analyze and compare DASH & HLS streams against
+                            industry standards.
+                        </p>
+                    </div>
+
+                    <div
+                        id="header-url-display"
+                        class="hidden text-center text-xs font-mono text-gray-400 px-8"
                     >
-                        Analyze New Streams
-                    </button>
+                        <!-- URLs injected by JS -->
+                    </div>
+
+                    <div class="flex items-center space-x-2 flex-shrink-0">
+                        <button
+                            id="share-analysis-btn"
+                            class="hidden bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md transition duration-300"
+                        >
+                            Share
+                        </button>
+                        <button
+                            id="new-analysis-btn"
+                            class="hidden bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition duration-300"
+                        >
+                            Analyze New Streams
+                        </button>
+                    </div>
                 </header>
 
                 <div
                     id="input-section"
+                    data-testid="input-section"
                     class="bg-gray-800 p-6 rounded-lg shadow-lg mb-8"
                 >
                     <div id="stream-inputs" class="space-y-6">
@@ -142,78 +107,92 @@
             </div>
 
             <div id="results" class="hidden">
-                <div id="context-switcher-container" class="mb-4 hidden">
-                    <label
-                        for="context-switcher"
-                        class="text-sm font-medium text-gray-400 mr-2"
-                        >Viewing Details For:</label
-                    >
-                    <select
-                        id="context-switcher"
-                        class="bg-gray-700 text-white rounded-md border-gray-600 p-2"
-                    ></select>
-                </div>
                 <div class="mb-4 border-b border-gray-700">
-                    <nav class="flex -mb-px flex-wrap" id="tabs">
-                        <button
-                            class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
-                            data-tab="comparison"
+                    <nav class="flex flex-wrap items-center" id="tabs">
+                        <div class="flex -mb-px flex-wrap flex-grow">
+                            <button
+                                class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
+                                data-tab="comparison"
+                            >
+                                Comparison
+                            </button>
+                            <button
+                                class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
+                                data-tab="summary"
+                            >
+                                Global Summary
+                            </button>
+                            <button
+                                class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
+                                data-tab="timeline-visuals"
+                            >
+                                Timeline &amp; Visuals
+                            </button>
+                            <button
+                                class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
+                                data-tab="features"
+                            >
+                                Features
+                            </button>
+                            <button
+                                class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
+                                data-tab="compliance"
+                            >
+                                Compliance Report
+                            </button>
+                            <button
+                                class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
+                                data-tab="explorer"
+                            >
+                                Segment Explorer
+                            </button>
+                            <button
+                                class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent hidden"
+                                data-tab="interactive-segment"
+                            >
+                                Interactive Segment
+                            </button>
+                            <button
+                                class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
+                                data-tab="interactive-manifest"
+                            >
+                                Interactive Manifest
+                            </button>
+                            <button
+                                class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
+                                data-tab="updates"
+                            >
+                                Manifest Updates
+                            </button>
+                        </div>
+
+                        <div
+                            id="context-switcher-wrapper"
+                            class="hidden flex-shrink-0"
                         >
-                            Comparison
-                        </button>
-                        <button
-                            class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
-                            data-tab="summary"
-                        >
-                            Global Summary
-                        </button>
-                        <button
-                            class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
-                            data-tab="timeline-visuals"
-                        >
-                            Timeline &amp; Visuals
-                        </button>
-                        <button
-                            class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
-                            data-tab="features"
-                        >
-                            Features
-                        </button>
-                        <button
-                            class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
-                            data-tab="compliance"
-                        >
-                            Compliance Report
-                        </button>
-                        <button
-                            class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
-                            data-tab="explorer"
-                        >
-                            Segment Explorer
-                        </button>
-                        <button
-                            class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
-                            data-tab="interactive-segment"
-                        >
-                            Interactive Segment
-                        </button>
-                        <button
-                            class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
-                            data-tab="interactive-manifest"
-                        >
-                            Interactive Manifest
-                        </button>
-                        <button
-                            class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
-                            data-tab="updates"
-                        >
-                            Manifest Updates
-                        </button>
+                            <label
+                                for="context-switcher"
+                                class="text-sm font-medium text-gray-400 mr-2"
+                                >Viewing Details For:</label
+                            >
+                            <select
+                                id="context-switcher"
+                                class="bg-gray-700 text-white rounded-md border-gray-600 p-2"
+                            ></select>
+                        </div>
                     </nav>
                 </div>
                 <div class="bg-gray-800 p-2 sm:p-6 rounded-lg shadow-lg">
-                    <div id="tab-comparison" class="hidden"></div>
-                    <div id="tab-summary" class="hidden"></div>
+                    <div
+                        id="tab-comparison"
+                        data-testid="tab-comparison"
+                        class="hidden"
+                    ></div>
+                    <div
+                        id="tab-summary"
+                        data-testid="tab-summary"
+                        class="hidden"
+                    ></div>
                     <div id="tab-timeline-visuals" class="hidden"></div>
                     <div id="tab-features" class="hidden"></div>
                     <div id="tab-compliance" class="hidden"></div>
@@ -229,6 +208,7 @@
 
         <div
             id="segment-modal"
+            data-testid="segment-modal"
             class="fixed inset-0 bg-gray-900/80 flex items-center justify-center opacity-0 invisible transition-all duration-300 z-50"
         >
             <div
@@ -240,6 +220,7 @@
                     </h3>
                     <button
                         id="close-modal-btn"
+                        data-testid="close-modal-btn"
                         class="text-2xl text-gray-400 hover:text-white"
                     >
                         &times;
@@ -247,6 +228,7 @@
                 </div>
                 <p
                     id="modal-segment-url"
+                    data-testid="modal-segment-url"
                     class="font-mono text-xs bg-gray-900 p-2 rounded break-all mb-4"
                 ></p>
                 <div
@@ -261,6 +243,11 @@
             class="fixed z-[100] p-2.5 rounded-md bg-gray-900 text-white text-left text-xs leading-relaxed border border-gray-700 min-w-[200px] max-w-sm pointer-events-none invisible opacity-0 transition-opacity"
         ></div>
 
-        <script src="dist/main.js"></script>
+        <div
+            id="toast-container"
+            class="fixed top-5 right-5 z-[100] space-y-2"
+        ></div>
+
+        <script type="module" src="/dist/main.js"></script>
     </body>
 </html>

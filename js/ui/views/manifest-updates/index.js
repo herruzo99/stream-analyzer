@@ -1,0 +1,158 @@
+import { html, render } from 'lit-html';
+import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
+import { analysisState, dom } from '../../../core/state.js';
+
+let togglePollingBtn; // Still need a reference for external updates
+
+const manifestUpdatesTemplate = (stream) => {
+    if (!stream) {
+        return html`<p class="warn">No active stream to monitor.</p>`;
+    }
+    if (stream.manifest.type !== 'dynamic') {
+        return html`<p class="info">
+            This is a VOD/static manifest. No updates are expected.
+        </p>`;
+    }
+
+    const { manifestUpdates, activeManifestUpdateIndex } = stream;
+    const updateCount = manifestUpdates.length;
+
+    if (updateCount === 0) {
+        return html`<p class="info">Awaiting first manifest update...</p>`;
+    }
+
+    const currentIndex = updateCount - activeManifestUpdateIndex;
+    const currentUpdate = manifestUpdates[activeManifestUpdateIndex];
+    const lines = currentUpdate.diffHtml.split('\n');
+    const updateLabel =
+        activeManifestUpdateIndex === manifestUpdates.length - 1
+            ? 'Initial Manifest loaded:'
+            : 'Update received at:';
+
+    const currentDisplay = html` <div class="text-sm text-gray-400 mb-2">
+            ${updateLabel}
+            <span class="font-semibold text-gray-200"
+                >${currentUpdate.timestamp}</span
+            >
+        </div>
+        <div
+            class="bg-slate-800 rounded-lg p-4 font-mono text-sm leading-relaxed overflow-x-auto"
+        >
+            ${lines.map(
+                (line, i) => html`
+                    <div class="flex">
+                        <span
+                            class="text-right text-gray-500 pr-4 select-none flex-shrink-0 w-10"
+                            >${i + 1}</span
+                        >
+                        <span class="flex-grow whitespace-pre-wrap break-all"
+                            >${unsafeHTML(line)}</span
+                        >
+                    </div>
+                `
+            )}
+        </div>`;
+
+    return html` <div
+            class="flex flex-col sm:flex-row justify-between items-center mb-4 space-y-2 sm:space-y-0"
+        >
+            <button
+                id="toggle-polling-btn"
+                class="px-4 py-2 rounded-md font-bold transition duration-300 w-full sm:w-auto text-white"
+                @click=${togglePollingState}
+            >
+                <!-- Content set by updatePollingButton -->
+            </button>
+            <div class="flex items-center space-x-2">
+                <button
+                    id="prev-manifest-btn"
+                    class="px-4 py-2 rounded-md font-bold transition duration-300 text-white bg-gray-600 hover:bg-gray-700 disabled:opacity-50"
+                    title="Previous Update (Right Arrow)"
+                    ?disabled=${activeManifestUpdateIndex >= updateCount - 1}
+                    @click=${() => navigateManifestUpdates(1)}
+                >
+                    &lt;
+                </button>
+                <span
+                    id="manifest-index-display"
+                    class="text-gray-400 font-semibold w-16 text-center"
+                    >${currentIndex}/${updateCount}</span
+                >
+                <button
+                    id="next-manifest-btn"
+                    class="px-4 py-2 rounded-md font-bold transition duration-300 text-white bg-gray-600 hover:bg-gray-700 disabled:opacity-50"
+                    title="Next Update (Left Arrow)"
+                    ?disabled=${activeManifestUpdateIndex <= 0}
+                    @click=${() => navigateManifestUpdates(-1)}
+                >
+                    &gt;
+                </button>
+            </div>
+        </div>
+        <div id="current-manifest-update" class="manifest-update-entry">
+            ${currentDisplay}
+        </div>`;
+};
+
+export function renderManifestUpdates(streamId) {
+    let updatesContainer = /** @type {HTMLDivElement} */ (
+        dom.tabContents.updates.querySelector('#mpd-updates-content')
+    );
+    if (!updatesContainer) {
+        const newContainer = document.createElement('div');
+        newContainer.id = 'mpd-updates-content';
+        dom.tabContents.updates.appendChild(newContainer);
+        updatesContainer = newContainer;
+    }
+    const stream = analysisState.streams.find((s) => s.id === streamId);
+    render(manifestUpdatesTemplate(stream), updatesContainer);
+    togglePollingBtn = document.getElementById('toggle-polling-btn');
+    updatePollingButton();
+}
+
+function togglePollingState() {
+    const activeStream = analysisState.streams.find(
+        (s) => s.id === analysisState.activeStreamId
+    );
+    if (activeStream) {
+        activeStream.isPolling = !activeStream.isPolling;
+    }
+    updatePollingButton(); // Update UI immediately
+}
+
+export function updatePollingButton() {
+    if (!togglePollingBtn) return;
+    const stream = analysisState.streams.find(
+        (s) => s.id === analysisState.activeStreamId
+    );
+    if (!stream || stream.manifest.type !== 'dynamic') {
+        togglePollingBtn.style.display = 'none';
+        return;
+    }
+
+    const isPolling = stream.isPolling;
+    togglePollingBtn.style.display = 'block';
+    togglePollingBtn.textContent = isPolling ? 'Stop Polling' : 'Start Polling';
+    togglePollingBtn.classList.toggle('bg-red-600', isPolling);
+    togglePollingBtn.classList.toggle('hover:bg-red-700', isPolling);
+    togglePollingBtn.classList.toggle('bg-blue-600', !isPolling);
+    togglePollingBtn.classList.toggle('hover:bg-blue-700', !isPolling);
+}
+
+export function navigateManifestUpdates(direction) {
+    const stream = analysisState.streams.find(
+        (s) => s.id === analysisState.activeStreamId
+    );
+    if (!stream || stream.manifestUpdates.length === 0) return;
+
+    let newIndex = stream.activeManifestUpdateIndex + direction;
+    newIndex = Math.max(
+        0,
+        Math.min(newIndex, stream.manifestUpdates.length - 1)
+    );
+
+    if (newIndex !== stream.activeManifestUpdateIndex) {
+        stream.activeManifestUpdateIndex = newIndex;
+        renderManifestUpdates(stream.id);
+    }
+}

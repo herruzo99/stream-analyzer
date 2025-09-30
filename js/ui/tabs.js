@@ -1,39 +1,28 @@
-import { html, render } from 'lit-html';
+import { render } from 'lit-html';
 import { dom, analysisState } from '../core/state.js';
-import { getInteractiveSegmentTemplate } from '../features/interactive-segment/view.js';
-import { initializeSegmentExplorer } from '../features/segment-explorer/view.js';
-import {
-    startManifestUpdatePolling,
-    stopManifestUpdatePolling,
-} from '../features/manifest-updates/poll.js';
+import { getInteractiveSegmentTemplate } from './views/interactive-segment/index.js';
 import {
     renderManifestUpdates,
     updatePollingButton,
     navigateManifestUpdates,
-} from '../features/manifest-updates/view.js';
+} from './views/manifest-updates/index.js';
 import { renderSingleStreamTabs } from './rendering.js';
-import {
-    startLiveSegmentHighlighter,
-    stopLiveSegmentHighlighter,
-} from '../features/segment-explorer/hls-explorer-view.js';
+import { initializeSegmentExplorer } from './views/segment-explorer/index.js';
+import { stopLiveSegmentHighlighter } from './views/segment-explorer/components/hls/index.js';
 
 let keyboardNavigationListener = null;
 
 export function handleTabClick(e) {
     const target = /** @type {HTMLElement} */ (e.target);
-    const targetTab = /** @type {HTMLElement} */ (
-        target.closest('[data-tab]')
-    );
+    const targetTab = /** @type {HTMLElement} */ (target.closest('[data-tab]'));
     if (!targetTab) return;
 
-    // --- Stop all timers on any tab change ---
-    stopManifestUpdatePolling();
-    stopLiveSegmentHighlighter();
-
+    // --- Cleanup logic for timers ---
     if (keyboardNavigationListener) {
         document.removeEventListener('keydown', keyboardNavigationListener);
         keyboardNavigationListener = null;
     }
+    stopLiveSegmentHighlighter(); // Stop the live segment UI updater
 
     const activeClasses = ['border-blue-600', 'text-gray-100', 'bg-gray-700'];
     const inactiveClasses = ['border-transparent'];
@@ -53,7 +42,6 @@ export function handleTabClick(e) {
     const activeTabContent = dom.tabContents[activeTabName];
     if (activeTabContent) activeTabContent.classList.remove('hidden');
 
-    // Re-render state-dependent tabs when they are clicked
     if (activeTabName === 'interactive-segment') {
         render(
             getInteractiveSegmentTemplate(),
@@ -64,25 +52,22 @@ export function handleTabClick(e) {
         renderSingleStreamTabs(analysisState.activeStreamId);
     }
 
-    // --- Start timers for specific tabs ---
     if (activeTabName === 'explorer') {
-        startLiveSegmentHighlighter();
-    } else if (activeTabName === 'updates') {
-        // Only start polling if the state indicates it should be active.
-        if (
-            analysisState.isPollingActive &&
-            analysisState.streams.length === 1 &&
-            analysisState.streams[0].manifest.type === 'dynamic'
-        ) {
-            const stream = analysisState.streams[0];
-            const onUpdateCallback = () => renderManifestUpdates(stream.id);
-            startManifestUpdatePolling(stream, onUpdateCallback);
+        const stream = analysisState.streams.find(
+            (s) => s.id === analysisState.activeStreamId
+        );
+        if (stream) {
+            initializeSegmentExplorer(dom.tabContents.explorer, stream);
         }
+    }
+
+    if (activeTabName === 'updates') {
         keyboardNavigationListener = (event) => {
             if (event.key === 'ArrowLeft') navigateManifestUpdates(1);
             if (event.key === 'ArrowRight') navigateManifestUpdates(-1);
         };
         document.addEventListener('keydown', keyboardNavigationListener);
+        renderManifestUpdates(analysisState.activeStreamId); // Initial render
     }
-    updatePollingButton();
+    updatePollingButton(); // Still need to update the button's appearance
 }

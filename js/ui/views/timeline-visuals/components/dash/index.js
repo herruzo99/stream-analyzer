@@ -1,0 +1,146 @@
+import { html } from 'lit-html';
+
+const renderEvents = (events, totalDuration, timelineStart = 0) => {
+    if (!events || events.length === 0) return '';
+    return events.map((eventBox) => {
+        const event = eventBox.details;
+        const startTime =
+            (event.presentation_time?.value || 0) /
+            (event.timescale?.value || 1);
+        const duration =
+            (event.event_duration?.value || 0) / (event.timescale?.value || 1);
+
+        const left = ((startTime - timelineStart) / totalDuration) * 100;
+        const width = (duration / totalDuration) * 100;
+
+        if (left < 0 || left > 100) return '';
+
+        return html`<div
+            class="absolute top-0 h-full bg-yellow-500/50 border-l-2 border-yellow-400 z-10"
+            style="left: ${left}%; width: ${Math.max(0.2, width)}%;"
+            title="Event: ${event.scheme_id_uri?.value}
+ID: ${event.id?.value}
+Time: ${startTime.toFixed(2)}s
+Duration: ${duration.toFixed(2)}s"
+        ></div>`;
+    });
+};
+
+const dashAbrLadderTemplate = (representations) => {
+    if (representations.length === 0) return '';
+
+    const reps = [...representations].sort((a, b) => a.bandwidth - b.bandwidth);
+    const maxBw = Math.max(...reps.map((r) => r.bandwidth || 0));
+
+    return html`
+        <div class="bg-gray-900 p-4 rounded-md mt-4">
+            <div class="space-y-2">
+                ${reps.map((rep) => {
+                    const widthPercentage =
+                        ((rep.bandwidth || 0) / maxBw) * 100;
+                    return html` <div class="flex items-center">
+                        <div
+                            class="w-28 text-xs text-gray-400 font-mono flex-shrink-0"
+                            title="Representation ID: ${rep.id}"
+                        >
+                            ${rep.resolution}
+                        </div>
+                        <div class="w-full bg-gray-700 rounded-full h-5">
+                            <div
+                                class="bg-blue-600 h-5 rounded-full text-xs font-medium text-blue-100 text-center p-0.5 leading-none"
+                                style="width: ${widthPercentage}%"
+                            >
+                                ${rep.bandwidth
+                                    ? (rep.bandwidth / 1000).toFixed(0) +
+                                      ' kbps'
+                                    : 'N/A'}
+                            </div>
+                        </div>
+                    </div>`;
+                })}
+            </div>
+        </div>
+    `;
+};
+
+const timelineGridTemplate = (switchingSet) => {
+    const { totalDuration, representations } = switchingSet;
+    if (totalDuration === 0)
+        return html`<p class="text-gray-400 text-sm">
+            Cannot render timeline: Total duration is zero or unknown.
+        </p>`;
+
+    const allEvents = representations.flatMap((r) => r.events || []);
+
+    return html`
+        <div class="mt-8">
+            <h4 class="text-lg font-bold">Switching Set: ${switchingSet.id}</h4>
+            <div class="bg-gray-900 rounded-lg p-4 mt-2 relative">
+                ${renderEvents(allEvents, totalDuration)}
+                ${representations.map(
+                    (rep) => html`
+                        <div class="flex items-center mb-1">
+                            <div
+                                class="w-32 text-xs text-gray-400 font-mono flex-shrink-0 pr-2 text-right"
+                                title="Representation ID: ${rep.id}"
+                            >
+                                ${rep.resolution}
+                            </div>
+                            <div
+                                class="w-full h-8 bg-gray-700/50 rounded flex items-center relative"
+                            >
+                                ${rep.fragments
+                                    ? rep.fragments.map(
+                                          (frag) => html`
+                                              <div
+                                                  class="h-full bg-gray-600 border-r border-gray-800"
+                                                  style="width: ${(frag.duration /
+                                                      totalDuration) *
+                                                  100}%;"
+                                                  title="Start: ${frag.startTime.toFixed(
+                                                      2
+                                                  )}s, Duration: ${frag.duration.toFixed(
+                                                      2
+                                                  )}s"
+                                              ></div>
+                                          `
+                                      )
+                                    : html`<div
+                                          class="w-full h-full bg-red-900/50 text-red-300 text-xs flex items-center justify-center p-2"
+                                      >
+                                          ${rep.error}
+                                      </div>`}
+                            </div>
+                        </div>
+                    `
+                )}
+            </div>
+            <div class="text-xs text-gray-400 mt-2 flex justify-between">
+                <span>0.00s</span>
+                <span>Total Duration: ${totalDuration.toFixed(2)}s</span>
+            </div>
+            ${dashAbrLadderTemplate(representations)}
+        </div>
+    `;
+};
+
+export function dashTimelineTemplate(timelineViewModel) {
+    if (!timelineViewModel) {
+        return html`<div class="text-center py-8 text-gray-400">
+            Loading timeline data...
+        </div>`;
+    }
+    if (timelineViewModel.length === 0) {
+        return html`<div class="text-center py-8 text-gray-400">
+            No video switching sets with segment indexes found to build
+            timeline.
+        </div>`;
+    }
+
+    return html`
+        <h3 class="text-xl font-bold mb-4">
+            CMAF Timeline & Fragment Alignment
+        </h3>
+        ${timelineViewModel.map(timelineGridTemplate)}
+    `;
+}
