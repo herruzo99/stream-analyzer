@@ -42,20 +42,6 @@ export const exampleStreams = [
         source: 'dashif.org',
     },
     {
-        name: '[DASH-IF] VTT Subtitles',
-        url: 'https://dash.akamaized.net/dash264/TestCases/4b/qualcomm/2/TearsOfSteel_onDem5sec.mpd',
-        protocol: 'dash',
-        type: 'vod',
-        source: 'dashif.org',
-    },
-    {
-        name: '[DASH-IF] Embedded CEA-608 Captions',
-        url: 'https://dash.akamaized.net/dash264/TestCases/3a/fraunhofer/count_2s/2013-08-15/stream.mpd',
-        protocol: 'dash',
-        type: 'vod',
-        source: 'dashif.org',
-    },
-    {
         name: '[Axinom] H.264, CMAF, Clear',
         url: 'https://media.axprod.net/TestVectors/v7-Clear/Manifest.mpd',
         protocol: 'dash',
@@ -69,14 +55,6 @@ export const exampleStreams = [
         type: 'vod',
         source: 'Axinom',
     },
-    {
-        name: '[BBC] On-demand Testcard, Multi-language',
-        url: 'http://rdmedia.bbc.co.uk/dash/ondemand/testcard/1/client_manifest-events.mpd',
-        protocol: 'dash',
-        type: 'vod',
-        source: 'BBC',
-    },
-
     // --- DASH Live (Source: dashif.org) ---
     {
         name: '[DASH-IF] Live Sim (SegmentTemplate)',
@@ -221,7 +199,7 @@ export const exampleStreams = [
         source: 'Shaka',
     },
     {
-        name: '[Wowza] Elephant\'s Dream, Alt Audio + VTT',
+        name: "[Wowza] Elephant's Dream, Alt Audio + VTT",
         url: 'https://playertest.longtailvideo.com/adaptive/elephants_dream_v4/index.m3u8',
         protocol: 'hls',
         type: 'vod',

@@ -1,188 +1,101 @@
-
-import { parseManifest as parseDashManifest } from '../protocols/dash/parser.js';
-import { parseManifest as parseHlsManifest } from '../protocols/hls/parser.js';
-import { diffManifest } from '../features/manifest-updates/diff.js';
-import xmlFormatter from 'xml-formatter';
 import { eventBus } from '../core/event-bus.js';
 import { analysisState } from '../core/state.js';
-import { generateFeatureAnalysis } from '../features/feature-analysis/logic.js';
 
-/**
- * @typedef {import('../core/state.js').StreamInput} StreamInput
- */
+const analysisWorker = new Worker('/dist/worker.js', { type: 'module' });
+let analysisStartTime = 0;
 
-async function analyzeStreams(inputs) {
-    eventBus.dispatch('analysis:started');
+analysisWorker.onmessage = (event) => {
+    const { type, payload } = event.data;
 
-    const promises = inputs.map(async (input) => {
-        let manifestString = '',
-            name = `Stream ${input.id + 1}`,
-            originalUrl = '',
-            baseUrl = '',
-            protocol = 'unknown';
-        try {
-            if (input.url) {
-                originalUrl = input.url;
-                name = new URL(originalUrl).hostname;
-                baseUrl = new URL(originalUrl, window.location.href).href;
-                if (originalUrl.toLowerCase().includes('.m3u8'))
-                    protocol = 'hls';
-                else protocol = 'dash';
-                eventBus.dispatch('ui:show-status', {
-                    message: `Fetching ${name}...`,
-                    type: 'info',
-                });
-                const response = await fetch(originalUrl);
-                if (!response.ok)
-                    throw new Error(`HTTP Error ${response.status}`);
-                manifestString = await response.text();
-            } else if (input.file) {
-                const file = input.file;
-                name = file.name;
-                baseUrl = window.location.href;
-                if (name.toLowerCase().includes('.m3u8')) protocol = 'hls';
-                else protocol = 'dash';
-                eventBus.dispatch('ui:show-status', {
-                    message: `Reading ${name}...`,
-                    type: 'info',
-                });
-                manifestString = await file.text();
-            } else {
-                return null;
-            }
+    switch (type) {
+        case 'analysis-complete': {
+            const results = payload.streams;
+            eventBus.dispatch('state:analysis-complete', { streams: results });
+            const tEndTotal = performance.now();
+            console.log(
+                `[DEBUG] Total Analysis Pipeline (success): ${(
+                    tEndTotal - analysisStartTime
+                ).toFixed(2)}ms`
+            );
+            break;
+        }
+        case 'analysis-error':
+            eventBus.dispatch('analysis:error', {
+                message: payload.message,
+                error: payload.error,
+            });
+            break;
+        case 'analysis-failed':
+            eventBus.dispatch('analysis:failed');
+            let tEnd = performance.now();
+            console.log(
+                `[DEBUG] Total Analysis Pipeline (failed): ${(
+                    tEnd - analysisStartTime
+                ).toFixed(2)}ms`
+            );
+            break;
+        case 'status-update':
             eventBus.dispatch('ui:show-status', {
-                message: `Parsing (${protocol.toUpperCase()}) for ${name}...`,
+                message: payload.message,
                 type: 'info',
             });
-            let parseResult;
-            if (protocol === 'hls') {
-                parseResult = await parseHlsManifest(manifestString, baseUrl);
-            } else {
-                parseResult = await parseDashManifest(manifestString, baseUrl);
-            }
-            const { manifest, baseUrl: newBaseUrl } = parseResult;
-            baseUrl = newBaseUrl;
+            break;
+    }
+};
 
-            // --- Deep Liveness Check for HLS Master Playlists ---
-            if (protocol === 'hls' && manifest.rawElement.isMaster) {
-                const firstVariant = manifest.rawElement.variants?.[0];
-                if (firstVariant) {
-                    try {
-                        const variantResponse = await fetch(
-                            firstVariant.resolvedUri
-                        );
-                        if (variantResponse.ok) {
-                            const variantManifestStr =
-                                await variantResponse.text();
-                            const { manifest: variantManifest } =
-                                await parseHlsManifest(
-                                    variantManifestStr,
-                                    firstVariant.resolvedUri
-                                );
-                            // Overwrite master's presumed type with the media's ground truth.
-                            manifest.type = variantManifest.type;
-                        }
-                    } catch (e) {
-                        console.warn(
-                            'Could not fetch first variant for liveness check, relying on master playlist properties.',
-                            e
-                        );
-                    }
-                }
-            }
+async function analyzeStreams(inputs) {
+    analysisStartTime = performance.now();
+    console.log('[DEBUG] Starting analysis pipeline...');
+    eventBus.dispatch('analysis:started');
 
-            const rawInitialAnalysis = generateFeatureAnalysis(
-                manifest,
-                protocol
-            );
-            const featureAnalysisResults = new Map();
-            Object.entries(rawInitialAnalysis).forEach(([name, result]) => {
-                featureAnalysisResults.set(name, {
-                    used: result.used,
-                    details: result.details,
-                });
-            });
-
-            const streamObject = {
-                id: input.id,
-                name,
-                originalUrl,
-                baseUrl,
-                protocol,
-                manifest,
-                rawManifest: manifestString,
-                mediaPlaylists: new Map(),
-                activeMediaPlaylistUrl: null,
-                activeManifestForView: manifest, // Initially, the view shows the main manifest
-                featureAnalysis: {
-                    results: featureAnalysisResults,
-                    manifestCount: 1,
+    const workerInputs = [];
+    for (const input of inputs) {
+        try {
+            self.postMessage({
+                type: 'status-update',
+                payload: {
+                    message: `Fetching ${input.url || input.file.name}...`,
                 },
-            };
-
-            // Correctly initialize master playlist cache at creation time
-            if (protocol === 'hls') {
-                streamObject.mediaPlaylists.set('master', {
-                    manifest: manifest,
-                    rawManifest: manifestString,
-                    lastFetched: new Date(),
-                });
+            });
+            let manifestString = '';
+            if (input.url) {
+                const response = await fetch(input.url);
+                if (!response.ok) {
+                    eventBus.dispatch('analysis:error', {
+                        message: `HTTP Error ${response.status} for ${input.url}`,
+                    });
+                    continue;
+                }
+                manifestString = await response.text();
+            } else {
+                manifestString = await input.file.text();
             }
-
-            return streamObject;
-        } catch (error) {
-            const errorMessage = `Failed to process stream ${
-                input.id + 1
-            } (${name}): ${error.message}`;
+            workerInputs.push({ ...input, manifestString });
+        } catch (e) {
             eventBus.dispatch('analysis:error', {
-                message: errorMessage,
-                error,
+                message: `Failed to fetch or read input: ${e.message}`,
             });
-            throw error;
         }
-    });
+    }
 
-    try {
-        const results = (await Promise.all(promises)).filter(Boolean);
-        if (results.length === 0) {
-            eventBus.dispatch('analysis:failed');
-            return;
-        }
-        results.sort((a, b) => a.id - b.id);
-        const manifestUpdates = [];
-        const activeStream = results[0];
-        const isSingleDynamicStream =
-            results.length === 1 && activeStream.manifest.type === 'dynamic';
-        if (isSingleDynamicStream) {
-            const formattingOptions = {
-                indentation: '  ',
-                lineSeparator: '\n',
-            };
-            const formattedInitial =
-                activeStream.protocol === 'dash'
-                    ? xmlFormatter(activeStream.rawManifest, formattingOptions)
-                    : activeStream.rawManifest;
-            const initialDiffHtml = diffManifest('', formattedInitial);
-            manifestUpdates.push({
-                timestamp: new Date().toLocaleTimeString(),
-                diffHtml: initialDiffHtml,
-            });
-        }
-        eventBus.dispatch('state:analysis-complete', {
-            streams: results,
-            manifestUpdates: manifestUpdates,
-            isPollingActive: isSingleDynamicStream,
-        });
-    } catch (error) {
-        console.error(
-            'An unhandled error occurred during stream analysis:',
-            error
+    if (workerInputs.length > 0) {
+        console.log(
+            `[DEBUG] Pre-processing complete. Dispatching ${workerInputs.length} stream(s) to worker.`
         );
+        analysisWorker.postMessage({
+            type: 'start-analysis',
+            payload: { inputs: workerInputs },
+        });
+    } else {
         eventBus.dispatch('analysis:failed');
     }
 }
 
-async function activateHlsMediaPlaylist({ streamId, url }) {
+async function fetchAndSetHlsMediaPlaylist({
+    streamId,
+    url,
+    isReload = false,
+}) {
     const stream = analysisState.streams.find((s) => s.id === streamId);
     if (!stream) return;
 
@@ -200,7 +113,7 @@ async function activateHlsMediaPlaylist({ streamId, url }) {
         return;
     }
 
-    if (stream.mediaPlaylists.has(url)) {
+    if (stream.mediaPlaylists.has(url) && !isReload) {
         const mediaPlaylist = stream.mediaPlaylists.get(url);
         eventBus.dispatch('state:stream-updated', {
             streamId,
@@ -209,21 +122,33 @@ async function activateHlsMediaPlaylist({ streamId, url }) {
                 activeMediaPlaylistUrl: url,
             },
         });
-    } else {
-        eventBus.dispatch('ui:show-status', {
-            message: `Fetching HLS media playlist...`,
-            type: 'info',
-        });
-        try {
-            const response = await fetch(url);
-            if (!response.ok) throw new Error(`HTTP error ${response.status}`);
-            const manifestString = await response.text();
-            const { manifest } = await parseHlsManifest(manifestString, url);
+        return;
+    }
 
+    eventBus.dispatch('ui:show-status', {
+        message: `Fetching HLS media playlist...`,
+        type: 'info',
+    });
+    analysisWorker.postMessage({
+        type: 'fetch-hls-media-playlist',
+        payload: {
+            streamId,
+            url,
+            hlsDefinedVariables: stream.hlsDefinedVariables,
+        },
+    });
+}
+
+analysisWorker.addEventListener('message', (event) => {
+    const { type, payload } = event.data;
+    if (type === 'hls-media-playlist-fetched') {
+        const { streamId, url, manifest, rawManifest } = payload;
+        const stream = analysisState.streams.find((s) => s.id === streamId);
+        if (stream) {
             const newPlaylists = new Map(stream.mediaPlaylists);
             newPlaylists.set(url, {
                 manifest,
-                rawManifest: manifestString,
+                rawManifest,
                 lastFetched: new Date(),
             });
 
@@ -239,16 +164,23 @@ async function activateHlsMediaPlaylist({ streamId, url }) {
                 message: 'Media playlist loaded.',
                 type: 'pass',
             });
-        } catch (e) {
-            console.error('Failed to fetch or parse media playlist:', e);
-            eventBus.dispatch('ui:show-status', {
-                message: `Failed to load media playlist: ${e.message}`,
-                type: 'fail',
-            });
         }
+    } else if (type === 'hls-media-playlist-error') {
+        console.error(
+            'Failed to fetch or parse media playlist in worker:',
+            payload.error
+        );
+        eventBus.dispatch('ui:show-status', {
+            message: `Failed to load media playlist: ${payload.error}`,
+            type: 'fail',
+        });
     }
-}
+});
 
-// Service setup
 eventBus.subscribe('analysis:request', ({ inputs }) => analyzeStreams(inputs));
-eventBus.subscribe('hls:media-playlist-activate', activateHlsMediaPlaylist);
+eventBus.subscribe('hls:media-playlist-activate', ({ streamId, url }) =>
+    fetchAndSetHlsMediaPlaylist({ streamId, url, isReload: false })
+);
+eventBus.subscribe('hls:media-playlist-reload', ({ streamId, url }) =>
+    fetchAndSetHlsMediaPlaylist({ streamId, url, isReload: true })
+);
