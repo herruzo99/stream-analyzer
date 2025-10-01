@@ -1,4 +1,4 @@
-import { dom, analysisState, initializeDom } from './state.js';
+import { dom, initializeDom } from './state.js';
 import { setupGlobalTooltipListener } from '../ui/components/tooltip.js';
 import { eventBus } from './event-bus.js';
 import {
@@ -9,15 +9,14 @@ import {
 import { handleTabClick } from '../ui/tabs.js';
 import { initializeModal } from './modal.js';
 import {
-    populateContextSwitcher,
-    renderAllTabs,
-    showStatus,
-} from '../ui/rendering.js';
-import {
     initializeLiveStreamMonitor,
     stopAllMonitoring,
 } from '../services/primaryStreamMonitorService.js';
 import { initializeUiController } from '../ui/ui-controller.js';
+import { initializeViewManager } from '../ui/view-manager.js';
+import { initializeToastManager, showToast } from '../ui/components/toast.js';
+import { initializeLiveUpdateProcessor } from '../services/liveUpdateProcessor.js';
+import { useStore, storeActions } from './store.js';
 
 import '../services/streamService.js';
 import '../services/segmentService.js';
@@ -28,7 +27,8 @@ const PRESETS_KEY = 'dash_analyzer_presets';
 const MAX_HISTORY_ITEMS = 10;
 
 function handleShare() {
-    const { streams } = analysisState;
+    // Read from the new store instead of analysisState
+    const streams = useStore.getState().getStreams();
 
     if (streams.length === 0) return;
 
@@ -66,10 +66,17 @@ function initializeEventListeners() {
         stopAllMonitoring();
         eventBus.dispatch('analysis:started');
     });
-    dom.contextSwitcher.addEventListener('change', (e) => {
+    dom.contextSwitcher.addEventListener('change', async (e) => {
         const target = /** @type {HTMLSelectElement} */ (e.target);
-        analysisState.activeStreamId = parseInt(target.value);
-        renderAllTabs();
+        // Write state using the new store action
+        storeActions.setActiveStreamId(parseInt(target.value));
+
+        // The view manager will re-render the tabs when the view state changes.
+        // However, for a simple context switch, we need to manually trigger a re-render
+        // of the single-stream tabs.
+        const { renderSingleStreamTabs } = await import('../ui/rendering.js');
+        // Read state using the new store selector
+        renderSingleStreamTabs(useStore.getState().getActiveStreamId());
     });
     dom.shareAnalysisBtn.addEventListener('click', handleShare);
 }
@@ -123,7 +130,10 @@ function handleAnalysis() {
     if (inputs.length > 0) {
         eventBus.dispatch('analysis:request', { inputs });
     } else {
-        showStatus('Please provide a stream URL or file to analyze.', 'warn');
+        showToast({
+            message: 'Please provide a stream URL or file to analyze.',
+            type: 'warn',
+        });
     }
 }
 
@@ -133,57 +143,21 @@ export function initializeApp() {
         if (streams.length > 0) {
             saveStreamToHistory(streams[0]);
         }
-        const defaultTab = streams.length > 1 ? 'comparison' : 'summary';
-        populateContextSwitcher();
-        renderAllTabs();
-        showStatus(
-            `Analysis Complete for ${streams.length} stream(s).`,
-            'pass',
-            5000
-        );
-        dom.status.textContent = ''; // Clear persistent status
-
-        dom.inputSection.classList.add('hidden');
-        dom.results.classList.remove('hidden');
-        dom.newAnalysisBtn.classList.remove('hidden');
-        dom.shareAnalysisBtn.classList.remove('hidden');
-
-        dom.mainHeader.classList.remove('justify-center');
-        dom.mainHeader.classList.add('justify-between');
-        dom.headerTitleGroup.classList.remove('text-center');
-        dom.headerTitleGroup.classList.add('text-left');
-        dom.headerUrlDisplay.classList.remove('hidden');
-
-        const urlHtml = streams
-            .map(
-                (s) =>
-                    `<div class="truncate" title="${s.originalUrl}">${s.originalUrl}</div>`
-            )
-            .join('');
-        dom.headerUrlDisplay.innerHTML = `<span class="font-bold text-gray-300 block mb-1">Analyzed Stream(s):</span>${urlHtml}`;
-
-        /** @type {HTMLButtonElement} */ (
-            document.querySelector(`[data-tab="${defaultTab}"]`)
-        ).click();
     });
 
     eventBus.subscribe('analysis:error', ({ message, error }) => {
-        showStatus(message, 'fail', 8000);
+        showToast({ message, type: 'fail', duration: 8000 });
         console.error('An analysis error occurred:', error);
-    });
-
-    eventBus.subscribe('analysis:failed', () => {
-        dom.results.classList.add('hidden');
-    });
-
-    eventBus.subscribe('ui:show-status', ({ message, type }) => {
-        showStatus(message, type);
     });
 }
 
-export function startApp() {
+export async function startApp() {
     initializeDom();
     initializeApp();
+    initializeViewManager(); // Initialize the view state controller
+    initializeLiveUpdateProcessor(); // Initialize the live update service
+    initializeToastManager(); // Initialize the toast notification system
+
     // Check for URL parameters to auto-start analysis
     const urlParams = new URLSearchParams(window.location.search);
     const streamUrls = urlParams.getAll('url');

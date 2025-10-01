@@ -1,53 +1,75 @@
-export const getAttr = (el, attr) => el?.attributes?.[attr];
-export const findChild = (el, tagName) =>
-    el?.children?.find((c) => c.tagName === tagName);
-export const findChildren = (el, tagName) =>
-    el?.children?.filter((c) => c.tagName === tagName) || [];
+export const getAttr = (el, attr) => el?.[':@']?.[attr];
 
-/**
- * @param {object} element
- * @param {string} tagName
- * @param {object} [context]
- * @param {any} [context.parent]
- * @param {any} [context.period]
- * @param {any} [context.adaptationSet]
- */
-export function findElementsByTagNameRecursive(element, tagName, context = {}) {
-    const results = [];
-    if (!element || !element.children) {
-        return results;
+export const findChild = (el, tagName) => {
+    if (!el || !el[tagName]) {
+        return undefined;
     }
+    const children = el[tagName];
+    // If it's an array (multiple elements), return the first. If it's an object (single element), return it directly.
+    return Array.isArray(children) ? children[0] : children;
+};
 
-    for (const child of element.children) {
-        if (child.type !== 'element') continue;
-
-        const newContext = { ...context, parent: element };
-        if (child.tagName === 'Period') newContext.period = child;
-        if (child.tagName === 'AdaptationSet') newContext.adaptationSet = child;
-
-        if (child.tagName === tagName) {
-            results.push({ element: child, context: newContext });
-        }
-        results.push(
-            ...findElementsByTagNameRecursive(child, tagName, newContext)
-        );
+export const findChildren = (el, tagName) => {
+    if (!el || !el[tagName]) {
+        return [];
     }
-    return results;
-}
+    const children = el[tagName];
+    // If it's already an array, return it. If it's a single object, wrap it in an array.
+    return Array.isArray(children) ? children : [children];
+};
 
-export const findChildrenRecursive = (elements, tagName) => {
-    if (!elements) return [];
+export const findChildrenRecursive = (element, tagName) => {
     let results = [];
-    for (const el of elements) {
-        if (el.type !== 'element') continue;
-        if (el.tagName === tagName) {
-            results.push(el);
-        }
-        if (el.children?.length > 0) {
-            results = results.concat(
-                findChildrenRecursive(el.children, tagName)
-            );
+    if (!element || typeof element !== 'object') return results;
+
+    for (const key in element) {
+        if (key === ':@' || key === '#text') continue;
+
+        const children = element[key];
+        if (!children) continue;
+
+        const childArray = Array.isArray(children) ? children : [children];
+
+        for (const child of childArray) {
+            if (key === tagName) {
+                results.push(child);
+            }
+            if (typeof child === 'object') {
+                results = results.concat(findChildrenRecursive(child, tagName));
+            }
         }
     }
     return results;
 };
+
+export function findElementsByTagNameRecursive(element, tagName, context = {}) {
+    const results = [];
+    if (!element || typeof element !== 'object') {
+        return results;
+    }
+
+    for (const key in element) {
+        if (key === ':@' || key === '#text') continue;
+
+        const children = element[key];
+        if (!children) continue;
+
+        const childArray = Array.isArray(children) ? children : [children];
+
+        for (const child of childArray) {
+            if (typeof child !== 'object') continue;
+
+            const newContext = /** @type {any} */ ({ ...context, parent: element });
+            if (key === 'Period') newContext.period = child;
+            if (key === 'AdaptationSet') newContext.adaptationSet = child;
+
+            if (key === tagName) {
+                results.push({ element: child, context: newContext });
+            }
+            results.push(
+                ...findElementsByTagNameRecursive(child, tagName, newContext)
+            );
+        }
+    }
+    return results;
+}

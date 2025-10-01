@@ -189,7 +189,7 @@ export function runChecks(manifest, protocol, context = {}) {
 
     const mpd = /** @type {object} */ (manifest);
 
-    if (!mpd || typeof mpd.attributes !== 'object') {
+    if (!mpd || typeof mpd[':@'] !== 'object') {
         const rootCheck = dashRules.find((r) => r.id === 'MPD-1');
         return [
             {
@@ -236,7 +236,7 @@ export function runChecks(manifest, protocol, context = {}) {
 
     findChildren(mpd, 'Period').forEach((period) => {
         const allRepIdsInPeriod = new Set(
-            findChildrenRecursive(period.children, 'Representation')
+            findChildrenRecursive(period, 'Representation')
                 .map((r) => getAttr(r, 'id'))
                 .filter(Boolean)
         );

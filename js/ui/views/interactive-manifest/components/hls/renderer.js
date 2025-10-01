@@ -1,8 +1,13 @@
-import { html } from 'lit-html';
+import { html, render } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { hlsTooltipData } from './tooltip-data.js';
 import { tooltipTriggerClasses } from '../../../../../shared/constants.js';
 import { eventBus } from '../../../../../core/event-bus.js';
+
+// --- MODULE STATE FOR VIRTUALIZATION ---
+let currentPage = 1;
+const linesPerPage = 500;
+let lastRenderedManifest = null;
 
 const escapeHtml = (str) =>
     str
@@ -273,6 +278,12 @@ export const hlsManifestTemplate = (stream) => {
         ? stream.mediaPlaylists.get(stream.activeMediaPlaylistUrl)?.rawManifest
         : stream.rawManifest;
 
+    // Reset pagination if the underlying manifest has changed
+    if (manifestString !== lastRenderedManifest) {
+        currentPage = 1;
+        lastRenderedManifest = manifestString;
+    }
+
     const { renditionReports, preloadHints } = manifestToDisplay;
 
     const lines = manifestString ? manifestString.split(/\r?\n/) : [];
@@ -283,17 +294,17 @@ export const hlsManifestTemplate = (stream) => {
         'EXT-X-DEFINE',
     ];
 
-    const lineTemplates = lines
-        .map((line, i) => {
+    const allLineTemplates = lines
+        .map((line) => {
             const trimmedLine = line.trim();
             if (specialTags.some((tag) => trimmedLine.startsWith(`#${tag}`))) {
                 return null; // We'll render these separately
             }
-            return html`
+            return (lineNumber) => html`
                 <div class="flex">
                     <span
                         class="text-right text-gray-500 pr-4 select-none flex-shrink-0 w-10"
-                        >${i + 1}</span
+                        >${lineNumber}</span
                     >
                     <span class="flex-grow whitespace-pre-wrap break-all"
                         >${unsafeHTML(getHlsLineHTML(line))}</span
@@ -305,7 +316,7 @@ export const hlsManifestTemplate = (stream) => {
 
     // Inject structured tags at the end
     (renditionReports || []).forEach((report) =>
-        lineTemplates.push(
+        allLineTemplates.push(() =>
             structuredTagTemplate({
                 name: 'EXT-X-RENDITION-REPORT',
                 value: report,
@@ -313,10 +324,54 @@ export const hlsManifestTemplate = (stream) => {
         )
     );
     (preloadHints || []).forEach((hint) =>
-        lineTemplates.push(
+        allLineTemplates.push(() =>
             structuredTagTemplate({ name: 'EXT-X-PRELOAD-HINT', value: hint })
         )
     );
+
+    const totalPages = Math.ceil(allLineTemplates.length / linesPerPage);
+
+    const onPageChange = (offset) => {
+        const newPage = currentPage + offset;
+        if (newPage >= 1 && newPage <= totalPages) {
+            currentPage = newPage;
+            const container = document.getElementById(
+                'tab-interactive-manifest'
+            );
+            render(hlsManifestTemplate(stream), container);
+        }
+    };
+
+    const startLine = (currentPage - 1) * linesPerPage;
+    const endLine = startLine + linesPerPage;
+    const visibleLineTemplates = allLineTemplates.slice(startLine, endLine);
+
+    const paginationControls =
+        totalPages > 1
+            ? html` <div class="text-center text-sm text-gray-400 mt-4">
+                  <button
+                      @click=${() => onPageChange(-1)}
+                      ?disabled=${currentPage === 1}
+                      class="px-3 py-1 rounded bg-gray-600 hover:bg-gray-500 disabled:opacity-50 mx-2"
+                  >
+                      &larr; Previous
+                  </button>
+                  <span
+                      >Page ${currentPage} of ${totalPages} (Lines
+                      ${startLine + 1}-${Math.min(
+                          endLine,
+                          allLineTemplates.length
+                      )})</span
+                  >
+                  <button
+                      @click=${() => onPageChange(1)}
+                      ?disabled=${currentPage === totalPages}
+                      class="px-3 py-1 rounded bg-gray-600 hover:bg-gray-500 disabled:opacity-50 mx-2"
+                  >
+                      Next &rarr;
+                  </button>
+              </div>`
+            : '';
 
     return html`
         <div class="flex justify-between items-center mb-2">
@@ -333,7 +388,10 @@ export const hlsManifestTemplate = (stream) => {
         <div
             class="bg-slate-800 rounded-lg p-4 font-mono text-sm leading-relaxed overflow-x-auto"
         >
-            ${lineTemplates}
+            ${visibleLineTemplates.map((templateFn, i) =>
+                templateFn(startLine + i + 1)
+            )}
         </div>
+        ${paginationControls}
     `;
 };

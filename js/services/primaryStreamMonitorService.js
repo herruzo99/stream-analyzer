@@ -1,19 +1,39 @@
-import { parseManifest as parseDashManifest } from '../protocols/manifest/dash/parser.js';
-import { parseManifest as parseHlsManifest } from '../protocols/manifest/hls/parser.js';
 import { eventBus } from '../core/event-bus.js';
 import { analysisState } from '../core/state.js';
-import {
-    applyDeltaUpdate,
-    serializeHls,
-} from '../engines/hls/delta-updater.js';
 
 const pollers = new Map();
 let managerInterval = null;
 
+// The monitor service will have its own dedicated worker to avoid conflicts with the main analysis worker.
+const liveUpdateWorker = new Worker('/dist/worker.js', { type: 'module' });
+
+liveUpdateWorker.onmessage = (event) => {
+    const { type, payload } = event.data;
+
+    if (type === 'live-update-parsed') {
+        const {
+            streamId,
+            newManifestObject,
+            finalManifestString,
+            oldRawManifest,
+        } = payload;
+        eventBus.dispatch('livestream:manifest-updated', {
+            streamId,
+            newManifestString: finalManifestString,
+            newManifestObject,
+            oldManifestString: oldRawManifest,
+        });
+    } else if (type === 'live-update-error') {
+        console.error(
+            `[LiveStreamMonitor] Worker failed to parse update for stream ${payload.streamId}:`,
+            payload.error
+        );
+    }
+};
+
 /**
  * The core polling function. Fetches the latest manifest for a live stream,
- * compares it to the last known version, and dispatches a single, unified
- * update event if a change is detected.
+ * delegates parsing to the worker, and awaits the parsed result.
  * @param {number} streamId The ID of the stream to poll.
  */
 async function monitorStream(streamId) {
@@ -37,52 +57,19 @@ async function monitorStream(streamId) {
             return;
         }
 
-        const oldManifestString = stream.rawManifest;
-        let finalManifestString = newManifestString;
-        let newManifestObject;
-
-        if (stream.protocol === 'dash') {
-            const { manifest } = await parseDashManifest(
+        // Offload the parsing to the worker
+        liveUpdateWorker.postMessage({
+            type: 'parse-live-update',
+            payload: {
+                streamId: stream.id,
                 newManifestString,
-                stream.baseUrl
-            );
-            newManifestObject = manifest;
-        } else {
-            // HLS: Check for Delta Update
-            if (newManifestString.includes('#EXT-X-SKIP')) {
-                const { manifest: deltaManifest } = await parseHlsManifest(
-                    newManifestString,
-                    stream.baseUrl,
-                    stream.hlsDefinedVariables
-                );
-                const resolvedParsedHls = applyDeltaUpdate(
-                    stream.manifest.rawElement,
-                    deltaManifest.rawElement
-                );
-
-                // Re-adapt and re-serialize to get the final state
-                const { manifest: resolvedManifest } = await parseHlsManifest(
-                    serializeHls(resolvedParsedHls),
-                    stream.baseUrl,
-                    stream.hlsDefinedVariables
-                );
-                newManifestObject = resolvedManifest;
-                finalManifestString = serializeHls(resolvedParsedHls);
-            } else {
-                const { manifest } = await parseHlsManifest(
-                    newManifestString,
-                    stream.baseUrl,
-                    stream.hlsDefinedVariables
-                );
-                newManifestObject = manifest;
-            }
-        }
-
-        eventBus.dispatch('livestream:manifest-updated', {
-            streamId: stream.id,
-            newManifestString: finalManifestString,
-            newManifestObject,
-            oldManifestString,
+                oldRawManifest: stream.rawManifest,
+                protocol: stream.protocol,
+                baseUrl: stream.baseUrl,
+                hlsDefinedVariables: stream.hlsDefinedVariables,
+                // For HLS delta updates, the worker needs the old parsed object.
+                oldManifestObjectForDelta: stream.manifest?.rawElement,
+            },
         });
     } catch (e) {
         console.error(
@@ -106,7 +93,7 @@ function startMonitoring(stream) {
             stream.manifest.minimumUpdatePeriod ||
             stream.manifest.minBufferTime ||
             2;
-        const pollInterval = Math.max(updatePeriodSeconds * 1000, 10000);
+        const pollInterval = Math.max(updatePeriodSeconds * 1000, 2000); // Enforce min 2s poll
 
         const pollerId = setInterval(
             () => monitorStream(stream.id),

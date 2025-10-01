@@ -1,8 +1,127 @@
 import { parseISOBMFF } from './protocols/segment/isobmff/parser.js';
 import { parse as parseTsSegment } from './protocols/segment/ts/index.js';
-import { parseManifest as parseDashManifestString } from './protocols/manifest/dash/index.js';
+import { parseManifest as parseDashManifestString } from './protocols/manifest/dash/parser.js';
 import { parseManifest as parseHlsManifest } from './protocols/manifest/hls/parser.js';
 import { parseAllSegmentUrls as parseDashSegments } from './protocols/manifest/dash/segment-parser.js';
+
+// --- HLS Delta Update Logic (moved from delta-updater.js) ---
+
+/**
+ * Applies a delta update to an old HLS playlist object.
+ * @param {object} oldParsedHls The fully parsed object of the previous manifest.
+ * @param {object} deltaParsedHls The fully parsed object of the new delta update manifest.
+ * @returns {object} A new, fully resolved parsed HLS object.
+ */
+function applyDeltaUpdate(oldParsedHls, deltaParsedHls) {
+    const skipTag = deltaParsedHls.tags.find((t) => t.name === 'EXT-X-SKIP');
+    if (!skipTag) {
+        // This isn't a delta update, return the new playlist as-is.
+        return deltaParsedHls;
+    }
+
+    const skippedSegments = skipTag.value['SKIPPED-SEGMENTS'];
+
+    // Deep clone the old playlist to avoid mutation
+    const resolvedHls = JSON.parse(JSON.stringify(oldParsedHls));
+
+    // Update sequences and playlist type from the delta manifest
+    resolvedHls.mediaSequence = deltaParsedHls.mediaSequence;
+    resolvedHls.discontinuitySequence = deltaParsedHls.discontinuitySequence;
+    resolvedHls.playlistType = deltaParsedHls.playlistType;
+
+    // Filter out the skipped segments from the old playlist
+    const oldSegmentCount = resolvedHls.segments.length;
+    resolvedHls.segments = resolvedHls.segments.slice(
+        oldSegmentCount - (oldSegmentCount - skippedSegments)
+    );
+
+    // Append new segments from the delta playlist
+    resolvedHls.segments.push(...deltaParsedHls.segments);
+
+    // Replace all top-level tags with tags from the delta manifest, except for EXT-X-SKIP itself.
+    resolvedHls.tags = deltaParsedHls.tags.filter(
+        (t) => t.name !== 'EXT-X-SKIP'
+    );
+
+    // Update other properties from the delta
+    resolvedHls.targetDuration = deltaParsedHls.targetDuration;
+    resolvedHls.partInf = deltaParsedHls.partInf;
+    resolvedHls.serverControl = deltaParsedHls.serverControl;
+    resolvedHls.isLive = deltaParsedHls.isLive;
+
+    return resolvedHls;
+}
+
+/**
+ * Serializes a parsed HLS object back into a manifest string.
+ * @param {object} parsedHls The parsed HLS object.
+ * @returns {string} The manifest string.
+ */
+function serializeHls(parsedHls) {
+    const lines = ['#EXTM3U'];
+    if (parsedHls.version > 1) {
+        lines.push(`#EXT-X-VERSION:${parsedHls.version}`);
+    }
+    if (parsedHls.targetDuration) {
+        lines.push(`#EXT-X-TARGETDURATION:${parsedHls.targetDuration}`);
+    }
+    if (parsedHls.mediaSequence) {
+        lines.push(`#EXT-X-MEDIA-SEQUENCE:${parsedHls.mediaSequence}`);
+    }
+    // Add other header tags...
+    if (parsedHls.partInf) {
+        lines.push(
+            `#EXT-X-PART-INF:PART-TARGET=${parsedHls.partInf['PART-TARGET']}`
+        );
+    }
+    if (parsedHls.serverControl) {
+        const attrs = Object.entries(parsedHls.serverControl)
+            .map(([k, v]) => `${k}=${v}`)
+            .join(',');
+        lines.push(`#EXT-X-SERVER-CONTROL:${attrs}`);
+    }
+
+    let lastKey = null;
+
+    parsedHls.segments.forEach((segment) => {
+        if (segment.discontinuity) {
+            lines.push('#EXT-X-DISCONTINUITY');
+        }
+        if (
+            segment.key &&
+            JSON.stringify(segment.key) !== JSON.stringify(lastKey)
+        ) {
+            const attrs = Object.entries(segment.key)
+                .map(([k, v]) => `${k}="${v}"`)
+                .join(',');
+            lines.push(`#EXT-X-KEY:${attrs}`);
+            lastKey = segment.key;
+        }
+        if (segment.dateTime) {
+            lines.push(`#EXT-X-PROGRAM-DATE-TIME:${segment.dateTime}`);
+        }
+        lines.push(
+            `#EXTINF:${segment.duration.toFixed(5)},${segment.title || ''}`
+        );
+        if (segment.uri) {
+            lines.push(segment.uri);
+        }
+        segment.parts.forEach((part) => {
+            const attrs = Object.entries(part)
+                .map(([k, v]) => `${k}="${v}"`)
+                .join(',');
+            lines.push(`#EXT-X-PART:${attrs}`);
+        });
+    });
+
+    if (!parsedHls.isLive) {
+        lines.push('#EXT-X-ENDLIST');
+    }
+
+    return lines.join('\n');
+}
+
+// --- Worker Logic ---
 
 async function processSingleStream(input) {
     // --- Determine protocol FIRST ---
@@ -34,6 +153,7 @@ async function processSingleStream(input) {
             input.url
         );
         manifestIR = manifest;
+        serializedManifestObject = manifest.rawElement; // HLS adapter places the parsed object here
         manifestIR.hlsDefinedVariables = definedVariables;
         finalBaseUrl = baseUrl;
     } else {
@@ -50,9 +170,9 @@ async function processSingleStream(input) {
         './engines/feature-analysis/analyzer.js'
     );
     const rawInitialAnalysis = generateFeatureAnalysis(
-        manifestIR,
+        manifestIR, // HLS analyzer uses the IR
         input.protocol,
-        serializedManifestObject
+        serializedManifestObject // DASH analyzer uses the serialized object
     );
     const featureAnalysisResults = new Map(Object.entries(rawInitialAnalysis));
 
@@ -66,6 +186,9 @@ async function processSingleStream(input) {
                 (t) => t.name === 'EXT-X-CONTENT-STEERING'
             ) || null;
     }
+
+    // Ensure rawElement is the correct serializable object before sending
+    manifestIR.rawElement = serializedManifestObject;
 
     const streamObject = {
         id: input.id,
@@ -154,14 +277,6 @@ async function processSingleStream(input) {
         });
     }
 
-    // Remove non-serializable properties before sending back to the main thread
-    if (streamObject.manifest) {
-        streamObject.manifest.rawElement = null;
-        if (streamObject.manifest.summary) {
-            // This was causing a circular reference issue
-        }
-    }
-
     return streamObject;
 }
 
@@ -212,6 +327,76 @@ async function handleFetchHlsMediaPlaylist({
     }
 }
 
+async function handleParseLiveUpdate({
+    streamId,
+    newManifestString,
+    oldRawManifest,
+    protocol,
+    baseUrl,
+    hlsDefinedVariables,
+    oldManifestObjectForDelta,
+}) {
+    try {
+        let finalManifestString = newManifestString;
+        let newManifestObject;
+
+        if (protocol === 'dash') {
+            const { manifest } = await parseDashManifestString(
+                newManifestString,
+                baseUrl
+            );
+            newManifestObject = manifest;
+        } else {
+            // HLS: Check for Delta Update
+            if (newManifestString.includes('#EXT-X-SKIP')) {
+                const { manifest: deltaManifest } = await parseHlsManifest(
+                    newManifestString,
+                    baseUrl,
+                    hlsDefinedVariables
+                );
+                const resolvedParsedHls = applyDeltaUpdate(
+                    oldManifestObjectForDelta,
+                    deltaManifest.rawElement
+                );
+
+                // Re-adapt and re-serialize to get the final state
+                const { manifest: resolvedManifest } = await parseHlsManifest(
+                    serializeHls(resolvedParsedHls),
+                    baseUrl,
+                    hlsDefinedVariables
+                );
+                newManifestObject = resolvedManifest;
+                finalManifestString = serializeHls(resolvedParsedHls);
+            } else {
+                const { manifest } = await parseHlsManifest(
+                    newManifestString,
+                    baseUrl,
+                    hlsDefinedVariables
+                );
+                newManifestObject = manifest;
+            }
+        }
+
+        // Remove non-serializable properties before sending back
+        newManifestObject.rawElement = null;
+
+        self.postMessage({
+            type: 'live-update-parsed',
+            payload: {
+                streamId,
+                newManifestObject,
+                finalManifestString,
+                oldRawManifest,
+            },
+        });
+    } catch (e) {
+        self.postMessage({
+            type: 'live-update-error',
+            payload: { streamId, error: e.message },
+        });
+    }
+}
+
 self.onmessage = async (event) => {
     const { type, payload } = event.data;
 
@@ -221,6 +406,9 @@ self.onmessage = async (event) => {
             break;
         case 'fetch-hls-media-playlist':
             await handleFetchHlsMediaPlaylist(payload);
+            break;
+        case 'parse-live-update':
+            await handleParseLiveUpdate(payload);
             break;
         case 'parse-segment': {
             const { url, data } = payload;
