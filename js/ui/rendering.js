@@ -47,49 +47,6 @@ export function renderAllTabs() {
     console.timeEnd('Render All Tabs');
 }
 
-/**
- * Displays a status message. Can be a persistent message or a transient toast.
- * @param {string} message - The message to display.
- * @param {'info' | 'pass' | 'warn' | 'fail'} type - The message type.
- * @param {number | null} [duration=null] - If provided, shows a toast for this many ms.
- */
-export function showStatus(message, type, duration = null) {
-    if (duration) {
-        // Create and show a transient toast notification
-        const toast = document.createElement('div');
-        const colors = {
-            pass: 'bg-green-600 border-green-500',
-            fail: 'bg-red-600 border-red-500',
-            warn: 'bg-yellow-600 border-yellow-500',
-            info: 'bg-blue-600 border-blue-500',
-        };
-        toast.className = `p-4 rounded-lg border text-white shadow-lg transition-all duration-300 ease-in-out transform translate-x-full opacity-0 ${colors[type]}`;
-        toast.textContent = message;
-        dom.toastContainer.appendChild(toast);
-
-        // Animate in
-        setTimeout(() => {
-            toast.classList.remove('translate-x-full', 'opacity-0');
-        }, 10);
-
-        // Set timer to animate out and remove
-        setTimeout(() => {
-            toast.classList.add('opacity-0', 'translate-x-8');
-            toast.addEventListener('transitionend', () => toast.remove());
-        }, duration);
-    } else {
-        // Show a persistent status message
-        const colors = {
-            info: 'text-blue-400',
-            pass: 'text-green-400',
-            warn: 'text-yellow-400',
-            fail: 'text-red-400',
-        };
-        dom.status.textContent = message;
-        dom.status.className = `text-center my-4 ${colors[type]}`;
-    }
-}
-
 export function renderSingleStreamTabs(streamId) {
     const stream = analysisState.streams.find((s) => s.id === streamId);
     if (!stream) return;
