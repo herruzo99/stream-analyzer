@@ -1,4 +1,5 @@
 import { getDrmSystemName } from '../../../shared/utils/drm.js';
+import { getAttr, findChildrenRecursive } from './recursive-parser.js';
 
 /**
  * @typedef {object} FeatureCheckResult
@@ -6,40 +7,13 @@ import { getDrmSystemName } from '../../../shared/utils/drm.js';
  * @property {string} details
  */
 
-// --- UTILITIES FOR TRAVERSING THE SERIALIZED DOM OBJECT ---
-const findChildrenRecursive = (elements, tagName) => {
-    if (!elements) return [];
-    let results = [];
-    for (const el of elements) {
-        if (el.type !== 'element') continue;
-        if (el.tagName === tagName) {
-            results.push(el);
-        }
-        if (el.children?.length > 0) {
-            results = results.concat(
-                findChildrenRecursive(el.children, tagName)
-            );
-        }
-    }
-    return results;
-};
-
-const findChildRecursive = (elements, tagName) => {
-    if (!elements) return null;
-    for (const el of elements) {
-        if (el.type !== 'element') continue;
-        if (el.tagName === tagName) return el;
-        if (el.children?.length > 0) {
-            const found = findChildRecursive(el.children, tagName);
-            if (found) return found;
-        }
-    }
-    return null;
-};
+// Local helper to get the first result from the recursive search.
+const findChildRecursive = (element, tagName) =>
+    findChildrenRecursive(element, tagName)[0];
 
 const createCheck = (tagName, usedDetails, notUsedDetails) => {
     return (manifestObj) => {
-        const element = findChildRecursive(manifestObj.children, tagName);
+        const element = findChildRecursive(manifestObj, tagName);
         return {
             used: !!element,
             details: element ? usedDetails(element) : notUsedDetails,
@@ -49,7 +23,7 @@ const createCheck = (tagName, usedDetails, notUsedDetails) => {
 
 const createCountCheck = (tagName, singular, plural) => {
     return (manifestObj) => {
-        const elements = findChildrenRecursive(manifestObj.children, tagName);
+        const elements = findChildrenRecursive(manifestObj, tagName);
         const count = elements.length;
         if (count === 0) {
             return { used: false, details: '' };
@@ -65,7 +39,7 @@ const createCountCheck = (tagName, singular, plural) => {
 const featureChecks = {
     'Presentation Type': (manifestObj) => ({
         used: true,
-        details: `<code>${manifestObj.attributes.type}</code>`,
+        details: `<code>${getAttr(manifestObj, 'type')}</code>`,
     }),
     'MPD Locations': createCountCheck(
         'Location',
@@ -74,16 +48,16 @@ const featureChecks = {
     ),
     'Scoped Profiles': (manifestObj) => {
         const adaptationSets = findChildrenRecursive(
-            manifestObj.children,
+            manifestObj,
             'AdaptationSet'
         );
         const representations = findChildrenRecursive(
-            manifestObj.children,
+            manifestObj,
             'Representation'
         );
         const count =
-            adaptationSets.filter((as) => as.attributes.profiles).length +
-            representations.filter((r) => r.attributes.profiles).length;
+            adaptationSets.filter((as) => getAttr(as, 'profiles')).length +
+            representations.filter((r) => getAttr(r, 'profiles')).length;
 
         if (count === 0) return { used: false, details: '' };
         const noun = count === 1 ? 'scoped profile' : 'scoped profiles';
@@ -92,14 +66,14 @@ const featureChecks = {
     'Multi-Period': createCountCheck('Period', 'Period', 'Periods'),
     'Content Protection': (manifestObj) => {
         const protection = findChildrenRecursive(
-            manifestObj.children,
+            manifestObj,
             'ContentProtection'
         );
         if (protection.length > 0) {
             const schemes = [
                 ...new Set(
                     protection.map((cp) =>
-                        getDrmSystemName(cp.attributes.schemeIdUri)
+                        getDrmSystemName(getAttr(cp, 'schemeIdUri'))
                     )
                 ),
             ];
@@ -142,19 +116,16 @@ const featureChecks = {
         'representation indices'
     ),
     'Low Latency Streaming': (manifestObj) => {
-        if (manifestObj.attributes.type !== 'dynamic') {
+        if (getAttr(manifestObj, 'type') !== 'dynamic') {
             return { used: false, details: 'Not a dynamic (live) manifest.' };
         }
-        const hasLatency = !!findChildRecursive(
-            manifestObj.children,
-            'Latency'
-        );
+        const hasLatency = !!findChildRecursive(manifestObj, 'Latency');
         const allTemplates = findChildrenRecursive(
-            manifestObj.children,
+            manifestObj,
             'SegmentTemplate'
         );
         const hasChunkHint = allTemplates.some(
-            (t) => t.attributes.availabilityTimeComplete === 'false'
+            (t) => getAttr(t, 'availabilityTimeComplete') === 'false'
         );
 
         if (hasLatency || hasChunkHint) {
@@ -171,21 +142,19 @@ const featureChecks = {
     },
     'Manifest Patch Updates': createCheck(
         'PatchLocation',
-        (el) =>
-            `Patch location: <code>${el.children[0]?.content.trim()}</code>`,
+        (el) => `Patch location: <code>${el['#text']?.trim()}</code>`,
         'Uses full manifest reloads.'
     ),
     'UTC Timing Source': (manifestObj) => {
-        const utcTimings = findChildrenRecursive(
-            manifestObj.children,
-            'UTCTiming'
-        );
+        const utcTimings = findChildrenRecursive(manifestObj, 'UTCTiming');
         if (utcTimings.length > 0) {
             const schemes = [
                 ...new Set(
                     utcTimings.map(
                         (el) =>
-                            `<code>${el.attributes.schemeIdUri.split(':').pop()}</code>`
+                            `<code>${getAttr(el, 'schemeIdUri')
+                                .split(':')
+                                .pop()}</code>`
                     )
                 ),
             ];
@@ -198,9 +167,9 @@ const featureChecks = {
     },
     'Dependent Representations': (manifestObj) => {
         const reps = findChildrenRecursive(
-            manifestObj.children,
+            manifestObj,
             'Representation'
-        ).filter((r) => r.attributes.dependencyId);
+        ).filter((r) => getAttr(r, 'dependencyId'));
         if (reps.length > 0)
             return {
                 used: true,
@@ -210,22 +179,18 @@ const featureChecks = {
     },
     'Associated Representations': (manifestObj) => {
         const reps = findChildrenRecursive(
-            manifestObj.children,
+            manifestObj,
             'Representation'
-        ).filter((r) => r.attributes.associationId);
+        ).filter((r) => getAttr(r, 'associationId'));
         if (reps.length > 0)
             return { used: true, details: `${reps.length} associations` };
         return { used: false, details: '' };
     },
     'Trick Modes': (manifestObj) => {
-        const subRep = findChildRecursive(
-            manifestObj.children,
-            'SubRepresentation'
+        const subRep = findChildRecursive(manifestObj, 'SubRepresentation');
+        const trickRole = findChildrenRecursive(manifestObj, 'Role').some(
+            (r) => getAttr(r, 'value') === 'trick'
         );
-        const trickRole = findChildrenRecursive(
-            manifestObj.children,
-            'Role'
-        ).some((r) => r.attributes.value === 'trick');
         if (subRep || trickRole) {
             const details = [];
             if (subRep) details.push('<code>&lt;SubRepresentation&gt;</code>');
@@ -242,22 +207,26 @@ const featureChecks = {
     },
     'Subtitles & Captions': (manifestObj) => {
         const textTracks = findChildrenRecursive(
-            manifestObj.children,
+            manifestObj,
             'AdaptationSet'
         ).filter(
             (as) =>
-                as.attributes.contentType === 'text' ||
-                as.attributes.mimeType?.startsWith('application')
+                getAttr(as, 'contentType') === 'text' ||
+                getAttr(as, 'mimeType')?.startsWith('application')
         );
         if (textTracks.length > 0) {
             const languages = [
                 ...new Set(
-                    textTracks.map((as) => as.attributes.lang).filter(Boolean)
+                    textTracks.map((as) => getAttr(as, 'lang')).filter(Boolean)
                 ),
             ];
             return {
                 used: true,
-                details: `Found ${textTracks.length} track(s). ${languages.length > 0 ? `Languages: <b>${languages.join(', ')}</b>` : ''}`,
+                details: `Found ${textTracks.length} track(s). ${
+                    languages.length > 0
+                        ? `Languages: <b>${languages.join(', ')}</b>`
+                        : ''
+                }`,
             };
         }
         return {
@@ -266,11 +235,11 @@ const featureChecks = {
         };
     },
     'Role Descriptors': (manifestObj) => {
-        const roles = findChildrenRecursive(manifestObj.children, 'Role');
+        const roles = findChildrenRecursive(manifestObj, 'Role');
         if (roles.length > 0) {
             const roleValues = [
                 ...new Set(
-                    roles.map((role) => `<code>${role.attributes.value}</code>`)
+                    roles.map((role) => `<code>${getAttr(role, 'value')}</code>`)
                 ),
             ];
             return {

@@ -370,11 +370,14 @@
  * @property {string | null} activeSegmentUrl
  * @property {number | null} segmentFreshnessChecker
  * @property {number} streamIdCounter
- * @property {Map<string, {status: number, data: ArrayBuffer | null, parsedData: object | null}>} segmentCache
+ * @property {LRUCache} segmentCache
  * @property {string[]} segmentsForCompare
  * @property {Map<string, DecodedSample>} decodedSamples
  * @property {Map<number, any>} activeByteMap
  */
+import { LRUCache } from './lru-cache.js';
+
+const SEGMENT_CACHE_SIZE = 200;
 
 /** @type {AnalysisState} */
 export let analysisState = {
@@ -383,7 +386,7 @@ export let analysisState = {
     activeSegmentUrl: null,
     segmentFreshnessChecker: null,
     streamIdCounter: 0,
-    segmentCache: new Map(),
+    segmentCache: new LRUCache(SEGMENT_CACHE_SIZE),
     segmentsForCompare: [],
     decodedSamples: new Map(),
     activeByteMap: new Map(),
@@ -397,7 +400,6 @@ export let analysisState = {
  * @property {HTMLDivElement} streamInputs
  * @property {HTMLButtonElement} addStreamBtn
  * @property {HTMLButtonElement} analyzeBtn
- * @property {HTMLDivElement} status
  * @property {HTMLDivElement} toastContainer
  * @property {HTMLDivElement} results
  * @property {HTMLDivElement} inputSection
@@ -436,9 +438,6 @@ export function initializeDom() {
     );
     dom.analyzeBtn = /** @type {HTMLButtonElement} */ (
         document.getElementById('analyze-btn')
-    );
-    dom.status = /** @type {HTMLDivElement} */ (
-        document.getElementById('status')
     );
     dom.toastContainer = /** @type {HTMLDivElement} */ (
         document.getElementById('toast-container')

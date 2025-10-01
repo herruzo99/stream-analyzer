@@ -15,33 +15,30 @@ import {
     findChildrenRecursive,
 } from './recursive-parser.js';
 
-const getText = (el) =>
-    findChild(el, '#text')?.content || el?.children?.[0]?.content || null;
+const getText = (el) => el?.['#text'] || null;
 
 /**
  * Transforms a serialized DASH manifest object into a protocol-agnostic IR.
  * @param {object} manifestElement The root MPD element, serialized.
- * @returns {{manifestIR: Manifest, manifestElement: object}} The manifest IR object and the serialized manifest element.
+ * @param {string} baseUrl The base URL for the manifest.
+ * @returns {Manifest} The manifest IR object.
  */
-export function adaptDashToIr(manifestElement) {
+export function adaptDashToIr(manifestElement, baseUrl) {
     const adaptationSets = findChildrenRecursive(
-        manifestElement.children,
+        manifestElement,
         'AdaptationSet'
     );
     const hasTsMimeType = adaptationSets.some(
-        (as) => as.attributes.mimeType === 'video/mp2t'
+        (as) => getAttr(as, 'mimeType') === 'video/mp2t'
     );
 
     let segmentFormat = 'unknown';
     if (hasTsMimeType) {
         segmentFormat = 'ts';
     } else if (
-        findChildrenRecursive(manifestElement.children, 'SegmentTimeline')
-            .length > 0 ||
-        findChildrenRecursive(manifestElement.children, 'SegmentTemplate')
-            .length > 0 ||
-        findChildrenRecursive(manifestElement.children, 'SegmentList').length >
-            0
+        findChildrenRecursive(manifestElement, 'SegmentTimeline').length > 0 ||
+        findChildrenRecursive(manifestElement, 'SegmentTemplate').length > 0 ||
+        findChildrenRecursive(manifestElement, 'SegmentList').length > 0
     ) {
         segmentFormat = 'isobmff';
     }
@@ -96,18 +93,30 @@ export function adaptDashToIr(manifestElement) {
     };
 
     manifestIR.events = manifestIR.periods.flatMap((p) => p.events);
-    // Pass the serialized element explicitly to the summary generator.
     manifestIR.summary = generateDashSummary(manifestIR, manifestElement);
 
-    return { manifestIR, manifestElement };
+    return manifestIR;
 }
 
 function parsePeriod(periodEl) {
+    const assetIdentifierEl = findChild(periodEl, 'AssetIdentifier');
+    const subsets = findChildren(periodEl, 'Subset');
+
     const periodIR = {
         id: getAttr(periodEl, 'id'),
         start: parseDuration(getAttr(periodEl, 'start')),
         duration: parseDuration(getAttr(periodEl, 'duration')),
         bitstreamSwitching: getAttr(periodEl, 'bitstreamSwitching') === 'true',
+        assetIdentifier: assetIdentifierEl
+            ? {
+                  schemeIdUri: getAttr(assetIdentifierEl, 'schemeIdUri'),
+                  value: getAttr(assetIdentifierEl, 'value'),
+              }
+            : null,
+        subsets: subsets.map((s) => ({
+            contains: (getAttr(s, 'contains') || '').split(' '),
+            id: getAttr(s, 'id'),
+        })),
         adaptationSets: [],
         eventStreams: [],
         events: [],

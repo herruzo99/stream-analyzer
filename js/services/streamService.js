@@ -38,6 +38,7 @@ analysisWorker.onmessage = (event) => {
             eventBus.dispatch('ui:show-status', {
                 message: payload.message,
                 type: 'info',
+                duration: 2000,
             });
             break;
     }
