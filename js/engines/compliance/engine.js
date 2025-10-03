@@ -11,7 +11,7 @@ import {
  * @param {object} manifest - The raw manifest element (DASH) or the manifest IR (HLS).
  * @param {'dash' | 'hls'} protocol - The protocol of the manifest.
  * @param {object} [context={}] - Additional context for the checks.
- * @returns {Array<object>} An array of check result objects.
+ * @returns {Array<object>} An array of check result objects, now including location data.
  */
 export function runChecks(manifest, protocol, context = {}) {
     if (protocol === 'hls') {
@@ -24,6 +24,7 @@ export function runChecks(manifest, protocol, context = {}) {
                     details: 'The HLS parser did not return a valid object.',
                     isoRef: 'N/A',
                     category: 'HLS Structure',
+                    location: { startLine: 1, endLine: 1 },
                 },
             ];
         }
@@ -40,16 +41,15 @@ export function runChecks(manifest, protocol, context = {}) {
             ...context,
         };
 
-        /**
-         * Helper to run a single rule and add its result.
-         * @param {import('../../protocols/manifest/hls/compliance-rules.js').HlsRule} rule
-         * @param {object} element
-         * @param {string} scopeText
-         */
         const runRule = (rule, element, scopeText = '') => {
             const result = rule.check(element, hlsContext);
             if (result !== 'skip') {
                 const status = result ? 'pass' : rule.severity;
+                const location = {
+                    startLine:
+                        element.extinfLineNumber || element.lineNumber || 1,
+                    endLine: element.uriLineNumber || element.lineNumber || 1,
+                };
                 results.push({
                     id: rule.id,
                     text: `${rule.text} ${scopeText}`,
@@ -57,6 +57,7 @@ export function runChecks(manifest, protocol, context = {}) {
                     details: result ? rule.passDetails : rule.failDetails,
                     isoRef: rule.isoRef,
                     category: rule.category,
+                    location,
                 });
             }
         };
@@ -97,11 +98,8 @@ export function runChecks(manifest, protocol, context = {}) {
                 .filter((t) => t.name === 'EXT-X-KEY')
                 .forEach((keyTag, index) => {
                     const key = {
-                        METHOD: keyTag.value.METHOD,
-                        URI: keyTag.value.URI,
-                        IV: keyTag.value.IV,
-                        KEYFORMAT: keyTag.value.KEYFORMAT,
-                        KEYFORMATVERSIONS: keyTag.value.KEYFORMATVERSIONS,
+                        ...keyTag.value,
+                        lineNumber: keyTag.lineNumber,
                     };
                     hlsRules
                         .filter((rule) => rule.scope === 'Key')
@@ -137,7 +135,10 @@ export function runChecks(manifest, protocol, context = {}) {
             (manifestIR.tags || [])
                 .filter((t) => t.name === 'EXT-X-I-FRAME-STREAM-INF')
                 .forEach((iframeTag, index) => {
-                    const iframeStream = iframeTag.value;
+                    const iframeStream = {
+                        ...iframeTag.value,
+                        lineNumber: iframeTag.lineNumber,
+                    };
                     hlsRules
                         .filter((rule) => rule.scope === 'IframeVariant')
                         .forEach((rule) =>
@@ -162,7 +163,10 @@ export function runChecks(manifest, protocol, context = {}) {
                 if (!mediaGroups[type]) mediaGroups[type] = {};
                 if (!mediaGroups[type][groupId])
                     mediaGroups[type][groupId] = [];
-                mediaGroups[type][groupId].push(mediaTag.value);
+                mediaGroups[type][groupId].push({
+                    ...mediaTag.value,
+                    lineNumber: mediaTag.lineNumber,
+                });
             });
 
             Object.values(mediaGroups).forEach((typeGroups) => {
@@ -183,11 +187,11 @@ export function runChecks(manifest, protocol, context = {}) {
                 });
             });
         }
-
         return results;
     }
 
     const mpd = /** @type {object} */ (manifest);
+    const rootPath = 'MPD[0]';
 
     if (!mpd || typeof mpd[':@'] !== 'object') {
         const rootCheck = dashRules.find((r) => r.id === 'MPD-1');
@@ -198,6 +202,7 @@ export function runChecks(manifest, protocol, context = {}) {
                 details: rootCheck.failDetails,
                 isoRef: rootCheck.isoRef,
                 category: rootCheck.category,
+                location: { path: rootPath },
             },
         ];
     }
@@ -230,11 +235,13 @@ export function runChecks(manifest, protocol, context = {}) {
                     ),
                     isoRef: rule.isoRef,
                     category: rule.category,
+                    location: { path: rootPath },
                 });
             }
         });
 
-    findChildren(mpd, 'Period').forEach((period) => {
+    findChildren(mpd, 'Period').forEach((period, periodIndex) => {
+        const periodPath = `${rootPath}.Period[${periodIndex}]`;
         const allRepIdsInPeriod = new Set(
             findChildrenRecursive(period, 'Representation')
                 .map((r) => getAttr(r, 'id'))
@@ -261,11 +268,13 @@ export function runChecks(manifest, protocol, context = {}) {
                         ),
                         isoRef: rule.isoRef,
                         category: rule.category,
+                        location: { path: periodPath },
                     });
                 }
             });
 
-        findChildren(period, 'AdaptationSet').forEach((as) => {
+        findChildren(period, 'AdaptationSet').forEach((as, asIndex) => {
+            const asPath = `${periodPath}.AdaptationSet[${asIndex}]`;
             const asContext = { ...periodContext, adaptationSet: as };
             dashRules
                 .filter((rule) => rule.scope === 'AdaptationSet')
@@ -286,11 +295,13 @@ export function runChecks(manifest, protocol, context = {}) {
                             ),
                             isoRef: rule.isoRef,
                             category: rule.category,
+                            location: { path: asPath },
                         });
                     }
                 });
 
-            findChildren(as, 'Representation').forEach((rep) => {
+            findChildren(as, 'Representation').forEach((rep, repIndex) => {
+                const repPath = `${asPath}.Representation[${repIndex}]`;
                 const repContext = { ...asContext, representation: rep };
                 dashRules
                     .filter((rule) => rule.scope === 'Representation')
@@ -313,6 +324,7 @@ export function runChecks(manifest, protocol, context = {}) {
                                 ),
                                 isoRef: rule.isoRef,
                                 category: rule.category,
+                                location: { path: repPath },
                             });
                         }
                     });

@@ -1,5 +1,6 @@
 import { html, render } from 'lit-html';
-import { dom, analysisState } from '../../core/state.js';
+import { dom } from '../../core/dom.js';
+import { useStore } from '../../core/store.js';
 import { exampleStreams } from '../../data/example-streams.js';
 
 const HISTORY_KEY = 'dash_analyzer_history';
@@ -352,7 +353,9 @@ const handleSavePreset = (e) => {
  * Adds a new stream input to the state. Does not render.
  */
 export function addStreamInput() {
-    streamInputIds.push(analysisState.streamIdCounter++);
+    const currentCounter = useStore.getState().streamIdCounter;
+    streamInputIds.push(currentCounter);
+    useStore.setState({ streamIdCounter: currentCounter + 1 });
 }
 
 /**
@@ -376,7 +379,7 @@ export function renderStreamInputs() {
  * Resets the stream input state to a single input and renders it.
  */
 export function resetAndRenderAllStreamInputs() {
-    analysisState.streamIdCounter = 0;
+    useStore.setState({ streamIdCounter: 0 });
     streamInputIds = [];
     addStreamInput();
     renderStreamInputs();

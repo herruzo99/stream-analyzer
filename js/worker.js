@@ -3,6 +3,7 @@ import { parse as parseTsSegment } from './protocols/segment/ts/index.js';
 import { parseManifest as parseDashManifestString } from './protocols/manifest/dash/parser.js';
 import { parseManifest as parseHlsManifest } from './protocols/manifest/hls/parser.js';
 import { parseAllSegmentUrls as parseDashSegments } from './protocols/manifest/dash/segment-parser.js';
+import { runChecks } from './engines/compliance/engine.js';
 
 // --- HLS Delta Update Logic (moved from delta-updater.js) ---
 
@@ -153,7 +154,7 @@ async function processSingleStream(input) {
             input.url
         );
         manifestIR = manifest;
-        serializedManifestObject = manifest.rawElement; // HLS adapter places the parsed object here
+        serializedManifestObject = manifest.serializedManifest; // HLS adapter places the parsed object here
         manifestIR.hlsDefinedVariables = definedVariables;
         finalBaseUrl = baseUrl;
     } else {
@@ -187,8 +188,15 @@ async function processSingleStream(input) {
             ) || null;
     }
 
+    const manifestObjectForChecks =
+        input.protocol === 'hls' ? manifestIR : serializedManifestObject;
+    const complianceResults = runChecks(
+        manifestObjectForChecks,
+        input.protocol
+    );
+
     // Ensure rawElement is the correct serializable object before sending
-    manifestIR.rawElement = serializedManifestObject;
+    manifestIR.serializedManifest = serializedManifestObject;
 
     const streamObject = {
         id: input.id,
@@ -274,6 +282,9 @@ async function processSingleStream(input) {
             timestamp: new Date().toLocaleTimeString(),
             diffHtml: initialDiffHtml,
             rawManifest: streamObject.rawManifest,
+            complianceResults,
+            hasNewIssues: false,
+            serializedManifest: serializedManifestObject,
         });
     }
 
@@ -313,7 +324,7 @@ async function handleFetchHlsMediaPlaylist({
             hlsDefinedVariables
         );
 
-        manifest.rawElement = null;
+        manifest.serializedManifest = null;
 
         self.postMessage({
             type: 'hls-media-playlist-fetched',
@@ -339,13 +350,13 @@ async function handleParseLiveUpdate({
     try {
         let finalManifestString = newManifestString;
         let newManifestObject;
+        let newSerializedObject;
 
         if (protocol === 'dash') {
-            const { manifest } = await parseDashManifestString(
-                newManifestString,
-                baseUrl
-            );
+            const { manifest, serializedManifest } =
+                await parseDashManifestString(newManifestString, baseUrl);
             newManifestObject = manifest;
+            newSerializedObject = serializedManifest;
         } else {
             // HLS: Check for Delta Update
             if (newManifestString.includes('#EXT-X-SKIP')) {
@@ -356,17 +367,18 @@ async function handleParseLiveUpdate({
                 );
                 const resolvedParsedHls = applyDeltaUpdate(
                     oldManifestObjectForDelta,
-                    deltaManifest.rawElement
+                    deltaManifest.serializedManifest
                 );
 
                 // Re-adapt and re-serialize to get the final state
+                finalManifestString = serializeHls(resolvedParsedHls);
                 const { manifest: resolvedManifest } = await parseHlsManifest(
-                    serializeHls(resolvedParsedHls),
+                    finalManifestString,
                     baseUrl,
                     hlsDefinedVariables
                 );
                 newManifestObject = resolvedManifest;
-                finalManifestString = serializeHls(resolvedParsedHls);
+                newSerializedObject = resolvedParsedHls;
             } else {
                 const { manifest } = await parseHlsManifest(
                     newManifestString,
@@ -374,11 +386,16 @@ async function handleParseLiveUpdate({
                     hlsDefinedVariables
                 );
                 newManifestObject = manifest;
+                newSerializedObject = manifest.serializedManifest;
             }
         }
 
-        // Remove non-serializable properties before sending back
-        newManifestObject.rawElement = null;
+        const manifestObjectForChecks =
+            protocol === 'hls' ? newManifestObject : newSerializedObject;
+        const complianceResults = runChecks(manifestObjectForChecks, protocol);
+
+        // Attach the serializable object to the IR before sending back
+        newManifestObject.serializedManifest = newSerializedObject;
 
         self.postMessage({
             type: 'live-update-parsed',
@@ -387,6 +404,9 @@ async function handleParseLiveUpdate({
                 newManifestObject,
                 finalManifestString,
                 oldRawManifest,
+                complianceResults,
+                // Add the pristine object for the compliance view
+                serializedManifest: newSerializedObject,
             },
         });
     } catch (e) {
@@ -397,7 +417,7 @@ async function handleParseLiveUpdate({
     }
 }
 
-self.onmessage = async (event) => {
+async function handleMessage(event) {
     const { type, payload } = event.data;
 
     switch (type) {
@@ -438,4 +458,6 @@ self.onmessage = async (event) => {
             break;
         }
     }
-};
+}
+
+self.addEventListener('message', handleMessage);

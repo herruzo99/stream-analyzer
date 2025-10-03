@@ -1,5 +1,5 @@
 import { html } from 'lit-html';
-import { analysisState } from '../../../core/state.js';
+import { useStore } from '../../../core/store.js';
 import { createComparisonViewModel } from './view-model.js';
 import { comparisonRowTemplate } from './row.js';
 
@@ -11,7 +11,7 @@ const sectionTemplate = (title, points, streams) => html`
 `;
 
 export function getComparisonTemplate() {
-    const { streams } = analysisState;
+    const { streams } = useStore.getState();
 
     if (streams.length < 2) {
         return html``; // Should not be visible anyway

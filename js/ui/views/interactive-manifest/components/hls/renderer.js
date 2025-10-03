@@ -7,7 +7,16 @@ import { eventBus } from '../../../../../core/event-bus.js';
 // --- MODULE STATE FOR VIRTUALIZATION ---
 let currentPage = 1;
 const linesPerPage = 500;
-let lastRenderedManifest = null;
+let lastRenderedManifestString = null;
+
+const onPageChange = (offset, stream, totalPages) => {
+    const newPage = currentPage + offset;
+    if (newPage >= 1 && newPage <= totalPages) {
+        currentPage = newPage;
+        const container = document.getElementById('tab-interactive-manifest');
+        render(hlsManifestTemplate(stream), container);
+    }
+};
 
 const escapeHtml = (str) =>
     str
@@ -243,45 +252,15 @@ const structuredTagTemplate = (tag) => {
     `;
 };
 
-const reloadHandler = (stream) => {
-    const urlToReload = stream.activeMediaPlaylistUrl || stream.originalUrl;
-    if (!stream || !urlToReload) {
-        eventBus.dispatch('ui:show-status', {
-            message: 'Cannot reload a manifest from a local file.',
-            type: 'warn',
-            duration: 4000,
-        });
-        return;
-    }
-
-    eventBus.dispatch('ui:show-status', {
-        message: `Reloading manifest for ${stream.name}...`,
-        type: 'info',
-        duration: 2000,
-    });
-
-    if (stream.activeMediaPlaylistUrl) {
-        // This is a media playlist, use the specific reload event
-        eventBus.dispatch('hls:media-playlist-reload', {
-            streamId: stream.id,
-            url: stream.activeMediaPlaylistUrl,
-        });
-    } else {
-        // This is the master playlist, use the general-purpose monitor
-        eventBus.dispatch('manifest:force-reload', { streamId: stream.id });
-    }
-};
-
 export const hlsManifestTemplate = (stream) => {
     const manifestToDisplay = stream.activeManifestForView || stream.manifest;
     const manifestString = stream.activeMediaPlaylistUrl
         ? stream.mediaPlaylists.get(stream.activeMediaPlaylistUrl)?.rawManifest
         : stream.rawManifest;
 
-    // Reset pagination if the underlying manifest has changed
-    if (manifestString !== lastRenderedManifest) {
+    if (manifestString !== lastRenderedManifestString) {
         currentPage = 1;
-        lastRenderedManifest = manifestString;
+        lastRenderedManifestString = manifestString;
     }
 
     const { renditionReports, preloadHints } = manifestToDisplay;
@@ -314,7 +293,6 @@ export const hlsManifestTemplate = (stream) => {
         })
         .filter(Boolean);
 
-    // Inject structured tags at the end
     (renditionReports || []).forEach((report) =>
         allLineTemplates.push(() =>
             structuredTagTemplate({
@@ -331,17 +309,6 @@ export const hlsManifestTemplate = (stream) => {
 
     const totalPages = Math.ceil(allLineTemplates.length / linesPerPage);
 
-    const onPageChange = (offset) => {
-        const newPage = currentPage + offset;
-        if (newPage >= 1 && newPage <= totalPages) {
-            currentPage = newPage;
-            const container = document.getElementById(
-                'tab-interactive-manifest'
-            );
-            render(hlsManifestTemplate(stream), container);
-        }
-    };
-
     const startLine = (currentPage - 1) * linesPerPage;
     const endLine = startLine + linesPerPage;
     const visibleLineTemplates = allLineTemplates.slice(startLine, endLine);
@@ -350,7 +317,7 @@ export const hlsManifestTemplate = (stream) => {
         totalPages > 1
             ? html` <div class="text-center text-sm text-gray-400 mt-4">
                   <button
-                      @click=${() => onPageChange(-1)}
+                      @click=${() => onPageChange(-1, stream, totalPages)}
                       ?disabled=${currentPage === 1}
                       class="px-3 py-1 rounded bg-gray-600 hover:bg-gray-500 disabled:opacity-50 mx-2"
                   >
@@ -364,7 +331,7 @@ export const hlsManifestTemplate = (stream) => {
                       )})</span
                   >
                   <button
-                      @click=${() => onPageChange(1)}
+                      @click=${() => onPageChange(1, stream, totalPages)}
                       ?disabled=${currentPage === totalPages}
                       class="px-3 py-1 rounded bg-gray-600 hover:bg-gray-500 disabled:opacity-50 mx-2"
                   >
@@ -374,15 +341,6 @@ export const hlsManifestTemplate = (stream) => {
             : '';
 
     return html`
-        <div class="flex justify-between items-center mb-2">
-            <h3 class="text-xl font-bold">Interactive Manifest</h3>
-            <button
-                @click=${() => reloadHandler(stream)}
-                class="bg-gray-600 hover:bg-gray-700 text-white font-bold text-xs py-1 px-3 rounded-md transition-colors"
-            >
-                Reload
-            </button>
-        </div>
         ${hlsSubNavTemplate(stream)}
         ${variableTableTemplate(stream.hlsDefinedVariables)}
         <div

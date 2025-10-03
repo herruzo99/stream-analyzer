@@ -1,6 +1,6 @@
 import { parseManifest as parseHlsManifest } from '../protocols/manifest/hls/parser.js';
 import { eventBus } from '../core/event-bus.js';
-import { analysisState } from '../core/state.js';
+import { useStore } from '../core/store.js';
 
 const pollers = new Map();
 let managerInterval = null;
@@ -11,7 +11,7 @@ let managerInterval = null;
  * @param {string} variantUri The URI of the variant playlist to poll.
  */
 export async function pollHlsVariant(streamId, variantUri) {
-    const stream = analysisState.streams.find((s) => s.id === streamId);
+    const stream = useStore.getState().streams.find((s) => s.id === streamId);
     const variantState = stream?.hlsVariantState.get(variantUri);
     if (!stream || !variantState) {
         stopPoller(streamId, variantUri);
@@ -31,13 +31,13 @@ export async function pollHlsVariant(streamId, variantUri) {
             variantUri
         );
         const freshSegmentUrls = new Set(
-            manifest.rawElement.segments.map((s) => s.resolvedUrl)
+            manifest.serializedManifest.segments.map((s) => s.resolvedUrl)
         );
 
         eventBus.dispatch('hls-poller:variant-updated', {
             streamId,
             variantUri,
-            segments: manifest.rawElement.segments,
+            segments: manifest.serializedManifest.segments,
             freshSegmentUrls,
         });
     } catch (error) {
@@ -84,9 +84,11 @@ function stopPoller(streamId, variantUri) {
  * are fetched on-demand when expanded, not via this polling manager.
  */
 export function manageHlsPollers() {
-    const hlsStreams = analysisState.streams.filter(
-        (s) => s.protocol === 'hls' && s.hlsVariantState.size > 0
-    );
+    const hlsStreams = useStore
+        .getState()
+        .streams.filter(
+            (s) => s.protocol === 'hls' && s.hlsVariantState.size > 0
+        );
 
     for (const stream of hlsStreams) {
         for (const [variantUri, state] of stream.hlsVariantState.entries()) {

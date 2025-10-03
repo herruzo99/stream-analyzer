@@ -1,4 +1,4 @@
-import { dom, initializeDom } from './state.js';
+import { dom, initializeDom } from './dom.js';
 import { setupGlobalTooltipListener } from '../ui/components/tooltip.js';
 import { eventBus } from './event-bus.js';
 import {
@@ -20,15 +20,13 @@ import { useStore, storeActions } from './store.js';
 
 import '../services/streamService.js';
 import '../services/segmentService.js';
-import './state-manager.js';
 
 const HISTORY_KEY = 'dash_analyzer_history';
 const PRESETS_KEY = 'dash_analyzer_presets';
 const MAX_HISTORY_ITEMS = 10;
 
 function handleShare() {
-    // Read from the new store instead of analysisState
-    const streams = useStore.getState().getStreams();
+    const streams = useStore.getState().streams;
 
     if (streams.length === 0) return;
 
@@ -42,16 +40,69 @@ function handleShare() {
     navigator.clipboard
         .writeText(url.href)
         .then(() => {
-            const originalText = dom.shareAnalysisBtn.textContent;
-            dom.shareAnalysisBtn.textContent = 'Copied!';
-            setTimeout(() => {
-                dom.shareAnalysisBtn.textContent = originalText;
-            }, 2000);
+            showToast({
+                message: 'Shareable URL copied to clipboard!',
+                type: 'pass',
+            });
         })
         .catch((err) => {
             console.error('Failed to copy URL: ', err);
-            alert('Failed to copy URL to clipboard.');
+            showToast({
+                message: 'Failed to copy URL to clipboard.',
+                type: 'fail',
+            });
         });
+}
+
+function handleCopyDebugInfo() {
+    const state = useStore.getState();
+
+    const replacer = (key, value) => {
+        if (value instanceof Map) {
+            return {
+                __dataType: 'Map',
+                value: Array.from(value.entries()),
+            };
+        }
+        if (value instanceof Set) {
+            return {
+                __dataType: 'Set',
+                value: Array.from(value.values()),
+            };
+        }
+        if (key === 'serializedManifest') {
+            return '[Circular/ParsedObject]';
+        }
+        return value;
+    };
+
+    try {
+        const debugData = {
+            timestamp: new Date().toISOString(),
+            appState: state,
+        };
+
+        const jsonString = JSON.stringify(debugData, replacer, 2);
+
+        navigator.clipboard
+            .writeText(jsonString)
+            .then(() => {
+                showToast({
+                    message: 'Debug info copied to clipboard!',
+                    type: 'pass',
+                });
+            })
+            .catch((err) => {
+                console.error('Failed to copy debug info:', err);
+                showToast({
+                    message: 'Failed to copy debug info.',
+                    type: 'fail',
+                });
+            });
+    } catch (error) {
+        console.error('Error serializing debug state:', error);
+        showToast({ message: 'Error creating debug info.', type: 'fail' });
+    }
 }
 
 // Encapsulate all event listener attachments in an initialization function.
@@ -68,17 +119,10 @@ function initializeEventListeners() {
     });
     dom.contextSwitcher.addEventListener('change', async (e) => {
         const target = /** @type {HTMLSelectElement} */ (e.target);
-        // Write state using the new store action
-        storeActions.setActiveStreamId(parseInt(target.value));
-
-        // The view manager will re-render the tabs when the view state changes.
-        // However, for a simple context switch, we need to manually trigger a re-render
-        // of the single-stream tabs.
-        const { renderSingleStreamTabs } = await import('../ui/rendering.js');
-        // Read state using the new store selector
-        renderSingleStreamTabs(useStore.getState().getActiveStreamId());
+        storeActions.setActiveStreamId(parseInt(target.value, 10));
     });
     dom.shareAnalysisBtn.addEventListener('click', handleShare);
+    dom.copyDebugBtn.addEventListener('click', handleCopyDebugInfo);
 }
 
 // --- HISTORY & PRESET MANAGEMENT ---

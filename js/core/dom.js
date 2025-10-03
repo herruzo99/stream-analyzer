@@ -31,18 +31,35 @@
  */
 
 /**
+ * @typedef {object} SubRepresentation
+ * @property {number | null} level
+ * @property {string | null} dependencyLevel
+ * @property {number | null} bandwidth
+ * @property {string[] | null} contentComponent
+ * @property {string} codecs
+ * @property {string | null} mimeType
+ * @property {string | null} profiles
+ * @property {number | null} width
+ * @property {number | null} height
+ * @property {object} serializedManifest
+ */
+
+/**
  * @typedef {object} Representation
  * @property {string} id
  * @property {string} codecs
  * @property {number} bandwidth
  * @property {number} width
  * @property {number} height
+ * @property {string | null} frameRate
+ * @property {string | null} sar
  * @property {string | null} mimeType
  * @property {string | null} profiles
  * @property {number | null} qualityRanking
  * @property {number} selectionPriority
  * @property {boolean | null} codingDependency
  * @property {'progressive' | 'interlaced' | 'unknown' | null} scanType
+ * @property {string | null} dependencyId
  * @property {string | null} associationId
  * @property {string | null} associationType
  * @property {string | null} segmentProfiles
@@ -62,7 +79,9 @@
  * @property {Descriptor[]} accessibility
  * @property {Label[]} labels
  * @property {Label[]} groupLabels
+ * @property {SubRepresentation[]} subRepresentations
  * @property {string | undefined} videoRange
+ * @property {object} serializedManifest
  */
 
 /**
@@ -93,6 +112,7 @@
  * @property {Label[]} labels
  * @property {Label[]} groupLabels
  * @property {Descriptor[]} roles
+ * @property {object} serializedManifest
  */
 
 /**
@@ -136,6 +156,7 @@
  * @property {Subset[]} subsets
  * @property {EventStream[]} eventStreams
  * @property {Event[]} events
+ * @property {object} serializedManifest
  */
 
 /**
@@ -263,7 +284,7 @@
  * @property {'isobmff' | 'ts' | 'unknown'} segmentFormat
  * @property {Event[]} events
  * @property {Period[]} periods
- * @property {Element | object} rawElement - Reference to the original parsed element or object.
+ * @property {Element | object} serializedManifest - Reference to the original parsed element or object.
  * @property {ManifestSummary} summary - Pre-calculated summary data for the UI.
  * @property {object | null} serverControl - HLS-specific low-latency data
  * @property {Map<string, {value: string, source: string}>=} [hlsDefinedVariables]
@@ -310,9 +331,23 @@
  */
 
 /**
+ * @typedef {object} ComplianceResult
+ * @property {string} id
+ * @property {string} text
+ * @property {'pass' | 'fail' | 'warn' | 'info'} status
+ * @property {string} details
+ * @property {string} isoRef
+ * @property {string} category
+ * @property {{startLine?: number, endLine?: number, path?: string}} location
+ */
+
+/**
  * @typedef {object} ManifestUpdate
  * @property {string} timestamp
  * @property {string} diffHtml
+ * @property {ComplianceResult[]} complianceResults
+ * @property {boolean} hasNewIssues
+ * @property {object} serializedManifest - A pristine snapshot of the manifest object for this update.
  */
 
 /**
@@ -355,42 +390,12 @@
  * @property {number} activeManifestUpdateIndex
  * @property {Map<string, MediaPlaylist>} mediaPlaylists - A cache of fetched media playlists for HLS.
  * @property {string | null} activeMediaPlaylistUrl - The URL of the currently viewed media playlist.
- * @property {Manifest | null} activeManifestForView - The manifest to be displayed in the interactive view.
  * @property {FeatureAnalysisState} featureAnalysis - Aggregated feature analysis results.
  * @property {Map<string, HlsVariantState>} hlsVariantState - State for each HLS variant playlist in the segment explorer.
  * @property {Map<string, DashRepresentationState>} dashRepresentationState
  * @property {Map<string, {value: string, source: string}>=} hlsDefinedVariables
  * @property {Map<string, any>} semanticData
  */
-
-/**
- * @typedef {object} AnalysisState
- * @property {Stream[]} streams
- * @property {number | null} activeStreamId
- * @property {string | null} activeSegmentUrl
- * @property {number | null} segmentFreshnessChecker
- * @property {number} streamIdCounter
- * @property {LRUCache} segmentCache
- * @property {string[]} segmentsForCompare
- * @property {Map<string, DecodedSample>} decodedSamples
- * @property {Map<number, any>} activeByteMap
- */
-import { LRUCache } from './lru-cache.js';
-
-const SEGMENT_CACHE_SIZE = 200;
-
-/** @type {AnalysisState} */
-export let analysisState = {
-    streams: [],
-    activeStreamId: null,
-    activeSegmentUrl: null,
-    segmentFreshnessChecker: null,
-    streamIdCounter: 0,
-    segmentCache: new LRUCache(SEGMENT_CACHE_SIZE),
-    segmentsForCompare: [],
-    decodedSamples: new Map(),
-    activeByteMap: new Map(),
-};
 
 /**
  * @typedef {object} DOM_ELEMENTS
@@ -405,6 +410,7 @@ export let analysisState = {
  * @property {HTMLDivElement} inputSection
  * @property {HTMLButtonElement} newAnalysisBtn
  * @property {HTMLButtonElement} shareAnalysisBtn
+ * @property {HTMLButtonElement} copyDebugBtn
  * @property {HTMLElement} tabs
  * @property {HTMLDivElement} contextSwitcherWrapper
  * @property {HTMLSelectElement} contextSwitcher
@@ -453,6 +459,9 @@ export function initializeDom() {
     );
     dom.shareAnalysisBtn = /** @type {HTMLButtonElement} */ (
         document.getElementById('share-analysis-btn')
+    );
+    dom.copyDebugBtn = /** @type {HTMLButtonElement} */ (
+        document.getElementById('copy-debug-btn')
     );
     dom.tabs = /** @type {HTMLElement} */ (document.getElementById('tabs'));
     dom.contextSwitcherWrapper = /** @type {HTMLDivElement} */ (

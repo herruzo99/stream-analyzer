@@ -239,7 +239,9 @@ const featureChecks = {
         if (roles.length > 0) {
             const roleValues = [
                 ...new Set(
-                    roles.map((role) => `<code>${getAttr(role, 'value')}</code>`)
+                    roles.map(
+                        (role) => `<code>${getAttr(role, 'value')}</code>`
+                    )
                 ),
             ];
             return {

@@ -65,6 +65,14 @@ export class LRUCache {
     }
 
     /**
+     * Executes a provided function once for each key/value pair in the cache.
+     * @param {(value: any, key: any, map: Map<any, any>) => void} callback
+     */
+    forEach(callback) {
+        this.cache.forEach(callback);
+    }
+
+    /**
      * Clears all items from the cache.
      */
     clear() {

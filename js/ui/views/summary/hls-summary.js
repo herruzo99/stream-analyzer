@@ -1,5 +1,5 @@
 /**
- * @typedef {import('../../../core/state.js').Manifest} Manifest
+ * @typedef {import('../../../core/store.js').Manifest} Manifest
  */
 
 const formatBitrate = (bps) => {
@@ -11,10 +11,10 @@ const formatBitrate = (bps) => {
 /**
  * Creates a protocol-agnostic summary view-model from an HLS manifest.
  * @param {Manifest} manifestIR - The partially adapted manifest IR.
- * @returns {import('../../../core/state.js').ManifestSummary}
+ * @returns {import('../../../core/store.js').ManifestSummary}
  */
 export function generateHlsSummary(manifestIR) {
-    const { rawElement } = manifestIR;
+    const { serializedManifest: rawElement } = manifestIR;
     const isMaster = rawElement.isMaster;
 
     const videoTracks = [];
@@ -131,7 +131,7 @@ export function generateHlsSummary(manifestIR) {
         (t) => t.name === 'EXT-X-I-FRAME-STREAM-INF'
     ).length;
 
-    /** @type {import('../../../core/state.js').ManifestSummary} */
+    /** @type {import('../../../core/store.js').ManifestSummary} */
     const summary = {
         general: {
             protocol: 'HLS',

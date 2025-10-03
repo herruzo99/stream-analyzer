@@ -152,10 +152,7 @@ const renderVariant = (stream, variant, variantUri) => {
             No segments found in this playlist.
         </div>`;
     } else {
-        content = html` <div
-            class="overflow-y-auto relative"
-            style="max-height: calc(2.8rem * 15);"
-        >
+        content = html` <div class="overflow-y-auto relative max-h-[70vh]">
             ${liveEdgeIndicatorTemplate(stream, segmentsToDisplay)}
             <table class="w-full text-left text-sm table-auto">
                 <thead class="sticky top-0 bg-gray-900 z-10">
@@ -235,7 +232,7 @@ const renderVariant = (stream, variant, variantUri) => {
 
 /**
  * Creates the lit-html template for the HLS segment explorer content.
- * @param {import('../../../../../core/state.js').Stream} stream
+ * @param {import('../../../../../core/store.js').Stream} stream
  * @returns {import('lit-html').TemplateResult}
  */
 export function getHlsExplorerTemplate(stream) {

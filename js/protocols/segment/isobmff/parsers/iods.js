@@ -40,19 +40,15 @@ export function parseIods(box, view) {
 
     // --- InitialObjectDescriptor ---
     const iodTag = p.readUint8('InitialObjectDescriptor_tag');
-    if (iodTag !== 0x02) {
-        // As per ISO/IEC 14496-1, the IOD uses the tag 0x02.
-        // However, the spec for 'iods' box states it contains an ES_Descriptor,
-        // which starts with tag 0x03. Let's check for both for robustness.
-        if (iodTag !== 0x03) {
-            p.addIssue(
-                'warn',
-                `Expected InitialObjectDescriptor tag (0x02) or ES_Descriptor tag (0x03), but found ${iodTag}.`
-            );
-            p.readRemainingBytes('unknown_descriptor_data');
-            p.finalize();
-            return;
-        }
+    // FIX: Allow IOD (0x02), ES (0x03), or MP4_IOD (0x10) tags.
+    if (iodTag !== 0x02 && iodTag !== 0x03 && iodTag !== 0x10) {
+        p.addIssue(
+            'warn',
+            `Expected IOD tag (0x02, 0x03, or 0x10), but found ${iodTag}.`
+        );
+        p.readRemainingBytes('unknown_descriptor_data');
+        p.finalize();
+        return;
     }
 
     const iodSize = parseDescriptorSize(p, 'InitialObjectDescriptor_size');

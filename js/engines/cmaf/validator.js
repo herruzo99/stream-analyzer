@@ -1,4 +1,4 @@
-import { analysisState } from '../../core/state.js';
+import { useStore } from '../../core/store.js';
 import { eventBus } from '../../core/event-bus.js';
 import { cmafTrackRules } from './rules.js';
 import { compareBoxes } from './utils.js';
@@ -7,6 +7,7 @@ import { validateCmafProfiles } from './profile-validator.js';
 import {
     findChild,
     getAttr,
+    resolveBaseUrl,
 } from '../../protocols/manifest/dash/recursive-parser.js';
 
 // Configuration for CMAF Switching Set validation based on ISO/IEC 23000-19:2020(E), Table 11.
@@ -38,7 +39,7 @@ const SWITCHING_SET_BOX_CHECKS = [
  * @returns {Promise<object>} A promise that resolves with the parsed segment data.
  */
 export function getParsedSegment(url) {
-    const cachedEntry = analysisState.segmentCache.get(url);
+    const cachedEntry = useStore.getState().segmentCache.get(url);
     if (cachedEntry && cachedEntry.status !== -1 && cachedEntry.parsedData) {
         if (cachedEntry.parsedData.error) {
             return Promise.reject(new Error(cachedEntry.parsedData.error));
@@ -147,12 +148,21 @@ export async function validateCmafTrack(stream) {
     );
     const repSegments = segmentsByRep[representation.id];
 
+    const manifestElement = stream.manifest.rawElement; // The serialized object
+    const resolvedBaseUrl = resolveBaseUrl(
+        stream.baseUrl,
+        manifestElement,
+        period.rawElement,
+        adaptationSet.rawElement,
+        representation.rawElement
+    );
     const initSegmentUrl = findInitSegmentUrl(
         representation,
         adaptationSet,
         period,
-        stream.baseUrl
+        resolvedBaseUrl
     );
+
     const firstMediaSegment = repSegments?.find((s) => s.type === 'Media');
 
     if (!initSegmentUrl || !firstMediaSegment?.resolvedUrl) {
@@ -235,6 +245,7 @@ export async function validateCmafSwitchingSets(stream) {
     if (stream.protocol !== 'dash') {
         return results;
     }
+    const manifestElement = stream.manifest.rawElement;
 
     for (const period of stream.manifest.periods) {
         for (const as of period.adaptationSets) {
@@ -250,9 +261,17 @@ export async function validateCmafSwitchingSets(stream) {
             }
 
             try {
-                const initSegmentUrls = as.representations.map((rep) =>
-                    findInitSegmentUrl(rep, as, period, stream.baseUrl)
-                );
+                const initSegmentUrls = as.representations.map((rep) => {
+                    const resolvedBaseUrl = resolveBaseUrl(
+                        stream.baseUrl,
+                        manifestElement,
+                        period.rawElement,
+                        as.rawElement,
+                        rep.rawElement
+                    );
+                    return findInitSegmentUrl(rep, as, period, resolvedBaseUrl);
+                });
+
                 const parsedInitSegments = await Promise.all(
                     initSegmentUrls.map((url) =>
                         url ? getParsedSegment(url) : Promise.resolve(null)

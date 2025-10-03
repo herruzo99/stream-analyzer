@@ -1,5 +1,5 @@
 import { html, render } from 'lit-html';
-import { analysisState } from '../../../core/state.js';
+import { useStore } from '../../../core/store.js';
 import { eventBus } from '../../../core/event-bus.js';
 import { getDashExplorerTemplate } from './components/dash/index.js';
 import {
@@ -15,7 +15,7 @@ let dashDisplayMode = 'first'; // 'first' or 'last'
 
 // --- EVENT HANDLERS ---
 function handleCompareClick() {
-    const { segmentsForCompare } = analysisState;
+    const { segmentsForCompare } = useStore.getState();
     if (segmentsForCompare.length !== 2) return;
     eventBus.dispatch('ui:request-segment-comparison', {
         urlA: segmentsForCompare[0],
@@ -26,7 +26,9 @@ function handleCompareClick() {
 function handleDashModeClick(mode) {
     if (dashDisplayMode === mode) return;
     dashDisplayMode = mode;
-    const stream = analysisState.streams.find((s) => s.id === currentStreamId);
+    const stream = useStore
+        .getState()
+        .streams.find((s) => s.id === currentStreamId);
     if (stream && currentContainer) {
         // Just re-render. The template will use the new display mode.
         // Segment fetching is handled by the state manager.
@@ -103,9 +105,9 @@ export function initializeSegmentExplorer(container, stream) {
 
     if (stream.protocol === 'hls' && stream.manifest.type === 'dynamic') {
         const reRender = () => {
-            const currentStream = analysisState.streams.find(
-                (s) => s.id === currentStreamId
-            );
+            const currentStream = useStore
+                .getState()
+                .streams.find((s) => s.id === currentStreamId);
             if (currentStream && container.offsetParent !== null) {
                 render(getSegmentExplorerTemplate(currentStream), container);
             }
@@ -140,7 +142,9 @@ eventBus.subscribe('stream:data-updated', ({ streamId }) => {
         currentContainer &&
         currentContainer.offsetParent !== null
     ) {
-        const stream = analysisState.streams.find((s) => s.id === streamId);
+        const stream = useStore
+            .getState()
+            .streams.find((s) => s.id === streamId);
         if (stream) {
             render(getSegmentExplorerTemplate(stream), currentContainer);
         }
@@ -153,7 +157,9 @@ eventBus.subscribe('state:stream-variant-changed', ({ streamId }) => {
         currentContainer &&
         currentContainer.offsetParent !== null
     ) {
-        const stream = analysisState.streams.find((s) => s.id === streamId);
+        const stream = useStore
+            .getState()
+            .streams.find((s) => s.id === streamId);
         if (stream)
             render(getSegmentExplorerTemplate(stream), currentContainer);
     }
@@ -164,9 +170,9 @@ eventBus.subscribe('segment:loaded', () => {
         currentContainer &&
         currentContainer.offsetParent !== null // Only re-render if the tab is visible
     ) {
-        const stream = analysisState.streams.find(
-            (s) => s.id === currentStreamId
-        );
+        const stream = useStore
+            .getState()
+            .streams.find((s) => s.id === currentStreamId);
         if (stream) {
             render(getSegmentExplorerTemplate(stream), currentContainer);
         }

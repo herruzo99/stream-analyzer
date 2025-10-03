@@ -14,6 +14,8 @@ import { adaptHlsToIr } from './adapter.js';
  * @property {boolean} [discontinuity]
  * @property {string} [dateTime]
  * @property {string} type
+ * @property {number} extinfLineNumber
+ * @property {number} [uriLineNumber]
  */
 
 /**
@@ -108,7 +110,7 @@ function applyVariableSubstitution(
  * @param {string} manifestString The raw HLS playlist.
  * @param {string} baseUrl The URL from which the playlist was fetched.
  * @param {Map<string, {value: string, source: string}>=} parentVariables - Variables inherited from a master playlist.
- * @returns {Promise<{manifest: import('../../../core/state.js').Manifest, definedVariables: Map<string, {value: string, source: string}>, baseUrl: string}>}
+ * @returns {Promise<{manifest: import('../../../core/store.js').Manifest, definedVariables: Map<string, {value: string, source: string}>, baseUrl: string}>}
  */
 export async function parseManifest(manifestString, baseUrl, parentVariables) {
     let rawManifestForParsing = manifestString;
@@ -170,18 +172,23 @@ export async function parseManifest(manifestString, baseUrl, parentVariables) {
                         attributes,
                         uri,
                         resolvedUri: new URL(uri, baseUrl).href,
+                        lineNumber: i,
                     });
                     break;
                 }
                 case 'EXT-X-MEDIA':
                     parsed.isMaster = true;
-                    parsed.media.push(parseAttributeList(tagValue));
+                    parsed.media.push({
+                        ...parseAttributeList(tagValue),
+                        lineNumber: i,
+                    });
                     break;
                 case 'EXT-X-I-FRAME-STREAM-INF':
                     parsed.isMaster = true;
                     parsed.tags.push({
                         name: tagName,
                         value: parseAttributeList(tagValue),
+                        lineNumber: i,
                     });
                     break;
                 case 'EXTINF': {
@@ -199,6 +206,7 @@ export async function parseManifest(manifestString, baseUrl, parentVariables) {
                         bitrate: currentBitrate,
                         gap: false,
                         type: 'Media',
+                        extinfLineNumber: i,
                     };
                     break;
                 }
@@ -219,6 +227,7 @@ export async function parseManifest(manifestString, baseUrl, parentVariables) {
                         currentSegment.tags.push({
                             name: tagName,
                             value: tagValue,
+                            lineNumber: i,
                         }); // Store byterange as a generic tag for now
                     break;
                 case 'EXT-X-DISCONTINUITY':
@@ -230,11 +239,18 @@ export async function parseManifest(manifestString, baseUrl, parentVariables) {
                     if (keyAttributes.METHOD === 'NONE') {
                         currentKey = null;
                     }
-                    parsed.tags.push({ name: tagName, value: keyAttributes });
+                    parsed.tags.push({
+                        name: tagName,
+                        value: keyAttributes,
+                        lineNumber: i,
+                    });
                     break;
                 }
                 case 'EXT-X-MAP':
-                    parsed.map = parseAttributeList(tagValue);
+                    parsed.map = {
+                        ...parseAttributeList(tagValue),
+                        lineNumber: i,
+                    };
                     break;
                 case 'EXT-X-PROGRAM-DATE-TIME':
                     if (currentSegment) currentSegment.dateTime = tagValue;
@@ -253,22 +269,35 @@ export async function parseManifest(manifestString, baseUrl, parentVariables) {
                     break;
                 case 'EXT-X-ENDLIST':
                     parsed.isLive = false;
-                    parsed.tags.push({ name: tagName, value: null });
+                    parsed.tags.push({
+                        name: tagName,
+                        value: null,
+                        lineNumber: i,
+                    });
                     break;
                 case 'EXT-X-VERSION':
                     parsed.version = parseInt(tagValue, 10);
-                    parsed.tags.push({ name: tagName, value: parsed.version });
+                    parsed.tags.push({
+                        name: tagName,
+                        value: parsed.version,
+                        lineNumber: i,
+                    });
                     break;
                 // --- Low Latency HLS Tags ---
                 case 'EXT-X-PART-INF':
                     parsed.partInf = parseAttributeList(tagValue);
-                    parsed.tags.push({ name: tagName, value: parsed.partInf });
+                    parsed.tags.push({
+                        name: tagName,
+                        value: parsed.partInf,
+                        lineNumber: i,
+                    });
                     break;
                 case 'EXT-X-SERVER-CONTROL':
                     parsed.serverControl = parseAttributeList(tagValue);
                     parsed.tags.push({
                         name: tagName,
                         value: parsed.serverControl,
+                        lineNumber: i,
                     });
                     break;
                 case 'EXT-X-PART':
@@ -278,21 +307,30 @@ export async function parseManifest(manifestString, baseUrl, parentVariables) {
                             ...partAttrs,
                             resolvedUri: new URL(String(partAttrs.URI), baseUrl)
                                 .href,
+                            lineNumber: i,
                         });
                     }
                     break;
                 case 'EXT-X-PRELOAD-HINT':
-                    parsed.preloadHints.push(parseAttributeList(tagValue));
+                    parsed.preloadHints.push({
+                        ...parseAttributeList(tagValue),
+                        lineNumber: i,
+                    });
                     parsed.tags.push({
                         name: tagName,
                         value: parsed.preloadHints.at(-1),
+                        lineNumber: i,
                     });
                     break;
                 case 'EXT-X-RENDITION-REPORT':
-                    parsed.renditionReports.push(parseAttributeList(tagValue));
+                    parsed.renditionReports.push({
+                        ...parseAttributeList(tagValue),
+                        lineNumber: i,
+                    });
                     parsed.tags.push({
                         name: tagName,
                         value: parsed.renditionReports.at(-1),
+                        lineNumber: i,
                     });
                     break;
                 // --- Other Modern Tags ---
@@ -304,6 +342,7 @@ export async function parseManifest(manifestString, baseUrl, parentVariables) {
                     parsed.tags.push({
                         name: tagName,
                         value: parseAttributeList(tagValue),
+                        lineNumber: i,
                     });
                     break;
                 default:
@@ -311,9 +350,14 @@ export async function parseManifest(manifestString, baseUrl, parentVariables) {
                         currentSegment.tags.push({
                             name: tagName,
                             value: tagValue,
+                            lineNumber: i,
                         });
                     } else {
-                        parsed.tags.push({ name: tagName, value: tagValue });
+                        parsed.tags.push({
+                            name: tagName,
+                            value: tagValue,
+                            lineNumber: i,
+                        });
                     }
                     break;
             }
@@ -321,6 +365,7 @@ export async function parseManifest(manifestString, baseUrl, parentVariables) {
             if (currentSegment) {
                 currentSegment.uri = line;
                 currentSegment.resolvedUrl = new URL(line, baseUrl).href;
+                currentSegment.uriLineNumber = i;
                 parsed.segments.push(currentSegment);
                 currentSegment = null;
             }

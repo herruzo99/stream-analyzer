@@ -7,9 +7,10 @@ import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
  * @param {number} start - The starting byte offset to render.
  * @param {number} end - The ending byte offset to render.
  * @param {Map<number, object>} byteMap - The pre-built map of byte properties.
+ * @param {object} allTooltips - The aggregated tooltip data for all formats.
  * @returns {{offsets: string, hexes: string, asciis: string}}
  */
-function renderHexGridContent(view, start, end, byteMap) {
+function renderHexGridContent(view, start, end, byteMap, allTooltips) {
     let offsetsHtml = '';
     let hexHtml = '';
     let asciiHtml = '';
@@ -31,19 +32,66 @@ function renderHexGridContent(view, start, end, byteMap) {
             if (byteOffset < end) {
                 const byte = view[byteOffset];
                 const mapEntry = byteMap.get(byteOffset);
+                const prevMapEntry = byteMap.get(byteOffset - 1);
+
+                let tooltipText = '';
+                let isoRefText = '';
+                let fieldBoundaryClass = '';
+
+                if (mapEntry) {
+                    const boxType = mapEntry.box?.type || mapEntry.packet?.type;
+                    const fieldName = mapEntry.fieldName;
+
+                    let primaryTooltip = fieldName; // Default to raw field name
+                    let primaryIsoRef = '';
+
+                    if (boxType) {
+                        const boxInfo = allTooltips[boxType];
+                        const fieldInfo =
+                            allTooltips[`${boxType}@${fieldName}`];
+
+                        if (fieldInfo && fieldInfo.text) {
+                            primaryTooltip = fieldInfo.text;
+                            primaryIsoRef = fieldInfo.ref || '';
+                        } else if (
+                            boxInfo &&
+                            boxInfo.text &&
+                            (fieldName === 'Box Header' ||
+                                fieldName === 'TS Header')
+                        ) {
+                            primaryTooltip = boxInfo.text;
+                            primaryIsoRef = boxInfo.ref || '';
+                        }
+                    }
+                    tooltipText = primaryTooltip;
+                    isoRefText = primaryIsoRef;
+
+                    if (
+                        prevMapEntry &&
+                        mapEntry.fieldName !== prevMapEntry.fieldName &&
+                        (mapEntry.box?.offset === prevMapEntry.box?.offset ||
+                            mapEntry.packet?.offset ===
+                                prevMapEntry.packet?.offset) &&
+                        byteOffset % 16 !== 0
+                    ) {
+                        fieldBoundaryClass = 'border-l-2 border-white/10';
+                    }
+                }
+
                 const bgColor = mapEntry?.color?.bg || '';
+                const styleAttr = mapEntry?.color?.style || '';
                 const hexByte = byte
                     .toString(16)
                     .padStart(2, '0')
                     .toUpperCase();
-                const commonAttrs = `data-byte-offset="${byteOffset}" data-box-offset="${mapEntry?.box?.offset}"`;
-                hexRow += `<span ${commonAttrs} class="hex-byte relative ${bgColor}">${hexByte}</span>`;
+                const commonAttrs = `data-byte-offset="${byteOffset}" data-box-offset="${mapEntry?.box?.offset}" data-tooltip="${tooltipText}" data-iso="${isoRefText}"`;
+                hexRow += `<span ${commonAttrs} class="hex-byte relative ${bgColor} ${fieldBoundaryClass}" style="${styleAttr}">${hexByte}</span>`;
 
                 const asciiChar =
                     byte >= 32 && byte <= 126
                         ? String.fromCharCode(byte).replace('<', '&lt;')
                         : '.';
-                asciiRow += `<span ${commonAttrs} class="ascii-char relative ${bgColor}">${asciiChar}</span>`;
+                asciiRow += `<span ${commonAttrs} class="ascii-char relative ${bgColor} ${fieldBoundaryClass}" style="${styleAttr}">${asciiChar}</span>`;
             } else {
                 hexRow += '<span></span>';
                 asciiRow += '<span></span>';
@@ -60,7 +108,8 @@ export const hexViewTemplate = (
     byteMap,
     currentPage,
     bytesPerPage,
-    onPageChange
+    onPageChange,
+    allTooltips
 ) => {
     const totalPages = Math.ceil(buffer.byteLength / bytesPerPage);
     const startOffset = (currentPage - 1) * bytesPerPage;
@@ -71,7 +120,8 @@ export const hexViewTemplate = (
         view,
         startOffset,
         endByte,
-        byteMap
+        byteMap,
+        allTooltips
     );
 
     return html`
@@ -88,57 +138,66 @@ export const hexViewTemplate = (
             }
         </style>
         <div
-            class="bg-slate-800 rounded-lg p-4 font-mono text-sm leading-relaxed overflow-x-auto h-full"
+            class="bg-slate-800 rounded-lg font-mono text-sm leading-relaxed flex flex-col h-full"
         >
-            <div
-                class="grid grid-cols-[auto_1fr_auto] gap-x-4 sticky top-0 bg-slate-800 pb-2 mb-2 border-b border-gray-600 z-20"
-            >
-                <div class="text-gray-400 font-semibold text-right">Offset</div>
-                <div class="text-gray-400 font-semibold text-center">
-                    Hexadecimal
+            <div class="flex-grow overflow-y-auto p-4">
+                <div
+                    class="grid grid-cols-[auto_1fr_auto] gap-x-4 sticky top-0 bg-slate-800 pb-2 mb-2 border-b border-gray-600 z-20"
+                >
+                    <div class="text-gray-400 font-semibold text-right">
+                        Offset
+                    </div>
+                    <div class="text-gray-400 font-semibold text-center">
+                        Hexadecimal
+                    </div>
+                    <div class="text-gray-400 font-semibold text-center">
+                        ASCII
+                    </div>
                 </div>
-                <div class="text-gray-400 font-semibold text-center">ASCII</div>
+                <div
+                    id="hex-grid-content"
+                    class="grid grid-cols-[auto_1fr_auto] gap-x-4"
+                >
+                    <div class="pr-4 leading-loose">${unsafeHTML(offsets)}</div>
+                    <div class="hex-content-grid leading-loose">
+                        ${unsafeHTML(hexes)}
+                    </div>
+                    <div class="text-cyan-400 ascii-content-grid leading-loose">
+                        ${unsafeHTML(asciis)}
+                    </div>
+                </div>
             </div>
-            <div
-                id="hex-grid-content"
-                class="grid grid-cols-[auto_1fr_auto] gap-x-4"
-            >
-                <div class="pr-4 leading-loose">${unsafeHTML(offsets)}</div>
-                <div class="hex-content-grid leading-loose">
-                    ${unsafeHTML(hexes)}
-                </div>
-                <div class="text-cyan-400 ascii-content-grid leading-loose">
-                    ${unsafeHTML(asciis)}
-                </div>
-            </div>
+
+            ${totalPages > 1
+                ? html`
+                      <div
+                          class="flex-shrink-0 text-center text-sm text-gray-500 py-2 border-t border-gray-700"
+                      >
+                          Showing bytes ${startOffset} -
+                          ${Math.min(
+                              startOffset + bytesPerPage - 1,
+                              buffer.byteLength - 1
+                          )}
+                          of ${buffer.byteLength}
+                          (${(buffer.byteLength / 1024).toFixed(2)} KB)
+                          <button
+                              @click=${() => onPageChange(-1)}
+                              ?disabled=${currentPage === 1}
+                              class="px-2 py-1 rounded bg-gray-600 hover:bg-gray-500 disabled:opacity-50 mx-1"
+                          >
+                              &lt;
+                          </button>
+                          Page ${currentPage} of ${totalPages}
+                          <button
+                              @click=${() => onPageChange(1)}
+                              ?disabled=${currentPage === totalPages}
+                              class="px-2 py-1 rounded bg-gray-600 hover:bg-gray-500 disabled:opacity-50 mx-1"
+                          >
+                              &gt;
+                          </button>
+                      </div>
+                  `
+                : ''}
         </div>
-        ${totalPages > 1
-            ? html`
-                  <div class="text-center text-sm text-gray-500 mt-4">
-                      Showing bytes ${startOffset} -
-                      ${Math.min(
-                          startOffset + bytesPerPage - 1,
-                          buffer.byteLength - 1
-                      )}
-                      of ${buffer.byteLength} ($ {(buffer.byteLength /
-                      1024).toFixed(2)} KB)
-                      <button
-                          @click=${() => onPageChange(-1)}
-                          ?disabled=${currentPage === 1}
-                          class="px-2 py-1 rounded bg-gray-600 hover:bg-gray-500 disabled:opacity-50 mx-1"
-                      >
-                          &lt;
-                      </button>
-                      Page ${currentPage} of ${totalPages}
-                      <button
-                          @click=${() => onPageChange(1)}
-                          ?disabled=${currentPage === totalPages}
-                          class="px-2 py-1 rounded bg-gray-600 hover:bg-gray-500 disabled:opacity-50 mx-1"
-                      >
-                          &gt;
-                      </button>
-                  </div>
-              `
-            : ''}
     `;
 };

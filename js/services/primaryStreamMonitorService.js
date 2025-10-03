@@ -1,5 +1,5 @@
 import { eventBus } from '../core/event-bus.js';
-import { analysisState } from '../core/state.js';
+import { useStore } from '../core/store.js';
 
 const pollers = new Map();
 let managerInterval = null;
@@ -16,12 +16,14 @@ liveUpdateWorker.onmessage = (event) => {
             newManifestObject,
             finalManifestString,
             oldRawManifest,
+            complianceResults,
         } = payload;
         eventBus.dispatch('livestream:manifest-updated', {
             streamId,
             newManifestString: finalManifestString,
             newManifestObject,
             oldManifestString: oldRawManifest,
+            complianceResults,
         });
     } else if (type === 'live-update-error') {
         console.error(
@@ -37,7 +39,7 @@ liveUpdateWorker.onmessage = (event) => {
  * @param {number} streamId The ID of the stream to poll.
  */
 async function monitorStream(streamId) {
-    const stream = analysisState.streams.find((s) => s.id === streamId);
+    const stream = useStore.getState().streams.find((s) => s.id === streamId);
     if (!stream || !stream.originalUrl) {
         stopMonitoring(streamId); // Stop if stream is gone
         return;
@@ -68,7 +70,7 @@ async function monitorStream(streamId) {
                 baseUrl: stream.baseUrl,
                 hlsDefinedVariables: stream.hlsDefinedVariables,
                 // For HLS delta updates, the worker needs the old parsed object.
-                oldManifestObjectForDelta: stream.manifest?.rawElement,
+                oldManifestObjectForDelta: stream.manifest?.serializedManifest,
             },
         });
     } catch (e) {
@@ -81,7 +83,7 @@ async function monitorStream(streamId) {
 
 /**
  * Starts the polling monitor for a given stream if it's dynamic.
- * @param {import('../core/state.js').Stream} stream
+ * @param {import('../core/store.js').Stream} stream
  */
 function startMonitoring(stream) {
     if (pollers.has(stream.id)) {
@@ -119,9 +121,9 @@ function stopMonitoring(streamId) {
  * with the per-stream state. Now exported for deterministic testing.
  */
 export function managePollers() {
-    const dynamicStreams = analysisState.streams.filter(
-        (s) => s.manifest?.type === 'dynamic'
-    );
+    const dynamicStreams = useStore
+        .getState()
+        .streams.filter((s) => s.manifest?.type === 'dynamic');
 
     dynamicStreams.forEach((stream) => {
         const isCurrentlyPolling = pollers.has(stream.id);

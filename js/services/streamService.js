@@ -1,5 +1,5 @@
 import { eventBus } from '../core/event-bus.js';
-import { analysisState } from '../core/state.js';
+import { useStore, storeActions } from '../core/store.js';
 
 const analysisWorker = new Worker('/dist/worker.js', { type: 'module' });
 let analysisStartTime = 0;
@@ -10,7 +10,7 @@ analysisWorker.onmessage = (event) => {
     switch (type) {
         case 'analysis-complete': {
             const results = payload.streams;
-            eventBus.dispatch('state:analysis-complete', { streams: results });
+            storeActions.completeAnalysis(results);
             const tEndTotal = performance.now();
             console.log(
                 `[DEBUG] Total Analysis Pipeline (success): ${(
@@ -19,28 +19,31 @@ analysisWorker.onmessage = (event) => {
             );
             break;
         }
-        case 'analysis-error':
+        case 'analysis-error': {
             eventBus.dispatch('analysis:error', {
                 message: payload.message,
                 error: payload.error,
             });
             break;
-        case 'analysis-failed':
+        }
+        case 'analysis-failed': {
             eventBus.dispatch('analysis:failed');
-            let tEnd = performance.now();
+            const tEnd = performance.now();
             console.log(
                 `[DEBUG] Total Analysis Pipeline (failed): ${(
                     tEnd - analysisStartTime
                 ).toFixed(2)}ms`
             );
             break;
-        case 'status-update':
+        }
+        case 'status-update': {
             eventBus.dispatch('ui:show-status', {
                 message: payload.message,
                 type: 'info',
                 duration: 2000,
             });
             break;
+        }
     }
 };
 
@@ -97,18 +100,15 @@ async function fetchAndSetHlsMediaPlaylist({
     url,
     isReload = false,
 }) {
-    const stream = analysisState.streams.find((s) => s.id === streamId);
+    const stream = useStore.getState().streams.find((s) => s.id === streamId);
     if (!stream) return;
 
     if (url === 'master') {
         const master = stream.mediaPlaylists.get('master');
         if (master) {
-            eventBus.dispatch('state:stream-updated', {
-                streamId,
-                updatedStreamData: {
-                    activeManifestForView: master.manifest,
-                    activeMediaPlaylistUrl: null,
-                },
+            storeActions.updateStream(streamId, {
+                manifest: master.manifest,
+                activeMediaPlaylistUrl: null,
             });
         }
         return;
@@ -116,12 +116,9 @@ async function fetchAndSetHlsMediaPlaylist({
 
     if (stream.mediaPlaylists.has(url) && !isReload) {
         const mediaPlaylist = stream.mediaPlaylists.get(url);
-        eventBus.dispatch('state:stream-updated', {
-            streamId,
-            updatedStreamData: {
-                activeManifestForView: mediaPlaylist.manifest,
-                activeMediaPlaylistUrl: url,
-            },
+        storeActions.updateStream(streamId, {
+            manifest: mediaPlaylist.manifest,
+            activeMediaPlaylistUrl: url,
         });
         return;
     }
@@ -144,7 +141,9 @@ analysisWorker.addEventListener('message', (event) => {
     const { type, payload } = event.data;
     if (type === 'hls-media-playlist-fetched') {
         const { streamId, url, manifest, rawManifest } = payload;
-        const stream = analysisState.streams.find((s) => s.id === streamId);
+        const stream = useStore
+            .getState()
+            .streams.find((s) => s.id === streamId);
         if (stream) {
             const newPlaylists = new Map(stream.mediaPlaylists);
             newPlaylists.set(url, {
@@ -153,14 +152,12 @@ analysisWorker.addEventListener('message', (event) => {
                 lastFetched: new Date(),
             });
 
-            eventBus.dispatch('state:stream-updated', {
-                streamId,
-                updatedStreamData: {
-                    mediaPlaylists: newPlaylists,
-                    activeManifestForView: manifest,
-                    activeMediaPlaylistUrl: url,
-                },
+            storeActions.updateStream(streamId, {
+                mediaPlaylists: newPlaylists,
+                manifest: manifest,
+                activeMediaPlaylistUrl: url,
             });
+
             eventBus.dispatch('ui:show-status', {
                 message: 'Media playlist loaded.',
                 type: 'pass',

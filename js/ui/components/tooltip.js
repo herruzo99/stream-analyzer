@@ -1,42 +1,58 @@
-import { dom } from '../../core/state.js';
+import { dom } from '../../core/dom.js';
 
 export function setupGlobalTooltipListener() {
     document.body.addEventListener('mouseover', (e) => {
         const target = /** @type {HTMLElement} */ (e.target);
 
         const tooltipTrigger = /** @type {HTMLElement} */ (
-            target.closest('[data-tooltip]')
+            target.closest('[data-tooltip], [data-tooltip-html-b64]')
         );
 
         if (!tooltipTrigger) {
-            // Hide the tooltip if we move off a trigger
             dom.globalTooltip.style.visibility = 'hidden';
             dom.globalTooltip.style.opacity = '0';
             return;
         }
 
-        const text = tooltipTrigger.dataset.tooltip || '';
-        const isoRef = tooltipTrigger.dataset.iso || '';
+        const b64Html = tooltipTrigger.dataset.tooltipHtmlB64;
+        let tooltipContent = '';
 
-        if (!text) return;
+        try {
+            if (b64Html) {
+                tooltipContent = atob(b64Html);
+            } else {
+                const text = tooltipTrigger.dataset.tooltip || '';
+                const isoRef = tooltipTrigger.dataset.iso || '';
+                if (!text) return; // Don't show empty tooltips
 
-        const tooltipContent = `${text}${
-            isoRef
-                ? `<span class="block mt-1 font-medium text-emerald-300">${isoRef}</span>`
-                : ''
-        }`;
+                tooltipContent = `${text}${
+                    isoRef
+                        ? `<span class="block mt-1 font-medium text-emerald-300">${isoRef}</span>`
+                        : ''
+                }`;
+            }
+        } catch (error) {
+            console.error(
+                'Failed to decode or process tooltip content:',
+                error
+            );
+            tooltipContent = '<span class="text-red-400">Tooltip Error</span>';
+        }
+
+        if (!tooltipContent.trim()) {
+            dom.globalTooltip.style.visibility = 'hidden';
+            dom.globalTooltip.style.opacity = '0';
+            return;
+        }
 
         dom.globalTooltip.innerHTML = tooltipContent;
 
-        // Position the tooltip above the trigger element
         const targetRect = tooltipTrigger.getBoundingClientRect();
         const tooltipRect = dom.globalTooltip.getBoundingClientRect();
 
-        // Center the tooltip horizontally above the element
         let left =
             targetRect.left + targetRect.width / 2 - tooltipRect.width / 2;
 
-        // Ensure it doesn't go off the left or right edge of the screen
         if (left < 10) left = 10;
         if (left + tooltipRect.width > window.innerWidth - 10) {
             left = window.innerWidth - tooltipRect.width - 10;
@@ -51,12 +67,12 @@ export function setupGlobalTooltipListener() {
         dom.globalTooltip.style.opacity = '1';
     });
 
-    // A simpler mouseout listener for the whole body
     document.body.addEventListener('mouseout', (e) => {
-        // If the mouse leaves the trigger and doesn't enter another part of it
         const target = /** @type {HTMLElement} */ (e.target);
         const relatedTarget = /** @type {HTMLElement} */ (e.relatedTarget);
-        const tooltipTrigger = target.closest('[data-tooltip]');
+        const tooltipTrigger = target.closest(
+            '[data-tooltip], [data-tooltip-html-b64]'
+        );
 
         if (tooltipTrigger && !tooltipTrigger.contains(relatedTarget)) {
             dom.globalTooltip.style.visibility = 'hidden';
