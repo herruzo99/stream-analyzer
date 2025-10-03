@@ -23,7 +23,7 @@ export const rules = [
     {
         id: 'HLS-1',
         text: 'Playlist must start with #EXTM3U',
-        isoRef: 'RFC 8216bis, 4.3.1.1',
+        isoRef: 'RFC 8216bis, 4.4.1.1',
         severity: 'fail',
         scope: 'Playlist',
         category: 'HLS Structure',
@@ -34,7 +34,7 @@ export const rules = [
     {
         id: 'HLS-2',
         text: 'Playlist must contain no more than one EXT-X-VERSION tag',
-        isoRef: 'RFC 8216bis, 4.3.1.2',
+        isoRef: 'RFC 8216bis, 4.4.1.2',
         severity: 'fail',
         scope: 'Playlist',
         category: 'HLS Structure',
@@ -47,7 +47,7 @@ export const rules = [
     {
         id: 'HLS-5',
         text: 'Playlist must not mix Media and Master tags',
-        isoRef: 'RFC 8216bis, 4.1 & 4.3.4',
+        isoRef: 'RFC 8216bis, 4.2 & 4.4.4',
         severity: 'fail',
         scope: 'Playlist',
         category: 'HLS Structure',
@@ -56,12 +56,29 @@ export const rules = [
         failDetails:
             'A playlist cannot be both a Media Playlist (with segments) and a Master Playlist (with variants).',
     },
+    {
+        id: 'HLS-VAR-1',
+        text: 'EXT-X-DEFINE tag must contain NAME attribute',
+        isoRef: 'RFC 8216bis, 4.4.2.3',
+        severity: 'fail',
+        scope: 'Playlist',
+        category: 'HLS Structure',
+        check: (hls) => {
+            const defineTags = hls.tags.filter(
+                (t) => t.name === 'EXT-X-DEFINE'
+            );
+            if (defineTags.length === 0) return 'skip';
+            return defineTags.every((t) => t.value.NAME !== undefined);
+        },
+        passDetails: 'OK',
+        failDetails: 'Every EXT-X-DEFINE tag MUST have a NAME attribute.',
+    },
 
     // --- Media Playlist Level Rules ---
     {
         id: 'HLS-MEDIA-1',
         text: 'Media Playlist must contain an EXT-X-TARGETDURATION tag',
-        isoRef: 'RFC 8216bis, 4.3.3.1',
+        isoRef: 'RFC 8216bis, 4.4.3.1',
         severity: 'fail',
         scope: 'MediaPlaylist',
         category: 'HLS Structure',
@@ -72,20 +89,51 @@ export const rules = [
             'The EXT-X-TARGETDURATION tag is REQUIRED for Media Playlists.',
     },
     {
+        id: 'HLS-MEDIA-2',
+        text: 'Live Media Playlist must not contain EXT-X-ENDLIST',
+        isoRef: 'RFC 8216bis, 4.4.3.5',
+        severity: 'fail',
+        scope: 'MediaPlaylist',
+        category: 'Live Stream Properties',
+        check: (hls, { isLive }) => {
+            if (!isLive) return 'skip';
+            return !hls.tags.some((t) => t.name === 'EXT-X-ENDLIST');
+        },
+        passDetails: 'OK',
+        failDetails:
+            'A live Media Playlist MUST NOT contain the EXT-X-ENDLIST tag.',
+    },
+    {
+        id: 'HLS-MEDIA-3',
+        text: 'Live Media Playlist should have EXT-X-MEDIA-SEQUENCE',
+        isoRef: 'RFC 8216bis, 4.4.3.2',
+        severity: 'warn',
+        scope: 'MediaPlaylist',
+        category: 'Live Stream Properties',
+        check: (hls, { isLive }) => {
+            if (!isLive) return 'skip';
+            return hls.tags.some((t) => t.name === 'EXT-X-MEDIA-SEQUENCE');
+        },
+        passDetails: 'OK',
+        failDetails:
+            'For live playlists, EXT-X-MEDIA-SEQUENCE is essential for clients to reload the playlist correctly.',
+    },
+    {
         id: 'HLS-MEDIA-4',
-        text: 'EXT-X-PLAYLIST-TYPE: VOD implies EXT-X-ENDLIST must be present',
-        isoRef: 'RFC 8216bis, 4.3.3.5',
+        text: 'VOD playlist implies EXT-X-ENDLIST must be present',
+        isoRef: 'RFC 8216bis, 4.4.3.5',
         severity: 'fail',
         scope: 'MediaPlaylist',
         category: 'HLS Structure',
         check: (hls) => {
-            if (hls.playlistType === 'VOD') {
+            if (hls.playlistType === 'VOD' || !hls.isLive) {
                 return hls.tags.some((t) => t.name === 'EXT-X-ENDLIST');
             }
             return 'skip';
         },
         passDetails: 'OK',
-        failDetails: 'A VOD playlist MUST contain the EXT-X-ENDLIST tag.',
+        failDetails:
+            'A VOD or non-live playlist MUST contain the EXT-X-ENDLIST tag.',
     },
 
     // --- Low-Latency HLS Profile Rules ---
@@ -111,8 +159,8 @@ export const rules = [
     {
         id: 'LL-HLS-2',
         text: 'LL-HLS requires EXT-X-SERVER-CONTROL tag',
-        isoRef: 'RFC 8216bis, B.1',
-        severity: 'warn', // More of a best practice for clients to identify LL-HLS
+        isoRef: 'RFC 8216bis, 4.4.3.8',
+        severity: 'fail',
         scope: 'MediaPlaylist',
         category: 'Profile Conformance',
         check: (hls) => {
@@ -121,7 +169,7 @@ export const rules = [
         },
         passDetails: 'OK, EXT-X-SERVER-CONTROL is present.',
         failDetails:
-            'Low-Latency HLS playlists should contain an EXT-X-SERVER-CONTROL tag to enable client optimizations.',
+            'Low-Latency HLS playlists MUST contain an EXT-X-SERVER-CONTROL tag to enable client optimizations.',
     },
     {
         id: 'LL-HLS-3',
@@ -149,7 +197,10 @@ export const rules = [
         scope: 'MediaPlaylist',
         category: 'Profile Conformance',
         check: (hls) => {
-            if (!hls.partInf || !hls.serverControl?.['PART-HOLD-BACK'])
+            if (
+                !hls.partInf?.['PART-TARGET'] ||
+                !hls.serverControl?.['PART-HOLD-BACK']
+            )
                 return 'skip';
             const partHoldBack = hls.serverControl['PART-HOLD-BACK'];
             const partTarget = hls.partInf['PART-TARGET'];
@@ -241,7 +292,7 @@ export const rules = [
     {
         id: 'HLS-MASTER-1',
         text: 'Master Playlist must contain at least one EXT-X-STREAM-INF tag',
-        isoRef: 'RFC 8216bis, 4.1',
+        isoRef: 'RFC 8216bis, 4.2',
         severity: 'fail',
         scope: 'MasterPlaylist',
         category: 'HLS Structure',
@@ -254,7 +305,7 @@ export const rules = [
     {
         id: 'HLS-VARIANT-1',
         text: 'EXT-X-STREAM-INF must have a BANDWIDTH attribute',
-        isoRef: 'RFC 8216bis, 4.3.4.2',
+        isoRef: 'RFC 8216bis, 4.4.6.2',
         severity: 'fail',
         scope: 'Variant',
         category: 'HLS Structure',
@@ -264,12 +315,38 @@ export const rules = [
         failDetails:
             'Every EXT-X-STREAM-INF tag MUST include the BANDWIDTH attribute.',
     },
+    {
+        id: 'HLS-VARIANT-2',
+        text: 'EXT-X-STREAM-INF should have CODECS or RESOLUTION',
+        isoRef: 'RFC 8216bis, 4.4.6.2',
+        severity: 'warn',
+        scope: 'Variant',
+        category: 'Interoperability',
+        check: (variant) =>
+            variant.attributes.RESOLUTION !== undefined ||
+            variant.attributes.CODECS !== undefined,
+        passDetails: 'OK',
+        failDetails:
+            'At least one of RESOLUTION or CODECS should be present for a client to make an informed selection.',
+    },
+    {
+        id: 'HLS-VARIANT-3',
+        text: 'EXT-X-STREAM-INF must be followed by a URI',
+        isoRef: 'RFC 8216bis, 4.4.6.2',
+        severity: 'fail',
+        scope: 'Variant',
+        category: 'HLS Structure',
+        check: (variant) => variant.uri && variant.uri.trim() !== '',
+        passDetails: 'OK',
+        failDetails:
+            'The EXT-X-STREAM-INF tag must be followed by the URI of its Media Playlist on the next line.',
+    },
 
     // --- Segment Level Rules ---
     {
         id: 'HLS-SEGMENT-1',
         text: 'Each Media Segment must be preceded by an EXTINF tag',
-        isoRef: 'RFC 8216bis, 4.3.2.1',
+        isoRef: 'RFC 8216bis, 4.4.2.1',
         severity: 'fail',
         scope: 'Segment',
         category: 'HLS Structure',
@@ -279,8 +356,8 @@ export const rules = [
     },
     {
         id: 'HLS-SEGMENT-2',
-        text: 'EXTINF duration must be less than or equal to the target duration (rounded integer)',
-        isoRef: 'RFC 8216bis, 4.3.3.1',
+        text: 'EXTINF duration must be <= target duration (integer)',
+        isoRef: 'RFC 8216bis, 4.4.3.1',
         severity: 'fail',
         scope: 'Segment',
         category: 'Segment & Timing Info',
@@ -289,15 +366,30 @@ export const rules = [
             return Math.round(segment.duration) <= targetDuration;
         },
         passDetails: 'OK',
-        failDetails:
-            'Segment duration rounded to the nearest integer MUST be <= the target duration.',
+        failDetails: (segment, { targetDuration }) =>
+            `Segment duration (${segment.duration}s) rounded to the nearest integer (${Math.round(segment.duration)}s) MUST be <= the target duration (${targetDuration}s).`,
+    },
+    {
+        id: 'HLS-SEGMENT-3',
+        text: 'EXTINF duration should be <= target duration (float)',
+        isoRef: 'RFC 8216bis, 4.4.3.1',
+        severity: 'warn',
+        scope: 'Segment',
+        category: 'Segment & Timing Info',
+        check: (segment, { targetDuration }) => {
+            if (targetDuration === null) return 'skip';
+            return segment.duration <= targetDuration;
+        },
+        passDetails: 'OK',
+        failDetails: (segment, { targetDuration }) =>
+            `Segment duration (${segment.duration}s) is greater than the target duration (${targetDuration}s), which can cause playback issues.`,
     },
 
     // --- Key/Encryption Rules ---
     {
         id: 'HLS-KEY-1',
         text: 'EXT-X-KEY must have a URI if method is not NONE',
-        isoRef: 'RFC 8216bis, 4.3.2.4',
+        isoRef: 'RFC 8216bis, 4.4.2.4',
         severity: 'fail',
         scope: 'Key',
         category: 'Encryption',

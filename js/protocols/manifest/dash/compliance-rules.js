@@ -1,4 +1,9 @@
-import { findChild, findChildren, getAttr } from './recursive-parser.js';
+import {
+    findChild,
+    findChildren,
+    getAttr,
+    getInheritedElement,
+} from './recursive-parser.js';
 
 /**
  * @typedef {'error' | 'warn' | 'info' | 'pass' | 'fail'} CheckStatus
@@ -65,7 +70,31 @@ export const rules = [
         passDetails: 'OK',
         failDetails: 'The @minBufferTime attribute is mandatory.',
     },
-    // --- MPD Patching Rules ---
+    {
+        id: 'MPD-4',
+        text: 'MPD@type is mandatory',
+        isoRef: 'Clause 5.3.1.2, Table 3',
+        severity: 'fail',
+        scope: 'MPD',
+        category: 'Manifest Structure',
+        check: (mpd) =>
+            getAttr(mpd, 'type') === 'static' ||
+            getAttr(mpd, 'type') === 'dynamic',
+        passDetails: 'OK',
+        failDetails:
+            'The @type attribute is mandatory and must be either "static" or "dynamic".',
+    },
+    {
+        id: 'MPD-5',
+        text: 'At most one BaseURL at the MPD level',
+        isoRef: 'Clause 5.6',
+        severity: 'fail',
+        scope: 'MPD',
+        category: 'Manifest Structure',
+        check: (mpd) => findChildren(mpd, 'BaseURL').length <= 1,
+        passDetails: 'OK',
+        failDetails: 'The MPD element may contain at most one BaseURL element.',
+    },
     {
         id: 'MPDPATCH-1',
         text: 'PatchLocation requires MPD@id and @publishTime',
@@ -212,6 +241,22 @@ export const rules = [
         failDetails:
             'A Period should contain at least one AdaptationSet unless its duration is 0.',
     },
+    {
+        id: 'PERIOD-3',
+        text: 'EventStream requires @schemeIdUri',
+        isoRef: 'Clause 5.10.2, Table 24',
+        severity: 'fail',
+        scope: 'Period',
+        category: 'Manifest Structure',
+        check: (period) => {
+            const eventStreams = findChildren(period, 'EventStream');
+            if (eventStreams.length === 0) return 'skip';
+            return eventStreams.every((es) => getAttr(es, 'schemeIdUri'));
+        },
+        passDetails: 'OK',
+        failDetails:
+            'All EventStream elements must have a schemeIdUri attribute.',
+    },
 
     // --- AdaptationSet Rules ---
     {
@@ -236,7 +281,8 @@ export const rules = [
         category: 'General Best Practices',
         check: (as) =>
             findChildren(as, 'Representation').length > 1
-                ? getAttr(as, 'segmentAlignment') === 'true'
+                ? getAttr(as, 'segmentAlignment') === 'true' ||
+                  getAttr(as, 'segmentAlignment') === 1
                 : 'skip',
         passDetails: 'OK',
         failDetails: 'Recommended for seamless ABR switching.',
@@ -326,14 +372,17 @@ export const rules = [
         scope: 'Representation',
         category: 'Segment & Timing Info',
         check: (rep, { adaptationSet, period }) => {
-            const template =
-                findChild(rep, 'SegmentTemplate') ||
-                findChild(adaptationSet, 'SegmentTemplate') ||
-                findChild(period, 'SegmentTemplate');
-            if (!template || !getAttr(template, 'media')?.includes('$Number$'))
+            const hierarchy = [rep, adaptationSet, period];
+            const template = getInheritedElement('SegmentTemplate', hierarchy);
+            const mediaAttr = getAttr(template, 'media');
+
+            if (!template || !mediaAttr?.includes('$Number$')) {
                 return 'skip';
+            }
+
+            const duration = getAttr(template, 'duration');
             return (
-                getAttr(template, 'duration') !== undefined ||
+                duration !== undefined ||
                 !!findChild(template, 'SegmentTimeline')
             );
         },
@@ -349,16 +398,17 @@ export const rules = [
         scope: 'Representation',
         category: 'Segment & Timing Info',
         check: (rep, { adaptationSet, period }) => {
-            const template =
-                findChild(rep, 'SegmentTemplate') ||
-                findChild(adaptationSet, 'SegmentTemplate') ||
-                findChild(period, 'SegmentTemplate');
-            if (!template || !getAttr(template, 'media')?.includes('$Time$'))
+            const hierarchy = [rep, adaptationSet, period];
+            const template = getInheritedElement('SegmentTemplate', hierarchy);
+
+            if (!template || !getAttr(template, 'media')?.includes('$Time$')) {
                 return 'skip';
+            }
             return !!findChild(template, 'SegmentTimeline');
         },
         passDetails: 'OK',
-        failDetails: 'When using $Time$, a SegmentTimeline must be present.',
+        failDetails:
+            'When using $Time$, a SegmentTimeline must be present within the SegmentTemplate.',
     },
 
     // --- Profile: ISO BMFF On-Demand ---
@@ -425,5 +475,24 @@ export const rules = [
         passDetails: 'OK',
         failDetails:
             'AdaptationSet is missing a CMAF structural brand in @containerProfiles.',
+    },
+
+    // --- Low Latency ---
+    {
+        id: 'LL-1',
+        text: 'Latency element requires target attribute',
+        isoRef: 'Annex K.3.2.2',
+        severity: 'fail',
+        scope: 'AdaptationSet',
+        category: 'Live Stream Properties',
+        check: (as) => {
+            const serviceDescription = findChild(as, 'ServiceDescription');
+            if (!serviceDescription) return 'skip';
+            const latency = findChild(serviceDescription, 'Latency');
+            if (!latency) return 'skip';
+            return getAttr(latency, 'target') !== undefined;
+        },
+        passDetails: 'OK',
+        failDetails: 'The <Latency> element must have a @target attribute.',
     },
 ];

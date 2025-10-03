@@ -1,15 +1,12 @@
 import { adaptDashToIr } from './adapter.js';
 import { XMLParser } from 'fast-xml-parser';
-import { findChildren } from './recursive-parser.js';
-
-const getText = (el) => el?.['#text'] || null;
 
 /**
  * Parses a DASH Manifest XML string and returns a protocol-agnostic Intermediate Representation.
  * This is the public entry point for the DASH manifest parsing module.
  * @param {string} xmlString The raw MPD XML.
  * @param {string} baseUrl The URL from which the MPD was fetched.
- * @returns {Promise<{manifest: import('../../../core/state.js').Manifest, serializedManifest: object, baseUrl: string}>}
+ * @returns {Promise<{manifest: import('../../../core/store.js').Manifest, serializedManifest: object, baseUrl: string}>}
  */
 export async function parseManifest(xmlString, baseUrl) {
     const parser = new XMLParser({
@@ -19,6 +16,7 @@ export async function parseManifest(xmlString, baseUrl) {
         textNodeName: '#text',
         allowBooleanAttributes: true,
         removeNSPrefix: true,
+        alwaysCreateTextNode: true, // <-- FIX: Ensures consistent parsing for text-only nodes
         // Force these tags to always be arrays for consistent traversal
         isArray: (tagName) => {
             return [
@@ -38,6 +36,7 @@ export async function parseManifest(xmlString, baseUrl) {
             ].includes(tagName);
         },
     });
+
     const jsonObj = parser.parse(xmlString);
     const mpdNodeKey = Object.keys(jsonObj).find(
         (key) => key.toUpperCase() === 'MPD'
@@ -47,22 +46,11 @@ export async function parseManifest(xmlString, baseUrl) {
     }
     const serializedManifest = jsonObj[mpdNodeKey];
 
-    // Handle BaseURL resolution before adapting. Per DASH-IF IOPs, only the first BaseURL at any level is considered.
-    const manifestBaseElements = findChildren(serializedManifest, 'BaseURL');
-    let finalBaseUrl = baseUrl;
-    if (manifestBaseElements.length > 0) {
-        const firstBaseUrlText = getText(manifestBaseElements[0]);
-        if (firstBaseUrlText) {
-            finalBaseUrl = new URL(firstBaseUrlText, baseUrl).href;
-        }
-    }
+    const manifestIR = adaptDashToIr(serializedManifest, baseUrl);
 
-    const manifestIR = adaptDashToIr(serializedManifest, finalBaseUrl);
-
-    // The serializedManifest is returned for use in feature/compliance checks that need the raw structure.
     return {
         manifest: manifestIR,
         serializedManifest,
-        baseUrl: finalBaseUrl,
+        baseUrl: baseUrl,
     };
 }

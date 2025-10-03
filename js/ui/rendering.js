@@ -1,5 +1,6 @@
 import { html, render } from 'lit-html';
-import { dom, analysisState } from '../core/state.js';
+import { dom } from '../core/dom.js';
+import { useStore } from '../core/store.js';
 import { getGlobalSummaryTemplate } from './views/summary/index.js';
 import {
     getComplianceReportTemplate,
@@ -14,16 +15,17 @@ import { getComparisonTemplate } from './views/comparison/index.js';
 import { renderManifestUpdates } from './views/manifest-updates/index.js';
 
 export function populateContextSwitcher() {
-    if (analysisState.streams.length > 1) {
+    const { streams, activeStreamId } = useStore.getState();
+    if (streams.length > 1) {
         dom.contextSwitcherWrapper.classList.remove('hidden');
-        const optionsTemplate = analysisState.streams.map(
+        const optionsTemplate = streams.map(
             (s) =>
                 html`<option value="${s.id}">
                     ${s.name} (${s.protocol.toUpperCase()})
                 </option>`
         );
         render(optionsTemplate, dom.contextSwitcher);
-        dom.contextSwitcher.value = String(analysisState.activeStreamId);
+        dom.contextSwitcher.value = String(activeStreamId);
     } else {
         dom.contextSwitcherWrapper.classList.add('hidden');
     }
@@ -31,7 +33,8 @@ export function populateContextSwitcher() {
 
 export function renderAllTabs() {
     console.time('Render All Tabs');
-    const hasMultipleStreams = analysisState.streams.length > 1;
+    const { streams, activeStreamId } = useStore.getState();
+    const hasMultipleStreams = streams.length > 1;
 
     /** @type {HTMLElement} */
     (document.querySelector('[data-tab="comparison"]')).style.display =
@@ -43,12 +46,12 @@ export function renderAllTabs() {
         console.timeEnd('Render Comparison Tab');
     }
 
-    renderSingleStreamTabs(analysisState.activeStreamId);
+    renderSingleStreamTabs(activeStreamId);
     console.timeEnd('Render All Tabs');
 }
 
 export function renderSingleStreamTabs(streamId) {
-    const stream = analysisState.streams.find((s) => s.id === streamId);
+    const stream = useStore.getState().streams.find((s) => s.id === streamId);
     if (!stream) return;
 
     console.time('Render Summary Tab');

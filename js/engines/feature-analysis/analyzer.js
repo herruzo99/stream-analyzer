@@ -5,7 +5,7 @@ import { analyzeHlsFeatures } from '../../protocols/manifest/hls/feature-analyze
 
 /**
  * Analyzes a manifest for feature usage.
- * @param {import('../../core/state.js').Manifest} manifestIR - The manifest IR object.
+ * @param {import('../../core/store.js').Manifest} manifestIR - The manifest IR object.
  * @param {'dash' | 'hls'} protocol
  * @param {object | null} serializedManifest - The serialized DOM object for DASH.
  * @returns {Record<string, import('../../protocols/manifest/dash/feature-analyzer.js').FeatureCheckResult>} A map of feature names to their analysis results.
@@ -24,7 +24,7 @@ export function generateFeatureAnalysis(
 
 /**
  * Creates the view model by merging feature definitions with analysis results.
- * @param {Map<string, import('../../core/state.js').FeatureAnalysisResult>} analysisResultsMap
+ * @param {Map<string, import('../../core/store.js').FeatureAnalysisResult>} analysisResultsMap
  * @param {'dash' | 'hls'} protocol
  * @returns {object[]} A list of feature objects ready for rendering.
  */

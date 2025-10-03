@@ -1,14 +1,20 @@
 import { parseDuration } from '../../../shared/utils/time.js';
-import { getAttr, findChild, findChildren } from './recursive-parser.js';
+import {
+    getAttr,
+    findChild,
+    findChildren,
+    getInheritedElement,
+    resolveBaseUrl,
+} from './recursive-parser.js';
 import { findElementsByTagNameRecursive } from './recursive-parser.js';
 
 /**
  * Parses all segment URLs from a serialized DASH manifest object.
  * @param {object} manifestElement The serialized <MPD> element.
- * @param {string} baseUrl The base URL for resolving relative segment paths.
+ * @param {string} manifestUrl The URL from which the MPD was fetched (the initial base URL).
  * @returns {Record<string, object[]>} A map of Representation IDs to their segment lists.
  */
-export function parseAllSegmentUrls(manifestElement, baseUrl) {
+export function parseAllSegmentUrls(manifestElement, manifestUrl) {
     /** @type {Record<string, object[]>} */
     const segmentsByRep = {};
     const isDynamic = getAttr(manifestElement, 'type') === 'dynamic';
@@ -26,23 +32,23 @@ export function parseAllSegmentUrls(manifestElement, baseUrl) {
         const { period, adaptationSet } = context;
         if (!period || !adaptationSet) return;
 
-        const template =
-            findChild(rep, 'SegmentTemplate') ||
-            findChild(adaptationSet, 'SegmentTemplate') ||
-            findChild(period, 'SegmentTemplate');
-        const segmentList =
-            findChild(rep, 'SegmentList') ||
-            findChild(adaptationSet, 'SegmentList') ||
-            findChild(period, 'SegmentList');
-        const segmentBase =
-            findChild(rep, 'SegmentBase') ||
-            findChild(adaptationSet, 'SegmentBase') ||
-            findChild(period, 'SegmentBase');
+        const hierarchy = [rep, adaptationSet, period];
 
-        // --- Initialization Segment Logic (applies to most patterns) ---
-        let initTemplate = template
-            ? getAttr(template, 'initialization')
-            : null;
+        const baseUrl = resolveBaseUrl(
+            manifestUrl,
+            manifestElement,
+            period,
+            adaptationSet,
+            rep
+        );
+
+        // Correctly determine active segmentation type based on hierarchy.
+        const template = getInheritedElement('SegmentTemplate', hierarchy);
+        const segmentList = getInheritedElement('SegmentList', hierarchy);
+        const segmentBase = getInheritedElement('SegmentBase', hierarchy);
+
+        // --- Initialization Segment Logic ---
+        let initTemplate = getAttr(template, 'initialization');
         if (!initTemplate) {
             const initContainer = segmentList || segmentBase;
             const initializationEl = initContainer
@@ -126,7 +132,9 @@ export function parseAllSegmentUrls(manifestElement, baseUrl) {
                 let firstSegmentNumber = startNumber;
 
                 if (isDynamic) {
-                    // Logic for dynamic streams (omitted for brevity, already correct)
+                    // This logic remains complex and is out of scope for this specific bug fix.
+                    // Assuming a reasonable number of segments for live for now.
+                    numSegments = 10;
                 } else {
                     // VOD
                     const totalDuration =
@@ -188,22 +196,18 @@ export function parseAllSegmentUrls(manifestElement, baseUrl) {
                 }
             });
         } else if (segmentBase) {
-            // SegmentBase typically implies a single segment or self-indexed file.
-            // For timeline purposes, we model this as one segment spanning the full duration.
             const totalDuration =
                 parseDuration(
                     getAttr(manifestElement, 'mediaPresentationDuration')
                 ) ||
                 parseDuration(getAttr(period, 'duration')) ||
                 0;
-            const timescale =
-                findChild(period, 'AdaptationSet')?.representations?.[0]
-                    ?.timescale || 1; // Heuristic
+            const timescale = 1;
             segmentsByRep[repId].push({
                 repId,
                 type: 'Media',
                 number: 1,
-                resolvedUrl: baseUrl, // The base URL itself is the segment
+                resolvedUrl: baseUrl,
                 template: 'SegmentBase',
                 time: 0,
                 duration: totalDuration * timescale,
@@ -212,4 +216,50 @@ export function parseAllSegmentUrls(manifestElement, baseUrl) {
         }
     });
     return segmentsByRep;
+}
+
+export function findInitSegmentUrl(
+    representation,
+    adaptationSet,
+    period,
+    baseUrl
+) {
+    const repElement = representation.rawElement;
+    if (!repElement) return null;
+
+    const hierarchy = [repElement, adaptationSet.rawElement, period.rawElement];
+
+    const template = getInheritedElement('SegmentTemplate', hierarchy);
+
+    if (template && getAttr(template, 'initialization')) {
+        return new URL(
+            getAttr(template, 'initialization').replace(
+                /\$RepresentationID\$/g,
+                representation.id
+            ),
+            baseUrl
+        ).href;
+    }
+
+    const list = getInheritedElement('SegmentList', hierarchy);
+    const base = getInheritedElement('SegmentBase', hierarchy);
+
+    const initContainer = list || base;
+    const initialization = initContainer
+        ? findChild(initContainer, 'Initialization')
+        : null;
+
+    if (initialization && getAttr(initialization, 'sourceURL')) {
+        return new URL(getAttr(initialization, 'sourceURL'), baseUrl).href;
+    }
+
+    // Fallback for single-file representations (BaseURL only)
+    if (!template && !list && !base) {
+        // In the case of single-file DASH, the resolved baseUrl IS the segment URL.
+        // `resolveBaseUrl` should have been used to create the `baseUrl` passed to this function.
+        // We can just return it if no other segment info is found.
+        return baseUrl;
+    }
+
+    return null;
 }

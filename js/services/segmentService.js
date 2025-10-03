@@ -1,4 +1,4 @@
-import { analysisState } from '../core/state.js';
+import { useStore } from '../core/store.js';
 import { eventBus } from '../core/event-bus.js';
 
 // Initialize the worker once using a module-relative URL.
@@ -12,8 +12,9 @@ const parsingWorker = new Worker('/dist/worker.js', {
 // Listen for messages from the worker.
 parsingWorker.onmessage = (event) => {
     const { url, parsedData, error } = event.data;
+    const { segmentCache } = useStore.getState();
 
-    const entry = analysisState.segmentCache.get(url);
+    const entry = segmentCache.get(url);
     if (!entry) return; // Should not happen if request tracking is correct
 
     const finalEntry = {
@@ -22,7 +23,7 @@ parsingWorker.onmessage = (event) => {
         parsedData: parsedData,
     };
 
-    analysisState.segmentCache.set(url, finalEntry);
+    segmentCache.set(url, finalEntry);
     eventBus.dispatch('segment:loaded', { url, entry: finalEntry });
 };
 
@@ -38,13 +39,12 @@ parsingWorker.onerror = (error) => {
  * @param {string} url The URL of the segment to fetch.
  */
 export async function fetchSegment(url) {
-    if (
-        analysisState.segmentCache.has(url) &&
-        analysisState.segmentCache.get(url).status !== -1
-    ) {
+    const { segmentCache } = useStore.getState();
+
+    if (segmentCache.has(url) && segmentCache.get(url).status !== -1) {
         eventBus.dispatch('segment:loaded', {
             url,
-            entry: analysisState.segmentCache.get(url),
+            entry: segmentCache.get(url),
         });
         return;
     }
@@ -52,7 +52,7 @@ export async function fetchSegment(url) {
     try {
         // Dispatch pending state immediately for UI feedback
         const pendingEntry = { status: -1, data: null, parsedData: null };
-        analysisState.segmentCache.set(url, pendingEntry);
+        segmentCache.set(url, pendingEntry);
         eventBus.dispatch('segment:pending', { url });
 
         const response = await fetch(url, { method: 'GET', cache: 'no-store' });
@@ -63,7 +63,7 @@ export async function fetchSegment(url) {
             data,
             parsedData: null,
         };
-        analysisState.segmentCache.set(url, entryWithData);
+        segmentCache.set(url, entryWithData);
 
         if (data) {
             // Offload parsing to the worker
@@ -78,7 +78,7 @@ export async function fetchSegment(url) {
                 data: null,
                 parsedData: { error: `HTTP ${response.status}` },
             };
-            analysisState.segmentCache.set(url, errorEntry);
+            segmentCache.set(url, errorEntry);
             eventBus.dispatch('segment:loaded', { url, entry: errorEntry });
         }
     } catch (error) {
@@ -88,7 +88,7 @@ export async function fetchSegment(url) {
             data: null,
             parsedData: { error: error.message },
         };
-        analysisState.segmentCache.set(url, errorEntry); // Network error
+        segmentCache.set(url, errorEntry); // Network error
         eventBus.dispatch('segment:loaded', { url, entry: errorEntry });
     }
 }

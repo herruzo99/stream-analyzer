@@ -60,7 +60,7 @@ const dashSegmentTableTemplate = (stream, repId, repState, displayMode) => {
                 >
             </div>
         </div>
-        <div class="overflow-y-auto" style="max-height: calc(2.8rem * 15);">
+        <div class="overflow-y-auto max-h-[70vh]">
             <table class="w-full text-left text-sm table-auto">
                 <thead class="sticky top-0 bg-gray-900 z-10">
                     <tr>
@@ -87,7 +87,7 @@ const dashSegmentTableTemplate = (stream, repId, repState, displayMode) => {
 
 /**
  * Creates the lit-html template for the DASH segment explorer content.
- * @param {import('../../../../../core/state.js').Stream} stream
+ * @param {import('../../../../../core/store.js').Stream} stream
  * @param {string} displayMode - 'first' or 'last'
  * @returns {import('lit-html').TemplateResult}
  */

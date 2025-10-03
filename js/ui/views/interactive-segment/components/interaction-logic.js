@@ -1,4 +1,4 @@
-import { dom } from '../../../../core/state.js';
+import { dom } from '../../../../core/dom.js';
 import { render } from 'lit-html';
 
 let keydownListener = null;
@@ -32,7 +32,9 @@ export function initializeSegmentViewInteractivity(
     parsedSegmentData,
     byteMap,
     findDataByOffset,
-    createInspectorTemplate
+    createInspectorTemplate,
+    visibleStartOffset,
+    visibleEndOffset
 ) {
     const container = dom.tabContents['interactive-segment'];
     if (!container || !parsedSegmentData) return;
@@ -41,229 +43,214 @@ export function initializeSegmentViewInteractivity(
 
     let selectedDataOffset = null;
 
-    const clearHighlights = (className) => {
+    const clearHighlights = (classNames) => {
         const borderClasses = [
             'border-t',
             'border-b',
             'border-l',
             'border-r',
-            'border-yellow-400',
+            'border-t-2',
+            'border-b-2',
+            'border-l-2',
+            'border-r-2',
+            'border-purple-400',
             'border-blue-400',
             '-mt-px',
             '-mb-px',
             '-ml-px',
             '-mr-px',
         ];
+        const selector = classNames.map((c) => `.${c}`).join(', ');
+        if (!selector) return;
+
         container
-            .querySelectorAll(`.${className}`)
-            .forEach((el) => el.classList.remove(className, ...borderClasses));
-    };
-
-    const applyHighlights = (className, itemToHighlight) => {
-        const hexGrid = container.querySelector('#hex-grid-content');
-        if (!hexGrid || !itemToHighlight) return;
-
-        const itemStart = itemToHighlight.offset;
-        const itemSize = itemToHighlight.size ?? 188; // Default to TS packet size
-        const itemEnd = itemStart + itemSize;
-
-        hexGrid.querySelectorAll('[data-byte-offset]').forEach((el) => {
-            const byteOffset = parseInt(
-                /** @type {HTMLElement} */ (el).dataset.byteOffset,
-                10
+            .querySelectorAll(selector)
+            .forEach((el) =>
+                el.classList.remove(...classNames, ...borderClasses)
             );
-            if (byteOffset >= itemStart && byteOffset < itemEnd) {
-                const mapEntry = byteMap.get(byteOffset);
-                if (
-                    mapEntry &&
-                    (mapEntry.box?.offset === itemStart ||
-                        mapEntry.packet?.offset === itemStart)
-                ) {
-                    el.classList.add(className);
-                }
-            }
-        });
-
-        const treeNode = container.querySelector(
-            `[data-box-offset="${itemStart}"], [data-group-start-offset="${itemStart}"]`
-        );
-        treeNode?.classList.add(className);
     };
 
-    const applyPerimeterHighlight = (
-        offsets,
-        borderClasses = ['border-yellow-400']
-    ) => {
+    const applyPerimeterBorder = (offsets, borderClass, width = 1) => {
         const hexGrid = container.querySelector('#hex-grid-content');
         if (!hexGrid) return;
+        const widthClass = width === 1 ? 'border' : `border-${width}`;
+        const marginClass = width === 1 ? 'px' : 'px'; // Tailwind JIT needs full class names
+
         offsets.forEach((i) => {
+            if (i < visibleStartOffset || i >= visibleEndOffset) return;
+
             const spans = hexGrid.querySelectorAll(`[data-byte-offset="${i}"]`);
             spans?.forEach((span) => {
-                span.classList.add('is-field-boundary-highlighted');
                 const isTop = !offsets.has(i - 16);
                 const isBottom = !offsets.has(i + 16);
                 const isLeft = !offsets.has(i - 1) || i % 16 === 0;
                 const isRight = !offsets.has(i + 1) || (i + 1) % 16 === 0;
 
                 if (isTop)
-                    span.classList.add('border-t', '-mt-px', ...borderClasses);
+                    span.classList.add(
+                        `border-t-${widthClass}`,
+                        `-mt-${marginClass}`,
+                        borderClass
+                    );
                 if (isBottom)
-                    span.classList.add('border-b', '-mb-px', ...borderClasses);
+                    span.classList.add(
+                        `border-b-${widthClass}`,
+                        `-mb-${marginClass}`,
+                        borderClass
+                    );
                 if (isLeft)
-                    span.classList.add('border-l', '-ml-px', ...borderClasses);
+                    span.classList.add(
+                        `border-l-${widthClass}`,
+                        `-ml-${marginClass}`,
+                        borderClass
+                    );
                 if (isRight)
-                    span.classList.add('border-r', '-mr-px', ...borderClasses);
+                    span.classList.add(
+                        `border-r-${widthClass}`,
+                        `-mr-${marginClass}`,
+                        borderClass
+                    );
             });
         });
     };
 
+    const applyHighlight = (className, offsets) => {
+        const hexGrid = container.querySelector('#hex-grid-content');
+        if (!hexGrid) return;
+        offsets.forEach((i) => {
+            if (i >= visibleStartOffset && i < visibleEndOffset) {
+                const spans = hexGrid.querySelectorAll(
+                    `[data-byte-offset="${i}"]`
+                );
+                spans.forEach((el) => el.classList.add(className));
+            }
+        });
+    };
+
+    const applyBoxBackgroundHighlight = (className, itemToHighlight) => {
+        const itemStart = itemToHighlight.offset;
+        const itemEnd = itemStart + (itemToHighlight.size ?? 188);
+        const boxOffsets = new Set();
+
+        const loopStart = Math.max(itemStart, visibleStartOffset);
+        const loopEnd = Math.min(itemEnd, visibleEndOffset);
+
+        for (let i = loopStart; i < loopEnd; i++) {
+            const mapEntry = byteMap.get(i);
+            if (
+                mapEntry &&
+                mapEntry.box &&
+                mapEntry.box.offset === itemToHighlight.offset
+            ) {
+                boxOffsets.add(i);
+            }
+        }
+        applyHighlight(className, boxOffsets);
+        return boxOffsets;
+    };
+
+    const applyFieldHighlight = (className, itemToHighlight, fieldName) => {
+        const field = itemToHighlight.details?.[fieldName];
+        if (!field || field.offset === undefined || field.length <= 0) return;
+
+        const fieldStart = field.offset;
+        const fieldEnd = fieldStart + Math.ceil(field.length);
+        const fieldOffsets = new Set();
+
+        const loopStart = Math.max(fieldStart, visibleStartOffset);
+        const loopEnd = Math.min(fieldEnd, visibleEndOffset);
+
+        for (let i = loopStart; i < loopEnd; i++) {
+            fieldOffsets.add(i);
+        }
+        applyHighlight(className, fieldOffsets);
+        applyPerimeterBorder(fieldOffsets, 'border-purple-400');
+    };
+
+    const handleHover = (item, fieldName) => {
+        clearHighlights([
+            'is-box-hover-highlighted',
+            'is-field-hover-highlighted',
+        ]);
+        if (item) {
+            applyBoxBackgroundHighlight('is-box-hover-highlighted', item);
+            applyFieldHighlight('is-field-hover-highlighted', item, fieldName);
+        }
+        if (selectedDataOffset === null) {
+            updateInspectorPanel(item, createInspectorTemplate, fieldName);
+        }
+    };
+
     const handleHexHover = (e) => {
-        const target = /** @type {HTMLElement} */ (e.target).closest(
-            '[data-byte-offset]'
+        const target = /** @type {HTMLElement | null} */ (
+            e.target.closest('[data-byte-offset]')
         );
         if (!target) return;
-
-        const byteOffset = parseInt(
-            /** @type {HTMLElement} */ (target).dataset.byteOffset
-        );
+        const byteOffset = parseInt(target.dataset.byteOffset);
         const mapEntry = byteMap.get(byteOffset);
-        clearHighlights('is-field-highlighted');
-        clearHighlights('is-field-boundary-highlighted');
-
         if (mapEntry) {
-            const item = mapEntry.box || mapEntry.packet;
-            const fieldName = mapEntry.fieldName;
-            applyHighlights('is-field-highlighted', item);
-            const field = item.details?.[fieldName];
-            if (field && field.offset !== undefined && field.length > 0) {
-                const length = Math.ceil(field.length);
-                const fieldOffsets = new Set();
-                for (let i = field.offset; i < field.offset + length; i++) {
-                    fieldOffsets.add(i);
-                }
-                applyPerimeterHighlight(fieldOffsets);
-            }
-            if (selectedDataOffset === null) {
-                updateInspectorPanel(item, createInspectorTemplate, fieldName);
-            }
+            handleHover(mapEntry.box || mapEntry.packet, mapEntry.fieldName);
         }
     };
 
     const handleInspectorHover = (e) => {
-        const fieldRow = /** @type {HTMLElement} */ (e.target).closest(
-            '[data-field-name]'
+        const fieldRow = /** @type {HTMLElement | null} */ (
+            e.target.closest('[data-field-name]')
         );
         if (!fieldRow) return;
-
-        const fieldName = /** @type {HTMLElement} */ (fieldRow).dataset
-            .fieldName;
+        const fieldName = fieldRow.dataset.fieldName;
         const dataOffset = parseInt(
-            /** @type {HTMLElement} */ (fieldRow).dataset.boxOffset ||
-                /** @type {HTMLElement} */ (fieldRow).dataset.packetOffset
+            fieldRow.dataset.boxOffset || fieldRow.dataset.packetOffset
         );
         if (isNaN(dataOffset)) return;
-
-        clearHighlights('is-inspector-hover-highlighted');
-        clearHighlights('is-field-boundary-highlighted');
-
         const item = findDataByOffset(parsedSegmentData, dataOffset);
-        if (!item) return;
-
-        applyHighlights('is-inspector-hover-highlighted', item);
-        const field = item.details?.[fieldName];
-        if (field && field.offset !== undefined && field.length > 0) {
-            const length = Math.ceil(field.length);
-            const fieldOffsets = new Set();
-            for (let i = field.offset; i < field.offset + length; i++) {
-                fieldOffsets.add(i);
-            }
-            applyPerimeterHighlight(fieldOffsets);
-        }
+        if (item) handleHover(item, fieldName);
     };
 
     const handleStructureHover = (e) => {
-        clearHighlights('is-field-highlighted');
-        const node = /** @type {HTMLElement} */ (e.target).closest(
-            '[data-box-offset], [data-group-start-offset]'
+        const node = /** @type {HTMLElement | null} */ (
+            e.target.closest('[data-box-offset], [data-group-start-offset]')
         );
         if (!node) return;
-
         const dataOffset = parseInt(
-            /** @type {HTMLElement} */ (node).dataset.boxOffset ||
-                /** @type {HTMLElement} */ (node).dataset.groupStartOffset
+            node.dataset.boxOffset || node.dataset.groupStartOffset
         );
         if (isNaN(dataOffset)) return;
-
         const item = findDataByOffset(parsedSegmentData, dataOffset);
-        if (item) {
-            applyHighlights('is-field-highlighted', item);
-            if (selectedDataOffset === null) {
-                const defaultField = item.type ? 'Box Header' : 'TS Header';
-                updateInspectorPanel(
-                    item,
-                    createInspectorTemplate,
-                    defaultField
-                );
-            }
-        }
+        const fieldName = item?.type ? 'Box Header' : 'TS Header';
+        if (item) handleHover(item, fieldName);
     };
 
     const delegatedMouseOver = (e) => {
-        const target = /** @type {HTMLElement} */ (e.target);
-        if (target.closest('.segment-inspector-panel')) {
+        if (e.target.closest('.segment-inspector-panel'))
             handleInspectorHover(e);
-        } else if (target.closest('.box-tree-area, .packet-list-area')) {
+        else if (e.target.closest('.box-tree-area, .packet-list-area'))
             handleStructureHover(e);
-        } else if (target.closest('#hex-grid-content')) {
-            handleHexHover(e);
-        }
+        else if (e.target.closest('#hex-grid-content')) handleHexHover(e);
     };
 
-    const delegatedMouseOut = (e) => {
-        const target = /** @type {HTMLElement} */ (e.target);
-        const relatedTarget = /** @type {HTMLElement} */ (e.relatedTarget);
-        if (
-            target.closest('#hex-grid-content') &&
-            !relatedTarget?.closest('#hex-grid-content')
-        ) {
-            clearHighlights('is-field-highlighted');
-            clearHighlights('is-field-boundary-highlighted');
-            if (selectedDataOffset === null)
-                updateInspectorPanel(null, createInspectorTemplate);
-        }
-        if (
-            target.closest('.segment-inspector-panel') &&
-            !relatedTarget?.closest('.segment-inspector-panel')
-        ) {
-            clearHighlights('is-inspector-hover-highlighted');
-            clearHighlights('is-field-boundary-highlighted');
-        }
-        if (
-            target.closest('.box-tree-area, .packet-list-area') &&
-            !relatedTarget?.closest('.box-tree-area, .packet-list-area')
-        ) {
-            clearHighlights('is-field-highlighted');
-        }
+    const delegatedMouseOut = () => {
+        clearHighlights([
+            'is-box-hover-highlighted',
+            'is-field-hover-highlighted',
+        ]);
+        if (selectedDataOffset === null)
+            updateInspectorPanel(null, createInspectorTemplate);
     };
 
     const handleClick = (e) => {
-        if (/** @type {HTMLElement} */ (e.target).closest('summary'))
-            e.preventDefault();
-        const targetNode = /** @type {HTMLElement} */ (e.target).closest(
-            '[data-box-offset], [data-packet-offset], [data-group-start-offset]'
+        const target = /** @type {HTMLElement} */ (e.target);
+        if (target.closest('summary')) e.preventDefault();
+        const targetNode = /** @type {HTMLElement | null} */ (
+            target.closest(
+                '[data-box-offset], [data-packet-offset], [data-group-start-offset]'
+            )
         );
         if (targetNode) {
             const offset =
-                parseInt(
-                    /** @type {HTMLElement} */ (targetNode).dataset.boxOffset
-                ) ??
-                parseInt(
-                    /** @type {HTMLElement} */ (targetNode).dataset.packetOffset
-                ) ??
-                parseInt(
-                    /** @type {HTMLElement} */ (targetNode).dataset
-                        .groupStartOffset
-                );
+                parseInt(targetNode.dataset.boxOffset) ??
+                parseInt(targetNode.dataset.packetOffset) ??
+                parseInt(targetNode.dataset.groupStartOffset);
             handleSelection(offset);
         }
     };
@@ -285,26 +272,25 @@ export function initializeSegmentViewInteractivity(
     document.addEventListener('keydown', keydownListener);
 
     const handleSelection = (targetOffset) => {
-        if (selectedDataOffset === targetOffset) {
-            selectedDataOffset = null;
-        } else {
-            selectedDataOffset = targetOffset;
-        }
+        if (selectedDataOffset === targetOffset) selectedDataOffset = null;
+        else selectedDataOffset = targetOffset;
+
         applySelectionHighlight();
         const data = findDataByOffset(parsedSegmentData, selectedDataOffset);
         updateInspectorPanel(data, createInspectorTemplate);
     };
 
     function applySelectionHighlight() {
-        clearHighlights('is-highlighted');
+        clearHighlights(['is-highlighted']);
         if (selectedDataOffset === null) return;
         const data = findDataByOffset(parsedSegmentData, selectedDataOffset);
         if (!data) return;
-        applyHighlights('is-highlighted', data);
+        const boxOffsets = applyBoxBackgroundHighlight('is-highlighted', data);
+        applyPerimeterBorder(boxOffsets, 'border-blue-400', 2);
     }
 
     function updateInspectorPanel(data, templateFn, highlightedField = null) {
-        const inspector = /** @type {HTMLElement} */ (
+        const inspector = /** @type {HTMLElement | null} */ (
             container.querySelector('.segment-inspector-panel')
         );
         if (!inspector) return;
@@ -317,8 +303,10 @@ export function initializeSegmentViewInteractivity(
             .querySelectorAll('.bg-purple-900\\/50')
             .forEach((el) => el.classList.remove('bg-purple-900/50'));
         if (data && highlightedField) {
-            const fieldRow = inspector.querySelector(
-                `[data-field-name="${highlightedField}"]`
+            const fieldRow = /** @type {HTMLElement | null} */ (
+                inspector.querySelector(
+                    `[data-field-name="${highlightedField}"]`
+                )
             );
             if (fieldRow) {
                 fieldRow.classList.add('bg-purple-900/50');

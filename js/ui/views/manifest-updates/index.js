@@ -1,8 +1,13 @@
 import { html, render } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
-import { analysisState, dom } from '../../../core/state.js';
+import { useStore, storeActions } from '../../../core/store.js';
+import { dom } from '../../../core/dom.js';
 
-let togglePollingBtn; // Still need a reference for external updates
+export function navigateManifestUpdates(direction) {
+    const { activeStreamId } = useStore.getState();
+    storeActions.navigateManifestUpdate(activeStreamId, direction);
+    renderManifestUpdates(activeStreamId);
+}
 
 const manifestUpdatesTemplate = (stream) => {
     if (!stream) {
@@ -54,15 +59,8 @@ const manifestUpdatesTemplate = (stream) => {
         </div>`;
 
     return html` <div
-            class="flex flex-col sm:flex-row justify-between items-center mb-4 space-y-2 sm:space-y-0"
+            class="flex flex-col sm:flex-row justify-end items-center mb-4 space-y-2 sm:space-y-0"
         >
-            <button
-                id="toggle-polling-btn"
-                class="px-4 py-2 rounded-md font-bold transition duration-300 w-full sm:w-auto text-white"
-                @click=${togglePollingState}
-            >
-                <!-- Content set by updatePollingButton -->
-            </button>
             <div class="flex items-center space-x-2">
                 <button
                     id="prev-manifest-btn"
@@ -96,63 +94,20 @@ const manifestUpdatesTemplate = (stream) => {
 
 export function renderManifestUpdates(streamId) {
     let updatesContainer = /** @type {HTMLDivElement} */ (
-        dom.tabContents.updates.querySelector('#mpd-updates-content')
+        dom.tabContents.updates?.querySelector('#mpd-updates-content')
     );
-    if (!updatesContainer) {
+
+    if (dom.tabContents.updates && !updatesContainer) {
         const newContainer = document.createElement('div');
         newContainer.id = 'mpd-updates-content';
         dom.tabContents.updates.appendChild(newContainer);
         updatesContainer = newContainer;
     }
-    const stream = analysisState.streams.find((s) => s.id === streamId);
-    render(manifestUpdatesTemplate(stream), updatesContainer);
-    togglePollingBtn = document.getElementById('toggle-polling-btn');
-    updatePollingButton();
-}
 
-function togglePollingState() {
-    const activeStream = analysisState.streams.find(
-        (s) => s.id === analysisState.activeStreamId
-    );
-    if (activeStream) {
-        activeStream.isPolling = !activeStream.isPolling;
-    }
-    updatePollingButton(); // Update UI immediately
-}
-
-export function updatePollingButton() {
-    if (!togglePollingBtn) return;
-    const stream = analysisState.streams.find(
-        (s) => s.id === analysisState.activeStreamId
-    );
-    if (!stream || stream.manifest.type !== 'dynamic') {
-        togglePollingBtn.style.display = 'none';
-        return;
-    }
-
-    const isPolling = stream.isPolling;
-    togglePollingBtn.style.display = 'block';
-    togglePollingBtn.textContent = isPolling ? 'Stop Polling' : 'Start Polling';
-    togglePollingBtn.classList.toggle('bg-red-600', isPolling);
-    togglePollingBtn.classList.toggle('hover:bg-red-700', isPolling);
-    togglePollingBtn.classList.toggle('bg-blue-600', !isPolling);
-    togglePollingBtn.classList.toggle('hover:bg-blue-700', !isPolling);
-}
-
-export function navigateManifestUpdates(direction) {
-    const stream = analysisState.streams.find(
-        (s) => s.id === analysisState.activeStreamId
-    );
-    if (!stream || stream.manifestUpdates.length === 0) return;
-
-    let newIndex = stream.activeManifestUpdateIndex + direction;
-    newIndex = Math.max(
-        0,
-        Math.min(newIndex, stream.manifestUpdates.length - 1)
-    );
-
-    if (newIndex !== stream.activeManifestUpdateIndex) {
-        stream.activeManifestUpdateIndex = newIndex;
-        renderManifestUpdates(stream.id);
+    if (updatesContainer) {
+        const stream = useStore
+            .getState()
+            .streams.find((s) => s.id === streamId);
+        render(manifestUpdatesTemplate(stream), updatesContainer);
     }
 }

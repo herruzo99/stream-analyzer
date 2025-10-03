@@ -1,4 +1,4 @@
-import { dom, analysisState } from '../core/state.js';
+import { dom } from '../core/dom.js';
 import { eventBus } from '../core/event-bus.js';
 import { populateContextSwitcher, renderAllTabs } from './rendering.js';
 import { resetAndRenderAllStreamInputs } from './components/stream-inputs.js';
@@ -15,13 +15,17 @@ const ViewState = {
  * @param {object} [data] - Optional data required for rendering the view.
  */
 function setView(state, data) {
+    const globalControls = document.getElementById('global-stream-controls');
+
     if (state === ViewState.INPUT) {
         // --- Reset to Input View ---
         dom.results.classList.add('hidden');
         dom.newAnalysisBtn.classList.add('hidden');
         dom.shareAnalysisBtn.classList.add('hidden');
+        dom.copyDebugBtn.classList.add('hidden');
         dom.contextSwitcherWrapper.classList.add('hidden');
         dom.inputSection.classList.remove('hidden');
+        if (globalControls) globalControls.classList.add('hidden');
 
         // Reset header layout
         dom.mainHeader.classList.add('justify-center');
@@ -56,6 +60,8 @@ function setView(state, data) {
         dom.results.classList.remove('hidden');
         dom.newAnalysisBtn.classList.remove('hidden');
         dom.shareAnalysisBtn.classList.remove('hidden');
+        dom.copyDebugBtn.classList.remove('hidden');
+        if (globalControls) globalControls.classList.remove('hidden');
 
         dom.mainHeader.classList.remove('justify-center');
         dom.mainHeader.classList.add('justify-between');

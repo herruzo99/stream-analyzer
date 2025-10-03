@@ -242,6 +242,10 @@ export const dashTooltipData = {
         text: 'A template for the URL of the Initialization Segment.',
         isoRef: 'Clause 5.3.9.4.2, Table 20',
     },
+    'SegmentTemplate@presentationTimeOffset': {
+        text: "Specifies an offset in timescale units that is subtracted from the media presentation time. This is used to align the segment's internal timeline with the Period timeline.",
+        isoRef: 'Clause 5.3.9.5.2, Table 21',
+    },
     'SegmentTemplate@media': {
         text: 'A template for the URLs of the Media Segments. Often contains $Time$ or $Number$.',
         isoRef: 'Clause 5.3.9.4.2, Table 20',

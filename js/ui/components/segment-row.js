@@ -1,18 +1,18 @@
 import { html } from 'lit-html';
-import { analysisState } from '../../core/state.js';
+import { useStore, storeActions } from '../../core/store.js';
 import { eventBus } from '../../core/event-bus.js';
 
 function handleSegmentCheck(e) {
     const checkbox = /** @type {HTMLInputElement} */ (e.target);
     const url = checkbox.value;
     if (checkbox.checked) {
-        if (analysisState.segmentsForCompare.length >= 2) {
+        if (useStore.getState().segmentsForCompare.length >= 2) {
             checkbox.checked = false;
             return;
         }
-        eventBus.dispatch('compare:add-segment', { url });
+        storeActions.addSegmentToCompare(url);
     } else {
-        eventBus.dispatch('compare:remove-segment', { url });
+        storeActions.removeSegmentFromCompare(url);
     }
 }
 
@@ -69,7 +69,7 @@ const getActions = (cacheEntry, seg, isFresh) => {
     };
     const viewRawHandler = (e) => {
         const url = /** @type {HTMLElement} */ (e.currentTarget).dataset.url;
-        analysisState.activeSegmentUrl = url;
+        storeActions.setActiveSegmentUrl(url);
         /** @type {HTMLElement} */ (
             document.querySelector('[data-tab="interactive-segment"]')
         )?.click();
@@ -133,10 +133,9 @@ const getActions = (cacheEntry, seg, isFresh) => {
  * @returns {import('lit-html').TemplateResult}
  */
 export const segmentRowTemplate = (seg, isFresh, livenessState) => {
-    const cacheEntry = analysisState.segmentCache.get(seg.resolvedUrl);
-    const isChecked = analysisState.segmentsForCompare.includes(
-        seg.resolvedUrl
-    );
+    const { segmentCache, segmentsForCompare } = useStore.getState();
+    const cacheEntry = segmentCache.get(seg.resolvedUrl);
+    const isChecked = segmentsForCompare.includes(seg.resolvedUrl);
 
     let stateClasses = 'hover:bg-gray-800/80';
     if (seg.gap) {

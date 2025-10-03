@@ -1,4 +1,4 @@
-import { dom } from '../core/state.js';
+import { dom } from '../core/dom.js';
 
 export function initializeModal() {
     dom.closeModalBtn.addEventListener('click', () => {

@@ -1,8 +1,8 @@
 /**
- * @typedef {import('../../../core/state.js').Manifest} Manifest
- * @typedef {import('../../../core/state.js').Period} Period
- * @typedef {import('../../../core/state.js').AdaptationSet} AdaptationSet
- * @typedef {import('../../../core/state.js').Representation} Representation
+ * @typedef {import('../../../core/store.js').Manifest} Manifest
+ * @typedef {import('../../../core/store.js').Period} Period
+ * @typedef {import('../../../core/store.js').AdaptationSet} AdaptationSet
+ * @typedef {import('../../../core/store.js').Representation} Representation
  */
 
 import { generateHlsSummary } from '../../../ui/views/summary/hls-summary.js';
@@ -34,7 +34,7 @@ export function adaptHlsToIr(hlsParsed) {
         segmentFormat: hlsParsed.map ? 'isobmff' : 'ts',
         periods: [],
         events: [],
-        rawElement: hlsParsed,
+        serializedManifest: hlsParsed,
         summary: null, // Will be populated after main parsing
         serverControl: hlsParsed.serverControl || null,
         tags: hlsParsed.tags || [], // Copy tags for feature analysis
@@ -83,6 +83,7 @@ export function adaptHlsToIr(hlsParsed) {
         }
     }
 
+    /** @type {Period} */
     const periodIR = {
         id: 'hls-period-0',
         start: 0,
@@ -93,6 +94,7 @@ export function adaptHlsToIr(hlsParsed) {
         adaptationSets: [],
         eventStreams: [],
         events: [], // HLS events are manifest-level
+        serializedManifest: hlsParsed,
     };
 
     if (hlsParsed.isMaster) {
@@ -113,7 +115,8 @@ export function adaptHlsToIr(hlsParsed) {
                     renditions.forEach((media, mediaIndex) => {
                         const contentType =
                             type === 'subtitles' ? 'text' : type;
-                        periodIR.adaptationSets.push({
+                        /** @type {AdaptationSet} */
+                        const as = {
                             id:
                                 media['STABLE-RENDITION-ID'] ||
                                 `${type}-rendition-${groupId}-${mediaIndex}`,
@@ -125,8 +128,22 @@ export function adaptHlsToIr(hlsParsed) {
                                     : 'video/mp2t',
                             representations: [], // Representations for these are in their own playlists
                             contentProtection: [],
-                            roles: [], // Initialize safely
-                        });
+                            roles: [],
+                            profiles: null,
+                            group: null,
+                            bitstreamSwitching: null,
+                            maxWidth: null,
+                            maxHeight: null,
+                            maxFrameRate: null,
+                            framePackings: [],
+                            ratings: [],
+                            viewpoints: [],
+                            accessibility: [],
+                            labels: [],
+                            groupLabels: [],
+                            serializedManifest: media,
+                        };
+                        periodIR.adaptationSets.push(as);
                     });
                 }
             );
@@ -160,6 +177,8 @@ export function adaptHlsToIr(hlsParsed) {
                     height: resolution
                         ? parseInt(String(resolution).split('x')[1], 10)
                         : null,
+                    frameRate: variant.attributes['FRAME-RATE'] || null,
+                    sar: null,
                     qualityRanking: variant.attributes.SCORE,
                     videoRange: variant.attributes['VIDEO-RANGE'],
                     mimeType: null,
@@ -186,8 +205,12 @@ export function adaptHlsToIr(hlsParsed) {
                     accessibility: [],
                     labels: [],
                     groupLabels: [],
+                    subRepresentations: [],
+                    dependencyId: null,
+                    serializedManifest: variant,
                 };
 
+                /** @type {AdaptationSet} */
                 const asIR = {
                     id: `video-variant-${index}`,
                     contentType: 'video',
@@ -195,13 +218,27 @@ export function adaptHlsToIr(hlsParsed) {
                     mimeType: 'video/mp2t',
                     representations: [rep],
                     contentProtection: [],
-                    roles: [], // Initialize safely
+                    roles: [],
+                    profiles: null,
+                    group: null,
+                    bitstreamSwitching: null,
+                    maxWidth: null,
+                    maxHeight: null,
+                    maxFrameRate: null,
+                    framePackings: [],
+                    ratings: [],
+                    viewpoints: [],
+                    accessibility: [],
+                    labels: [],
+                    groupLabels: [],
+                    serializedManifest: variant,
                 };
                 periodIR.adaptationSets.push(asIR);
             }
 
             // Create an AdaptationSet for muxed audio if present and not externally grouped.
             if (hasMuxedAudio) {
+                /** @type {AdaptationSet} */
                 const asIR = {
                     id: `audio-muxed-${index}`,
                     contentType: 'audio',
@@ -242,16 +279,35 @@ export function adaptHlsToIr(hlsParsed) {
                             labels: [],
                             groupLabels: [],
                             videoRange: undefined,
+                            subRepresentations: [],
+                            dependencyId: null,
+                            frameRate: null,
+                            sar: null,
+                            serializedManifest: variant,
                         },
                     ],
                     contentProtection: [],
-                    roles: [], // Initialize safely
+                    roles: [],
+                    profiles: null,
+                    group: null,
+                    bitstreamSwitching: null,
+                    maxWidth: null,
+                    maxHeight: null,
+                    maxFrameRate: null,
+                    framePackings: [],
+                    ratings: [],
+                    viewpoints: [],
+                    accessibility: [],
+                    labels: [],
+                    groupLabels: [],
+                    serializedManifest: variant,
                 };
                 periodIR.adaptationSets.push(asIR);
             }
         });
     } else {
         // Handle a simple Media Playlist
+        /** @type {AdaptationSet} */
         const asIR = {
             id: 'media-0',
             contentType: 'video', // Assume video/muxed if not master
@@ -290,16 +346,35 @@ export function adaptHlsToIr(hlsParsed) {
                     labels: [],
                     groupLabels: [],
                     videoRange: undefined,
+                    subRepresentations: [],
+                    dependencyId: null,
+                    frameRate: null,
+                    sar: null,
+                    serializedManifest: hlsParsed,
                 },
             ],
             contentProtection: [],
-            roles: [], // Initialize safely
+            roles: [],
+            profiles: null,
+            group: null,
+            bitstreamSwitching: null,
+            maxWidth: null,
+            maxHeight: null,
+            maxFrameRate: null,
+            framePackings: [],
+            ratings: [],
+            viewpoints: [],
+            accessibility: [],
+            labels: [],
+            groupLabels: [],
+            serializedManifest: hlsParsed,
         };
         const keyTag = hlsParsed.segments.find((s) => s.key)?.key;
         if (keyTag && keyTag.METHOD !== 'NONE') {
             asIR.contentProtection.push({
                 schemeIdUri: keyTag.KEYFORMAT || 'identity',
                 system: keyTag.METHOD,
+                defaultKid: null,
             });
         }
         periodIR.adaptationSets.push(asIR);
