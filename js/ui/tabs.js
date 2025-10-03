@@ -1,9 +1,9 @@
 import { render } from 'lit-html';
-import { dom, analysisState } from '../core/state.js';
+import { dom } from '../core/dom.js';
+import { useStore, storeActions } from '../core/store.js';
 import { getInteractiveSegmentTemplate } from './views/interactive-segment/index.js';
 import {
     renderManifestUpdates,
-    updatePollingButton,
     navigateManifestUpdates,
 } from './views/manifest-updates/index.js';
 import { renderSingleStreamTabs } from './rendering.js';
@@ -42,6 +42,8 @@ export function handleTabClick(e) {
     const activeTabContent = dom.tabContents[activeTabName];
     if (activeTabContent) activeTabContent.classList.remove('hidden');
 
+    const { activeStreamId, streams } = useStore.getState();
+
     if (activeTabName === 'interactive-segment') {
         render(
             getInteractiveSegmentTemplate(),
@@ -49,13 +51,11 @@ export function handleTabClick(e) {
         );
     }
     if (activeTabName === 'interactive-manifest') {
-        renderSingleStreamTabs(analysisState.activeStreamId);
+        renderSingleStreamTabs(activeStreamId);
     }
 
     if (activeTabName === 'explorer') {
-        const stream = analysisState.streams.find(
-            (s) => s.id === analysisState.activeStreamId
-        );
+        const stream = streams.find((s) => s.id === activeStreamId);
         if (stream) {
             initializeSegmentExplorer(dom.tabContents.explorer, stream);
         }
@@ -63,11 +63,10 @@ export function handleTabClick(e) {
 
     if (activeTabName === 'updates') {
         keyboardNavigationListener = (event) => {
-            if (event.key === 'ArrowLeft') navigateManifestUpdates(1);
-            if (event.key === 'ArrowRight') navigateManifestUpdates(-1);
+            if (event.key === 'ArrowRight') navigateManifestUpdates(1);
+            if (event.key === 'ArrowLeft') navigateManifestUpdates(-1);
         };
         document.addEventListener('keydown', keyboardNavigationListener);
-        renderManifestUpdates(analysisState.activeStreamId); // Initial render
+        renderManifestUpdates(activeStreamId); // Initial render
     }
-    updatePollingButton(); // Still need to update the button's appearance
 }

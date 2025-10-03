@@ -1,9 +1,9 @@
-import { analysisState } from '../../../core/state.js';
+import { useStore } from '../../../core/store.js';
 import { parseAllSegmentUrls } from '../../../protocols/manifest/dash/segment-parser.js';
 
 /**
  * Creates a view model for the DASH timeline visualization by leveraging the central segment parser.
- * @param {import('../../../core/state.js').Stream} stream
+ * @param {import('../../../core/store.js').Stream} stream
  * @returns {Promise<object[]>} A promise that resolves to an array of switching set view models.
  */
 export async function createDashTimelineViewModel(stream) {
@@ -12,7 +12,7 @@ export async function createDashTimelineViewModel(stream) {
     // Use the single source of truth for segment parsing. This function is synchronous
     // and does not perform any network requests for this type of manifest.
     const segmentsByRepId = parseAllSegmentUrls(
-        stream.manifest.rawElement,
+        stream.manifest.serializedManifest,
         stream.baseUrl
     );
 
@@ -43,7 +43,7 @@ export async function createDashTimelineViewModel(stream) {
                     }));
 
                     const events = [];
-                    analysisState.segmentCache.forEach((entry) => {
+                    useStore.getState().segmentCache.forEach((entry) => {
                         if (entry.parsedData?.data?.events) {
                             events.push(...entry.parsedData.data.events);
                         }
@@ -59,10 +59,9 @@ export async function createDashTimelineViewModel(stream) {
                 });
 
                 const totalDuration = representations[0]?.fragments
-                    ? representations[0].fragments.map((f) => f.duration).reduce(
-                          (acc, f) => acc + f.duration,
-                          0
-                      )
+                    ? representations[0].fragments
+                          .map((f) => f.duration)
+                          .reduce((acc, f) => acc + f, 0)
                     : 0;
 
                 return {

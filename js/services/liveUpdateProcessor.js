@@ -1,4 +1,4 @@
-import { analysisState } from '../core/state.js';
+import { useStore } from '../core/store.js';
 import { eventBus } from '../core/event-bus.js';
 import { generateFeatureAnalysis } from '../engines/feature-analysis/analyzer.js';
 import { parseAllSegmentUrls as parseDashSegments } from '../protocols/manifest/dash/segment-parser.js';
@@ -7,14 +7,83 @@ import xmlFormatter from 'xml-formatter';
 
 /**
  * A more specific stream type where the protocol is guaranteed to be 'dash' or 'hls'.
- * @typedef {import('../core/state.js').Stream & { protocol: 'dash' | 'hls' }} KnownProtocolStream
+ * @typedef {import('../core/store.js').Stream & { protocol: 'dash' | 'hls' }} KnownProtocolStream
  */
 
 /**
+ * Compares two sets of compliance results to see if any new issues have appeared.
+ * @param {import('../core/store.js').ComplianceResult[]} oldResults
+ * @param {import('../core/store.js').ComplianceResult[]} newResults
+ * @returns {boolean}
+ */
+function checkForNewIssues(oldResults, newResults) {
+    if (!Array.isArray(newResults)) return false; // Defensive guard
+    if (!oldResults) {
+        // If there were no old results, any new issue is considered "new".
+        return newResults.some(
+            (res) => res.status === 'fail' || res.status === 'warn'
+        );
+    }
+
+    const oldIssueIds = new Set(
+        oldResults
+            .filter((r) => r.status === 'fail' || r.status === 'warn')
+            .map((r) => r.id)
+    );
+
+    return newResults.some(
+        (r) =>
+            (r.status === 'fail' || r.status === 'warn') &&
+            !oldIssueIds.has(r.id)
+    );
+}
+
+/**
+ * Safely creates a deep clone of the mutable parts of the stream state.
+ * Specifically handles Map objects which JSON.stringify/parse cannot handle.
+ * @param {import('../core/store.js').Stream} stream The stream object to clone.
+ * @returns {import('../core/store.js').Stream} A deep clone of the stream.
+ */
+function safeStreamClone(stream) {
+    // Manually deep copy or shallow copy properties that are safe.
+    const clonedStream = {
+        ...stream,
+        // Deep clone maps and arrays that hold state
+        mediaPlaylists: new Map(stream.mediaPlaylists),
+        manifestUpdates: [...stream.manifestUpdates],
+        semanticData: new Map(stream.semanticData),
+        featureAnalysis: {
+            ...stream.featureAnalysis,
+            results: new Map(stream.featureAnalysis.results),
+        },
+        // Deep clone nested maps
+        hlsVariantState: new Map(
+            Array.from(stream.hlsVariantState.entries()).map(([key, value]) => [
+                key,
+                { ...value },
+            ])
+        ),
+        dashRepresentationState: new Map(
+            Array.from(stream.dashRepresentationState.entries()).map(
+                ([key, value]) => [
+                    key,
+                    {
+                        ...value,
+                        segments: [...value.segments],
+                        freshSegmentUrls: new Set(value.freshSegmentUrls),
+                    },
+                ]
+            )
+        ),
+    };
+    return clonedStream;
+}
+
+/**
  * Updates the core properties of a stream object with new manifest data.
- * @param {import('../core/state.js').Stream} stream The stream to update.
+ * @param {import('../core/store.js').Stream} stream The stream to update.
  * @param {string} newManifestString The raw string of the new manifest.
- * @param {import('../core/state.js').Manifest} newManifestObject The new manifest IR.
+ * @param {import('../core/store.js').Manifest} newManifestObject The new manifest IR.
  */
 function _updateStreamProperties(stream, newManifestString, newManifestObject) {
     stream.rawManifest = newManifestString;
@@ -31,7 +100,7 @@ function _updateFeatureAnalysis(stream) {
     const newAnalysisResults = generateFeatureAnalysis(
         stream.manifest,
         stream.protocol,
-        stream.manifest.rawElement // DASH needs the serialized object
+        stream.manifest.serializedManifest // DASH needs the serialized object
     );
 
     Object.entries(newAnalysisResults).forEach(([name, result]) => {
@@ -55,25 +124,41 @@ function _updateFeatureAnalysis(stream) {
  * @param {KnownProtocolStream} stream The stream to update.
  * @param {string} oldManifestString The raw string of the previous manifest.
  * @param {string} newManifestString The raw string of the new manifest.
+ * @param {import('../core/store.js').ComplianceResult[]} complianceResults The new compliance results.
+ * @param {object} serializedManifest The pristine serialized manifest object for this update.
  */
-function _updateManifestDiff(stream, oldManifestString, newManifestString) {
+function _updateManifestDiff(
+    stream,
+    oldManifestString,
+    newManifestString,
+    complianceResults,
+    serializedManifest
+) {
     let formattedOld = oldManifestString;
     let formattedNew = newManifestString;
 
     if (stream.protocol === 'dash') {
-        const formattingOptions = {
+        formattedOld = xmlFormatter(oldManifestString, {
             indentation: '  ',
             lineSeparator: '\n',
-        };
-        formattedOld = xmlFormatter(oldManifestString, formattingOptions);
-        formattedNew = xmlFormatter(newManifestString, formattingOptions);
+        });
+        formattedNew = xmlFormatter(newManifestString, {
+            indentation: '  ',
+            lineSeparator: '\n',
+        });
     }
 
     const diffHtml = diffManifest(formattedOld, formattedNew, stream.protocol);
+
+    const previousResults = stream.manifestUpdates[0]?.complianceResults;
+    const hasNewIssues = checkForNewIssues(previousResults, complianceResults);
+
     const newUpdate = {
         timestamp: new Date().toLocaleTimeString(),
         diffHtml,
-        rawManifest: newManifestString,
+        complianceResults,
+        hasNewIssues,
+        serializedManifest,
     };
     stream.manifestUpdates.unshift(newUpdate);
 
@@ -88,7 +173,7 @@ function _updateManifestDiff(stream, oldManifestString, newManifestString) {
  */
 function _updateDashSegmentState(stream) {
     const newSegmentsByRep = parseDashSegments(
-        stream.manifest.rawElement,
+        stream.manifest.serializedManifest,
         stream.baseUrl
     );
     Object.entries(newSegmentsByRep).forEach(([repId, newSegments]) => {
@@ -114,14 +199,13 @@ function _updateDashSegmentState(stream) {
  * @param {KnownProtocolStream} stream The stream to update.
  */
 function _updateHlsSegmentState(stream) {
-    // This logic only applies to media playlists, not master playlists.
-    if (stream.manifest.rawElement.isMaster) {
+    if (stream.manifest.serializedManifest.isMaster) {
         return;
     }
 
     const variant = stream.hlsVariantState.get(stream.originalUrl);
     if (variant) {
-        const latestParsed = stream.manifest.rawElement;
+        const latestParsed = stream.manifest.serializedManifest;
         variant.segments = latestParsed.segments || [];
         variant.freshSegmentUrls = new Set(
             variant.segments.map((s) => s.resolvedUrl)
@@ -134,12 +218,22 @@ function _updateHlsSegmentState(stream) {
  * @param {object} updateData The event data from `livestream:manifest-updated`.
  */
 function processLiveUpdate(updateData) {
-    const { streamId, newManifestString, newManifestObject, oldManifestString } =
-        updateData;
-    const streamIndex = analysisState.streams.findIndex((s) => s.id === streamId);
+    const {
+        streamId,
+        newManifestString,
+        newManifestObject,
+        oldManifestString,
+        complianceResults,
+        serializedManifest, // Extract the new pristine manifest object
+    } = updateData;
+    const streamIndex = useStore
+        .getState()
+        .streams.findIndex((s) => s.id === streamId);
     if (streamIndex === -1) return;
 
-    const stream = analysisState.streams[streamIndex];
+    // Use safe cloning instead of JSON.parse(JSON.stringify())
+    const streams = useStore.getState().streams;
+    const stream = safeStreamClone(streams[streamIndex]);
 
     // Add type guard to satisfy TypeScript compiler and prevent runtime errors.
     if (stream.protocol === 'unknown') return;
@@ -150,13 +244,26 @@ function processLiveUpdate(updateData) {
 
     _updateStreamProperties(stream, newManifestString, newManifestObject);
     _updateFeatureAnalysis(knownProtocolStream);
-    _updateManifestDiff(knownProtocolStream, oldManifestString, newManifestString);
+    _updateManifestDiff(
+        knownProtocolStream,
+        oldManifestString,
+        newManifestString,
+        complianceResults,
+        serializedManifest // Pass the pristine object
+    );
 
     if (knownProtocolStream.protocol === 'dash') {
         _updateDashSegmentState(knownProtocolStream);
     } else if (knownProtocolStream.protocol === 'hls') {
         _updateHlsSegmentState(knownProtocolStream);
     }
+
+    // Update the stream in the store
+    useStore.setState((state) => ({
+        streams: state.streams.map((s, index) =>
+            index === streamIndex ? stream : s
+        ),
+    }));
 
     // Notify the UI that data for this stream has been refreshed.
     eventBus.dispatch('stream:data-updated', { streamId });

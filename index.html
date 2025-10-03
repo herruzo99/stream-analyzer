@@ -3,27 +3,24 @@
     <head>
         <style>
             .is-highlighted {
-                background-color: rgba(59, 130, 246, 0.5) !important;
-                border-color: rgba(59, 130, 246, 0.5) !important;
+                /* Blue overlay for selection, preserves underlying field colors */
+                box-shadow: inset 0 0 0 1000px rgba(59, 130, 246, 0.3);
             }
 
-            .is-inspector-hover-highlighted {
-                background-color: rgba(168, 85, 247, 0.4) !important;
-                border-color: rgba(168, 85, 247, 0.4) !important;
+            .is-box-hover-highlighted {
+                /* Lighter blue overlay for the parent box on hover */
+                box-shadow: inset 0 0 0 1000px rgba(59, 131, 246, 0.319);
             }
 
-            .is-field-boundary-highlighted {
-                border-color: rgba(250, 204, 21, 0.9) !important;
+            .is-field-hover-highlighted {
+                /* Opaque purple for the specific field on hover (sits on top) */
+                background-color: rgba(168, 85, 247, 0.8) !important;
                 z-index: 15 !important;
             }
 
-            .is-field-highlighted {
-                .missing-tooltip-trigger {
-                    border-bottom: 1px dotted rgba(248, 113, 113, 0.7) !important;
-                    cursor: help;
-                }
-                background-color: rgba(234, 179, 8, 0.4) !important;
-                border-color: rgba(234, 179, 8, 0.4) !important;
+            .missing-tooltip-trigger {
+                border-bottom: 1px dotted rgba(248, 113, 113, 0.7) !important;
+                cursor: help;
             }
         </style>
         <meta charset="UTF-8" />
@@ -38,74 +35,86 @@
         />
     </head>
     <body
-        class="bg-gray-900 text-gray-200 min-h-screen p-4 sm:p-6 md:p-8 font-sans"
+        class="bg-gray-900 text-gray-200 min-h-screen font-sans flex flex-col"
     >
-        <div class="w-full">
-            <div class="max-w-7xl mx-auto">
-                <header
-                    id="main-header"
-                    class="flex justify-center items-center mb-8"
-                >
-                    <div id="header-title-group" class="text-center">
-                        <h1 class="text-3xl sm:text-4xl font-bold text-white">
-                            Exhaustive Stream Analyzer
-                        </h1>
-                        <p class="text-gray-400 mt-2">
-                            Analyze and compare DASH & HLS streams against
-                            industry standards.
-                        </p>
-                    </div>
-
-                    <div
-                        id="header-url-display"
-                        class="hidden text-center text-xs font-mono text-gray-400 px-8"
-                    >
-                        <!-- URLs injected by JS -->
-                    </div>
-
-                    <div class="flex items-center space-x-2 flex-shrink-0">
-                        <button
-                            id="share-analysis-btn"
-                            class="hidden bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md transition duration-300"
-                        >
-                            Share
-                        </button>
-                        <button
-                            id="new-analysis-btn"
-                            class="hidden bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition duration-300"
-                        >
-                            Analyze New Streams
-                        </button>
-                    </div>
-                </header>
+        <div
+            class="w-full max-w-8xl mx-auto flex flex-col flex-grow p-4 sm:p-6 md:p-8"
+        >
+            <header
+                id="main-header"
+                class="flex justify-center items-center mb-8 flex-shrink-0"
+            >
+                <div id="header-title-group" class="text-center">
+                    <h1 class="text-3xl sm:text-4xl font-bold text-white">
+                        Exhaustive Stream Analyzer
+                    </h1>
+                    <p class="text-gray-400 mt-2">
+                        Analyze and compare DASH & HLS streams against industry
+                        standards.
+                    </p>
+                </div>
 
                 <div
-                    id="input-section"
-                    data-testid="input-section"
-                    class="bg-gray-800 p-6 rounded-lg shadow-lg mb-8"
+                    id="header-url-display"
+                    class="hidden text-center text-xs font-mono text-gray-400 px-8"
                 >
-                    <div id="stream-inputs" class="space-y-6">
-                        <!-- Stream inputs will be dynamically added here -->
+                    <!-- URLs injected by JS -->
+                </div>
+
+                <div class="flex items-center space-x-2 flex-shrink-0">
+                    <div
+                        id="global-stream-controls"
+                        class="flex items-center gap-2"
+                    >
+                        <!-- Polling and Reload buttons will be injected here -->
                     </div>
-                    <div class="flex flex-col sm:flex-row gap-4 mt-6">
-                        <button
-                            id="add-stream-btn"
-                            class="w-full sm:w-auto flex-grow bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md transition duration-300"
-                        >
-                            Add Another Stream
-                        </button>
-                        <button
-                            id="analyze-btn"
-                            class="w-full sm:w-auto flex-grow bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition duration-300"
-                        >
-                            Analyze & Compare
-                        </button>
-                    </div>
+                    <button
+                        id="share-analysis-btn"
+                        class="hidden bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md transition duration-300"
+                    >
+                        Share
+                    </button>
+                    <button
+                        id="copy-debug-btn"
+                        class="hidden bg-yellow-600 hover:bg-yellow-700 text-black font-bold py-2 px-4 rounded-md transition duration-300"
+                    >
+                        Copy Debug Info
+                    </button>
+                    <button
+                        id="new-analysis-btn"
+                        class="hidden bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition duration-300"
+                    >
+                        Analyze New Streams
+                    </button>
+                </div>
+            </header>
+
+            <div
+                id="input-section"
+                data-testid="input-section"
+                class="bg-gray-800 p-6 rounded-lg shadow-lg mb-8 flex-shrink-0"
+            >
+                <div id="stream-inputs" class="space-y-6">
+                    <!-- Stream inputs will be dynamically added here -->
+                </div>
+                <div class="flex flex-col sm:flex-row gap-4 mt-6">
+                    <button
+                        id="add-stream-btn"
+                        class="w-full sm:w-auto flex-grow bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md transition duration-300"
+                    >
+                        Add Another Stream
+                    </button>
+                    <button
+                        id="analyze-btn"
+                        class="w-full sm:w-auto flex-grow bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition duration-300"
+                    >
+                        Analyze & Compare
+                    </button>
                 </div>
             </div>
 
-            <div id="results" class="hidden">
-                <div class="mb-4 border-b border-gray-700">
+            <div id="results" class="hidden flex flex-col flex-grow min-h-0">
+                <div class="mb-4 border-b border-gray-700 flex-shrink-0">
                     <nav class="flex flex-wrap items-center" id="tabs">
                         <div class="flex -mb-px flex-wrap flex-grow">
                             <button
@@ -180,7 +189,9 @@
                         </div>
                     </nav>
                 </div>
-                <div class="bg-gray-800 p-2 sm:p-6 rounded-lg shadow-lg">
+                <div
+                    class="bg-gray-800 p-2 sm:p-6 rounded-lg shadow-lg flex-grow min-h-0 overflow-y-auto"
+                >
                     <div
                         id="tab-comparison"
                         data-testid="tab-comparison"
@@ -193,9 +204,12 @@
                     ></div>
                     <div id="tab-timeline-visuals" class="hidden"></div>
                     <div id="tab-features" class="hidden"></div>
-                    <div id="tab-compliance" class="hidden"></div>
+                    <div id="tab-compliance" class="hidden h-full"></div>
                     <div id="tab-explorer" class="hidden"></div>
-                    <div id="tab-interactive-segment" class="hidden"></div>
+                    <div
+                        id="tab-interactive-segment"
+                        class="hidden h-full"
+                    ></div>
                     <div id="tab-interactive-manifest" class="hidden"></div>
                     <div id="tab-updates" class="hidden">
                         <div id="mpd-updates-content"></div>

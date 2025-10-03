@@ -2,12 +2,21 @@ import { html, render } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { dashTooltipData } from './tooltip-data.js';
 import { tooltipTriggerClasses } from '../../../../../shared/constants.js';
-import { eventBus } from '../../../../../core/event-bus.js';
 
 // --- MODULE STATE FOR VIRTUALIZATION ---
 let currentPage = 1;
-const linesPerPage = 500; // Render 500 lines at a time
-let lastRenderedManifest = null;
+const linesPerPage = 500;
+let lastRenderedManifestString = null;
+
+const onPageChange = (offset, stream, totalPages) => {
+    const newPage = currentPage + offset;
+    if (newPage >= 1 && newPage <= totalPages) {
+        currentPage = newPage;
+        const container = document.getElementById('tab-interactive-manifest');
+        // Re-render the template to update the view
+        render(dashManifestTemplate(stream), container);
+    }
+};
 
 const escapeHtml = (str) =>
     str
@@ -32,10 +41,12 @@ const getTagHTML = (tagName) => {
         ? `data-tooltip="${escapeHtml(tagInfo.text)}" data-iso="${escapeHtml(
               tagInfo.isoRef
           )}"`
-        : '';
+        : `data-tooltip="No definition for &lt;${cleanTagName}&gt;"`;
+    const triggerClass = tooltipTriggerClasses;
+
     return `&lt;${
         isClosing ? '/' : ''
-    }<span class="${tagInfo ? tooltipTriggerClasses : ''}" ${tooltipAttrs}>${displayPrefix}<span class="${tagClass}">${localName}</span></span>`;
+    }<span class="${triggerClass}" ${tooltipAttrs}>${displayPrefix}<span class="${tagClass}">${localName}</span></span>`;
 };
 
 const getAttributeHTML = (tagName, attr) => {
@@ -58,7 +69,7 @@ const getAttributeHTML = (tagName, attr) => {
         )}" data-iso="${escapeHtml(attrInfo.isoRef)}"`;
     } else if (!isIgnoredAttr) {
         dynamicClasses = 'cursor-help bg-red-900/50 missing-tooltip-trigger';
-        tooltipAttrs = `data-tooltip="Tooltip definition missing for '${attr.name}' on <${tagName}>"`;
+        tooltipAttrs = `data-tooltip="Tooltip definition missing for '${attr.name}' on &lt;${tagName}&gt;"`;
     }
 
     return `<span class="${nameClass} ${dynamicClasses}" ${tooltipAttrs}>${
@@ -119,23 +130,6 @@ const preformattedDash = (node, depth = 0) => {
     }
 };
 
-const reloadHandler = (stream) => {
-    if (!stream || !stream.originalUrl) {
-        eventBus.dispatch('ui:show-status', {
-            message: 'Cannot reload a manifest from a local file.',
-            type: 'warn',
-            duration: 4000,
-        });
-        return;
-    }
-    eventBus.dispatch('ui:show-status', {
-        message: `Reloading manifest for ${stream.name}...`,
-        type: 'info',
-        duration: 2000,
-    });
-    eventBus.dispatch('manifest:force-reload', { streamId: stream.id });
-};
-
 export const dashManifestTemplate = (stream) => {
     // Determine which manifest string to display
     const hasUpdates =
@@ -175,22 +169,10 @@ ${parserError.textContent}</pre
     const allLines = preformattedDash(manifestElement);
     const totalPages = Math.ceil(allLines.length / linesPerPage);
 
-    // Reset pagination if the underlying manifest has changed
-    if (manifestElement !== lastRenderedManifest) {
+    if (manifestStringToDisplay !== lastRenderedManifestString) {
         currentPage = 1;
-        lastRenderedManifest = manifestElement;
+        lastRenderedManifestString = manifestStringToDisplay;
     }
-
-    const onPageChange = (offset) => {
-        const newPage = currentPage + offset;
-        if (newPage >= 1 && newPage <= totalPages) {
-            currentPage = newPage;
-            const container = document.getElementById(
-                'tab-interactive-manifest'
-            );
-            render(dashManifestTemplate(stream), container);
-        }
-    };
 
     const startLine = (currentPage - 1) * linesPerPage;
     const endLine = startLine + linesPerPage;
@@ -200,7 +182,7 @@ ${parserError.textContent}</pre
         totalPages > 1
             ? html` <div class="text-center text-sm text-gray-400 mt-4">
                   <button
-                      @click=${() => onPageChange(-1)}
+                      @click=${() => onPageChange(-1, stream, totalPages)}
                       ?disabled=${currentPage === 1}
                       class="px-3 py-1 rounded bg-gray-600 hover:bg-gray-500 disabled:opacity-50 mx-2"
                   >
@@ -214,7 +196,7 @@ ${parserError.textContent}</pre
                       )})</span
                   >
                   <button
-                      @click=${() => onPageChange(1)}
+                      @click=${() => onPageChange(1, stream, totalPages)}
                       ?disabled=${currentPage === totalPages}
                       class="px-3 py-1 rounded bg-gray-600 hover:bg-gray-500 disabled:opacity-50 mx-2"
                   >
@@ -224,15 +206,6 @@ ${parserError.textContent}</pre
             : '';
 
     return html`
-        <div class="flex justify-between items-center mb-2">
-            <h3 class="text-xl font-bold">Interactive Manifest</h3>
-            <button
-                @click=${() => reloadHandler(stream)}
-                class="bg-gray-600 hover:bg-gray-700 text-white font-bold text-xs py-1 px-3 rounded-md transition-colors"
-            >
-                Reload
-            </button>
-        </div>
         <div
             class="bg-slate-800 rounded-lg p-4 font-mono text-sm leading-relaxed overflow-x-auto"
         >

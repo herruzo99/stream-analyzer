@@ -1,5 +1,5 @@
 /**
- * @typedef {import('../../../core/state.js').Manifest} Manifest
+ * @typedef {import('../../../core/store.js').Manifest} Manifest
  */
 
 import { findChildrenRecursive } from '../../../protocols/manifest/dash/recursive-parser.js';
@@ -12,31 +12,22 @@ const formatBitrate = (bps) => {
 
 const getSegmentingStrategy = (serializedManifest) => {
     if (!serializedManifest) return 'unknown';
-    if (
-        findChildrenRecursive(serializedManifest.children, 'SegmentList')
-            .length > 0
-    )
+    if (findChildrenRecursive(serializedManifest, 'SegmentList').length > 0)
         return 'SegmentList';
     const template = findChildrenRecursive(
-        serializedManifest.children,
+        serializedManifest,
         'SegmentTemplate'
     )[0];
     if (template) {
-        if (
-            findChildrenRecursive(template.children, 'SegmentTimeline').length >
-            0
-        )
+        if (findChildrenRecursive(template, 'SegmentTimeline').length > 0)
             return 'SegmentTemplate with SegmentTimeline';
-        if (template.attributes.media?.includes('$Number$'))
+        if (template[':@']?.media?.includes('$Number$'))
             return 'SegmentTemplate with $Number$';
-        if (template.attributes.media?.includes('$Time$'))
+        if (template[':@']?.media?.includes('$Time$'))
             return 'SegmentTemplate with $Time$';
         return 'SegmentTemplate';
     }
-    if (
-        findChildrenRecursive(serializedManifest.children, 'SegmentBase')
-            .length > 0
-    )
+    if (findChildrenRecursive(serializedManifest, 'SegmentBase').length > 0)
         return 'SegmentBase';
     return 'BaseURL / Single Segment';
 };
@@ -45,7 +36,7 @@ const getSegmentingStrategy = (serializedManifest) => {
  * Creates a protocol-agnostic summary view-model from a DASH manifest.
  * @param {Manifest} manifestIR - The adapted manifest IR.
  * @param {object} serializedManifest - The serialized manifest DOM object.
- * @returns {import('../../../core/state.js').ManifestSummary}
+ * @returns {import('../../../core/store.js').ManifestSummary}
  */
 export function generateDashSummary(manifestIR, serializedManifest) {
     const videoSets = [];
@@ -79,14 +70,14 @@ export function generateDashSummary(manifestIR, serializedManifest) {
     }
 
     const serviceDescription = findChildrenRecursive(
-        serializedManifest.children,
+        serializedManifest,
         'ServiceDescription'
     )[0];
     const latencyEl = serviceDescription
-        ? findChildrenRecursive(serviceDescription.children, 'Latency')[0]
+        ? findChildrenRecursive(serviceDescription, 'Latency')[0]
         : null;
 
-    /** @type {import('../../../core/state.js').ManifestSummary} */
+    /** @type {import('../../../core/store.js').ManifestSummary} */
     const summary = {
         general: {
             protocol: 'DASH',
@@ -116,14 +107,10 @@ export function generateDashSummary(manifestIR, serializedManifest) {
         lowLatency: {
             isLowLatency: !!latencyEl,
             targetLatency: latencyEl
-                ? parseInt(latencyEl.attributes.target, 10)
+                ? parseInt(latencyEl[':@']?.target, 10)
                 : null,
-            minLatency: latencyEl
-                ? parseInt(latencyEl.attributes.min, 10)
-                : null,
-            maxLatency: latencyEl
-                ? parseInt(latencyEl.attributes.max, 10)
-                : null,
+            minLatency: latencyEl ? parseInt(latencyEl[':@']?.min, 10) : null,
+            maxLatency: latencyEl ? parseInt(latencyEl[':@']?.max, 10) : null,
             partTargetDuration: null,
             partHoldBack: null,
             canBlockReload: false,

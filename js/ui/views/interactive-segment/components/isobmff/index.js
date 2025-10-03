@@ -1,24 +1,23 @@
 import { html, render } from 'lit-html';
-import { analysisState, dom } from '../../../../../core/state.js';
+import { useStore } from '../../../../../core/store.js';
+import { dom } from '../../../../../core/dom.js';
 import { getTooltipData as getAllIsoTooltipData } from '../../../../../protocols/segment/isobmff/index.js';
 import { hexViewTemplate } from '../../../../components/hex-view.js';
 import { buildByteMap } from './view-model.js';
 
 // --- STATE & CONFIG ---
-let hexCurrentPage = 1;
-const BYTES_PER_PAGE = 1024; // 1KB per page
 const allIsoTooltipData = getAllIsoTooltipData(); // Fetch the data once
 const boxColors = [
-    { bg: 'bg-red-500/20', border: 'border-red-500' },
-    { bg: 'bg-yellow-500/20', border: 'border-yellow-500' },
-    { bg: 'bg-green-500/20', border: 'border-green-500' },
-    { bg: 'bg-blue-500/20', border: 'border-blue-500' },
-    { bg: 'bg-indigo-500/20', border: 'border-indigo-500' },
-    { bg: 'bg-purple-500/20', border: 'border-purple-500' },
-    { bg: 'bg-pink-500/20', border: 'border-pink-500' },
-    { bg: 'bg-teal-500/20', border: 'border-teal-500' },
+    { bg: 'bg-red-500', border: 'border-red-500' },
+    { bg: 'bg-yellow-500', border: 'border-yellow-500' },
+    { bg: 'bg-green-500', border: 'border-green-500' },
+    { bg: 'bg-blue-500', border: 'border-blue-500' },
+    { bg: 'bg-indigo-500', border: 'border-indigo-500' },
+    { bg: 'bg-purple-500', border: 'border-purple-500' },
+    { bg: 'bg-pink-500', border: 'border-pink-500' },
+    { bg: 'bg-teal-500', border: 'border-teal-500' },
 ];
-const chunkColor = { bg: 'bg-slate-600/20', border: 'border-slate-500' };
+const chunkColor = { bg: 'bg-slate-600', border: 'border-slate-500' };
 
 // --- HELPERS ---
 function findBox(boxes, predicate) {
@@ -49,23 +48,25 @@ export function findBoxByOffset(parsedData, offset) {
 }
 
 function assignBoxColors(boxes) {
-    let colorIndex = 0;
-    const traverse = (boxList) => {
+    const colorState = { index: 0 };
+    const traverse = (boxList, state) => {
         for (const box of boxList) {
             if (box.isChunk) {
                 box.color = chunkColor;
-                traverse(box.children); // Recurse into chunk
-            } else {
-                box.color = boxColors[colorIndex % boxColors.length];
-                colorIndex++;
                 if (box.children?.length > 0) {
-                    traverse(box.children);
+                    traverse(box.children, state);
+                }
+            } else {
+                box.color = boxColors[state.index % boxColors.length];
+                state.index++;
+                if (box.children?.length > 0) {
+                    traverse(box.children, state);
                 }
             }
         }
     };
     if (boxes) {
-        traverse(boxes);
+        traverse(boxes, colorState);
     }
 }
 
@@ -305,8 +306,13 @@ const issuesTemplate = (issues) => {
     `;
 };
 
-export function getInteractiveIsobmffTemplate() {
-    const { activeSegmentUrl, segmentCache } = analysisState;
+export function getInteractiveIsobmffTemplate(
+    currentPage,
+    bytesPerPage,
+    onPageChange,
+    allTooltips // New parameter
+) {
+    const { activeSegmentUrl, segmentCache } = useStore.getState();
     const cachedSegment = segmentCache.get(activeSegmentUrl);
     const parsedSegmentData =
         cachedSegment?.parsedData &&
@@ -323,21 +329,7 @@ export function getInteractiveIsobmffTemplate() {
     const groupedBoxes = groupboxesIntoChunks(parsedSegmentData.boxes || []);
     assignBoxColors(groupedBoxes);
     const byteMap = buildByteMap(groupedBoxes);
-    analysisState.activeByteMap = byteMap; // Store for interaction logic
-
-    const onPageChange = (offset) => {
-        const totalPages = Math.ceil(
-            cachedSegment.data.byteLength / BYTES_PER_PAGE
-        );
-        const newPage = hexCurrentPage + offset;
-        if (newPage >= 1 && newPage <= totalPages) {
-            hexCurrentPage = newPage;
-            render(
-                getInteractiveIsobmffTemplate(),
-                dom.tabContents['interactive-segment']
-            );
-        }
-    };
+    useStore.setState({ activeByteMap: byteMap }); // Store for interaction logic
 
     return html`
         <div
@@ -359,9 +351,10 @@ export function getInteractiveIsobmffTemplate() {
                 ${hexViewTemplate(
                     cachedSegment.data,
                     byteMap,
-                    hexCurrentPage,
-                    BYTES_PER_PAGE,
-                    onPageChange
+                    currentPage,
+                    bytesPerPage,
+                    onPageChange,
+                    allTooltips // Pass new parameter
                 )}
             </div>
         </div>

@@ -1,13 +1,13 @@
 import { html, render } from 'lit-html';
-import { analysisState, dom } from '../../../../../core/state.js';
+import { useStore } from '../../../../../core/store.js';
+import { dom } from '../../../../../core/dom.js';
 import { hexViewTemplate } from '../../../../components/hex-view.js';
 import { buildByteMapTs } from './view-model.js';
+import { getTooltipData as getTsTooltipData } from '../../../../../protocols/segment/ts/index.js';
 
 // --- STATE & CONFIG ---
 let packetCurrentPage = 1;
-let hexCurrentPage = 1;
 const PACKETS_PER_PAGE = 50;
-const HEX_BYTES_PER_PAGE = 1024; // 1KB per page
 
 // --- HELPERS ---
 export function findPacketByOffset(parsedData, offset) {
@@ -256,8 +256,13 @@ const packetListTemplate = (packets, onPageChange) => {
             : ''}`;
 };
 
-export function getInteractiveTsTemplate() {
-    const { activeSegmentUrl, segmentCache } = analysisState;
+export function getInteractiveTsTemplate(
+    currentPage,
+    bytesPerPage,
+    onHexPageChange,
+    allTooltips // New parameter
+) {
+    const { activeSegmentUrl, segmentCache } = useStore.getState();
     const cachedSegment = segmentCache.get(activeSegmentUrl);
     const tsAnalysisData = cachedSegment?.parsedData;
 
@@ -269,20 +274,6 @@ export function getInteractiveTsTemplate() {
 
     const byteMap = buildByteMapTs(tsAnalysisData);
 
-    const onHexPageChange = (offset) => {
-        const totalPages = Math.ceil(
-            cachedSegment.data.byteLength / HEX_BYTES_PER_PAGE
-        );
-        const newPage = hexCurrentPage + offset;
-        if (newPage >= 1 && newPage <= totalPages) {
-            hexCurrentPage = newPage;
-            render(
-                getInteractiveTsTemplate(),
-                dom.tabContents['interactive-segment']
-            );
-        }
-    };
-
     const onPacketPageChange = (offset) => {
         const totalPages = Math.ceil(
             groupPackets(tsAnalysisData.data.packets).length / PACKETS_PER_PAGE
@@ -291,7 +282,12 @@ export function getInteractiveTsTemplate() {
         if (newPage >= 1 && newPage <= totalPages) {
             packetCurrentPage = newPage;
             render(
-                getInteractiveTsTemplate(),
+                getInteractiveTsTemplate(
+                    currentPage,
+                    bytesPerPage,
+                    onHexPageChange,
+                    allTooltips
+                ),
                 dom.tabContents['interactive-segment']
             );
         }
@@ -317,9 +313,10 @@ export function getInteractiveTsTemplate() {
                 ${hexViewTemplate(
                     cachedSegment.data,
                     byteMap,
-                    hexCurrentPage,
-                    HEX_BYTES_PER_PAGE,
-                    onHexPageChange
+                    currentPage,
+                    bytesPerPage,
+                    onHexPageChange,
+                    allTooltips // Pass new parameter
                 )}
             </div>
         </div>

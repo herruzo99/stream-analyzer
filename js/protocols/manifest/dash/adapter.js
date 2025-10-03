@@ -1,8 +1,10 @@
 /**
- * @typedef {import('../../../core/state.js').Manifest} Manifest
- * @typedef {import('../../../core/state.js').Period} Period
- * @typedef {import('../../../core/state.js').AdaptationSet} AdaptationSet
- * @typedef {import('../../../core/state.js').Representation} Representation
+ * @typedef {import('../../../core/store.js').Manifest} Manifest
+ * @typedef {import('../../../core/store.js').Period} Period
+ * @typedef {import('../../../core/store.js').AdaptationSet} AdaptationSet
+ * @typedef {import('../../../core/store.js').Representation} Representation
+ * @typedef {import('../../../core/dom.js').SubRepresentation} SubRepresentation
+ * @typedef {import('../../../core/store.js').Descriptor} Descriptor
  */
 
 import { getDrmSystemName } from '../../../shared/utils/drm.js';
@@ -13,95 +15,246 @@ import {
     findChild,
     findChildren,
     findChildrenRecursive,
+    mergeElements,
 } from './recursive-parser.js';
 
 const getText = (el) => el?.['#text'] || null;
 
 /**
- * Transforms a serialized DASH manifest object into a protocol-agnostic IR.
- * @param {object} manifestElement The root MPD element, serialized.
- * @param {string} baseUrl The base URL for the manifest.
- * @returns {Manifest} The manifest IR object.
+ * Creates a deep copy of a parsed manifest object.
+ * @param {any} obj The object to clone.
+ * @returns {any} A deep copy of the object.
  */
-export function adaptDashToIr(manifestElement, baseUrl) {
-    const adaptationSets = findChildrenRecursive(
-        manifestElement,
-        'AdaptationSet'
-    );
-    const hasTsMimeType = adaptationSets.some(
-        (as) => getAttr(as, 'mimeType') === 'video/mp2t'
-    );
-
-    let segmentFormat = 'unknown';
-    if (hasTsMimeType) {
-        segmentFormat = 'ts';
-    } else if (
-        findChildrenRecursive(manifestElement, 'SegmentTimeline').length > 0 ||
-        findChildrenRecursive(manifestElement, 'SegmentTemplate').length > 0 ||
-        findChildrenRecursive(manifestElement, 'SegmentList').length > 0
-    ) {
-        segmentFormat = 'isobmff';
+function deepClone(obj) {
+    if (obj === null || typeof obj !== 'object') {
+        return obj;
     }
-
-    /** @type {Manifest} */
-    const manifestIR = {
-        id: getAttr(manifestElement, 'id'),
-        type: getAttr(manifestElement, 'type'),
-        profiles: getAttr(manifestElement, 'profiles'),
-        minBufferTime: parseDuration(getAttr(manifestElement, 'minBufferTime')),
-        publishTime: getAttr(manifestElement, 'publishTime')
-            ? new Date(getAttr(manifestElement, 'publishTime'))
-            : null,
-        availabilityStartTime: getAttr(manifestElement, 'availabilityStartTime')
-            ? new Date(getAttr(manifestElement, 'availabilityStartTime'))
-            : null,
-        timeShiftBufferDepth: parseDuration(
-            getAttr(manifestElement, 'timeShiftBufferDepth')
-        ),
-        minimumUpdatePeriod: parseDuration(
-            getAttr(manifestElement, 'minimumUpdatePeriod')
-        ),
-        duration: parseDuration(
-            getAttr(manifestElement, 'mediaPresentationDuration')
-        ),
-        maxSegmentDuration: parseDuration(
-            getAttr(manifestElement, 'maxSegmentDuration')
-        ),
-        maxSubsegmentDuration: parseDuration(
-            getAttr(manifestElement, 'maxSubsegmentDuration')
-        ),
-        programInformations: findChildren(
-            manifestElement,
-            'ProgramInformation'
-        ).map((el) => ({
-            title: getText(findChild(el, 'Title')),
-            source: getText(findChild(el, 'Source')),
-            copyright: getText(findChild(el, 'Copyright')),
-            lang: getAttr(el, 'lang'),
-            moreInformationURL: getAttr(el, 'moreInformationURL'),
-        })),
-        locations: findChildren(manifestElement, 'Location').map(getText),
-        periods: findChildren(manifestElement, 'Period').map(parsePeriod),
-        segmentFormat: /** @type {'isobmff' | 'ts' | 'unknown'} */ (
-            segmentFormat
-        ),
-        rawElement: manifestElement,
-        metrics: [],
-        events: [],
-        summary: null,
-        serverControl: null,
-    };
-
-    manifestIR.events = manifestIR.periods.flatMap((p) => p.events);
-    manifestIR.summary = generateDashSummary(manifestIR, manifestElement);
-
-    return manifestIR;
+    if (obj instanceof Date) {
+        return new Date(obj.getTime());
+    }
+    if (Array.isArray(obj)) {
+        return obj.map((item) => deepClone(item));
+    }
+    if (obj instanceof Object) {
+        const copy = {};
+        for (const key in obj) {
+            if (Object.prototype.hasOwnProperty.call(obj, key)) {
+                copy[key] = deepClone(obj[key]);
+            }
+        }
+        return copy;
+    }
+    throw new Error("Unable to copy obj! Its type isn't supported.");
 }
 
-function parsePeriod(periodEl) {
+/**
+ * Parses a generic DescriptorType element into a consistent IR object.
+ * @param {object} el The raw parsed element.
+ * @returns {Descriptor}
+ */
+const parseGenericDescriptor = (el) => ({
+    schemeIdUri: getAttr(el, 'schemeIdUri'),
+    value: getAttr(el, 'value'),
+    id: getAttr(el, 'id'),
+});
+
+/**
+ * Parses a SubRepresentation element, inheriting from its parent Representation/AdaptationSet.
+ * @param {object} subRepEl The raw parsed SubRepresentation element.
+ * @param {object} parentMergedEl The already merged element of the parent Representation.
+ * @returns {SubRepresentation}
+ */
+function parseSubRepresentation(subRepEl, parentMergedEl) {
+    const mergedEl = mergeElements(parentMergedEl, subRepEl);
+
+    /** @type {SubRepresentation} */
+    const subRepIR = {
+        level: getAttr(subRepEl, 'level')
+            ? parseInt(getAttr(subRepEl, 'level'), 10)
+            : null,
+        dependencyLevel: getAttr(subRepEl, 'dependencyLevel'),
+        bandwidth: getAttr(subRepEl, 'bandwidth')
+            ? parseInt(getAttr(subRepEl, 'bandwidth'), 10)
+            : null,
+        contentComponent: getAttr(subRepEl, 'contentComponent')?.split(' '),
+        codecs: getAttr(mergedEl, 'codecs'),
+        mimeType: getAttr(mergedEl, 'mimeType'),
+        profiles: getAttr(mergedEl, 'profiles'),
+        width: getAttr(mergedEl, 'width')
+            ? parseInt(getAttr(mergedEl, 'width'), 10)
+            : null,
+        height: getAttr(mergedEl, 'height')
+            ? parseInt(getAttr(mergedEl, 'height'), 10)
+            : null,
+        serializedManifest: subRepEl,
+    };
+
+    return subRepIR;
+}
+
+/**
+ * Parses a Representation element, correctly inheriting all common properties
+ * from its parent AdaptationSet.
+ * @param {object} repEl The raw parsed Representation element.
+ * @param {object} parentMergedEl The already merged parent element (from Period or AdaptationSet).
+ * @returns {Representation}
+ */
+function parseRepresentation(repEl, parentMergedEl) {
+    const mergedRepEl = mergeElements(parentMergedEl, repEl);
+
+    /** @type {Representation} */
+    const repIR = {
+        id: getAttr(repEl, 'id'),
+        bandwidth: parseInt(getAttr(repEl, 'bandwidth'), 10),
+        qualityRanking: getAttr(repEl, 'qualityRanking')
+            ? parseInt(getAttr(repEl, 'qualityRanking'), 10)
+            : null,
+        dependencyId: getAttr(repEl, 'dependencyId'),
+        associationId: getAttr(repEl, 'associationId'),
+        associationType: getAttr(repEl, 'associationType'),
+        codecs: getAttr(mergedRepEl, 'codecs'),
+        mimeType: getAttr(mergedRepEl, 'mimeType'),
+        profiles: getAttr(mergedRepEl, 'profiles'),
+        width: getAttr(mergedRepEl, 'width')
+            ? parseInt(getAttr(mergedRepEl, 'width'), 10)
+            : null,
+        height: getAttr(mergedRepEl, 'height')
+            ? parseInt(getAttr(mergedRepEl, 'height'), 10)
+            : null,
+        frameRate: getAttr(mergedRepEl, 'frameRate'),
+        sar: getAttr(mergedRepEl, 'sar'),
+        scanType: getAttr(mergedRepEl, 'scanType'),
+        segmentProfiles: getAttr(mergedRepEl, 'segmentProfiles'),
+        mediaStreamStructureId: getAttr(mergedRepEl, 'mediaStreamStructureId'),
+        maximumSAPPeriod: getAttr(mergedRepEl, 'maximumSAPPeriod')
+            ? parseFloat(getAttr(mergedRepEl, 'maximumSAPPeriod'))
+            : null,
+        startWithSAP: getAttr(mergedRepEl, 'startWithSAP')
+            ? parseInt(getAttr(mergedRepEl, 'startWithSAP'), 10)
+            : null,
+        maxPlayoutRate: getAttr(mergedRepEl, 'maxPlayoutRate')
+            ? parseFloat(getAttr(mergedRepEl, 'maxPlayoutRate'))
+            : null,
+        codingDependency:
+            getAttr(mergedRepEl, 'codingDependency') === 'true'
+                ? true
+                : getAttr(mergedRepEl, 'codingDependency') === 'false'
+                  ? false
+                  : null,
+        selectionPriority: getAttr(mergedRepEl, 'selectionPriority')
+            ? parseInt(getAttr(mergedRepEl, 'selectionPriority'), 10)
+            : 0,
+        tag: getAttr(mergedRepEl, 'tag'),
+        eptDelta: null,
+        pdDelta: null,
+        representationIndex: null,
+        failoverContent: null,
+        audioChannelConfigurations: findChildren(
+            mergedRepEl,
+            'AudioChannelConfiguration'
+        ).map((el) => ({
+            schemeIdUri: getAttr(el, 'schemeIdUri'),
+            value: getAttr(el, 'value'),
+        })),
+        framePackings: findChildren(mergedRepEl, 'FramePacking').map(
+            parseGenericDescriptor
+        ),
+        ratings: findChildren(mergedRepEl, 'Rating').map(
+            parseGenericDescriptor
+        ),
+        viewpoints: findChildren(mergedRepEl, 'Viewpoint').map(
+            parseGenericDescriptor
+        ),
+        accessibility: findChildren(mergedRepEl, 'Accessibility').map(
+            parseGenericDescriptor
+        ),
+        labels: findChildren(mergedRepEl, 'Label').map((el) => ({
+            id: getAttr(el, 'id'),
+            lang: getAttr(el, 'lang'),
+            text: getText(el),
+        })),
+        groupLabels: findChildren(mergedRepEl, 'GroupLabel').map((el) => ({
+            id: getAttr(el, 'id'),
+            lang: getAttr(el, 'lang'),
+            text: getText(el),
+        })),
+        subRepresentations: findChildren(repEl, 'SubRepresentation').map(
+            (subRepEl) => parseSubRepresentation(subRepEl, mergedRepEl)
+        ),
+        videoRange: undefined,
+        serializedManifest: repEl,
+    };
+
+    return repIR;
+}
+
+function parseAdaptationSet(asEl, parentMergedEl) {
+    const mergedAsEl = mergeElements(parentMergedEl, asEl);
+
+    /** @type {AdaptationSet} */
+    const asIR = {
+        id: getAttr(asEl, 'id'),
+        group: getAttr(asEl, 'group')
+            ? parseInt(getAttr(asEl, 'group'), 10)
+            : null,
+        lang: getAttr(asEl, 'lang'),
+        contentType:
+            getAttr(asEl, 'contentType') ||
+            getAttr(asEl, 'mimeType')?.split('/')[0],
+        bitstreamSwitching:
+            getAttr(asEl, 'bitstreamSwitching') === 'true' ? true : null,
+        maxWidth: getAttr(asEl, 'maxWidth')
+            ? parseInt(getAttr(asEl, 'maxWidth'), 10)
+            : null,
+        maxHeight: getAttr(asEl, 'maxHeight')
+            ? parseInt(getAttr(asEl, 'maxHeight'), 10)
+            : null,
+        maxFrameRate: getAttr(asEl, 'maxFrameRate'),
+        mimeType: getAttr(mergedAsEl, 'mimeType'),
+        profiles: getAttr(mergedAsEl, 'profiles'),
+        representations: findChildren(asEl, 'Representation').map((repEl) =>
+            parseRepresentation(repEl, mergedAsEl)
+        ),
+        contentProtection: findChildren(mergedAsEl, 'ContentProtection').map(
+            (cpEl) => ({
+                schemeIdUri: getAttr(cpEl, 'schemeIdUri'),
+                system: getDrmSystemName(getAttr(cpEl, 'schemeIdUri')),
+                defaultKid: getAttr(cpEl, 'cenc:default_KID'),
+            })
+        ),
+        framePackings: findChildren(mergedAsEl, 'FramePacking').map(
+            parseGenericDescriptor
+        ),
+        ratings: findChildren(mergedAsEl, 'Rating').map(parseGenericDescriptor),
+        viewpoints: findChildren(mergedAsEl, 'Viewpoint').map(
+            parseGenericDescriptor
+        ),
+        accessibility: findChildren(mergedAsEl, 'Accessibility').map(
+            parseGenericDescriptor
+        ),
+        labels: findChildren(mergedAsEl, 'Label').map((el) => ({
+            id: getAttr(el, 'id'),
+            lang: getAttr(el, 'lang'),
+            text: getText(el),
+        })),
+        groupLabels: findChildren(mergedAsEl, 'GroupLabel').map((el) => ({
+            id: getAttr(el, 'id'),
+            lang: getAttr(el, 'lang'),
+            text: getText(el),
+        })),
+        roles: findChildren(mergedAsEl, 'Role').map(parseGenericDescriptor),
+        serializedManifest: asEl,
+    };
+
+    return asIR;
+}
+
+function parsePeriod(periodEl, parentMergedEl) {
+    const mergedPeriodEl = mergeElements(parentMergedEl, periodEl);
     const assetIdentifierEl = findChild(periodEl, 'AssetIdentifier');
     const subsets = findChildren(periodEl, 'Subset');
 
+    /** @type {Period} */
     const periodIR = {
         id: getAttr(periodEl, 'id'),
         start: parseDuration(getAttr(periodEl, 'start')),
@@ -117,65 +270,95 @@ function parsePeriod(periodEl) {
             contains: (getAttr(s, 'contains') || '').split(' '),
             id: getAttr(s, 'id'),
         })),
-        adaptationSets: [],
+        adaptationSets: findChildren(periodEl, 'AdaptationSet').map((asEl) =>
+            parseAdaptationSet(asEl, mergedPeriodEl)
+        ),
         eventStreams: [],
         events: [],
-        rawElement: periodEl, // Add raw element for context
+        serializedManifest: periodEl,
     };
-
-    const adaptationSets = findChildren(periodEl, 'AdaptationSet');
-    periodIR.adaptationSets = adaptationSets.map((asEl) =>
-        parseAdaptationSet(asEl, periodIR)
-    );
 
     return periodIR;
 }
 
-function parseAdaptationSet(asEl, periodIR) {
-    const asIR = {
-        id: getAttr(asEl, 'id'),
-        contentType:
-            getAttr(asEl, 'contentType') ||
-            getAttr(asEl, 'mimeType')?.split('/')[0],
-        lang: getAttr(asEl, 'lang'),
-        mimeType: getAttr(asEl, 'mimeType'),
-        representations: [],
-        contentProtection: [],
-        roles: findChildren(asEl, 'Role').map((el) => ({
-            value: getAttr(el, 'value'),
-        })),
-        rawElement: asEl, // Add raw element for context
-        period: periodIR, // Add reference to parent period
-    };
+/**
+ * Transforms a serialized DASH manifest object into a protocol-agnostic IR.
+ * @param {object} manifestElement The root MPD element, serialized.
+ * @param {string} baseUrl The base URL for the manifest.
+ * @returns {Manifest} The manifest IR object.
+ */
+export function adaptDashToIr(manifestElement, baseUrl) {
+    const manifestCopy = deepClone(manifestElement);
 
-    const representations = findChildren(asEl, 'Representation');
-    asIR.representations = representations.map((repEl) =>
-        parseRepresentation(repEl, asIR)
+    const adaptationSets = findChildrenRecursive(manifestCopy, 'AdaptationSet');
+    const hasTsMimeType = adaptationSets.some(
+        (as) => getAttr(as, 'mimeType') === 'video/mp2t'
     );
 
-    const contentProtections = findChildren(asEl, 'ContentProtection');
-    asIR.contentProtection = contentProtections.map((cpEl) => ({
-        schemeIdUri: getAttr(cpEl, 'schemeIdUri'),
-        system: getDrmSystemName(getAttr(cpEl, 'schemeIdUri')),
-        defaultKid: getAttr(cpEl, 'cenc:default_KID'),
-    }));
+    let segmentFormat = 'unknown';
+    if (hasTsMimeType) {
+        segmentFormat = 'ts';
+    } else if (
+        findChildrenRecursive(manifestCopy, 'SegmentTimeline').length > 0 ||
+        findChildrenRecursive(manifestCopy, 'SegmentTemplate').length > 0 ||
+        findChildrenRecursive(manifestCopy, 'SegmentList').length > 0
+    ) {
+        segmentFormat = 'isobmff';
+    }
 
-    return asIR;
-}
-
-function parseRepresentation(repEl, asIR) {
-    return {
-        id: getAttr(repEl, 'id'),
-        bandwidth: parseInt(getAttr(repEl, 'bandwidth'), 10),
-        width: parseInt(getAttr(repEl, 'width') || asIR.maxWidth, 10),
-        height: parseInt(getAttr(repEl, 'height') || asIR.maxHeight, 10),
-        codecs: getAttr(repEl, 'codecs') || asIR.codecs,
-        mimeType: getAttr(repEl, 'mimeType') || asIR.mimeType,
-        audioChannelConfigurations: findChildren(
-            repEl,
-            'AudioChannelConfiguration'
-        ).map((el) => ({ value: getAttr(el, 'value') })),
-        roles: asIR.roles,
-        rawElement: repEl,
+    /** @type {Manifest} */
+    const manifestIR = {
+        id: getAttr(manifestCopy, 'id'),
+        type: getAttr(manifestCopy, 'type'),
+        profiles: getAttr(manifestCopy, 'profiles'),
+        minBufferTime: parseDuration(getAttr(manifestCopy, 'minBufferTime')),
+        publishTime: getAttr(manifestCopy, 'publishTime')
+            ? new Date(getAttr(manifestCopy, 'publishTime'))
+            : null,
+        availabilityStartTime: getAttr(manifestCopy, 'availabilityStartTime')
+            ? new Date(getAttr(manifestCopy, 'availabilityStartTime'))
+            : null,
+        timeShiftBufferDepth: parseDuration(
+            getAttr(manifestCopy, 'timeShiftBufferDepth')
+        ),
+        minimumUpdatePeriod: parseDuration(
+            getAttr(manifestCopy, 'minimumUpdatePeriod')
+        ),
+        duration: parseDuration(
+            getAttr(manifestCopy, 'mediaPresentationDuration')
+        ),
+        maxSegmentDuration: parseDuration(
+            getAttr(manifestCopy, 'maxSegmentDuration')
+        ),
+        maxSubsegmentDuration: parseDuration(
+            getAttr(manifestCopy, 'maxSubsegmentDuration')
+        ),
+        programInformations: findChildren(
+            manifestCopy,
+            'ProgramInformation'
+        ).map((el) => ({
+            title: getText(findChild(el, 'Title')),
+            source: getText(findChild(el, 'Source')),
+            copyright: getText(findChild(el, 'Copyright')),
+            lang: getAttr(el, 'lang'),
+            moreInformationURL: getAttr(el, 'moreInformationURL'),
+        })),
+        locations: findChildren(manifestCopy, 'Location').map(getText),
+        periods: findChildren(manifestCopy, 'Period').map((p) =>
+            parsePeriod(p, manifestCopy)
+        ),
+        segmentFormat: /** @type {'isobmff' | 'ts' | 'unknown'} */ (
+            segmentFormat
+        ),
+        serializedManifest: manifestElement,
+        metrics: [],
+        events: [],
+        summary: null,
+        serverControl: null,
     };
+
+    manifestIR.events = manifestIR.periods.flatMap((p) => p.events);
+    manifestIR.summary = generateDashSummary(manifestIR, manifestCopy);
+
+    return manifestIR;
 }
