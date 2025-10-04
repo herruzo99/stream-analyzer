@@ -1,6 +1,10 @@
 # Exhaustive Stream Analyzer
 
+> **Work in Progress**: This project is under active development. Features may change, and documentation might be incomplete. Issues may exists.
+
 An advanced, browser-based tool for analyzing and comparing DASH & HLS streaming media manifests and segments. This tool provides deep inspection capabilities, compliance checking, and side-by-side comparisons to aid in debugging and validation of streaming content.
+
+> **Note**: This project was co-developed by a large language model (LLM) to accelerate design, implementation, and documentation. Issues may exists
 
 ![Screenshot of the analyzer UI](https://via.placeholder.com/800x450.png?text=UI+Screenshot+Here)
 
