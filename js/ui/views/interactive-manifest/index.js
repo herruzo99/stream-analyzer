@@ -4,7 +4,7 @@ import { hlsManifestTemplate } from './components/hls/renderer.js';
 
 /**
  * Dispatches to the correct manifest renderer based on stream protocol.
- * @param {import('../../../core/store.js').Stream} stream
+ * @param {import('../../../core/types.js').Stream} stream
  * @returns {import('lit-html').TemplateResult}
  */
 export function getInteractiveManifestTemplate(stream) {

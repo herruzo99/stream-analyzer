@@ -1,10 +1,10 @@
 /**
- * @typedef {import('../../../core/store.js').Manifest} Manifest
- * @typedef {import('../../../core/store.js').Period} Period
- * @typedef {import('../../../core/store.js').AdaptationSet} AdaptationSet
- * @typedef {import('../../../core/store.js').Representation} Representation
+ * @typedef {import('../../../core/types.js').Manifest} Manifest
+ * @typedef {import('../../../core/types.js').Period} Period
+ * @typedef {import('../../../core/types.js').AdaptationSet} AdaptationSet
+ * @typedef {import('../../../core/types.js').Representation} Representation
  * @typedef {import('../../../core/dom.js').SubRepresentation} SubRepresentation
- * @typedef {import('../../../core/store.js').Descriptor} Descriptor
+ * @typedef {import('../../../core/types.js').Descriptor} Descriptor
  */
 
 import { getDrmSystemName } from '../../../shared/utils/drm.js';

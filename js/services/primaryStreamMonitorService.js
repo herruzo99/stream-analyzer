@@ -17,6 +17,7 @@ liveUpdateWorker.onmessage = (event) => {
             finalManifestString,
             oldRawManifest,
             complianceResults,
+            serializedManifest,
         } = payload;
         eventBus.dispatch('livestream:manifest-updated', {
             streamId,
@@ -24,6 +25,7 @@ liveUpdateWorker.onmessage = (event) => {
             newManifestObject,
             oldManifestString: oldRawManifest,
             complianceResults,
+            serializedManifest,
         });
     } else if (type === 'live-update-error') {
         console.error(
@@ -51,11 +53,6 @@ async function monitorStream(streamId) {
         const newManifestString = await response.text();
 
         if (newManifestString === stream.rawManifest) {
-            eventBus.dispatch('ui:show-status', {
-                message: 'Manifest has not changed.',
-                type: 'info',
-                duration: 2000,
-            });
             return;
         }
 
@@ -83,7 +80,7 @@ async function monitorStream(streamId) {
 
 /**
  * Starts the polling monitor for a given stream if it's dynamic.
- * @param {import('../core/store.js').Stream} stream
+ * @param {import('../core/types.js').Stream} stream
  */
 function startMonitoring(stream) {
     if (pollers.has(stream.id)) {

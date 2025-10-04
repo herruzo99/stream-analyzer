@@ -1,7 +1,11 @@
-import { html } from 'lit-html';
+import { html, render } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { tooltipTriggerClasses } from '../../../shared/constants.js';
 import { createFeatureViewModel } from '../../../engines/feature-analysis/analyzer.js';
+import { eventBus } from '../../../core/event-bus.js';
+import { useStore } from '../../../core/store.js';
+
+let isListenerAttached = false;
 
 const featureCardTemplate = (feature) => {
     const badge = feature.used
@@ -58,15 +62,91 @@ export function getFeaturesAnalysisTemplate(stream) {
         return acc;
     }, {});
 
+    // Ensure the re-render listener is attached only once per page load
+    if (!isListenerAttached) {
+        eventBus.subscribe('stream:data-updated', ({ streamId }) => {
+            const currentStreamId = useStore.getState().activeStreamId;
+            const container = document.getElementById('tab-features');
+            if (
+                streamId === currentStreamId &&
+                container &&
+                container.offsetParent !== null
+            ) {
+                const updatedStream = useStore
+                    .getState()
+                    .streams.find((s) => s.id === streamId);
+                if (updatedStream) {
+                    render(
+                        getFeaturesAnalysisTemplate(updatedStream),
+                        container
+                    );
+                }
+            }
+        });
+        isListenerAttached = true;
+    }
+
     const getStatusIndicator = () => {
         if (stream.manifest?.type !== 'dynamic') {
             return html`
                 <div
-                    class="bg-gray-900/50 border border-gray-700 rounded-lg p-3 flex items-center gap-3 mb-6"
+                    class="bg-gray-800 border border-gray-700 rounded-lg p-4 flex items-center gap-4 mb-6"
                 >
+                    <div
+                        class="w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center flex-shrink-0"
+                    >
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            class="h-6 w-6 text-gray-400"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                            />
+                        </svg>
+                    </div>
+                    <div>
+                        <p class="font-semibold text-gray-200">
+                            Static Manifest (VOD)
+                        </p>
+                        <p class="text-sm text-gray-400">
+                            Feature analysis is based on the single, initial
+                            manifest load.
+                        </p>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Dynamic stream
+        const isPolling = stream.isPolling;
+        const statusText = isPolling ? 'Polling Active' : 'Polling Paused';
+        const statusColor = isPolling ? 'text-cyan-400' : 'text-yellow-400';
+        const iconColor = isPolling ? 'bg-cyan-500' : 'bg-yellow-500';
+
+        return html`
+            <div
+                class="bg-gray-800 border border-gray-700 rounded-lg p-4 flex items-center gap-4 mb-6"
+            >
+                <div
+                    class="w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center flex-shrink-0 relative"
+                >
+                    ${isPolling
+                        ? html`<div
+                              class="absolute inset-0 rounded-full ${iconColor} opacity-75 animate-ping"
+                          ></div>`
+                        : ''}
+                    <div
+                        class="absolute inset-1 rounded-full ${iconColor} opacity-50"
+                    ></div>
                     <svg
                         xmlns="http://www.w3.org/2000/svg"
-                        class="h-6 w-6 text-gray-400 flex-shrink-0"
+                        class="h-6 w-6 text-white relative"
                         fill="none"
                         viewBox="0 0 24 24"
                         stroke="currentColor"
@@ -75,58 +155,37 @@ export function getFeaturesAnalysisTemplate(stream) {
                             stroke-linecap="round"
                             stroke-linejoin="round"
                             stroke-width="2"
-                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                            d="M4 4v5h5M20 20v-5h-5"
+                        />
+                        <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M4 9a9 9 0 0114.65-5.65M20 15a9 9 0 01-14.65 5.65"
                         />
                     </svg>
-                    <div>
-                        <p class="font-semibold text-gray-200">
-                            Static Manifest
-                        </p>
-                        <p class="text-xs text-gray-400">
-                            Feature analysis is based on the initial manifest
-                            load.
-                        </p>
-                    </div>
                 </div>
-            `;
-        }
-
-        // Dynamic stream
-        return html`
-            <div
-                class="bg-gray-900/50 border border-gray-700 rounded-lg p-3 flex items-center gap-3 mb-6"
-            >
-                <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    class="h-6 w-6 text-cyan-400 flex-shrink-0 animate-spin"
-                    style="animation-duration: 3s;"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                >
-                    <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M4 4v5h5M20 20v-5h-5"
-                    />
-                    <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M4 9a9 9 0 0114.65-5.65M20 15a9 9 0 01-14.65 5.65"
-                    />
-                </svg>
-                <div>
+                <div class="flex-grow">
                     <p class="font-semibold text-gray-200">
-                        Live Analysis Active
+                        Live Analysis:
+                        <span class="font-bold ${statusColor}"
+                            >${statusText}</span
+                        >
                     </p>
-                    <p class="text-xs text-gray-400">
-                        Based on an analysis of
-                        <b class="text-cyan-300 font-bold">${manifestCount}</b>
-                        manifest version(s). New features will be detected
-                        automatically.
+                    <p class="text-sm text-gray-400">
+                        New features will be detected automatically as the
+                        manifest updates.
                     </p>
+                </div>
+                <div class="text-right flex-shrink-0">
+                    <div
+                        class="text-xs text-gray-400 uppercase font-semibold tracking-wider"
+                    >
+                        Versions Analyzed
+                    </div>
+                    <div class="text-3xl font-bold text-white">
+                        ${manifestCount}
+                    </div>
                 </div>
             </div>
         `;
@@ -136,8 +195,8 @@ export function getFeaturesAnalysisTemplate(stream) {
         <h3 class="text-xl font-bold mb-2">Feature Usage Analysis</h3>
         ${getStatusIndicator()}
         <p class="text-sm text-gray-500 mb-4">
-            A breakdown of key features detected in the manifest and their
-            implementation details.
+            A breakdown of key features detected across all analyzed manifest
+            versions.
         </p>
         ${Object.entries(groupedFeatures).map(([category, features]) =>
             categoryTemplate(category, features)

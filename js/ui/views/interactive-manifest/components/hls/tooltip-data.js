@@ -218,6 +218,10 @@ export const hlsTooltipData = {
         text: 'The maximum frame rate for all video in the Variant Stream.',
         isoRef: 'RFC 8216, Section 4.3.4.2',
     },
+    'EXT-X-STREAM-INF@NAME': {
+        text: 'A human-readable name for the variant stream. This is not part of the HLS specification but is a common extension used by many packagers.',
+        isoRef: 'Community Extension',
+    },
     'EXT-X-STREAM-INF@AUDIO': {
         text: 'The GROUP-ID of the audio renditions that should be used with this variant.',
         isoRef: 'RFC 8216, Section 4.3.4.2',

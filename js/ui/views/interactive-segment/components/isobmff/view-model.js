@@ -27,7 +27,7 @@ function getFieldShade(baseColor, fieldName, fieldIndex) {
         return { bg: 'bg-gray-700', style: '--tw-bg-opacity: 0.5' }; // A safe default
     }
 
-    const opacities = [0.2, 0.35, 0.5, 0.65];
+    const opacities = [0.1, 0.2, 0.3, 0.4];
     const opacity = opacities[fieldIndex % opacities.length];
     const baseClass = baseColor.bg.replace(/\/\d+/, '');
 

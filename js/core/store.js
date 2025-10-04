@@ -2,41 +2,9 @@ import { createStore } from 'zustand/vanilla';
 import { LRUCache } from './lru-cache.js';
 import { eventBus } from './event-bus.js';
 
-// --- Type Definitions (moved from state.js) ---
-/**
- * @typedef {import('./dom.js').Label} Label
- * @typedef {import('./dom.js').Descriptor} Descriptor
- * @typedef {import('./dom.js').AudioChannelConfiguration} AudioChannelConfiguration
- * @typedef {import('./dom.js').URLType} URLType
- * @typedef {import('./dom.js').FailoverContent} FailoverContent
- * @typedef {import('./dom.js').Representation} Representation
- * @typedef {import('./dom.js').ContentProtection} ContentProtection
- * @typedef {import('./dom.js').AdaptationSet} AdaptationSet
- * @typedef {import('./dom.js').Event} Event
- * @typedef {import('./dom.js').EventStream} EventStream
- * @typedef {import('./dom.js').AssetIdentifier} AssetIdentifier
- * @typedef {import('./dom.js').Subset} Subset
- * @typedef {import('./dom.js').Period} Period
- * @typedef {import('./dom.js').ProgramInformation} ProgramInformation
- * @typedef {import('./dom.js').Metrics} Metrics
- * @typedef {import('./dom.js').VideoTrackSummary} VideoTrackSummary
- * @typedef {import('./dom.js').AudioTrackSummary} AudioTrackSummary
- * @typedef {import('./dom.js').TextTrackSummary} TextTrackSummary
- * @typedef {import('./dom.js').ManifestSummary} ManifestSummary
- * @typedef {import('./dom.js').Manifest} Manifest
- * @typedef {import('./dom.js').MediaPlaylist} MediaPlaylist
- * @typedef {import('./dom.js').FeatureAnalysisResult} FeatureAnalysisResult
- * @typedef {import('./dom.js').FeatureAnalysisState} FeatureAnalysisState
- * @typedef {import('./dom.js').HlsVariantState} HlsVariantState
- * @typedef {import('./dom.js').DashRepresentationState} DashRepresentationState
- * @typedef {import('./dom.js').ManifestUpdate} ManifestUpdate
- * @typedef {import('./dom.js').ComplianceResult} ComplianceResult
- * @typedef {import('./dom.js').DecodedNalUnit} DecodedNalUnit
- * @typedef {import('./dom.js').DecodedH264Sample} DecodedH264Sample
- * @typedef {import('./dom.js').DecodedAacFrame} DecodedAacFrame
- * @typedef {import('./dom.js').DecodedSample} DecodedSample
- * @typedef {import('./dom.js').Stream} Stream
- */
+// --- Type Definitions ---
+/** @typedef {import('./types.js').Stream} Stream */
+/** @typedef {import('./types.js').DecodedSample} DecodedSample */
 
 /**
  * @typedef {object} AnalysisState
@@ -139,6 +107,11 @@ const store = createStore((set, get) => ({
                 s.id === streamId ? { ...s, ...updatedStreamData } : s
             ),
         }));
+        // If the update specifically involves HLS variant state,
+        // dispatch an event for the UI to react to it.
+        if (updatedStreamData.hlsVariantState) {
+            eventBus.dispatch('state:stream-variant-changed', { streamId });
+        }
     },
 
     navigateManifestUpdate: (streamId, direction) => {

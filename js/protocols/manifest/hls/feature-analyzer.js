@@ -1,5 +1,5 @@
 /**
- * @typedef {import('../../../core/store.js').Manifest} Manifest
+ * @typedef {import('../../../core/types.js').Manifest} Manifest
  * @typedef {object} FeatureCheckResult
  * @property {boolean} used
  * @property {string} details
