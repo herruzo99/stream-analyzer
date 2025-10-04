@@ -1,5 +1,6 @@
 /**
- * @typedef {import('../../../core/store.js').Manifest} Manifest
+ * @typedef {import('../../../core/types.js').Manifest} Manifest
+ * @typedef {import('../../../core/types.js').PeriodSummary} PeriodSummary
  */
 
 const formatBitrate = (bps) => {
@@ -11,7 +12,7 @@ const formatBitrate = (bps) => {
 /**
  * Creates a protocol-agnostic summary view-model from an HLS manifest.
  * @param {Manifest} manifestIR - The partially adapted manifest IR.
- * @returns {import('../../../core/store.js').ManifestSummary}
+ * @returns {import('../../../core/types.js').ManifestSummary}
  */
 export function generateHlsSummary(manifestIR) {
     const { serializedManifest: rawElement } = manifestIR;
@@ -25,31 +26,31 @@ export function generateHlsSummary(manifestIR) {
     let mediaPlaylistDetails = null;
 
     if (isMaster) {
-        // Video tracks from variants
-        rawElement.variants.forEach((v, i) => {
+        // Correctly iterate over the original variants array, not the adapted structure
+        (rawElement.variants || []).forEach((v, i) => {
             const codecs = v.attributes.CODECS || '';
-            if (
+            const resolution = v.attributes.RESOLUTION;
+            const hasVideo =
                 codecs.includes('avc1') ||
                 codecs.includes('hvc1') ||
-                v.attributes.RESOLUTION
-            ) {
+                resolution;
+
+            if (hasVideo) {
                 videoTracks.push({
                     id: v.attributes['STABLE-VARIANT-ID'] || `variant_${i}`,
                     profiles: null,
                     bitrateRange: formatBitrate(v.attributes.BANDWIDTH),
-                    resolutions: v.attributes.RESOLUTION
-                        ? [v.attributes.RESOLUTION]
-                        : [],
+                    resolutions: resolution ? [resolution] : [],
                     codecs: [codecs],
                     scanType: null,
                     videoRange: v.attributes['VIDEO-RANGE'] || null,
-                    roles: [], // Roles not standard on HLS variants
+                    roles: [],
                 });
             }
         });
 
         // Audio and Text tracks from media renditions
-        rawElement.media.forEach((m, i) => {
+        (rawElement.media || []).forEach((m, i) => {
             const trackId =
                 m['STABLE-RENDITION-ID'] || `${m.TYPE.toLowerCase()}_${i}`;
             if (m.TYPE === 'AUDIO') {
@@ -74,7 +75,6 @@ export function generateHlsSummary(manifestIR) {
             }
         });
 
-        // Aggregate protection from session keys
         const sessionKey = rawElement.tags.find(
             (t) => t.name === 'EXT-X-SESSION-KEY'
         );
@@ -85,10 +85,9 @@ export function generateHlsSummary(manifestIR) {
                     'urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed' &&
                 sessionKey.value.URI
             ) {
-                // Attempt to extract KID from Widevine PSSH URI
                 try {
                     const psshData = atob(sessionKey.value.URI.split(',')[1]);
-                    const kid = psshData.slice(32, 48); // KID is at offset 32 in Widevine PSSH
+                    const kid = psshData.slice(32, 48);
                     kids.add(
                         Array.from(kid)
                             .map((c) =>
@@ -123,15 +122,13 @@ export function generateHlsSummary(manifestIR) {
                 (t) => t.name === 'EXT-X-I-FRAMES-ONLY'
             ),
         };
-
-        // For a media playlist, content tracks are 1 (the media itself), 0, 0.
     }
 
     const iFramePlaylists = rawElement.tags.filter(
         (t) => t.name === 'EXT-X-I-FRAME-STREAM-INF'
     ).length;
 
-    /** @type {import('../../../core/store.js').ManifestSummary} */
+    /** @type {import('../../../core/types.js').ManifestSummary} */
     const summary = {
         general: {
             protocol: 'HLS',
@@ -167,11 +164,12 @@ export function generateHlsSummary(manifestIR) {
             maxLatency: null,
         },
         content: {
-            periods: 1, // HLS is conceptually a single period
-            videoTracks: videoTracks.length,
-            audioTracks: audioTracks.length,
-            textTracks: textTracks.length,
-            mediaPlaylists: isMaster ? rawElement.variants.length : 1,
+            totalPeriods: 1, // HLS is conceptually a single period
+            totalVideoTracks: videoTracks.length,
+            totalAudioTracks: audioTracks.length,
+            totalTextTracks: textTracks.length,
+            mediaPlaylists: isMaster ? (rawElement.variants || []).length : 1,
+            periods: [], // HLS does not have periods, so this is empty.
         },
         videoTracks,
         audioTracks,

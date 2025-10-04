@@ -1,46 +1,46 @@
 (() => {
-    var is = Object.create;
-    var ke = Object.defineProperty;
-    var rs = Object.getOwnPropertyDescriptor;
-    var as = Object.getOwnPropertyNames;
-    var ss = Object.getPrototypeOf,
-        os = Object.prototype.hasOwnProperty;
-    var B = (e, t) => () => (e && (t = e((e = 0))), t);
-    var lt = (e, t) => () => (
+    var cs = Object.create;
+    var we = Object.defineProperty;
+    var ds = Object.getOwnPropertyDescriptor;
+    var ps = Object.getOwnPropertyNames;
+    var us = Object.getPrototypeOf,
+        ms = Object.prototype.hasOwnProperty;
+    var V = (e, t) => () => (e && (t = e((e = 0))), t);
+    var gt = (e, t) => () => (
             t || e((t = { exports: {} }).exports, t),
             t.exports
         ),
-        ft = (e, t) => {
-            for (var n in t) ke(e, n, { get: t[n], enumerable: !0 });
+        ht = (e, t) => {
+            for (var n in t) we(e, n, { get: t[n], enumerable: !0 });
         },
-        ls = (e, t, n, i) => {
+        gs = (e, t, n, i) => {
             if ((t && typeof t == 'object') || typeof t == 'function')
-                for (let r of as(t))
-                    !os.call(e, r) &&
+                for (let r of ps(t))
+                    !ms.call(e, r) &&
                         r !== n &&
-                        ke(e, r, {
+                        we(e, r, {
                             get: () => t[r],
-                            enumerable: !(i = rs(t, r)) || i.enumerable,
+                            enumerable: !(i = ds(t, r)) || i.enumerable,
                         });
             return e;
         };
-    var fs = (e, t, n) => (
-        (n = e != null ? is(ss(e)) : {}),
-        ls(
+    var hs = (e, t, n) => (
+        (n = e != null ? cs(us(e)) : {}),
+        gs(
             t || !e || !e.__esModule
-                ? ke(n, 'default', { value: e, enumerable: !0 })
+                ? we(n, 'default', { value: e, enumerable: !0 })
                 : n,
             e
         )
     );
-    function Se(e) {
+    function Ce(e) {
         if (!e) return 'Unknown Scheme';
         let t = e.toLowerCase();
-        return As[t] || `Unknown (${e})`;
+        return Bs[t] || `Unknown (${e})`;
     }
-    var As,
-        Be = B(() => {
-            As = {
+    var Bs,
+        Fe = V(() => {
+            Bs = {
                 'urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed': 'Widevine',
                 'urn:uuid:9a04f079-9840-4286-ab92-e65be0885f95': 'PlayReady',
                 'urn:uuid:f239e769-efa3-4850-9c16-a903c6932efb':
@@ -51,26 +51,26 @@
                     'MPEG Common Encryption (CENC)',
             };
         });
-    function ze(e, t, n = {}) {
+    function He(e, t, n = {}) {
         let i = [];
         if (!e || typeof e != 'object') return i;
         for (let r in e) {
             if (r === ':@' || r === '#text') continue;
             let a = e[r];
             if (!a) continue;
-            let o = Array.isArray(a) ? a : [a];
-            for (let s of o) {
-                if (typeof s != 'object') continue;
-                let l = { ...n, parent: e };
-                (r === 'Period' && (l.period = s),
-                    r === 'AdaptationSet' && (l.adaptationSet = s),
-                    r === t && i.push({ element: s, context: l }),
-                    i.push(...ze(s, t, l)));
+            let s = Array.isArray(a) ? a : [a];
+            for (let l of s) {
+                if (typeof l != 'object') continue;
+                let o = { ...n, parent: e };
+                (r === 'Period' && (o.period = l),
+                    r === 'AdaptationSet' && (o.adaptationSet = l),
+                    r === t && i.push({ element: l, context: o }),
+                    i.push(...He(l, t, o)));
             }
         }
         return i;
     }
-    function re(e, t) {
+    function se(e, t) {
         if (!t) return e;
         if (!e) return t;
         let n = JSON.parse(JSON.stringify(e));
@@ -82,18 +82,18 @@
                     : (n[i] = t[i]));
         return n;
     }
-    function J(e, t) {
+    function Z(e, t) {
         let n = t.map((i) => k(i, e)).filter(Boolean);
-        if (n.length !== 0) return n.reduceRight((i, r) => re(i, r));
+        if (n.length !== 0) return n.reduceRight((i, r) => se(i, r));
     }
-    function la(e, t, n, i, r) {
+    function ga(e, t, n, i, r) {
         let a = e,
-            o = [t, n, i, r];
-        for (let s of o) {
-            if (!s) continue;
-            let l = v(s, 'BaseURL');
-            if (l.length > 0) {
-                let c = ks(l[0]);
+            s = [t, n, i, r];
+        for (let l of s) {
+            if (!l) continue;
+            let o = v(l, 'BaseURL');
+            if (o.length > 0) {
+                let c = Ns(o[0]);
                 if (c === null || c.trim() === '') {
                     a = e;
                     continue;
@@ -107,13 +107,13 @@
         }
         return a;
     }
-    var u,
+    var m,
         k,
         v,
-        E,
-        ks,
-        G = B(() => {
-            ((u = (e, t) => e?.[':@']?.[t]),
+        C,
+        Ns,
+        j = V(() => {
+            ((m = (e, t) => e?.[':@']?.[t]),
                 (k = (e, t) => {
                     if (!e || !e[t]) return;
                     let n = e[t];
@@ -124,7 +124,7 @@
                     let n = e[t];
                     return Array.isArray(n) ? n : [n];
                 }),
-                (E = (e, t) => {
+                (C = (e, t) => {
                     let n = [];
                     if (!e || typeof e != 'object') return n;
                     for (let i in e) {
@@ -132,18 +132,18 @@
                         let r = e[i];
                         if (!r) continue;
                         let a = Array.isArray(r) ? r : [r];
-                        for (let o of a)
-                            (i === t && n.push(o),
-                                typeof o == 'object' &&
-                                    (n = n.concat(E(o, t))));
+                        for (let s of a)
+                            (i === t && n.push(s),
+                                typeof s == 'object' &&
+                                    (n = n.concat(C(s, t))));
                     }
                     return n;
                 }));
-            ks = (e) => e?.['#text'] || null;
+            Ns = (e) => e?.['#text'] || null;
         });
-    var va,
-        Ca = B(() => {
-            va = [
+    var Ua,
+        Ma = V(() => {
+            Ua = [
                 {
                     name: 'Presentation Type',
                     category: 'Core Streaming',
@@ -476,9 +476,9 @@
                 },
             ];
         });
-    var Ea,
-        Pa = B(() => {
-            Ea = [
+    var Ra,
+        La = V(() => {
+            Ra = [
                 {
                     name: 'Presentation Type',
                     category: 'Core Streaming',
@@ -589,7 +589,7 @@
                 },
             ];
         });
-    function Da(e) {
+    function wa(e) {
         let t = {};
         if (!e)
             return {
@@ -599,7 +599,7 @@
                         'Serialized XML object was not found for feature analysis.',
                 },
             };
-        for (let [n, i] of Object.entries(Io))
+        for (let [n, i] of Object.entries(Uo))
             try {
                 t[n] = i(e);
             } catch (r) {
@@ -608,20 +608,20 @@
             }
         return t;
     }
-    var Qe,
-        K,
-        Ye,
-        Io,
-        Aa = B(() => {
-            Be();
-            G();
-            ((Qe = (e, t) => E(e, t)[0]),
-                (K = (e, t, n) => (i) => {
-                    let r = Qe(i, e);
+    var it,
+        q,
+        nt,
+        Uo,
+        Ba = V(() => {
+            Fe();
+            j();
+            ((it = (e, t) => C(e, t)[0]),
+                (q = (e, t, n) => (i) => {
+                    let r = it(i, e);
                     return { used: !!r, details: r ? t(r) : n };
                 }),
-                (Ye = (e, t, n) => (i) => {
-                    let a = E(i, e).length;
+                (nt = (e, t, n) => (i) => {
+                    let a = C(i, e).length;
                     return a === 0
                         ? { used: !1, details: '' }
                         : {
@@ -629,22 +629,22 @@
                               details: `${a} ${a === 1 ? t : n} found.`,
                           };
                 }),
-                (Io = {
+                (Uo = {
                     'Presentation Type': (e) => ({
                         used: !0,
-                        details: `<code>${u(e, 'type')}</code>`,
+                        details: `<code>${m(e, 'type')}</code>`,
                     }),
-                    'MPD Locations': Ye(
+                    'MPD Locations': nt(
                         'Location',
                         'location',
                         'locations provided'
                     ),
                     'Scoped Profiles': (e) => {
-                        let t = E(e, 'AdaptationSet'),
-                            n = E(e, 'Representation'),
+                        let t = C(e, 'AdaptationSet'),
+                            n = C(e, 'Representation'),
                             i =
-                                t.filter((a) => u(a, 'profiles')).length +
-                                n.filter((a) => u(a, 'profiles')).length;
+                                t.filter((a) => m(a, 'profiles')).length +
+                                n.filter((a) => m(a, 'profiles')).length;
                         return i === 0
                             ? { used: !1, details: '' }
                             : {
@@ -652,60 +652,60 @@
                                   details: `${i} ${i === 1 ? 'scoped profile' : 'scoped profiles'}`,
                               };
                     },
-                    'Multi-Period': Ye('Period', 'Period', 'Periods'),
+                    'Multi-Period': nt('Period', 'Period', 'Periods'),
                     'Content Protection': (e) => {
-                        let t = E(e, 'ContentProtection');
+                        let t = C(e, 'ContentProtection');
                         return t.length > 0
                             ? {
                                   used: !0,
-                                  details: `Systems: <b>${[...new Set(t.map((i) => Se(u(i, 'schemeIdUri'))))].join(', ')}</b>`,
+                                  details: `Systems: <b>${[...new Set(t.map((i) => Ce(m(i, 'schemeIdUri'))))].join(', ')}</b>`,
                               }
                             : {
                                   used: !1,
                                   details: 'No encryption descriptors found.',
                               };
                     },
-                    'Client Authentication': K(
+                    'Client Authentication': q(
                         'EssentialProperty',
                         () => 'Signals requirement for client authentication.',
                         ''
                     ),
-                    'Content Authorization': K(
+                    'Content Authorization': q(
                         'SupplementalProperty',
                         () => 'Signals requirement for content authorization.',
                         ''
                     ),
-                    'Segment Templates': K(
+                    'Segment Templates': q(
                         'SegmentTemplate',
                         () => 'Uses templates for segment URL generation.',
                         ''
                     ),
-                    'Segment Timeline': K(
+                    'Segment Timeline': q(
                         'SegmentTimeline',
                         () =>
                             'Provides explicit segment timing via <code>&lt;S&gt;</code> elements.',
                         ''
                     ),
-                    'Segment List': K(
+                    'Segment List': q(
                         'SegmentList',
                         () => 'Provides an explicit list of segment URLs.',
                         ''
                     ),
-                    'Representation Index': Ye(
+                    'Representation Index': nt(
                         'RepresentationIndex',
                         'representation index',
                         'representation indices'
                     ),
                     'Low Latency Streaming': (e) => {
-                        if (u(e, 'type') !== 'dynamic')
+                        if (m(e, 'type') !== 'dynamic')
                             return {
                                 used: !1,
                                 details: 'Not a dynamic (live) manifest.',
                             };
-                        let t = !!Qe(e, 'Latency'),
-                            i = E(e, 'SegmentTemplate').some(
+                        let t = !!it(e, 'Latency'),
+                            i = C(e, 'SegmentTemplate').some(
                                 (r) =>
-                                    u(r, 'availabilityTimeComplete') === 'false'
+                                    m(r, 'availabilityTimeComplete') === 'false'
                             );
                         if (t || i) {
                             let r = [];
@@ -723,18 +723,18 @@
                             details: 'No specific low-latency signals found.',
                         };
                     },
-                    'Manifest Patch Updates': K(
+                    'Manifest Patch Updates': q(
                         'PatchLocation',
                         (e) =>
                             `Patch location: <code>${e['#text']?.trim()}</code>`,
                         'Uses full manifest reloads.'
                     ),
                     'UTC Timing Source': (e) => {
-                        let t = E(e, 'UTCTiming');
+                        let t = C(e, 'UTCTiming');
                         return t.length > 0
                             ? {
                                   used: !0,
-                                  details: `Schemes: ${[...new Set(t.map((i) => `<code>${u(i, 'schemeIdUri').split(':').pop()}</code>`))].join(', ')}`,
+                                  details: `Schemes: ${[...new Set(t.map((i) => `<code>${m(i, 'schemeIdUri').split(':').pop()}</code>`))].join(', ')}`,
                               }
                             : {
                                   used: !1,
@@ -743,8 +743,8 @@
                               };
                     },
                     'Dependent Representations': (e) => {
-                        let t = E(e, 'Representation').filter((n) =>
-                            u(n, 'dependencyId')
+                        let t = C(e, 'Representation').filter((n) =>
+                            m(n, 'dependencyId')
                         );
                         return t.length > 0
                             ? {
@@ -754,17 +754,17 @@
                             : { used: !1, details: '' };
                     },
                     'Associated Representations': (e) => {
-                        let t = E(e, 'Representation').filter((n) =>
-                            u(n, 'associationId')
+                        let t = C(e, 'Representation').filter((n) =>
+                            m(n, 'associationId')
                         );
                         return t.length > 0
                             ? { used: !0, details: `${t.length} associations` }
                             : { used: !1, details: '' };
                     },
                     'Trick Modes': (e) => {
-                        let t = Qe(e, 'SubRepresentation'),
-                            n = E(e, 'Role').some(
-                                (i) => u(i, 'value') === 'trick'
+                        let t = it(e, 'SubRepresentation'),
+                            n = C(e, 'Role').some(
+                                (i) => m(i, 'value') === 'trick'
                             );
                         if (t || n) {
                             let i = [];
@@ -786,15 +786,15 @@
                         };
                     },
                     'Subtitles & Captions': (e) => {
-                        let t = E(e, 'AdaptationSet').filter(
+                        let t = C(e, 'AdaptationSet').filter(
                             (n) =>
-                                u(n, 'contentType') === 'text' ||
-                                u(n, 'mimeType')?.startsWith('application')
+                                m(n, 'contentType') === 'text' ||
+                                m(n, 'mimeType')?.startsWith('application')
                         );
                         if (t.length > 0) {
                             let n = [
                                 ...new Set(
-                                    t.map((i) => u(i, 'lang')).filter(Boolean)
+                                    t.map((i) => m(i, 'lang')).filter(Boolean)
                                 ),
                             ];
                             return {
@@ -809,21 +809,21 @@
                         };
                     },
                     'Role Descriptors': (e) => {
-                        let t = E(e, 'Role');
+                        let t = C(e, 'Role');
                         return t.length > 0
                             ? {
                                   used: !0,
-                                  details: `Roles found: ${[...new Set(t.map((i) => `<code>${u(i, 'value')}</code>`))].join(', ')}`,
+                                  details: `Roles found: ${[...new Set(t.map((i) => `<code>${m(i, 'value')}</code>`))].join(', ')}`,
                               }
                             : { used: !1, details: 'No roles specified.' };
                     },
-                    'MPD Events': K(
+                    'MPD Events': q(
                         'EventStream',
                         () =>
                             'Uses <EventStream> for out-of-band event signaling.',
                         ''
                     ),
-                    'Inband Events': K(
+                    'Inband Events': q(
                         'InbandEventStream',
                         () =>
                             'Uses <InbandEventStream> to signal events within segments.',
@@ -831,7 +831,7 @@
                     ),
                 }));
         });
-    function ka(e) {
+    function Na(e) {
         let t = {},
             n = e.tags || [];
         ((t['Presentation Type'] = {
@@ -847,32 +847,32 @@
                     ? `${e.variants?.length || 0} Variant Streams found.`
                     : 'Media Playlist.',
             }));
-        let i = (e.segments || []).some((m) => m.discontinuity);
+        let i = (e.segments || []).some((p) => p.discontinuity);
         t.Discontinuity = {
             used: i,
             details: i
                 ? 'Contains #EXT-X-DISCONTINUITY tags.'
                 : 'No discontinuities found.',
         };
-        let r = n.find((m) => m.name === 'EXT-X-KEY');
+        let r = n.find((p) => p.name === 'EXT-X-KEY');
         if (r && r.value.METHOD !== 'NONE') {
-            let m = [
+            let p = [
                 ...new Set(
                     n
-                        .filter((_) => _.name === 'EXT-X-KEY')
-                        .map((_) => _.value.METHOD)
+                        .filter((y) => y.name === 'EXT-X-KEY')
+                        .map((y) => y.value.METHOD)
                 ),
             ];
             t['Content Protection'] = {
                 used: !0,
-                details: `Methods: <b>${m.join(', ')}</b>`,
+                details: `Methods: <b>${p.join(', ')}</b>`,
             };
         } else
             t['Content Protection'] = {
                 used: !1,
                 details: 'No #EXT-X-KEY tags found.',
             };
-        let a = n.some((m) => m.name === 'EXT-X-MAP');
+        let a = n.some((p) => p.name === 'EXT-X-MAP');
         ((t['Fragmented MP4 Segments'] = {
             used: a,
             details: a
@@ -880,120 +880,120 @@
                 : 'Likely Transport Stream (TS) segments.',
         }),
             (t['I-Frame Playlists'] = {
-                used: n.some((m) => m.name === 'EXT-X-I-FRAME-STREAM-INF'),
+                used: n.some((p) => p.name === 'EXT-X-I-FRAME-STREAM-INF'),
                 details: 'Provides dedicated playlists for trick-play modes.',
             }));
-        let o = n.filter((m) => m.name === 'EXT-X-MEDIA');
+        let s = n.filter((p) => p.name === 'EXT-X-MEDIA');
         ((t['Alternative Renditions'] = {
-            used: o.length > 0,
+            used: s.length > 0,
             details:
-                o.length > 0
-                    ? `${o.length} #EXT-X-MEDIA tags found.`
+                s.length > 0
+                    ? `${s.length} #EXT-X-MEDIA tags found.`
                     : 'No separate audio/video/subtitle renditions declared.',
         }),
             (t['Date Ranges / Timed Metadata'] = {
-                used: e.events.some((m) => m.type === 'hls-daterange'),
+                used: e.events.some((p) => p.type === 'hls-daterange'),
                 details:
                     'Carries timed metadata, often used for ad insertion signaling.',
             }));
-        let s = o.some((m) => m.value.TYPE === 'SUBTITLES');
+        let l = s.some((p) => p.value.TYPE === 'SUBTITLES');
         ((t['Subtitles & Captions'] = {
-            used: s,
-            details: s
+            used: l,
+            details: l
                 ? 'Contains #EXT-X-MEDIA tags with TYPE=SUBTITLES.'
                 : 'No subtitle renditions declared.',
         }),
             (t['Session Data'] = {
-                used: n.some((m) => m.name === 'EXT-X-SESSION-DATA'),
+                used: n.some((p) => p.name === 'EXT-X-SESSION-DATA'),
                 details:
                     'Carries arbitrary session data in the master playlist.',
             }),
             (t['Session Keys'] = {
-                used: n.some((m) => m.name === 'EXT-X-SESSION-KEY'),
+                used: n.some((p) => p.name === 'EXT-X-SESSION-KEY'),
                 details:
                     'Allows pre-loading of encryption keys from the master playlist.',
             }),
             (t['Independent Segments'] = {
-                used: n.some((m) => m.name === 'EXT-X-INDEPENDENT-SEGMENTS'),
+                used: n.some((p) => p.name === 'EXT-X-INDEPENDENT-SEGMENTS'),
                 details: 'All segments are self-contained for decoding.',
             }),
             (t['Start Offset'] = {
-                used: n.some((m) => m.name === 'EXT-X-START'),
+                used: n.some((p) => p.name === 'EXT-X-START'),
                 details:
                     'Specifies a preferred starting position in the playlist.',
             }));
-        let l = [];
-        (e.partInf && l.push('EXT-X-PART-INF'),
-            (e.segments || []).some((m) => (m.parts || []).length > 0) &&
-                l.push('EXT-X-PART'),
-            e.serverControl && l.push('EXT-X-SERVER-CONTROL'),
-            (e.preloadHints || []).length > 0 && l.push('EXT-X-PRELOAD-HINT'),
+        let o = [];
+        (e.partInf && o.push('EXT-X-PART-INF'),
+            (e.segments || []).some((p) => (p.parts || []).length > 0) &&
+                o.push('EXT-X-PART'),
+            e.serverControl && o.push('EXT-X-SERVER-CONTROL'),
+            (e.preloadHints || []).length > 0 && o.push('EXT-X-PRELOAD-HINT'),
             (e.renditionReports || []).length > 0 &&
-                l.push('EXT-X-RENDITION-REPORT'),
+                o.push('EXT-X-RENDITION-REPORT'),
             (t['Low-Latency HLS'] = {
-                used: l.length > 0,
+                used: o.length > 0,
                 details:
-                    l.length > 0
-                        ? `Detected low-latency tags: <b>${l.join(', ')}</b>`
+                    o.length > 0
+                        ? `Detected low-latency tags: <b>${o.join(', ')}</b>`
                         : 'Standard latency HLS.',
             }));
-        let c = n.some((m) => m.name === 'EXT-X-SKIP');
+        let c = n.some((p) => p.name === 'EXT-X-SKIP');
         t['Playlist Delta Updates'] = {
             used: c,
             details: c
                 ? 'Contains #EXT-X-SKIP tag, indicating a partial playlist update.'
                 : 'No delta updates detected.',
         };
-        let f = n.some((m) => m.name === 'EXT-X-DEFINE');
+        let f = n.some((p) => p.name === 'EXT-X-DEFINE');
         t['Variable Substitution'] = {
             used: f,
             details: f
                 ? 'Uses #EXT-X-DEFINE for variable substitution.'
                 : 'No variables defined.',
         };
-        let d = n.some((m) => m.name === 'EXT-X-CONTENT-STEERING');
+        let d = n.some((p) => p.name === 'EXT-X-CONTENT-STEERING');
         t['Content Steering'] = {
             used: d,
             details: d
                 ? 'Provides client-side CDN steering information.'
                 : 'No content steering information found.',
         };
-        let p = [];
+        let u = [];
         return (
-            (e.variants || []).some((m) => m.attributes.SCORE) &&
-                p.push('SCORE'),
-            (e.variants || []).some((m) => m.attributes['VIDEO-RANGE']) &&
-                p.push('VIDEO-RANGE'),
-            (e.variants || []).some((m) => m.attributes['STABLE-VARIANT-ID']) &&
-                p.push('STABLE-VARIANT-ID'),
-            o.some((m) => m.value['STABLE-RENDITION-ID']) &&
-                p.push('STABLE-RENDITION-ID'),
+            (e.variants || []).some((p) => p.attributes.SCORE) &&
+                u.push('SCORE'),
+            (e.variants || []).some((p) => p.attributes['VIDEO-RANGE']) &&
+                u.push('VIDEO-RANGE'),
+            (e.variants || []).some((p) => p.attributes['STABLE-VARIANT-ID']) &&
+                u.push('STABLE-VARIANT-ID'),
+            s.some((p) => p.value['STABLE-RENDITION-ID']) &&
+                u.push('STABLE-RENDITION-ID'),
             e.events.some(
-                (m) =>
-                    m.type === 'hls-daterange' &&
-                    m.message.toLowerCase().includes('interstitial')
-            ) && p.push('Interstitials'),
+                (p) =>
+                    p.type === 'hls-daterange' &&
+                    p.message.toLowerCase().includes('interstitial')
+            ) && u.push('Interstitials'),
             (t['Advanced Metadata & Rendition Selection'] = {
-                used: p.length > 0,
+                used: u.length > 0,
                 details:
-                    p.length > 0
-                        ? `Detected advanced attributes: <b>${p.join(', ')}</b>`
+                    u.length > 0
+                        ? `Detected advanced attributes: <b>${u.join(', ')}</b>`
                         : 'Uses standard metadata.',
             }),
             t
         );
     }
-    var Ua = B(() => {});
-    var Ma = {};
-    ft(Ma, {
-        createFeatureViewModel: () => Co,
-        generateFeatureAnalysis: () => vo,
+    var Va = V(() => {});
+    var za = {};
+    ht(za, {
+        createFeatureViewModel: () => Ro,
+        generateFeatureAnalysis: () => Mo,
     });
-    function vo(e, t, n = null) {
-        return t === 'dash' ? Da(n) : ka(e);
+    function Mo(e, t, n = null) {
+        return t === 'dash' ? wa(n) : Na(e);
     }
-    function Co(e, t) {
-        return (t === 'dash' ? va : Ea).map((i) => {
+    function Ro(e, t) {
+        return (t === 'dash' ? Ua : Ra).map((i) => {
             let r = e.get(i.name) || {
                 used: !1,
                 details: 'Not detected in manifest.',
@@ -1001,29 +1001,29 @@
             return { ...i, ...r };
         });
     }
-    var Ra = B(() => {
-        Ca();
-        Pa();
-        Aa();
-        Ua();
+    var Oa = V(() => {
+        Ma();
+        La();
+        Ba();
+        Va();
     });
-    var le,
-        La = B(() => {
-            le = class {
+    var ce,
+        $a = V(() => {
+            ce = class {
                 diff(t, n, i = {}) {
                     let r;
                     typeof i == 'function'
                         ? ((r = i), (i = {}))
                         : 'callback' in i && (r = i.callback);
                     let a = this.castInput(t, i),
-                        o = this.castInput(n, i),
-                        s = this.removeEmpty(this.tokenize(a, i)),
-                        l = this.removeEmpty(this.tokenize(o, i));
-                    return this.diffWithOptionsObj(s, l, i, r);
+                        s = this.castInput(n, i),
+                        l = this.removeEmpty(this.tokenize(a, i)),
+                        o = this.removeEmpty(this.tokenize(s, i));
+                    return this.diffWithOptionsObj(l, o, i, r);
                 }
                 diffWithOptionsObj(t, n, i, r) {
                     var a;
-                    let o = (g) => {
+                    let s = (g) => {
                             if (((g = this.postProcess(g, i)), r)) {
                                 setTimeout(function () {
                                     r(g);
@@ -1031,92 +1031,92 @@
                                 return;
                             } else return g;
                         },
-                        s = n.length,
-                        l = t.length,
+                        l = n.length,
+                        o = t.length,
                         c = 1,
-                        f = s + l;
+                        f = l + o;
                     i.maxEditLength != null &&
                         (f = Math.min(f, i.maxEditLength));
                     let d =
                             (a = i.timeout) !== null && a !== void 0
                                 ? a
                                 : 1 / 0,
-                        p = Date.now() + d,
-                        m = [{ oldPos: -1, lastComponent: void 0 }],
-                        _ = this.extractCommon(m[0], n, t, 0, i);
-                    if (m[0].oldPos + 1 >= l && _ + 1 >= s)
-                        return o(this.buildValues(m[0].lastComponent, n, t));
-                    let x = -1 / 0,
-                        y = 1 / 0,
-                        b = () => {
+                        u = Date.now() + d,
+                        p = [{ oldPos: -1, lastComponent: void 0 }],
+                        y = this.extractCommon(p[0], n, t, 0, i);
+                    if (p[0].oldPos + 1 >= o && y + 1 >= l)
+                        return s(this.buildValues(p[0].lastComponent, n, t));
+                    let _ = -1 / 0,
+                        b = 1 / 0,
+                        S = () => {
                             for (
-                                let g = Math.max(x, -c);
-                                g <= Math.min(y, c);
+                                let g = Math.max(_, -c);
+                                g <= Math.min(b, c);
                                 g += 2
                             ) {
-                                let S,
-                                    T = m[g - 1],
-                                    I = m[g + 1];
-                                T && (m[g - 1] = void 0);
-                                let C = !1;
+                                let x,
+                                    T = p[g - 1],
+                                    I = p[g + 1];
+                                T && (p[g - 1] = void 0);
+                                let E = !1;
                                 if (I) {
-                                    let M = I.oldPos - g;
-                                    C = I && 0 <= M && M < s;
+                                    let R = I.oldPos - g;
+                                    E = I && 0 <= R && R < l;
                                 }
-                                let D = T && T.oldPos + 1 < l;
-                                if (!C && !D) {
-                                    m[g] = void 0;
+                                let A = T && T.oldPos + 1 < o;
+                                if (!E && !A) {
+                                    p[g] = void 0;
                                     continue;
                                 }
                                 if (
-                                    (!D || (C && T.oldPos < I.oldPos)
-                                        ? (S = this.addToPath(I, !0, !1, 0, i))
-                                        : (S = this.addToPath(T, !1, !0, 1, i)),
-                                    (_ = this.extractCommon(S, n, t, g, i)),
-                                    S.oldPos + 1 >= l && _ + 1 >= s)
+                                    (!A || (E && T.oldPos < I.oldPos)
+                                        ? (x = this.addToPath(I, !0, !1, 0, i))
+                                        : (x = this.addToPath(T, !1, !0, 1, i)),
+                                    (y = this.extractCommon(x, n, t, g, i)),
+                                    x.oldPos + 1 >= o && y + 1 >= l)
                                 )
                                     return (
-                                        o(
+                                        s(
                                             this.buildValues(
-                                                S.lastComponent,
+                                                x.lastComponent,
                                                 n,
                                                 t
                                             )
                                         ) || !0
                                     );
-                                ((m[g] = S),
-                                    S.oldPos + 1 >= l &&
-                                        (y = Math.min(y, g - 1)),
-                                    _ + 1 >= s && (x = Math.max(x, g + 1)));
+                                ((p[g] = x),
+                                    x.oldPos + 1 >= o &&
+                                        (b = Math.min(b, g - 1)),
+                                    y + 1 >= l && (_ = Math.max(_, g + 1)));
                             }
                             c++;
                         };
                     if (r)
                         (function g() {
                             setTimeout(function () {
-                                if (c > f || Date.now() > p) return r(void 0);
-                                b() || g();
+                                if (c > f || Date.now() > u) return r(void 0);
+                                S() || g();
                             }, 0);
                         })();
                     else
-                        for (; c <= f && Date.now() <= p; ) {
-                            let g = b();
+                        for (; c <= f && Date.now() <= u; ) {
+                            let g = S();
                             if (g) return g;
                         }
                 }
                 addToPath(t, n, i, r, a) {
-                    let o = t.lastComponent;
-                    return o &&
+                    let s = t.lastComponent;
+                    return s &&
                         !a.oneChangePerToken &&
-                        o.added === n &&
-                        o.removed === i
+                        s.added === n &&
+                        s.removed === i
                         ? {
                               oldPos: t.oldPos + r,
                               lastComponent: {
-                                  count: o.count + 1,
+                                  count: s.count + 1,
                                   added: n,
                                   removed: i,
-                                  previousComponent: o.previousComponent,
+                                  previousComponent: s.previousComponent,
                               },
                           }
                         : {
@@ -1125,25 +1125,25 @@
                                   count: 1,
                                   added: n,
                                   removed: i,
-                                  previousComponent: o,
+                                  previousComponent: s,
                               },
                           };
                 }
                 extractCommon(t, n, i, r, a) {
-                    let o = n.length,
-                        s = i.length,
-                        l = t.oldPos,
-                        c = l - r,
+                    let s = n.length,
+                        l = i.length,
+                        o = t.oldPos,
+                        c = o - r,
                         f = 0;
                     for (
                         ;
-                        c + 1 < o &&
-                        l + 1 < s &&
-                        this.equals(i[l + 1], n[c + 1], a);
+                        c + 1 < s &&
+                        o + 1 < l &&
+                        this.equals(i[o + 1], n[c + 1], a);
 
                     )
                         (c++,
-                            l++,
+                            o++,
                             f++,
                             a.oneChangePerToken &&
                                 (t.lastComponent = {
@@ -1161,7 +1161,7 @@
                                 added: !1,
                                 removed: !1,
                             }),
-                        (t.oldPos = l),
+                        (t.oldPos = o),
                         c
                     );
                 }
@@ -1201,38 +1201,38 @@
                             delete t.previousComponent,
                             (t = a));
                     r.reverse();
-                    let o = r.length,
-                        s = 0,
+                    let s = r.length,
                         l = 0,
+                        o = 0,
                         c = 0;
-                    for (; s < o; s++) {
-                        let f = r[s];
+                    for (; l < s; l++) {
+                        let f = r[l];
                         if (f.removed)
                             ((f.value = this.join(i.slice(c, c + f.count))),
                                 (c += f.count));
                         else {
                             if (!f.added && this.useLongestToken) {
-                                let d = n.slice(l, l + f.count);
-                                ((d = d.map(function (p, m) {
-                                    let _ = i[c + m];
-                                    return _.length > p.length ? _ : p;
+                                let d = n.slice(o, o + f.count);
+                                ((d = d.map(function (u, p) {
+                                    let y = i[c + p];
+                                    return y.length > u.length ? y : u;
                                 })),
                                     (f.value = this.join(d)));
-                            } else f.value = this.join(n.slice(l, l + f.count));
-                            ((l += f.count), f.added || (c += f.count));
+                            } else f.value = this.join(n.slice(o, o + f.count));
+                            ((o += f.count), f.added || (c += f.count));
                         }
                     }
                     return r;
                 }
             };
         });
-    function Je(e, t) {
+    function rt(e, t) {
         let n;
         for (n = 0; n < e.length && n < t.length; n++)
             if (e[n] != t[n]) return e.slice(0, n);
         return e.slice(0, n);
     }
-    function Ze(e, t) {
+    function at(e, t) {
         let n;
         if (!e || !t || e[e.length - 1] != t[t.length - 1]) return '';
         for (n = 0; n < e.length && n < t.length; n++)
@@ -1240,14 +1240,14 @@
                 return e.slice(-n);
         return e.slice(-n);
     }
-    function ve(e, t, n) {
+    function Ae(e, t, n) {
         if (e.slice(0, t.length) != t)
             throw Error(
                 `string ${JSON.stringify(e)} doesn't start with prefix ${JSON.stringify(t)}; this is a bug`
             );
         return n + e.slice(t.length);
     }
-    function Ce(e, t, n) {
+    function ke(e, t, n) {
         if (!t) return e + n;
         if (e.slice(-t.length) != t)
             throw Error(
@@ -1255,16 +1255,16 @@
             );
         return e.slice(0, -t.length) + n;
     }
-    function fe(e, t) {
-        return ve(e, t, '');
+    function de(e, t) {
+        return Ae(e, t, '');
     }
-    function he(e, t) {
-        return Ce(e, t, '');
+    function be(e, t) {
+        return ke(e, t, '');
     }
-    function et(e, t) {
-        return t.slice(0, Eo(e, t));
+    function st(e, t) {
+        return t.slice(0, Lo(e, t));
     }
-    function Eo(e, t) {
+    function Lo(e, t) {
         let n = 0;
         e.length > t.length && (n = e.length - t.length);
         let i = t.length;
@@ -1272,102 +1272,102 @@
         let r = Array(i),
             a = 0;
         r[0] = 0;
-        for (let o = 1; o < i; o++) {
+        for (let s = 1; s < i; s++) {
             for (
-                t[o] == t[a] ? (r[o] = r[a]) : (r[o] = a);
-                a > 0 && t[o] != t[a];
+                t[s] == t[a] ? (r[s] = r[a]) : (r[s] = a);
+                a > 0 && t[s] != t[a];
 
             )
                 a = r[a];
-            t[o] == t[a] && a++;
+            t[s] == t[a] && a++;
         }
         a = 0;
-        for (let o = n; o < e.length; o++) {
-            for (; a > 0 && e[o] != t[a]; ) a = r[a];
-            e[o] == t[a] && a++;
+        for (let s = n; s < e.length; s++) {
+            for (; a > 0 && e[s] != t[a]; ) a = r[a];
+            e[s] == t[a] && a++;
         }
         return a;
     }
-    function ce(e) {
+    function pe(e) {
         let t;
         for (t = e.length - 1; t >= 0 && e[t].match(/\s/); t--);
         return e.substring(t + 1);
     }
-    function X(e) {
+    function G(e) {
         let t = e.match(/^\s*/);
         return t ? t[0] : '';
     }
-    var wa = B(() => {});
-    function it(e, t, n) {
+    var Fa = V(() => {});
+    function ft(e, t, n) {
         return n?.ignoreWhitespace != null && !n.ignoreWhitespace
-            ? Va(e, t, n)
-            : Ba.diff(e, t, n);
+            ? ja(e, t, n)
+            : Xa.diff(e, t, n);
     }
-    function Na(e, t, n, i) {
+    function Ha(e, t, n, i) {
         if (t && n) {
-            let r = X(t.value),
-                a = ce(t.value),
-                o = X(n.value),
-                s = ce(n.value);
+            let r = G(t.value),
+                a = pe(t.value),
+                s = G(n.value),
+                l = pe(n.value);
             if (e) {
-                let l = Je(r, o);
-                ((e.value = Ce(e.value, o, l)),
-                    (t.value = fe(t.value, l)),
-                    (n.value = fe(n.value, l)));
+                let o = rt(r, s);
+                ((e.value = ke(e.value, s, o)),
+                    (t.value = de(t.value, o)),
+                    (n.value = de(n.value, o)));
             }
             if (i) {
-                let l = Ze(a, s);
-                ((i.value = ve(i.value, s, l)),
-                    (t.value = he(t.value, l)),
-                    (n.value = he(n.value, l)));
+                let o = at(a, l);
+                ((i.value = Ae(i.value, l, o)),
+                    (t.value = be(t.value, o)),
+                    (n.value = be(n.value, o)));
             }
         } else if (n) {
             if (e) {
-                let r = X(n.value);
+                let r = G(n.value);
                 n.value = n.value.substring(r.length);
             }
             if (i) {
-                let r = X(i.value);
+                let r = G(i.value);
                 i.value = i.value.substring(r.length);
             }
         } else if (e && i) {
-            let r = X(i.value),
-                a = X(t.value),
-                o = ce(t.value),
-                s = Je(r, a);
-            t.value = fe(t.value, s);
-            let l = Ze(fe(r, s), o);
-            ((t.value = he(t.value, l)),
-                (i.value = ve(i.value, r, l)),
-                (e.value = Ce(e.value, r, r.slice(0, r.length - l.length))));
+            let r = G(i.value),
+                a = G(t.value),
+                s = pe(t.value),
+                l = rt(r, a);
+            t.value = de(t.value, l);
+            let o = at(de(r, l), s);
+            ((t.value = be(t.value, o)),
+                (i.value = Ae(i.value, r, o)),
+                (e.value = ke(e.value, r, r.slice(0, r.length - o.length))));
         } else if (i) {
-            let r = X(i.value),
-                a = ce(t.value),
-                o = et(a, r);
-            t.value = he(t.value, o);
+            let r = G(i.value),
+                a = pe(t.value),
+                s = st(a, r);
+            t.value = be(t.value, s);
         } else if (e) {
-            let r = ce(e.value),
-                a = X(t.value),
-                o = et(r, a);
-            t.value = fe(t.value, o);
+            let r = pe(e.value),
+                a = G(t.value),
+                s = st(r, a);
+            t.value = de(t.value, s);
         }
     }
-    function Va(e, t, n) {
-        return za.diff(e, t, n);
+    function ja(e, t, n) {
+        return Ga.diff(e, t, n);
     }
-    var Ee,
-        Po,
-        tt,
-        Ba,
-        nt,
-        za,
-        Oa = B(() => {
-            La();
-            wa();
-            ((Ee =
+    var Ue,
+        wo,
+        ot,
+        Xa,
+        lt,
+        Ga,
+        Wa = V(() => {
+            $a();
+            Fa();
+            ((Ue =
                 'a-zA-Z0-9_\\u{C0}-\\u{FF}\\u{D8}-\\u{F6}\\u{F8}-\\u{2C6}\\u{2C8}-\\u{2D7}\\u{2DE}-\\u{2FF}\\u{1E00}-\\u{1EFF}'),
-                (Po = new RegExp(`[${Ee}]+|\\s+|[^${Ee}]`, 'ug')),
-                (tt = class extends le {
+                (wo = new RegExp(`[${Ue}]+|\\s+|[^${Ue}]`, 'ug')),
+                (ot = class extends ce {
                     equals(t, n, i) {
                         return (
                             i.ignoreCase &&
@@ -1378,27 +1378,27 @@
                     tokenize(t, n = {}) {
                         let i;
                         if (n.intlSegmenter) {
-                            let o = n.intlSegmenter;
-                            if (o.resolvedOptions().granularity != 'word')
+                            let s = n.intlSegmenter;
+                            if (s.resolvedOptions().granularity != 'word')
                                 throw new Error(
                                     'The segmenter passed must have a granularity of "word"'
                                 );
-                            i = Array.from(o.segment(t), (s) => s.segment);
-                        } else i = t.match(Po) || [];
+                            i = Array.from(s.segment(t), (l) => l.segment);
+                        } else i = t.match(wo) || [];
                         let r = [],
                             a = null;
                         return (
-                            i.forEach((o) => {
-                                (/\s/.test(o)
+                            i.forEach((s) => {
+                                (/\s/.test(s)
                                     ? a == null
-                                        ? r.push(o)
-                                        : r.push(r.pop() + o)
+                                        ? r.push(s)
+                                        : r.push(r.pop() + s)
                                     : a != null && /\s/.test(a)
                                       ? r[r.length - 1] == a
-                                          ? r.push(r.pop() + o)
-                                          : r.push(a + o)
-                                      : r.push(o),
-                                    (a = o));
+                                          ? r.push(r.pop() + s)
+                                          : r.push(a + s)
+                                      : r.push(s),
+                                    (a = s));
                             }),
                             r
                         );
@@ -1414,56 +1414,56 @@
                             r = null,
                             a = null;
                         return (
-                            t.forEach((o) => {
-                                o.added
-                                    ? (r = o)
-                                    : o.removed
-                                      ? (a = o)
-                                      : ((r || a) && Na(i, a, r, o),
-                                        (i = o),
+                            t.forEach((s) => {
+                                s.added
+                                    ? (r = s)
+                                    : s.removed
+                                      ? (a = s)
+                                      : ((r || a) && Ha(i, a, r, s),
+                                        (i = s),
                                         (r = null),
                                         (a = null));
                             }),
-                            (r || a) && Na(i, a, r, null),
+                            (r || a) && Ha(i, a, r, null),
                             t
                         );
                     }
                 }),
-                (Ba = new tt()));
-            ((nt = class extends le {
+                (Xa = new ot()));
+            ((lt = class extends ce {
                 tokenize(t) {
                     let n = new RegExp(
-                        `(\\r?\\n)|[${Ee}]+|[^\\S\\n\\r]+|[^${Ee}]`,
+                        `(\\r?\\n)|[${Ue}]+|[^\\S\\n\\r]+|[^${Ue}]`,
                         'ug'
                     );
                     return t.match(n) || [];
                 }
             }),
-                (za = new nt()));
+                (Ga = new lt()));
         });
-    var $a = B(() => {
-        Oa();
+    var Ka = V(() => {
+        Wa();
     });
-    function Ha(e) {
+    function Ya(e) {
         if (!e) return '';
-        let t = Fa(e),
+        let t = qa(e),
             n =
                 /(&lt;!--[\s\S]*?--&gt;)|(&lt;\?[\s\S]*?\?&gt;)|(&lt;\/?)([\w:-]+)|([\w:-]+=)|(&quot;)([^&quot;]*)(&quot;)/g;
-        return t.replace(n, (i, r, a, o, s, l, c, f, d) =>
+        return t.replace(n, (i, r, a, s, l, o, c, f, d) =>
             r
                 ? `<span class="text-gray-500 italic">${r}</span>`
                 : a
                   ? `<span class="text-gray-500">${a}</span>`
-                  : o
-                    ? `${o}<span class="text-blue-300">${s}</span>`
-                    : l
-                      ? `<span class="text-emerald-300">${l.slice(0, -1)}</span>=`
+                  : s
+                    ? `${s}<span class="text-blue-300">${l}</span>`
+                    : o
+                      ? `<span class="text-emerald-300">${o.slice(0, -1)}</span>=`
                       : c
                         ? `${c}<span class="text-yellow-300">${f}</span>${d}`
                         : i
         );
     }
-    function Xa(e) {
+    function Qa(e) {
         return e
             ? e
                   .split(
@@ -1471,7 +1471,7 @@
 `
                   )
                   .map((t) => {
-                      let n = Fa(t.trim());
+                      let n = qa(t.trim());
                       if (n.startsWith('#EXT')) {
                           let i = n.indexOf(':');
                           if (i === -1)
@@ -1497,90 +1497,90 @@
 `)
             : '';
     }
-    var Fa,
-        Ga = B(() => {
-            Fa = (e) =>
+    var qa,
+        Ja = V(() => {
+            qa = (e) =>
                 e
                     .replace(/&/g, '&amp;')
                     .replace(/</g, '&lt;')
                     .replace(/>/g, '&gt;')
                     .replace(/"/g, '&quot;');
         });
-    var ja = {};
-    ft(ja, { diffManifest: () => Do });
-    function Do(e, t, n) {
-        let i = it(e, t),
+    var Za = {};
+    ht(Za, { diffManifest: () => Bo });
+    function Bo(e, t, n) {
+        let i = ft(e, t),
             r = '',
-            a = n === 'dash' ? Ha : Xa;
+            a = n === 'dash' ? Ya : Qa;
         return (
-            i.forEach((o) => {
-                if (o.removed) return;
-                let s = a(o.value);
-                o.added
-                    ? (r += `<span class="bg-emerald-500/40 text-green-50 rounded-sm font-medium">${s}</span>`)
-                    : (r += s);
+            i.forEach((s) => {
+                if (s.removed) return;
+                let l = a(s.value);
+                s.added
+                    ? (r += `<span class="bg-emerald-500/40 text-green-50 rounded-sm font-medium">${l}</span>`)
+                    : (r += l);
             }),
             r
         );
     }
-    var Wa = B(() => {
-        $a();
-        Ga();
+    var es = V(() => {
+        Ka();
+        Ja();
     });
-    var Za = lt((de, at) => {
+    var ss = gt((ue, dt) => {
         'use strict';
-        Object.defineProperty(de, '__esModule', { value: !0 });
-        de.ParsingError = void 0;
-        var ne = class extends Error {
+        Object.defineProperty(ue, '__esModule', { value: !0 });
+        ue.ParsingError = void 0;
+        var ie = class extends Error {
             constructor(t, n) {
                 (super(t), (this.cause = n));
             }
         };
-        de.ParsingError = ne;
-        var P;
-        function Ka() {
-            return Ya(!1) || Mo() || Qa() || Uo() || st();
+        ue.ParsingError = ie;
+        var D;
+        function ts() {
+            return is(!1) || Oo() || rs() || zo() || pt();
         }
-        function qa() {
-            return (N(/\s*/), Ya(!0) || Qa() || ko() || st());
+        function ns() {
+            return (N(/\s*/), is(!0) || rs() || Vo() || pt());
         }
-        function Ao() {
-            let e = st(),
+        function No() {
+            let e = pt(),
                 t = [],
                 n,
-                i = qa();
+                i = ns();
             for (; i; ) {
                 if (i.node.type === 'Element') {
                     if (n) throw new Error('Found multiple root nodes');
                     n = i.node;
                 }
-                (i.excluded || t.push(i.node), (i = qa()));
+                (i.excluded || t.push(i.node), (i = ns()));
             }
             if (!n)
-                throw new ne('Failed to parse XML', 'Root Element not found');
-            if (P.xml.length !== 0)
-                throw new ne('Failed to parse XML', 'Not Well-Formed XML');
+                throw new ie('Failed to parse XML', 'Root Element not found');
+            if (D.xml.length !== 0)
+                throw new ie('Failed to parse XML', 'Not Well-Formed XML');
             return { declaration: e ? e.node : null, root: n, children: t };
         }
-        function st() {
+        function pt() {
             let e = N(/^<\?([\w-:.]+)\s*/);
             if (!e) return;
             let t = { name: e[1], type: 'ProcessingInstruction', content: '' },
-                n = P.xml.indexOf('?>');
+                n = D.xml.indexOf('?>');
             if (n > -1)
-                ((t.content = P.xml.substring(0, n).trim()),
-                    (P.xml = P.xml.slice(n)));
+                ((t.content = D.xml.substring(0, n).trim()),
+                    (D.xml = D.xml.slice(n)));
             else
-                throw new ne(
+                throw new ie(
                     'Failed to parse XML',
                     'ProcessingInstruction closing tag not found'
                 );
             return (
                 N(/\?>/),
-                { excluded: P.options.filter(t) === !1, node: t }
+                { excluded: D.options.filter(t) === !1, node: t }
             );
         }
-        function Ya(e) {
+        function is(e) {
             let t = N(/^<([^?!</>\s]+)\s*/);
             if (!t) return;
             let n = {
@@ -1589,29 +1589,29 @@
                     attributes: {},
                     children: [],
                 },
-                i = e ? !1 : P.options.filter(n) === !1;
-            for (; !(wo() || rt('>') || rt('?>') || rt('/>')); ) {
-                let a = Ro();
+                i = e ? !1 : D.options.filter(n) === !1;
+            for (; !(Ho() || ct('>') || ct('?>') || ct('/>')); ) {
+                let a = $o();
                 if (a) n.attributes[a.name] = a.value;
                 else return;
             }
             if (N(/^\s*\/>/))
                 return ((n.children = null), { excluded: i, node: n });
             N(/\??>/);
-            let r = Ka();
-            for (; r; ) (r.excluded || n.children.push(r.node), (r = Ka()));
-            if (P.options.strictMode) {
+            let r = ts();
+            for (; r; ) (r.excluded || n.children.push(r.node), (r = ts()));
+            if (D.options.strictMode) {
                 let a = `</${n.name}>`;
-                if (P.xml.startsWith(a)) P.xml = P.xml.slice(a.length);
+                if (D.xml.startsWith(a)) D.xml = D.xml.slice(a.length);
                 else
-                    throw new ne(
+                    throw new ie(
                         'Failed to parse XML',
                         `Closing tag not matching "${a}"`
                     );
             } else N(/^<\/[\w-:.\u00C0-\u00FF]+\s*>/);
             return { excluded: i, node: n };
         }
-        function ko() {
+        function Vo() {
             let e =
                 N(/^<!DOCTYPE\s+\S+\s+SYSTEM[^>]*>/) ||
                 N(/^<!DOCTYPE\s+\S+\s+PUBLIC[^>]*>/) ||
@@ -1619,117 +1619,117 @@
                 N(/^<!DOCTYPE\s+\S+\s*>/);
             if (e) {
                 let t = { type: 'DocumentType', content: e[0] };
-                return { excluded: P.options.filter(t) === !1, node: t };
+                return { excluded: D.options.filter(t) === !1, node: t };
             }
         }
-        function Uo() {
-            if (P.xml.startsWith('<![CDATA[')) {
-                let e = P.xml.indexOf(']]>');
+        function zo() {
+            if (D.xml.startsWith('<![CDATA[')) {
+                let e = D.xml.indexOf(']]>');
                 if (e > -1) {
                     let t = e + 3,
-                        n = { type: 'CDATA', content: P.xml.substring(0, t) };
+                        n = { type: 'CDATA', content: D.xml.substring(0, t) };
                     return (
-                        (P.xml = P.xml.slice(t)),
-                        { excluded: P.options.filter(n) === !1, node: n }
+                        (D.xml = D.xml.slice(t)),
+                        { excluded: D.options.filter(n) === !1, node: n }
                     );
                 }
             }
         }
-        function Qa() {
+        function rs() {
             let e = N(/^<!--[\s\S]*?-->/);
             if (e) {
                 let t = { type: 'Comment', content: e[0] };
-                return { excluded: P.options.filter(t) === !1, node: t };
+                return { excluded: D.options.filter(t) === !1, node: t };
             }
         }
-        function Mo() {
+        function Oo() {
             let e = N(/^([^<]+)/);
             if (e) {
                 let t = { type: 'Text', content: e[1] };
-                return { excluded: P.options.filter(t) === !1, node: t };
+                return { excluded: D.options.filter(t) === !1, node: t };
             }
         }
-        function Ro() {
+        function $o() {
             let e = N(/([^=]+)\s*=\s*("[^"]*"|'[^']*'|[^>\s]+)\s*/);
-            if (e) return { name: e[1].trim(), value: Lo(e[2].trim()) };
+            if (e) return { name: e[1].trim(), value: Fo(e[2].trim()) };
         }
-        function Lo(e) {
+        function Fo(e) {
             return e.replace(/^['"]|['"]$/g, '');
         }
         function N(e) {
-            let t = P.xml.match(e);
-            if (t) return ((P.xml = P.xml.slice(t[0].length)), t);
+            let t = D.xml.match(e);
+            if (t) return ((D.xml = D.xml.slice(t[0].length)), t);
         }
-        function wo() {
-            return P.xml.length === 0;
+        function Ho() {
+            return D.xml.length === 0;
         }
-        function rt(e) {
-            return P.xml.indexOf(e) === 0;
+        function ct(e) {
+            return D.xml.indexOf(e) === 0;
         }
-        function Ja(e, t = {}) {
+        function as(e, t = {}) {
             e = e.trim();
             let n = t.filter || (() => !0);
             return (
-                (P = {
+                (D = {
                     xml: e,
                     options: Object.assign(Object.assign({}, t), {
                         filter: n,
                         strictMode: t.strictMode === !0,
                     }),
                 }),
-                Ao()
+                No()
             );
         }
-        typeof at < 'u' && typeof de == 'object' && (at.exports = Ja);
-        de.default = Ja;
+        typeof dt < 'u' && typeof ue == 'object' && (dt.exports = as);
+        ue.default = as;
     });
-    var ns = lt((pe, ot) => {
+    var fs = gt((me, ut) => {
         'use strict';
-        var No =
-            (pe && pe.__importDefault) ||
+        var Xo =
+            (me && me.__importDefault) ||
             function (e) {
                 return e && e.__esModule ? e : { default: e };
             };
-        Object.defineProperty(pe, '__esModule', { value: !0 });
-        var Bo = No(Za());
-        function Pe(e) {
+        Object.defineProperty(me, '__esModule', { value: !0 });
+        var Go = Xo(ss());
+        function Me(e) {
             if (!e.options.indentation && !e.options.lineSeparator) return;
             e.content += e.options.lineSeparator;
             let t;
             for (t = 0; t < e.level; t++) e.content += e.options.indentation;
         }
-        function zo(e) {
+        function jo(e) {
             e.content = e.content.replace(/ +$/, '');
             let t;
             for (t = 0; t < e.level; t++) e.content += e.options.indentation;
         }
-        function $(e, t) {
+        function H(e, t) {
             e.content += t;
         }
-        function es(e, t, n) {
-            if (e.type === 'Element') $o(e, t, n);
-            else if (e.type === 'ProcessingInstruction') ts(e, t);
-            else if (typeof e.content == 'string') Vo(e.content, t, n);
+        function os(e, t, n) {
+            if (e.type === 'Element') qo(e, t, n);
+            else if (e.type === 'ProcessingInstruction') ls(e, t);
+            else if (typeof e.content == 'string') Wo(e.content, t, n);
             else throw new Error('Unknown node type: ' + e.type);
         }
-        function Vo(e, t, n) {
+        function Wo(e, t, n) {
             if (!n) {
                 let i = e.trim();
                 (t.options.lineSeparator || i.length === 0) && (e = i);
             }
-            e.length > 0 && (!n && t.content.length > 0 && Pe(t), $(t, e));
+            e.length > 0 && (!n && t.content.length > 0 && Me(t), H(t, e));
         }
-        function Oo(e, t) {
+        function Ko(e, t) {
             let n = '/' + e.join('/'),
                 i = e[e.length - 1];
             return t.includes(i) || t.includes(n);
         }
-        function $o(e, t, n) {
+        function qo(e, t, n) {
             if (
                 (t.path.push(e.name),
-                !n && t.content.length > 0 && Pe(t),
-                $(t, '<' + e.name),
-                Fo(t, e.attributes),
+                !n && t.content.length > 0 && Me(t),
+                H(t, '<' + e.name),
+                Yo(t, e.attributes),
                 e.children === null ||
                     (t.options.forceSelfClosingEmptyTag &&
                         e.children.length === 0))
@@ -1737,62 +1737,62 @@
                 let i = t.options.whiteSpaceAtEndOfSelfclosingTag
                     ? ' />'
                     : '/>';
-                $(t, i);
-            } else if (e.children.length === 0) $(t, '></' + e.name + '>');
+                H(t, i);
+            } else if (e.children.length === 0) H(t, '></' + e.name + '>');
             else {
                 let i = e.children;
-                ($(t, '>'), t.level++);
+                (H(t, '>'), t.level++);
                 let r = e.attributes['xml:space'] === 'preserve' || n,
                     a = !1;
                 if (
                     (!r &&
                         t.options.ignoredPaths &&
-                        ((a = Oo(t.path, t.options.ignoredPaths)), (r = a)),
+                        ((a = Ko(t.path, t.options.ignoredPaths)), (r = a)),
                     !r && t.options.collapseContent)
                 ) {
-                    let o = !1,
-                        s = !1,
-                        l = !1;
+                    let s = !1,
+                        l = !1,
+                        o = !1;
                     (i.forEach(function (c, f) {
                         c.type === 'Text'
                             ? (c.content.includes(`
 `)
-                                  ? ((s = !0), (c.content = c.content.trim()))
+                                  ? ((l = !0), (c.content = c.content.trim()))
                                   : (f === 0 || f === i.length - 1) &&
                                     !n &&
                                     c.content.trim().length === 0 &&
                                     (c.content = ''),
                               (c.content.trim().length > 0 || i.length === 1) &&
-                                  (o = !0))
+                                  (s = !0))
                             : c.type === 'CDATA'
-                              ? (o = !0)
-                              : (l = !0);
+                              ? (s = !0)
+                              : (o = !0);
                     }),
-                        o && (!l || !s) && (r = !0));
+                        s && (!o || !l) && (r = !0));
                 }
-                (i.forEach(function (o) {
-                    es(o, t, n || r);
+                (i.forEach(function (s) {
+                    os(s, t, n || r);
                 }),
                     t.level--,
-                    !n && !r && Pe(t),
-                    a && zo(t),
-                    $(t, '</' + e.name + '>'));
+                    !n && !r && Me(t),
+                    a && jo(t),
+                    H(t, '</' + e.name + '>'));
             }
             t.path.pop();
         }
-        function Fo(e, t) {
+        function Yo(e, t) {
             Object.keys(t).forEach(function (n) {
                 let i = t[n].replace(/"/g, '&quot;');
-                $(e, ' ' + n + '="' + i + '"');
+                H(e, ' ' + n + '="' + i + '"');
             });
         }
-        function ts(e, t) {
-            (t.content.length > 0 && Pe(t),
-                $(t, '<?' + e.name),
-                $(t, ' ' + e.content.trim()),
-                $(t, '?>'));
+        function ls(e, t) {
+            (t.content.length > 0 && Me(t),
+                H(t, '<?' + e.name),
+                H(t, ' ' + e.content.trim()),
+                H(t, '?>'));
         }
-        function De(e, t = {}) {
+        function Re(e, t = {}) {
             ((t.indentation = 'indentation' in t ? t.indentation : '    '),
                 (t.collapseContent = t.collapseContent === !0),
                 (t.lineSeparator =
@@ -1804,15 +1804,15 @@
                     t.whiteSpaceAtEndOfSelfclosingTag === !0),
                 (t.throwOnFailure = t.throwOnFailure !== !1));
             try {
-                let n = (0, Bo.default)(e, {
+                let n = (0, Go.default)(e, {
                         filter: t.filter,
                         strictMode: t.strictMode,
                     }),
                     i = { content: '', level: 0, options: t, path: [] };
                 return (
-                    n.declaration && ts(n.declaration, i),
+                    n.declaration && ls(n.declaration, i),
                     n.children.forEach(function (r) {
-                        es(r, i, !1);
+                        os(r, i, !1);
                     }),
                     t.lineSeparator
                         ? i.content
@@ -1829,16 +1829,16 @@
                 return e;
             }
         }
-        De.minify = (e, t = {}) =>
-            De(
+        Re.minify = (e, t = {}) =>
+            Re(
                 e,
                 Object.assign(Object.assign({}, t), {
                     indentation: '',
                     lineSeparator: '',
                 })
             );
-        typeof ot < 'u' && typeof pe == 'object' && (ot.exports = De);
-        pe.default = De;
+        typeof ut < 'u' && typeof me == 'object' && (ut.exports = Re);
+        me.default = Re;
     });
     var h = class {
         constructor(t, n) {
@@ -1984,14 +1984,14 @@
                     i - n
                 ),
                 a = new TextDecoder('utf-8').decode(r),
-                o = i - n + 1;
+                s = i - n + 1;
             return (
                 (this.box.details[t] = {
                     value: a,
                     offset: this.box.offset + n,
-                    length: o,
+                    length: s,
                 }),
-                (this.offset += o),
+                (this.offset += s),
                 a
             );
         }
@@ -2045,17 +2045,17 @@
                 );
         }
     };
-    function Ue(e, t) {
+    function Be(e, t) {
         let n = new h(e, t);
         (n.readString(4, 'majorBrand'), n.readUint32('minorVersion'));
         let i = [],
             r = [],
             a = n.offset;
         for (; n.offset < e.size && !n.stopped; ) {
-            let o = n.readString(4, `brand_${i.length}`);
-            if (o === null) break;
-            (i.push(o),
-                o.startsWith('cmf') && r.push(o),
+            let s = n.readString(4, `brand_${i.length}`);
+            if (s === null) break;
+            (i.push(s),
+                s.startsWith('cmf') && r.push(s),
                 delete e.details[`brand_${i.length - 1}`]);
         }
         (i.length > 0 &&
@@ -2072,7 +2072,7 @@
                 }),
             n.finalize());
     }
-    var ct = {
+    var _t = {
         ftyp: {
             name: 'File Type',
             text: 'File Type Box: declares the major brand, minor version, and compatible brands for the file.',
@@ -2112,7 +2112,7 @@
             ref: 'ISO/IEC 14496-12, 4.3.3',
         },
     };
-    function dt(e, t) {
+    function yt(e, t) {
         let n = new h(e, t),
             { version: i } = n.readVersionAndFlags();
         (i === 1
@@ -2137,7 +2137,7 @@
         for (let a = 0; a < 9; a++) delete e.details[`matrix_val_${a}`];
         (n.skip(24, 'pre_defined'), n.readUint32('next_track_ID'));
     }
-    var pt = {
+    var xt = {
         mvhd: {
             name: 'Movie Header',
             text: 'Contains global information for the presentation (timescale, duration).',
@@ -2180,11 +2180,11 @@
             ref: 'ISO/IEC 14496-12, 8.2.2.3',
         },
     };
-    function ut(e, t) {
+    function St(e, t) {
         let n = new h(e, t);
         (n.readVersionAndFlags(), n.readUint32('sequence_number'));
     }
-    var mt = {
+    var bt = {
         mfhd: {
             name: 'Movie Fragment Header',
             text: 'Contains the sequence number of this fragment.',
@@ -2195,7 +2195,7 @@
             ref: 'ISO/IEC 14496-12, 8.8.5.3',
         },
     };
-    function gt(e, t) {
+    function Tt(e, t) {
         let n = new h(e, t),
             { flags: i } = n.readVersionAndFlags();
         if (i === null) {
@@ -2221,7 +2221,7 @@
         }
         n.finalize();
     }
-    var ht = {
+    var It = {
         tfhd: {
             name: 'Track Fragment Header',
             text: 'Declares defaults for a track fragment.',
@@ -2260,7 +2260,7 @@
             ref: 'ISO/IEC 14496-12, 8.8.7.2',
         },
     };
-    function _t(e, t) {
+    function vt(e, t) {
         let n = new h(e, t),
             { version: i } = n.readVersionAndFlags();
         if (i === null) {
@@ -2272,7 +2272,7 @@
             : n.readUint32('baseMediaDecodeTime'),
             n.finalize());
     }
-    var xt = {
+    var Ct = {
         tfdt: {
             name: 'Track Fragment Decode Time',
             text: 'Provides the absolute decode time for the first sample.',
@@ -2287,7 +2287,7 @@
             ref: 'ISO/IEC 14496-12, 8.8.12.3',
         },
     };
-    function yt(e, t) {
+    function Et(e, t) {
         let n = new h(e, t),
             { version: i, flags: r } = n.readVersionAndFlags();
         if (r === null) {
@@ -2296,14 +2296,14 @@
         }
         let a = n.readUint32('sample_count');
         ((e.samples = []), r & 1 && n.readInt32('data_offset'));
-        let o = null;
+        let s = null;
         if (r & 4) {
-            let s = n.readUint32('first_sample_flags_dword');
-            s !== null &&
+            let l = n.readUint32('first_sample_flags_dword');
+            l !== null &&
                 (delete e.details.first_sample_flags_dword,
-                (o = s),
+                (s = l),
                 (e.details.first_sample_flags = {
-                    value: `0x${o.toString(16)}`,
+                    value: `0x${s.toString(16)}`,
                     offset:
                         e.details.first_sample_flags_dword?.offset ||
                         n.box.offset + n.offset - 4,
@@ -2311,32 +2311,32 @@
                 }));
         }
         if (a !== null)
-            for (let s = 0; s < a && !n.stopped; s++) {
-                let l = {};
+            for (let l = 0; l < a && !n.stopped; l++) {
+                let o = {};
                 (r & 256 &&
-                    ((l.duration = n.view.getUint32(n.offset)),
+                    ((o.duration = n.view.getUint32(n.offset)),
                     (n.offset += 4)),
                     r & 512 &&
-                        ((l.size = n.view.getUint32(n.offset)),
+                        ((o.size = n.view.getUint32(n.offset)),
                         (n.offset += 4)),
                     r & 1024 &&
-                        ((l.flags = n.view.getUint32(n.offset)),
+                        ((o.flags = n.view.getUint32(n.offset)),
                         (n.offset += 4)),
-                    s === 0 && o !== null && (l.flags = o),
+                    l === 0 && s !== null && (o.flags = s),
                     r & 2048 &&
                         (i === 0
-                            ? (l.compositionTimeOffset = n.view.getUint32(
+                            ? (o.compositionTimeOffset = n.view.getUint32(
                                   n.offset
                               ))
-                            : (l.compositionTimeOffset = n.view.getInt32(
+                            : (o.compositionTimeOffset = n.view.getInt32(
                                   n.offset
                               )),
                         (n.offset += 4)),
-                    e.samples.push(l));
+                    e.samples.push(o));
             }
         n.finalize();
     }
-    var St = {
+    var Pt = {
         trun: {
             name: 'Track Run',
             text: 'Contains timing, size, and flags for a run of samples.',
@@ -2367,7 +2367,7 @@
             ref: 'ISO/IEC 14496-12, 8.8.8.2',
         },
     };
-    function bt(e, t) {
+    function Dt(e, t) {
         let n = new h(e, t),
             { version: i } = n.readVersionAndFlags();
         if (i === null) {
@@ -2388,19 +2388,19 @@
             return;
         }
         for (let a = 0; a < r; a++) {
-            let o = n.readUint32(`ref_${a + 1}_type_and_size`);
-            if (o === null) break;
-            let s = (o >> 31) & 1,
-                l = o & 2147483647,
+            let s = n.readUint32(`ref_${a + 1}_type_and_size`);
+            if (s === null) break;
+            let l = (s >> 31) & 1,
+                o = s & 2147483647,
                 c = e.details[`ref_${a + 1}_type_and_size`]?.offset || 0;
             (delete e.details[`ref_${a + 1}_type_and_size`],
                 (e.details[`reference_${a + 1}_type`] = {
-                    value: s === 1 ? 'sidx' : 'media',
+                    value: l === 1 ? 'sidx' : 'media',
                     offset: c,
                     length: 4,
                 }),
                 (e.details[`reference_${a + 1}_size`] = {
-                    value: l,
+                    value: o,
                     offset: c,
                     length: 4,
                 }),
@@ -2416,7 +2416,7 @@
         }
         n.finalize();
     }
-    var Tt = {
+    var At = {
         sidx: {
             name: 'Segment Index',
             text: 'Provides a compact index of media stream chunks within a segment.',
@@ -2459,7 +2459,7 @@
             ref: 'ISO/IEC 14496-12, 8.16.3.3',
         },
     };
-    function It(e, t) {
+    function kt(e, t) {
         let n = new h(e, t),
             { version: i, flags: r } = n.readVersionAndFlags();
         if (r !== null) {
@@ -2500,22 +2500,22 @@
             }),
             delete e.details.volume_fixed_point),
             n.skip(2, 'reserved_3'));
-        let o = [];
-        for (let f = 0; f < 9; f++) o.push(n.readInt32(`matrix_val_${f}`));
-        let s = e.details.matrix_val_0?.offset;
-        if (s !== void 0) {
+        let s = [];
+        for (let f = 0; f < 9; f++) s.push(n.readInt32(`matrix_val_${f}`));
+        let l = e.details.matrix_val_0?.offset;
+        if (l !== void 0) {
             e.details.matrix = {
-                value: `[${o.join(', ')}]`,
-                offset: s,
+                value: `[${s.join(', ')}]`,
+                offset: l,
                 length: 36,
             };
             for (let f = 0; f < 9; f++) delete e.details[`matrix_val_${f}`];
         }
-        let l = n.readUint32('width_fixed_point');
-        l !== null &&
+        let o = n.readUint32('width_fixed_point');
+        o !== null &&
             ((e.details.width = {
                 ...e.details.width_fixed_point,
-                value: (l / 65536).toFixed(2),
+                value: (o / 65536).toFixed(2),
             }),
             delete e.details.width_fixed_point);
         let c = n.readUint32('height_fixed_point');
@@ -2526,7 +2526,7 @@
             }),
             delete e.details.height_fixed_point);
     }
-    var vt = {
+    var Ut = {
         tkhd: {
             name: 'Track Header',
             text: 'Specifies characteristics of a single track.',
@@ -2589,7 +2589,7 @@
             ref: 'ISO/IEC 14496-12, 8.3.2.3',
         },
     };
-    function Ct(e, t) {
+    function Mt(e, t) {
         let n = new h(e, t),
             { version: i } = n.readVersionAndFlags();
         if (i === null) {
@@ -2619,7 +2619,7 @@
         }
         (n.skip(2, 'pre-defined'), n.finalize());
     }
-    var Et = {
+    var Rt = {
         mdhd: {
             name: 'Media Header',
             text: 'Declares media information (timescale, language).',
@@ -2642,7 +2642,7 @@
             ref: 'ISO/IEC 14496-12, 8.4.2.3',
         },
     };
-    function Pt(e, t) {
+    function Lt(e, t) {
         let n = new h(e, t);
         (n.readVersionAndFlags(),
             n.skip(4, 'pre_defined'),
@@ -2651,7 +2651,7 @@
             n.readNullTerminatedString('name'),
             n.finalize());
     }
-    var Dt = {
+    var wt = {
         hdlr: {
             name: 'Handler Reference',
             text: "Declares the media type of the track (e.g., 'vide', 'soun').",
@@ -2666,26 +2666,26 @@
             ref: 'ISO/IEC 14496-12, 8.4.3.3',
         },
     };
-    function At(e, t) {
+    function Bt(e, t) {
         let n = new h(e, t);
         (n.readVersionAndFlags(), n.readUint16('graphicsmode'));
         let i = n.readUint16('opcolor_r'),
             r = n.readUint16('opcolor_g'),
             a = n.readUint16('opcolor_b');
         if (i !== null && r !== null && a !== null) {
-            let o = e.details.opcolor_r.offset;
+            let s = e.details.opcolor_r.offset;
             (delete e.details.opcolor_r,
                 delete e.details.opcolor_g,
                 delete e.details.opcolor_b,
                 (e.details.opcolor = {
                     value: `R:${i}, G:${r}, B:${a}`,
-                    offset: o,
+                    offset: s,
                     length: 6,
                 }));
         }
         n.finalize();
     }
-    var kt = {
+    var Nt = {
         vmhd: {
             name: 'Video Media Header',
             text: 'Contains header information specific to video media.',
@@ -2708,11 +2708,11 @@
             ref: 'ISO/IEC 14496-12, 8.4.5.2.2',
         },
     };
-    function Ut(e, t) {
+    function Vt(e, t) {
         let n = new h(e, t);
         (n.readVersionAndFlags(), n.readUint32('entry_count'));
     }
-    var Mt = {
+    var zt = {
         stsd: {
             name: 'Sample Description',
             text: 'Stores information for decoding samples (codec type, initialization data). Contains one or more Sample Entry boxes.',
@@ -2727,7 +2727,7 @@
             ref: 'ISO/IEC 14496-12, 8.5.2.3',
         },
     };
-    function Rt(e, t) {
+    function Ot(e, t) {
         let n = new h(e, t);
         n.readVersionAndFlags();
         let i = n.readUint32('entry_count');
@@ -2746,7 +2746,7 @@
         }
         n.finalize();
     }
-    var Lt = {
+    var $t = {
         stts: {
             name: 'Decoding Time to Sample',
             text: 'Maps decoding times to sample numbers.',
@@ -2769,17 +2769,17 @@
             ref: 'ISO/IEC 14496-12, 8.6.1.2.3',
         },
     };
-    function wt(e, t) {
+    function Ft(e, t) {
         let n = new h(e, t);
         n.readVersionAndFlags();
         let i = n.readUint32('entry_count');
         if (i !== null && i > 0) {
             for (let a = 0; a < i && !n.stopped; a++)
                 if (a < 10) {
-                    let o = `entry_${a + 1}`;
-                    (n.readUint32(`${o}_first_chunk`),
-                        n.readUint32(`${o}_samples_per_chunk`),
-                        n.readUint32(`${o}_sample_description_index`));
+                    let s = `entry_${a + 1}`;
+                    (n.readUint32(`${s}_first_chunk`),
+                        n.readUint32(`${s}_samples_per_chunk`),
+                        n.readUint32(`${s}_sample_description_index`));
                 } else n.offset += 12;
             i > 10 &&
                 (e.details['...more_entries'] = {
@@ -2790,7 +2790,7 @@
         }
         n.finalize();
     }
-    var Nt = {
+    var Ht = {
         stsc: {
             name: 'Sample To Chunk',
             text: 'Maps samples to chunks.',
@@ -2817,14 +2817,14 @@
             ref: 'ISO/IEC 14496-12, 8.7.4.3',
         },
     };
-    function Bt(e, t) {
+    function Xt(e, t) {
         let n = new h(e, t);
         n.readVersionAndFlags();
         let i = n.readUint32('sample_size'),
             r = n.readUint32('sample_count');
         if (i === 0 && r !== null && r > 0) {
-            for (let o = 0; o < r && !n.stopped; o++)
-                o < 10 ? n.readUint32(`entry_size_${o + 1}`) : (n.offset += 4);
+            for (let s = 0; s < r && !n.stopped; s++)
+                s < 10 ? n.readUint32(`entry_size_${s + 1}`) : (n.offset += 4);
             r > 10 &&
                 (e.details['...more_entries'] = {
                     value: `${r - 10} more entries not shown but parsed`,
@@ -2834,7 +2834,7 @@
         }
         n.finalize();
     }
-    var zt = {
+    var Gt = {
         stsz: {
             name: 'Sample Size',
             text: 'Specifies the size of each sample.',
@@ -2857,7 +2857,7 @@
             ref: 'ISO/IEC 14496-12, 8.7.3.2.2',
         },
     };
-    function Vt(e, t) {
+    function jt(e, t) {
         let n = new h(e, t);
         n.readVersionAndFlags();
         let i = n.readUint32('entry_count');
@@ -2875,7 +2875,7 @@
         }
         n.finalize();
     }
-    var Ot = {
+    var Wt = {
         stco: {
             name: 'Chunk Offset',
             text: 'Specifies the offset of each chunk into the file.',
@@ -2894,7 +2894,7 @@
             ref: 'ISO/IEC 14496-12, 8.7.5.3',
         },
     };
-    function $t(e, t) {
+    function Kt(e, t) {
         let n = new h(e, t),
             { version: i } = n.readVersionAndFlags();
         if (i === null) {
@@ -2903,18 +2903,18 @@
         }
         let r = n.readUint32('entry_count');
         if (r !== null && r > 0) {
-            let o = i === 1 ? 20 : 12;
-            for (let s = 0; s < r && !n.stopped; s++)
-                if (s < 5) {
-                    let l = `entry_${s + 1}`;
+            let s = i === 1 ? 20 : 12;
+            for (let l = 0; l < r && !n.stopped; l++)
+                if (l < 5) {
+                    let o = `entry_${l + 1}`;
                     (i === 1
-                        ? (n.readBigUint64(`${l}_segment_duration`),
-                          n.readBigInt64(`${l}_media_time`))
-                        : (n.readUint32(`${l}_segment_duration`),
-                          n.readInt32(`${l}_media_time`)),
-                        n.readInt16(`${l}_media_rate_integer`),
-                        n.readInt16(`${l}_media_rate_fraction`));
-                } else n.offset += o;
+                        ? (n.readBigUint64(`${o}_segment_duration`),
+                          n.readBigInt64(`${o}_media_time`))
+                        : (n.readUint32(`${o}_segment_duration`),
+                          n.readInt32(`${o}_media_time`)),
+                        n.readInt16(`${o}_media_rate_integer`),
+                        n.readInt16(`${o}_media_rate_fraction`));
+                } else n.offset += s;
             r > 5 &&
                 (e.details['...more_entries'] = {
                     value: `${r - 5} more entries not shown but parsed`,
@@ -2924,7 +2924,7 @@
         }
         n.finalize();
     }
-    var Ft = {
+    var qt = {
         elst: {
             name: 'Edit List',
             text: 'Maps the media time-line to the presentation time-line.',
@@ -2947,7 +2947,7 @@
             ref: 'ISO/IEC 14496-12, 8.6.6.3',
         },
     };
-    function Ht(e, t) {
+    function Yt(e, t) {
         let n = new h(e, t);
         (n.readVersionAndFlags(),
             n.readUint32('track_ID'),
@@ -2964,7 +2964,7 @@
             delete e.details.default_sample_flags_raw),
             n.finalize());
     }
-    var Xt = {
+    var Qt = {
         trex: {
             name: 'Track Extends',
             text: 'Sets default values for samples in fragments.',
@@ -2991,7 +2991,7 @@
             ref: 'ISO/IEC 14496-12, 8.8.3.3',
         },
     };
-    var Gt = {
+    var Jt = {
         moov: {
             name: 'Movie',
             text: 'Container for all metadata defining the presentation.',
@@ -3058,7 +3058,7 @@
             ref: 'ISO/IEC 14496-12, 8.1.1',
         },
     };
-    var Me = class {
+    var Ne = class {
         constructor(t) {
             ((this.buffer = t),
                 (this.bytePosition = 0),
@@ -3091,9 +3091,9 @@
             return (1 << t) - 1 + n;
         }
     };
-    function jt(e) {
+    function Zt(e) {
         if (e.length < 4) return null;
-        let t = new Me(e);
+        let t = new Ne(e);
         t.readBits(8);
         let n = t.readBits(8);
         t.readBits(16);
@@ -3119,8 +3119,8 @@
                 t.readBits(1),
                 t.readBits(1))
             ) {
-                let m = d !== 3 ? 8 : 12;
-                for (let _ = 0; _ < m; _++)
+                let p = d !== 3 ? 8 : 12;
+                for (let y = 0; y < p; y++)
                     if (t.readBits(1))
                         return {
                             profile_idc: n,
@@ -3135,27 +3135,27 @@
         else if (r === 1) {
             (t.readBits(1), t.readUE(), t.readUE());
             let d = t.readUE();
-            for (let p = 0; p < d; p++) t.readUE();
+            for (let u = 0; u < d; u++) t.readUE();
         }
         (t.readUE(), t.readBits(1));
         let a = t.readUE(),
-            o = t.readUE(),
-            s = t.readBits(1),
-            l = (a + 1) * 16,
-            c = (2 - s) * (o + 1) * 16;
-        if ((s === 0 && t.readBits(1), t.readBits(1), t.readBits(1))) {
+            s = t.readUE(),
+            l = t.readBits(1),
+            o = (a + 1) * 16,
+            c = (2 - l) * (s + 1) * 16;
+        if ((l === 0 && t.readBits(1), t.readBits(1), t.readBits(1))) {
             let d = t.readUE(),
+                u = t.readUE(),
                 p = t.readUE(),
-                m = t.readUE(),
-                _ = t.readUE(),
-                x = 1,
-                y = 2 - s,
-                b = l - (d + p) * x;
-            c = c - (m + _) * y;
+                y = t.readUE(),
+                _ = 1,
+                b = 2 - l,
+                S = o - (d + u) * _;
+            c = c - (p + y) * b;
         }
-        return { profile_idc: n, level_idc: i, resolution: `${l}x${c}` };
+        return { profile_idc: n, level_idc: i, resolution: `${o}x${c}` };
     }
-    function Wt(e, t) {
+    function en(e, t) {
         let n = new h(e, t);
         n.readUint8('configurationVersion');
         let i = n.readUint8('AVCProfileIndication');
@@ -3177,9 +3177,9 @@
         let a = n.readUint8('sps_count_byte');
         if (a !== null) {
             delete e.details.sps_count_byte;
-            let s = a & 31;
+            let l = a & 31;
             ((e.details.numOfSequenceParameterSets = {
-                value: s,
+                value: l,
                 offset: e.offset + n.offset - 1,
                 length: 0.625,
             }),
@@ -3188,8 +3188,8 @@
                     offset: e.offset + n.offset - 1,
                     length: 0.375,
                 }));
-            for (let l = 0; l < s; l++) {
-                let c = n.readUint16(`sps_${l + 1}_length`);
+            for (let o = 0; o < l; o++) {
+                let c = n.readUint16(`sps_${o + 1}_length`);
                 if (c === null) break;
                 let f = n.offset;
                 if (n.checkBounds(c)) {
@@ -3198,40 +3198,40 @@
                             n.view.byteOffset + f,
                             c
                         ),
-                        p = jt(d);
-                    (p &&
-                        ((e.details[`sps_${l + 1}_decoded_profile`] = {
-                            value: p.profile_idc,
+                        u = Zt(d);
+                    (u &&
+                        ((e.details[`sps_${o + 1}_decoded_profile`] = {
+                            value: u.profile_idc,
                             offset: 0,
                             length: 0,
                         }),
-                        (e.details[`sps_${l + 1}_decoded_level`] = {
-                            value: p.level_idc,
+                        (e.details[`sps_${o + 1}_decoded_level`] = {
+                            value: u.level_idc,
                             offset: 0,
                             length: 0,
                         }),
-                        (e.details[`sps_${l + 1}_decoded_resolution`] = {
-                            value: p.resolution,
+                        (e.details[`sps_${o + 1}_decoded_resolution`] = {
+                            value: u.resolution,
                             offset: 0,
                             length: 0,
                         })),
-                        n.skip(c, `sps_${l + 1}_nal_unit`));
+                        n.skip(c, `sps_${o + 1}_nal_unit`));
                 }
             }
         }
-        let o = n.readUint8('numOfPictureParameterSets');
-        if (o !== null)
-            for (let s = 0; s < o; s++) {
-                let l = n.readUint16(`pps_${s + 1}_length`);
-                if (l === null) break;
-                n.skip(l, `pps_${s + 1}_nal_unit`);
+        let s = n.readUint8('numOfPictureParameterSets');
+        if (s !== null)
+            for (let l = 0; l < s; l++) {
+                let o = n.readUint16(`pps_${l + 1}_length`);
+                if (o === null) break;
+                n.skip(o, `pps_${l + 1}_nal_unit`);
             }
         (n.offset < e.size &&
             (i === 100 || i === 110 || i === 122 || i === 144) &&
             n.readRemainingBytes('profile_specific_extensions'),
             n.finalize());
     }
-    var Kt = {
+    var tn = {
         avcC: {
             name: 'AVC Configuration',
             text: 'Contains the decoder configuration information for an H.264/AVC video track, including SPS and PPS.',
@@ -3250,7 +3250,7 @@
             ref: 'ISO/IEC 14496-10, 7.3.2.1.1',
         },
     };
-    var cs = {
+    var _s = {
             1: 'AAC Main',
             2: 'AAC LC',
             3: 'AAC SSR',
@@ -3258,7 +3258,7 @@
             5: 'SBR',
             6: 'AAC Scalable',
         },
-        ds = {
+        ys = {
             0: '96000 Hz',
             1: '88200 Hz',
             2: '64000 Hz',
@@ -3273,7 +3273,7 @@
             11: '8000 Hz',
             12: '7350 Hz',
         },
-        ps = [
+        xs = [
             'Custom',
             'Mono (Center)',
             'Stereo (L, R)',
@@ -3283,7 +3283,7 @@
             '5.1 (L, C, R, Ls, Rs, LFE)',
             '7.1 (L, C, R, Ls, Rs, Lcs, Rcs, LFE)',
         ];
-    function _e(e, t) {
+    function Te(e, t) {
         let n = e.offset,
             i = 0,
             r,
@@ -3293,10 +3293,10 @@
             ((i = (i << 7) | (r & 127)), a++);
         } while (r & 128 && a < 4);
         e.box.details[t] = { value: i, offset: e.box.offset + n, length: a };
-        for (let o = 0; o < a; o++) delete e.box.details[`size_byte_${o}`];
+        for (let s = 0; s < a; s++) delete e.box.details[`size_byte_${s}`];
         return i;
     }
-    function qt(e, t) {
+    function nn(e, t) {
         let n = new h(e, t);
         n.readVersionAndFlags();
         let i = n.readUint8('ES_Descriptor_tag');
@@ -3308,7 +3308,7 @@
                 n.finalize());
             return;
         }
-        let r = _e(n, 'ES_Descriptor_size');
+        let r = Te(n, 'ES_Descriptor_size');
         if (r === null) {
             n.finalize();
             return;
@@ -3319,38 +3319,38 @@
             n.readUint8('streamDependence_and_priority'),
             n.offset < a && n.readUint8('DecoderConfigDescriptor_tag') === 4)
         ) {
-            let s = _e(n, 'DecoderConfigDescriptor_size'),
-                l = n.offset + s;
+            let l = Te(n, 'DecoderConfigDescriptor_size'),
+                o = n.offset + l;
             if (
                 (n.readUint8('objectTypeIndication'),
                 n.readUint8('streamType_and_upStream'),
                 n.skip(3, 'bufferSizeDB'),
                 n.readUint32('maxBitrate'),
                 n.readUint32('avgBitrate'),
-                n.offset < l && n.readUint8('DecoderSpecificInfo_tag') === 5)
+                n.offset < o && n.readUint8('DecoderSpecificInfo_tag') === 5)
             ) {
-                let f = _e(n, 'DecoderSpecificInfo_size');
+                let f = Te(n, 'DecoderSpecificInfo_size');
                 if (f !== null && f >= 2) {
                     let d = n.offset,
-                        p = (n.readUint16('AudioSpecificConfig_bits') >>> 0)
+                        u = (n.readUint16('AudioSpecificConfig_bits') >>> 0)
                             .toString(2)
                             .padStart(16, '0');
                     delete e.details.AudioSpecificConfig_bits;
-                    let m = parseInt(p.substring(0, 5), 2),
-                        _ = parseInt(p.substring(5, 9), 2),
-                        x = parseInt(p.substring(9, 13), 2);
+                    let p = parseInt(u.substring(0, 5), 2),
+                        y = parseInt(u.substring(5, 9), 2),
+                        _ = parseInt(u.substring(9, 13), 2);
                     ((e.details.decoded_audio_object_type = {
-                        value: `${cs[m] || 'Unknown'} (${m})`,
+                        value: `${_s[p] || 'Unknown'} (${p})`,
                         offset: n.box.offset + d,
                         length: 0.625,
                     }),
                         (e.details.decoded_sampling_frequency = {
-                            value: `${ds[_] || 'Unknown'} (${_})`,
+                            value: `${ys[y] || 'Unknown'} (${y})`,
                             offset: n.box.offset + d + 0.625,
                             length: 0.5,
                         }),
                         (e.details.decoded_channel_configuration = {
-                            value: `${ps[x] || 'Unknown'} (${x})`,
+                            value: `${xs[_] || 'Unknown'} (${_})`,
                             offset: n.box.offset + d + 1.125,
                             length: 0.5,
                         }),
@@ -3359,15 +3359,15 @@
             }
         }
         if (n.offset < a && n.readUint8('SLConfigDescriptor_tag') === 6) {
-            let s = _e(n, 'SLConfigDescriptor_size');
-            s !== null &&
-                (s === 1
+            let l = Te(n, 'SLConfigDescriptor_size');
+            l !== null &&
+                (l === 1
                     ? n.readUint8('predefined')
-                    : n.skip(s, 'sl_config_data'));
+                    : n.skip(l, 'sl_config_data'));
         }
         n.finalize();
     }
-    var Yt = {
+    var rn = {
         esds: {
             name: 'Elementary Stream Descriptor',
             text: 'Contains information about the elementary stream, such as the audio object type for AAC.',
@@ -3400,14 +3400,14 @@
             ref: 'ISO/IEC 14496-1, 7.2.6.8',
         },
     };
-    function Qt(e, t) {
+    function an(e, t) {
         let n = new h(e, t);
         (n.readVersionAndFlags(),
             n.readInt16('balance'),
             n.skip(2, 'reserved'),
             n.finalize());
     }
-    var Jt = {
+    var sn = {
         smhd: {
             name: 'Sound Media Header',
             text: 'Contains header information specific to sound media.',
@@ -3422,7 +3422,7 @@
             ref: 'ISO/IEC 14496-12, 8.4.5.3.2',
         },
     };
-    function Zt(e, t) {
+    function on(e, t) {
         let n = new h(e, t),
             { version: i } = n.readVersionAndFlags();
         if (i === null) {
@@ -3430,16 +3430,16 @@
             return;
         }
         let r = [];
-        for (let s = 0; s < 16; s++) {
-            let l = n.readUint8(`system_id_byte_${s}`);
-            if (l === null) {
+        for (let l = 0; l < 16; l++) {
+            let o = n.readUint8(`system_id_byte_${l}`);
+            if (o === null) {
                 n.finalize();
                 return;
             }
-            r.push(l.toString(16).padStart(2, '0'));
+            r.push(o.toString(16).padStart(2, '0'));
         }
         let a = e.details.system_id_byte_0.offset;
-        for (let s = 0; s < 16; s++) delete e.details[`system_id_byte_${s}`];
+        for (let l = 0; l < 16; l++) delete e.details[`system_id_byte_${l}`];
         if (
             ((e.details['System ID'] = {
                 value: r.join('-'),
@@ -3448,13 +3448,13 @@
             }),
             i > 0)
         ) {
-            let s = n.readUint32('Key ID Count');
-            s !== null && n.skip(s * 16, 'Key IDs');
+            let l = n.readUint32('Key ID Count');
+            l !== null && n.skip(l * 16, 'Key IDs');
         }
-        let o = n.readUint32('Data Size');
-        (o !== null && n.skip(o, 'Data'), n.finalize());
+        let s = n.readUint32('Data Size');
+        (s !== null && n.skip(s, 'Data'), n.finalize());
     }
-    var en = {
+    var ln = {
         pssh: {
             name: 'Protection System Specific Header',
             text: 'Contains DRM initialization data.',
@@ -3477,7 +3477,7 @@
             ref: 'ISO/IEC 23001-7, 5.1.2',
         },
     };
-    function tn(e, t) {
+    function fn(e, t) {
         let n = new h(e, t),
             { version: i } = n.readVersionAndFlags();
         if (i === null) {
@@ -3486,13 +3486,13 @@
         }
         let r = n.readUint32('entry_count');
         if (r !== null && r > 0) {
-            for (let o = 0; o < r && !n.stopped; o++)
-                if (o < 10) {
-                    let s = `entry_${o + 1}`;
-                    (n.readUint32(`${s}_sample_count`),
+            for (let s = 0; s < r && !n.stopped; s++)
+                if (s < 10) {
+                    let l = `entry_${s + 1}`;
+                    (n.readUint32(`${l}_sample_count`),
                         i === 1
-                            ? n.readInt32(`${s}_sample_offset`)
-                            : n.readUint32(`${s}_sample_offset`));
+                            ? n.readInt32(`${l}_sample_offset`)
+                            : n.readUint32(`${l}_sample_offset`));
                 } else n.offset += 8;
             r > 10 &&
                 (e.details['...more_entries'] = {
@@ -3503,7 +3503,7 @@
         }
         n.finalize();
     }
-    var nn = {
+    var cn = {
         ctts: {
             name: 'Composition Time to Sample',
             text: 'Provides the offset between decoding time and composition time for each sample. Essential for B-frames.',
@@ -3526,7 +3526,7 @@
             ref: 'ISO/IEC 14496-12, 8.6.1.3.3',
         },
     };
-    function rn(e, t) {
+    function dn(e, t) {
         let n = new h(e, t);
         (n.readVersionAndFlags(), n.skip(3, 'reserved'));
         let i = n.readUint8('field_size'),
@@ -3534,8 +3534,8 @@
         if (r !== null && r > 0) {
             let a;
             if (i === 4) {
-                let o = n.readUint8('entry_size_1_byte');
-                o !== null && (a = `(nibbles) ${(o >> 4) & 15}, ${o & 15}`);
+                let s = n.readUint8('entry_size_1_byte');
+                s !== null && (a = `(nibbles) ${(s >> 4) & 15}, ${s & 15}`);
             } else
                 i === 8
                     ? (a = n.readUint8('entry_size_1'))
@@ -3544,7 +3544,7 @@
         }
         n.finalize();
     }
-    var an = {
+    var pn = {
         stz2: {
             name: 'Compact Sample Size',
             text: 'A compact version of the Sample Size Box for smaller, varying sample sizes.',
@@ -3563,7 +3563,7 @@
             ref: 'ISO/IEC 14496-12, 8.7.3.3.2',
         },
     };
-    function sn(e, t) {
+    function un(e, t) {
         let n = new h(e, t),
             { version: i } = n.readVersionAndFlags();
         if (i === null) {
@@ -3579,7 +3579,7 @@
             n.readUint32('entry_1_group_description_index')),
             n.finalize());
     }
-    var on = {
+    var mn = {
         sbgp: {
             name: 'Sample to Group',
             text: 'Assigns samples to a specific group, described in the Sample Group Description Box (sgpd).',
@@ -3598,8 +3598,8 @@
             ref: 'ISO/IEC 14496-12, 8.9.2.3',
         },
     };
-    function ln(e, t) {}
-    function q(e, t) {
+    function gn(e, t) {}
+    function Y(e, t) {
         let n = new h(e, t),
             i = [];
         for (; n.offset < e.size && !n.stopped; ) {
@@ -3614,8 +3614,8 @@
         }),
             n.finalize());
     }
-    var fn = { hint: q, cdsc: q, font: q, hind: q, vdep: q, vplx: q, subt: q },
-        cn = {
+    var hn = { hint: Y, cdsc: Y, font: Y, hind: Y, vdep: Y, vplx: Y, subt: Y },
+        _n = {
             tref: {
                 name: 'Track Reference',
                 text: 'A container box that defines references from this track to other tracks in the presentation.',
@@ -3636,7 +3636,7 @@
                 ref: 'ISO/IEC 14496-12, 8.3.3.2',
             },
         };
-    function dn(e, t) {
+    function yn(e, t) {
         let n = new h(e, t),
             { version: i } = n.readVersionAndFlags();
         if (i === null) {
@@ -3655,7 +3655,7 @@
         }
         n.finalize();
     }
-    var pn = {
+    var xn = {
         subs: {
             name: 'Sub-Sample Information',
             text: 'Defines the size of sub-samples, often used in CENC to separate clear vs. encrypted parts of a sample.',
@@ -3674,7 +3674,7 @@
             ref: 'ISO/IEC 14496-12, 8.7.7.3',
         },
     };
-    function un(e, t) {
+    function Sn(e, t) {
         let n = new h(e, t),
             { flags: i } = n.readVersionAndFlags();
         i !== null &&
@@ -3684,9 +3684,9 @@
         let r = n.readUint8('default_sample_info_size'),
             a = n.readUint32('sample_count');
         if (r === 0 && a !== null && a > 0) {
-            for (let s = 0; s < a && !n.stopped; s++)
-                s < 10
-                    ? n.readUint8(`sample_info_size_${s + 1}`)
+            for (let l = 0; l < a && !n.stopped; l++)
+                l < 10
+                    ? n.readUint8(`sample_info_size_${l + 1}`)
                     : (n.offset += 1);
             a > 10 &&
                 (e.details['...more_entries'] = {
@@ -3697,7 +3697,7 @@
         }
         n.finalize();
     }
-    var mn = {
+    var bn = {
         saiz: {
             name: 'Sample Auxiliary Information Sizes',
             text: 'Provides the size of auxiliary information for each sample, used for CENC encryption parameters.',
@@ -3712,7 +3712,7 @@
             ref: 'ISO/IEC 14496-12, 8.7.8.3',
         },
     };
-    function gn(e, t) {
+    function Tn(e, t) {
         let n = new h(e, t),
             { version: i, flags: r } = n.readVersionAndFlags();
         if (i === null) {
@@ -3726,7 +3726,7 @@
             (i === 1 ? n.readBigUint64('offset_1') : n.readUint32('offset_1')),
             n.finalize());
     }
-    var hn = {
+    var In = {
         saio: {
             name: 'Sample Auxiliary Information Offsets',
             text: 'Provides the location of auxiliary information for samples, such as CENC Initialization Vectors.',
@@ -3741,19 +3741,19 @@
             ref: 'ISO/IEC 14496-12, 8.7.9.3',
         },
     };
-    function _n(e, t) {}
-    var xn = {
+    function vn(e, t) {}
+    var Cn = {
         sinf: {
             name: 'Protection Scheme Information',
             text: 'A container for all information required to understand the encryption transform applied.',
             ref: 'ISO/IEC 14496-12, 8.12.1',
         },
     };
-    function yn(e, t) {
+    function En(e, t) {
         let n = new h(e, t);
         (n.readString(4, 'data_format'), n.finalize());
     }
-    var Sn = {
+    var Pn = {
         frma: {
             name: 'Original Format Box',
             text: 'Stores the original, unencrypted four-character-code of the sample description.',
@@ -3764,7 +3764,7 @@
             ref: 'ISO/IEC 14496-12, 8.12.2.3',
         },
     };
-    function bn(e, t) {
+    function Dn(e, t) {
         let n = new h(e, t);
         (n.readVersionAndFlags(), n.readString(4, 'scheme_type'));
         let i = n.readUint32('scheme_version_raw');
@@ -3777,7 +3777,7 @@
             delete e.details.scheme_version_raw),
             n.finalize());
     }
-    var Tn = {
+    var An = {
         schm: {
             name: 'Scheme Type Box',
             text: 'Identifies the protection scheme (e.g., "cenc" for Common Encryption).',
@@ -3792,26 +3792,26 @@
             ref: 'ISO/IEC 14496-12, 8.12.5.3',
         },
     };
-    function In(e, t) {}
-    var vn = {
+    function kn(e, t) {}
+    var Un = {
         schi: {
             name: 'Scheme Information Box',
             text: 'A container for boxes with scheme-specific data needed by the protection system.',
             ref: 'ISO/IEC 14496-12, 8.12.6',
         },
     };
-    function Cn(e, t) {
+    function Mn(e, t) {
         let n = new h(e, t);
         n.readVersionAndFlags();
         let i = n.readUint32('entry_count');
         if (i !== null && i > 0) {
             let r = [];
-            for (let o = 0; o < i && !n.stopped; o++)
-                if (o < 10) {
-                    let s = n.readUint32(`sample_number_entry_${o + 1}`);
-                    s !== null &&
-                        (r.push(s),
-                        delete e.details[`sample_number_entry_${o + 1}`]);
+            for (let s = 0; s < i && !n.stopped; s++)
+                if (s < 10) {
+                    let l = n.readUint32(`sample_number_entry_${s + 1}`);
+                    l !== null &&
+                        (r.push(l),
+                        delete e.details[`sample_number_entry_${s + 1}`]);
                 } else n.offset += 4;
             i > 0 &&
                 (e.details.sample_numbers = {
@@ -3826,7 +3826,7 @@
         }
         n.finalize();
     }
-    var En = {
+    var Rn = {
         stss: {
             name: 'Sync Sample Box',
             text: 'Provides a compact list of the sync samples (keyframes/random access points) in the track.',
@@ -3841,7 +3841,7 @@
             ref: 'ISO/IEC 14496-12, 8.6.2.3',
         },
     };
-    function Pn(e, t) {
+    function Ln(e, t) {
         let n = new h(e, t),
             { version: i } = n.readVersionAndFlags();
         if (i === null) {
@@ -3852,20 +3852,20 @@
             a = 0;
         (i === 1 && (a = n.readUint32('default_length')),
             i >= 2 && n.readUint32('default_sample_description_index'));
-        let o = n.readUint32('entry_count');
-        if (o !== null)
-            for (let s = 0; s < o && !n.stopped; s++) {
-                let l = a;
+        let s = n.readUint32('entry_count');
+        if (s !== null)
+            for (let l = 0; l < s && !n.stopped; l++) {
+                let o = a;
                 if (i === 1 && a === 0) {
-                    let d = n.readUint32(`entry_${s + 1}_description_length`);
+                    let d = n.readUint32(`entry_${l + 1}_description_length`);
                     if (d === null) break;
-                    l = d;
+                    o = d;
                 }
-                let c = `entry_${s + 1}`,
+                let c = `entry_${l + 1}`,
                     f = n.offset;
                 switch (r) {
                     case 'roll':
-                        (n.readInt16(`${c}_roll_distance`), i === 0 && (l = 2));
+                        (n.readInt16(`${c}_roll_distance`), i === 0 && (o = 2));
                         break;
                     default:
                         i === 0 &&
@@ -3874,14 +3874,14 @@
                                 `Cannot determine entry size for unknown grouping_type '${r}' with version 0. Parsing of this box may be incomplete.`
                             ),
                             n.readRemainingBytes('unparsed_sgpd_entries'),
-                            (s = o));
+                            (l = s));
                         break;
                 }
-                l > 0 && n.offset === f && n.skip(l, `${c}_description_data`);
+                o > 0 && n.offset === f && n.skip(o, `${c}_description_data`);
             }
         n.finalize();
     }
-    var Dn = {
+    var wn = {
         sgpd: {
             name: 'Sample Group Description',
             text: 'Contains a sample group entry for each sample group, describing its properties.',
@@ -3900,7 +3900,7 @@
             ref: 'ISO/IEC 14496-12, 10.1.1.3',
         },
     };
-    function An(e, t) {
+    function Bn(e, t) {
         let n = new h(e, t),
             { version: i } = n.readVersionAndFlags();
         if (i === null) {
@@ -3912,7 +3912,7 @@
             : n.readUint32('fragment_duration'),
             n.finalize());
     }
-    var kn = {
+    var Nn = {
         mehd: {
             name: 'Movie Extends Header',
             text: 'Provides the overall duration of a fragmented movie, including all fragments.',
@@ -3923,7 +3923,7 @@
             ref: 'ISO/IEC 14496-12, 8.8.2.3',
         },
     };
-    function Un(e, t) {
+    function Vn(e, t) {
         let n = new h(e, t);
         n.readVersionAndFlags();
         let i = e.size - n.offset;
@@ -3932,28 +3932,28 @@
             i > 0)
         ) {
             for (let a = 0; a < i && !n.stopped; a++) {
-                let o = `sample_${a + 1}`;
+                let s = `sample_${a + 1}`;
                 if (a < 10) {
-                    let s = n.readUint8(`${o}_flags_byte`);
-                    if (s === null) break;
-                    (delete e.details[`${o}_flags_byte`],
-                        (e.details[`${o}_is_leading`] = {
-                            value: (s >> 6) & 3,
+                    let l = n.readUint8(`${s}_flags_byte`);
+                    if (l === null) break;
+                    (delete e.details[`${s}_flags_byte`],
+                        (e.details[`${s}_is_leading`] = {
+                            value: (l >> 6) & 3,
                             offset: e.offset + n.offset - 1,
                             length: 0.25,
                         }),
-                        (e.details[`${o}_sample_depends_on`] = {
-                            value: (s >> 4) & 3,
+                        (e.details[`${s}_sample_depends_on`] = {
+                            value: (l >> 4) & 3,
                             offset: e.offset + n.offset - 1,
                             length: 0.25,
                         }),
-                        (e.details[`${o}_sample_is_depended_on`] = {
-                            value: (s >> 2) & 3,
+                        (e.details[`${s}_sample_is_depended_on`] = {
+                            value: (l >> 2) & 3,
                             offset: e.offset + n.offset - 1,
                             length: 0.25,
                         }),
-                        (e.details[`${o}_sample_has_redundancy`] = {
-                            value: s & 3,
+                        (e.details[`${s}_sample_has_redundancy`] = {
+                            value: l & 3,
                             offset: e.offset + n.offset - 1,
                             length: 0.25,
                         }));
@@ -3968,7 +3968,7 @@
         }
         n.finalize();
     }
-    var Mn = {
+    var zn = {
         sdtp: {
             name: 'Independent and Disposable Samples',
             text: 'Provides detailed dependency information for each sample in the track.',
@@ -3991,15 +3991,15 @@
             ref: 'ISO/IEC 14496-12, 8.6.4.3',
         },
     };
-    function Rn(e, t) {}
-    var Ln = {
+    function On(e, t) {}
+    var $n = {
         mfra: {
             name: 'Movie Fragment Random Access',
             text: 'A container for random access information for movie fragments, often found at the end of the file.',
             ref: 'ISO/IEC 14496-12, 8.8.9',
         },
     };
-    function wn(e, t) {
+    function Fn(e, t) {
         let n = new h(e, t),
             { version: i } = n.readVersionAndFlags();
         if (i === null) {
@@ -4010,29 +4010,29 @@
         let r = n.readUint32('length_sizes_raw');
         if (r !== null) {
             let a = ((r >> 4) & 3) + 1,
-                o = ((r >> 2) & 3) + 1,
-                s = (r & 3) + 1;
+                s = ((r >> 2) & 3) + 1,
+                l = (r & 3) + 1;
             ((e.details.length_sizes = {
-                value: `traf=${a}, trun=${o}, sample=${s}`,
+                value: `traf=${a}, trun=${s}, sample=${l}`,
                 offset: e.details.length_sizes_raw.offset,
                 length: 4,
             }),
                 delete e.details.length_sizes_raw);
-            let l = n.readUint32('number_of_entries');
-            l !== null &&
-                l > 0 &&
+            let o = n.readUint32('number_of_entries');
+            o !== null &&
+                o > 0 &&
                 (i === 1
                     ? (n.readBigUint64('entry_1_time'),
                       n.readBigUint64('entry_1_moof_offset'))
                     : (n.readUint32('entry_1_time'),
                       n.readUint32('entry_1_moof_offset')),
                 n.skip(a, 'entry_1_traf_number'),
-                n.skip(o, 'entry_1_trun_number'),
-                n.skip(s, 'entry_1_sample_number'));
+                n.skip(s, 'entry_1_trun_number'),
+                n.skip(l, 'entry_1_sample_number'));
         }
         n.finalize();
     }
-    var Nn = {
+    var Hn = {
         tfra: {
             name: 'Track Fragment Random Access',
             text: 'Contains a table mapping sync sample times to their `moof` box locations for a single track.',
@@ -4055,11 +4055,11 @@
             ref: 'ISO/IEC 14496-12, 8.8.10.3',
         },
     };
-    function Bn(e, t) {
+    function Xn(e, t) {
         let n = new h(e, t);
         (n.readVersionAndFlags(), n.readUint32('size'), n.finalize());
     }
-    var zn = {
+    var Gn = {
         mfro: {
             name: 'Movie Fragment Random Access Offset',
             text: 'Contains the size of the enclosing `mfra` box to aid in locating it by scanning from the end of the file.',
@@ -4070,7 +4070,7 @@
             ref: 'ISO/IEC 14496-12, 8.8.11.3',
         },
     };
-    function Vn(e, t) {
+    function jn(e, t) {
         let n = new h(e, t);
         n.readVersionAndFlags();
         let i = 1;
@@ -4090,7 +4090,7 @@
         }
         n.finalize();
     }
-    var On = {
+    var Wn = {
         pdin: {
             name: 'Progressive Download Info',
             text: 'Contains pairs of download rates and suggested initial playback delays to aid progressive downloading.',
@@ -4105,7 +4105,7 @@
             ref: 'ISO/IEC 14496-12, 8.1.3.3',
         },
     };
-    function $n(e, t) {
+    function Kn(e, t) {
         let n = new h(e, t);
         n.readVersionAndFlags();
         let i = n.readUint16('language_bits');
@@ -4124,7 +4124,7 @@
         }
         (n.readNullTerminatedString('notice'), n.finalize());
     }
-    var Fn = {
+    var qn = {
         cprt: {
             name: 'Copyright Box',
             text: 'Contains a copyright declaration for the track or presentation.',
@@ -4139,7 +4139,7 @@
             ref: 'ISO/IEC 14496-12, 8.10.2.3',
         },
     };
-    function Hn(e, t) {
+    function Yn(e, t) {
         let n = new h(e, t),
             { version: i } = n.readVersionAndFlags();
         if (i === null) {
@@ -4159,7 +4159,7 @@
               n.readUint32('compositionEndTime')),
             n.finalize());
     }
-    var Xn = {
+    var Qn = {
         cslg: {
             name: 'Composition to Decode',
             text: 'Provides a mapping from the composition timeline to the decoding timeline.',
@@ -4174,7 +4174,7 @@
             ref: 'ISO/IEC 14496-12, 8.6.1.4.3',
         },
     };
-    function Gn(e, t) {
+    function Jn(e, t) {
         let n = new h(e, t);
         n.readVersionAndFlags();
         let i = (e.size - n.offset) / 2;
@@ -4193,7 +4193,7 @@
         }
         n.finalize();
     }
-    var jn = {
+    var Zn = {
         stdp: {
             name: 'Degradation Priority',
             text: 'Contains the degradation priority for each sample in the track.',
@@ -4204,20 +4204,20 @@
             ref: 'ISO/IEC 14496-12, 8.5.3.3',
         },
     };
-    function Wn(e, t) {
+    function ei(e, t) {
         let n = new h(e, t),
             { flags: i } = n.readVersionAndFlags();
         (i !== null && (i & 1) === 0 && n.readNullTerminatedString('location'),
             n.finalize());
     }
-    function Kn(e, t) {
+    function ti(e, t) {
         let n = new h(e, t);
         (n.readVersionAndFlags(),
             n.readNullTerminatedString('name'),
             n.readNullTerminatedString('location'),
             n.finalize());
     }
-    var qn = {
+    var ni = {
         dref: {
             name: 'Data Reference Box',
             text: 'A container for data references (e.g., URLs) that declare the location of media data.',
@@ -4238,7 +4238,7 @@
             ref: 'ISO/IEC 14496-12, 8.7.2.1',
         },
     };
-    function Yn(e, t) {
+    function ii(e, t) {
         let n = new h(e, t);
         (n.skip(6, 'reserved_sample_entry'),
             n.readUint16('data_reference_index'),
@@ -4265,15 +4265,15 @@
             n.readUint16('frame_count'));
         let a = n.offset;
         if (n.checkBounds(32)) {
-            let o = n.view.getUint8(n.offset),
-                s = new Uint8Array(
+            let s = n.view.getUint8(n.offset),
+                l = new Uint8Array(
                     n.view.buffer,
                     n.view.byteOffset + n.offset + 1,
-                    o
+                    s
                 ),
-                l = new TextDecoder().decode(s);
+                o = new TextDecoder().decode(l);
             ((e.details.compressorname = {
-                value: l,
+                value: o,
                 offset: n.box.offset + a,
                 length: 32,
             }),
@@ -4281,7 +4281,7 @@
         }
         (n.readUint16('depth'), n.readInt16('pre_defined_3'));
     }
-    var Qn = {
+    var ri = {
         avc1: {
             name: 'AVC Sample Entry',
             text: 'Defines the coding type and initialization information for an H.264/AVC video track.',
@@ -4320,7 +4320,7 @@
             ref: 'ISO/IEC 14496-12, 12.1.3.2',
         },
     };
-    function Jn(e, t) {
+    function ai(e, t) {
         let n = new h(e, t);
         (n.skip(6, 'reserved_sample_entry'),
             n.readUint16('data_reference_index'),
@@ -4337,7 +4337,7 @@
             }),
             delete e.details.samplerate_fixed_point);
     }
-    var Zn = {
+    var si = {
         mp4a: {
             name: 'MP4 Audio Sample Entry',
             text: 'Defines the coding type and initialization information for an MPEG-4 audio track, typically AAC.',
@@ -4360,14 +4360,14 @@
             ref: 'ISO/IEC 14496-12, 12.2.3.2',
         },
     };
-    function ei(e, t) {
+    function oi(e, t) {
         let n = new h(e, t);
         (n.readUint32('bufferSizeDB'),
             n.readUint32('maxBitrate'),
             n.readUint32('avgBitrate'),
             n.finalize());
     }
-    var ti = {
+    var li = {
         btrt: {
             name: 'Bit Rate Box',
             text: 'Provides bitrate information for the stream, found within a Sample Entry.',
@@ -4386,11 +4386,11 @@
             ref: 'ISO/IEC 14496-12, 8.5.2.2',
         },
     };
-    function Re(e, t) {
+    function Ve(e, t) {
         let n = new h(e, t);
         (n.readRemainingBytes('data'), n.finalize());
     }
-    var ni = {
+    var fi = {
         free: {
             name: 'Free Space Box',
             text: 'The contents of this box are irrelevant and may be ignored. It is used to reserve space.',
@@ -4402,7 +4402,7 @@
             ref: 'ISO/IEC 14496-12, 8.1.2',
         },
     };
-    function us(e, t) {
+    function Ss(e, t) {
         let n = e.offset,
             i = 0,
             r,
@@ -4412,10 +4412,10 @@
             ((i = (i << 7) | (r & 127)), a++);
         } while (r & 128 && a < 4);
         e.box.details[t] = { value: i, offset: e.box.offset + n, length: a };
-        for (let o = 0; o < a; o++) delete e.box.details[`size_byte_${o}`];
+        for (let s = 0; s < a; s++) delete e.box.details[`size_byte_${s}`];
         return i;
     }
-    function ii(e, t) {
+    function ci(e, t) {
         let n = new h(e, t);
         n.readVersionAndFlags();
         let i = n.readUint8('InitialObjectDescriptor_tag');
@@ -4428,7 +4428,7 @@
                 n.finalize());
             return;
         }
-        if (us(n, 'InitialObjectDescriptor_size') === null) {
+        if (Ss(n, 'InitialObjectDescriptor_size') === null) {
             n.finalize();
             return;
         }
@@ -4441,7 +4441,7 @@
             n.readRemainingBytes('other_descriptors_data'),
             n.finalize());
     }
-    var ri = {
+    var di = {
         iods: {
             name: 'Initial Object Descriptor',
             text: 'Contains the Initial Object Descriptor as defined in MPEG-4 Systems (ISO/IEC 14496-1). This descriptor is a container for the elementary stream descriptors and other information.',
@@ -4456,11 +4456,11 @@
             ref: 'ISO/IEC 14496-1, 8.2.2',
         },
     };
-    function ai(e, t) {
+    function pi(e, t) {
         let n = new h(e, t);
         (n.readVersionAndFlags(), n.readUint32('track_id'));
     }
-    var si = {
+    var ui = {
         trep: {
             name: 'Track Extension Properties',
             text: 'A container box that documents characteristics of the track in subsequent movie fragments.',
@@ -4471,11 +4471,11 @@
             ref: 'ISO/IEC 14496-12, 8.8.15.3',
         },
     };
-    function oi(e, t) {
+    function mi(e, t) {
         let n = new h(e, t);
         (n.readUint32('hSpacing'), n.readUint32('vSpacing'), n.finalize());
     }
-    var li = {
+    var gi = {
         pasp: {
             name: 'Pixel Aspect Ratio Box',
             text: 'Specifies the pixel aspect ratio of the video.',
@@ -4490,7 +4490,7 @@
             ref: 'ISO/IEC 14496-12, 12.1.4.1',
         },
     };
-    function fi(e, t) {
+    function hi(e, t) {
         let n = new h(e, t),
             i = n.readString(4, 'colour_type');
         if (i === 'nclx') {
@@ -4510,7 +4510,7 @@
                 n.readRemainingBytes('ICC_profile');
         n.finalize();
     }
-    var ci = {
+    var _i = {
         colr: {
             name: 'Colour Information Box',
             text: 'Provides information about the colour representation of the video, such as primaries and transfer characteristics.',
@@ -4521,17 +4521,17 @@
             ref: 'ISO/IEC 14496-12, 12.1.5.3',
         },
     };
-    function di(e, t) {
+    function yi(e, t) {
         new h(e, t).readVersionAndFlags();
     }
-    var pi = {
+    var xi = {
         meta: {
             name: 'Metadata Box',
             text: 'A container for descriptive or annotative metadata.',
             ref: 'ISO/IEC 14496-12, 8.11.1',
         },
     };
-    function ui(e, t) {
+    function Si(e, t) {
         let n = new h(e, t);
         (n.skip(6, 'reserved_sample_entry'),
             n.readUint16('data_reference_index'),
@@ -4546,14 +4546,14 @@
             n.readUint16('depth'),
             n.readInt16('pre_defined_3'));
     }
-    var mi = {
+    var bi = {
         encv: {
             name: 'Encrypted Video Sample Entry',
             text: 'A sample entry wrapper indicating that the video stream is encrypted. It contains a Protection Scheme Information (`sinf`) box.',
             ref: 'ISO/IEC 14496-12, 8.12',
         },
     };
-    function gi(e, t) {
+    function Ti(e, t) {
         let n = new h(e, t),
             { flags: i } = n.readVersionAndFlags();
         if (i === null) {
@@ -4562,24 +4562,24 @@
         }
         let r = n.readUint32('sample_count');
         if (((e.samples = []), r !== null))
-            for (let o = 0; o < r && !n.stopped; o++) {
-                let s = { iv: null, subsamples: [] };
+            for (let s = 0; s < r && !n.stopped; s++) {
+                let l = { iv: null, subsamples: [] };
                 if (n.checkBounds(8)) {
-                    let l = new Uint8Array(
+                    let o = new Uint8Array(
                         n.view.buffer,
                         n.view.byteOffset + n.offset,
                         8
                     );
-                    ((s.iv = l), (n.offset += 8));
+                    ((l.iv = o), (n.offset += 8));
                 } else break;
                 if ((i & 2) !== 0 && n.checkBounds(2)) {
-                    let l = n.view.getUint16(n.offset);
-                    ((s.subsample_count = l), (n.offset += 2));
-                    for (let c = 0; c < l; c++)
+                    let o = n.view.getUint16(n.offset);
+                    ((l.subsample_count = o), (n.offset += 2));
+                    for (let c = 0; c < o; c++)
                         if (n.checkBounds(6)) {
                             let f = n.view.getUint16(n.offset),
                                 d = n.view.getUint32(n.offset + 2);
-                            (s.subsamples.push({
+                            (l.subsamples.push({
                                 BytesOfClearData: f,
                                 BytesOfProtectedData: d,
                             }),
@@ -4589,11 +4589,11 @@
                             break;
                         }
                 }
-                e.samples.push(s);
+                e.samples.push(l);
             }
         n.finalize();
     }
-    var hi = {
+    var Ii = {
         senc: {
             name: 'Sample Encryption Box',
             text: 'Contains sample-specific encryption information, such as Initialization Vectors (IVs) and sub-sample encryption data for Common Encryption (CENC).',
@@ -4620,7 +4620,7 @@
             ref: 'ISO/IEC 23001-7, 7.1',
         },
     };
-    function _i(e, t) {
+    function vi(e, t) {
         let n = new h(e, t);
         (n.skip(6, 'reserved_sample_entry'),
             n.readUint16('data_reference_index'),
@@ -4637,14 +4637,14 @@
             }),
             delete e.details.samplerate_fixed_point);
     }
-    var xi = {
+    var Ci = {
         enca: {
             name: 'Encrypted Audio Sample Entry',
             text: 'A sample entry wrapper indicating that the audio stream is encrypted. It contains a Protection Scheme Information (`sinf`) box.',
             ref: 'ISO/IEC 14496-12, 8.12',
         },
     };
-    function yi(e, t) {
+    function Ei(e, t) {
         let n = new h(e, t),
             { version: i } = n.readVersionAndFlags();
         if (i === null) {
@@ -4655,27 +4655,27 @@
             n.skip(2, 'reserved_1');
             let r = n.readUint8('default_isProtected'),
                 a = n.readUint8('default_Per_Sample_IV_Size'),
-                o = [];
-            for (let l = 0; l < 16; l++) {
-                let c = n.readUint8(`kid_byte_${l}`);
-                if (c !== null) o.push(c.toString(16).padStart(2, '0'));
+                s = [];
+            for (let o = 0; o < 16; o++) {
+                let c = n.readUint8(`kid_byte_${o}`);
+                if (c !== null) s.push(c.toString(16).padStart(2, '0'));
                 else {
                     n.finalize();
                     return;
                 }
             }
-            let s = e.details.kid_byte_0?.offset;
-            if (s !== void 0) {
+            let l = e.details.kid_byte_0?.offset;
+            if (l !== void 0) {
                 e.details.default_KID = {
-                    value: o.join(''),
-                    offset: s,
+                    value: s.join(''),
+                    offset: l,
                     length: 16,
                 };
-                for (let l = 0; l < 16; l++) delete e.details[`kid_byte_${l}`];
+                for (let o = 0; o < 16; o++) delete e.details[`kid_byte_${o}`];
             }
             if (r === 1 && a === 0) {
-                let l = n.readUint8('default_constant_IV_size');
-                l !== null && n.skip(l, 'default_constant_IV');
+                let o = n.readUint8('default_constant_IV_size');
+                o !== null && n.skip(o, 'default_constant_IV');
             }
         } else if (i === 1) {
             n.skip(2, 'reserved_1');
@@ -4695,29 +4695,29 @@
                 n.readUint8('default_isProtected'),
                 n.readUint8('default_Per_Sample_IV_Size'));
             let a = [];
-            for (let s = 0; s < 16; s++) {
-                let l = n.readUint8(`kid_byte_${s}`);
-                if (l !== null) a.push(l.toString(16).padStart(2, '0'));
+            for (let l = 0; l < 16; l++) {
+                let o = n.readUint8(`kid_byte_${l}`);
+                if (o !== null) a.push(o.toString(16).padStart(2, '0'));
                 else {
                     n.finalize();
                     return;
                 }
             }
-            let o = e.details.kid_byte_0?.offset;
-            if (o !== void 0) {
+            let s = e.details.kid_byte_0?.offset;
+            if (s !== void 0) {
                 e.details.default_KID = {
                     value: a.join(''),
-                    offset: o,
+                    offset: s,
                     length: 16,
                 };
-                for (let s = 0; s < 16; s++) delete e.details[`kid_byte_${s}`];
+                for (let l = 0; l < 16; l++) delete e.details[`kid_byte_${l}`];
             }
         } else
             (n.addIssue('warn', `Unsupported tenc version ${i}.`),
                 n.readRemainingBytes('unsupported_tenc_data'));
         n.finalize();
     }
-    var Si = {
+    var Pi = {
         tenc: {
             name: 'Track Encryption Box',
             text: 'Contains default encryption parameters for samples in a track, as defined by the Common Encryption (CENC) specification.',
@@ -4744,20 +4744,20 @@
             ref: 'ISO/IEC 23001-7 (First Edition)',
         },
     };
-    function bi(e, t) {
+    function Di(e, t) {
         let n = new h(e, t);
         (n.readVersionAndFlags(),
             n.readRemainingBytes('id3v2_data'),
             n.finalize());
     }
-    var Ti = {
+    var Ai = {
         ID32: {
             name: 'ID3v2 Metadata Box',
             text: 'A box containing ID3 version 2 metadata tags. This is a common but non-standard box often found in files created by tools like FFmpeg, typically within a `udta` or `meta` box.',
             ref: 'User-defined',
         },
     };
-    function Ii(e, t) {
+    function ki(e, t) {
         let n = new h(e, t),
             { version: i } = n.readVersionAndFlags();
         if (i === null) {
@@ -4775,7 +4775,7 @@
         let r = e.size - n.offset;
         (r > 0 && n.skip(r, 'message_data'), n.finalize());
     }
-    var vi = {
+    var Ui = {
         emsg: {
             name: 'Event Message Box',
             text: 'Contains an event message for in-band signaling, such as SCTE-35 ad markers.',
@@ -4818,13 +4818,13 @@
             ref: 'ISO/IEC 23009-1, Clause 5.10.3.3.2',
         },
     };
-    function ms(e, t) {
+    function bs(e, t) {
         let n = new h(e, t);
         (n.readNullTerminatedString('content_type'),
             n.offset < e.size && n.readNullTerminatedString('content_encoding'),
             n.finalize());
     }
-    function gs(e, t) {
+    function Ts(e, t) {
         let n = new h(e, t);
         (n.skip(6, 'reserved_sample_entry'),
             n.readUint16('data_reference_index'),
@@ -4832,8 +4832,8 @@
             n.readNullTerminatedString('schema_location'),
             n.readNullTerminatedString('auxiliary_mime_types'));
     }
-    var Ci = { stpp: gs, mime: ms },
-        Ei = {
+    var Mi = { stpp: Ts, mime: bs },
+        Ri = {
             stpp: {
                 name: 'XML Subtitle Sample Entry',
                 text: 'Defines the coding for an XML-based subtitle track, such as TTML/IMSC1.',
@@ -4861,138 +4861,138 @@
                 ref: 'ISO/IEC 14496-30',
             },
         };
-    var Pi = {
-            ftyp: Ue,
-            styp: Ue,
-            mvhd: dt,
-            mfhd: ut,
-            tfhd: gt,
-            tfdt: _t,
-            trun: yt,
-            sidx: bt,
-            tkhd: It,
-            mdhd: Ct,
-            hdlr: Pt,
-            vmhd: At,
-            smhd: Qt,
-            stsd: Ut,
-            stts: Rt,
-            ctts: tn,
-            stsc: wt,
-            stsz: Bt,
-            stz2: rn,
-            stco: Vt,
-            elst: $t,
-            trex: Ht,
-            pssh: Zt,
-            avcC: Wt,
-            avc1: Yn,
-            mp4a: Jn,
-            esds: qt,
-            btrt: ei,
-            sbgp: sn,
-            tref: ln,
-            ...fn,
-            subs: dn,
-            saiz: un,
-            saio: gn,
-            sinf: _n,
-            frma: yn,
-            schm: bn,
-            schi: In,
-            stss: Cn,
-            sgpd: Pn,
-            mehd: An,
-            sdtp: Un,
-            mfra: Rn,
-            tfra: wn,
-            mfro: Bn,
-            pdin: Vn,
-            cprt: $n,
-            cslg: Hn,
-            stdp: Gn,
-            'url ': Wn,
-            'urn ': Kn,
-            free: Re,
-            skip: Re,
-            iods: ii,
-            trep: ai,
-            pasp: oi,
-            colr: fi,
-            meta: di,
-            encv: ui,
-            senc: gi,
-            enca: _i,
-            tenc: yi,
-            ID32: bi,
-            emsg: Ii,
-            ...Ci,
-        },
-        Td = {
-            ...Gt,
-            ...ct,
-            ...Ft,
-            ...Dt,
-            ...pt,
-            ...mt,
-            ...kn,
-            ...ht,
-            ...xt,
-            ...St,
-            ...Tt,
-            ...vt,
-            ...Et,
-            ...kt,
-            ...Jt,
-            ...Mt,
-            ...Lt,
-            ...nn,
-            ...Nt,
-            ...zt,
-            ...an,
-            ...Ot,
-            ...En,
-            ...Dn,
-            ...Xt,
-            ...en,
-            ...Kt,
-            ...Qn,
-            ...Zn,
-            ...Yt,
-            ...ti,
-            ...on,
-            ...cn,
-            ...pn,
-            ...mn,
+    var Li = {
+            ftyp: Be,
+            styp: Be,
+            mvhd: yt,
+            mfhd: St,
+            tfhd: Tt,
+            tfdt: vt,
+            trun: Et,
+            sidx: Dt,
+            tkhd: kt,
+            mdhd: Mt,
+            hdlr: Lt,
+            vmhd: Bt,
+            smhd: an,
+            stsd: Vt,
+            stts: Ot,
+            ctts: fn,
+            stsc: Ft,
+            stsz: Xt,
+            stz2: dn,
+            stco: jt,
+            elst: Kt,
+            trex: Yt,
+            pssh: on,
+            avcC: en,
+            avc1: ii,
+            mp4a: ai,
+            esds: nn,
+            btrt: oi,
+            sbgp: un,
+            tref: gn,
             ...hn,
-            ...xn,
-            ...Sn,
-            ...Tn,
-            ...vn,
-            ...Mn,
-            ...Ln,
+            subs: yn,
+            saiz: Sn,
+            saio: Tn,
+            sinf: vn,
+            frma: En,
+            schm: Dn,
+            schi: kn,
+            stss: Mn,
+            sgpd: Ln,
+            mehd: Bn,
+            sdtp: Vn,
+            mfra: On,
+            tfra: Fn,
+            mfro: Xn,
+            pdin: jn,
+            cprt: Kn,
+            cslg: Yn,
+            stdp: Jn,
+            'url ': ei,
+            'urn ': ti,
+            free: Ve,
+            skip: Ve,
+            iods: ci,
+            trep: pi,
+            pasp: mi,
+            colr: hi,
+            meta: yi,
+            encv: Si,
+            senc: Ti,
+            enca: vi,
+            tenc: Ei,
+            ID32: Di,
+            emsg: ki,
+            ...Mi,
+        },
+        Ud = {
+            ...Jt,
+            ..._t,
+            ...qt,
+            ...wt,
+            ...xt,
+            ...bt,
             ...Nn,
-            ...zn,
-            ...On,
-            ...Fn,
-            ...Xn,
-            ...jn,
-            ...qn,
-            ...ni,
+            ...It,
+            ...Ct,
+            ...Pt,
+            ...At,
+            ...Ut,
+            ...Rt,
+            ...Nt,
+            ...sn,
+            ...zt,
+            ...$t,
+            ...cn,
+            ...Ht,
+            ...Gt,
+            ...pn,
+            ...Wt,
+            ...Rn,
+            ...wn,
+            ...Qt,
+            ...ln,
+            ...tn,
             ...ri,
             ...si,
+            ...rn,
             ...li,
-            ...ci,
-            ...pi,
-            ...mi,
-            ...hi,
+            ...mn,
+            ..._n,
+            ...xn,
+            ...bn,
+            ...In,
+            ...Cn,
+            ...Pn,
+            ...An,
+            ...Un,
+            ...zn,
+            ...$n,
+            ...Hn,
+            ...Gn,
+            ...Wn,
+            ...qn,
+            ...Qn,
+            ...Zn,
+            ...ni,
+            ...fi,
+            ...di,
+            ...ui,
+            ...gi,
+            ..._i,
             ...xi,
-            ...Si,
-            ...Ti,
-            ...vi,
-            ...Ei,
+            ...bi,
+            ...Ii,
+            ...Ci,
+            ...Pi,
+            ...Ai,
+            ...Ui,
+            ...Ri,
         };
-    var Di = new Set([
+    var wi = new Set([
         'moof',
         'traf',
         'moov',
@@ -5017,7 +5017,7 @@
         'trep',
         'enca',
     ]);
-    function Le(e, t = 0) {
+    function ze(e, t = 0) {
         let n = { boxes: [], issues: [], events: [] },
             i = new DataView(e),
             r = 0;
@@ -5032,85 +5032,85 @@
                 break;
             }
             let a = i.getUint32(r),
-                o = String.fromCharCode(
+                s = String.fromCharCode(
                     i.getUint8(r + 4),
                     i.getUint8(r + 5),
                     i.getUint8(r + 6),
                     i.getUint8(r + 7)
                 ),
-                s = 8;
+                l = 8;
             if (a === 1) {
                 if (r + 16 > i.byteLength) {
                     n.issues.push({
                         type: 'error',
-                        message: `Incomplete largesize box header for type '${o}' at offset ${t + r}. Requires 16 bytes, found ${i.byteLength - r}.`,
+                        message: `Incomplete largesize box header for type '${s}' at offset ${t + r}. Requires 16 bytes, found ${i.byteLength - r}.`,
                     });
                     break;
                 }
-                ((a = Number(i.getBigUint64(r + 8))), (s = 16));
+                ((a = Number(i.getBigUint64(r + 8))), (l = 16));
             } else a === 0 && (a = i.byteLength - r);
-            if (a < s || r + a > i.byteLength) {
+            if (a < l || r + a > i.byteLength) {
                 n.issues.push({
                     type: 'error',
-                    message: `Invalid size ${a} for box '${o}' at offset ${t + r}. Box claims to extend beyond buffer limits.`,
+                    message: `Invalid size ${a} for box '${s}' at offset ${t + r}. Box claims to extend beyond buffer limits.`,
                 });
                 break;
             }
-            let l = {
-                type: o,
+            let o = {
+                type: s,
                 size: a,
                 offset: t + r,
-                contentOffset: t + r + s,
-                headerSize: s,
+                contentOffset: t + r + l,
+                headerSize: l,
                 children: [],
                 details: {},
                 issues: [],
             };
-            ((l.details.size = {
+            ((o.details.size = {
                 value: `${a} bytes`,
-                offset: l.offset,
-                length: s > 8 ? 8 : 4,
+                offset: o.offset,
+                length: l > 8 ? 8 : 4,
             }),
-                (l.details.type = {
-                    value: o,
-                    offset: l.offset + 4,
+                (o.details.type = {
+                    value: s,
+                    offset: o.offset + 4,
                     length: 4,
                 }));
             let c = new DataView(e, r, a);
             if (
-                (hs(l, c), o === 'emsg' && n.events.push(l), Di.has(o) && a > s)
+                (Is(o, c), s === 'emsg' && n.events.push(o), wi.has(s) && a > l)
             ) {
-                let f = s,
-                    d = l.contentOffset;
+                let f = l,
+                    d = o.contentOffset;
                 if (
-                    o === 'avc1' ||
-                    o === 'mp4a' ||
-                    o === 'encv' ||
-                    o === 'enca'
+                    s === 'avc1' ||
+                    s === 'mp4a' ||
+                    s === 'encv' ||
+                    s === 'enca'
                 ) {
-                    let p = o === 'avc1' || o === 'encv' ? 78 : 28;
-                    ((f += p), (d += p));
+                    let u = s === 'avc1' || s === 'encv' ? 78 : 28;
+                    ((f += u), (d += u));
                 } else
-                    o === 'stsd' || o === 'dref' || o === 'trep'
+                    s === 'stsd' || s === 'dref' || s === 'trep'
                         ? ((f += 8), (d += 8))
-                        : o === 'meta' && ((f += 4), (d += 4));
+                        : s === 'meta' && ((f += 4), (d += 4));
                 if (a > f) {
-                    let p = e.slice(r + f, r + a);
-                    if (p.byteLength > 0) {
-                        let m = Le(p, d);
-                        ((l.children = m.boxes),
-                            m.events.length > 0 && n.events.push(...m.events),
-                            m.issues.length > 0 && l.issues.push(...m.issues));
+                    let u = e.slice(r + f, r + a);
+                    if (u.byteLength > 0) {
+                        let p = ze(u, d);
+                        ((o.children = p.boxes),
+                            p.events.length > 0 && n.events.push(...p.events),
+                            p.issues.length > 0 && o.issues.push(...p.issues));
                     }
                 }
             }
-            (o !== 'emsg' && n.boxes.push(l), (r += a));
+            (s !== 'emsg' && n.boxes.push(o), (r += a));
         }
         return n;
     }
-    function hs(e, t) {
+    function Is(e, t) {
         try {
-            let n = Pi[e.type];
+            let n = Li[e.type];
             n
                 ? n(e, t)
                 : e.type === 'mdat'
@@ -5119,7 +5119,7 @@
                         offset: e.contentOffset,
                         length: e.size - e.headerSize,
                     })
-                  : Di.has(e.type) ||
+                  : wi.has(e.type) ||
                     ((e.issues = e.issues || []),
                     e.issues.push({
                         type: 'warn',
@@ -5134,12 +5134,12 @@
                 console.error(`Error parsing ISOBMFF box "${e.type}":`, n));
         }
     }
-    function we(e, t) {
+    function Oe(e, t) {
         let n = e.getUint8(0),
             i = e.getUint8(1),
             r = e.getUint8(2),
             a = e.getUint8(3),
-            o = ((i & 31) << 8) | r;
+            s = ((i & 31) << 8) | r;
         return {
             sync_byte: { value: n, offset: t, length: 1 },
             transport_error_indicator: {
@@ -5157,7 +5157,7 @@
                 offset: t + 1,
                 length: 0.125,
             },
-            pid: { value: o, offset: t + 1, length: 1.625 },
+            pid: { value: s, offset: t + 1, length: 1.625 },
             transport_scrambling_control: {
                 value: (a >> 6) & 3,
                 offset: t + 3,
@@ -5171,27 +5171,27 @@
             continuity_counter: { value: a & 15, offset: t + 3, length: 0.5 },
         };
     }
-    function _s(e, t) {
+    function vs(e, t) {
         let n = e.getUint32(t),
             i = e.getUint32(t + 4);
         return new Date(
             (n - 2208988800) * 1e3 + (i / 4294967296) * 1e3
         ).toISOString();
     }
-    function Ai(e, t) {
+    function Bi(e, t) {
         let n = {},
             i = 0,
             r = e.getUint8(i),
             a = (r >> 6) & 3,
-            o = (r >> 5) & 1,
-            s = (r >> 4) & 1,
-            l = (r >> 2) & 3,
+            s = (r >> 5) & 1,
+            l = (r >> 4) & 1,
+            o = (r >> 2) & 3,
             c = (r >> 1) & 1,
             f = r & 1;
         ((n.has_timestamp = { value: a, offset: t + i, length: 0.25 }),
-            (n.has_ntp = { value: o, offset: t + i, length: 0.125 }),
-            (n.has_ptp = { value: s, offset: t + i, length: 0.125 }),
-            (n.has_timecode = { value: l, offset: t + i, length: 0.25 }),
+            (n.has_ntp = { value: s, offset: t + i, length: 0.125 }),
+            (n.has_ptp = { value: l, offset: t + i, length: 0.125 }),
+            (n.has_timecode = { value: o, offset: t + i, length: 0.25 }),
             (n.force_reload = { value: c, offset: t + i, length: 0.125 }),
             (n.paused = { value: f, offset: t + i, length: 0.125 }),
             (i += 1));
@@ -5230,45 +5230,45 @@
                           length: 8,
                       }),
                       (i += 8))),
-            o &&
+            s &&
                 ((n.ntp_timestamp = {
-                    value: _s(e, i),
+                    value: vs(e, i),
                     offset: t + i,
                     length: 8,
                 }),
                 (i += 8)),
-            s &&
+            l &&
                 ((n.ptp_timestamp = {
                     value: 'PTP data present',
                     offset: t + i,
                     length: 10,
                 }),
                 (i += 10)),
-            l)
+            o)
         ) {
-            let p = e.byteLength - i;
+            let u = e.byteLength - i;
             n.timecode_data = {
-                value: `Timecode data present (${p} bytes)`,
+                value: `Timecode data present (${u} bytes)`,
                 offset: t + i,
-                length: p,
+                length: u,
             };
         }
         return n;
     }
-    function ki(e, t) {
+    function Ni(e, t) {
         let n = [],
             i = 0;
         for (; i < e.byteLength && !(i + 2 > e.byteLength); ) {
             let r = e.getUint8(i),
                 a = e.getUint8(i + 1);
             if (i + 2 + a > e.byteLength) break;
-            let o = new DataView(e.buffer, e.byteOffset + i + 2, a),
-                s = t + i + 2,
-                l,
+            let s = new DataView(e.buffer, e.byteOffset + i + 2, a),
+                l = t + i + 2,
+                o,
                 c = 'Unknown/Private AF Descriptor';
             switch (r) {
                 case 4:
-                    ((c = 'Timeline Descriptor'), (l = Ai(o, s)));
+                    ((c = 'Timeline Descriptor'), (o = Bi(s, l)));
                     break;
                 case 5:
                     c = 'Location Descriptor';
@@ -5283,35 +5283,35 @@
                     c = 'Labeling Descriptor';
                     break;
             }
-            (l || (l = { data: { value: `${a} bytes`, offset: s, length: a } }),
-                n.push({ tag: r, length: a, name: c, details: l }),
+            (o || (o = { data: { value: `${a} bytes`, offset: l, length: a } }),
+                n.push({ tag: r, length: a, name: c, details: o }),
                 (i += 2 + a));
         }
         return n;
     }
-    function Ui(e) {
+    function Vi(e) {
         let t = e.getUint8(0),
             n = e.getUint8(1),
             i = e.getUint8(2),
             r = e.getUint8(3),
             a = e.getUint8(4),
-            o = e.getUint8(5),
-            s =
+            s = e.getUint8(5),
+            l =
                 (BigInt(t) << 25n) |
                 (BigInt(n) << 17n) |
                 (BigInt(i) << 9n) |
                 (BigInt(r) << 1n) |
                 BigInt(a >> 7),
-            l = ((BigInt(a) & 1n) << 8n) | BigInt(o);
-        return s * 300n + l;
+            o = ((BigInt(a) & 1n) << 8n) | BigInt(s);
+        return l * 300n + o;
     }
-    function xs(e) {
+    function Cs(e) {
         let t = (e.getUint8(0) & 14) >> 1,
             n = e.getUint16(1) & 32767,
             i = e.getUint16(3) & 32767;
         return (BigInt(t) << 30n) | (BigInt(n) << 15n) | BigInt(i);
     }
-    function Mi(e, t) {
+    function zi(e, t) {
         let n = e.getUint8(0);
         if (n === 0) return { length: { value: 0, offset: t, length: 1 } };
         if (n > e.byteLength - 1)
@@ -5364,7 +5364,7 @@
             (r.pcr_flag.value &&
                 a + 6 <= n + 1 &&
                 ((r.pcr = {
-                    value: Ui(
+                    value: Vi(
                         new DataView(e.buffer, e.byteOffset + a)
                     ).toString(),
                     offset: t + a,
@@ -5374,7 +5374,7 @@
             r.opcr_flag.value &&
                 a + 6 <= n + 1 &&
                 ((r.opcr = {
-                    value: Ui(
+                    value: Vi(
                         new DataView(e.buffer, e.byteOffset + a)
                     ).toString(),
                     offset: t + a,
@@ -5391,28 +5391,28 @@
                 (a += 1)),
             r.transport_private_data_flag.value && a + 1 <= n + 1)
         ) {
-            let s = e.getUint8(a);
-            ((r.private_data_length = { value: s, offset: t + a, length: 1 }),
-                (a += 1 + s));
+            let l = e.getUint8(a);
+            ((r.private_data_length = { value: l, offset: t + a, length: 1 }),
+                (a += 1 + l));
         }
         if (r.adaptation_field_extension_flag.value && a + 1 <= n + 1) {
-            let s = e.getUint8(a),
-                l = e.getUint8(a + 1),
-                c = (l >> 4) & 1;
+            let l = e.getUint8(a),
+                o = e.getUint8(a + 1),
+                c = (o >> 4) & 1;
             r.extension = {
-                length: { value: s, offset: t + a, length: 1 },
+                length: { value: l, offset: t + a, length: 1 },
                 ltw_flag: {
-                    value: (l >> 7) & 1,
+                    value: (o >> 7) & 1,
                     offset: t + a + 1,
                     length: 0.125,
                 },
                 piecewise_rate_flag: {
-                    value: (l >> 6) & 1,
+                    value: (o >> 6) & 1,
                     offset: t + a + 1,
                     length: 0.125,
                 },
                 seamless_splice_flag: {
-                    value: (l >> 5) & 1,
+                    value: (o >> 5) & 1,
                     offset: t + a + 1,
                     length: 0.125,
                 },
@@ -5423,65 +5423,65 @@
                 },
             };
             let f = a + 2;
-            if (r.extension.ltw_flag.value && f + 2 <= a + 1 + s) {
-                let p = e.getUint16(f);
+            if (r.extension.ltw_flag.value && f + 2 <= a + 1 + l) {
+                let u = e.getUint16(f);
                 ((r.extension.ltw_valid_flag = {
-                    value: (p >> 15) & 1,
+                    value: (u >> 15) & 1,
                     offset: t + f,
                     length: 0.125,
                 }),
                     (r.extension.ltw_offset = {
-                        value: p & 32767,
+                        value: u & 32767,
                         offset: t + f,
                         length: 1.875,
                     }),
                     (f += 2));
             }
-            if (r.extension.piecewise_rate_flag.value && f + 3 <= a + 1 + s) {
-                let p = e.getUint32(f - 1) & 1073741568;
+            if (r.extension.piecewise_rate_flag.value && f + 3 <= a + 1 + l) {
+                let u = e.getUint32(f - 1) & 1073741568;
                 ((r.extension.piecewise_rate = {
-                    value: p >> 8,
+                    value: u >> 8,
                     offset: t + f,
                     length: 3,
                 }),
                     (f += 3));
             }
             r.extension.seamless_splice_flag.value &&
-                f + 5 <= a + 1 + s &&
+                f + 5 <= a + 1 + l &&
                 ((r.extension.splice_type = {
                     value: e.getUint8(f) >> 4,
                     offset: t + f,
                     length: 0.5,
                 }),
                 (r.extension.DTS_next_AU = {
-                    value: xs(
+                    value: Cs(
                         new DataView(e.buffer, e.byteOffset + f)
                     ).toString(),
                     offset: t + f,
                     length: 5,
                 }),
                 (f += 5));
-            let d = a + 1 + s - f;
+            let d = a + 1 + l - f;
             if (d > 0)
                 if (c === 0) {
-                    let p = new DataView(e.buffer, e.byteOffset + f, d);
-                    r.extension.af_descriptors = ki(p, t + f);
+                    let u = new DataView(e.buffer, e.byteOffset + f, d);
+                    r.extension.af_descriptors = Ni(u, t + f);
                 } else
                     r.extension.reserved_bytes = {
                         value: `${d} reserved bytes`,
                         offset: t + f,
                         length: d,
                     };
-            a += 1 + s;
+            a += 1 + l;
         }
-        let o = n + 1 - a;
+        let s = n + 1 - a;
         return (
-            o > 0 &&
-                (r.stuffing_bytes = { value: o, offset: t + a, length: o }),
+            s > 0 &&
+                (r.stuffing_bytes = { value: s, offset: t + a, length: s }),
             r
         );
     }
-    var Ri = {
+    var Oi = {
         'AF@length': {
             text: 'The total length of the adaptation field in bytes, not including this length byte itself.',
             ref: 'Clause 2.4.3.5',
@@ -5507,7 +5507,7 @@
             ref: 'Clause 2.4.3.4',
         },
     };
-    var ys = [
+    var Es = [
         0, 79764919, 159529838, 222504665, 319059676, 398814059, 445009330,
         507990021, 638119352, 583659535, 797628118, 726387553, 890018660,
         835552979, 1015980042, 944750013, 1276238704, 1221641927, 1167319070,
@@ -5547,15 +5547,15 @@
         861060070, 1041341759, 986742920, 613929101, 542559546, 756411363,
         701822548,
     ];
-    function Ss(e) {
+    function Ps(e) {
         let t = 4294967295;
         for (let n = 0; n < e.byteLength; n++) {
             let i = e.getUint8(n);
-            t = (t << 8) ^ ys[((t >> 24) ^ i) & 255];
+            t = (t << 8) ^ Es[((t >> 24) ^ i) & 255];
         }
         return t >>> 0;
     }
-    function Y(e) {
+    function Q(e) {
         if (e.byteLength < 3)
             return {
                 header: { error: 'Section too short for header' },
@@ -5578,14 +5578,14 @@
                     crc: null,
                     isValid: !1,
                 };
-            let x = new DataView(e.buffer, e.byteOffset + 3, i);
+            let _ = new DataView(e.buffer, e.byteOffset + 3, i);
             return {
                 header: {
                     table_id: `0x${t.toString(16).padStart(2, '0')}`,
                     section_syntax_indicator: n,
                     section_length: i,
                 },
-                payload: x,
+                payload: _,
                 crc: null,
                 isValid: !0,
             };
@@ -5625,9 +5625,9 @@
                 isValid: !1,
             };
         let a = new DataView(e.buffer, e.byteOffset, r - 4),
-            o = Ss(a),
-            s = e.getUint32(r - 4),
-            l = o === s,
+            s = Ps(a),
+            l = e.getUint32(r - 4),
+            o = s === l,
             c = {
                 table_id: `0x${t.toString(16).padStart(2, '0')}`,
                 section_syntax_indicator: n,
@@ -5639,16 +5639,16 @@
                 last_section_number: e.getUint8(7),
             },
             f = 8,
-            p = r - 4 - f,
-            m = new DataView(e.buffer, e.byteOffset + f, p);
+            u = r - 4 - f,
+            p = new DataView(e.buffer, e.byteOffset + f, u);
         return {
             header: c,
-            payload: m,
-            crc: `0x${s.toString(16).padStart(8, '0')}`,
-            isValid: l,
+            payload: p,
+            crc: `0x${l.toString(16).padStart(8, '0')}`,
+            isValid: o,
         };
     }
-    function Ne(e, t) {
+    function $e(e, t) {
         let n = [];
         for (let i = 0; i + 4 <= e.byteLength; i += 4) {
             let r = e.getUint16(i),
@@ -5670,7 +5670,7 @@
         }
         return { type: 'PAT', programs: n };
     }
-    var Li = {
+    var $i = {
         PAT: {
             text: 'Program Association Table. Lists all programs in a stream, mapping each to the PID of its Program Map Table (PMT).',
             ref: 'Clause 2.4.4.4',
@@ -5684,7 +5684,7 @@
             ref: 'Table 2-30',
         },
     };
-    function wi(e, t) {
+    function Fi(e, t) {
         let n = e.getUint8(0),
             i = {
                 multiple_frame_rate_flag: {
@@ -5730,7 +5730,7 @@
         }
         return i;
     }
-    function Ni(e, t) {
+    function Hi(e, t) {
         let n = e.getUint8(0);
         return {
             free_format_flag: { value: (n >> 7) & 1, offset: t, length: 0.125 },
@@ -5743,12 +5743,12 @@
             },
         };
     }
-    function Bi(e, t) {
+    function Xi(e, t) {
         let n = e.getUint8(0),
             i = n & 15,
             r = e.getUint8(1),
             a = e.getUint8(2),
-            o = {
+            s = {
                 1: 'Spatial Scalability',
                 2: 'SNR Scalability',
                 3: 'Temporal Scalability',
@@ -5780,7 +5780,7 @@
                 length: 0.125,
             },
             hierarchy_type: {
-                value: `${o[i] || 'Reserved'} (${i})`,
+                value: `${s[i] || 'Reserved'} (${i})`,
                 offset: t,
                 length: 0.5,
             },
@@ -5806,7 +5806,7 @@
             },
         };
     }
-    function zi(e, t) {
+    function Gi(e, t) {
         let n = e.getUint32(0),
             i = [];
         for (let a = 4; a < e.byteLength; a++)
@@ -5830,7 +5830,7 @@
             },
         };
     }
-    function Vi(e, t, n) {
+    function ji(e, t, n) {
         let i = e.getUint8(0),
             r = `Unknown/Reserved (${i})`,
             a = {
@@ -5839,7 +5839,7 @@
                 3: 'GOP, or SEQ',
                 4: 'SEQ',
             },
-            o = {
+            s = {
                 1: 'AVC slice or AVC access unit',
                 2: 'AVC access unit',
                 3: 'SVC slice or SVC dependency representation',
@@ -5849,29 +5849,29 @@
                 7: 'MVCD slice or MVCD view-component subset',
                 8: 'MVCD view-component subset',
             },
-            s = {
+            l = {
                 1: 'HEVC access unit',
                 2: 'HEVC slice',
                 3: 'HEVC access unit or slice',
                 4: 'HEVC tile of slices',
             },
-            l = { 1: 'Sync word' },
+            o = { 1: 'Sync word' },
             c = [1, 2, 16],
             f = [27, 31, 32, 35, 38],
             d = [36, 37],
-            p = [3, 4, 15, 17, 28];
+            u = [3, 4, 15, 17, 28];
         return (
             c.includes(n)
                 ? (r = a[i] || r)
                 : f.includes(n)
-                  ? (r = o[i] || r)
+                  ? (r = s[i] || r)
                   : d.includes(n)
-                    ? (r = s[i] || r)
-                    : p.includes(n) && (r = l[i] || r),
+                    ? (r = l[i] || r)
+                    : u.includes(n) && (r = o[i] || r),
             { alignment_type: { value: r, offset: t, length: 1 } }
         );
     }
-    function Oi(e, t) {
+    function Wi(e, t) {
         let n = e.getUint16(0),
             i = e.getUint16(2);
         return {
@@ -5888,7 +5888,7 @@
             },
         };
     }
-    function $i(e, t) {
+    function Ki(e, t) {
         let n = e.getUint16(0),
             i = e.getUint16(2);
         return {
@@ -5901,7 +5901,7 @@
             window_priority: { value: i & 15, offset: t + 3.5, length: 0.5 },
         };
     }
-    function Fi(e, t) {
+    function qi(e, t) {
         let n = e.getUint16(0),
             i = e.getUint16(2) & 8191,
             r = [];
@@ -5926,7 +5926,7 @@
             },
         };
     }
-    function Hi(e, t) {
+    function Yi(e, t) {
         let n = [];
         for (let i = 0; i < e.byteLength && !(i + 4 > e.byteLength); i += 4) {
             let r =
@@ -5934,7 +5934,7 @@
                     String.fromCharCode(e.getUint8(i + 1)) +
                     String.fromCharCode(e.getUint8(i + 2)),
                 a = e.getUint8(i + 3),
-                o = {
+                s = {
                     0: 'Undefined',
                     1: 'Clean effects',
                     2: 'Hearing impaired',
@@ -5943,7 +5943,7 @@
             n.push({
                 language: { value: r, offset: t + i, length: 3 },
                 audio_type: {
-                    value: o[a] || `User Private (0x${a.toString(16)})`,
+                    value: s[a] || `User Private (0x${a.toString(16)})`,
                     offset: t + i + 3,
                     length: 1,
                 },
@@ -5951,7 +5951,7 @@
         }
         return { languages: n };
     }
-    function Xi(e, t) {
+    function Qi(e, t) {
         let n = e.getUint8(0);
         return {
             external_clock_reference_indicator: {
@@ -5971,7 +5971,7 @@
             },
         };
     }
-    function Gi(e, t) {
+    function Ji(e, t) {
         let n = e.getUint16(0),
             i = e.getUint16(2);
         return {
@@ -5992,7 +5992,7 @@
             },
         };
     }
-    function ji(e, t) {
+    function Zi(e, t) {
         return {
             copyright_identifier: {
                 value: `0x${e.getUint32(0).toString(16).padStart(8, '0')}`,
@@ -6001,7 +6001,7 @@
             },
         };
     }
-    function Wi(e, t) {
+    function er(e, t) {
         return {
             maximum_bitrate: {
                 value: `${(((e.getUint32(0) & 4194303) * 50 * 8) / 1e6).toFixed(2)} Mbps`,
@@ -6010,7 +6010,7 @@
             },
         };
     }
-    function Ki(e, t) {
+    function tr(e, t) {
         return {
             private_data_indicator: {
                 value: `0x${e.getUint32(0).toString(16).padStart(8, '0')}`,
@@ -6019,7 +6019,7 @@
             },
         };
     }
-    function qi(e, t) {
+    function nr(e, t) {
         let n = new Uint8Array(e.buffer, e.byteOffset, e.byteLength),
             i = ((n[0] & 3) << 20) | (n[1] << 12) | (n[2] << 4) | (n[3] >> 4),
             r =
@@ -6032,7 +6032,7 @@
             sb_size: { value: `${r} bytes`, offset: t + 3, length: 3 },
         };
     }
-    function Yi(e, t) {
+    function ir(e, t) {
         return {
             leak_valid_flag: {
                 value: e.getUint8(0) & 1,
@@ -6041,7 +6041,7 @@
             },
         };
     }
-    function Qi(e, t) {
+    function rr(e, t) {
         let n = e.getUint16(0);
         return {
             closed_gop_flag: { value: (n >> 15) & 1, offset: t, length: 0.125 },
@@ -6053,7 +6053,7 @@
             max_gop_length: { value: n & 16383, offset: t, length: 1.75 },
         };
     }
-    function Ji(e, t) {
+    function ar(e, t) {
         return {
             MPEG4_visual_profile_and_level: {
                 value: `0x${e.getUint8(0).toString(16).padStart(2, '0')}`,
@@ -6062,7 +6062,7 @@
             },
         };
     }
-    function Zi(e, t) {
+    function sr(e, t) {
         return {
             MPEG4_audio_profile_and_level: {
                 value: `0x${e.getUint8(0).toString(16).padStart(2, '0')}`,
@@ -6071,7 +6071,7 @@
             },
         };
     }
-    function er(e, t) {
+    function or(e, t) {
         return {
             textConfig_data: {
                 value: `${e.byteLength} bytes of TextConfig data`,
@@ -6080,7 +6080,7 @@
             },
         };
     }
-    function tr(e, t) {
+    function lr(e, t) {
         let n = e.getUint8(1),
             i = e.getUint8(3);
         return {
@@ -6134,7 +6134,7 @@
             },
         };
     }
-    function nr(e, t) {
+    function fr(e, t) {
         let n = {},
             i = 0,
             r = e.getUint8(i);
@@ -6184,41 +6184,41 @@
             (i += 1),
             i < e.byteLength)
         ) {
-            let o = e.getUint8(i),
-                s = (o >> 7) & 1;
+            let s = e.getUint8(i),
+                l = (s >> 7) & 1;
             if (
                 ((n.temporal_layer_subset_flag = {
-                    value: s,
+                    value: l,
                     offset: t + i,
                     length: 0.125,
                 }),
                 (n.HEVC_still_present_flag = {
-                    value: (o >> 6) & 1,
+                    value: (s >> 6) & 1,
                     offset: t + i,
                     length: 0.125,
                 }),
                 (n.HEVC_24hr_picture_present_flag = {
-                    value: (o >> 5) & 1,
+                    value: (s >> 5) & 1,
                     offset: t + i,
                     length: 0.125,
                 }),
                 (n.sub_pic_hrd_params_not_present_flag = {
-                    value: (o >> 4) & 1,
+                    value: (s >> 4) & 1,
                     offset: t + i,
                     length: 0.125,
                 }),
-                (n.HDR_WCG_idc = { value: o & 3, offset: t + i, length: 0.25 }),
+                (n.HDR_WCG_idc = { value: s & 3, offset: t + i, length: 0.25 }),
                 (i += 1),
-                s)
+                l)
             ) {
-                let l = e.getUint8(i);
+                let o = e.getUint8(i);
                 ((n.temporal_id_min = {
-                    value: (l >> 5) & 7,
+                    value: (o >> 5) & 7,
                     offset: t + i,
                     length: 0.375,
                 }),
                     (n.temporal_id_max = {
-                        value: l & 7,
+                        value: o & 7,
                         offset: t + i,
                         length: 0.375,
                     }));
@@ -6226,7 +6226,7 @@
         }
         return n;
     }
-    function ir(e, t) {
+    function cr(e, t) {
         let n = {},
             i = 0;
         if (e.byteLength < 2) return n;
@@ -6237,20 +6237,20 @@
             length: 0.125,
         }),
             (i += 1));
-        let o = e.getUint8(i) & 1;
+        let s = e.getUint8(i) & 1;
         if (
             ((n.picture_and_timing_info_present_flag = {
-                value: o,
+                value: s,
                 offset: t + i,
                 length: 0.125,
             }),
             (i += 1),
-            o && e.byteLength > i)
+            s && e.byteLength > i)
         ) {
-            let l = (e.getUint8(i) >> 7) & 1;
-            ((n['90kHz_flag'] = { value: l, offset: t + i, length: 0.125 }),
+            let o = (e.getUint8(i) >> 7) & 1;
+            ((n['90kHz_flag'] = { value: o, offset: t + i, length: 0.125 }),
                 (i += 1),
-                l === 0 &&
+                o === 0 &&
                     e.byteLength >= i + 8 &&
                     ((n.N = {
                         value: e.getUint32(i),
@@ -6272,7 +6272,7 @@
         }
         return n;
     }
-    function rr(e, t) {
+    function dr(e, t) {
         let n = {},
             i = 0,
             r = e.getUint8(i);
@@ -6280,49 +6280,49 @@
         let a = r & 63;
         ((i += 1), (n.profile_tier_level_infos = []));
         for (
-            let s = 0;
-            s < a && !(i + 12 > e.byteLength || i + 12 > e.byteLength);
-            s++
+            let l = 0;
+            l < a && !(i + 12 > e.byteLength || i + 12 > e.byteLength);
+            l++
         )
             (n.profile_tier_level_infos.push({
-                value: `12 bytes of PTL data for index ${s}`,
+                value: `12 bytes of PTL data for index ${l}`,
                 offset: t + i,
                 length: 12,
             }),
                 (i += 12));
-        let o = e.getUint8(i);
-        ((n.operation_points_count = { value: o, offset: t + i, length: 1 }),
+        let s = e.getUint8(i);
+        ((n.operation_points_count = { value: s, offset: t + i, length: 1 }),
             (i += 1),
             (n.operation_points = []));
         for (
-            let s = 0;
-            s < o && !(i + 2 > e.byteLength || i + 2 > e.byteLength);
-            s++
+            let l = 0;
+            l < s && !(i + 2 > e.byteLength || i + 2 > e.byteLength);
+            l++
         ) {
-            let l = {};
-            ((l.target_ols = {
+            let o = {};
+            ((o.target_ols = {
                 value: e.getUint8(i),
                 offset: t + i,
                 length: 1,
             }),
-                (l.ES_count = {
+                (o.ES_count = {
                     value: e.getUint8(i + 1),
                     offset: t + i + 1,
                     length: 1,
                 }));
-            let c = l.ES_count.value;
-            ((i += 2), (l.es_references = []));
-            for (let p = 0; p < c && !(i + 1 > e.byteLength); p++) {
-                let m = e.getUint8(i);
+            let c = o.ES_count.value;
+            ((i += 2), (o.es_references = []));
+            for (let u = 0; u < c && !(i + 1 > e.byteLength); u++) {
+                let p = e.getUint8(i);
                 if (i + 1 > e.byteLength) break;
-                (l.es_references.push({
+                (o.es_references.push({
                     prepend_dependencies: {
-                        value: (m >> 7) & 1,
+                        value: (p >> 7) & 1,
                         offset: t + i,
                         length: 0.125,
                     },
                     ES_reference: {
-                        value: m & 63,
+                        value: p & 63,
                         offset: t + i,
                         length: 0.75,
                     },
@@ -6330,88 +6330,88 @@
                     (i += 1));
             }
             if (i + 1 > e.byteLength) break;
-            l.numEsInOp = {
+            o.numEsInOp = {
                 value: e.getUint8(i) & 63,
                 offset: t + i,
                 length: 0.75,
             };
-            let f = l.numEsInOp.value;
-            ((i += 1), (l.layers = []));
-            for (let p = 0; p < f && !(i + 1 > e.byteLength); p++) {
-                let m = e.getUint8(i);
+            let f = o.numEsInOp.value;
+            ((i += 1), (o.layers = []));
+            for (let u = 0; u < f && !(i + 1 > e.byteLength); u++) {
+                let p = e.getUint8(i);
                 if (i + 1 > e.byteLength) break;
-                (l.layers.push({
+                (o.layers.push({
                     necessary_layer_flag: {
-                        value: (m >> 7) & 1,
+                        value: (p >> 7) & 1,
                         offset: t + i,
                         length: 0.125,
                     },
                     output_layer_flag: {
-                        value: (m >> 6) & 1,
+                        value: (p >> 6) & 1,
                         offset: t + i,
                         length: 0.125,
                     },
-                    ptl_ref_idx: { value: m & 63, offset: t + i, length: 0.75 },
+                    ptl_ref_idx: { value: p & 63, offset: t + i, length: 0.75 },
                 }),
                     (i += 1));
             }
             if (i + 1 > e.byteLength) break;
             let d = e.getUint8(i);
             if (
-                ((l.avg_bit_rate_info_flag = {
+                ((o.avg_bit_rate_info_flag = {
                     value: (d >> 7) & 1,
                     offset: t + i,
                     length: 0.125,
                 }),
-                (l.max_bit_rate_info_flag = {
+                (o.max_bit_rate_info_flag = {
                     value: (d >> 6) & 1,
                     offset: t + i,
                     length: 0.125,
                 }),
-                (l.constant_frame_rate_info_idc = {
+                (o.constant_frame_rate_info_idc = {
                     value: (d >> 4) & 3,
                     offset: t + i,
                     length: 0.25,
                 }),
-                (l.applicable_temporal_id = {
+                (o.applicable_temporal_id = {
                     value: (d >> 1) & 7,
                     offset: t + i,
                     length: 0.375,
                 }),
                 (i += 1),
-                l.constant_frame_rate_info_idc.value > 0)
+                o.constant_frame_rate_info_idc.value > 0)
             ) {
                 if (i + 2 > e.byteLength || i + 2 > e.byteLength) break;
-                ((l.frame_rate_indicator = {
+                ((o.frame_rate_indicator = {
                     value: e.getUint16(i) & 4095,
                     offset: t + i,
                     length: 1.5,
                 }),
                     (i += 2));
             }
-            if (l.avg_bit_rate_info_flag.value === 1) {
+            if (o.avg_bit_rate_info_flag.value === 1) {
                 if (i + 3 > e.byteLength || i + 3 > e.byteLength) break;
-                ((l.avg_bit_rate = {
+                ((o.avg_bit_rate = {
                     value: (e.getUint8(i) << 16) | e.getUint16(i + 1),
                     offset: t + i,
                     length: 3,
                 }),
                     (i += 3));
             }
-            if (l.max_bit_rate_info_flag.value === 1) {
+            if (o.max_bit_rate_info_flag.value === 1) {
                 if (i + 3 > e.byteLength || i + 3 > e.byteLength) break;
-                ((l.max_bit_rate = {
+                ((o.max_bit_rate = {
                     value: (e.getUint8(i) << 16) | e.getUint16(i + 1),
                     offset: t + i,
                     length: 3,
                 }),
                     (i += 3));
             }
-            n.operation_points.push(l);
+            n.operation_points.push(o);
         }
         return n;
     }
-    function ar(e, t) {
+    function pr(e, t) {
         let n = {},
             i = 0,
             a = (e.getUint8(i) >> 6) & 3;
@@ -6423,9 +6423,9 @@
             (i += 1),
             (n.intervals = []));
         for (
-            let l = 0;
-            l < a && !(i + 2 > e.byteLength || i + 2 > e.byteLength);
-            l++
+            let o = 0;
+            o < a && !(i + 2 > e.byteLength || i + 2 > e.byteLength);
+            o++
         )
             (n.intervals.push({
                 constant_backlight_voltage_time_interval: {
@@ -6435,14 +6435,14 @@
                 },
             }),
                 (i += 2));
-        let s = (e.getUint8(i) >> 6) & 3;
-        ((n.num_max_variations = { value: s, offset: t + i, length: 0.25 }),
+        let l = (e.getUint8(i) >> 6) & 3;
+        ((n.num_max_variations = { value: l, offset: t + i, length: 0.25 }),
             (i += 1),
             (n.variations = []));
         for (
-            let l = 0;
-            l < s && !(i + 2 > e.byteLength || i + 2 > e.byteLength);
-            l++
+            let o = 0;
+            o < l && !(i + 2 > e.byteLength || i + 2 > e.byteLength);
+            o++
         )
             (n.variations.push({
                 max_variation: {
@@ -6454,7 +6454,7 @@
                 (i += 2));
         return n;
     }
-    function sr(e, t) {
+    function ur(e, t) {
         let n = {},
             i = 0;
         ((n.mpegh3daProfileLevelIndication = {
@@ -6478,7 +6478,7 @@
             n
         );
     }
-    function or(e, t) {
+    function mr(e, t) {
         return {
             mpegh3daConfig: {
                 value: `${e.byteLength} bytes of config data`,
@@ -6487,7 +6487,7 @@
             },
         };
     }
-    function lr(e, t) {
+    function gr(e, t) {
         return {
             scene_info: {
                 value: `${e.byteLength} bytes of scene information`,
@@ -6496,7 +6496,7 @@
             },
         };
     }
-    function fr(e, t) {
+    function hr(e, t) {
         return {
             text_label_info: {
                 value: `${e.byteLength} bytes of text label information`,
@@ -6505,7 +6505,7 @@
             },
         };
     }
-    function cr(e, t) {
+    function _r(e, t) {
         return {
             multistream_info: {
                 value: `${e.byteLength} bytes of multi-stream information`,
@@ -6514,7 +6514,7 @@
             },
         };
     }
-    function dr(e, t) {
+    function yr(e, t) {
         return {
             drc_loudness_info: {
                 value: `${e.byteLength} bytes of DRC/Loudness information`,
@@ -6523,7 +6523,7 @@
             },
         };
     }
-    function pr(e, t) {
+    function xr(e, t) {
         return {
             command_data: {
                 value: `${e.byteLength} bytes of command data`,
@@ -6532,7 +6532,7 @@
             },
         };
     }
-    function ur(e, t) {
+    function Sr(e, t) {
         let n = {},
             i = 0;
         ((n.field_size_bytes = {
@@ -6550,10 +6550,10 @@
             a < r && !(i + 4 > e.byteLength || i + 4 > e.byteLength);
             a++
         ) {
-            let o = e.getUint32(i);
+            let s = e.getUint32(i);
             (n.metrics.push({
                 metric_code: {
-                    value: `0x${o.toString(16).padStart(8, '0')}`,
+                    value: `0x${s.toString(16).padStart(8, '0')}`,
                     offset: t + i,
                     length: 4,
                 },
@@ -6562,34 +6562,34 @@
         }
         return n;
     }
-    function mr(e, t) {
+    function br(e, t) {
         let n = {},
             i = 0;
         if (e.byteLength < 1) return n;
         let r = e.getUint8(i),
             a = (r >> 5) & 7,
-            o = (r >> 4) & 1;
+            s = (r >> 4) & 1;
         ((n.num_partitions = { value: a, offset: t + i, length: 0.375 }),
-            (n.timescale_flag = { value: o, offset: t + i, length: 0.125 }),
+            (n.timescale_flag = { value: s, offset: t + i, length: 0.125 }),
             (i += 1));
-        let s = -1;
-        if (o) {
-            let l = e.getUint32(i - 1);
+        let l = -1;
+        if (s) {
+            let o = e.getUint32(i - 1);
             ((n.ticks_per_second = {
-                value: (l >> 8) & 2097151,
+                value: (o >> 8) & 2097151,
                 offset: t + i - 1,
                 length: 2.625,
             }),
-                (s = (e.getUint8(i + 2) >> 5) & 7),
+                (l = (e.getUint8(i + 2) >> 5) & 7),
                 (n.maximum_duration_length_minus_1 = {
-                    value: s,
+                    value: l,
                     offset: t + i + 2,
                     length: 0.375,
                 }),
                 (i += 3));
         }
         n.partitions = [];
-        for (let l = 0; l < a && !(i + 2 > e.byteLength); l++) {
+        for (let o = 0; o < a && !(i + 2 > e.byteLength); o++) {
             let c = {},
                 f = e.getUint8(i),
                 d = e.getUint8(i + 1);
@@ -6620,20 +6620,20 @@
                 }),
                     (i += 2));
             } else {
-                let p = s + 1;
-                if (i + p > e.byteLength) break;
+                let u = l + 1;
+                if (i + u > e.byteLength) break;
                 ((c.maximum_duration = {
-                    value: `${p} bytes of duration data`,
+                    value: `${u} bytes of duration data`,
                     offset: t + i,
-                    length: p,
+                    length: u,
                 }),
-                    (i += p));
+                    (i += u));
             }
             n.partitions.push(c);
         }
         return n;
     }
-    function gr(e, t) {
+    function Tr(e, t) {
         let n = {},
             i = 0,
             r = e.getUint8(i),
@@ -6645,28 +6645,28 @@
             e.byteLength > 1)
         )
             if (a === 1) {
-                let o = e.getUint8(i);
+                let s = e.getUint8(i);
                 ((n.PreambleFlag = {
-                    value: (o >> 7) & 1,
+                    value: (s >> 7) & 1,
                     offset: t + i,
                     length: 0.125,
                 }),
                     (n.PatternReference = {
-                        value: o & 127,
+                        value: s & 127,
                         offset: t + i,
                         length: 0.875,
                     }));
             } else
                 for (n.additional_substreams = []; i < e.byteLength; ) {
-                    let o = e.getUint8(i);
+                    let s = e.getUint8(i);
                     (n.additional_substreams.push({
                         Flag: {
-                            value: (o >> 7) & 1,
+                            value: (s >> 7) & 1,
                             offset: t + i,
                             length: 0.125,
                         },
                         AdditionalSubstreamID: {
-                            value: o & 127,
+                            value: s & 127,
                             offset: t + i,
                             length: 0.875,
                         },
@@ -6675,7 +6675,7 @@
                 }
         return n;
     }
-    function hr(e, t) {
+    function Ir(e, t) {
         let n = {},
             i = 0,
             r = e.getUint8(i);
@@ -6713,7 +6713,7 @@
             n
         );
     }
-    function _r(e, t) {
+    function vr(e, t) {
         let n = 'Extension Descriptor',
             i = e.getUint8(0),
             r = new DataView(e.buffer, e.byteOffset + 1, e.byteLength - 1),
@@ -6733,7 +6733,7 @@
                 }));
         else if (i === 3)
             ((n = 'HEVC Timing and HRD Descriptor'),
-                Object.assign(a, ir(r, t + 1)));
+                Object.assign(a, cr(r, t + 1)));
         else if (i === 4)
             ((n = 'AF Extensions Descriptor'),
                 (a.af_extensions_data = {
@@ -6743,39 +6743,39 @@
                 }));
         else if (i === 5)
             ((n = 'HEVC Operation Point Descriptor'),
-                Object.assign(a, rr(r, t + 1)));
+                Object.assign(a, dr(r, t + 1)));
         else if (i === 6)
             ((n = 'HEVC Hierarchy Extension Descriptor'), Object.assign(a, {}));
         else if (i === 7)
             ((n = 'Green Extension Descriptor'),
-                Object.assign(a, ar(r, t + 1)));
+                Object.assign(a, pr(r, t + 1)));
         else if (i === 8)
             ((n = 'MPEG-H 3D Audio Descriptor'),
-                Object.assign(a, sr(r, t + 1)));
+                Object.assign(a, ur(r, t + 1)));
         else if (i === 9)
             ((n = 'MPEG-H 3D Audio Config Descriptor'),
-                Object.assign(a, or(r, t + 1)));
+                Object.assign(a, mr(r, t + 1)));
         else if (i === 10)
             ((n = 'MPEG-H 3D Audio Scene Descriptor'),
-                Object.assign(a, lr(r, t + 1)));
+                Object.assign(a, gr(r, t + 1)));
         else if (i === 11)
             ((n = 'MPEG-H 3D Audio Text Label Descriptor'),
-                Object.assign(a, fr(r, t + 1)));
+                Object.assign(a, hr(r, t + 1)));
         else if (i === 12)
             ((n = 'MPEG-H 3D Audio Multi-stream Descriptor'),
-                Object.assign(a, cr(r, t + 1)));
+                Object.assign(a, _r(r, t + 1)));
         else if (i === 13)
             ((n = 'MPEG-H 3D Audio DRC Loudness Descriptor'),
-                Object.assign(a, dr(r, t + 1)));
+                Object.assign(a, yr(r, t + 1)));
         else if (i === 14)
             ((n = 'MPEG-H 3D Audio Command Descriptor'),
-                Object.assign(a, pr(r, t + 1)));
+                Object.assign(a, xr(r, t + 1)));
         else if (i === 15)
             ((n = 'Quality Extension Descriptor'),
-                Object.assign(a, ur(r, t + 1)));
+                Object.assign(a, Sr(r, t + 1)));
         else if (i === 16)
             ((n = 'Virtual Segmentation Descriptor'),
-                Object.assign(a, mr(r, t + 1)));
+                Object.assign(a, br(r, t + 1)));
         else if (i === 17)
             ((n = 'Timed Metadata Extension Descriptor'),
                 (a.timed_metadata = {
@@ -6785,21 +6785,21 @@
                 }));
         else if (i === 18)
             ((n = 'HEVC Tile Substream Descriptor'),
-                Object.assign(a, gr(r, t + 1)));
+                Object.assign(a, Tr(r, t + 1)));
         else if (i === 19)
-            ((n = 'HEVC Subregion Descriptor'), Object.assign(a, hr(r, t + 1)));
+            ((n = 'HEVC Subregion Descriptor'), Object.assign(a, Ir(r, t + 1)));
         else {
-            let o = e.byteLength - 1;
-            o > 0 &&
+            let s = e.byteLength - 1;
+            s > 0 &&
                 (a.reserved_data = {
-                    value: `${o} bytes`,
+                    value: `${s} bytes`,
                     offset: t + 1,
-                    length: o,
+                    length: s,
                 });
         }
         return { name: n, details: a };
     }
-    function xr(e, t) {
+    function Cr(e, t) {
         let n = e.getUint8(0),
             i = e.getUint8(1),
             r = e.byteLength - 2;
@@ -6821,10 +6821,10 @@
             },
         };
     }
-    function yr(e, t) {
+    function Er(e, t) {
         return { ES_ID: { value: e.getUint16(0), offset: t, length: 2 } };
     }
-    function Sr(e, t) {
+    function Pr(e, t) {
         let n = [];
         for (let i = 0; i < e.byteLength && !(i + 3 > e.byteLength); i += 3) {
             let r = e.getUint16(i),
@@ -6836,7 +6836,7 @@
         }
         return { entries: n };
     }
-    function br(e, t) {
+    function Dr(e, t) {
         let n = e.getUint8(8),
             i = e.getUint8(9);
         return {
@@ -6885,7 +6885,7 @@
             },
         };
     }
-    function Tr(e, t) {
+    function Ar(e, t) {
         let n = e.getUint8(4);
         return {
             average_bit_rate: { value: e.getUint16(0), offset: t, length: 2 },
@@ -6938,7 +6938,7 @@
             },
         };
     }
-    function Ir(e, t) {
+    function kr(e, t) {
         return {
             FCR_ES_ID: { value: e.getUint16(0), offset: t, length: 2 },
             FCRResolution: { value: e.getUint32(2), offset: t + 2, length: 4 },
@@ -6946,7 +6946,7 @@
             FmxRateLength: { value: e.getUint8(7), offset: t + 7, length: 1 },
         };
     }
-    function vr(e, t) {
+    function Ur(e, t) {
         return {
             MB_buffer_size: {
                 value: e.getUint32(0) & 16777215,
@@ -6960,7 +6960,7 @@
             },
         };
     }
-    function Cr(e, t) {
+    function Mr(e, t) {
         let n = e.getUint8(0),
             i = (n >> 7) & 1,
             r = {
@@ -6980,7 +6980,7 @@
             r
         );
     }
-    function Er(e, t) {
+    function Rr(e, t) {
         let i = e.getUint8(0) & 7;
         return {
             stereoscopic_service_type: {
@@ -6995,7 +6995,7 @@
             },
         };
     }
-    function Pr(e, t) {
+    function Lr(e, t) {
         let i = e.getUint8(0) & 1,
             r = { base_video_flag: { value: i, offset: t, length: 0.125 } };
         if (i) {
@@ -7027,7 +7027,7 @@
         }
         return r;
     }
-    function Dr(e, t) {
+    function wr(e, t) {
         let n = e.getUint8(0);
         return {
             transport_profile: {
@@ -7039,7 +7039,7 @@
             },
         };
     }
-    function Ar(e, t) {
+    function Br(e, t) {
         let n = e.getUint16(0),
             i = (n >> 15) & 1,
             r = n & 32767,
@@ -7085,76 +7085,76 @@
                     length: 2,
                 },
             },
-            o = 22;
+            s = 22;
         if (i) {
-            let l = e.getUint8(o);
+            let o = e.getUint8(s);
             ((a.stripe_flag = {
-                value: (l >> 7) & 1,
-                offset: t + o,
+                value: (o >> 7) & 1,
+                offset: t + s,
                 length: 0.125,
             }),
                 (a.block_flag = {
-                    value: (l >> 6) & 1,
-                    offset: t + o,
+                    value: (o >> 6) & 1,
+                    offset: t + s,
                     length: 0.125,
                 }),
                 (a.mdm_flag = {
-                    value: (l >> 5) & 1,
-                    offset: t + o,
+                    value: (o >> 5) & 1,
+                    offset: t + s,
                     length: 0.125,
                 }),
-                (o += 1));
+                (s += 1));
         } else
             ((a.color_specification = {
-                value: e.getUint8(o),
-                offset: t + o,
+                value: e.getUint8(s),
+                offset: t + s,
                 length: 1,
             }),
-                (o += 1));
-        let s = e.getUint8(o);
+                (s += 1));
+        let l = e.getUint8(s);
         if (
             ((a.still_mode = {
-                value: (s >> 7) & 1,
-                offset: t + o,
+                value: (l >> 7) & 1,
+                offset: t + s,
                 length: 0.125,
             }),
             (a.interlaced_video = {
-                value: (s >> 6) & 1,
-                offset: t + o,
+                value: (l >> 6) & 1,
+                offset: t + s,
                 length: 0.125,
             }),
-            (o += 1),
+            (s += 1),
             i)
         ) {
             ((a.colour_primaries = {
-                value: e.getUint8(o),
-                offset: t + o,
+                value: e.getUint8(s),
+                offset: t + s,
                 length: 1,
             }),
-                (o += 1),
+                (s += 1),
                 (a.transfer_characteristics = {
-                    value: e.getUint8(o),
-                    offset: t + o,
+                    value: e.getUint8(s),
+                    offset: t + s,
                     length: 1,
                 }),
-                (o += 1),
+                (s += 1),
                 (a.matrix_coefficients = {
-                    value: e.getUint8(o),
-                    offset: t + o,
+                    value: e.getUint8(s),
+                    offset: t + s,
                     length: 1,
                 }),
-                (o += 1));
-            let l = e.getUint8(o);
+                (s += 1));
+            let o = e.getUint8(s);
             ((a.video_full_range_flag = {
-                value: (l >> 7) & 1,
-                offset: t + o,
+                value: (o >> 7) & 1,
+                offset: t + s,
                 length: 0.125,
             }),
-                (o += 1));
+                (s += 1));
         }
         return a;
     }
-    function kr(e, t) {
+    function Nr(e, t) {
         let n = e.getUint8(0),
             i = (n >> 7) & 1,
             r = n & 1,
@@ -7170,53 +7170,53 @@
                     length: 0.125,
                 },
             },
-            o = 1;
-        if (r && e.byteLength > o) {
-            let l = (e.getUint8(o) >> 7) & 1;
-            ((a['90kHz_flag'] = { value: l, offset: t + o, length: 0.125 }),
-                (o += 1),
-                l === 0 &&
-                    e.byteLength >= o + 8 &&
+            s = 1;
+        if (r && e.byteLength > s) {
+            let o = (e.getUint8(s) >> 7) & 1;
+            ((a['90kHz_flag'] = { value: o, offset: t + s, length: 0.125 }),
+                (s += 1),
+                o === 0 &&
+                    e.byteLength >= s + 8 &&
                     ((a.N = {
-                        value: e.getUint32(o),
-                        offset: t + o,
+                        value: e.getUint32(s),
+                        offset: t + s,
                         length: 4,
                     }),
                     (a.K = {
-                        value: e.getUint32(o + 4),
-                        offset: t + o + 4,
+                        value: e.getUint32(s + 4),
+                        offset: t + s + 4,
                         length: 4,
                     }),
-                    (o += 8)),
-                e.byteLength >= o + 4 &&
+                    (s += 8)),
+                e.byteLength >= s + 4 &&
                     ((a.num_units_in_tick = {
-                        value: e.getUint32(o),
-                        offset: t + o,
+                        value: e.getUint32(s),
+                        offset: t + s,
                         length: 4,
                     }),
-                    (o += 4)));
+                    (s += 4)));
         }
-        if (e.byteLength > o) {
-            let s = e.getUint8(o);
+        if (e.byteLength > s) {
+            let l = e.getUint8(s);
             ((a.fixed_frame_rate_flag = {
-                value: (s >> 7) & 1,
-                offset: t + o,
+                value: (l >> 7) & 1,
+                offset: t + s,
                 length: 0.125,
             }),
                 (a.temporal_poc_flag = {
-                    value: (s >> 6) & 1,
-                    offset: t + o,
+                    value: (l >> 6) & 1,
+                    offset: t + s,
                     length: 0.125,
                 }),
                 (a.picture_to_display_conversion_flag = {
-                    value: (s >> 5) & 1,
-                    offset: t + o,
+                    value: (l >> 5) & 1,
+                    offset: t + s,
                     length: 0.125,
                 }));
         }
         return a;
     }
-    function Ur(e, t) {
+    function Vr(e, t) {
         let n = {},
             i = 0;
         ((n.metadata_application_format = {
@@ -7247,36 +7247,36 @@
             (i += 1),
             n.content_reference_id_record_flag.value)
         ) {
-            let o = e.getUint8(i);
+            let s = e.getUint8(i);
             ((n.content_reference_id_record_length = {
-                value: o,
+                value: s,
                 offset: t + i,
                 length: 1,
             }),
                 (i += 1),
                 (n.content_reference_id_record = {
-                    value: `${o} bytes`,
+                    value: `${s} bytes`,
                     offset: t + i,
-                    length: o,
+                    length: s,
                 }),
-                (i += o));
+                (i += s));
         }
         if (
             n.content_time_base_indicator.value === 1 ||
             n.content_time_base_indicator.value === 2
         ) {
-            let o = e.getUint8(i) & 1,
-                s = e.getUint32(i + 1);
+            let s = e.getUint8(i) & 1,
+                l = e.getUint32(i + 1);
             ((n.content_time_base_value = {
-                value: ((BigInt(o) << 32n) | BigInt(s)).toString(),
+                value: ((BigInt(s) << 32n) | BigInt(l)).toString(),
                 offset: t + i,
                 length: 5,
             }),
                 (i += 5));
-            let l = e.getUint8(i) & 1,
+            let o = e.getUint8(i) & 1,
                 c = e.getUint32(i + 1);
             ((n.metadata_time_base_value = {
-                value: ((BigInt(l) << 32n) | BigInt(c)).toString(),
+                value: ((BigInt(o) << 32n) | BigInt(c)).toString(),
                 offset: t + i,
                 length: 5,
             }),
@@ -7293,19 +7293,19 @@
             n.content_time_base_indicator.value >= 3 &&
             n.content_time_base_indicator.value <= 7
         ) {
-            let o = e.getUint8(i);
+            let s = e.getUint8(i);
             ((n.time_base_association_data_length = {
-                value: o,
+                value: s,
                 offset: t + i,
                 length: 1,
             }),
                 (i += 1),
                 (n.time_base_association_data = {
-                    value: `${o} bytes`,
+                    value: `${s} bytes`,
                     offset: t + i,
-                    length: o,
+                    length: s,
                 }),
-                (i += o));
+                (i += s));
         }
         let a = e.byteLength - i;
         return (
@@ -7318,7 +7318,7 @@
             n
         );
     }
-    function Mr(e, t) {
+    function zr(e, t) {
         let n = {},
             i = 0;
         ((n.metadata_application_format = {
@@ -7368,19 +7368,19 @@
             (i += 1),
             n.metadata_locator_record_flag.value)
         ) {
-            let o = e.getUint8(i);
+            let s = e.getUint8(i);
             ((n.metadata_locator_record_length = {
-                value: o,
+                value: s,
                 offset: t + i,
                 length: 1,
             }),
                 (i += 1),
                 (n.metadata_locator_record = {
-                    value: `${o} bytes`,
+                    value: `${s} bytes`,
                     offset: t + i,
-                    length: o,
+                    length: s,
                 }),
-                (i += o));
+                (i += s));
         }
         (n.MPEG_carriage_flags.value <= 2 &&
             ((n.program_number = {
@@ -7413,7 +7413,7 @@
             n
         );
     }
-    function Rr(e, t) {
+    function Or(e, t) {
         let n = {},
             i = 0;
         ((n.metadata_application_format = {
@@ -7463,45 +7463,45 @@
             (i += 1),
             n.DSM_CC_flag.value)
         ) {
-            let s = e.getUint8(i);
+            let l = e.getUint8(i);
             ((n.service_identification_length = {
-                value: s,
+                value: l,
                 offset: t + i,
                 length: 1,
             }),
                 (i += 1),
                 (n.service_identification_record = {
-                    value: `${s} bytes`,
+                    value: `${l} bytes`,
                     offset: t + i,
-                    length: s,
+                    length: l,
                 }),
-                (i += s));
+                (i += l));
         }
         let a = n.decoder_config_flags.value;
         if (a === 1) {
-            let s = e.getUint8(i);
-            ((n.decoder_config_length = { value: s, offset: t + i, length: 1 }),
+            let l = e.getUint8(i);
+            ((n.decoder_config_length = { value: l, offset: t + i, length: 1 }),
                 (i += 1),
                 (n.decoder_config = {
-                    value: `${s} bytes`,
+                    value: `${l} bytes`,
                     offset: t + i,
-                    length: s,
+                    length: l,
                 }),
-                (i += s));
+                (i += l));
         } else if (a === 3) {
-            let s = e.getUint8(i);
+            let l = e.getUint8(i);
             ((n.dec_config_identification_record_length = {
-                value: s,
+                value: l,
                 offset: t + i,
                 length: 1,
             }),
                 (i += 1),
                 (n.dec_config_identification_record = {
-                    value: `${s} bytes`,
+                    value: `${l} bytes`,
                     offset: t + i,
-                    length: s,
+                    length: l,
                 }),
-                (i += s));
+                (i += l));
         } else
             a === 4 &&
                 ((n.decoder_config_metadata_service_id = {
@@ -7510,51 +7510,51 @@
                     length: 1,
                 }),
                 (i += 1));
-        let o = e.byteLength - i;
+        let s = e.byteLength - i;
         return (
-            o > 0 &&
+            s > 0 &&
                 (n.private_data = {
-                    value: `${o} bytes`,
+                    value: `${s} bytes`,
                     offset: t + i,
-                    length: o,
+                    length: s,
                 }),
             n
         );
     }
-    function Lr(e, t) {
+    function $r(e, t) {
         let n = {},
             i = 0,
             r = e.getUint8(i),
             a = e.getUint8(i + 1),
-            o = e.getUint8(i + 2);
+            s = e.getUint8(i + 2);
         ((n.metadata_input_leak_rate = {
-            value: ((r & 63) << 16) | (a << 8) | o,
+            value: ((r & 63) << 16) | (a << 8) | s,
             offset: t + i,
             length: 3,
         }),
             (i += 3));
-        let s = e.getUint8(i),
-            l = e.getUint8(i + 1),
+        let l = e.getUint8(i),
+            o = e.getUint8(i + 1),
             c = e.getUint8(i + 2);
         ((n.metadata_buffer_size = {
-            value: ((s & 63) << 16) | (l << 8) | c,
+            value: ((l & 63) << 16) | (o << 8) | c,
             offset: t + i,
             length: 3,
         }),
             (i += 3));
         let f = e.getUint8(i),
             d = e.getUint8(i + 1),
-            p = e.getUint8(i + 2);
+            u = e.getUint8(i + 2);
         return (
             (n.metadata_output_leak_rate = {
-                value: ((f & 63) << 16) | (d << 8) | p,
+                value: ((f & 63) << 16) | (d << 8) | u,
                 offset: t + i,
                 length: 3,
             }),
             n
         );
     }
-    function wr(e, t) {
+    function Fr(e, t) {
         let n = e.getUint8(0),
             i = e.getUint8(1),
             r = e.getUint8(2),
@@ -7564,7 +7564,7 @@
                 2: 'Scalable Sample Rate Profile (SSR)',
                 3: 'Reserved',
             },
-            o = {
+            s = {
                 1: '1 channel (mono)',
                 2: '2 channels (stereo)',
                 3: '3 channels (front: C, L, R)',
@@ -7572,7 +7572,7 @@
                 5: '5 channels (front: C, L, R; back: L, R)',
                 6: '5.1 channels (front: C, L, R; back: L, R; LFE)',
             },
-            s = {
+            l = {
                 0: 'AAC data according to ISO/IEC 13818-7',
                 1: 'AAC data with Bandwidth Extension data present',
             };
@@ -7583,49 +7583,49 @@
                 length: 1,
             },
             MPEG_2_AAC_channel_configuration: {
-                value: `${o[i] || 'Undefined'} (${i})`,
+                value: `${s[i] || 'Undefined'} (${i})`,
                 offset: t + 1,
                 length: 1,
             },
             MPEG_2_AAC_additional_information: {
-                value: `${s[r] || 'Reserved'} (0x${r.toString(16).padStart(2, '0')})`,
+                value: `${l[r] || 'Reserved'} (0x${r.toString(16).padStart(2, '0')})`,
                 offset: t + 2,
                 length: 1,
             },
         };
     }
-    function Nr(e, t) {
+    function Hr(e, t) {
         let n = {},
             i = 0,
             r = e.getUint8(i),
             a = (r >> 7) & 1,
-            o = r & 15;
+            s = r & 15;
         ((n.ASC_flag = { value: a, offset: t + i, length: 0.125 }),
-            (n.num_of_loops = { value: o, offset: t + i, length: 0.5 }),
+            (n.num_of_loops = { value: s, offset: t + i, length: 0.5 }),
             (i += 1));
-        for (let s = 0; s < o && !(i >= e.byteLength); s++) {
-            let l = e.getUint8(i);
-            ((n[`audioProfileLevelIndication_${s + 1}`] = {
-                value: `0x${l.toString(16).padStart(2, '0')}`,
+        for (let l = 0; l < s && !(i >= e.byteLength); l++) {
+            let o = e.getUint8(i);
+            ((n[`audioProfileLevelIndication_${l + 1}`] = {
+                value: `0x${o.toString(16).padStart(2, '0')}`,
                 offset: t + i,
                 length: 1,
             }),
                 (i += 1));
         }
         if (a && i < e.byteLength) {
-            let s = e.getUint8(i);
-            ((n.ASC_size = { value: s, offset: t + i, length: 1 }),
+            let l = e.getUint8(i);
+            ((n.ASC_size = { value: l, offset: t + i, length: 1 }),
                 (i += 1),
-                i + s <= e.byteLength &&
+                i + l <= e.byteLength &&
                     (n.audioSpecificConfig = {
-                        value: `${s} bytes of AudioSpecificConfig data`,
+                        value: `${l} bytes of AudioSpecificConfig data`,
                         offset: t + i,
-                        length: s,
+                        length: l,
                     }));
         }
         return n;
     }
-    function Br(e, t) {
+    function Xr(e, t) {
         let n = e.getUint8(0),
             i = e.byteLength - 1;
         return {
@@ -7641,12 +7641,12 @@
             },
         };
     }
-    function zr(e, t) {
+    function Gr(e, t) {
         return {
             External_ES_ID: { value: e.getUint16(0), offset: t, length: 2 },
         };
     }
-    function Vr(e, t) {
+    function jr(e, t) {
         return {
             mux_code_table_entry_data: {
                 value: `${e.byteLength} bytes of MuxCodeTableEntry data`,
@@ -7655,7 +7655,7 @@
             },
         };
     }
-    function Or(e, t) {
+    function Wr(e, t) {
         return {
             fmx_buffer_size_data: {
                 value: `${e.byteLength} bytes of FlexMux Buffer Size data`,
@@ -7664,7 +7664,7 @@
             },
         };
     }
-    function $r(e, t) {
+    function Kr(e, t) {
         return {
             ipmp_data: {
                 value: `${e.byteLength} bytes of IPMP data`,
@@ -7673,7 +7673,7 @@
             },
         };
     }
-    function Fr(e, t) {
+    function qr(e, t) {
         let n = {},
             i = 0;
         ((n.profile_idc = { value: e.getUint8(i), offset: t + i, length: 1 }),
@@ -7719,20 +7719,20 @@
         ((n.level_count = { value: a, offset: t + i, length: 1 }),
             (i += 1),
             (n.levels = []));
-        for (let o = 0; o < a && !(i + 2 > e.byteLength); o++) {
-            let s = {
+        for (let s = 0; s < a && !(i + 2 > e.byteLength); s++) {
+            let l = {
                 level_idc: { value: e.getUint8(i), offset: t + i, length: 1 },
                 operation_points: [],
             };
             i += 1;
-            let l = e.getUint8(i);
-            ((s.operation_points_count = {
-                value: l,
+            let o = e.getUint8(i);
+            ((l.operation_points_count = {
+                value: o,
                 offset: t + i,
                 length: 1,
             }),
                 (i += 1));
-            for (let c = 0; c < l && !(i + 3 > e.byteLength); c++) {
+            for (let c = 0; c < o && !(i + 3 > e.byteLength); c++) {
                 let d = {
                     applicable_temporal_id: {
                         value: e.getUint8(i) & 7,
@@ -7747,230 +7747,230 @@
                     es_references: [],
                 };
                 i += 2;
-                let p = e.getUint8(i);
-                ((d.ES_count = { value: p, offset: t + i, length: 1 }),
+                let u = e.getUint8(i);
+                ((d.ES_count = { value: u, offset: t + i, length: 1 }),
                     (i += 1));
-                for (let m = 0; m < p && !(i + 1 > e.byteLength); m++) {
-                    let _ = e.getUint8(i);
+                for (let p = 0; p < u && !(i + 1 > e.byteLength); p++) {
+                    let y = e.getUint8(i);
                     (d.es_references.push({
                         ES_reference: {
-                            value: _ & 63,
+                            value: y & 63,
                             offset: t + i,
                             length: 0.75,
                         },
                     }),
                         (i += 1));
                 }
-                s.operation_points.push(d);
+                l.operation_points.push(d);
             }
-            n.levels.push(s);
+            n.levels.push(l);
         }
         return n;
     }
-    function Q(e, t, n = null) {
+    function J(e, t, n = null) {
         let i = [],
             r = 0,
             a = n ? parseInt(n, 16) : null;
         for (; r < e.byteLength && !(r + 2 > e.byteLength); ) {
-            let o = e.getUint8(r),
-                s = e.getUint8(r + 1);
-            if (r + 2 + s > e.byteLength) break;
-            let l = new DataView(e.buffer, e.byteOffset + r + 2, s),
+            let s = e.getUint8(r),
+                l = e.getUint8(r + 1);
+            if (r + 2 + l > e.byteLength) break;
+            let o = new DataView(e.buffer, e.byteOffset + r + 2, l),
                 c = t + r + 2,
                 f,
                 d = 'Unknown/Private Descriptor';
-            switch (o) {
+            switch (s) {
                 case 2:
-                    ((d = 'Video Stream Descriptor'), (f = wi(l, c)));
+                    ((d = 'Video Stream Descriptor'), (f = Fi(o, c)));
                     break;
                 case 3:
-                    ((d = 'Audio Stream Descriptor'), (f = Ni(l, c)));
+                    ((d = 'Audio Stream Descriptor'), (f = Hi(o, c)));
                     break;
                 case 4:
-                    ((d = 'Hierarchy Descriptor'), (f = Bi(l, c)));
+                    ((d = 'Hierarchy Descriptor'), (f = Xi(o, c)));
                     break;
                 case 5:
-                    ((d = 'Registration Descriptor'), (f = zi(l, c)));
+                    ((d = 'Registration Descriptor'), (f = Gi(o, c)));
                     break;
                 case 6:
                     ((d = 'Data Stream Alignment Descriptor'),
-                        (f = Vi(l, c, a)));
+                        (f = ji(o, c, a)));
                     break;
                 case 7:
-                    ((d = 'Target Background Grid Descriptor'), (f = Oi(l, c)));
+                    ((d = 'Target Background Grid Descriptor'), (f = Wi(o, c)));
                     break;
                 case 8:
-                    ((d = 'Video Window Descriptor'), (f = $i(l, c)));
+                    ((d = 'Video Window Descriptor'), (f = Ki(o, c)));
                     break;
                 case 9:
-                    ((d = 'Conditional Access Descriptor'), (f = Fi(l, c)));
+                    ((d = 'Conditional Access Descriptor'), (f = qi(o, c)));
                     break;
                 case 10:
-                    ((d = 'ISO 639 Language Descriptor'), (f = Hi(l, c)));
+                    ((d = 'ISO 639 Language Descriptor'), (f = Yi(o, c)));
                     break;
                 case 11:
-                    ((d = 'System Clock Descriptor'), (f = Xi(l, c)));
+                    ((d = 'System Clock Descriptor'), (f = Qi(o, c)));
                     break;
                 case 12:
                     ((d = 'Multiplex Buffer Utilization Descriptor'),
-                        (f = Gi(l, c)));
+                        (f = Ji(o, c)));
                     break;
                 case 13:
-                    ((d = 'Copyright Descriptor'), (f = ji(l, c)));
+                    ((d = 'Copyright Descriptor'), (f = Zi(o, c)));
                     break;
                 case 14:
-                    ((d = 'Maximum Bitrate Descriptor'), (f = Wi(l, c)));
+                    ((d = 'Maximum Bitrate Descriptor'), (f = er(o, c)));
                     break;
                 case 15:
-                    ((d = 'Private Data Indicator Descriptor'), (f = Ki(l, c)));
+                    ((d = 'Private Data Indicator Descriptor'), (f = tr(o, c)));
                     break;
                 case 16:
-                    ((d = 'Smoothing Buffer Descriptor'), (f = qi(l, c)));
+                    ((d = 'Smoothing Buffer Descriptor'), (f = nr(o, c)));
                     break;
                 case 17:
-                    ((d = 'STD Descriptor'), (f = Yi(l, c)));
+                    ((d = 'STD Descriptor'), (f = ir(o, c)));
                     break;
                 case 18:
-                    ((d = 'IBP Descriptor'), (f = Qi(l, c)));
+                    ((d = 'IBP Descriptor'), (f = rr(o, c)));
                     break;
                 case 27:
-                    ((d = 'MPEG-4 Video Descriptor'), (f = Ji(l, c)));
+                    ((d = 'MPEG-4 Video Descriptor'), (f = ar(o, c)));
                     break;
                 case 28:
-                    ((d = 'MPEG-4 Audio Descriptor'), (f = Zi(l, c)));
+                    ((d = 'MPEG-4 Audio Descriptor'), (f = sr(o, c)));
                     break;
                 case 29:
-                    ((d = 'IOD Descriptor'), (f = xr(l, c)));
+                    ((d = 'IOD Descriptor'), (f = Cr(o, c)));
                     break;
                 case 30:
-                    ((d = 'SL Descriptor'), (f = yr(l, c)));
+                    ((d = 'SL Descriptor'), (f = Er(o, c)));
                     break;
                 case 31:
-                    ((d = 'FMC Descriptor'), (f = Sr(l, c)));
+                    ((d = 'FMC Descriptor'), (f = Pr(o, c)));
                     break;
                 case 32:
-                    ((d = 'External ES_ID Descriptor'), (f = zr(l, c)));
+                    ((d = 'External ES_ID Descriptor'), (f = Gr(o, c)));
                     break;
                 case 33:
-                    ((d = 'MuxCode Descriptor'), (f = Vr(l, c)));
+                    ((d = 'MuxCode Descriptor'), (f = jr(o, c)));
                     break;
                 case 34:
-                    ((d = 'FmxBufferSize Descriptor'), (f = Or(l, c)));
+                    ((d = 'FmxBufferSize Descriptor'), (f = Wr(o, c)));
                     break;
                 case 35:
-                    ((d = 'MultiplexBuffer Descriptor'), (f = vr(l, c)));
+                    ((d = 'MultiplexBuffer Descriptor'), (f = Ur(o, c)));
                     break;
                 case 36:
-                    ((d = 'Content Labeling Descriptor'), (f = Ur(l, c)));
+                    ((d = 'Content Labeling Descriptor'), (f = Vr(o, c)));
                     break;
                 case 37:
-                    ((d = 'Metadata Pointer Descriptor'), (f = Mr(l, c)));
+                    ((d = 'Metadata Pointer Descriptor'), (f = zr(o, c)));
                     break;
                 case 38:
-                    ((d = 'Metadata Descriptor'), (f = Rr(l, c)));
+                    ((d = 'Metadata Descriptor'), (f = Or(o, c)));
                     break;
                 case 39:
-                    ((d = 'Metadata STD Descriptor'), (f = Lr(l, c)));
+                    ((d = 'Metadata STD Descriptor'), (f = $r(o, c)));
                     break;
                 case 40:
-                    ((d = 'AVC Video Descriptor'), (f = tr(l, c)));
+                    ((d = 'AVC Video Descriptor'), (f = lr(o, c)));
                     break;
                 case 41:
-                    ((d = 'IPMP Descriptor'), (f = $r(l, c)));
+                    ((d = 'IPMP Descriptor'), (f = Kr(o, c)));
                     break;
                 case 42:
-                    ((d = 'AVC Timing and HRD Descriptor'), (f = kr(l, c)));
+                    ((d = 'AVC Timing and HRD Descriptor'), (f = Nr(o, c)));
                     break;
                 case 43:
-                    ((d = 'MPEG-2 AAC Audio Descriptor'), (f = wr(l, c)));
+                    ((d = 'MPEG-2 AAC Audio Descriptor'), (f = Fr(o, c)));
                     break;
                 case 44:
-                    ((d = 'FlexMuxTiming Descriptor'), (f = Ir(l, c)));
+                    ((d = 'FlexMuxTiming Descriptor'), (f = kr(o, c)));
                     break;
                 case 45:
-                    ((d = 'MPEG-4 Text Descriptor'), (f = er(l, c)));
+                    ((d = 'MPEG-4 Text Descriptor'), (f = or(o, c)));
                     break;
                 case 46:
-                    ((d = 'MPEG-4 Audio Extension Descriptor'), (f = Nr(l, c)));
+                    ((d = 'MPEG-4 Audio Extension Descriptor'), (f = Hr(o, c)));
                     break;
                 case 47:
-                    ((d = 'Auxiliary Video Stream Descriptor'), (f = Br(l, c)));
+                    ((d = 'Auxiliary Video Stream Descriptor'), (f = Xr(o, c)));
                     break;
                 case 48:
-                    ((d = 'SVC Extension Descriptor'), (f = br(l, c)));
+                    ((d = 'SVC Extension Descriptor'), (f = Dr(o, c)));
                     break;
                 case 49:
-                    ((d = 'MVC Extension Descriptor'), (f = Tr(l, c)));
+                    ((d = 'MVC Extension Descriptor'), (f = Ar(o, c)));
                     break;
                 case 50:
-                    ((d = 'J2K Video Descriptor'), (f = Ar(l, c)));
+                    ((d = 'J2K Video Descriptor'), (f = Br(o, c)));
                     break;
                 case 51:
-                    ((d = 'MVC Operation Point Descriptor'), (f = Fr(l, c)));
+                    ((d = 'MVC Operation Point Descriptor'), (f = qr(o, c)));
                     break;
                 case 52:
                     ((d = 'MPEG-2 Stereoscopic Video Format Descriptor'),
-                        (f = Cr(l, c)));
+                        (f = Mr(o, c)));
                     break;
                 case 53:
                     ((d = 'Stereoscopic Program Info Descriptor'),
-                        (f = Er(l, c)));
+                        (f = Rr(o, c)));
                     break;
                 case 54:
                     ((d = 'Stereoscopic Video Info Descriptor'),
-                        (f = Pr(l, c)));
+                        (f = Lr(o, c)));
                     break;
                 case 55:
-                    ((d = 'Transport Profile Descriptor'), (f = Dr(l, c)));
+                    ((d = 'Transport Profile Descriptor'), (f = wr(o, c)));
                     break;
                 case 56:
-                    ((d = 'HEVC Video Descriptor'), (f = nr(l, c)));
+                    ((d = 'HEVC Video Descriptor'), (f = fr(o, c)));
                     break;
                 case 99: {
-                    ({ name: d, details: f } = _r(l, c));
+                    ({ name: d, details: f } = vr(o, c));
                     break;
                 }
                 default:
-                    f = { data: { value: `${s} bytes`, offset: c, length: s } };
+                    f = { data: { value: `${l} bytes`, offset: c, length: l } };
                     break;
             }
-            (i.push({ tag: o, length: s, name: d, details: f }), (r += 2 + s));
+            (i.push({ tag: s, length: l, name: d, details: f }), (r += 2 + l));
         }
         return i;
     }
-    function Hr(e, t) {
+    function Yr(e, t) {
         let n = e.getUint16(0) & 8191,
             i = e.getUint16(2) & 4095,
             r = new DataView(e.buffer, e.byteOffset + 4, i),
-            a = Q(r, t + 4),
-            o = [],
-            s = 4 + i;
-        for (; s < e.byteLength && !(s + 5 > e.byteLength); ) {
-            let l = e.getUint8(s),
-                c = e.getUint16(s + 1) & 8191,
-                f = e.getUint16(s + 3) & 4095,
-                d = new DataView(e.buffer, e.byteOffset + s + 5, f),
-                p = Q(d, t + s + 5);
-            (o.push({
+            a = J(r, t + 4),
+            s = [],
+            l = 4 + i;
+        for (; l < e.byteLength && !(l + 5 > e.byteLength); ) {
+            let o = e.getUint8(l),
+                c = e.getUint16(l + 1) & 8191,
+                f = e.getUint16(l + 3) & 4095,
+                d = new DataView(e.buffer, e.byteOffset + l + 5, f),
+                u = J(d, t + l + 5);
+            (s.push({
                 stream_type: {
-                    value: `0x${l.toString(16).padStart(2, '0')}`,
-                    offset: t + s,
+                    value: `0x${o.toString(16).padStart(2, '0')}`,
+                    offset: t + l,
                     length: 1,
                 },
-                elementary_PID: { value: c, offset: t + s + 1, length: 1.625 },
-                es_info_length: { value: f, offset: t + s + 3, length: 1.5 },
-                es_descriptors: p,
+                elementary_PID: { value: c, offset: t + l + 1, length: 1.625 },
+                es_info_length: { value: f, offset: t + l + 3, length: 1.5 },
+                es_descriptors: u,
             }),
-                (s += 5 + f));
+                (l += 5 + f));
         }
         return {
             type: 'PMT',
             pcr_pid: { value: n, offset: t, length: 1.625 },
             program_descriptors: a,
-            streams: o,
+            streams: s,
         };
     }
-    var Xr = {
+    var Qr = {
         PMT: {
             text: 'Program Map Table. Lists all elementary streams (video, audio, etc.) that constitute a single program.',
             ref: 'Clause 2.4.4.9',
@@ -7988,25 +7988,25 @@
             ref: 'Table 2-33',
         },
     };
-    function Gr(e, t) {
-        return { type: 'CAT', descriptors: Q(e, t) };
+    function Jr(e, t) {
+        return { type: 'CAT', descriptors: J(e, t) };
     }
-    var jr = {
+    var Zr = {
         CAT: {
             text: 'Conditional Access Table. Provides information on CA systems used in the multiplex.',
             ref: 'Clause 2.4.4.7',
         },
     };
-    function Wr(e, t) {
-        return { type: 'TSDT', descriptors: Q(e, t) };
+    function ea(e, t) {
+        return { type: 'TSDT', descriptors: J(e, t) };
     }
-    var Kr = {
+    var ta = {
         TSDT: {
             text: 'Transport Stream Description Table. Contains descriptors that apply to the entire transport stream.',
             ref: 'Clause 2.4.4.13',
         },
     };
-    function qr(e, t, n, i) {
+    function na(e, t, n, i) {
         if (n === 0)
             return {
                 type: 'Private Section (short)',
@@ -8018,13 +8018,13 @@
             };
         let r = e.getUint16(0),
             a = e.getUint8(2),
-            o = (a >> 1) & 31,
-            s = a & 1,
-            l = e.getUint8(3),
+            s = (a >> 1) & 31,
+            l = a & 1,
+            o = e.getUint8(3),
             c = e.getUint8(4),
             f = 5,
             d = i - (f + 4),
-            p = {
+            u = {
                 value: `${d} bytes of private data`,
                 offset: t + f,
                 length: d,
@@ -8032,20 +8032,20 @@
         return {
             type: 'Private Section (long)',
             table_id_extension: { value: r, offset: t, length: 2 },
-            version_number: { value: o, offset: t + 2, length: 0.625 },
-            current_next_indicator: { value: s, offset: t + 2, length: 0.125 },
-            section_number: { value: l, offset: t + 3, length: 1 },
+            version_number: { value: s, offset: t + 2, length: 0.625 },
+            current_next_indicator: { value: l, offset: t + 2, length: 0.125 },
+            section_number: { value: o, offset: t + 3, length: 1 },
             last_section_number: { value: c, offset: t + 4, length: 1 },
-            private_data: p,
+            private_data: u,
         };
     }
-    var Yr = {
+    var ia = {
         'Private Section': {
             text: 'A section containing user-defined private data. The structure and meaning of this data is not defined by the MPEG-2 specification.',
             ref: 'Clause 2.4.4.11',
         },
     };
-    function Qr(e, t) {
+    function ra(e, t) {
         return {
             type: 'IPMP-CIT',
             info: {
@@ -8055,21 +8055,21 @@
             },
         };
     }
-    var Jr = {
+    var aa = {
         'IPMP-CIT': {
             text: 'IPMP Control Information Table. Contains information for Intellectual Property Management and Protection systems.',
             ref: 'Clause 2.4.4.1, ISO/IEC 13818-11',
         },
     };
-    function bs(e) {
+    function Ds(e) {
         let t = e.getUint8(0),
             n = e.getUint8(1),
             i = e.getUint8(2),
             r = e.getUint8(3),
             a = e.getUint8(4),
-            o = e.getUint8(5),
-            s = BigInt(t & 56) >> 3n,
-            l =
+            s = e.getUint8(5),
+            l = BigInt(t & 56) >> 3n,
+            o =
                 (BigInt(t & 3) << 13n) |
                 (BigInt(n) << 5n) |
                 (BigInt(i >> 3) & 0x1fn),
@@ -8077,11 +8077,11 @@
                 (BigInt(i & 3) << 13n) |
                 (BigInt(r) << 5n) |
                 (BigInt(a >> 3) & 0x1fn),
-            f = (s << 30n) | (l << 15n) | c,
-            d = ((BigInt(a) & 0x03n) << 7n) | BigInt(o >> 1);
+            f = (l << 30n) | (o << 15n) | c,
+            d = ((BigInt(a) & 0x03n) << 7n) | BigInt(s >> 1);
         return f * 300n + d;
     }
-    function Zr(e, t) {
+    function sa(e, t) {
         let n = {},
             i = 0;
         ((n.pack_start_code = {
@@ -8092,7 +8092,7 @@
             (i += 4));
         let r = new DataView(e.buffer, e.byteOffset + i, 6);
         ((n.system_clock_reference = {
-            value: bs(r).toString(),
+            value: Ds(r).toString(),
             offset: t + i,
             length: 6,
         }),
@@ -8103,41 +8103,41 @@
             (e.getUint8(i + 2) >> 2);
         ((n.program_mux_rate = { value: a, offset: t + i, length: 3 }),
             (i += 3));
-        let o = e.getUint8(i - 1) & 7;
+        let s = e.getUint8(i - 1) & 7;
         return (
             (n.pack_stuffing_length = {
-                value: o,
+                value: s,
                 offset: t + i - 1,
                 length: 0.375,
             }),
-            o > 0 &&
+            s > 0 &&
                 (n.stuffing_bytes = {
-                    value: `${o} bytes`,
+                    value: `${s} bytes`,
                     offset: t + i,
-                    length: o,
+                    length: s,
                 }),
             n
         );
     }
-    function xe(e, t) {
+    function Ie(e, t) {
         let n = e.getUint8(t),
             i = e.getUint8(t + 1),
             r = e.getUint8(t + 2),
             a = e.getUint8(t + 3),
-            o = e.getUint8(t + 4),
-            s = BigInt((n & 14) >> 1),
-            l = BigInt((i << 7) | (r >> 1)),
-            c = BigInt((a << 7) | (o >> 1));
-        return (s << 30n) | (l << 15n) | c;
+            s = e.getUint8(t + 4),
+            l = BigInt((n & 14) >> 1),
+            o = BigInt((i << 7) | (r >> 1)),
+            c = BigInt((a << 7) | (s >> 1));
+        return (l << 30n) | (o << 15n) | c;
     }
-    function Ts(e, t) {
+    function As(e, t) {
         let n = e.getUint8(t),
             i = e.getUint8(t + 1),
             r = e.getUint8(t + 2),
             a = e.getUint8(t + 3),
-            o = e.getUint8(t + 4),
-            s = e.getUint8(t + 5),
-            l = BigInt(n & 56) >> 3n,
+            s = e.getUint8(t + 4),
+            l = e.getUint8(t + 5),
+            o = BigInt(n & 56) >> 3n,
             c =
                 (BigInt(n & 3) << 13n) |
                 (BigInt(i) << 5n) |
@@ -8145,12 +8145,12 @@
             f =
                 (BigInt(r & 3) << 13n) |
                 (BigInt(a) << 5n) |
-                (BigInt(o >> 3) & 0x1fn),
-            d = (l << 30n) | (c << 15n) | f,
-            p = ((BigInt(o) & 0x03n) << 7n) | BigInt(s >> 1);
-        return d * 300n + p;
+                (BigInt(s >> 3) & 0x1fn),
+            d = (o << 30n) | (c << 15n) | f,
+            u = ((BigInt(s) & 0x03n) << 7n) | BigInt(l >> 1);
+        return d * 300n + u;
     }
-    function ea(e, t) {
+    function oa(e, t) {
         if (e.byteLength < 6 || e.getUint32(0) >>> 8 !== 1) return null;
         let n = e.getUint8(3),
             i = e.getUint16(4),
@@ -8179,65 +8179,65 @@
         )
             return { header: r, payloadOffset: 6 };
         if (e.byteLength < 9) return { header: r, payloadOffset: 6 };
-        let o = e.getUint8(6),
-            s = e.getUint8(7),
-            l = e.getUint8(8),
-            c = 9 + l,
-            f = 9 + l;
+        let s = e.getUint8(6),
+            l = e.getUint8(7),
+            o = e.getUint8(8),
+            c = 9 + o,
+            f = 9 + o;
         ((r.marker_bits_2 = {
-            value: (o >> 6) & 3,
+            value: (s >> 6) & 3,
             offset: t + 6,
             length: 0.25,
         }),
             (r.scrambling_control = {
-                value: (o >> 4) & 3,
+                value: (s >> 4) & 3,
                 offset: t + 6,
                 length: 0.25,
             }),
             (r.priority = {
-                value: (o >> 3) & 1,
+                value: (s >> 3) & 1,
                 offset: t + 6,
                 length: 0.125,
             }),
             (r.data_alignment_indicator = {
-                value: (o >> 2) & 1,
+                value: (s >> 2) & 1,
                 offset: t + 6,
                 length: 0.125,
             }),
             (r.copyright = {
-                value: (o >> 1) & 1,
+                value: (s >> 1) & 1,
                 offset: t + 6,
                 length: 0.125,
             }),
             (r.original_or_copy = {
-                value: o & 1,
+                value: s & 1,
                 offset: t + 6,
                 length: 0.125,
             }));
-        let d = (s >> 6) & 3,
-            p = (s >> 5) & 1,
-            m = (s >> 4) & 1,
-            _ = (s >> 3) & 1,
-            x = (s >> 2) & 1,
-            y = (s >> 1) & 1,
-            b = s & 1;
+        let d = (l >> 6) & 3,
+            u = (l >> 5) & 1,
+            p = (l >> 4) & 1,
+            y = (l >> 3) & 1,
+            _ = (l >> 2) & 1,
+            b = (l >> 1) & 1,
+            S = l & 1;
         ((r.pts_dts_flags = { value: d, offset: t + 7, length: 0.25 }),
-            (r.escr_flag = { value: p, offset: t + 7, length: 0.125 }),
-            (r.es_rate_flag = { value: m, offset: t + 7, length: 0.125 }),
+            (r.escr_flag = { value: u, offset: t + 7, length: 0.125 }),
+            (r.es_rate_flag = { value: p, offset: t + 7, length: 0.125 }),
             (r.dsm_trick_mode_flag = {
-                value: _,
+                value: y,
                 offset: t + 7,
                 length: 0.125,
             }),
             (r.additional_copy_info_flag = {
-                value: x,
+                value: _,
                 offset: t + 7,
                 length: 0.125,
             }),
-            (r.pes_crc_flag = { value: y, offset: t + 7, length: 0.125 }),
-            (r.pes_extension_flag = { value: b, offset: t + 7, length: 0.125 }),
+            (r.pes_crc_flag = { value: b, offset: t + 7, length: 0.125 }),
+            (r.pes_extension_flag = { value: S, offset: t + 7, length: 0.125 }),
             (r.pes_header_data_length = {
-                value: l,
+                value: o,
                 offset: t + 8,
                 length: 1,
             }));
@@ -8245,7 +8245,7 @@
         if (
             (d === 2 && g + 5 <= f
                 ? ((r.pts = {
-                      value: xe(e, g).toString(),
+                      value: Ie(e, g).toString(),
                       offset: t + g,
                       length: 5,
                   }),
@@ -8253,37 +8253,37 @@
                 : d === 3 &&
                   g + 10 <= f &&
                   ((r.pts = {
-                      value: xe(e, g).toString(),
+                      value: Ie(e, g).toString(),
                       offset: t + g,
                       length: 5,
                   }),
                   (r.dts = {
-                      value: xe(e, g + 5).toString(),
+                      value: Ie(e, g + 5).toString(),
                       offset: t + g + 5,
                       length: 5,
                   }),
                   (g += 10)),
-            p &&
+            u &&
                 g + 6 <= f &&
                 ((r.ESCR = {
-                    value: Ts(e, g).toString(),
+                    value: As(e, g).toString(),
                     offset: t + g,
                     length: 6,
                 }),
                 (g += 6)),
-            m && g + 3 <= f)
+            p && g + 3 <= f)
         ) {
-            let S = e.getUint32(g - 1);
+            let x = e.getUint32(g - 1);
             ((r.ES_rate = {
-                value: (S >> 1) & 4194303,
+                value: (x >> 1) & 4194303,
                 offset: t + g,
                 length: 3,
             }),
                 (g += 3));
         }
-        if (_ && g + 1 <= f) {
-            let S = e.getUint8(g),
-                T = (S >> 5) & 7;
+        if (y && g + 1 <= f) {
+            let x = e.getUint8(g),
+                T = (x >> 5) & 7;
             switch (
                 ((r.trick_mode_control = {
                     value: T,
@@ -8295,17 +8295,17 @@
                 case 0:
                 case 3:
                     ((r.field_id = {
-                        value: (S >> 3) & 3,
+                        value: (x >> 3) & 3,
                         offset: t + g,
                         length: 0.25,
                     }),
                         (r.intra_slice_refresh = {
-                            value: (S >> 2) & 1,
+                            value: (x >> 2) & 1,
                             offset: t + g,
                             length: 0.125,
                         }),
                         (r.frequency_truncation = {
-                            value: S & 3,
+                            value: x & 3,
                             offset: t + g,
                             length: 0.25,
                         }));
@@ -8313,14 +8313,14 @@
                 case 1:
                 case 4:
                     r.rep_cntrl = {
-                        value: S & 31,
+                        value: x & 31,
                         offset: t + g,
                         length: 0.625,
                     };
                     break;
                 case 2:
                     r.field_id = {
-                        value: (S >> 3) & 3,
+                        value: (x >> 3) & 3,
                         offset: t + g,
                         length: 0.25,
                     };
@@ -8329,7 +8329,7 @@
             g += 1;
         }
         if (
-            (x &&
+            (_ &&
                 g + 1 <= f &&
                 ((r.additional_copy_info = {
                     value: e.getUint8(g) & 127,
@@ -8337,7 +8337,7 @@
                     length: 1,
                 }),
                 (g += 1)),
-            y &&
+            b &&
                 g + 2 <= f &&
                 ((r.previous_PES_packet_CRC = {
                     value: e.getUint16(g),
@@ -8345,14 +8345,14 @@
                     length: 2,
                 }),
                 (g += 2)),
-            b && g + 1 <= f)
+            S && g + 1 <= f)
         ) {
-            let S = e.getUint8(g),
-                T = (S >> 7) & 1,
-                I = (S >> 6) & 1,
-                C = (S >> 5) & 1,
-                D = (S >> 4) & 1,
-                M = S & 1;
+            let x = e.getUint8(g),
+                T = (x >> 7) & 1,
+                I = (x >> 6) & 1,
+                E = (x >> 5) & 1,
+                A = (x >> 4) & 1,
+                R = x & 1;
             if (
                 ((r.PES_private_data_flag = {
                     value: T,
@@ -8365,17 +8365,17 @@
                     length: 0.125,
                 }),
                 (r.program_packet_sequence_counter_flag = {
-                    value: C,
+                    value: E,
                     offset: t + g,
                     length: 0.125,
                 }),
                 (r.P_STD_buffer_flag = {
-                    value: D,
+                    value: A,
                     offset: t + g,
                     length: 0.125,
                 }),
                 (r.PES_extension_flag_2 = {
-                    value: M,
+                    value: R,
                     offset: t + g,
                     length: 0.125,
                 }),
@@ -8390,98 +8390,98 @@
                     (g += 16)),
                 I && g + 1 <= f)
             ) {
-                let A = e.getUint8(g);
+                let P = e.getUint8(g);
                 if (
                     ((r.pack_field_length = {
-                        value: A,
+                        value: P,
                         offset: t + g,
                         length: 1,
                     }),
                     (g += 1),
-                    g + A <= f)
+                    g + P <= f)
                 ) {
-                    let L = new DataView(e.buffer, e.byteOffset + g, A);
-                    ((r.pack_header = Zr(L, t + g)), (g += A));
+                    let M = new DataView(e.buffer, e.byteOffset + g, P);
+                    ((r.pack_header = sa(M, t + g)), (g += P));
                 }
             }
-            if (C && g + 2 <= f) {
-                let A = e.getUint8(g),
-                    L = e.getUint8(g + 1);
+            if (E && g + 2 <= f) {
+                let P = e.getUint8(g),
+                    M = e.getUint8(g + 1);
                 ((r.program_packet_sequence_counter = {
-                    value: A & 127,
+                    value: P & 127,
                     offset: t + g,
                     length: 1,
                 }),
                     (r.MPEG1_MPEG2_identifier = {
-                        value: (L >> 6) & 1,
+                        value: (M >> 6) & 1,
                         offset: t + g + 1,
                         length: 0.125,
                     }),
                     (r.original_stuff_length = {
-                        value: L & 63,
+                        value: M & 63,
                         offset: t + g + 1,
                         length: 0.75,
                     }),
                     (g += 2));
             }
-            if (D && g + 2 <= f) {
-                let A = e.getUint16(g);
+            if (A && g + 2 <= f) {
+                let P = e.getUint16(g);
                 ((r.P_STD_buffer_scale = {
-                    value: (A >> 13) & 1,
+                    value: (P >> 13) & 1,
                     offset: t + g,
                     length: 0.125,
                 }),
                     (r.P_STD_buffer_size = {
-                        value: A & 8191,
+                        value: P & 8191,
                         offset: t + g,
                         length: 1.625,
                     }),
                     (g += 2));
             }
-            if (M && g + 1 <= f) {
-                let A = e.getUint8(g) & 127;
-                if (g + 1 + A <= f) {
-                    let L = e.getUint8(g + 1),
-                        ie = (L >> 7) & 1;
+            if (R && g + 1 <= f) {
+                let P = e.getUint8(g) & 127;
+                if (g + 1 + P <= f) {
+                    let M = e.getUint8(g + 1),
+                        F = (M >> 7) & 1;
                     if (
                         ((r.PES_extension_field_length = {
-                            value: A,
+                            value: P,
                             offset: t + g,
                             length: 1,
                         }),
                         (r.stream_id_extension_flag = {
-                            value: ie,
-                            offset: t + g + 1,
-                            length: 0.125,
-                        }),
-                        ie === 0)
-                    )
-                        r.stream_id_extension = {
-                            value: L & 127,
-                            offset: t + g + 1,
-                            length: 0.875,
-                        };
-                    else {
-                        let F = L & 1;
-                        ((r.tref_extension_flag = {
                             value: F,
                             offset: t + g + 1,
                             length: 0.125,
                         }),
-                            F === 0 &&
+                        F === 0)
+                    )
+                        r.stream_id_extension = {
+                            value: M & 127,
+                            offset: t + g + 1,
+                            length: 0.875,
+                        };
+                    else {
+                        let L = M & 1;
+                        ((r.tref_extension_flag = {
+                            value: L,
+                            offset: t + g + 1,
+                            length: 0.125,
+                        }),
+                            L === 0 &&
                                 (r.TREF = {
-                                    value: xe(e, g + 2).toString(),
+                                    value: Ie(e, g + 2).toString(),
                                     offset: t + g + 2,
                                     length: 5,
                                 }));
                     }
-                    g += 1 + A;
+                    g += 1 + P;
                 }
             }
         }
         return { header: r, payloadOffset: c };
     }
-    var ta = {
+    var la = {
         PES: {
             text: 'Packetized Elementary Stream. Contains elementary stream data (e.g., video or audio frames) and timing information.',
             ref: 'Clause 2.4.3.7',
@@ -8599,18 +8599,18 @@
             ref: 'Clause 2.4.3.7',
         },
     };
-    function Is(e, t) {
+    function ks(e, t) {
         let n = e.getUint8(t),
             i = e.getUint8(t + 1),
             r = e.getUint8(t + 2),
             a = e.getUint8(t + 3),
-            o = e.getUint8(t + 4),
-            s = BigInt((n & 14) >> 1),
-            l = BigInt((i << 7) | (r >> 1)),
-            c = BigInt((a << 7) | (o >> 1));
-        return (s << 30n) | (l << 15n) | c;
+            s = e.getUint8(t + 4),
+            l = BigInt((n & 14) >> 1),
+            o = BigInt((i << 7) | (r >> 1)),
+            c = BigInt((a << 7) | (s >> 1));
+        return (l << 30n) | (o << 15n) | c;
     }
-    function ye(e, t, n) {
+    function ve(e, t, n) {
         let r = t.getUint8(0) & 1;
         return (
             (e.infinite_time_flag = { value: r, offset: n, length: 0.125 }),
@@ -8618,7 +8618,7 @@
                 ? t.byteLength < 6
                     ? 1
                     : ((e.PTS = {
-                          value: Is(t, 1).toString(),
+                          value: ks(t, 1).toString(),
                           offset: n + 1,
                           length: 5,
                       }),
@@ -8626,7 +8626,7 @@
                 : 1
         );
     }
-    function na(e, t) {
+    function fa(e, t) {
         if (e.byteLength < 1)
             return { type: 'DSM-CC', error: 'Payload too short.' };
         let n = e.getUint8(0),
@@ -8635,27 +8635,27 @@
         if (n === 1) {
             if (e.byteLength < 3) return { type: 'DSM-CC Control', ...i };
             let a = e.getUint16(1),
-                o = (a >> 15) & 1,
-                s = (a >> 14) & 1,
-                l = (a >> 13) & 1;
+                s = (a >> 15) & 1,
+                l = (a >> 14) & 1,
+                o = (a >> 13) & 1;
             if (
-                ((i.select_flag = { value: o, offset: t + 1, length: 0.125 }),
-                (i.retrieval_flag = { value: s, offset: t + 1, length: 0.125 }),
-                (i.storage_flag = { value: l, offset: t + 1, length: 0.125 }),
+                ((i.select_flag = { value: s, offset: t + 1, length: 0.125 }),
+                (i.retrieval_flag = { value: l, offset: t + 1, length: 0.125 }),
+                (i.storage_flag = { value: o, offset: t + 1, length: 0.125 }),
                 (r = 3),
-                o)
+                s)
             ) {
                 if (e.byteLength < r + 5)
                     return { type: 'DSM-CC Control', ...i };
                 let c = e.getUint16(r),
                     f = e.getUint16(r + 2),
                     d = e.getUint8(r + 4),
-                    p = c >> 1,
-                    m = ((c & 1) << 14) | (f >> 2),
-                    _ = f & 3,
-                    x = (BigInt(p) << 17n) | (BigInt(m) << 2n) | BigInt(_);
+                    u = c >> 1,
+                    p = ((c & 1) << 14) | (f >> 2),
+                    y = f & 3,
+                    _ = (BigInt(u) << 17n) | (BigInt(p) << 2n) | BigInt(y);
                 ((i.bitstream_id = {
-                    value: x.toString(),
+                    value: _.toString(),
                     offset: t + r,
                     length: 4.25,
                 }),
@@ -8666,7 +8666,7 @@
                     }),
                     (r += 5));
             }
-            if (s) {
+            if (l) {
                 if (e.byteLength < r + 2)
                     return { type: 'DSM-CC Control', ...i };
                 let c = e.getUint16(r),
@@ -8698,33 +8698,33 @@
                             length: 0.125,
                         }),
                         (r += 1),
-                        (r += ye(
+                        (r += ve(
                             i,
                             new DataView(e.buffer, e.byteOffset + r),
                             t + r
                         ))),
                     d)
                 ) {
-                    let p = e.getUint8(r);
+                    let u = e.getUint8(r);
                     ((i.speed_mode = {
-                        value: (p >> 7) & 1,
+                        value: (u >> 7) & 1,
                         offset: t + r,
                         length: 0.125,
                     }),
                         (i.direction_indicator = {
-                            value: (p >> 6) & 1,
+                            value: (u >> 6) & 1,
                             offset: t + r,
                             length: 0.125,
                         }),
                         (r += 1),
-                        (r += ye(
+                        (r += ve(
                             i,
                             new DataView(e.buffer, e.byteOffset + r),
                             t + r
                         )));
                 }
             }
-            if (l) {
+            if (o) {
                 if (e.byteLength < r + 2)
                     return { type: 'DSM-CC Control', ...i };
                 let c = e.getUint8(r),
@@ -8737,7 +8737,7 @@
                     }),
                     (r += 1),
                     f &&
-                        (r += ye(
+                        (r += ve(
                             i,
                             new DataView(e.buffer, e.byteOffset + r),
                             t + r
@@ -8747,33 +8747,33 @@
         } else if (n === 2) {
             if (e.byteLength < 3) return { type: 'DSM-CC Ack', ...i };
             let a = e.getUint16(1),
-                o = (a >> 14) & 1,
-                s = (a >> 13) & 1,
-                l = (a >> 0) & 1;
+                s = (a >> 14) & 1,
+                l = (a >> 13) & 1,
+                o = (a >> 0) & 1;
             return (
                 (i.select_ack = {
                     value: (a >> 15) & 1,
                     offset: t + 1,
                     length: 0.125,
                 }),
-                (i.retrieval_ack = { value: o, offset: t + 1, length: 0.125 }),
-                (i.storage_ack = { value: s, offset: t + 1, length: 0.125 }),
+                (i.retrieval_ack = { value: s, offset: t + 1, length: 0.125 }),
+                (i.storage_ack = { value: l, offset: t + 1, length: 0.125 }),
                 (i.error_ack = {
                     value: (a >> 12) & 1,
                     offset: t + 1,
                     length: 0.125,
                 }),
-                (i.cmd_status = { value: l, offset: t + 2, length: 0.125 }),
+                (i.cmd_status = { value: o, offset: t + 2, length: 0.125 }),
                 (r = 3),
-                l === 1 &&
-                    (o || s) &&
-                    ye(i, new DataView(e.buffer, e.byteOffset + r), t + r),
+                o === 1 &&
+                    (s || l) &&
+                    ve(i, new DataView(e.buffer, e.byteOffset + r), t + r),
                 { type: 'DSM-CC Ack', ...i }
             );
         }
         return { type: 'DSM-CC Unknown', ...i };
     }
-    var ia = {
+    var ca = {
         'DSM-CC Section/Packet': {
             text: 'Digital Storage Media Command and Control. A protocol for controlling playback of stored or broadcast media, used in interactive TV and other applications.',
             ref: 'Annex B & ISO/IEC 13818-6',
@@ -8884,8 +8884,8 @@
         },
     };
     var z = 188,
-        ra = 71,
-        vs = {
+        da = 71,
+        Us = {
             2: 'MPEG-2 Video',
             5: 'Private Section Data',
             8: 'DSM-CC Data',
@@ -8899,7 +8899,7 @@
             135: 'E-AC-3 Audio',
             6: 'Private Data (in PES)',
         };
-    function aa(e) {
+    function pa(e) {
         let t = [],
             n = {
                 totalPackets: 0,
@@ -8916,30 +8916,30 @@
             },
             i = new DataView(e);
         for (let a = 0; a + z <= e.byteLength; a += z) {
-            if (i.getUint8(a) !== ra) continue;
-            let o = we(new DataView(e, a, 4), a);
-            if (o.pid.value === 0 && o.payload_unit_start_indicator.value) {
-                let s =
-                        o.adaptation_field_control.value & 2
+            if (i.getUint8(a) !== da) continue;
+            let s = Oe(new DataView(e, a, 4), a);
+            if (s.pid.value === 0 && s.payload_unit_start_indicator.value) {
+                let l =
+                        s.adaptation_field_control.value & 2
                             ? i.getUint8(a + 4) + 1
                             : 0,
-                    l = a + 4 + s;
-                if (l >= a + z) continue;
-                let c = i.getUint8(l),
-                    f = l + 1 + c;
+                    o = a + 4 + l;
+                if (o >= a + z) continue;
+                let c = i.getUint8(o),
+                    f = o + 1 + c;
                 if (f >= a + z) continue;
                 let d = new DataView(e, f, a + z - f),
-                    { header: p } = Y(d);
-                if (p.table_id === '0x00' && !p.error) {
-                    let m = new DataView(e, f + 8),
-                        _ = f + 8;
-                    Ne(m, _).programs.forEach((y) => {
-                        if (y.type === 'program') {
-                            let b = y.program_map_PID.value;
-                            (n.pmtPids.add(b),
-                                n.programMap[b] ||
-                                    (n.programMap[b] = {
-                                        programNumber: y.program_number.value,
+                    { header: u } = Q(d);
+                if (u.table_id === '0x00' && !u.error) {
+                    let p = new DataView(e, f + 8),
+                        y = f + 8;
+                    $e(p, y).programs.forEach((b) => {
+                        if (b.type === 'program') {
+                            let S = b.program_map_PID.value;
+                            (n.pmtPids.add(S),
+                                n.programMap[S] ||
+                                    (n.programMap[S] = {
+                                        programNumber: b.program_number.value,
                                         streams: {},
                                     }));
                         }
@@ -8948,33 +8948,33 @@
             }
         }
         for (let a = 0; a + z <= e.byteLength; a += z) {
-            if (i.getUint8(a) !== ra) continue;
+            if (i.getUint8(a) !== da) continue;
             n.totalPackets++;
-            let o = new DataView(e, a, z),
-                s = we(o, a),
-                l = s.pid.value,
+            let s = new DataView(e, a, z),
+                l = Oe(s, a),
+                o = l.pid.value,
                 c = {
                     offset: a,
-                    pid: l,
-                    header: s,
+                    pid: o,
+                    header: l,
                     adaptationField: null,
                     payloadType: 'Data',
                     pes: null,
                     psi: null,
                     fieldOffsets: { header: { offset: a, length: 4 } },
                 };
-            l !== 8191 &&
-                (n.continuityCounters[l] || (n.continuityCounters[l] = []),
-                n.continuityCounters[l].push({
-                    cc: s.continuity_counter.value,
+            o !== 8191 &&
+                (n.continuityCounters[o] || (n.continuityCounters[o] = []),
+                n.continuityCounters[o].push({
+                    cc: l.continuity_counter.value,
                     offset: a,
-                    hasPayload: (s.adaptation_field_control.value & 1) !== 0,
+                    hasPayload: (l.adaptation_field_control.value & 1) !== 0,
                 }));
             let f = 4;
-            if (s.adaptation_field_control.value & 2) {
+            if (l.adaptation_field_control.value & 2) {
                 let d = i.getUint8(a + f),
-                    p = new DataView(e, a + f, d + 1);
-                ((c.adaptationField = Mi(p, a + f)),
+                    u = new DataView(e, a + f, d + 1);
+                ((c.adaptationField = zi(u, a + f)),
                     (c.fieldOffsets.adaptationField = {
                         offset: a + f,
                         length: d + 1,
@@ -8986,128 +8986,128 @@
                         }),
                     (f += d + 1));
             }
-            if (s.adaptation_field_control.value & 1 && f < z) {
+            if (l.adaptation_field_control.value & 1 && f < z) {
                 let d = f;
-                if (s.payload_unit_start_indicator.value) {
-                    let m = i.getUint8(a + f);
+                if (l.payload_unit_start_indicator.value) {
+                    let p = i.getUint8(a + f);
                     ((c.fieldOffsets.pointerField = {
                         offset: a + f,
-                        length: m + 1,
+                        length: p + 1,
                     }),
-                        (d += m + 1));
+                        (d += p + 1));
                 }
                 if (d >= z) {
                     t.push(c);
                     continue;
                 }
-                let p = new DataView(e, a + d, z - d);
-                if (l === 0 && s.payload_unit_start_indicator.value) {
-                    let { header: m, payload: _, isValid: x, crc: y } = Y(p),
-                        b = Ne(_, a + d + (m.section_syntax_indicator ? 8 : 3));
-                    ((b.isValid = x),
-                        (b.header = m),
-                        (b.crc = y),
-                        (c.psi = b),
+                let u = new DataView(e, a + d, z - d);
+                if (o === 0 && l.payload_unit_start_indicator.value) {
+                    let { header: p, payload: y, isValid: _, crc: b } = Q(u),
+                        S = $e(y, a + d + (p.section_syntax_indicator ? 8 : 3));
+                    ((S.isValid = _),
+                        (S.header = p),
+                        (S.crc = b),
+                        (c.psi = S),
                         (c.payloadType = 'PSI (PAT)'));
-                } else if (l === 1 && s.payload_unit_start_indicator.value) {
-                    let { header: m, payload: _, isValid: x, crc: y } = Y(p),
-                        b = Gr(_, a + d + (m.section_syntax_indicator ? 8 : 3));
-                    ((b.isValid = x),
-                        (b.header = m),
-                        (b.crc = y),
-                        (c.psi = b),
+                } else if (o === 1 && l.payload_unit_start_indicator.value) {
+                    let { header: p, payload: y, isValid: _, crc: b } = Q(u),
+                        S = Jr(y, a + d + (p.section_syntax_indicator ? 8 : 3));
+                    ((S.isValid = _),
+                        (S.header = p),
+                        (S.crc = b),
+                        (c.psi = S),
                         (c.payloadType = 'PSI (CAT)'));
-                } else if (l === 2 && s.payload_unit_start_indicator.value) {
-                    let { header: m, payload: _, isValid: x, crc: y } = Y(p),
-                        b = Wr(_, a + d + (m.section_syntax_indicator ? 8 : 3));
-                    ((b.isValid = x),
-                        (b.header = m),
-                        (b.crc = y),
-                        (c.psi = b),
+                } else if (o === 2 && l.payload_unit_start_indicator.value) {
+                    let { header: p, payload: y, isValid: _, crc: b } = Q(u),
+                        S = ea(y, a + d + (p.section_syntax_indicator ? 8 : 3));
+                    ((S.isValid = _),
+                        (S.header = p),
+                        (S.crc = b),
+                        (c.psi = S),
                         (c.payloadType = 'PSI (TSDT)'),
-                        (n.tsdt = b));
-                } else if (l === 3 && s.payload_unit_start_indicator.value) {
-                    let { header: m, payload: _, isValid: x, crc: y } = Y(p),
-                        b = Qr(_, a + d + (m.section_syntax_indicator ? 8 : 3));
-                    ((b.isValid = x),
-                        (b.header = m),
-                        (b.crc = y),
-                        (c.psi = b),
+                        (n.tsdt = S));
+                } else if (o === 3 && l.payload_unit_start_indicator.value) {
+                    let { header: p, payload: y, isValid: _, crc: b } = Q(u),
+                        S = ra(y, a + d + (p.section_syntax_indicator ? 8 : 3));
+                    ((S.isValid = _),
+                        (S.header = p),
+                        (S.crc = b),
+                        (c.psi = S),
                         (c.payloadType = 'PSI (IPMP-CIT)'),
-                        (n.ipmp = b));
+                        (n.ipmp = S));
                 } else if (
-                    (n.pmtPids.has(l) || n.privateSectionPids.has(l)) &&
-                    s.payload_unit_start_indicator.value
+                    (n.pmtPids.has(o) || n.privateSectionPids.has(o)) &&
+                    l.payload_unit_start_indicator.value
                 ) {
-                    let { header: m, payload: _, isValid: x, crc: y } = Y(p),
-                        b = parseInt(m.table_id, 16);
-                    if (b === 2) {
-                        let g = Hr(
-                            _,
-                            a + d + (m.section_syntax_indicator ? 8 : 3)
+                    let { header: p, payload: y, isValid: _, crc: b } = Q(u),
+                        S = parseInt(p.table_id, 16);
+                    if (S === 2) {
+                        let g = Yr(
+                            y,
+                            a + d + (p.section_syntax_indicator ? 8 : 3)
                         );
-                        ((g.programNumber = m.table_id_extension),
-                            (g.isValid = x),
-                            (g.header = m),
-                            (g.crc = y),
+                        ((g.programNumber = p.table_id_extension),
+                            (g.isValid = _),
+                            (g.header = p),
+                            (g.crc = b),
                             (c.psi = g),
                             (c.payloadType = 'PSI (PMT)'),
-                            n.programMap[l] &&
-                                ((n.programMap[l].programNumber =
+                            n.programMap[o] &&
+                                ((n.programMap[o].programNumber =
                                     g.programNumber),
                                 (n.pcrPid = g.pcr_pid.value),
-                                g.streams.forEach((S) => {
-                                    let T = parseInt(S.stream_type.value, 16),
+                                g.streams.forEach((x) => {
+                                    let T = parseInt(x.stream_type.value, 16),
                                         I =
-                                            vs[T] ||
-                                            `Unknown (${S.stream_type.value})`;
-                                    ((n.programMap[l].streams[
-                                        S.elementary_PID.value
+                                            Us[T] ||
+                                            `Unknown (${x.stream_type.value})`;
+                                    ((n.programMap[o].streams[
+                                        x.elementary_PID.value
                                     ] = I),
                                         T === 5 &&
                                             n.privateSectionPids.add(
-                                                S.elementary_PID.value
+                                                x.elementary_PID.value
                                             ),
                                         T === 8 &&
                                             n.dsmccPids.add(
-                                                S.elementary_PID.value
+                                                x.elementary_PID.value
                                             ));
                                 })));
-                    } else if (b >= 64 && b <= 254) {
-                        let g = qr(
-                            _,
+                    } else if (S >= 64 && S <= 254) {
+                        let g = na(
+                            y,
                             a + d + 3,
-                            m.section_syntax_indicator,
-                            m.section_length
+                            p.section_syntax_indicator,
+                            p.section_length
                         );
-                        ((g.isValid = x),
-                            (g.header = m),
-                            (g.crc = y),
+                        ((g.isValid = _),
+                            (g.header = p),
+                            (g.crc = b),
                             (c.psi = g),
                             (c.payloadType = 'PSI (Private Section)'));
                     }
                 } else if (
-                    s.payload_unit_start_indicator.value &&
-                    p.byteLength >= 6 &&
-                    p.getUint32(0) >>> 8 === 1
+                    l.payload_unit_start_indicator.value &&
+                    u.byteLength >= 6 &&
+                    u.getUint32(0) >>> 8 === 1
                 ) {
                     c.payloadType = 'PES';
-                    let m = ea(p, a + f);
-                    if (m) {
-                        c.pes = m.header;
-                        let _ = m.payloadOffset;
+                    let p = oa(u, a + f);
+                    if (p) {
+                        c.pes = p.header;
+                        let y = p.payloadOffset;
                         if (
                             ((c.fieldOffsets.pesHeader = {
                                 offset: a + f,
-                                length: _,
+                                length: y,
                             }),
                             parseInt(c.pes.stream_id.value, 16) === 242)
                         ) {
                             c.payloadType = 'PES (DSM-CC)';
-                            let y = f + _;
-                            if (a + y < a + z) {
-                                let b = new DataView(e, a + y, a + z - (a + y));
-                                c.pes.payload = na(b, a + y);
+                            let b = f + y;
+                            if (a + b < a + z) {
+                                let S = new DataView(e, a + b, a + z - (a + b));
+                                c.pes.payload = fa(S, a + b);
                             }
                         }
                     }
@@ -9118,8 +9118,8 @@
         let r = {};
         return (
             Object.values(n.programMap).forEach((a) => {
-                Object.entries(a.streams).forEach(([o, s]) => {
-                    r[o] = s;
+                Object.entries(a.streams).forEach(([s, l]) => {
+                    r[s] = l;
                 });
             }),
             t.forEach((a) => {
@@ -9130,7 +9130,7 @@
             { format: 'ts', data: { summary: n, packets: t } }
         );
     }
-    var sa = {
+    var ua = {
         Timeline_descriptor: {
             text: 'Carries timing information to synchronize external data with the media timeline.',
             ref: 'ISO/IEC 13818-1, Annex U.3.6',
@@ -9188,7 +9188,7 @@
             ref: 'Table U.8',
         },
     };
-    var Cs = {
+    var Ms = {
             content_labeling_descriptor: {
                 text: 'Assigns a label to content, which can be used by metadata to reference the associated content.',
                 ref: 'Clause 2.6.56',
@@ -9206,7 +9206,7 @@
                 ref: 'Clause 2.6.62',
             },
         },
-        Es = {
+        Rs = {
             HEVC_video_descriptor: {
                 text: 'Provides basic information for identifying coding parameters of an HEVC (H.265) video stream.',
                 ref: 'Clause 2.6.95',
@@ -9280,10 +9280,10 @@
                 ref: 'Clause 2.6.125',
             },
         },
-        Ps = {
-            ...Cs,
-            ...sa,
-            ...Es,
+        Ls = {
+            ...Ms,
+            ...ua,
+            ...Rs,
             CA_descriptor: {
                 text: 'Conditional Access Descriptor. Provides information about the CA system used for scrambling.',
                 ref: 'Clause 2.6.16',
@@ -9717,21 +9717,21 @@
                 ref: 'Clause 2.6.82',
             },
         },
-        Ds = {
-            ...Ri,
-            ...jr,
-            ...Ps,
+        ws = {
+            ...Oi,
+            ...Zr,
+            ...Ls,
+            ...ca,
+            ...aa,
+            ...$i,
+            ...Qr,
+            ...la,
             ...ia,
-            ...Jr,
-            ...Li,
-            ...Xr,
             ...ta,
-            ...Yr,
-            ...Kr,
         };
-    function oa(e) {
+    function ma(e) {
         try {
-            return aa(e);
+            return pa(e);
         } catch (t) {
             return (
                 console.error('Error parsing TS segment:', t),
@@ -9743,7 +9743,7 @@
             );
         }
     }
-    Be();
+    Fe();
     var w = (e) => {
         if (!e) return null;
         let t = e.match(
@@ -9755,54 +9755,137 @@
             r = parseFloat(t[3] || '0');
         return n * 3600 + i * 60 + r;
     };
-    G();
-    var fa = (e) =>
+    j();
+    var ha = (e) =>
             !e || isNaN(e)
                 ? 'N/A'
                 : e >= 1e6
                   ? `${(e / 1e6).toFixed(2)} Mbps`
                   : `${(e / 1e3).toFixed(0)} kbps`,
-        Us = (e) => {
+        Vs = (e) => {
             if (!e) return 'unknown';
-            if (E(e, 'SegmentList').length > 0) return 'SegmentList';
-            let t = E(e, 'SegmentTemplate')[0];
+            if (C(e, 'SegmentList').length > 0) return 'SegmentList';
+            let t = C(e, 'SegmentTemplate')[0];
             return t
-                ? E(t, 'SegmentTimeline').length > 0
+                ? C(t, 'SegmentTimeline').length > 0
                     ? 'SegmentTemplate with SegmentTimeline'
                     : t[':@']?.media?.includes('$Number$')
                       ? 'SegmentTemplate with $Number$'
                       : t[':@']?.media?.includes('$Time$')
                         ? 'SegmentTemplate with $Time$'
                         : 'SegmentTemplate'
-                : E(e, 'SegmentBase').length > 0
+                : C(e, 'SegmentBase').length > 0
                   ? 'SegmentBase'
-                  : 'BaseURL / Single Segment';
+                  : C(e, 'BaseURL').length > 0
+                    ? 'BaseURL / Single Segment'
+                    : 'Unknown';
         };
-    function ca(e, t) {
-        let n = [],
-            i = [],
-            r = [],
-            a = new Set(),
-            o = new Set();
-        for (let f of e.periods)
-            for (let d of f.adaptationSets) {
-                switch (d.contentType) {
-                    case 'video':
-                        n.push(d);
-                        break;
-                    case 'audio':
-                        i.push(d);
-                        break;
-                    case 'text':
-                    case 'application':
-                        r.push(d);
-                        break;
+    function _a(e, t) {
+        let n = new Set(),
+            i = new Set(),
+            r = e.periods.map((d) => {
+                let u = [],
+                    p = [],
+                    y = [];
+                for (let b of d.adaptationSets) {
+                    for (let S of b.contentProtection)
+                        (n.add(S.system), S.defaultKid && i.add(S.defaultKid));
+                    switch (b.contentType) {
+                        case 'video':
+                            u.push(b);
+                            break;
+                        case 'audio':
+                            p.push(b);
+                            break;
+                        case 'text':
+                        case 'application':
+                            y.push(b);
+                            break;
+                    }
                 }
-                for (let p of d.contentProtection)
-                    (a.add(p.system), p.defaultKid && o.add(p.defaultKid));
-            }
-        let s = E(t, 'ServiceDescription')[0],
-            l = s ? E(s, 'Latency')[0] : null;
+                return {
+                    id: d.id,
+                    start: d.start,
+                    duration: d.duration,
+                    videoTracks: u,
+                    audioTracks: p,
+                    textTracks: y,
+                };
+            }),
+            a = C(t, 'ServiceDescription')[0],
+            s = a ? C(a, 'Latency')[0] : null,
+            l = r
+                .flatMap((d) => d.videoTracks)
+                .map((d) => {
+                    let u = d.representations
+                        .map((p) => p.bandwidth)
+                        .filter(Boolean);
+                    return {
+                        id: d.id || 'N/A',
+                        profiles: d.profiles,
+                        bitrateRange:
+                            u.length > 0
+                                ? `${ha(Math.min(...u))} - ${ha(Math.max(...u))}`
+                                : 'N/A',
+                        resolutions: [
+                            ...new Set(
+                                d.representations.map(
+                                    (p) => `${p.width}x${p.height}`
+                                )
+                            ),
+                        ],
+                        codecs: [
+                            ...new Set(
+                                d.representations
+                                    .map((p) => p.codecs)
+                                    .filter(Boolean)
+                            ),
+                        ],
+                        scanType: d.representations[0]?.scanType || null,
+                        videoRange: null,
+                        roles: d.roles.map((p) => p.value).filter(Boolean),
+                    };
+                }),
+            o = r
+                .flatMap((d) => d.audioTracks)
+                .map((d) => ({
+                    id: d.id || 'N/A',
+                    lang: d.lang,
+                    codecs: [
+                        ...new Set(
+                            d.representations
+                                .map((u) => u.codecs)
+                                .filter(Boolean)
+                        ),
+                    ],
+                    channels: [
+                        ...new Set(
+                            d.representations
+                                .flatMap((u) => u.audioChannelConfigurations)
+                                .map((u) => u.value)
+                                .filter(Boolean)
+                        ),
+                    ],
+                    isDefault: d.roles.some((u) => u.value === 'main'),
+                    isForced: !1,
+                    roles: d.roles.map((u) => u.value).filter(Boolean),
+                })),
+            c = r
+                .flatMap((d) => d.textTracks)
+                .map((d) => ({
+                    id: d.id || 'N/A',
+                    lang: d.lang,
+                    codecsOrMimeTypes: [
+                        ...new Set(
+                            d.representations
+                                .map((u) => u.codecs || u.mimeType)
+                                .filter(Boolean)
+                        ),
+                    ],
+                    isDefault: d.roles.some((u) => u.value === 'main'),
+                    isForced: d.roles.some((u) => u.value === 'forced'),
+                    roles: d.roles.map((u) => u.value).filter(Boolean),
+                }));
         return {
             general: {
                 protocol: 'DASH',
@@ -9814,7 +9897,7 @@
                 segmentFormat: e.segmentFormat,
                 title: e.programInformations[0]?.title || null,
                 locations: e.locations,
-                segmenting: Us(t),
+                segmenting: Vs(t),
             },
             dash: {
                 profiles: e.profiles,
@@ -9826,296 +9909,236 @@
             },
             hls: null,
             lowLatency: {
-                isLowLatency: !!l,
-                targetLatency: l ? parseInt(l[':@']?.target, 10) : null,
-                minLatency: l ? parseInt(l[':@']?.min, 10) : null,
-                maxLatency: l ? parseInt(l[':@']?.max, 10) : null,
+                isLowLatency: !!s,
+                targetLatency: s ? parseInt(s[':@']?.target, 10) : null,
+                minLatency: s ? parseInt(s[':@']?.min, 10) : null,
+                maxLatency: s ? parseInt(s[':@']?.max, 10) : null,
                 partTargetDuration: null,
                 partHoldBack: null,
                 canBlockReload: !1,
             },
             content: {
-                periods: e.periods.length,
-                videoTracks: n.length,
-                audioTracks: i.length,
-                textTracks: r.length,
+                totalPeriods: e.periods.length,
+                totalVideoTracks: l.length,
+                totalAudioTracks: o.length,
+                totalTextTracks: c.length,
                 mediaPlaylists: 0,
+                periods: r,
             },
-            videoTracks: n.map((f) => {
-                let d = f.representations
-                    .map((p) => p.bandwidth)
-                    .filter(Boolean);
-                return {
-                    id: f.id || 'N/A',
-                    profiles: f.profiles,
-                    bitrateRange:
-                        d.length > 0
-                            ? `${fa(Math.min(...d))} - ${fa(Math.max(...d))}`
-                            : 'N/A',
-                    resolutions: [
-                        ...new Set(
-                            f.representations.map(
-                                (p) => `${p.width}x${p.height}`
-                            )
-                        ),
-                    ],
-                    codecs: [
-                        ...new Set(
-                            f.representations
-                                .map((p) => p.codecs)
-                                .filter(Boolean)
-                        ),
-                    ],
-                    scanType: f.representations[0]?.scanType || null,
-                    videoRange: null,
-                    roles: f.roles.map((p) => p.value).filter(Boolean),
-                };
-            }),
-            audioTracks: i.map((f) => ({
-                id: f.id || 'N/A',
-                lang: f.lang,
-                codecs: [
-                    ...new Set(
-                        f.representations.map((d) => d.codecs).filter(Boolean)
-                    ),
-                ],
-                channels: [
-                    ...new Set(
-                        f.representations
-                            .flatMap((d) => d.audioChannelConfigurations)
-                            .map((d) => d.value)
-                            .filter(Boolean)
-                    ),
-                ],
-                isDefault: !1,
-                isForced: !1,
-                roles: f.roles.map((d) => d.value).filter(Boolean),
-            })),
-            textTracks: r.map((f) => ({
-                id: f.id || 'N/A',
-                lang: f.lang,
-                codecsOrMimeTypes: [
-                    ...new Set(
-                        f.representations
-                            .map((d) => d.codecs || d.mimeType)
-                            .filter(Boolean)
-                    ),
-                ],
-                isDefault: !1,
-                isForced: !1,
-                roles: f.roles.map((d) => d.value).filter(Boolean),
-            })),
+            videoTracks: l,
+            audioTracks: o,
+            textTracks: c,
             security: {
-                isEncrypted: a.size > 0,
-                systems: Array.from(a),
-                kids: Array.from(o),
+                isEncrypted: n.size > 0,
+                systems: Array.from(n),
+                kids: Array.from(i),
             },
         };
     }
-    G();
-    var j = (e) => e?.['#text'] || null;
-    function Ve(e) {
+    j();
+    var W = (e) => e?.['#text'] || null;
+    function Xe(e) {
         if (e === null || typeof e != 'object') return e;
         if (e instanceof Date) return new Date(e.getTime());
-        if (Array.isArray(e)) return e.map((t) => Ve(t));
+        if (Array.isArray(e)) return e.map((t) => Xe(t));
         if (e instanceof Object) {
             let t = {};
             for (let n in e)
-                Object.prototype.hasOwnProperty.call(e, n) && (t[n] = Ve(e[n]));
+                Object.prototype.hasOwnProperty.call(e, n) && (t[n] = Xe(e[n]));
             return t;
         }
         throw new Error("Unable to copy obj! Its type isn't supported.");
     }
-    var H = (e) => ({
-        schemeIdUri: u(e, 'schemeIdUri'),
-        value: u(e, 'value'),
-        id: u(e, 'id'),
+    var X = (e) => ({
+        schemeIdUri: m(e, 'schemeIdUri'),
+        value: m(e, 'value'),
+        id: m(e, 'id'),
     });
-    function Ms(e, t) {
-        let n = re(t, e);
+    function zs(e, t) {
+        let n = se(t, e);
         return {
-            level: u(e, 'level') ? parseInt(u(e, 'level'), 10) : null,
-            dependencyLevel: u(e, 'dependencyLevel'),
-            bandwidth: u(e, 'bandwidth')
-                ? parseInt(u(e, 'bandwidth'), 10)
+            level: m(e, 'level') ? parseInt(m(e, 'level'), 10) : null,
+            dependencyLevel: m(e, 'dependencyLevel'),
+            bandwidth: m(e, 'bandwidth')
+                ? parseInt(m(e, 'bandwidth'), 10)
                 : null,
-            contentComponent: u(e, 'contentComponent')?.split(' '),
-            codecs: u(n, 'codecs'),
-            mimeType: u(n, 'mimeType'),
-            profiles: u(n, 'profiles'),
-            width: u(n, 'width') ? parseInt(u(n, 'width'), 10) : null,
-            height: u(n, 'height') ? parseInt(u(n, 'height'), 10) : null,
+            contentComponent: m(e, 'contentComponent')?.split(' '),
+            codecs: m(n, 'codecs'),
+            mimeType: m(n, 'mimeType'),
+            profiles: m(n, 'profiles'),
+            width: m(n, 'width') ? parseInt(m(n, 'width'), 10) : null,
+            height: m(n, 'height') ? parseInt(m(n, 'height'), 10) : null,
             serializedManifest: e,
         };
     }
-    function Rs(e, t) {
-        let n = re(t, e);
+    function Os(e, t) {
+        let n = se(t, e);
         return {
-            id: u(e, 'id'),
-            bandwidth: parseInt(u(e, 'bandwidth'), 10),
-            qualityRanking: u(e, 'qualityRanking')
-                ? parseInt(u(e, 'qualityRanking'), 10)
+            id: m(e, 'id'),
+            bandwidth: parseInt(m(e, 'bandwidth'), 10),
+            qualityRanking: m(e, 'qualityRanking')
+                ? parseInt(m(e, 'qualityRanking'), 10)
                 : null,
-            dependencyId: u(e, 'dependencyId'),
-            associationId: u(e, 'associationId'),
-            associationType: u(e, 'associationType'),
-            codecs: u(n, 'codecs'),
-            mimeType: u(n, 'mimeType'),
-            profiles: u(n, 'profiles'),
-            width: u(n, 'width') ? parseInt(u(n, 'width'), 10) : null,
-            height: u(n, 'height') ? parseInt(u(n, 'height'), 10) : null,
-            frameRate: u(n, 'frameRate'),
-            sar: u(n, 'sar'),
-            scanType: u(n, 'scanType'),
-            segmentProfiles: u(n, 'segmentProfiles'),
-            mediaStreamStructureId: u(n, 'mediaStreamStructureId'),
-            maximumSAPPeriod: u(n, 'maximumSAPPeriod')
-                ? parseFloat(u(n, 'maximumSAPPeriod'))
+            dependencyId: m(e, 'dependencyId'),
+            associationId: m(e, 'associationId'),
+            associationType: m(e, 'associationType'),
+            codecs: m(n, 'codecs'),
+            mimeType: m(n, 'mimeType'),
+            profiles: m(n, 'profiles'),
+            width: m(n, 'width') ? parseInt(m(n, 'width'), 10) : null,
+            height: m(n, 'height') ? parseInt(m(n, 'height'), 10) : null,
+            frameRate: m(n, 'frameRate'),
+            sar: m(n, 'sar'),
+            scanType: m(n, 'scanType'),
+            segmentProfiles: m(n, 'segmentProfiles'),
+            mediaStreamStructureId: m(n, 'mediaStreamStructureId'),
+            maximumSAPPeriod: m(n, 'maximumSAPPeriod')
+                ? parseFloat(m(n, 'maximumSAPPeriod'))
                 : null,
-            startWithSAP: u(n, 'startWithSAP')
-                ? parseInt(u(n, 'startWithSAP'), 10)
+            startWithSAP: m(n, 'startWithSAP')
+                ? parseInt(m(n, 'startWithSAP'), 10)
                 : null,
-            maxPlayoutRate: u(n, 'maxPlayoutRate')
-                ? parseFloat(u(n, 'maxPlayoutRate'))
+            maxPlayoutRate: m(n, 'maxPlayoutRate')
+                ? parseFloat(m(n, 'maxPlayoutRate'))
                 : null,
             codingDependency:
-                u(n, 'codingDependency') === 'true'
+                m(n, 'codingDependency') === 'true'
                     ? !0
-                    : u(n, 'codingDependency') === 'false'
+                    : m(n, 'codingDependency') === 'false'
                       ? !1
                       : null,
-            selectionPriority: u(n, 'selectionPriority')
-                ? parseInt(u(n, 'selectionPriority'), 10)
+            selectionPriority: m(n, 'selectionPriority')
+                ? parseInt(m(n, 'selectionPriority'), 10)
                 : 0,
-            tag: u(n, 'tag'),
+            tag: m(n, 'tag'),
             eptDelta: null,
             pdDelta: null,
             representationIndex: null,
             failoverContent: null,
             audioChannelConfigurations: v(n, 'AudioChannelConfiguration').map(
                 (r) => ({
-                    schemeIdUri: u(r, 'schemeIdUri'),
-                    value: u(r, 'value'),
+                    schemeIdUri: m(r, 'schemeIdUri'),
+                    value: m(r, 'value'),
                 })
             ),
-            framePackings: v(n, 'FramePacking').map(H),
-            ratings: v(n, 'Rating').map(H),
-            viewpoints: v(n, 'Viewpoint').map(H),
-            accessibility: v(n, 'Accessibility').map(H),
+            framePackings: v(n, 'FramePacking').map(X),
+            ratings: v(n, 'Rating').map(X),
+            viewpoints: v(n, 'Viewpoint').map(X),
+            accessibility: v(n, 'Accessibility').map(X),
             labels: v(n, 'Label').map((r) => ({
-                id: u(r, 'id'),
-                lang: u(r, 'lang'),
-                text: j(r),
+                id: m(r, 'id'),
+                lang: m(r, 'lang'),
+                text: W(r),
             })),
             groupLabels: v(n, 'GroupLabel').map((r) => ({
-                id: u(r, 'id'),
-                lang: u(r, 'lang'),
-                text: j(r),
+                id: m(r, 'id'),
+                lang: m(r, 'lang'),
+                text: W(r),
             })),
-            subRepresentations: v(e, 'SubRepresentation').map((r) => Ms(r, n)),
+            subRepresentations: v(e, 'SubRepresentation').map((r) => zs(r, n)),
             videoRange: void 0,
             serializedManifest: e,
         };
     }
-    function Ls(e, t) {
-        let n = re(t, e);
+    function $s(e, t) {
+        let n = se(t, e);
         return {
-            id: u(e, 'id'),
-            group: u(e, 'group') ? parseInt(u(e, 'group'), 10) : null,
-            lang: u(e, 'lang'),
-            contentType: u(e, 'contentType') || u(e, 'mimeType')?.split('/')[0],
+            id: m(e, 'id'),
+            group: m(e, 'group') ? parseInt(m(e, 'group'), 10) : null,
+            lang: m(e, 'lang'),
+            contentType: m(e, 'contentType') || m(e, 'mimeType')?.split('/')[0],
             bitstreamSwitching:
-                u(e, 'bitstreamSwitching') === 'true' ? !0 : null,
-            maxWidth: u(e, 'maxWidth') ? parseInt(u(e, 'maxWidth'), 10) : null,
-            maxHeight: u(e, 'maxHeight')
-                ? parseInt(u(e, 'maxHeight'), 10)
+                m(e, 'bitstreamSwitching') === 'true' ? !0 : null,
+            maxWidth: m(e, 'maxWidth') ? parseInt(m(e, 'maxWidth'), 10) : null,
+            maxHeight: m(e, 'maxHeight')
+                ? parseInt(m(e, 'maxHeight'), 10)
                 : null,
-            maxFrameRate: u(e, 'maxFrameRate'),
-            mimeType: u(n, 'mimeType'),
-            profiles: u(n, 'profiles'),
-            representations: v(e, 'Representation').map((r) => Rs(r, n)),
+            maxFrameRate: m(e, 'maxFrameRate'),
+            mimeType: m(n, 'mimeType'),
+            profiles: m(n, 'profiles'),
+            representations: v(e, 'Representation').map((r) => Os(r, n)),
             contentProtection: v(n, 'ContentProtection').map((r) => ({
-                schemeIdUri: u(r, 'schemeIdUri'),
-                system: Se(u(r, 'schemeIdUri')),
-                defaultKid: u(r, 'cenc:default_KID'),
+                schemeIdUri: m(r, 'schemeIdUri'),
+                system: Ce(m(r, 'schemeIdUri')),
+                defaultKid: m(r, 'cenc:default_KID'),
             })),
-            framePackings: v(n, 'FramePacking').map(H),
-            ratings: v(n, 'Rating').map(H),
-            viewpoints: v(n, 'Viewpoint').map(H),
-            accessibility: v(n, 'Accessibility').map(H),
+            framePackings: v(n, 'FramePacking').map(X),
+            ratings: v(n, 'Rating').map(X),
+            viewpoints: v(n, 'Viewpoint').map(X),
+            accessibility: v(n, 'Accessibility').map(X),
             labels: v(n, 'Label').map((r) => ({
-                id: u(r, 'id'),
-                lang: u(r, 'lang'),
-                text: j(r),
+                id: m(r, 'id'),
+                lang: m(r, 'lang'),
+                text: W(r),
             })),
             groupLabels: v(n, 'GroupLabel').map((r) => ({
-                id: u(r, 'id'),
-                lang: u(r, 'lang'),
-                text: j(r),
+                id: m(r, 'id'),
+                lang: m(r, 'lang'),
+                text: W(r),
             })),
-            roles: v(n, 'Role').map(H),
+            roles: v(n, 'Role').map(X),
             serializedManifest: e,
         };
     }
-    function ws(e, t) {
-        let n = re(t, e),
+    function Fs(e, t) {
+        let n = se(t, e),
             i = k(e, 'AssetIdentifier'),
             r = v(e, 'Subset');
         return {
-            id: u(e, 'id'),
-            start: w(u(e, 'start')),
-            duration: w(u(e, 'duration')),
-            bitstreamSwitching: u(e, 'bitstreamSwitching') === 'true',
+            id: m(e, 'id'),
+            start: w(m(e, 'start')),
+            duration: w(m(e, 'duration')),
+            bitstreamSwitching: m(e, 'bitstreamSwitching') === 'true',
             assetIdentifier: i
-                ? { schemeIdUri: u(i, 'schemeIdUri'), value: u(i, 'value') }
+                ? { schemeIdUri: m(i, 'schemeIdUri'), value: m(i, 'value') }
                 : null,
-            subsets: r.map((o) => ({
-                contains: (u(o, 'contains') || '').split(' '),
-                id: u(o, 'id'),
+            subsets: r.map((s) => ({
+                contains: (m(s, 'contains') || '').split(' '),
+                id: m(s, 'id'),
             })),
-            adaptationSets: v(e, 'AdaptationSet').map((o) => Ls(o, n)),
+            adaptationSets: v(e, 'AdaptationSet').map((s) => $s(s, n)),
             eventStreams: [],
             events: [],
             serializedManifest: e,
         };
     }
-    function da(e, t) {
-        let n = Ve(e),
-            r = E(n, 'AdaptationSet').some(
-                (s) => u(s, 'mimeType') === 'video/mp2t'
+    function ya(e, t) {
+        let n = Xe(e),
+            r = C(n, 'AdaptationSet').some(
+                (l) => m(l, 'mimeType') === 'video/mp2t'
             ),
             a = 'unknown';
         r
             ? (a = 'ts')
-            : (E(n, 'SegmentTimeline').length > 0 ||
-                  E(n, 'SegmentTemplate').length > 0 ||
-                  E(n, 'SegmentList').length > 0) &&
+            : (C(n, 'SegmentTimeline').length > 0 ||
+                  C(n, 'SegmentTemplate').length > 0 ||
+                  C(n, 'SegmentList').length > 0) &&
               (a = 'isobmff');
-        let o = {
-            id: u(n, 'id'),
-            type: u(n, 'type'),
-            profiles: u(n, 'profiles'),
-            minBufferTime: w(u(n, 'minBufferTime')),
-            publishTime: u(n, 'publishTime')
-                ? new Date(u(n, 'publishTime'))
+        let s = {
+            id: m(n, 'id'),
+            type: m(n, 'type'),
+            profiles: m(n, 'profiles'),
+            minBufferTime: w(m(n, 'minBufferTime')),
+            publishTime: m(n, 'publishTime')
+                ? new Date(m(n, 'publishTime'))
                 : null,
-            availabilityStartTime: u(n, 'availabilityStartTime')
-                ? new Date(u(n, 'availabilityStartTime'))
+            availabilityStartTime: m(n, 'availabilityStartTime')
+                ? new Date(m(n, 'availabilityStartTime'))
                 : null,
-            timeShiftBufferDepth: w(u(n, 'timeShiftBufferDepth')),
-            minimumUpdatePeriod: w(u(n, 'minimumUpdatePeriod')),
-            duration: w(u(n, 'mediaPresentationDuration')),
-            maxSegmentDuration: w(u(n, 'maxSegmentDuration')),
-            maxSubsegmentDuration: w(u(n, 'maxSubsegmentDuration')),
-            programInformations: v(n, 'ProgramInformation').map((s) => ({
-                title: j(k(s, 'Title')),
-                source: j(k(s, 'Source')),
-                copyright: j(k(s, 'Copyright')),
-                lang: u(s, 'lang'),
-                moreInformationURL: u(s, 'moreInformationURL'),
+            timeShiftBufferDepth: w(m(n, 'timeShiftBufferDepth')),
+            minimumUpdatePeriod: w(m(n, 'minimumUpdatePeriod')),
+            duration: w(m(n, 'mediaPresentationDuration')),
+            maxSegmentDuration: w(m(n, 'maxSegmentDuration')),
+            maxSubsegmentDuration: w(m(n, 'maxSubsegmentDuration')),
+            programInformations: v(n, 'ProgramInformation').map((l) => ({
+                title: W(k(l, 'Title')),
+                source: W(k(l, 'Source')),
+                copyright: W(k(l, 'Copyright')),
+                lang: m(l, 'lang'),
+                moreInformationURL: m(l, 'moreInformationURL'),
             })),
-            locations: v(n, 'Location').map(j),
-            periods: v(n, 'Period').map((s) => ws(s, n)),
+            locations: v(n, 'Location').map(W),
+            periods: v(n, 'Period').map((l) => Fs(l, n)),
             segmentFormat: a,
             serializedManifest: e,
             metrics: [],
@@ -10124,54 +10147,54 @@
             serverControl: null,
         };
         return (
-            (o.events = o.periods.flatMap((s) => s.events)),
-            (o.summary = ca(o, n)),
-            o
+            (s.events = s.periods.flatMap((l) => l.events)),
+            (s.summary = _a(s, n)),
+            s
         );
     }
-    var pa =
+    var xa =
             ':A-Za-z_\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u02FF\\u0370-\\u037D\\u037F-\\u1FFF\\u200C-\\u200D\\u2070-\\u218F\\u2C00-\\u2FEF\\u3001-\\uD7FF\\uF900-\\uFDCF\\uFDF0-\\uFFFD',
-        Ns = pa + '\\-.\\d\\u00B7\\u0300-\\u036F\\u203F-\\u2040',
-        Bs = '[' + pa + '][' + Ns + ']*',
-        zs = new RegExp('^' + Bs + '$');
-    function be(e, t) {
+        Hs = xa + '\\-.\\d\\u00B7\\u0300-\\u036F\\u203F-\\u2040',
+        Xs = '[' + xa + '][' + Hs + ']*',
+        Gs = new RegExp('^' + Xs + '$');
+    function Ee(e, t) {
         let n = [],
             i = t.exec(e);
         for (; i; ) {
             let r = [];
             r.startIndex = t.lastIndex - i[0].length;
             let a = i.length;
-            for (let o = 0; o < a; o++) r.push(i[o]);
+            for (let s = 0; s < a; s++) r.push(i[s]);
             (n.push(r), (i = t.exec(e)));
         }
         return n;
     }
-    var ue = function (e) {
-        let t = zs.exec(e);
+    var ye = function (e) {
+        let t = Gs.exec(e);
         return !(t === null || typeof t > 'u');
     };
-    function ua(e) {
+    function Sa(e) {
         return typeof e < 'u';
     }
-    var Vs = { allowBooleanAttributes: !1, unpairedTags: [] };
-    function xa(e, t) {
-        t = Object.assign({}, Vs, t);
+    var js = { allowBooleanAttributes: !1, unpairedTags: [] };
+    function Ca(e, t) {
+        t = Object.assign({}, js, t);
         let n = [],
             i = !1,
             r = !1;
         e[0] === '\uFEFF' && (e = e.substr(1));
         for (let a = 0; a < e.length; a++)
             if (e[a] === '<' && e[a + 1] === '?') {
-                if (((a += 2), (a = ga(e, a)), a.err)) return a;
+                if (((a += 2), (a = Ta(e, a)), a.err)) return a;
             } else if (e[a] === '<') {
-                let o = a;
+                let s = a;
                 if ((a++, e[a] === '!')) {
-                    a = ha(e, a);
+                    a = Ia(e, a);
                     continue;
                 } else {
-                    let s = !1;
-                    e[a] === '/' && ((s = !0), a++);
-                    let l = '';
+                    let l = !1;
+                    e[a] === '/' && ((l = !0), a++);
+                    let o = '';
                     for (
                         ;
                         a < e.length &&
@@ -10184,74 +10207,74 @@
                         e[a] !== '\r';
                         a++
                     )
-                        l += e[a];
+                        o += e[a];
                     if (
-                        ((l = l.trim()),
-                        l[l.length - 1] === '/' &&
-                            ((l = l.substring(0, l.length - 1)), a--),
-                        !Ws(l))
+                        ((o = o.trim()),
+                        o[o.length - 1] === '/' &&
+                            ((o = o.substring(0, o.length - 1)), a--),
+                        !eo(o))
                     ) {
                         let d;
                         return (
-                            l.trim().length === 0
+                            o.trim().length === 0
                                 ? (d = "Invalid space after '<'.")
-                                : (d = "Tag '" + l + "' is an invalid name."),
-                            U('InvalidTag', d, R(e, a))
+                                : (d = "Tag '" + o + "' is an invalid name."),
+                            U('InvalidTag', d, B(e, a))
                         );
                     }
-                    let c = Fs(e, a);
+                    let c = qs(e, a);
                     if (c === !1)
                         return U(
                             'InvalidAttr',
-                            "Attributes for '" + l + "' have open quote.",
-                            R(e, a)
+                            "Attributes for '" + o + "' have open quote.",
+                            B(e, a)
                         );
                     let f = c.value;
                     if (((a = c.index), f[f.length - 1] === '/')) {
                         let d = a - f.length;
                         f = f.substring(0, f.length - 1);
-                        let p = _a(f, t);
-                        if (p === !0) i = !0;
+                        let u = va(f, t);
+                        if (u === !0) i = !0;
                         else
                             return U(
-                                p.err.code,
-                                p.err.msg,
-                                R(e, d + p.err.line)
+                                u.err.code,
+                                u.err.msg,
+                                B(e, d + u.err.line)
                             );
-                    } else if (s)
+                    } else if (l)
                         if (c.tagClosed) {
                             if (f.trim().length > 0)
                                 return U(
                                     'InvalidTag',
                                     "Closing tag '" +
-                                        l +
+                                        o +
                                         "' can't have attributes or invalid starting.",
-                                    R(e, o)
+                                    B(e, s)
                                 );
                             if (n.length === 0)
                                 return U(
                                     'InvalidTag',
                                     "Closing tag '" +
-                                        l +
+                                        o +
                                         "' has not been opened.",
-                                    R(e, o)
+                                    B(e, s)
                                 );
                             {
                                 let d = n.pop();
-                                if (l !== d.tagName) {
-                                    let p = R(e, d.tagStartPos);
+                                if (o !== d.tagName) {
+                                    let u = B(e, d.tagStartPos);
                                     return U(
                                         'InvalidTag',
                                         "Expected closing tag '" +
                                             d.tagName +
                                             "' (opened in line " +
-                                            p.line +
+                                            u.line +
                                             ', col ' +
-                                            p.col +
+                                            u.col +
                                             ") instead of closing tag '" +
-                                            l +
+                                            o +
                                             "'.",
-                                        R(e, o)
+                                        B(e, s)
                                     );
                                 }
                                 n.length == 0 && (r = !0);
@@ -10260,59 +10283,59 @@
                             return U(
                                 'InvalidTag',
                                 "Closing tag '" +
-                                    l +
+                                    o +
                                     "' doesn't have proper closing.",
-                                R(e, a)
+                                B(e, a)
                             );
                     else {
-                        let d = _a(f, t);
+                        let d = va(f, t);
                         if (d !== !0)
                             return U(
                                 d.err.code,
                                 d.err.msg,
-                                R(e, a - f.length + d.err.line)
+                                B(e, a - f.length + d.err.line)
                             );
                         if (r === !0)
                             return U(
                                 'InvalidXml',
                                 'Multiple possible root nodes found.',
-                                R(e, a)
+                                B(e, a)
                             );
-                        (t.unpairedTags.indexOf(l) !== -1 ||
-                            n.push({ tagName: l, tagStartPos: o }),
+                        (t.unpairedTags.indexOf(o) !== -1 ||
+                            n.push({ tagName: o, tagStartPos: s }),
                             (i = !0));
                     }
                     for (a++; a < e.length; a++)
                         if (e[a] === '<')
                             if (e[a + 1] === '!') {
-                                (a++, (a = ha(e, a)));
+                                (a++, (a = Ia(e, a)));
                                 continue;
                             } else if (e[a + 1] === '?') {
-                                if (((a = ga(e, ++a)), a.err)) return a;
+                                if (((a = Ta(e, ++a)), a.err)) return a;
                             } else break;
                         else if (e[a] === '&') {
-                            let d = Gs(e, a);
+                            let d = Js(e, a);
                             if (d == -1)
                                 return U(
                                     'InvalidChar',
                                     "char '&' is not expected.",
-                                    R(e, a)
+                                    B(e, a)
                                 );
                             a = d;
-                        } else if (r === !0 && !ma(e[a]))
+                        } else if (r === !0 && !ba(e[a]))
                             return U(
                                 'InvalidXml',
                                 'Extra text at the end',
-                                R(e, a)
+                                B(e, a)
                             );
                     e[a] === '<' && a--;
                 }
             } else {
-                if (ma(e[a])) continue;
+                if (ba(e[a])) continue;
                 return U(
                     'InvalidChar',
                     "char '" + e[a] + "' is not expected.",
-                    R(e, a)
+                    B(e, a)
                 );
             }
         if (i) {
@@ -10320,7 +10343,7 @@
                 return U(
                     'InvalidTag',
                     "Unclosed tag '" + n[0].tagName + "'.",
-                    R(e, n[0].tagStartPos)
+                    B(e, n[0].tagStartPos)
                 );
             if (n.length > 0)
                 return U(
@@ -10337,7 +10360,7 @@
         } else return U('InvalidXml', 'Start tag expected.', 1);
         return !0;
     }
-    function ma(e) {
+    function ba(e) {
         return (
             e === ' ' ||
             e === '	' ||
@@ -10347,7 +10370,7 @@
             e === '\r'
         );
     }
-    function ga(e, t) {
+    function Ta(e, t) {
         let n = t;
         for (; t < e.length; t++)
             if (e[t] == '?' || e[t] == ' ') {
@@ -10356,7 +10379,7 @@
                     return U(
                         'InvalidXml',
                         'XML declaration allowed only at the start of the document.',
-                        R(e, t)
+                        B(e, t)
                     );
                 if (e[t] == '?' && e[t + 1] == '>') {
                     t++;
@@ -10365,7 +10388,7 @@
             }
         return t;
     }
-    function ha(e, t) {
+    function Ia(e, t) {
         if (e.length > t + 5 && e[t + 1] === '-' && e[t + 2] === '-') {
             for (t += 3; t < e.length; t++)
                 if (e[t] === '-' && e[t + 1] === '-' && e[t + 2] === '>') {
@@ -10404,14 +10427,14 @@
         }
         return t;
     }
-    var Os = '"',
-        $s = "'";
-    function Fs(e, t) {
+    var Ws = '"',
+        Ks = "'";
+    function qs(e, t) {
         let n = '',
             i = '',
             r = !1;
         for (; t < e.length; t++) {
-            if (e[t] === Os || e[t] === $s)
+            if (e[t] === Ws || e[t] === Ks)
                 i === '' ? (i = e[t]) : i !== e[t] || (i = '');
             else if (e[t] === '>' && i === '') {
                 r = !0;
@@ -10421,50 +10444,50 @@
         }
         return i !== '' ? !1 : { value: n, index: t, tagClosed: r };
     }
-    var Hs = new RegExp(
+    var Ys = new RegExp(
         `(\\s*)([^\\s=]+)(\\s*=)?(\\s*(['"])(([\\s\\S])*?)\\5)?`,
         'g'
     );
-    function _a(e, t) {
-        let n = be(e, Hs),
+    function va(e, t) {
+        let n = Ee(e, Ys),
             i = {};
         for (let r = 0; r < n.length; r++) {
             if (n[r][1].length === 0)
                 return U(
                     'InvalidAttr',
                     "Attribute '" + n[r][2] + "' has no space in starting.",
-                    me(n[r])
+                    xe(n[r])
                 );
             if (n[r][3] !== void 0 && n[r][4] === void 0)
                 return U(
                     'InvalidAttr',
                     "Attribute '" + n[r][2] + "' is without value.",
-                    me(n[r])
+                    xe(n[r])
                 );
             if (n[r][3] === void 0 && !t.allowBooleanAttributes)
                 return U(
                     'InvalidAttr',
                     "boolean attribute '" + n[r][2] + "' is not allowed.",
-                    me(n[r])
+                    xe(n[r])
                 );
             let a = n[r][2];
-            if (!js(a))
+            if (!Zs(a))
                 return U(
                     'InvalidAttr',
                     "Attribute '" + a + "' is an invalid name.",
-                    me(n[r])
+                    xe(n[r])
                 );
             if (!i.hasOwnProperty(a)) i[a] = 1;
             else
                 return U(
                     'InvalidAttr',
                     "Attribute '" + a + "' is repeated.",
-                    me(n[r])
+                    xe(n[r])
                 );
         }
         return !0;
     }
-    function Xs(e, t) {
+    function Qs(e, t) {
         let n = /\d/;
         for (e[t] === 'x' && (t++, (n = /[\da-fA-F]/)); t < e.length; t++) {
             if (e[t] === ';') return t;
@@ -10472,9 +10495,9 @@
         }
         return -1;
     }
-    function Gs(e, t) {
+    function Js(e, t) {
         if ((t++, e[t] === ';')) return -1;
-        if (e[t] === '#') return (t++, Xs(e, t));
+        if (e[t] === '#') return (t++, Qs(e, t));
         let n = 0;
         for (; t < e.length; t++, n++)
             if (!(e[t].match(/\w/) && n < 20)) {
@@ -10486,20 +10509,20 @@
     function U(e, t, n) {
         return { err: { code: e, msg: t, line: n.line || n, col: n.col } };
     }
-    function js(e) {
-        return ue(e);
+    function Zs(e) {
+        return ye(e);
     }
-    function Ws(e) {
-        return ue(e);
+    function eo(e) {
+        return ye(e);
     }
-    function R(e, t) {
+    function B(e, t) {
         let n = e.substring(0, t).split(/\r?\n/);
         return { line: n.length, col: n[n.length - 1].length + 1 };
     }
-    function me(e) {
+    function xe(e) {
         return e.startIndex + e[1].length;
     }
-    var Ks = {
+    var to = {
             preserveOrder: !1,
             attributeNamePrefix: '@_',
             attributesGroupName: !1,
@@ -10534,14 +10557,14 @@
             },
             captureMetaData: !1,
         },
-        ya = function (e) {
-            return Object.assign({}, Ks, e);
+        Ea = function (e) {
+            return Object.assign({}, to, e);
         };
-    var Te;
+    var Pe;
     typeof Symbol != 'function'
-        ? (Te = '@@xmlMetadata')
-        : (Te = Symbol('XML Node Metadata'));
-    var V = class {
+        ? (Pe = '@@xmlMetadata')
+        : (Pe = Symbol('XML Node Metadata'));
+    var O = class {
         constructor(t) {
             ((this.tagname = t), (this.child = []), (this[':@'] = {}));
         }
@@ -10555,15 +10578,15 @@
                     ? this.child.push({ [t.tagname]: t.child, ':@': t[':@'] })
                     : this.child.push({ [t.tagname]: t.child }),
                 n !== void 0 &&
-                    (this.child[this.child.length - 1][Te] = {
+                    (this.child[this.child.length - 1][Pe] = {
                         startIndex: n,
                     }));
         }
         static getMetaDataSymbol() {
-            return Te;
+            return Pe;
         }
     };
-    function Oe(e, t) {
+    function Ge(e, t) {
         let n = {};
         if (
             e[t + 3] === 'O' &&
@@ -10577,30 +10600,30 @@
             let i = 1,
                 r = !1,
                 a = !1,
-                o = '';
+                s = '';
             for (; t < e.length; t++)
                 if (e[t] === '<' && !a) {
-                    if (r && Z(e, '!ENTITY', t)) {
+                    if (r && ee(e, '!ENTITY', t)) {
                         t += 7;
-                        let s, l;
-                        (([s, l, t] = qs(e, t + 1)),
-                            l.indexOf('&') === -1 &&
-                                (n[s] = {
-                                    regx: RegExp(`&${s};`, 'g'),
-                                    val: l,
+                        let l, o;
+                        (([l, o, t] = no(e, t + 1)),
+                            o.indexOf('&') === -1 &&
+                                (n[l] = {
+                                    regx: RegExp(`&${l};`, 'g'),
+                                    val: o,
                                 }));
-                    } else if (r && Z(e, '!ELEMENT', t)) {
+                    } else if (r && ee(e, '!ELEMENT', t)) {
                         t += 8;
-                        let { index: s } = Qs(e, t + 1);
-                        t = s;
-                    } else if (r && Z(e, '!ATTLIST', t)) t += 8;
-                    else if (r && Z(e, '!NOTATION', t)) {
+                        let { index: l } = ro(e, t + 1);
+                        t = l;
+                    } else if (r && ee(e, '!ATTLIST', t)) t += 8;
+                    else if (r && ee(e, '!NOTATION', t)) {
                         t += 9;
-                        let { index: s } = Ys(e, t + 1);
-                        t = s;
-                    } else if (Z(e, '!--', t)) a = !0;
+                        let { index: l } = io(e, t + 1);
+                        t = l;
+                    } else if (ee(e, '!--', t)) a = !0;
                     else throw new Error('Invalid DOCTYPE');
-                    (i++, (o = ''));
+                    (i++, (s = ''));
                 } else if (e[t] === '>') {
                     if (
                         (a
@@ -10611,17 +10634,17 @@
                         i === 0)
                     )
                         break;
-                } else e[t] === '[' ? (r = !0) : (o += e[t]);
+                } else e[t] === '[' ? (r = !0) : (s += e[t]);
             if (i !== 0) throw new Error('Unclosed DOCTYPE');
         } else throw new Error('Invalid Tag instead of DOCTYPE');
         return { entities: n, i: t };
     }
-    var W = (e, t) => {
+    var K = (e, t) => {
         for (; t < e.length && /\s/.test(e[t]); ) t++;
         return t;
     };
-    function qs(e, t) {
-        t = W(e, t);
+    function no(e, t) {
+        t = K(e, t);
         let n = '';
         for (
             ;
@@ -10630,35 +10653,35 @@
         )
             ((n += e[t]), t++);
         if (
-            ($e(n),
-            (t = W(e, t)),
+            (je(n),
+            (t = K(e, t)),
             e.substring(t, t + 6).toUpperCase() === 'SYSTEM')
         )
             throw new Error('External entities are not supported');
         if (e[t] === '%')
             throw new Error('Parameter entities are not supported');
         let i = '';
-        return (([t, i] = Ie(e, t, 'entity')), t--, [n, i, t]);
+        return (([t, i] = De(e, t, 'entity')), t--, [n, i, t]);
     }
-    function Ys(e, t) {
-        t = W(e, t);
+    function io(e, t) {
+        t = K(e, t);
         let n = '';
         for (; t < e.length && !/\s/.test(e[t]); ) ((n += e[t]), t++);
-        ($e(n), (t = W(e, t)));
+        (je(n), (t = K(e, t)));
         let i = e.substring(t, t + 6).toUpperCase();
         if (i !== 'SYSTEM' && i !== 'PUBLIC')
             throw new Error(`Expected SYSTEM or PUBLIC, found "${i}"`);
-        ((t += i.length), (t = W(e, t)));
+        ((t += i.length), (t = K(e, t)));
         let r = null,
             a = null;
         if (i === 'PUBLIC')
-            (([t, r] = Ie(e, t, 'publicIdentifier')),
-                (t = W(e, t)),
+            (([t, r] = De(e, t, 'publicIdentifier')),
+                (t = K(e, t)),
                 (e[t] === '"' || e[t] === "'") &&
-                    ([t, a] = Ie(e, t, 'systemIdentifier')));
+                    ([t, a] = De(e, t, 'systemIdentifier')));
         else if (
             i === 'SYSTEM' &&
-            (([t, a] = Ie(e, t, 'systemIdentifier')), !a)
+            (([t, a] = De(e, t, 'systemIdentifier')), !a)
         )
             throw new Error(
                 'Missing mandatory system identifier for SYSTEM notation'
@@ -10670,7 +10693,7 @@
             index: --t,
         };
     }
-    function Ie(e, t, n) {
+    function De(e, t, n) {
         let i = '',
             r = e[t];
         if (r !== '"' && r !== "'")
@@ -10679,87 +10702,87 @@
         if (e[t] !== r) throw new Error(`Unterminated ${n} value`);
         return (t++, [t, i]);
     }
-    function Qs(e, t) {
-        t = W(e, t);
+    function ro(e, t) {
+        t = K(e, t);
         let n = '';
         for (; t < e.length && !/\s/.test(e[t]); ) ((n += e[t]), t++);
-        if (!$e(n)) throw new Error(`Invalid element name: "${n}"`);
-        t = W(e, t);
+        if (!je(n)) throw new Error(`Invalid element name: "${n}"`);
+        t = K(e, t);
         let i = '';
-        if (e[t] === 'E' && Z(e, 'MPTY', t)) t += 4;
-        else if (e[t] === 'A' && Z(e, 'NY', t)) t += 2;
+        if (e[t] === 'E' && ee(e, 'MPTY', t)) t += 4;
+        else if (e[t] === 'A' && ee(e, 'NY', t)) t += 2;
         else if (e[t] === '(') {
             for (t++; t < e.length && e[t] !== ')'; ) ((i += e[t]), t++);
             if (e[t] !== ')') throw new Error('Unterminated content model');
         } else throw new Error(`Invalid Element Expression, found "${e[t]}"`);
         return { elementName: n, contentModel: i.trim(), index: t };
     }
-    function Z(e, t, n) {
+    function ee(e, t, n) {
         for (let i = 0; i < t.length; i++) if (t[i] !== e[n + i + 1]) return !1;
         return !0;
     }
-    function $e(e) {
-        if (ue(e)) return e;
+    function je(e) {
+        if (ye(e)) return e;
         throw new Error(`Invalid entity name ${e}`);
     }
-    var Js = /^[-+]?0x[a-fA-F0-9]+$/,
-        Zs = /^([\-\+])?(0*)([0-9]*(\.[0-9]*)?)$/,
-        eo = { hex: !0, leadingZeros: !0, decimalPoint: '.', eNotation: !0 };
-    function Fe(e, t = {}) {
-        if (((t = Object.assign({}, eo, t)), !e || typeof e != 'string'))
+    var ao = /^[-+]?0x[a-fA-F0-9]+$/,
+        so = /^([\-\+])?(0*)([0-9]*(\.[0-9]*)?)$/,
+        oo = { hex: !0, leadingZeros: !0, decimalPoint: '.', eNotation: !0 };
+    function We(e, t = {}) {
+        if (((t = Object.assign({}, oo, t)), !e || typeof e != 'string'))
             return e;
         let n = e.trim();
         if (t.skipLike !== void 0 && t.skipLike.test(n)) return e;
         if (e === '0') return 0;
-        if (t.hex && Js.test(n)) return ro(n, 16);
-        if (n.search(/.+[eE].+/) !== -1) return no(e, n, t);
+        if (t.hex && ao.test(n)) return po(n, 16);
+        if (n.search(/.+[eE].+/) !== -1) return fo(e, n, t);
         {
-            let i = Zs.exec(n);
+            let i = so.exec(n);
             if (i) {
                 let r = i[1] || '',
                     a = i[2],
-                    o = io(i[3]),
-                    s = r ? e[a.length + 1] === '.' : e[a.length] === '.';
-                if (!t.leadingZeros && (a.length > 1 || (a.length === 1 && !s)))
+                    s = co(i[3]),
+                    l = r ? e[a.length + 1] === '.' : e[a.length] === '.';
+                if (!t.leadingZeros && (a.length > 1 || (a.length === 1 && !l)))
                     return e;
                 {
-                    let l = Number(n),
-                        c = String(l);
-                    if (l === 0) return l;
-                    if (c.search(/[eE]/) !== -1) return t.eNotation ? l : e;
+                    let o = Number(n),
+                        c = String(o);
+                    if (o === 0) return o;
+                    if (c.search(/[eE]/) !== -1) return t.eNotation ? o : e;
                     if (n.indexOf('.') !== -1)
-                        return c === '0' || c === o || c === `${r}${o}` ? l : e;
-                    let f = a ? o : n;
+                        return c === '0' || c === s || c === `${r}${s}` ? o : e;
+                    let f = a ? s : n;
                     return a
                         ? f === c || r + f === c
-                            ? l
+                            ? o
                             : e
                         : f === c || f === r + c
-                          ? l
+                          ? o
                           : e;
                 }
             } else return e;
         }
     }
-    var to = /^([-+])?(0*)(\d*(\.\d*)?[eE][-\+]?\d+)$/;
-    function no(e, t, n) {
+    var lo = /^([-+])?(0*)(\d*(\.\d*)?[eE][-\+]?\d+)$/;
+    function fo(e, t, n) {
         if (!n.eNotation) return e;
-        let i = t.match(to);
+        let i = t.match(lo);
         if (i) {
             let r = i[1] || '',
                 a = i[3].indexOf('e') === -1 ? 'E' : 'e',
-                o = i[2],
-                s = r ? e[o.length + 1] === a : e[o.length] === a;
-            return o.length > 1 && s
+                s = i[2],
+                l = r ? e[s.length + 1] === a : e[s.length] === a;
+            return s.length > 1 && l
                 ? e
-                : o.length === 1 && (i[3].startsWith(`.${a}`) || i[3][0] === a)
+                : s.length === 1 && (i[3].startsWith(`.${a}`) || i[3][0] === a)
                   ? Number(t)
-                  : n.leadingZeros && !s
+                  : n.leadingZeros && !l
                     ? ((t = (i[1] || '') + i[3]), Number(t))
                     : e;
         } else return e;
     }
-    function io(e) {
+    function co(e) {
         return (
             e &&
                 e.indexOf('.') !== -1 &&
@@ -10773,7 +10796,7 @@
             e
         );
     }
-    function ro(e, t) {
+    function po(e, t) {
         if (parseInt) return parseInt(e, t);
         if (Number.parseInt) return Number.parseInt(e, t);
         if (window && window.parseInt) return window.parseInt(e, t);
@@ -10781,7 +10804,7 @@
             'parseInt, Number.parseInt, window.parseInt are not supported'
         );
     }
-    function He(e) {
+    function Ke(e) {
         return typeof e == 'function'
             ? e
             : Array.isArray(e)
@@ -10795,7 +10818,7 @@
                 }
               : () => !1;
     }
-    var ge = class {
+    var Se = class {
         constructor(t) {
             ((this.options = t),
                 (this.currentNode = null),
@@ -10828,20 +10851,20 @@
                             String.fromCodePoint(Number.parseInt(i, 16)),
                     },
                 }),
-                (this.addExternalEntities = ao),
-                (this.parseXml = co),
-                (this.parseTextData = so),
-                (this.resolveNameSpace = oo),
-                (this.buildAttributesMap = fo),
-                (this.isItStopNode = go),
-                (this.replaceEntitiesValue = uo),
-                (this.readStopNodeData = _o),
-                (this.saveTextToParentTag = mo),
-                (this.addChild = po),
-                (this.ignoreAttributesFn = He(this.options.ignoreAttributes)));
+                (this.addExternalEntities = uo),
+                (this.parseXml = yo),
+                (this.parseTextData = mo),
+                (this.resolveNameSpace = go),
+                (this.buildAttributesMap = _o),
+                (this.isItStopNode = To),
+                (this.replaceEntitiesValue = So),
+                (this.readStopNodeData = vo),
+                (this.saveTextToParentTag = bo),
+                (this.addChild = xo),
+                (this.ignoreAttributesFn = Ke(this.options.ignoreAttributes)));
         }
     };
-    function ao(e) {
+    function uo(e) {
         let t = Object.keys(e);
         for (let n = 0; n < t.length; n++) {
             let i = t[n];
@@ -10851,25 +10874,25 @@
             };
         }
     }
-    function so(e, t, n, i, r, a, o) {
+    function mo(e, t, n, i, r, a, s) {
         if (
             e !== void 0 &&
             (this.options.trimValues && !i && (e = e.trim()), e.length > 0)
         ) {
-            o || (e = this.replaceEntitiesValue(e));
-            let s = this.options.tagValueProcessor(t, e, n, r, a);
-            return s == null
+            s || (e = this.replaceEntitiesValue(e));
+            let l = this.options.tagValueProcessor(t, e, n, r, a);
+            return l == null
                 ? e
-                : typeof s != typeof e || s !== e
-                  ? s
+                : typeof l != typeof e || l !== e
+                  ? l
                   : this.options.trimValues
-                    ? Ge(
+                    ? Ye(
                           e,
                           this.options.parseTagValue,
                           this.options.numberParseOptions
                       )
                     : e.trim() === e
-                      ? Ge(
+                      ? Ye(
                             e,
                             this.options.parseTagValue,
                             this.options.numberParseOptions
@@ -10877,7 +10900,7 @@
                       : e;
         }
     }
-    function oo(e) {
+    function go(e) {
         if (this.options.removeNSPrefix) {
             let t = e.split(':'),
                 n = e.charAt(0) === '/' ? '/' : '';
@@ -10886,33 +10909,33 @@
         }
         return e;
     }
-    var lo = new RegExp(`([^\\s=]+)\\s*(=\\s*(['"])([\\s\\S]*?)\\3)?`, 'gm');
-    function fo(e, t, n) {
+    var ho = new RegExp(`([^\\s=]+)\\s*(=\\s*(['"])([\\s\\S]*?)\\3)?`, 'gm');
+    function _o(e, t, n) {
         if (this.options.ignoreAttributes !== !0 && typeof e == 'string') {
-            let i = be(e, lo),
+            let i = Ee(e, ho),
                 r = i.length,
                 a = {};
-            for (let o = 0; o < r; o++) {
-                let s = this.resolveNameSpace(i[o][1]);
-                if (this.ignoreAttributesFn(s, t)) continue;
-                let l = i[o][4],
-                    c = this.options.attributeNamePrefix + s;
-                if (s.length)
+            for (let s = 0; s < r; s++) {
+                let l = this.resolveNameSpace(i[s][1]);
+                if (this.ignoreAttributesFn(l, t)) continue;
+                let o = i[s][4],
+                    c = this.options.attributeNamePrefix + l;
+                if (l.length)
                     if (
                         (this.options.transformAttributeName &&
                             (c = this.options.transformAttributeName(c)),
                         c === '__proto__' && (c = '#__proto__'),
-                        l !== void 0)
+                        o !== void 0)
                     ) {
-                        (this.options.trimValues && (l = l.trim()),
-                            (l = this.replaceEntitiesValue(l)));
-                        let f = this.options.attributeValueProcessor(s, l, t);
+                        (this.options.trimValues && (o = o.trim()),
+                            (o = this.replaceEntitiesValue(o)));
+                        let f = this.options.attributeValueProcessor(l, o, t);
                         f == null
-                            ? (a[c] = l)
-                            : typeof f != typeof l || f !== l
+                            ? (a[c] = o)
+                            : typeof f != typeof o || f !== o
                               ? (a[c] = f)
-                              : (a[c] = Ge(
-                                    l,
+                              : (a[c] = Ye(
+                                    o,
                                     this.options.parseAttributeValue,
                                     this.options.numberParseOptions
                                 ));
@@ -10920,38 +10943,38 @@
             }
             if (!Object.keys(a).length) return;
             if (this.options.attributesGroupName) {
-                let o = {};
-                return ((o[this.options.attributesGroupName] = a), o);
+                let s = {};
+                return ((s[this.options.attributesGroupName] = a), s);
             }
             return a;
         }
     }
-    var co = function (e) {
+    var yo = function (e) {
         e = e.replace(
             /\r\n?/g,
             `
 `
         );
-        let t = new V('!xml'),
+        let t = new O('!xml'),
             n = t,
             i = '',
             r = '';
         for (let a = 0; a < e.length; a++)
             if (e[a] === '<')
                 if (e[a + 1] === '/') {
-                    let s = ee(e, '>', a, 'Closing Tag is not closed.'),
-                        l = e.substring(a + 2, s).trim();
+                    let l = te(e, '>', a, 'Closing Tag is not closed.'),
+                        o = e.substring(a + 2, l).trim();
                     if (this.options.removeNSPrefix) {
-                        let d = l.indexOf(':');
-                        d !== -1 && (l = l.substr(d + 1));
+                        let d = o.indexOf(':');
+                        d !== -1 && (o = o.substr(d + 1));
                     }
                     (this.options.transformTagName &&
-                        (l = this.options.transformTagName(l)),
+                        (o = this.options.transformTagName(o)),
                         n && (i = this.saveTextToParentTag(i, n, r)));
                     let c = r.substring(r.lastIndexOf('.') + 1);
-                    if (l && this.options.unpairedTags.indexOf(l) !== -1)
+                    if (o && this.options.unpairedTags.indexOf(o) !== -1)
                         throw new Error(
-                            `Unpaired tag can not be used as closing tag: </${l}>`
+                            `Unpaired tag can not be used as closing tag: </${o}>`
                         );
                     let f = 0;
                     (c && this.options.unpairedTags.indexOf(c) !== -1
@@ -10961,99 +10984,99 @@
                         (r = r.substring(0, f)),
                         (n = this.tagsNodeStack.pop()),
                         (i = ''),
-                        (a = s));
+                        (a = l));
                 } else if (e[a + 1] === '?') {
-                    let s = Xe(e, a, !1, '?>');
-                    if (!s) throw new Error('Pi Tag is not closed.');
+                    let l = qe(e, a, !1, '?>');
+                    if (!l) throw new Error('Pi Tag is not closed.');
                     if (
                         ((i = this.saveTextToParentTag(i, n, r)),
                         !(
                             (this.options.ignoreDeclaration &&
-                                s.tagName === '?xml') ||
+                                l.tagName === '?xml') ||
                             this.options.ignorePiTags
                         ))
                     ) {
-                        let l = new V(s.tagName);
-                        (l.add(this.options.textNodeName, ''),
-                            s.tagName !== s.tagExp &&
-                                s.attrExpPresent &&
-                                (l[':@'] = this.buildAttributesMap(
-                                    s.tagExp,
+                        let o = new O(l.tagName);
+                        (o.add(this.options.textNodeName, ''),
+                            l.tagName !== l.tagExp &&
+                                l.attrExpPresent &&
+                                (o[':@'] = this.buildAttributesMap(
+                                    l.tagExp,
                                     r,
-                                    s.tagName
+                                    l.tagName
                                 )),
-                            this.addChild(n, l, r, a));
+                            this.addChild(n, o, r, a));
                     }
-                    a = s.closeIndex + 1;
+                    a = l.closeIndex + 1;
                 } else if (e.substr(a + 1, 3) === '!--') {
-                    let s = ee(e, '-->', a + 4, 'Comment is not closed.');
+                    let l = te(e, '-->', a + 4, 'Comment is not closed.');
                     if (this.options.commentPropName) {
-                        let l = e.substring(a + 4, s - 2);
+                        let o = e.substring(a + 4, l - 2);
                         ((i = this.saveTextToParentTag(i, n, r)),
                             n.add(this.options.commentPropName, [
-                                { [this.options.textNodeName]: l },
+                                { [this.options.textNodeName]: o },
                             ]));
                     }
-                    a = s;
+                    a = l;
                 } else if (e.substr(a + 1, 2) === '!D') {
-                    let s = Oe(e, a);
-                    ((this.docTypeEntities = s.entities), (a = s.i));
+                    let l = Ge(e, a);
+                    ((this.docTypeEntities = l.entities), (a = l.i));
                 } else if (e.substr(a + 1, 2) === '![') {
-                    let s = ee(e, ']]>', a, 'CDATA is not closed.') - 2,
-                        l = e.substring(a + 9, s);
+                    let l = te(e, ']]>', a, 'CDATA is not closed.') - 2,
+                        o = e.substring(a + 9, l);
                     i = this.saveTextToParentTag(i, n, r);
-                    let c = this.parseTextData(l, n.tagname, r, !0, !1, !0, !0);
+                    let c = this.parseTextData(o, n.tagname, r, !0, !1, !0, !0);
                     (c == null && (c = ''),
                         this.options.cdataPropName
                             ? n.add(this.options.cdataPropName, [
-                                  { [this.options.textNodeName]: l },
+                                  { [this.options.textNodeName]: o },
                               ])
                             : n.add(this.options.textNodeName, c),
-                        (a = s + 2));
+                        (a = l + 2));
                 } else {
-                    let s = Xe(e, a, this.options.removeNSPrefix),
-                        l = s.tagName,
-                        c = s.rawTagName,
-                        f = s.tagExp,
-                        d = s.attrExpPresent,
-                        p = s.closeIndex;
+                    let l = qe(e, a, this.options.removeNSPrefix),
+                        o = l.tagName,
+                        c = l.rawTagName,
+                        f = l.tagExp,
+                        d = l.attrExpPresent,
+                        u = l.closeIndex;
                     (this.options.transformTagName &&
-                        (l = this.options.transformTagName(l)),
+                        (o = this.options.transformTagName(o)),
                         n &&
                             i &&
                             n.tagname !== '!xml' &&
                             (i = this.saveTextToParentTag(i, n, r, !1)));
-                    let m = n;
-                    (m &&
-                        this.options.unpairedTags.indexOf(m.tagname) !== -1 &&
+                    let p = n;
+                    (p &&
+                        this.options.unpairedTags.indexOf(p.tagname) !== -1 &&
                         ((n = this.tagsNodeStack.pop()),
                         (r = r.substring(0, r.lastIndexOf('.')))),
-                        l !== t.tagname && (r += r ? '.' + l : l));
-                    let _ = a;
-                    if (this.isItStopNode(this.options.stopNodes, r, l)) {
-                        let x = '';
+                        o !== t.tagname && (r += r ? '.' + o : o));
+                    let y = a;
+                    if (this.isItStopNode(this.options.stopNodes, r, o)) {
+                        let _ = '';
                         if (f.length > 0 && f.lastIndexOf('/') === f.length - 1)
-                            (l[l.length - 1] === '/'
-                                ? ((l = l.substr(0, l.length - 1)),
+                            (o[o.length - 1] === '/'
+                                ? ((o = o.substr(0, o.length - 1)),
                                   (r = r.substr(0, r.length - 1)),
-                                  (f = l))
+                                  (f = o))
                                 : (f = f.substr(0, f.length - 1)),
-                                (a = s.closeIndex));
-                        else if (this.options.unpairedTags.indexOf(l) !== -1)
-                            a = s.closeIndex;
+                                (a = l.closeIndex));
+                        else if (this.options.unpairedTags.indexOf(o) !== -1)
+                            a = l.closeIndex;
                         else {
-                            let b = this.readStopNodeData(e, c, p + 1);
-                            if (!b) throw new Error(`Unexpected end of ${c}`);
-                            ((a = b.i), (x = b.tagContent));
+                            let S = this.readStopNodeData(e, c, u + 1);
+                            if (!S) throw new Error(`Unexpected end of ${c}`);
+                            ((a = S.i), (_ = S.tagContent));
                         }
-                        let y = new V(l);
-                        (l !== f &&
+                        let b = new O(o);
+                        (o !== f &&
                             d &&
-                            (y[':@'] = this.buildAttributesMap(f, r, l)),
-                            x &&
-                                (x = this.parseTextData(
-                                    x,
-                                    l,
+                            (b[':@'] = this.buildAttributesMap(f, r, o)),
+                            _ &&
+                                (_ = this.parseTextData(
+                                    _,
+                                    o,
                                     r,
                                     !0,
                                     d,
@@ -11061,51 +11084,51 @@
                                     !0
                                 )),
                             (r = r.substr(0, r.lastIndexOf('.'))),
-                            y.add(this.options.textNodeName, x),
-                            this.addChild(n, y, r, _));
+                            b.add(this.options.textNodeName, _),
+                            this.addChild(n, b, r, y));
                     } else {
                         if (
                             f.length > 0 &&
                             f.lastIndexOf('/') === f.length - 1
                         ) {
-                            (l[l.length - 1] === '/'
-                                ? ((l = l.substr(0, l.length - 1)),
+                            (o[o.length - 1] === '/'
+                                ? ((o = o.substr(0, o.length - 1)),
                                   (r = r.substr(0, r.length - 1)),
-                                  (f = l))
+                                  (f = o))
                                 : (f = f.substr(0, f.length - 1)),
                                 this.options.transformTagName &&
-                                    (l = this.options.transformTagName(l)));
-                            let x = new V(l);
-                            (l !== f &&
+                                    (o = this.options.transformTagName(o)));
+                            let _ = new O(o);
+                            (o !== f &&
                                 d &&
-                                (x[':@'] = this.buildAttributesMap(f, r, l)),
-                                this.addChild(n, x, r, _),
+                                (_[':@'] = this.buildAttributesMap(f, r, o)),
+                                this.addChild(n, _, r, y),
                                 (r = r.substr(0, r.lastIndexOf('.'))));
                         } else {
-                            let x = new V(l);
+                            let _ = new O(o);
                             (this.tagsNodeStack.push(n),
-                                l !== f &&
+                                o !== f &&
                                     d &&
-                                    (x[':@'] = this.buildAttributesMap(
+                                    (_[':@'] = this.buildAttributesMap(
                                         f,
                                         r,
-                                        l
+                                        o
                                     )),
-                                this.addChild(n, x, r, _),
-                                (n = x));
+                                this.addChild(n, _, r, y),
+                                (n = _));
                         }
-                        ((i = ''), (a = p));
+                        ((i = ''), (a = u));
                     }
                 }
             else i += e[a];
         return t.child;
     };
-    function po(e, t, n, i) {
+    function xo(e, t, n, i) {
         this.options.captureMetaData || (i = void 0);
         let r = this.options.updateTag(t.tagname, n, t[':@']);
         r === !1 || (typeof r == 'string' && (t.tagname = r), e.addChild(t, i));
     }
-    var uo = function (e) {
+    var So = function (e) {
         if (this.options.processEntities) {
             for (let t in this.docTypeEntities) {
                 let n = this.docTypeEntities[t];
@@ -11124,7 +11147,7 @@
         }
         return e;
     };
-    function mo(e, t, n, i) {
+    function bo(e, t, n, i) {
         return (
             e &&
                 (i === void 0 && (i = t.child.length === 0),
@@ -11141,7 +11164,7 @@
             e
         );
     }
-    function go(e, t, n) {
+    function To(e, t, n) {
         let i = '*.' + n;
         for (let r in e) {
             let a = e[r];
@@ -11149,68 +11172,68 @@
         }
         return !1;
     }
-    function ho(e, t, n = '>') {
+    function Io(e, t, n = '>') {
         let i,
             r = '';
         for (let a = t; a < e.length; a++) {
-            let o = e[a];
-            if (i) o === i && (i = '');
-            else if (o === '"' || o === "'") i = o;
-            else if (o === n[0])
+            let s = e[a];
+            if (i) s === i && (i = '');
+            else if (s === '"' || s === "'") i = s;
+            else if (s === n[0])
                 if (n[1]) {
                     if (e[a + 1] === n[1]) return { data: r, index: a };
                 } else return { data: r, index: a };
-            else o === '	' && (o = ' ');
-            r += o;
+            else s === '	' && (s = ' ');
+            r += s;
         }
     }
-    function ee(e, t, n, i) {
+    function te(e, t, n, i) {
         let r = e.indexOf(t, n);
         if (r === -1) throw new Error(i);
         return r + t.length - 1;
     }
-    function Xe(e, t, n, i = '>') {
-        let r = ho(e, t + 1, i);
+    function qe(e, t, n, i = '>') {
+        let r = Io(e, t + 1, i);
         if (!r) return;
         let a = r.data,
-            o = r.index,
-            s = a.search(/\s/),
-            l = a,
+            s = r.index,
+            l = a.search(/\s/),
+            o = a,
             c = !0;
-        s !== -1 &&
-            ((l = a.substring(0, s)), (a = a.substring(s + 1).trimStart()));
-        let f = l;
+        l !== -1 &&
+            ((o = a.substring(0, l)), (a = a.substring(l + 1).trimStart()));
+        let f = o;
         if (n) {
-            let d = l.indexOf(':');
+            let d = o.indexOf(':');
             d !== -1 &&
-                ((l = l.substr(d + 1)), (c = l !== r.data.substr(d + 1)));
+                ((o = o.substr(d + 1)), (c = o !== r.data.substr(d + 1)));
         }
         return {
-            tagName: l,
+            tagName: o,
             tagExp: a,
-            closeIndex: o,
+            closeIndex: s,
             attrExpPresent: c,
             rawTagName: f,
         };
     }
-    function _o(e, t, n) {
+    function vo(e, t, n) {
         let i = n,
             r = 1;
         for (; n < e.length; n++)
             if (e[n] === '<')
                 if (e[n + 1] === '/') {
-                    let a = ee(e, '>', n, `${t} is not closed`);
+                    let a = te(e, '>', n, `${t} is not closed`);
                     if (e.substring(n + 2, a).trim() === t && (r--, r === 0))
                         return { tagContent: e.substring(i, n), i: a };
                     n = a;
                 } else if (e[n + 1] === '?')
-                    n = ee(e, '?>', n + 1, 'StopNode is not closed.');
+                    n = te(e, '?>', n + 1, 'StopNode is not closed.');
                 else if (e.substr(n + 1, 3) === '!--')
-                    n = ee(e, '-->', n + 3, 'StopNode is not closed.');
+                    n = te(e, '-->', n + 3, 'StopNode is not closed.');
                 else if (e.substr(n + 1, 2) === '![')
-                    n = ee(e, ']]>', n, 'StopNode is not closed.') - 2;
+                    n = te(e, ']]>', n, 'StopNode is not closed.') - 2;
                 else {
-                    let a = Xe(e, n, '>');
+                    let a = qe(e, n, '>');
                     a &&
                         ((a && a.tagName) === t &&
                             a.tagExp[a.tagExp.length - 1] !== '/' &&
@@ -11218,36 +11241,36 @@
                         (n = a.closeIndex));
                 }
     }
-    function Ge(e, t, n) {
+    function Ye(e, t, n) {
         if (t && typeof e == 'string') {
             let i = e.trim();
-            return i === 'true' ? !0 : i === 'false' ? !1 : Fe(e, n);
-        } else return ua(e) ? e : '';
+            return i === 'true' ? !0 : i === 'false' ? !1 : We(e, n);
+        } else return Sa(e) ? e : '';
     }
-    var je = V.getMetaDataSymbol();
-    function We(e, t) {
-        return Sa(e, t);
+    var Qe = O.getMetaDataSymbol();
+    function Je(e, t) {
+        return Pa(e, t);
     }
-    function Sa(e, t, n) {
+    function Pa(e, t, n) {
         let i,
             r = {};
         for (let a = 0; a < e.length; a++) {
-            let o = e[a],
-                s = xo(o),
-                l = '';
+            let s = e[a],
+                l = Co(s),
+                o = '';
             if (
-                (n === void 0 ? (l = s) : (l = n + '.' + s),
-                s === t.textNodeName)
+                (n === void 0 ? (o = l) : (o = n + '.' + l),
+                l === t.textNodeName)
             )
-                i === void 0 ? (i = o[s]) : (i += '' + o[s]);
+                i === void 0 ? (i = s[l]) : (i += '' + s[l]);
             else {
-                if (s === void 0) continue;
-                if (o[s]) {
-                    let c = Sa(o[s], t, l),
-                        f = So(c, t);
-                    (o[je] !== void 0 && (c[je] = o[je]),
-                        o[':@']
-                            ? yo(c, o[':@'], l, t)
+                if (l === void 0) continue;
+                if (s[l]) {
+                    let c = Pa(s[l], t, o),
+                        f = Po(c, t);
+                    (s[Qe] !== void 0 && (c[Qe] = s[Qe]),
+                        s[':@']
+                            ? Eo(c, s[':@'], o, t)
                             : Object.keys(c).length === 1 &&
                                 c[t.textNodeName] !== void 0 &&
                                 !t.alwaysCreateTextNode
@@ -11256,12 +11279,12 @@
                                 (t.alwaysCreateTextNode
                                     ? (c[t.textNodeName] = '')
                                     : (c = '')),
-                        r[s] !== void 0 && r.hasOwnProperty(s)
-                            ? (Array.isArray(r[s]) || (r[s] = [r[s]]),
-                              r[s].push(c))
-                            : t.isArray(s, l, f)
-                              ? (r[s] = [c])
-                              : (r[s] = c));
+                        r[l] !== void 0 && r.hasOwnProperty(l)
+                            ? (Array.isArray(r[l]) || (r[l] = [r[l]]),
+                              r[l].push(c))
+                            : t.isArray(l, o, f)
+                              ? (r[l] = [c])
+                              : (r[l] = c));
                 }
             }
         }
@@ -11272,26 +11295,26 @@
             r
         );
     }
-    function xo(e) {
+    function Co(e) {
         let t = Object.keys(e);
         for (let n = 0; n < t.length; n++) {
             let i = t[n];
             if (i !== ':@') return i;
         }
     }
-    function yo(e, t, n, i) {
+    function Eo(e, t, n, i) {
         if (t) {
             let r = Object.keys(t),
                 a = r.length;
-            for (let o = 0; o < a; o++) {
-                let s = r[o];
-                i.isArray(s, n + '.' + s, !0, !0)
-                    ? (e[s] = [t[s]])
-                    : (e[s] = t[s]);
+            for (let s = 0; s < a; s++) {
+                let l = r[s];
+                i.isArray(l, n + '.' + l, !0, !0)
+                    ? (e[l] = [t[l]])
+                    : (e[l] = t[l]);
             }
         }
     }
-    function So(e, t) {
+    function Po(e, t) {
         let { textNodeName: n } = t,
             i = Object.keys(e).length;
         return !!(
@@ -11299,9 +11322,9 @@
             (i === 1 && (e[n] || typeof e[n] == 'boolean' || e[n] === 0))
         );
     }
-    var ae = class {
+    var oe = class {
         constructor(t) {
-            ((this.externalEntities = {}), (this.options = ya(t)));
+            ((this.externalEntities = {}), (this.options = Ea(t)));
         }
         parse(t, n) {
             if (typeof t != 'string')
@@ -11312,16 +11335,16 @@
                     );
             if (n) {
                 n === !0 && (n = {});
-                let a = xa(t, n);
+                let a = Ca(t, n);
                 if (a !== !0)
                     throw Error(`${a.err.msg}:${a.err.line}:${a.err.col}`);
             }
-            let i = new ge(this.options);
+            let i = new Se(this.options);
             i.addExternalEntities(this.externalEntities);
             let r = i.parseXml(t);
             return this.options.preserveOrder || r === void 0
                 ? r
-                : We(r, this.options);
+                : Je(r, this.options);
         }
         addEntity(t, n) {
             if (n.indexOf('&') !== -1)
@@ -11335,11 +11358,11 @@
             this.externalEntities[t] = n;
         }
         static getMetaDataSymbol() {
-            return V.getMetaDataSymbol();
+            return O.getMetaDataSymbol();
         }
     };
-    async function Ke(e, t) {
-        let i = new ae({
+    async function Ze(e, t) {
+        let i = new oe({
                 ignoreAttributes: !1,
                 attributeNamePrefix: '',
                 attributesGroupName: ':@',
@@ -11347,7 +11370,7 @@
                 allowBooleanAttributes: !0,
                 removeNSPrefix: !0,
                 alwaysCreateTextNode: !0,
-                isArray: (s) =>
+                isArray: (l) =>
                     [
                         'Period',
                         'AdaptationSet',
@@ -11362,103 +11385,100 @@
                         'Subset',
                         'ProgramInformation',
                         'Metrics',
-                    ].includes(s),
+                    ].includes(l),
             }).parse(e),
-            r = Object.keys(i).find((s) => s.toUpperCase() === 'MPD');
+            r = Object.keys(i).find((l) => l.toUpperCase() === 'MPD');
         if (!r)
             throw new Error('Could not find MPD root element in the manifest.');
         let a = i[r];
-        return { manifest: da(a, t), serializedManifest: a, baseUrl: t };
+        return { manifest: ya(a, t), serializedManifest: a, baseUrl: t };
     }
-    var bo = (e) =>
+    var Do = (e) =>
         !e || isNaN(e)
             ? 'N/A'
             : e >= 1e6
               ? `${(e / 1e6).toFixed(2)} Mbps`
               : `${(e / 1e3).toFixed(0)} kbps`;
-    function ba(e) {
+    function Da(e) {
         let { serializedManifest: t } = e,
             n = t.isMaster,
             i = [],
             r = [],
             a = [],
-            o = new Set(),
             s = new Set(),
-            l = null;
+            l = new Set(),
+            o = null;
         if (n) {
-            (t.variants.forEach((p, m) => {
-                let _ = p.attributes.CODECS || '';
-                (_.includes('avc1') ||
-                    _.includes('hvc1') ||
-                    p.attributes.RESOLUTION) &&
+            ((t.variants || []).forEach((u, p) => {
+                let y = u.attributes.CODECS || '',
+                    _ = u.attributes.RESOLUTION;
+                (y.includes('avc1') || y.includes('hvc1') || _) &&
                     i.push({
-                        id: p.attributes['STABLE-VARIANT-ID'] || `variant_${m}`,
+                        id: u.attributes['STABLE-VARIANT-ID'] || `variant_${p}`,
                         profiles: null,
-                        bitrateRange: bo(p.attributes.BANDWIDTH),
-                        resolutions: p.attributes.RESOLUTION
-                            ? [p.attributes.RESOLUTION]
-                            : [],
-                        codecs: [_],
+                        bitrateRange: Do(u.attributes.BANDWIDTH),
+                        resolutions: _ ? [_] : [],
+                        codecs: [y],
                         scanType: null,
-                        videoRange: p.attributes['VIDEO-RANGE'] || null,
+                        videoRange: u.attributes['VIDEO-RANGE'] || null,
                         roles: [],
                     });
             }),
-                t.media.forEach((p, m) => {
-                    let _ =
-                        p['STABLE-RENDITION-ID'] ||
-                        `${p.TYPE.toLowerCase()}_${m}`;
-                    p.TYPE === 'AUDIO'
+                (t.media || []).forEach((u, p) => {
+                    let y =
+                        u['STABLE-RENDITION-ID'] ||
+                        `${u.TYPE.toLowerCase()}_${p}`;
+                    u.TYPE === 'AUDIO'
                         ? r.push({
-                              id: _,
-                              lang: p.LANGUAGE,
+                              id: y,
+                              lang: u.LANGUAGE,
                               codecs: [],
-                              channels: p.CHANNELS ? [p.CHANNELS] : [],
-                              isDefault: p.DEFAULT === 'YES',
-                              isForced: p.FORCED === 'YES',
+                              channels: u.CHANNELS ? [u.CHANNELS] : [],
+                              isDefault: u.DEFAULT === 'YES',
+                              isForced: u.FORCED === 'YES',
                               roles: [],
                           })
-                        : (p.TYPE === 'SUBTITLES' ||
-                              p.TYPE === 'CLOSED-CAPTIONS') &&
+                        : (u.TYPE === 'SUBTITLES' ||
+                              u.TYPE === 'CLOSED-CAPTIONS') &&
                           a.push({
-                              id: _,
-                              lang: p.LANGUAGE,
+                              id: y,
+                              lang: u.LANGUAGE,
                               codecsOrMimeTypes: [],
-                              isDefault: p.DEFAULT === 'YES',
-                              isForced: p.FORCED === 'YES',
+                              isDefault: u.DEFAULT === 'YES',
+                              isForced: u.FORCED === 'YES',
                               roles: [],
                           });
                 }));
-            let d = t.tags.find((p) => p.name === 'EXT-X-SESSION-KEY');
+            let d = t.tags.find((u) => u.name === 'EXT-X-SESSION-KEY');
             if (
                 d &&
                 d.value.METHOD !== 'NONE' &&
-                (o.add(d.value.METHOD),
+                (s.add(d.value.METHOD),
                 d.value.KEYFORMAT ===
                     'urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed' &&
                     d.value.URI)
             )
                 try {
-                    let m = atob(d.value.URI.split(',')[1]).slice(32, 48);
-                    s.add(
-                        Array.from(m)
-                            .map((_) =>
-                                _.charCodeAt(0).toString(16).padStart(2, '0')
+                    let p = atob(d.value.URI.split(',')[1]).slice(32, 48);
+                    l.add(
+                        Array.from(p)
+                            .map((y) =>
+                                y.charCodeAt(0).toString(16).padStart(2, '0')
                             )
                             .join('')
                     );
                 } catch {}
         } else {
-            let d = t.segments.find((_) => _.key)?.key;
-            d && d.METHOD !== 'NONE' && o.add(d.METHOD);
-            let p = t.segments.length,
-                m = t.segments.reduce((_, x) => _ + x.duration, 0);
-            l = {
-                segmentCount: p,
-                averageSegmentDuration: p > 0 ? m / p : 0,
-                hasDiscontinuity: t.segments.some((_) => _.discontinuity),
+            let d = t.segments.find((y) => y.key)?.key;
+            d && d.METHOD !== 'NONE' && s.add(d.METHOD);
+            let u = t.segments.length,
+                p = t.segments.reduce((y, _) => y + _.duration, 0);
+            o = {
+                segmentCount: u,
+                averageSegmentDuration: u > 0 ? p / u : 0,
+                hasDiscontinuity: t.segments.some((y) => y.discontinuity),
                 isIFrameOnly: t.tags.some(
-                    (_) => _.name === 'EXT-X-I-FRAMES-ONLY'
+                    (y) => y.name === 'EXT-X-I-FRAMES-ONLY'
                 ),
             };
         }
@@ -11483,7 +11503,7 @@
                 version: t.version,
                 targetDuration: t.targetDuration,
                 iFramePlaylists: c,
-                mediaPlaylistDetails: l,
+                mediaPlaylistDetails: o,
             },
             lowLatency: {
                 isLowLatency: !!t.partInf,
@@ -11495,23 +11515,24 @@
                 maxLatency: null,
             },
             content: {
-                periods: 1,
-                videoTracks: i.length,
-                audioTracks: r.length,
-                textTracks: a.length,
-                mediaPlaylists: n ? t.variants.length : 1,
+                totalPeriods: 1,
+                totalVideoTracks: i.length,
+                totalAudioTracks: r.length,
+                totalTextTracks: a.length,
+                mediaPlaylists: n ? (t.variants || []).length : 1,
+                periods: [],
             },
             videoTracks: i,
             audioTracks: r,
             textTracks: a,
             security: {
-                isEncrypted: o.size > 0,
-                systems: Array.from(o),
-                kids: Array.from(s),
+                isEncrypted: s.size > 0,
+                systems: Array.from(s),
+                kids: Array.from(l),
             },
         };
     }
-    function Ta(e) {
+    function Aa(e) {
         let t = {
                 id: null,
                 type: e.isLive ? 'dynamic' : 'static',
@@ -11523,7 +11544,7 @@
                 minimumUpdatePeriod: e.isLive ? e.targetDuration : null,
                 duration: e.isMaster
                     ? null
-                    : e.segments.reduce((o, s) => o + s.duration, 0),
+                    : e.segments.reduce((s, l) => s + l.duration, 0),
                 maxSegmentDuration: null,
                 maxSubsegmentDuration: null,
                 programInformations: [],
@@ -11543,28 +11564,28 @@
                 renditionReports: e.renditionReports || [],
                 partInf: e.partInf || null,
             },
-            n = e.tags.filter((o) => o.name === 'EXT-X-DATERANGE'),
+            n = e.tags.filter((s) => s.name === 'EXT-X-DATERANGE'),
             i = 0,
             r = new Map();
-        for (let o of e.segments)
-            (o.dateTime && r.set(new Date(o.dateTime).getTime(), i),
-                (i += o.duration));
-        for (let o of n) {
-            let s = new Date(o.value['START-DATE']).getTime(),
-                l = parseFloat(o.value.DURATION),
+        for (let s of e.segments)
+            (s.dateTime && r.set(new Date(s.dateTime).getTime(), i),
+                (i += s.duration));
+        for (let s of n) {
+            let l = new Date(s.value['START-DATE']).getTime(),
+                o = parseFloat(s.value.DURATION),
                 c = Array.from(r.keys())
-                    .filter((f) => f <= s)
+                    .filter((f) => f <= l)
                     .pop();
             if (c) {
-                let f = (s - c) / 1e3,
-                    d = o.value.CLASS === 'com.apple.hls.interstitial';
+                let f = (l - c) / 1e3,
+                    d = s.value.CLASS === 'com.apple.hls.interstitial';
                 t.events.push({
                     startTime: r.get(c) + f,
-                    duration: l,
+                    duration: o,
                     message: d
-                        ? `Interstitial: ${o.value.ID || 'N/A'}`
-                        : `Date Range: ${o.value.ID || 'N/A'}`,
-                    messageData: d ? o.value : null,
+                        ? `Interstitial: ${s.value.ID || 'N/A'}`
+                        : `Date Range: ${s.value.ID || 'N/A'}`,
+                    messageData: d ? s.value : null,
                     type: 'hls-daterange',
                 });
             }
@@ -11582,28 +11603,28 @@
             serializedManifest: e,
         };
         if (e.isMaster) {
-            let o = e.media.reduce((s, l) => {
-                let c = l['GROUP-ID'],
-                    f = l.TYPE.toLowerCase();
+            let s = e.media.reduce((l, o) => {
+                let c = o['GROUP-ID'],
+                    f = o.TYPE.toLowerCase();
                 return (
-                    s[f] || (s[f] = {}),
-                    s[f][c] || (s[f][c] = []),
-                    s[f][c].push(l),
-                    s
+                    l[f] || (l[f] = {}),
+                    l[f][c] || (l[f][c] = []),
+                    l[f][c].push(o),
+                    l
                 );
             }, {});
-            (Object.entries(o).forEach(([s, l]) => {
-                Object.entries(l).forEach(([c, f], d) => {
-                    f.forEach((p, m) => {
-                        let _ = s === 'subtitles' ? 'text' : s,
-                            x = {
+            (Object.entries(s).forEach(([l, o]) => {
+                Object.entries(o).forEach(([c, f], d) => {
+                    f.forEach((u, p) => {
+                        let y = l === 'subtitles' ? 'text' : l,
+                            _ = {
                                 id:
-                                    p['STABLE-RENDITION-ID'] ||
-                                    `${s}-rendition-${c}-${m}`,
-                                contentType: _,
-                                lang: p.LANGUAGE,
+                                    u['STABLE-RENDITION-ID'] ||
+                                    `${l}-rendition-${c}-${p}`,
+                                contentType: y,
+                                lang: u.LANGUAGE,
                                 mimeType:
-                                    _ === 'text' ? 'text/vtt' : 'video/mp2t',
+                                    y === 'text' ? 'text/vtt' : 'video/mp2t',
                                 representations: [],
                                 contentProtection: [],
                                 roles: [],
@@ -11619,139 +11640,64 @@
                                 accessibility: [],
                                 labels: [],
                                 groupLabels: [],
-                                serializedManifest: p,
+                                serializedManifest: u,
                             };
-                        a.adaptationSets.push(x);
+                        a.adaptationSets.push(_);
                     });
                 });
             }),
-                e.variants.forEach((s, l) => {
-                    let c = s.attributes.CODECS || '',
-                        f =
-                            c.includes('avc1') ||
-                            c.includes('hev1') ||
-                            c.includes('hvc1'),
-                        d = !!s.attributes.RESOLUTION,
-                        p = f || d,
-                        m = c.includes('mp4a') && !s.attributes.AUDIO;
-                    if (p) {
-                        let _ = s.attributes.RESOLUTION,
-                            x = {
-                                id:
-                                    s.attributes['STABLE-VARIANT-ID'] ||
-                                    `video-variant-${l}-rep-0`,
-                                codecs: c,
-                                bandwidth: s.attributes.BANDWIDTH,
-                                width: _
-                                    ? parseInt(String(_).split('x')[0], 10)
-                                    : null,
-                                height: _
-                                    ? parseInt(String(_).split('x')[1], 10)
-                                    : null,
-                                frameRate: s.attributes['FRAME-RATE'] || null,
-                                sar: null,
-                                qualityRanking: s.attributes.SCORE,
-                                videoRange: s.attributes['VIDEO-RANGE'],
-                                mimeType: null,
-                                profiles: null,
-                                selectionPriority: null,
-                                codingDependency: null,
-                                scanType: null,
-                                associationId: null,
-                                associationType: null,
-                                segmentProfiles: null,
-                                mediaStreamStructureId: null,
-                                maximumSAPPeriod: null,
-                                startWithSAP: null,
-                                maxPlayoutRate: null,
-                                tag: null,
-                                eptDelta: null,
-                                pdDelta: null,
-                                representationIndex: null,
-                                failoverContent: null,
-                                audioChannelConfigurations: [],
-                                framePackings: [],
-                                ratings: [],
-                                viewpoints: [],
-                                accessibility: [],
-                                labels: [],
-                                groupLabels: [],
-                                subRepresentations: [],
-                                dependencyId: null,
-                                serializedManifest: s,
-                            },
-                            y = {
-                                id: `video-variant-${l}`,
-                                contentType: 'video',
-                                lang: null,
-                                mimeType: 'video/mp2t',
-                                representations: [x],
-                                contentProtection: [],
-                                roles: [],
-                                profiles: null,
-                                group: null,
-                                bitstreamSwitching: null,
-                                maxWidth: null,
-                                maxHeight: null,
-                                maxFrameRate: null,
-                                framePackings: [],
-                                ratings: [],
-                                viewpoints: [],
-                                accessibility: [],
-                                labels: [],
-                                groupLabels: [],
-                                serializedManifest: s,
-                            };
-                        a.adaptationSets.push(y);
-                    }
-                    if (m) {
-                        let _ = {
-                            id: `audio-muxed-${l}`,
-                            contentType: 'audio',
+                e.variants.forEach((l, o) => {
+                    let c = l.attributes.RESOLUTION,
+                        f = {
+                            id:
+                                l.attributes['STABLE-VARIANT-ID'] ||
+                                `variant-${o}-rep-0`,
+                            codecs: l.attributes.CODECS || '',
+                            bandwidth: l.attributes.BANDWIDTH,
+                            width: c
+                                ? parseInt(String(c).split('x')[0], 10)
+                                : null,
+                            height: c
+                                ? parseInt(String(c).split('x')[1], 10)
+                                : null,
+                            frameRate: l.attributes['FRAME-RATE'] || null,
+                            videoRange: l.attributes['VIDEO-RANGE'],
+                            sar: null,
+                            qualityRanking: l.attributes.SCORE,
+                            mimeType: null,
+                            profiles: null,
+                            selectionPriority: null,
+                            codingDependency: null,
+                            scanType: null,
+                            associationId: null,
+                            associationType: null,
+                            segmentProfiles: null,
+                            mediaStreamStructureId: null,
+                            maximumSAPPeriod: null,
+                            startWithSAP: null,
+                            maxPlayoutRate: null,
+                            tag: null,
+                            eptDelta: null,
+                            pdDelta: null,
+                            representationIndex: null,
+                            failoverContent: null,
+                            audioChannelConfigurations: [],
+                            framePackings: [],
+                            ratings: [],
+                            viewpoints: [],
+                            accessibility: [],
+                            labels: [],
+                            groupLabels: [],
+                            subRepresentations: [],
+                            dependencyId: null,
+                            serializedManifest: l,
+                        },
+                        d = {
+                            id: `variant-${o}`,
+                            contentType: 'video',
                             lang: null,
-                            mimeType: 'audio/mp4',
-                            representations: [
-                                {
-                                    id: `audio-muxed-${l}-rep-0`,
-                                    codecs: c
-                                        .split(',')
-                                        .find((x) => x.startsWith('mp4a')),
-                                    bandwidth: s.attributes.BANDWIDTH,
-                                    width: null,
-                                    height: null,
-                                    mimeType: null,
-                                    profiles: null,
-                                    qualityRanking: null,
-                                    selectionPriority: null,
-                                    codingDependency: null,
-                                    scanType: null,
-                                    associationId: null,
-                                    associationType: null,
-                                    segmentProfiles: null,
-                                    mediaStreamStructureId: null,
-                                    maximumSAPPeriod: null,
-                                    startWithSAP: null,
-                                    maxPlayoutRate: null,
-                                    tag: null,
-                                    eptDelta: null,
-                                    pdDelta: null,
-                                    representationIndex: null,
-                                    failoverContent: null,
-                                    audioChannelConfigurations: [],
-                                    framePackings: [],
-                                    ratings: [],
-                                    viewpoints: [],
-                                    accessibility: [],
-                                    labels: [],
-                                    groupLabels: [],
-                                    videoRange: void 0,
-                                    subRepresentations: [],
-                                    dependencyId: null,
-                                    frameRate: null,
-                                    sar: null,
-                                    serializedManifest: s,
-                                },
-                            ],
+                            mimeType: 'video/mp2t',
+                            representations: [f],
                             contentProtection: [],
                             roles: [],
                             profiles: null,
@@ -11766,13 +11712,12 @@
                             accessibility: [],
                             labels: [],
                             groupLabels: [],
-                            serializedManifest: s,
+                            serializedManifest: l,
                         };
-                        a.adaptationSets.push(_);
-                    }
+                    a.adaptationSets.push(d);
                 }));
         } else {
-            let o = {
+            let s = {
                     id: 'media-0',
                     contentType: 'video',
                     lang: null,
@@ -11833,55 +11778,55 @@
                     groupLabels: [],
                     serializedManifest: e,
                 },
-                s = e.segments.find((l) => l.key)?.key;
-            (s &&
-                s.METHOD !== 'NONE' &&
-                o.contentProtection.push({
-                    schemeIdUri: s.KEYFORMAT || 'identity',
-                    system: s.METHOD,
+                l = e.segments.find((o) => o.key)?.key;
+            (l &&
+                l.METHOD !== 'NONE' &&
+                s.contentProtection.push({
+                    schemeIdUri: l.KEYFORMAT || 'identity',
+                    system: l.METHOD,
                     defaultKid: null,
                 }),
-                a.adaptationSets.push(o));
+                a.adaptationSets.push(s));
         }
-        return (t.periods.push(a), (t.summary = ba(t)), t);
+        return (t.periods.push(a), (t.summary = Da(t)), t);
     }
-    function O(e) {
+    function $(e) {
         let t = {};
         return (
             (e.match(/("[^"]*")|[^,]+/g) || []).forEach((i) => {
                 let r = i.indexOf('=');
                 if (r === -1) return;
                 let a = i.substring(0, r),
-                    o = i.substring(r + 1).replace(/"/g, ''),
-                    s = /^-?\d+(\.\d+)?$/.test(o) ? parseFloat(o) : o;
-                t[a] = s;
+                    s = i.substring(r + 1).replace(/"/g, ''),
+                    l = /^-?\d+(\.\d+)?$/.test(s) ? parseFloat(s) : s;
+                t[a] = l;
             }),
             t
         );
     }
-    function To(e, t, n = new Map()) {
+    function Ao(e, t, n = new Map()) {
         let i = new Map(n),
             r = new URL(t).searchParams;
         return (
-            e.forEach((o) => {
-                if (o.startsWith('#EXT-X-DEFINE:')) {
-                    let s = O(o.substring(14));
-                    if (s.NAME && s.VALUE !== void 0)
-                        i.set(String(s.NAME), {
-                            value: String(s.VALUE),
+            e.forEach((s) => {
+                if (s.startsWith('#EXT-X-DEFINE:')) {
+                    let l = $(s.substring(14));
+                    if (l.NAME && l.VALUE !== void 0)
+                        i.set(String(l.NAME), {
+                            value: String(l.VALUE),
                             source: 'VALUE',
                         });
-                    else if (s.QUERYPARAM) {
-                        let l = String(s.QUERYPARAM),
-                            c = r.get(l);
+                    else if (l.QUERYPARAM) {
+                        let o = String(l.QUERYPARAM),
+                            c = r.get(o);
                         c !== null &&
-                            i.set(l, { value: c, source: `QUERYPARAM (${l})` });
-                    } else if (s.IMPORT) {
-                        let l = String(s.IMPORT);
-                        n.has(l) &&
-                            i.set(l, {
-                                value: n.get(l).value,
-                                source: `IMPORT (${l})`,
+                            i.set(o, { value: c, source: `QUERYPARAM (${o})` });
+                    } else if (l.IMPORT) {
+                        let o = String(l.IMPORT);
+                        n.has(o) &&
+                            i.set(o, {
+                                value: n.get(o).value,
+                                source: `IMPORT (${o})`,
                             });
                     }
                 }
@@ -11889,17 +11834,17 @@
             i.size === 0
                 ? { substitutedLines: e, definedVariables: i }
                 : {
-                      substitutedLines: e.map((o) =>
-                          o.replace(/{\$[a-zA-Z0-9_-]+}/g, (s) => {
-                              let l = s.substring(2, s.length - 1);
-                              return i.has(l) ? i.get(l).value : s;
+                      substitutedLines: e.map((s) =>
+                          s.replace(/{\$[a-zA-Z0-9_-]+}/g, (l) => {
+                              let o = l.substring(2, l.length - 1);
+                              return i.has(o) ? i.get(o).value : l;
                           })
                       ),
                       definedVariables: i,
                   }
         );
     }
-    async function se(e, t, n) {
+    async function le(e, t, n) {
         let i = e,
             r = e.split(/\r?\n/);
         if (!r[0] || r[0].trim() !== '#EXTM3U')
@@ -11911,9 +11856,10 @@
                 throw new Error(
                     'Invalid HLS playlist. Must start with #EXTM3U.'
                 );
-        let { substitutedLines: a, definedVariables: o } = To(r, t, n),
-            s = {
-                isMaster: !1,
+        let { substitutedLines: a, definedVariables: s } = Ao(r, t, n),
+            l = a.some((p) => p.startsWith('#EXT-X-STREAM-INF')),
+            o = {
+                isMaster: l,
                 version: 1,
                 tags: [],
                 segments: [],
@@ -11921,62 +11867,62 @@
                 media: [],
                 raw: i,
                 baseUrl: t,
-                isLive: !0,
+                isLive: !l,
                 preloadHints: [],
                 renditionReports: [],
             },
-            l = null,
             c = null,
-            f = null;
+            f = null,
+            d = null;
         for (let p = 1; p < a.length; p++) {
-            let m = a[p].trim();
-            if (m)
-                if (m.startsWith('#EXT')) {
-                    let _ = m.indexOf(':'),
-                        x,
-                        y;
+            let y = a[p].trim();
+            if (y)
+                if (y.startsWith('#EXT')) {
+                    let _ = y.indexOf(':'),
+                        b,
+                        S;
                     switch (
                         (_ === -1
-                            ? ((x = m.substring(1)), (y = null))
-                            : ((x = m.substring(1, _)),
-                              (y = m.substring(_ + 1))),
-                        x)
+                            ? ((b = y.substring(1)), (S = null))
+                            : ((b = y.substring(1, _)),
+                              (S = y.substring(_ + 1))),
+                        b)
                     ) {
                         case 'EXT-X-STREAM-INF': {
-                            s.isMaster = !0;
-                            let b = O(y),
-                                g = a[++p].trim();
-                            s.variants.push({
-                                attributes: b,
-                                uri: g,
-                                resolvedUri: new URL(g, t).href,
+                            o.isMaster = !0;
+                            let g = $(S),
+                                x = a[++p].trim();
+                            o.variants.push({
+                                attributes: g,
+                                uri: x,
+                                resolvedUri: new URL(x, t).href,
                                 lineNumber: p,
                             });
                             break;
                         }
                         case 'EXT-X-MEDIA':
-                            ((s.isMaster = !0),
-                                s.media.push({ ...O(y), lineNumber: p }));
+                            ((o.isMaster = !0),
+                                o.media.push({ ...$(S), lineNumber: p }));
                             break;
                         case 'EXT-X-I-FRAME-STREAM-INF':
-                            ((s.isMaster = !0),
-                                s.tags.push({
-                                    name: x,
-                                    value: O(y),
+                            ((o.isMaster = !0),
+                                o.tags.push({
+                                    name: b,
+                                    value: $(S),
                                     lineNumber: p,
                                 }));
                             break;
                         case 'EXTINF': {
-                            let [b, g] = y.split(','),
-                                S = parseFloat(b);
-                            (isNaN(S) && (S = 0),
-                                (l = {
-                                    duration: S,
-                                    title: g || '',
+                            let [g, x] = S.split(','),
+                                T = parseFloat(g);
+                            (isNaN(T) && (T = 0),
+                                (c = {
+                                    duration: T,
+                                    title: x || '',
                                     tags: [],
-                                    key: c,
+                                    key: f,
                                     parts: [],
-                                    bitrate: f,
+                                    bitrate: d,
                                     gap: !1,
                                     type: 'Media',
                                     extinfLineNumber: p,
@@ -11984,112 +11930,114 @@
                             break;
                         }
                         case 'EXT-X-GAP':
-                            l &&
-                                ((l.gap = !0),
-                                (l.uri = null),
-                                (l.resolvedUrl = null),
-                                s.segments.push(l),
-                                (l = null));
+                            c &&
+                                ((c.gap = !0),
+                                (c.uri = null),
+                                (c.resolvedUrl = null),
+                                o.segments.push(c),
+                                (c = null));
                             break;
                         case 'EXT-X-BITRATE':
-                            f = parseInt(y, 10);
+                            d = parseInt(S, 10);
                             break;
                         case 'EXT-X-BYTERANGE':
-                            l &&
-                                l.tags.push({
-                                    name: x,
-                                    value: y,
+                            c &&
+                                c.tags.push({
+                                    name: b,
+                                    value: S,
                                     lineNumber: p,
                                 });
                             break;
                         case 'EXT-X-DISCONTINUITY':
-                            l && (l.discontinuity = !0);
+                            c && (c.discontinuity = !0);
                             break;
                         case 'EXT-X-KEY': {
-                            let b = O(y);
-                            ((c = b),
-                                b.METHOD === 'NONE' && (c = null),
-                                s.tags.push({
-                                    name: x,
-                                    value: b,
+                            let g = $(S);
+                            ((f = g),
+                                g.METHOD === 'NONE' && (f = null),
+                                o.tags.push({
+                                    name: b,
+                                    value: g,
                                     lineNumber: p,
                                 }));
                             break;
                         }
                         case 'EXT-X-MAP':
-                            s.map = { ...O(y), lineNumber: p };
+                            o.map = { ...$(S), lineNumber: p };
                             break;
                         case 'EXT-X-PROGRAM-DATE-TIME':
-                            l && (l.dateTime = y);
+                            c && (c.dateTime = S);
                             break;
                         case 'EXT-X-TARGETDURATION':
-                            s.targetDuration = parseInt(y, 10);
+                            o.targetDuration = parseInt(S, 10);
                             break;
                         case 'EXT-X-MEDIA-SEQUENCE':
-                            s.mediaSequence = parseInt(y, 10);
+                            o.mediaSequence = parseInt(S, 10);
                             break;
                         case 'EXT-X-PLAYLIST-TYPE':
-                            ((s.playlistType = y),
-                                y === 'VOD' && (s.isLive = !1));
+                            ((o.playlistType = S),
+                                S === 'VOD'
+                                    ? (o.isLive = !1)
+                                    : S === 'EVENT' && (o.isLive = !0));
                             break;
                         case 'EXT-X-ENDLIST':
-                            ((s.isLive = !1),
-                                s.tags.push({
-                                    name: x,
+                            ((o.isLive = !1),
+                                o.tags.push({
+                                    name: b,
                                     value: null,
                                     lineNumber: p,
                                 }));
                             break;
                         case 'EXT-X-VERSION':
-                            ((s.version = parseInt(y, 10)),
-                                s.tags.push({
-                                    name: x,
-                                    value: s.version,
+                            ((o.version = parseInt(S, 10)),
+                                o.tags.push({
+                                    name: b,
+                                    value: o.version,
                                     lineNumber: p,
                                 }));
                             break;
                         case 'EXT-X-PART-INF':
-                            ((s.partInf = O(y)),
-                                s.tags.push({
-                                    name: x,
-                                    value: s.partInf,
+                            ((o.partInf = $(S)),
+                                o.tags.push({
+                                    name: b,
+                                    value: o.partInf,
                                     lineNumber: p,
                                 }));
                             break;
                         case 'EXT-X-SERVER-CONTROL':
-                            ((s.serverControl = O(y)),
-                                s.tags.push({
-                                    name: x,
-                                    value: s.serverControl,
+                            ((o.serverControl = $(S)),
+                                o.tags.push({
+                                    name: b,
+                                    value: o.serverControl,
                                     lineNumber: p,
                                 }));
                             break;
                         case 'EXT-X-PART':
-                            if (l) {
-                                let b = O(y);
-                                l.parts.push({
-                                    ...b,
-                                    resolvedUri: new URL(String(b.URI), t).href,
+                            if (c) {
+                                let g = $(S);
+                                c.parts.push({
+                                    ...g,
+                                    resolvedUri: new URL(String(g.URI), t).href,
                                     lineNumber: p,
                                 });
                             }
                             break;
                         case 'EXT-X-PRELOAD-HINT':
-                            (s.preloadHints.push({ ...O(y), lineNumber: p }),
-                                s.tags.push({
-                                    name: x,
-                                    value: s.preloadHints.at(-1),
+                            (o.preloadHints.push({ ...$(S), lineNumber: p }),
+                                o.tags.push({
+                                    name: b,
+                                    value: o.preloadHints.at(-1),
                                     lineNumber: p,
                                 }));
                             break;
                         case 'EXT-X-RENDITION-REPORT':
-                            (s.renditionReports.push({
-                                ...O(y),
+                            (o.renditionReports.push({
+                                ...$(S),
                                 lineNumber: p,
                             }),
-                                s.tags.push({
-                                    name: x,
-                                    value: s.renditionReports.at(-1),
+                                o.tags.push({
+                                    name: b,
+                                    value: o.renditionReports.at(-1),
                                     lineNumber: p,
                                 }));
                             break;
@@ -12098,204 +12046,228 @@
                         case 'EXT-X-CONTENT-STEERING':
                         case 'EXT-X-DATERANGE':
                         case 'EXT-X-SESSION-DATA':
-                            s.tags.push({
-                                name: x,
-                                value: O(y),
+                            o.tags.push({
+                                name: b,
+                                value: $(S),
                                 lineNumber: p,
                             });
                             break;
                         default:
-                            l
-                                ? l.tags.push({
-                                      name: x,
-                                      value: y,
+                            c
+                                ? c.tags.push({
+                                      name: b,
+                                      value: S,
                                       lineNumber: p,
                                   })
-                                : s.tags.push({
-                                      name: x,
-                                      value: y,
+                                : o.tags.push({
+                                      name: b,
+                                      value: S,
                                       lineNumber: p,
                                   });
                             break;
                     }
                 } else
-                    m.startsWith('#') ||
-                        (l &&
-                            ((l.uri = m),
-                            (l.resolvedUrl = new URL(m, t).href),
-                            (l.uriLineNumber = p),
-                            s.segments.push(l),
-                            (l = null)));
+                    y.startsWith('#') ||
+                        (c &&
+                            ((c.uri = y),
+                            (c.resolvedUrl = new URL(y, t).href),
+                            (c.uriLineNumber = p),
+                            o.segments.push(c),
+                            (c = null)));
         }
-        return { manifest: Ta(s), definedVariables: o, baseUrl: t };
+        return { manifest: Aa(o), definedVariables: s, baseUrl: t };
     }
-    G();
-    G();
-    function Ia(e, t) {
+    j();
+    j();
+    function ka(e, t) {
         let n = {},
-            i = u(e, 'type') === 'dynamic';
+            i = m(e, 'type') === 'dynamic',
+            r = i ? new Date(m(e, 'availabilityStartTime')).getTime() : 0;
         return (
-            ze(e, 'Representation').forEach(({ element: a, context: o }) => {
-                let s = u(a, 'id');
-                if (!s) return;
-                n[s] = [];
-                let { period: l, adaptationSet: c } = o;
-                if (!l || !c) return;
-                let f = [a, c, l],
-                    d = la(t, e, l, c, a),
-                    p = J('SegmentTemplate', f),
-                    m = J('SegmentList', f),
-                    _ = J('SegmentBase', f),
-                    x = u(p, 'initialization');
-                if (!x) {
-                    let y = m || _,
-                        b = y ? k(y, 'Initialization') : null;
-                    b && (x = u(b, 'sourceURL'));
+            He(e, 'Representation').forEach(({ element: s, context: l }) => {
+                let o = m(s, 'id');
+                if (!o) return;
+                let { period: c, adaptationSet: f } = l;
+                if (!c || !f) return;
+                let d = m(c, 'id');
+                if (!d) {
+                    console.warn(
+                        'Skipping Representation in Period without an ID.',
+                        s
+                    );
+                    return;
                 }
-                if (x) {
-                    let y = x.replace(/\$RepresentationID\$/g, s);
-                    n[s].push({
-                        repId: s,
+                let u = `${d}-${o}`;
+                n[u] = [];
+                let p = [s, f, c],
+                    y = ga(t, e, c, f, s),
+                    _ = Z('SegmentTemplate', p),
+                    b = Z('SegmentList', p),
+                    S = Z('SegmentBase', p),
+                    g = m(_, 'initialization');
+                if (!g) {
+                    let x = b || S,
+                        T = x ? k(x, 'Initialization') : null;
+                    T && (g = m(T, 'sourceURL'));
+                }
+                if (g) {
+                    let x = g.replace(/\$RepresentationID\$/g, o);
+                    n[u].push({
+                        repId: o,
                         type: 'Init',
                         number: 0,
-                        resolvedUrl: new URL(y, d).href,
-                        template: y,
+                        resolvedUrl: new URL(x, y).href,
+                        template: x,
                         time: -1,
                         duration: 0,
-                        timescale: parseInt(u(p || m, 'timescale') || '1'),
+                        timescale: parseInt(m(_ || b, 'timescale') || '1'),
                     });
                 }
-                if (p) {
-                    let y = parseInt(u(p, 'timescale') || '1'),
-                        b = u(p, 'media'),
-                        g = k(p, 'SegmentTimeline'),
-                        S = parseInt(u(p, 'startNumber') || '1');
-                    if (b && g) {
-                        let T = S,
-                            I = 0;
-                        v(g, 'S').forEach((C) => {
-                            let D = u(C, 't') ? parseInt(u(C, 't')) : I,
-                                M = parseInt(u(C, 'd')),
-                                A = parseInt(u(C, 'r') || '0');
-                            I = D;
-                            for (let L = 0; L <= A; L++) {
-                                let ie = I,
-                                    F = b
-                                        .replace(/\$RepresentationID\$/g, s)
+                if (_) {
+                    let x = parseInt(m(_, 'timescale') || '1'),
+                        T = m(_, 'media'),
+                        I = k(_, 'SegmentTimeline'),
+                        E = parseInt(m(_, 'startNumber') || '1'),
+                        A = w(m(c, 'start')) || 0;
+                    if (T && I) {
+                        let R = E,
+                            P = 0;
+                        v(I, 'S').forEach((M) => {
+                            let F = m(M, 't') ? parseInt(m(M, 't')) : P,
+                                L = parseInt(m(M, 'd')),
+                                ge = parseInt(m(M, 'r') || '0');
+                            P = F;
+                            for (let he = 0; he <= ge; he++) {
+                                let re = P,
+                                    _e = A + re / x,
+                                    mt = L / x,
+                                    ae = T.replace(/\$RepresentationID\$/g, o)
                                         .replace(
                                             /\$Number(%0\d+d)?\$/g,
-                                            (Yo, Ae) =>
-                                                String(T).padStart(
-                                                    Ae
+                                            (al, Le) =>
+                                                String(R).padStart(
+                                                    Le
                                                         ? parseInt(
-                                                              Ae.substring(
+                                                              Le.substring(
                                                                   2,
-                                                                  Ae.length - 1
+                                                                  Le.length - 1
                                                               )
                                                           )
                                                         : 1,
                                                     '0'
                                                 )
                                         )
-                                        .replace(/\$Time\$/g, String(ie));
-                                (n[s].push({
-                                    repId: s,
+                                        .replace(/\$Time\$/g, String(re));
+                                (n[u].push({
+                                    repId: o,
                                     type: 'Media',
-                                    number: T,
-                                    resolvedUrl: new URL(F, d).href,
-                                    template: F,
-                                    time: ie,
-                                    duration: M,
-                                    timescale: y,
+                                    number: R,
+                                    resolvedUrl: new URL(ae, y).href,
+                                    template: ae,
+                                    time: re,
+                                    duration: L,
+                                    timescale: x,
+                                    startTimeUTC: r + _e * 1e3,
+                                    endTimeUTC: r + (_e + mt) * 1e3,
                                 }),
-                                    (I += M),
-                                    T++);
+                                    (P += L),
+                                    R++);
                             }
                         });
-                    } else if (b && u(p, 'duration')) {
-                        let T = parseInt(u(p, 'duration')),
-                            I = T / y,
-                            C = 0,
-                            D = S;
-                        if (i) C = 10;
+                    } else if (T && m(_, 'duration')) {
+                        let R = parseInt(m(_, 'duration')),
+                            P = R / x,
+                            M = 0,
+                            F = E;
+                        if (i) M = 10;
                         else {
-                            let M =
-                                w(u(e, 'mediaPresentationDuration')) ||
-                                w(u(l, 'duration'));
-                            if (!M || !I) return;
-                            C = Math.ceil(M / I);
+                            let L =
+                                w(m(e, 'mediaPresentationDuration')) ||
+                                w(m(c, 'duration'));
+                            if (!L || !P) return;
+                            M = Math.ceil(L / P);
                         }
-                        for (let M = 0; M < C; M++) {
-                            let A = D + M,
-                                L = b
-                                    .replace(/\$RepresentationID\$/g, s)
-                                    .replace(/\$Number(%0\d+d)?\$/g, (ie, F) =>
-                                        String(A).padStart(
-                                            F
-                                                ? parseInt(
-                                                      F.substring(
-                                                          2,
-                                                          F.length - 1
-                                                      )
-                                                  )
-                                                : 1,
-                                            '0'
-                                        )
-                                    );
-                            n[s].push({
-                                repId: s,
+                        for (let L = 0; L < M; L++) {
+                            let ge = F + L,
+                                he = (ge - E) * R,
+                                re = A + he / x,
+                                _e = T.replace(
+                                    /\$RepresentationID\$/g,
+                                    o
+                                ).replace(/\$Number(%0\d+d)?\$/g, (mt, ae) =>
+                                    String(ge).padStart(
+                                        ae
+                                            ? parseInt(
+                                                  ae.substring(2, ae.length - 1)
+                                              )
+                                            : 1,
+                                        '0'
+                                    )
+                                );
+                            n[u].push({
+                                repId: o,
                                 type: 'Media',
-                                number: A,
-                                resolvedUrl: new URL(L, d).href,
-                                template: L,
-                                time: (A - S) * T,
-                                duration: T,
-                                timescale: y,
+                                number: ge,
+                                resolvedUrl: new URL(_e, y).href,
+                                template: _e,
+                                time: he,
+                                duration: R,
+                                timescale: x,
+                                startTimeUTC: r + re * 1e3,
+                                endTimeUTC: r + (re + P) * 1e3,
                             });
                         }
                     }
-                } else if (m) {
-                    let y = parseInt(u(m, 'timescale') || '1'),
-                        b = parseInt(u(m, 'duration')),
-                        g = 0;
-                    v(m, 'SegmentURL').forEach((T, I) => {
-                        let C = u(T, 'media');
-                        C &&
-                            (n[s].push({
-                                repId: s,
+                } else if (b) {
+                    let x = parseInt(m(b, 'timescale') || '1'),
+                        T = parseInt(m(b, 'duration')),
+                        I = T / x,
+                        E = 0,
+                        A = w(m(c, 'start')) || 0;
+                    v(b, 'SegmentURL').forEach((P, M) => {
+                        let F = m(P, 'media');
+                        if (F) {
+                            let L = A + E / x;
+                            (n[u].push({
+                                repId: o,
                                 type: 'Media',
-                                number: I + 1,
-                                resolvedUrl: new URL(C, d).href,
-                                template: C,
-                                time: g,
-                                duration: b,
-                                timescale: y,
+                                number: M + 1,
+                                resolvedUrl: new URL(F, y).href,
+                                template: F,
+                                time: E,
+                                duration: T,
+                                timescale: x,
+                                startTimeUTC: r + L * 1e3,
+                                endTimeUTC: r + (L + I) * 1e3,
                             }),
-                            (g += b));
+                                (E += T));
+                        }
                     });
-                } else if (_) {
-                    let y =
-                            w(u(e, 'mediaPresentationDuration')) ||
-                            w(u(l, 'duration')) ||
-                            0,
-                        b = 1;
-                    n[s].push({
-                        repId: s,
+                } else if (S || k(s, 'BaseURL')) {
+                    let x = parseInt(m(f, 'timescale') || '1'),
+                        T =
+                            w(m(e, 'mediaPresentationDuration')) ||
+                            w(m(c, 'duration')) ||
+                            0;
+                    n[u].push({
+                        repId: o,
                         type: 'Media',
                         number: 1,
-                        resolvedUrl: d,
-                        template: 'SegmentBase',
+                        resolvedUrl: y,
+                        template: k(s, 'BaseURL') ? 'BaseURL' : 'SegmentBase',
                         time: 0,
-                        duration: y * b,
-                        timescale: b,
+                        duration: T * x,
+                        timescale: x,
+                        startTimeUTC: 0,
+                        endTimeUTC: 0,
                     });
                 }
             }),
             n
         );
     }
-    G();
-    var oe = [
+    j();
+    var fe = [
         {
             id: 'MPD-1',
             text: 'MPD root element must exist',
@@ -12316,7 +12288,7 @@
             scope: 'MPD',
             category: 'Manifest Structure',
             check: (e) =>
-                u(e, 'profiles') !== void 0 && u(e, 'profiles') !== '',
+                m(e, 'profiles') !== void 0 && m(e, 'profiles') !== '',
             passDetails: 'OK',
             failDetails:
                 'The @profiles attribute is mandatory and must not be empty.',
@@ -12328,7 +12300,7 @@
             severity: 'fail',
             scope: 'MPD',
             category: 'Manifest Structure',
-            check: (e) => u(e, 'minBufferTime') !== void 0,
+            check: (e) => m(e, 'minBufferTime') !== void 0,
             passDetails: 'OK',
             failDetails: 'The @minBufferTime attribute is mandatory.',
         },
@@ -12340,7 +12312,7 @@
             scope: 'MPD',
             category: 'Manifest Structure',
             check: (e) =>
-                u(e, 'type') === 'static' || u(e, 'type') === 'dynamic',
+                m(e, 'type') === 'static' || m(e, 'type') === 'dynamic',
             passDetails: 'OK',
             failDetails:
                 'The @type attribute is mandatory and must be either "static" or "dynamic".',
@@ -12366,7 +12338,7 @@
             category: 'Live Stream Properties',
             check: (e) =>
                 k(e, 'PatchLocation')
-                    ? u(e, 'id') !== void 0 && u(e, 'publishTime') !== void 0
+                    ? m(e, 'id') !== void 0 && m(e, 'publishTime') !== void 0
                     : 'skip',
             passDetails: 'OK',
             failDetails:
@@ -12380,7 +12352,7 @@
             scope: 'MPD',
             category: 'Live Stream Properties',
             check: (e, { isDynamic: t }) =>
-                t ? u(e, 'availabilityStartTime') !== void 0 : 'skip',
+                t ? m(e, 'availabilityStartTime') !== void 0 : 'skip',
             passDetails: 'OK',
             failDetails: 'Required for dynamic MPDs.',
         },
@@ -12392,7 +12364,7 @@
             scope: 'MPD',
             category: 'Live Stream Properties',
             check: (e, { isDynamic: t }) =>
-                t ? u(e, 'publishTime') !== void 0 : 'skip',
+                t ? m(e, 'publishTime') !== void 0 : 'skip',
             passDetails: 'OK',
             failDetails: 'Required for dynamic MPDs.',
         },
@@ -12404,7 +12376,7 @@
             scope: 'MPD',
             category: 'Live Stream Properties',
             check: (e, { isDynamic: t }) =>
-                t ? u(e, 'minimumUpdatePeriod') !== void 0 : 'skip',
+                t ? m(e, 'minimumUpdatePeriod') !== void 0 : 'skip',
             passDetails: 'OK',
             failDetails:
                 'Recommended for dynamic MPDs to signal update frequency.',
@@ -12418,10 +12390,10 @@
             category: 'Manifest Structure',
             check: (e, { isDynamic: t }) => {
                 if (t) return 'skip';
-                let n = u(e, 'mediaPresentationDuration') !== void 0,
+                let n = m(e, 'mediaPresentationDuration') !== void 0,
                     i = v(e, 'Period'),
                     r = i[i.length - 1],
-                    a = r ? u(r, 'duration') !== void 0 : !1;
+                    a = r ? m(r, 'duration') !== void 0 : !1;
                 return n || a;
             },
             passDetails: 'OK',
@@ -12436,7 +12408,7 @@
             scope: 'MPD',
             category: 'Manifest Structure',
             check: (e, { isDynamic: t }) =>
-                t ? 'skip' : u(e, 'minimumUpdatePeriod') === void 0,
+                t ? 'skip' : m(e, 'minimumUpdatePeriod') === void 0,
             passDetails: 'OK',
             failDetails: 'Should not be present for static MPDs.',
         },
@@ -12448,7 +12420,7 @@
             scope: 'MPD',
             category: 'Manifest Structure',
             check: (e, { isDynamic: t }) =>
-                t ? 'skip' : u(e, 'timeShiftBufferDepth') === void 0,
+                t ? 'skip' : m(e, 'timeShiftBufferDepth') === void 0,
             passDetails: 'OK',
             failDetails: 'Should not be present for static MPDs.',
         },
@@ -12460,10 +12432,10 @@
             scope: 'Period',
             category: 'Live Stream Properties',
             check: (e, { isDynamic: t }) =>
-                t ? u(e, 'id') !== void 0 : 'skip',
+                t ? m(e, 'id') !== void 0 : 'skip',
             passDetails: 'OK',
             failDetails: (e) =>
-                `Period (start="${u(e, 'start')}") requires an @id in dynamic manifests.`,
+                `Period (start="${m(e, 'start')}") requires an @id in dynamic manifests.`,
         },
         {
             id: 'PERIOD-2',
@@ -12473,7 +12445,7 @@
             scope: 'Period',
             category: 'Manifest Structure',
             check: (e) => {
-                let t = u(e, 'duration');
+                let t = m(e, 'duration');
                 return (
                     v(e, 'AdaptationSet').length > 0 ||
                     t === 'PT0S' ||
@@ -12495,7 +12467,7 @@
                 let t = v(e, 'EventStream');
                 return t.length === 0
                     ? 'skip'
-                    : t.every((n) => u(n, 'schemeIdUri'));
+                    : t.every((n) => m(n, 'schemeIdUri'));
             },
             passDetails: 'OK',
             failDetails:
@@ -12509,7 +12481,7 @@
             scope: 'AdaptationSet',
             category: 'General Best Practices',
             check: (e) =>
-                u(e, 'contentType') !== void 0 || u(e, 'mimeType') !== void 0,
+                m(e, 'contentType') !== void 0 || m(e, 'mimeType') !== void 0,
             passDetails: 'OK',
             failDetails: 'Recommended for clear track identification.',
         },
@@ -12522,8 +12494,8 @@
             category: 'General Best Practices',
             check: (e) =>
                 v(e, 'Representation').length > 1
-                    ? u(e, 'segmentAlignment') === 'true' ||
-                      u(e, 'segmentAlignment') === 1
+                    ? m(e, 'segmentAlignment') === 'true' ||
+                      m(e, 'segmentAlignment') === 1
                     : 'skip',
             passDetails: 'OK',
             failDetails: 'Recommended for seamless ABR switching.',
@@ -12535,7 +12507,7 @@
             severity: 'fail',
             scope: 'Representation',
             category: 'Manifest Structure',
-            check: (e) => u(e, 'id') !== void 0,
+            check: (e) => m(e, 'id') !== void 0,
             passDetails: 'OK',
             failDetails: 'Representation @id is mandatory.',
         },
@@ -12546,7 +12518,7 @@
             severity: 'fail',
             scope: 'Representation',
             category: 'Manifest Structure',
-            check: (e) => u(e, 'bandwidth') !== void 0,
+            check: (e) => m(e, 'bandwidth') !== void 0,
             passDetails: 'OK',
             failDetails: 'Representation @bandwidth is mandatory.',
         },
@@ -12558,7 +12530,7 @@
             scope: 'Representation',
             category: 'Manifest Structure',
             check: (e, { adaptationSet: t }) =>
-                u(e, 'mimeType') !== void 0 || u(t, 'mimeType') !== void 0,
+                m(e, 'mimeType') !== void 0 || m(t, 'mimeType') !== void 0,
             passDetails: 'OK',
             failDetails:
                 'Representation @mimeType must be present on the Representation or inherited from the AdaptationSet.',
@@ -12571,12 +12543,12 @@
             scope: 'Representation',
             category: 'Manifest Structure',
             check: (e, { allRepIdsInPeriod: t }) => {
-                let n = u(e, 'dependencyId');
+                let n = m(e, 'dependencyId');
                 return n ? n.split(' ').every((i) => t.has(i)) : 'skip';
             },
             passDetails: 'OK',
             failDetails: (e) =>
-                `One or more IDs in @dependencyId="${u(e, 'dependencyId')}" do not exist in this Period.`,
+                `One or more IDs in @dependencyId="${m(e, 'dependencyId')}" do not exist in this Period.`,
         },
         {
             id: 'SEGMENT-1',
@@ -12603,11 +12575,11 @@
             scope: 'Representation',
             category: 'Segment & Timing Info',
             check: (e, { adaptationSet: t, period: n }) => {
-                let r = J('SegmentTemplate', [e, t, n]),
-                    a = u(r, 'media');
+                let r = Z('SegmentTemplate', [e, t, n]),
+                    a = m(r, 'media');
                 return !r || !a?.includes('$Number$')
                     ? 'skip'
-                    : u(r, 'duration') !== void 0 || !!k(r, 'SegmentTimeline');
+                    : m(r, 'duration') !== void 0 || !!k(r, 'SegmentTimeline');
             },
             passDetails: 'OK',
             failDetails:
@@ -12621,8 +12593,8 @@
             scope: 'Representation',
             category: 'Segment & Timing Info',
             check: (e, { adaptationSet: t, period: n }) => {
-                let r = J('SegmentTemplate', [e, t, n]);
-                return !r || !u(r, 'media')?.includes('$Time$')
+                let r = Z('SegmentTemplate', [e, t, n]);
+                return !r || !m(r, 'media')?.includes('$Time$')
                     ? 'skip'
                     : !!k(r, 'SegmentTimeline');
             },
@@ -12639,11 +12611,11 @@
             category: 'Profile Conformance',
             check: (e, { profiles: t }) =>
                 t.includes('urn:mpeg:dash:profile:isoff-on-demand:2011')
-                    ? u(e, 'type') === 'static'
+                    ? m(e, 'type') === 'static'
                     : 'skip',
             passDetails: 'OK',
             failDetails: (e) =>
-                `Profile requires 'static', but found '${u(e, 'type')}'`,
+                `Profile requires 'static', but found '${m(e, 'type')}'`,
         },
         {
             id: 'PROFILE-LIVE-1',
@@ -12673,9 +12645,9 @@
             check: (e, { profiles: t }) => {
                 if (!t.includes('urn:mpeg:dash:profile:cmaf:2019'))
                     return 'skip';
-                let n = u(e, 'mimeType');
+                let n = m(e, 'mimeType');
                 if (n !== 'video/mp4' && n !== 'audio/mp4') return 'skip';
-                let i = u(e, 'containerProfiles') || '';
+                let i = m(e, 'containerProfiles') || '';
                 return i.includes('cmfc') || i.includes('cmf2');
             },
             passDetails: 'OK',
@@ -12693,13 +12665,13 @@
                 let t = k(e, 'ServiceDescription');
                 if (!t) return 'skip';
                 let n = k(t, 'Latency');
-                return n ? u(n, 'target') !== void 0 : 'skip';
+                return n ? m(n, 'target') !== void 0 : 'skip';
             },
             passDetails: 'OK',
             failDetails: 'The <Latency> element must have a @target attribute.',
         },
     ];
-    var te = [
+    var ne = [
         {
             id: 'HLS-1',
             text: 'Playlist must start with #EXTM3U',
@@ -13044,8 +13016,8 @@
                 'The URI attribute is REQUIRED for EXT-X-KEY unless the METHOD is NONE.',
         },
     ];
-    G();
-    function qe(e, t, n = {}) {
+    j();
+    function et(e, t, n = {}) {
         if (t === 'hls') {
             let f = e;
             if (!f || typeof f.isMaster != 'boolean')
@@ -13061,100 +13033,100 @@
                     },
                 ];
             let d = [],
-                p = f.type === 'dynamic',
-                m = f.hls?.version || 1,
-                _ = f.hls?.targetDuration || null,
-                x = {
-                    isLive: p,
-                    version: m,
-                    targetDuration: _,
+                u = f.type === 'dynamic',
+                p = f.hls?.version || 1,
+                y = f.hls?.targetDuration || null,
+                _ = {
+                    isLive: u,
+                    version: p,
+                    targetDuration: y,
                     hlsParsed: f,
                     ...n,
                 },
-                y = (g, S, T = '') => {
-                    let I = g.check(S, x);
+                b = (g, x, T = '') => {
+                    let I = g.check(x, _);
                     if (I !== 'skip') {
-                        let C = I ? 'pass' : g.severity,
-                            D = {
+                        let E = I ? 'pass' : g.severity,
+                            A = {
                                 startLine:
-                                    S.extinfLineNumber || S.lineNumber || 1,
-                                endLine: S.uriLineNumber || S.lineNumber || 1,
+                                    x.extinfLineNumber || x.lineNumber || 1,
+                                endLine: x.uriLineNumber || x.lineNumber || 1,
                             };
                         d.push({
                             id: g.id,
                             text: `${g.text} ${T}`,
-                            status: C,
+                            status: E,
                             details: I ? g.passDetails : g.failDetails,
                             isoRef: g.isoRef,
                             category: g.category,
-                            location: D,
+                            location: A,
                         });
                     }
                 },
-                b = ['Playlist'];
+                S = ['Playlist'];
             if (
                 (f.isMaster
-                    ? b.push('MasterPlaylist')
-                    : b.push('MediaPlaylist'),
-                te.filter((g) => b.includes(g.scope)).forEach((g) => y(g, f)),
+                    ? S.push('MasterPlaylist')
+                    : S.push('MediaPlaylist'),
+                ne.filter((g) => S.includes(g.scope)).forEach((g) => b(g, f)),
                 f.isMaster ||
-                    ((f.segments || []).forEach((g, S) => {
-                        te.filter((T) => T.scope === 'Segment').forEach((T) =>
-                            y(T, g, `(Segment ${S + 1})`)
+                    ((f.segments || []).forEach((g, x) => {
+                        ne.filter((T) => T.scope === 'Segment').forEach((T) =>
+                            b(T, g, `(Segment ${x + 1})`)
                         );
                     }),
                     (f.tags || [])
                         .filter((g) => g.name === 'EXT-X-KEY')
-                        .forEach((g, S) => {
+                        .forEach((g, x) => {
                             let T = { ...g.value, lineNumber: g.lineNumber };
-                            te.filter((I) => I.scope === 'Key').forEach((I) =>
-                                y(I, T, `(Key ${S + 1}, Method: ${T.METHOD})`)
+                            ne.filter((I) => I.scope === 'Key').forEach((I) =>
+                                b(I, T, `(Key ${x + 1}, Method: ${T.METHOD})`)
                             );
                         })),
                 f.isMaster)
             ) {
-                ((f.variants || []).forEach((S, T) => {
-                    te.filter((I) => I.scope === 'Variant').forEach((I) =>
-                        y(
+                ((f.variants || []).forEach((x, T) => {
+                    ne.filter((I) => I.scope === 'Variant').forEach((I) =>
+                        b(
                             I,
-                            S,
-                            `(Variant Stream ${T + 1}, BW: ${S.attributes?.BANDWIDTH || 'N/A'})`
+                            x,
+                            `(Variant Stream ${T + 1}, BW: ${x.attributes?.BANDWIDTH || 'N/A'})`
                         )
                     );
                 }),
                     (f.tags || [])
-                        .filter((S) => S.name === 'EXT-X-I-FRAME-STREAM-INF')
-                        .forEach((S, T) => {
-                            let I = { ...S.value, lineNumber: S.lineNumber };
-                            te.filter(
-                                (C) => C.scope === 'IframeVariant'
-                            ).forEach((C) =>
-                                y(
-                                    C,
+                        .filter((x) => x.name === 'EXT-X-I-FRAME-STREAM-INF')
+                        .forEach((x, T) => {
+                            let I = { ...x.value, lineNumber: x.lineNumber };
+                            ne.filter(
+                                (E) => E.scope === 'IframeVariant'
+                            ).forEach((E) =>
+                                b(
+                                    E,
                                     I,
                                     `(I-Frame Stream ${T + 1}, BW: ${I?.BANDWIDTH || 'N/A'})`
                                 )
                             );
                         }));
                 let g = {};
-                ((f.tags.filter((S) => S.name === 'EXT-X-MEDIA') || []).forEach(
-                    (S) => {
-                        let T = S.value['GROUP-ID'],
-                            I = S.value.TYPE;
+                ((f.tags.filter((x) => x.name === 'EXT-X-MEDIA') || []).forEach(
+                    (x) => {
+                        let T = x.value['GROUP-ID'],
+                            I = x.value.TYPE;
                         (g[I] || (g[I] = {}),
                             g[I][T] || (g[I][T] = []),
                             g[I][T].push({
-                                ...S.value,
-                                lineNumber: S.lineNumber,
+                                ...x.value,
+                                lineNumber: x.lineNumber,
                             }));
                     }
                 ),
-                    Object.values(g).forEach((S) => {
-                        Object.values(S).forEach((T, I) => {
-                            te.filter((C) => C.scope === 'MediaGroup').forEach(
-                                (C) =>
-                                    y(
-                                        C,
+                    Object.values(g).forEach((x) => {
+                        Object.values(x).forEach((T, I) => {
+                            ne.filter((E) => E.scope === 'MediaGroup').forEach(
+                                (E) =>
+                                    b(
+                                        E,
                                         T,
                                         `(Media Group ${I + 1}, ID: ${T[0]?.['GROUP-ID'] || 'N/A'}, Type: ${T[0]?.TYPE || 'N/A'})`
                                     )
@@ -13167,7 +13139,7 @@
         let i = e,
             r = 'MPD[0]';
         if (!i || typeof i[':@'] != 'object') {
-            let f = oe.find((d) => d.id === 'MPD-1');
+            let f = fe.find((d) => d.id === 'MPD-1');
             return [
                 {
                     text: f.text,
@@ -13180,22 +13152,22 @@
             ];
         }
         let a = [],
-            o = u(i, 'type') === 'dynamic',
-            s = (u(i, 'profiles') || '').toLowerCase(),
-            l = { isDynamic: o, profiles: s },
-            c = (f, d, p) => (typeof f == 'function' ? f(d, p) : f);
+            s = m(i, 'type') === 'dynamic',
+            l = (m(i, 'profiles') || '').toLowerCase(),
+            o = { isDynamic: s, profiles: l },
+            c = (f, d, u) => (typeof f == 'function' ? f(d, u) : f);
         return (
-            oe
+            fe
                 .filter((f) => f.scope === 'MPD')
                 .forEach((f) => {
-                    let d = f.check(i, l);
+                    let d = f.check(i, o);
                     if (d !== 'skip') {
-                        let p = d ? 'pass' : f.severity;
+                        let u = d ? 'pass' : f.severity;
                         a.push({
                             id: f.id,
                             text: f.text,
-                            status: p,
-                            details: c(d ? f.passDetails : f.failDetails, i, l),
+                            status: u,
+                            details: c(d ? f.passDetails : f.failDetails, i, o),
                             isoRef: f.isoRef,
                             category: f.category,
                             location: { path: r },
@@ -13203,80 +13175,80 @@
                     }
                 }),
             v(i, 'Period').forEach((f, d) => {
-                let p = `${r}.Period[${d}]`,
-                    m = new Set(
-                        E(f, 'Representation')
-                            .map((x) => u(x, 'id'))
+                let u = `${r}.Period[${d}]`,
+                    p = new Set(
+                        C(f, 'Representation')
+                            .map((_) => m(_, 'id'))
                             .filter(Boolean)
                     ),
-                    _ = { ...l, allRepIdsInPeriod: m, period: f };
-                (oe
-                    .filter((x) => x.scope === 'Period')
-                    .forEach((x) => {
-                        let y = x.check(f, _);
-                        if (y !== 'skip') {
-                            let b = y ? 'pass' : x.severity;
+                    y = { ...o, allRepIdsInPeriod: p, period: f };
+                (fe
+                    .filter((_) => _.scope === 'Period')
+                    .forEach((_) => {
+                        let b = _.check(f, y);
+                        if (b !== 'skip') {
+                            let S = b ? 'pass' : _.severity;
                             a.push({
-                                id: x.id,
-                                text: `${x.text} (Period: ${u(f, 'id') || 'N/A'})`,
-                                status: b,
+                                id: _.id,
+                                text: `${_.text} (Period: ${m(f, 'id') || 'N/A'})`,
+                                status: S,
                                 details: c(
-                                    y ? x.passDetails : x.failDetails,
+                                    b ? _.passDetails : _.failDetails,
                                     f,
-                                    _
+                                    y
                                 ),
-                                isoRef: x.isoRef,
-                                category: x.category,
-                                location: { path: p },
+                                isoRef: _.isoRef,
+                                category: _.category,
+                                location: { path: u },
                             });
                         }
                     }),
-                    v(f, 'AdaptationSet').forEach((x, y) => {
-                        let b = `${p}.AdaptationSet[${y}]`,
-                            g = { ..._, adaptationSet: x };
-                        (oe
-                            .filter((S) => S.scope === 'AdaptationSet')
-                            .forEach((S) => {
-                                let T = S.check(x, g);
+                    v(f, 'AdaptationSet').forEach((_, b) => {
+                        let S = `${u}.AdaptationSet[${b}]`,
+                            g = { ...y, adaptationSet: _ };
+                        (fe
+                            .filter((x) => x.scope === 'AdaptationSet')
+                            .forEach((x) => {
+                                let T = x.check(_, g);
                                 if (T !== 'skip') {
-                                    let I = T ? 'pass' : S.severity;
+                                    let I = T ? 'pass' : x.severity;
                                     a.push({
-                                        id: S.id,
-                                        text: `${S.text} (AdaptationSet: ${u(x, 'id') || 'N/A'})`,
+                                        id: x.id,
+                                        text: `${x.text} (AdaptationSet: ${m(_, 'id') || 'N/A'})`,
                                         status: I,
                                         details: c(
-                                            T ? S.passDetails : S.failDetails,
-                                            x,
+                                            T ? x.passDetails : x.failDetails,
+                                            _,
                                             g
                                         ),
-                                        isoRef: S.isoRef,
-                                        category: S.category,
-                                        location: { path: b },
+                                        isoRef: x.isoRef,
+                                        category: x.category,
+                                        location: { path: S },
                                     });
                                 }
                             }),
-                            v(x, 'Representation').forEach((S, T) => {
-                                let I = `${b}.Representation[${T}]`,
-                                    C = { ...g, representation: S };
-                                oe.filter(
-                                    (D) => D.scope === 'Representation'
-                                ).forEach((D) => {
-                                    let M = D.check(S, C);
-                                    if (M !== 'skip') {
-                                        let A = M ? 'pass' : D.severity;
+                            v(_, 'Representation').forEach((x, T) => {
+                                let I = `${S}.Representation[${T}]`,
+                                    E = { ...g, representation: x };
+                                fe.filter(
+                                    (A) => A.scope === 'Representation'
+                                ).forEach((A) => {
+                                    let R = A.check(x, E);
+                                    if (R !== 'skip') {
+                                        let P = R ? 'pass' : A.severity;
                                         a.push({
-                                            id: D.id,
-                                            text: `${D.text} (Representation: ${u(S, 'id') || 'N/A'})`,
-                                            status: A,
+                                            id: A.id,
+                                            text: `${A.text} (Representation: ${m(x, 'id') || 'N/A'})`,
+                                            status: P,
                                             details: c(
-                                                M
-                                                    ? D.passDetails
-                                                    : D.failDetails,
-                                                S,
-                                                C
+                                                R
+                                                    ? A.passDetails
+                                                    : A.failDetails,
+                                                x,
+                                                E
                                             ),
-                                            isoRef: D.isoRef,
-                                            category: D.category,
+                                            isoRef: A.isoRef,
+                                            category: A.category,
                                             location: { path: I },
                                         });
                                     }
@@ -13287,8 +13259,28 @@
             a
         );
     }
-    function Ho(e, t) {
-        let n = t.tags.find((o) => o.name === 'EXT-X-SKIP');
+    var tt = class {
+            constructor() {
+                this.listeners = {};
+            }
+            subscribe(t, n) {
+                return (
+                    this.listeners[t] || (this.listeners[t] = []),
+                    this.listeners[t].push(n),
+                    () => {
+                        this.listeners[t] = this.listeners[t].filter(
+                            (i) => i !== n
+                        );
+                    }
+                );
+            }
+            dispatch(t, n) {
+                this.listeners[t] && this.listeners[t].forEach((i) => i(n));
+            }
+        },
+        ko = new tt();
+    function Qo(e, t) {
+        let n = t.tags.find((s) => s.name === 'EXT-X-SKIP');
         if (!n) return t;
         let i = n.value['SKIPPED-SEGMENTS'],
             r = JSON.parse(JSON.stringify(e));
@@ -13299,7 +13291,7 @@
         return (
             (r.segments = r.segments.slice(a - (a - i))),
             r.segments.push(...t.segments),
-            (r.tags = t.tags.filter((o) => o.name !== 'EXT-X-SKIP')),
+            (r.tags = t.tags.filter((s) => s.name !== 'EXT-X-SKIP')),
             (r.targetDuration = t.targetDuration),
             (r.partInf = t.partInf),
             (r.serverControl = t.serverControl),
@@ -13307,7 +13299,7 @@
             r
         );
     }
-    function Xo(e) {
+    function Jo(e) {
         let t = ['#EXTM3U'];
         if (
             (e.version > 1 && t.push(`#EXT-X-VERSION:${e.version}`),
@@ -13334,7 +13326,7 @@
                     i.key && JSON.stringify(i.key) !== JSON.stringify(n))
                 ) {
                     let r = Object.entries(i.key)
-                        .map(([a, o]) => `${a}="${o}"`)
+                        .map(([a, s]) => `${a}="${s}"`)
                         .join(',');
                     (t.push(`#EXT-X-KEY:${r}`), (n = i.key));
                 }
@@ -13343,7 +13335,7 @@
                     i.uri && t.push(i.uri),
                     i.parts.forEach((r) => {
                         let a = Object.entries(r)
-                            .map(([o, s]) => `${o}="${s}"`)
+                            .map(([s, l]) => `${s}="${l}"`)
                             .join(',');
                         t.push(`#EXT-X-PART:${a}`);
                     }));
@@ -13353,7 +13345,7 @@
 `)
         );
     }
-    async function Go(e) {
+    async function Zo(e) {
         let t = e.manifestString.trim();
         (t.startsWith('#EXTM3U')
             ? (e.protocol = 'hls')
@@ -13376,30 +13368,30 @@
         if (e.protocol === 'hls') {
             let {
                 manifest: _,
-                definedVariables: x,
-                baseUrl: y,
-            } = await se(e.manifestString, e.url);
+                definedVariables: b,
+                baseUrl: S,
+            } = await le(e.manifestString, e.url);
             ((n = _),
                 (i = _.serializedManifest),
-                (n.hlsDefinedVariables = x),
-                (r = y));
+                (n.hlsDefinedVariables = b),
+                (r = S));
         } else {
             let {
                 manifest: _,
-                serializedManifest: x,
-                baseUrl: y,
-            } = await Ke(e.manifestString, e.url);
-            ((n = _), (i = x), (r = y));
+                serializedManifest: b,
+                baseUrl: S,
+            } = await Ze(e.manifestString, e.url);
+            ((n = _), (i = b), (r = S));
         }
         let { generateFeatureAnalysis: a } = await Promise.resolve().then(
-                () => (Ra(), Ma)
+                () => (Oa(), za)
             ),
-            o = a(n, e.protocol, i),
-            s = new Map(Object.entries(o)),
-            { diffManifest: l } = await Promise.resolve().then(
-                () => (Wa(), ja)
+            s = a(n, e.protocol, i),
+            l = new Map(Object.entries(s)),
+            { diffManifest: o } = await Promise.resolve().then(
+                () => (es(), Za)
             ),
-            c = (await Promise.resolve().then(() => fs(ns()))).default,
+            c = (await Promise.resolve().then(() => hs(fs()))).default,
             f = null;
         e.protocol === 'hls' &&
             n.isMaster &&
@@ -13408,9 +13400,9 @@
                     (_) => _.name === 'EXT-X-CONTENT-STEERING'
                 ) || null);
         let d = e.protocol === 'hls' ? n : i,
-            p = qe(d, e.protocol);
+            u = et(d, e.protocol);
         n.serializedManifest = i;
-        let m = {
+        let p = {
             id: e.id,
             name: e.url ? new URL(e.url).hostname : e.file.name,
             originalUrl: e.url,
@@ -13425,7 +13417,7 @@
             mediaPlaylists: new Map(),
             activeMediaPlaylistUrl: null,
             activeManifestForView: n,
-            featureAnalysis: { results: s, manifestCount: 1 },
+            featureAnalysis: { results: l, manifestCount: 1 },
             hlsVariantState: new Map(),
             dashRepresentationState: new Map(),
             hlsDefinedVariables: n.hlsDefinedVariables,
@@ -13433,19 +13425,19 @@
         };
         if (e.protocol === 'hls')
             n.isMaster
-                ? (n.variants || []).forEach((_) => {
-                      m.hlsVariantState.has(_.resolvedUri) ||
-                          m.hlsVariantState.set(_.resolvedUri, {
+                ? (n.variants || []).forEach((_, b) => {
+                      p.hlsVariantState.has(_.resolvedUri) ||
+                          p.hlsVariantState.set(_.resolvedUri, {
                               segments: [],
                               freshSegmentUrls: new Set(),
                               isLoading: !1,
                               isPolling: n.type === 'dynamic',
-                              isExpanded: !1,
+                              isExpanded: b === 0,
                               displayMode: 'last10',
                               error: null,
                           });
                   })
-                : m.hlsVariantState.set(m.originalUrl, {
+                : p.hlsVariantState.set(p.originalUrl, {
                       segments: n.segments || [],
                       freshSegmentUrls: new Set(
                           (n.segments || []).map((_) => _.resolvedUrl)
@@ -13457,37 +13449,48 @@
                       error: null,
                   });
         else if (e.protocol === 'dash') {
-            let _ = Ia(i, m.baseUrl);
-            Object.entries(_).forEach(([x, y]) => {
-                m.dashRepresentationState.set(x, {
-                    segments: y,
-                    freshSegmentUrls: new Set(y.map((b) => b.resolvedUrl)),
+            let _ = ka(i, p.baseUrl);
+            Object.entries(_).forEach(([b, S]) => {
+                p.dashRepresentationState.set(b, {
+                    segments: S,
+                    freshSegmentUrls: new Set(S.map((g) => g.resolvedUrl)),
                 });
             });
         }
-        if (m.manifest.type === 'dynamic') {
-            let _ = m.rawManifest;
-            m.protocol === 'dash' &&
-                (_ = c(m.rawManifest, {
+        if (p.manifest.type === 'dynamic') {
+            let _ = p.rawManifest;
+            p.protocol === 'dash' &&
+                (_ = c(p.rawManifest, {
                     indentation: '  ',
                     lineSeparator: `
 `,
                 }));
-            let x = l('', _, m.protocol);
-            m.manifestUpdates.push({
+            let b = o('', _, p.protocol);
+            p.manifestUpdates.push({
                 timestamp: new Date().toLocaleTimeString(),
-                diffHtml: x,
-                rawManifest: m.rawManifest,
-                complianceResults: p,
+                diffHtml: b,
+                rawManifest: p.rawManifest,
+                complianceResults: u,
                 hasNewIssues: !1,
                 serializedManifest: i,
             });
         }
-        return m;
+        let y = p;
+        return (
+            (y.hlsVariantState = Array.from(p.hlsVariantState.entries())),
+            (y.dashRepresentationState = Array.from(
+                p.dashRepresentationState.entries()
+            )),
+            (y.featureAnalysis.results = Array.from(
+                p.featureAnalysis.results.entries()
+            )),
+            (y.semanticData = Array.from(p.semanticData.entries())),
+            y
+        );
     }
-    async function jo(e) {
+    async function el(e) {
         try {
-            let t = await Promise.all(e.map(Go));
+            let t = await Promise.all(e.map(Zo));
             self.postMessage({
                 type: 'analysis-complete',
                 payload: { streams: t.filter(Boolean) },
@@ -13502,86 +13505,115 @@
             });
         }
     }
-    async function Wo({ streamId: e, url: t, hlsDefinedVariables: n }) {
+    async function tl({ streamId: e, variantUri: t, hlsDefinedVariables: n }) {
         try {
             let i = await fetch(t);
             if (!i.ok) throw new Error(`HTTP error ${i.status}`);
             let r = await i.text(),
-                { manifest: a } = await se(r, t, n);
-            ((a.serializedManifest = null),
-                self.postMessage({
-                    type: 'hls-media-playlist-fetched',
-                    payload: {
-                        streamId: e,
-                        url: t,
-                        manifest: a,
-                        rawManifest: r,
-                    },
-                }));
+                { manifest: a } = await le(r, t, n),
+                s = new Set((a.segments || []).map((l) => l.resolvedUrl));
+            self.postMessage({
+                type: 'hls-media-playlist-fetched',
+                payload: {
+                    streamId: e,
+                    variantUri: t,
+                    segments: a.segments,
+                    freshSegmentUrls: s,
+                },
+            });
         } catch (i) {
             self.postMessage({
                 type: 'hls-media-playlist-error',
-                payload: { streamId: e, url: t, error: i.message },
+                payload: { streamId: e, variantUri: t, error: i.message },
             });
         }
     }
-    async function Ko({
+    async function nl({
         streamId: e,
         newManifestString: t,
         oldRawManifest: n,
         protocol: i,
         baseUrl: r,
         hlsDefinedVariables: a,
-        oldManifestObjectForDelta: o,
+        oldManifestObjectForDelta: s,
     }) {
         try {
-            let s = t,
-                l,
+            let l = t,
+                o,
                 c;
             if (i === 'dash') {
-                let { manifest: p, serializedManifest: m } = await Ke(t, r);
-                ((l = p), (c = m));
+                let { manifest: u, serializedManifest: p } = await Ze(t, r);
+                ((o = u), (c = p));
             } else if (t.includes('#EXT-X-SKIP')) {
-                let { manifest: p } = await se(t, r, a),
-                    m = Ho(o, p.serializedManifest);
-                s = Xo(m);
-                let { manifest: _ } = await se(s, r, a);
-                ((l = _), (c = m));
+                let { manifest: u } = await le(t, r, a),
+                    p = Qo(s, u.serializedManifest);
+                l = Jo(p);
+                let { manifest: y } = await le(l, r, a);
+                ((o = y), (c = p));
             } else {
-                let { manifest: p } = await se(t, r, a);
-                ((l = p), (c = p.serializedManifest));
+                let { manifest: u } = await le(t, r, a);
+                ((o = u), (c = u.serializedManifest));
             }
-            let d = qe(i === 'hls' ? l : c, i);
-            ((l.serializedManifest = c),
+            let d = et(i === 'hls' ? o : c, i);
+            ((o.serializedManifest = c),
                 self.postMessage({
                     type: 'live-update-parsed',
                     payload: {
                         streamId: e,
-                        newManifestObject: l,
-                        finalManifestString: s,
+                        newManifestObject: o,
+                        finalManifestString: l,
                         oldRawManifest: n,
                         complianceResults: d,
                         serializedManifest: c,
                     },
                 }));
-        } catch (s) {
+        } catch (l) {
             self.postMessage({
                 type: 'live-update-error',
-                payload: { streamId: e, error: s.message },
+                payload: { streamId: e, error: l.message },
             });
         }
     }
-    async function qo(e) {
+    async function il({ id: e, manifestString: t }) {
+        try {
+            let n = t.trim(),
+                i = 'unknown',
+                r = 'vod';
+            if (n.startsWith('#EXTM3U'))
+                ((i = 'hls'),
+                    !n.includes('#EXT-X-ENDLIST') &&
+                        !n.includes('EXT-X-PLAYLIST-TYPE:VOD') &&
+                        (r = 'live'));
+            else if (n.includes('<MPD'))
+                ((i = 'dash'),
+                    /<MPD[^>]*type\s*=\s*["']dynamic["']/.test(n) &&
+                        (r = 'live'));
+            else throw new Error('Could not determine manifest protocol.');
+            self.postMessage({
+                type: 'manifest-metadata-result',
+                payload: { id: e, metadata: { protocol: i, type: r } },
+            });
+        } catch (n) {
+            self.postMessage({
+                type: 'manifest-metadata-result',
+                payload: { id: e, error: n.message },
+            });
+        }
+    }
+    async function rl(e) {
         let { type: t, payload: n } = e.data;
         switch (t) {
             case 'start-analysis':
-                await jo(n.inputs);
+                await el(n.inputs);
                 break;
             case 'fetch-hls-media-playlist':
-                await Wo(n);
+                await tl(n);
                 break;
             case 'parse-live-update':
-                await Ko(n);
+                await nl(n);
+                break;
+            case 'get-manifest-metadata':
+                await il(n);
                 break;
             case 'parse-segment': {
                 let { url: i, data: r } = n,
@@ -13593,25 +13625,25 @@
                             new DataView(r).getUint8(188) === 71) ||
                         i.toLowerCase().endsWith('.ts')
                     )
-                        a = oa(r);
+                        a = ma(r);
                     else {
-                        let { boxes: s, issues: l, events: c } = Le(r);
+                        let { boxes: l, issues: o, events: c } = ze(r);
                         a = {
                             format: 'isobmff',
-                            data: { boxes: s, issues: l, events: c },
+                            data: { boxes: l, issues: o, events: c },
                         };
                     }
                     self.postMessage({ url: i, parsedData: a, error: null });
-                } catch (o) {
+                } catch (s) {
                     self.postMessage({
                         url: i,
-                        parsedData: { error: o.message },
-                        error: o.message,
+                        parsedData: { error: s.message },
+                        error: s.message,
                     });
                 }
                 break;
             }
         }
     }
-    self.addEventListener('message', qo);
+    self.addEventListener('message', rl);
 })();

@@ -7,13 +7,13 @@ import xmlFormatter from 'xml-formatter';
 
 /**
  * A more specific stream type where the protocol is guaranteed to be 'dash' or 'hls'.
- * @typedef {import('../core/store.js').Stream & { protocol: 'dash' | 'hls' }} KnownProtocolStream
+ * @typedef {import('../core/types.js').Stream & { protocol: 'dash' | 'hls' }} KnownProtocolStream
  */
 
 /**
  * Compares two sets of compliance results to see if any new issues have appeared.
- * @param {import('../core/store.js').ComplianceResult[]} oldResults
- * @param {import('../core/store.js').ComplianceResult[]} newResults
+ * @param {import('../core/types.js').ComplianceResult[]} oldResults
+ * @param {import('../core/types.js').ComplianceResult[]} newResults
  * @returns {boolean}
  */
 function checkForNewIssues(oldResults, newResults) {
@@ -41,8 +41,8 @@ function checkForNewIssues(oldResults, newResults) {
 /**
  * Safely creates a deep clone of the mutable parts of the stream state.
  * Specifically handles Map objects which JSON.stringify/parse cannot handle.
- * @param {import('../core/store.js').Stream} stream The stream object to clone.
- * @returns {import('../core/store.js').Stream} A deep clone of the stream.
+ * @param {import('../core/types.js').Stream} stream The stream object to clone.
+ * @returns {import('../core/types.js').Stream} A deep clone of the stream.
  */
 function safeStreamClone(stream) {
     // Manually deep copy or shallow copy properties that are safe.
@@ -81,9 +81,9 @@ function safeStreamClone(stream) {
 
 /**
  * Updates the core properties of a stream object with new manifest data.
- * @param {import('../core/store.js').Stream} stream The stream to update.
+ * @param {import('../core/types.js').Stream} stream The stream to update.
  * @param {string} newManifestString The raw string of the new manifest.
- * @param {import('../core/store.js').Manifest} newManifestObject The new manifest IR.
+ * @param {import('../core/types.js').Manifest} newManifestObject The new manifest IR.
  */
 function _updateStreamProperties(stream, newManifestString, newManifestObject) {
     stream.rawManifest = newManifestString;
@@ -124,7 +124,7 @@ function _updateFeatureAnalysis(stream) {
  * @param {KnownProtocolStream} stream The stream to update.
  * @param {string} oldManifestString The raw string of the previous manifest.
  * @param {string} newManifestString The raw string of the new manifest.
- * @param {import('../core/store.js').ComplianceResult[]} complianceResults The new compliance results.
+ * @param {import('../core/types.js').ComplianceResult[]} complianceResults The new compliance results.
  * @param {object} serializedManifest The pristine serialized manifest object for this update.
  */
 function _updateManifestDiff(
@@ -156,6 +156,7 @@ function _updateManifestDiff(
     const newUpdate = {
         timestamp: new Date().toLocaleTimeString(),
         diffHtml,
+        rawManifest: newManifestString,
         complianceResults,
         hasNewIssues,
         serializedManifest,
@@ -168,30 +169,33 @@ function _updateManifestDiff(
 }
 
 /**
- * Updates the segment list for a DASH stream's representations.
+ * Updates the segment list for a DASH stream's representations across all periods.
  * @param {KnownProtocolStream} stream The stream to update.
  */
 function _updateDashSegmentState(stream) {
-    const newSegmentsByRep = parseDashSegments(
+    const newSegmentsByCompositeKey = parseDashSegments(
         stream.manifest.serializedManifest,
         stream.baseUrl
     );
-    Object.entries(newSegmentsByRep).forEach(([repId, newSegments]) => {
-        const repState = stream.dashRepresentationState.get(repId);
-        if (repState) {
-            const existingSegmentUrls = new Set(
-                repState.segments.map((s) => s.resolvedUrl)
-            );
-            newSegments.forEach((newSeg) => {
-                if (!existingSegmentUrls.has(newSeg.resolvedUrl)) {
-                    repState.segments.push(newSeg);
-                }
-            });
-            repState.freshSegmentUrls = new Set(
-                newSegments.map((s) => s.resolvedUrl)
-            );
+
+    Object.entries(newSegmentsByCompositeKey).forEach(
+        ([compositeKey, newSegments]) => {
+            const repState = stream.dashRepresentationState.get(compositeKey);
+            if (repState) {
+                const existingSegmentUrls = new Set(
+                    repState.segments.map((s) => s.resolvedUrl)
+                );
+                newSegments.forEach((newSeg) => {
+                    if (!existingSegmentUrls.has(newSeg.resolvedUrl)) {
+                        repState.segments.push(newSeg);
+                    }
+                });
+                repState.freshSegmentUrls = new Set(
+                    newSegments.map((s) => s.resolvedUrl)
+                );
+            }
         }
-    });
+    );
 }
 
 /**

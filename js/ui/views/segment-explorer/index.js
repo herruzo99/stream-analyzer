@@ -103,16 +103,8 @@ export function initializeSegmentExplorer(container, stream) {
     // Stop any existing timers before starting new ones.
     stopLiveSegmentHighlighter();
 
-    if (stream.protocol === 'hls' && stream.manifest.type === 'dynamic') {
-        const reRender = () => {
-            const currentStream = useStore
-                .getState()
-                .streams.find((s) => s.id === currentStreamId);
-            if (currentStream && container.offsetParent !== null) {
-                render(getSegmentExplorerTemplate(currentStream), container);
-            }
-        };
-        startLiveSegmentHighlighter(reRender);
+    if (stream.manifest.type === 'dynamic') {
+        startLiveSegmentHighlighter(container, stream);
     }
 
     // Initial render
@@ -128,13 +120,6 @@ eventBus.subscribe('state:compare-list-changed', ({ count }) => {
     }
 });
 
-eventBus.subscribe('analysis:started', () => {
-    currentStreamId = null;
-    currentContainer = null;
-    dashDisplayMode = 'first';
-    stopLiveSegmentHighlighter();
-});
-
 // Re-render the explorer component when its stream's data has been updated by the monitor
 eventBus.subscribe('stream:data-updated', ({ streamId }) => {
     if (
@@ -146,7 +131,8 @@ eventBus.subscribe('stream:data-updated', ({ streamId }) => {
             .getState()
             .streams.find((s) => s.id === streamId);
         if (stream) {
-            render(getSegmentExplorerTemplate(stream), currentContainer);
+            // Re-initialize to ensure timers and state are fresh
+            initializeSegmentExplorer(currentContainer, stream);
         }
     }
 });

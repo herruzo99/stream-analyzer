@@ -4,6 +4,9 @@ import { parseManifest as parseDashManifestString } from './protocols/manifest/d
 import { parseManifest as parseHlsManifest } from './protocols/manifest/hls/parser.js';
 import { parseAllSegmentUrls as parseDashSegments } from './protocols/manifest/dash/segment-parser.js';
 import { runChecks } from './engines/compliance/engine.js';
+import { showToast } from './ui/components/toast.js';
+
+/** @typedef {import('./core/types.js').SerializedStream} SerializedStream */
 
 // --- HLS Delta Update Logic (moved from delta-updater.js) ---
 
@@ -225,14 +228,14 @@ async function processSingleStream(input) {
 
     if (input.protocol === 'hls') {
         if (manifestIR.isMaster) {
-            (manifestIR.variants || []).forEach((v) => {
+            (manifestIR.variants || []).forEach((v, index) => {
                 if (streamObject.hlsVariantState.has(v.resolvedUri)) return;
                 streamObject.hlsVariantState.set(v.resolvedUri, {
                     segments: [],
                     freshSegmentUrls: new Set(),
                     isLoading: false,
                     isPolling: manifestIR.type === 'dynamic',
-                    isExpanded: false,
+                    isExpanded: index === 0, // Expand the first variant by default
                     displayMode: 'last10',
                     error: null,
                 });
@@ -253,16 +256,20 @@ async function processSingleStream(input) {
         }
     } else if (input.protocol === 'dash') {
         // Use the serializedManifestObject here explicitly
-        const segmentsByRep = parseDashSegments(
+        const segmentsByCompositeKey = parseDashSegments(
             serializedManifestObject,
             streamObject.baseUrl
         );
-        Object.entries(segmentsByRep).forEach(([repId, segments]) => {
-            streamObject.dashRepresentationState.set(repId, {
-                segments: segments,
-                freshSegmentUrls: new Set(segments.map((s) => s.resolvedUrl)),
-            });
-        });
+        Object.entries(segmentsByCompositeKey).forEach(
+            ([compositeKey, segments]) => {
+                streamObject.dashRepresentationState.set(compositeKey, {
+                    segments: segments,
+                    freshSegmentUrls: new Set(
+                        segments.map((s) => s.resolvedUrl)
+                    ),
+                });
+            }
+        );
     }
 
     if (streamObject.manifest.type === 'dynamic') {
@@ -288,7 +295,26 @@ async function processSingleStream(input) {
         });
     }
 
-    return streamObject;
+    // Explicitly cast to the SerializedStream type to satisfy TS
+    const serializedStreamObject = /** @type {SerializedStream} */ (
+        /** @type {any} */ (streamObject)
+    );
+
+    // Serialize Maps to Arrays before returning
+    serializedStreamObject.hlsVariantState = Array.from(
+        streamObject.hlsVariantState.entries()
+    );
+    serializedStreamObject.dashRepresentationState = Array.from(
+        streamObject.dashRepresentationState.entries()
+    );
+    serializedStreamObject.featureAnalysis.results = Array.from(
+        streamObject.featureAnalysis.results.entries()
+    );
+    serializedStreamObject.semanticData = Array.from(
+        streamObject.semanticData.entries()
+    );
+
+    return serializedStreamObject;
 }
 
 async function handleStartAnalysis(inputs) {
@@ -309,31 +335,38 @@ async function handleStartAnalysis(inputs) {
     }
 }
 
-async function handleFetchHlsMediaPlaylist({
+async function handleFetchHlsMediaPlaylistInWorker({
     streamId,
-    url,
+    variantUri,
     hlsDefinedVariables,
 }) {
     try {
-        const response = await fetch(url);
+        const response = await fetch(variantUri);
         if (!response.ok) throw new Error(`HTTP error ${response.status}`);
         const manifestString = await response.text();
         const { manifest } = await parseHlsManifest(
             manifestString,
-            url,
+            variantUri,
             hlsDefinedVariables
         );
 
-        manifest.serializedManifest = null;
+        const freshSegmentUrls = new Set(
+            (manifest.segments || []).map((s) => s.resolvedUrl)
+        );
 
         self.postMessage({
             type: 'hls-media-playlist-fetched',
-            payload: { streamId, url, manifest, rawManifest: manifestString },
+            payload: {
+                streamId,
+                variantUri,
+                segments: manifest.segments,
+                freshSegmentUrls,
+            },
         });
     } catch (e) {
         self.postMessage({
             type: 'hls-media-playlist-error',
-            payload: { streamId, url, error: e.message },
+            payload: { streamId, variantUri, error: e.message },
         });
     }
 }
@@ -417,6 +450,42 @@ async function handleParseLiveUpdate({
     }
 }
 
+async function handleGetManifestMetadata({ id, manifestString }) {
+    try {
+        const trimmed = manifestString.trim();
+        let protocol = 'unknown';
+        let type = 'vod'; // Default to VOD
+
+        if (trimmed.startsWith('#EXTM3U')) {
+            protocol = 'hls';
+            if (
+                !trimmed.includes('#EXT-X-ENDLIST') &&
+                !trimmed.includes('EXT-X-PLAYLIST-TYPE:VOD')
+            ) {
+                type = 'live';
+            }
+        } else if (trimmed.includes('<MPD')) {
+            protocol = 'dash';
+            // Use a simple regex to avoid full parsing for this quick check
+            if (/<MPD[^>]*type\s*=\s*["']dynamic["']/.test(trimmed)) {
+                type = 'live';
+            }
+        } else {
+            throw new Error('Could not determine manifest protocol.');
+        }
+
+        self.postMessage({
+            type: 'manifest-metadata-result',
+            payload: { id, metadata: { protocol, type } },
+        });
+    } catch (e) {
+        self.postMessage({
+            type: 'manifest-metadata-result',
+            payload: { id, error: e.message },
+        });
+    }
+}
+
 async function handleMessage(event) {
     const { type, payload } = event.data;
 
@@ -425,10 +494,13 @@ async function handleMessage(event) {
             await handleStartAnalysis(payload.inputs);
             break;
         case 'fetch-hls-media-playlist':
-            await handleFetchHlsMediaPlaylist(payload);
+            await handleFetchHlsMediaPlaylistInWorker(payload);
             break;
         case 'parse-live-update':
             await handleParseLiveUpdate(payload);
+            break;
+        case 'get-manifest-metadata':
+            await handleGetManifestMetadata(payload);
             break;
         case 'parse-segment': {
             const { url, data } = payload;

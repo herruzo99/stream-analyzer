@@ -3,7 +3,7 @@ import { parseAllSegmentUrls } from '../../../protocols/manifest/dash/segment-pa
 
 /**
  * Creates a view model for the DASH timeline visualization by leveraging the central segment parser.
- * @param {import('../../../core/store.js').Stream} stream
+ * @param {import('../../../core/types.js').Stream} stream
  * @returns {Promise<object[]>} A promise that resolves to an array of switching set view models.
  */
 export async function createDashTimelineViewModel(stream) {
@@ -21,7 +21,8 @@ export async function createDashTimelineViewModel(stream) {
             .filter((as) => as.contentType === 'video')
             .map((as) => {
                 const representations = as.representations.map((rep) => {
-                    const segments = segmentsByRepId[rep.id] || [];
+                    const compositeKey = `${period.id}-${rep.id}`;
+                    const segments = segmentsByRepId[compositeKey] || [];
                     const mediaSegments = segments.filter(
                         (s) => s.type === 'Media'
                     );
@@ -58,11 +59,14 @@ export async function createDashTimelineViewModel(stream) {
                     };
                 });
 
-                const totalDuration = representations[0]?.fragments
-                    ? representations[0].fragments
-                          .map((f) => f.duration)
-                          .reduce((acc, f) => acc + f, 0)
-                    : 0;
+                const totalDuration =
+                    stream.manifest.duration ??
+                    period.duration ??
+                    (representations[0]?.fragments
+                        ? representations[0].fragments
+                              .map((f) => f.duration)
+                              .reduce((acc, f) => acc + f, 0)
+                        : 0);
 
                 return {
                     id: as.id || 'video-set',

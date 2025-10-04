@@ -1,16 +1,43 @@
 import { eventBus } from '../core/event-bus.js';
 import { useStore, storeActions } from '../core/store.js';
 
+/** @typedef {import('../core/types.js').SerializedStream} SerializedStream */
+
 const analysisWorker = new Worker('/dist/worker.js', { type: 'module' });
 let analysisStartTime = 0;
 
 analysisWorker.onmessage = (event) => {
+    /** @type {{type: string, payload: any}} */
     const { type, payload } = event.data;
 
     switch (type) {
         case 'analysis-complete': {
+            /** @type {SerializedStream[]} */
             const results = payload.streams;
-            storeActions.completeAnalysis(results);
+            // Reconstruct Map objects from the serialized arrays
+            results.forEach((stream) => {
+                // @ts-ignore
+                stream.hlsVariantState = new Map(stream.hlsVariantState || []);
+                // @ts-ignore
+                stream.dashRepresentationState = new Map(
+                    stream.dashRepresentationState || []
+                );
+                if (stream.featureAnalysis) {
+                    // @ts-ignore
+                    stream.featureAnalysis.results = new Map(
+                        stream.featureAnalysis.results || []
+                    );
+                }
+                // @ts-ignore
+                stream.semanticData = new Map(stream.semanticData || []);
+                // @ts-ignore
+                stream.mediaPlaylists = new Map(stream.mediaPlaylists || []);
+            });
+            storeActions.completeAnalysis(
+                /** @type {import('../core/types.js').Stream[]} */ (
+                    /** @type {any} */ (results)
+                )
+            );
             const tEndTotal = performance.now();
             console.log(
                 `[DEBUG] Total Analysis Pipeline (success): ${(
@@ -42,6 +69,51 @@ analysisWorker.onmessage = (event) => {
                 type: 'info',
                 duration: 2000,
             });
+            break;
+        }
+        case 'hls-media-playlist-fetched': {
+            const { streamId, variantUri, segments, freshSegmentUrls } =
+                payload;
+            const stream = useStore
+                .getState()
+                .streams.find((s) => s.id === streamId);
+            if (stream) {
+                const newVariantState = new Map(stream.hlsVariantState);
+                const currentState = newVariantState.get(variantUri);
+                if (currentState) {
+                    newVariantState.set(variantUri, {
+                        ...currentState,
+                        segments,
+                        freshSegmentUrls: new Set(freshSegmentUrls), // Reconstruct Set
+                        isLoading: false,
+                        error: null,
+                    });
+                    storeActions.updateStream(streamId, {
+                        hlsVariantState: newVariantState,
+                    });
+                }
+            }
+            break;
+        }
+        case 'hls-media-playlist-error': {
+            const { streamId, variantUri, error } = payload;
+            const stream = useStore
+                .getState()
+                .streams.find((s) => s.id === streamId);
+            if (stream) {
+                const newVariantState = new Map(stream.hlsVariantState);
+                const currentState = newVariantState.get(variantUri);
+                if (currentState) {
+                    newVariantState.set(variantUri, {
+                        ...currentState,
+                        isLoading: false,
+                        error,
+                    });
+                    storeActions.updateStream(streamId, {
+                        hlsVariantState: newVariantState,
+                    });
+                }
+            }
             break;
         }
     }
@@ -95,90 +167,24 @@ async function analyzeStreams(inputs) {
     }
 }
 
-async function fetchAndSetHlsMediaPlaylist({
-    streamId,
-    url,
-    isReload = false,
-}) {
+function fetchHlsMediaPlaylist({ streamId, variantUri }) {
     const stream = useStore.getState().streams.find((s) => s.id === streamId);
     if (!stream) return;
 
-    if (url === 'master') {
-        const master = stream.mediaPlaylists.get('master');
-        if (master) {
-            storeActions.updateStream(streamId, {
-                manifest: master.manifest,
-                activeMediaPlaylistUrl: null,
-            });
-        }
-        return;
-    }
-
-    if (stream.mediaPlaylists.has(url) && !isReload) {
-        const mediaPlaylist = stream.mediaPlaylists.get(url);
-        storeActions.updateStream(streamId, {
-            manifest: mediaPlaylist.manifest,
-            activeMediaPlaylistUrl: url,
-        });
-        return;
-    }
-
-    eventBus.dispatch('ui:show-status', {
-        message: `Fetching HLS media playlist...`,
-        type: 'info',
-    });
+    // Offload the fetch and parse to the worker
     analysisWorker.postMessage({
         type: 'fetch-hls-media-playlist',
         payload: {
             streamId,
-            url,
+            variantUri,
             hlsDefinedVariables: stream.hlsDefinedVariables,
         },
     });
 }
 
-analysisWorker.addEventListener('message', (event) => {
-    const { type, payload } = event.data;
-    if (type === 'hls-media-playlist-fetched') {
-        const { streamId, url, manifest, rawManifest } = payload;
-        const stream = useStore
-            .getState()
-            .streams.find((s) => s.id === streamId);
-        if (stream) {
-            const newPlaylists = new Map(stream.mediaPlaylists);
-            newPlaylists.set(url, {
-                manifest,
-                rawManifest,
-                lastFetched: new Date(),
-            });
-
-            storeActions.updateStream(streamId, {
-                mediaPlaylists: newPlaylists,
-                manifest: manifest,
-                activeMediaPlaylistUrl: url,
-            });
-
-            eventBus.dispatch('ui:show-status', {
-                message: 'Media playlist loaded.',
-                type: 'pass',
-            });
-        }
-    } else if (type === 'hls-media-playlist-error') {
-        console.error(
-            'Failed to fetch or parse media playlist in worker:',
-            payload.error
-        );
-        eventBus.dispatch('ui:show-status', {
-            message: `Failed to load media playlist: ${payload.error}`,
-            type: 'fail',
-        });
-    }
-});
-
 eventBus.subscribe('analysis:request', ({ inputs }) => analyzeStreams(inputs));
-eventBus.subscribe('hls:media-playlist-activate', ({ streamId, url }) =>
-    fetchAndSetHlsMediaPlaylist({ streamId, url, isReload: false })
-);
-eventBus.subscribe('hls:media-playlist-reload', ({ streamId, url }) =>
-    fetchAndSetHlsMediaPlaylist({ streamId, url, isReload: true })
+eventBus.subscribe(
+    'hls:media-playlist-fetch-request',
+    ({ streamId, variantUri }) =>
+        fetchHlsMediaPlaylist({ streamId, variantUri })
 );

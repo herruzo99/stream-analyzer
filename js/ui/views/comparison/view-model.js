@@ -9,7 +9,7 @@ const renderList = (items) =>
 /**
  * Defines the points of comparison and contains the logic to extract
  * data for each stream from the new summary model.
- * @param {import('../../../core/store.js').Stream[]} streams
+ * @param {import('../../../core/types.js').Stream[]} streams
  * @returns {object[]} An array of comparison point objects ready for rendering.
  */
 export function createComparisonViewModel(streams) {
@@ -76,7 +76,7 @@ export function createComparisonViewModel(streams) {
             isoRef: 'DASH: 5.3.2',
             values: streams.map((s) =>
                 s.protocol === 'dash'
-                    ? String(s.manifest?.summary.content.periods || 0)
+                    ? String(s.manifest?.summary.content.totalPeriods || 0)
                     : 'N/A'
             ),
         },
@@ -97,7 +97,7 @@ export function createComparisonViewModel(streams) {
             tooltip: 'Total number of video tracks or variants.',
             isoRef: 'DASH: 5.3.5 / HLS: 4.3.4.2',
             values: streams.map((s) =>
-                String(s.manifest?.summary.content.videoTracks || 0)
+                String(s.manifest?.summary.content.totalVideoTracks || 0)
             ),
         },
         {
@@ -144,7 +144,7 @@ export function createComparisonViewModel(streams) {
             tooltip: 'Groups of audio tracks, often by language.',
             isoRef: 'DASH: 5.3.3 / HLS: 4.3.4.1',
             values: streams.map((s) =>
-                String(s.manifest?.summary.content.audioTracks || 0)
+                String(s.manifest?.summary.content.totalAudioTracks || 0)
             ),
         },
         {
@@ -184,7 +184,7 @@ export function createComparisonViewModel(streams) {
             tooltip: 'Number of subtitle or caption tracks.',
             isoRef: 'DASH: 5.3.3 / HLS: 4.3.4.1',
             values: streams.map((s) =>
-                String(s.manifest?.summary.content.textTracks || 0)
+                String(s.manifest?.summary.content.totalTextTracks || 0)
             ),
         },
         {

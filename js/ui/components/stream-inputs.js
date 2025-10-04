@@ -2,10 +2,15 @@ import { html, render } from 'lit-html';
 import { dom } from '../../core/dom.js';
 import { useStore } from '../../core/store.js';
 import { exampleStreams } from '../../data/example-streams.js';
-
-const HISTORY_KEY = 'dash_analyzer_history';
-const PRESETS_KEY = 'dash_analyzer_presets';
-const MAX_PRESETS = 50;
+import {
+    getHistory,
+    getPresets,
+    savePreset,
+    deleteHistoryItem,
+    deletePreset,
+    fetchStreamMetadata,
+} from '../../shared/utils/stream-storage.js';
+import { showToast } from './toast.js';
 
 // Module-level state for the stream inputs
 let streamInputIds = [];
@@ -18,7 +23,7 @@ const getBadge = (text, colorClasses) => {
     >`;
 };
 
-const renderStreamListItem = (stream) => {
+const renderStreamListItem = (stream, isPreset) => {
     const protocolBadge =
         stream.protocol === 'dash'
             ? getBadge('DASH', 'bg-blue-800 text-blue-200')
@@ -32,8 +37,21 @@ const renderStreamListItem = (stream) => {
               ? getBadge('VOD', 'bg-green-800 text-green-200')
               : '';
 
+    const handleDelete = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (confirm(`Are you sure you want to delete "${stream.name}"?`)) {
+            if (isPreset) {
+                deletePreset(stream.url);
+            } else {
+                deleteHistoryItem(stream.url);
+            }
+            renderStreamInputs(); // Re-render the dropdown
+        }
+    };
+
     return html`<li
-        class="px-3 py-2 hover:bg-gray-700 cursor-pointer flex justify-between items-center"
+        class="group px-3 py-2 hover:bg-gray-700 cursor-pointer flex justify-between items-center"
         data-url="${stream.url}"
         data-name="${stream.name}"
         @click=${handleDropdownItemClick}
@@ -50,14 +68,21 @@ const renderStreamListItem = (stream) => {
                 >${stream.url}</span
             >
         </div>
-        <div class="flex-shrink-0 flex gap-2 ml-4">
+        <div class="flex-shrink-0 flex items-center gap-2 ml-4">
             ${protocolBadge} ${typeBadge}
+            <button
+                @click=${handleDelete}
+                class="w-6 h-6 rounded-full flex items-center justify-center text-gray-500 hover:bg-red-800 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                title="Delete item"
+            >
+                <span class="text-xl">&times;</span>
+            </button>
         </div>
     </li>`;
 };
 
 // Top-level section (Recent, Saved)
-const renderDropdownSection = (title, items) => {
+const renderDropdownSection = (title, items, isPreset = false) => {
     if (!items || items.length === 0) return '';
     return html`<div>
         <h4
@@ -66,7 +91,7 @@ const renderDropdownSection = (title, items) => {
             ${title}
         </h4>
         <ul class="divide-y divide-gray-700/50">
-            ${items.map(renderStreamListItem)}
+            ${items.map((item) => renderStreamListItem(item, isPreset))}
         </ul>
     </div>`;
 };
@@ -77,7 +102,7 @@ const renderExampleCategory = (title, items) => {
     return html`<div>
         <h5 class="font-medium text-gray-400 px-3 pt-2 pb-1">${title}</h5>
         <ul class="divide-y divide-gray-700/50">
-            ${items.map(renderStreamListItem)}
+            ${items.map((item) => renderStreamListItem(item, false))}
         </ul>
     </div>`;
 };
@@ -210,8 +235,8 @@ const streamInputTemplate = (streamId, isFirstStream, history, presets) => {
                     class="preset-dropdown hidden absolute top-full left-0 right-0 mt-2 z-30 bg-gray-800 border border-gray-700 rounded-lg shadow-xl max-h-96 overflow-y-auto"
                     @focusin=${handleDropdownFocusIn}
                 >
-                    ${renderDropdownSection('Recent', validHistory)}
-                    ${renderDropdownSection('Saved', validPresets)}
+                    ${renderDropdownSection('Saved', validPresets, true)}
+                    ${renderDropdownSection('Recent', validHistory, false)}
                     <div>
                         <h4
                             class="font-bold text-gray-200 text-xs tracking-wider uppercase px-3 pt-3 pb-2 sticky top-0 bg-gray-900 z-10 border-b border-gray-800/50"
@@ -311,7 +336,7 @@ const handleDropdownItemClick = (e) => {
     if (dropdown) dropdown.classList.add('hidden');
 };
 
-const handleSavePreset = (e) => {
+const handleSavePreset = async (e) => {
     const button = /** @type {HTMLButtonElement} */ (e.target);
     const group = button.closest('.stream-input-group');
     const nameInput = /** @type {HTMLInputElement} */ (
@@ -325,28 +350,33 @@ const handleSavePreset = (e) => {
     const url = urlInput.value.trim();
 
     if (!name || !url) {
-        alert('Please provide both a URL and a custom name to save a preset.');
+        showToast({
+            message:
+                'Please provide both a URL and a custom name to save a preset.',
+            type: 'warn',
+        });
         return;
     }
 
-    let presets = /** @type {Array<object>} */ (
-        JSON.parse(localStorage.getItem(PRESETS_KEY) || '[]')
-    );
-    presets = presets.filter((item) => item.url !== url); // Remove old entry
+    button.disabled = true;
+    button.textContent = 'Saving...';
 
-    const protocol = url.includes('.m3u8') ? 'hls' : 'dash';
-    presets.unshift({ name, url, protocol, type: null }); // Add new entry
-
-    if (presets.length > MAX_PRESETS) {
-        presets.length = MAX_PRESETS;
+    try {
+        const { protocol, type } = await fetchStreamMetadata(url);
+        savePreset({
+            name,
+            url,
+            protocol,
+            type: type,
+        });
+        nameInput.value = '';
+    } catch (err) {
+        // Error toast is handled by fetchStreamMetadata
+        console.error('Failed to save preset:', err);
+    } finally {
+        // This block guarantees the UI is reset, fixing the bug.
+        renderStreamInputs();
     }
-
-    localStorage.setItem(PRESETS_KEY, JSON.stringify(presets));
-    nameInput.value = '';
-    alert(`Preset "${name}" saved!`);
-
-    // Force a re-render of the input groups to show the new preset
-    renderStreamInputs();
 };
 
 /**
@@ -362,8 +392,8 @@ export function addStreamInput() {
  * Renders the entire list of stream inputs based on the current state.
  */
 export function renderStreamInputs() {
-    const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
-    const presets = JSON.parse(localStorage.getItem(PRESETS_KEY) || '[]');
+    const history = getHistory();
+    const presets = getPresets();
 
     const fullTemplate = html`${streamInputIds.map((id, index) =>
         streamInputTemplate(id, index === 0, history, presets)

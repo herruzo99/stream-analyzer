@@ -3,6 +3,7 @@ import { eventBus } from '../core/event-bus.js';
 import { useStore, storeActions } from '../core/store.js';
 import { dom } from '../core/dom.js';
 import { getSegmentAnalysisTemplate } from './views/segment-analysis/index.js';
+import { savePreset } from '../shared/utils/stream-storage.js';
 
 function openModal() {
     const modalPanel = dom.segmentModal.querySelector('div');
@@ -40,7 +41,35 @@ const reloadHandler = (stream) => {
 
 const togglePollingState = (stream) => {
     if (stream) {
-        storeActions.updateStream(stream.id, { isPolling: !stream.isPolling });
+        storeActions.updateStream(stream.id, {
+            isPolling: !stream.isPolling,
+        });
+    }
+};
+
+const handleSaveCurrentStream = () => {
+    const { streams, activeStreamId } = useStore.getState();
+    const stream = streams.find((s) => s.id === activeStreamId);
+    if (!stream || !stream.originalUrl) {
+        eventBus.dispatch('ui:show-status', {
+            message: 'Cannot save a stream loaded from a local file.',
+            type: 'warn',
+        });
+        return;
+    }
+
+    const name = prompt(
+        'Enter a name for this preset:',
+        stream.name || new URL(stream.originalUrl).hostname
+    );
+
+    if (name) {
+        savePreset({
+            name,
+            url: stream.originalUrl,
+            protocol: stream.protocol,
+            type: stream.manifest.type === 'dynamic' ? 'live' : 'vod',
+        });
     }
 };
 
@@ -68,6 +97,13 @@ const globalControlsTemplate = (stream) => {
             class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md transition-colors"
         >
             Reload
+        </button>
+        <button
+            @click=${handleSaveCurrentStream}
+            class="bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-4 rounded-md transition-colors"
+            title="Save the current stream URL as a preset"
+        >
+            Save Stream
         </button>
     `;
 };
