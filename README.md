@@ -1,1 +1,56 @@
-http://localhost:3000/?url=https%3A%2F%2Fdash.akamaized.net%2Fakamai%2Fbbb_30fps%2Fbbb_30fps.mpd&url=https%3A%2F%2Flivesim.dashif.org%2Flivesim%2Ftestpic_2s%2FManifest.mpd&url=https%3A%2F%2Ftest-streams.mux.dev%2Fx36xhzz%2Fx36xhzz.m3u8&url=https%3A%2F%2Fstream.mux.com%2Fv69RSHhFelSm4701snP22dYz2jICy4E4FUyk02rW4gxRM.m3u8
+# Exhaustive Stream Analyzer
+
+An advanced, browser-based tool for analyzing and comparing DASH & HLS streaming media manifests and segments. This tool provides deep inspection capabilities, compliance checking, and side-by-side comparisons to aid in debugging and validation of streaming content.
+
+![Screenshot of the analyzer UI](https://via.placeholder.com/800x450.png?text=UI+Screenshot+Here)
+
+## Features
+
+-   **Multi-Stream Comparison**: Analyze and compare multiple DASH and HLS streams simultaneously.
+-   **Interactive Manifest View**: Syntax-highlighted, interactive manifest viewer with tooltips explaining every element and attribute.
+-   **Interactive Segment Inspector**: A hex/ASCII viewer for segments with a structured tree view of ISOBMFF boxes or TS packets.
+-   **Compliance Checking**: Validate manifests against industry standards (MPEG-DASH, HLS) and best practices.
+-   **Timeline Visualization**: Visual representation of segments, events, and ad breaks.
+-   **Feature Analysis**: A summary of which streaming features (e.g., low latency, multi-period, DRM) are being used.
+-   **Live Stream Monitoring**: Automatically fetch and diff manifest updates for live streams, highlighting changes and new compliance issues.
+
+## Local Development
+
+This project uses [Nix](https://nixos.org/) and [direnv](https://direnv.net/) to provide a reproducible development environment.
+
+### Prerequisites
+
+1.  **Install Nix**: Follow the instructions at [https://nixos.org/download.html](https://nixos.org/download.html).
+2.  **Enable Flakes**: Enable the `flakes` and `nix-command` experimental features.
+3.  **Install direnv**: Follow the instructions at [https://direnv.net/docs/installation.html](https://direnv.net/docs/installation.html).
+4.  **Hook direnv into your shell**: Follow the instructions from the direnv installation.
+
+### Setup
+
+1.  Clone the repository:
+    ```bash
+    git clone https://github.com/your-username/your-repo-name.git
+    cd your-repo-name
+    ```
+2.  Allow direnv to load the environment:
+    ```bash
+    direnv allow
+    ```
+    The first time you do this, Nix will download all the required dependencies. This may take a few minutes. Subsequent loads will be instantaneous.
+
+3.  Install Node.js dependencies:
+    ```bash
+    npm install
+    ```
+
+### Available Scripts
+
+-   `npm run start`: Starts a local server to serve the application (usually on `http://localhost:3000`).
+-   `npm run build`: Builds the static assets (CSS and JS) into the `dist/` directory.
+-   `npm run lint`: Lints the JavaScript codebase.
+-   `npm run format`: Formats the code using Prettier.
+-   `npm run typecheck`: Runs the TypeScript checker on the JSDoc-annotated code.
+
+## Deployment
+
+This repository is configured for continuous deployment to GitHub Pages. Any push to the `main` branch will trigger a GitHub Action that will automatically build, and deploy the application.

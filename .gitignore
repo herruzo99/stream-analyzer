@@ -1,4 +1,24 @@
-index.mpd
 node_modules/
 output/
 standard/
+
+# Node.js
+node_modules
+npm-debug.log
+yarn-error.log
+
+# Build output
+dist/
+deployment/
+
+# Nix & direnv
+.direnv/
+result*
+
+# IDE / Editor
+.vscode/
+.idea/
+
+# OS-specific
+.DS_Store
+Thumbs.db

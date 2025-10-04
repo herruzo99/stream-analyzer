@@ -1,7 +1,7 @@
 import { showToast } from '../../ui/components/toast.js';
 
-const HISTORY_KEY = 'dash_analyzer_history';
-const PRESETS_KEY = 'dash_analyzer_presets';
+const HISTORY_KEY = 'stream-analyzer_history';
+const PRESETS_KEY = 'stream-analyzer_presets';
 const MAX_HISTORY_ITEMS = 10;
 const MAX_PRESETS = 50;
 
