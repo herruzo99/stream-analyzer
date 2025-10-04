@@ -129,27 +129,16 @@ const getActions = (cacheEntry, seg, isFresh) => {
  * Renders a single row in a segment explorer table.
  * @param {object} seg - The segment data object.
  * @param {boolean | null} isFresh - Whether the segment is in the latest playlist (HLS only).
- * @param {'current' | 'live' | 'stale' | 'default'} livenessState
  * @returns {import('lit-html').TemplateResult}
  */
-export const segmentRowTemplate = (seg, isFresh, livenessState) => {
+export const segmentRowTemplate = (seg, isFresh) => {
     const { segmentCache, segmentsForCompare } = useStore.getState();
     const cacheEntry = segmentCache.get(seg.resolvedUrl);
     const isChecked = segmentsForCompare.includes(seg.resolvedUrl);
 
-    let stateClasses = 'hover:bg-gray-800/80';
+    let stateClasses = 'hover:bg-gray-800/80 transition-colors duration-200';
     if (seg.gap) {
         stateClasses = 'bg-gray-800/50 text-gray-600 italic';
-    } else {
-        switch (livenessState) {
-            case 'live':
-                stateClasses = 'bg-blue-900/40 hover:bg-blue-900/60';
-                break;
-            case 'stale':
-                stateClasses =
-                    'bg-red-900/30 hover:bg-red-900/50 text-gray-500';
-                break;
-        }
     }
 
     const timingContent =
@@ -158,8 +147,19 @@ export const segmentRowTemplate = (seg, isFresh, livenessState) => {
               (+${(seg.duration / seg.timescale).toFixed(2)}s)`
             : 'N/A';
 
+    // Add data attributes for live highlighting if the segment has UTC times
+    const startTimeAttr = seg.startTimeUTC
+        ? `data-start-time=${seg.startTimeUTC}`
+        : '';
+    const endTimeAttr = seg.endTimeUTC ? `data-end-time=${seg.endTimeUTC}` : '';
+
     return html`
-        <tr class="segment-row ${stateClasses}" data-url="${seg.resolvedUrl}">
+        <tr
+            class="segment-row ${stateClasses}"
+            data-url="${seg.resolvedUrl}"
+            ${startTimeAttr}
+            ${endTimeAttr}
+        >
             <td class="px-3 py-1.5">
                 <input
                     type="checkbox"

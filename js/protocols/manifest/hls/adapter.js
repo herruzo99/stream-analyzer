@@ -1,8 +1,8 @@
 /**
- * @typedef {import('../../../core/store.js').Manifest} Manifest
- * @typedef {import('../../../core/store.js').Period} Period
- * @typedef {import('../../../core/store.js').AdaptationSet} AdaptationSet
- * @typedef {import('../../../core/store.js').Representation} Representation
+ * @typedef {import('../../../core/types.js').Manifest} Manifest
+ * @typedef {import('../../../core/types.js').Period} Period
+ * @typedef {import('../../../core/types.js').AdaptationSet} AdaptationSet
+ * @typedef {import('../../../core/types.js').Representation} Representation
  */
 
 import { generateHlsSummary } from '../../../ui/views/summary/hls-summary.js';
@@ -99,7 +99,6 @@ export function adaptHlsToIr(hlsParsed) {
 
     if (hlsParsed.isMaster) {
         // First, process all alternative renditions defined in EXT-X-MEDIA tags.
-        // This ensures they are created only once.
         const mediaGroups = hlsParsed.media.reduce((acc, media) => {
             const groupId = media['GROUP-ID'];
             const type = media.TYPE.toLowerCase();
@@ -150,160 +149,80 @@ export function adaptHlsToIr(hlsParsed) {
         });
 
         // Second, process all variant streams from EXT-X-STREAM-INF tags.
+        // This is the corrected logic.
         hlsParsed.variants.forEach((variant, index) => {
-            const codecs = variant.attributes.CODECS || '';
-            const hasVideoCodec =
-                codecs.includes('avc1') ||
-                codecs.includes('hev1') ||
-                codecs.includes('hvc1');
-            const hasResolution = !!variant.attributes.RESOLUTION;
-            const hasVideo = hasVideoCodec || hasResolution;
+            const resolution = variant.attributes.RESOLUTION;
 
-            const hasMuxedAudio =
-                codecs.includes('mp4a') && !variant.attributes.AUDIO;
+            /** @type {Representation} */
+            const rep = {
+                id:
+                    variant.attributes['STABLE-VARIANT-ID'] ||
+                    `variant-${index}-rep-0`,
+                codecs: variant.attributes.CODECS || '',
+                bandwidth: variant.attributes.BANDWIDTH,
+                width: resolution
+                    ? parseInt(String(resolution).split('x')[0], 10)
+                    : null,
+                height: resolution
+                    ? parseInt(String(resolution).split('x')[1], 10)
+                    : null,
+                frameRate: variant.attributes['FRAME-RATE'] || null,
+                videoRange: variant.attributes['VIDEO-RANGE'],
+                sar: null,
+                qualityRanking: variant.attributes.SCORE,
+                mimeType: null,
+                profiles: null,
+                selectionPriority: null,
+                codingDependency: null,
+                scanType: null,
+                associationId: null,
+                associationType: null,
+                segmentProfiles: null,
+                mediaStreamStructureId: null,
+                maximumSAPPeriod: null,
+                startWithSAP: null,
+                maxPlayoutRate: null,
+                tag: null,
+                eptDelta: null,
+                pdDelta: null,
+                representationIndex: null,
+                failoverContent: null,
+                audioChannelConfigurations: [],
+                framePackings: [],
+                ratings: [],
+                viewpoints: [],
+                accessibility: [],
+                labels: [],
+                groupLabels: [],
+                subRepresentations: [],
+                dependencyId: null,
+                serializedManifest: variant,
+            };
 
-            if (hasVideo) {
-                const resolution = variant.attributes.RESOLUTION;
-                /** @type {Representation} */
-                const rep = {
-                    id:
-                        variant.attributes['STABLE-VARIANT-ID'] ||
-                        `video-variant-${index}-rep-0`,
-                    codecs,
-                    bandwidth: variant.attributes.BANDWIDTH,
-                    width: resolution
-                        ? parseInt(String(resolution).split('x')[0], 10)
-                        : null,
-                    height: resolution
-                        ? parseInt(String(resolution).split('x')[1], 10)
-                        : null,
-                    frameRate: variant.attributes['FRAME-RATE'] || null,
-                    sar: null,
-                    qualityRanking: variant.attributes.SCORE,
-                    videoRange: variant.attributes['VIDEO-RANGE'],
-                    mimeType: null,
-                    profiles: null,
-                    selectionPriority: null,
-                    codingDependency: null,
-                    scanType: null,
-                    associationId: null,
-                    associationType: null,
-                    segmentProfiles: null,
-                    mediaStreamStructureId: null,
-                    maximumSAPPeriod: null,
-                    startWithSAP: null,
-                    maxPlayoutRate: null,
-                    tag: null,
-                    eptDelta: null,
-                    pdDelta: null,
-                    representationIndex: null,
-                    failoverContent: null,
-                    audioChannelConfigurations: [],
-                    framePackings: [],
-                    ratings: [],
-                    viewpoints: [],
-                    accessibility: [],
-                    labels: [],
-                    groupLabels: [],
-                    subRepresentations: [],
-                    dependencyId: null,
-                    serializedManifest: variant,
-                };
-
-                /** @type {AdaptationSet} */
-                const asIR = {
-                    id: `video-variant-${index}`,
-                    contentType: 'video',
-                    lang: null,
-                    mimeType: 'video/mp2t',
-                    representations: [rep],
-                    contentProtection: [],
-                    roles: [],
-                    profiles: null,
-                    group: null,
-                    bitstreamSwitching: null,
-                    maxWidth: null,
-                    maxHeight: null,
-                    maxFrameRate: null,
-                    framePackings: [],
-                    ratings: [],
-                    viewpoints: [],
-                    accessibility: [],
-                    labels: [],
-                    groupLabels: [],
-                    serializedManifest: variant,
-                };
-                periodIR.adaptationSets.push(asIR);
-            }
-
-            // Create an AdaptationSet for muxed audio if present and not externally grouped.
-            if (hasMuxedAudio) {
-                /** @type {AdaptationSet} */
-                const asIR = {
-                    id: `audio-muxed-${index}`,
-                    contentType: 'audio',
-                    lang: null,
-                    mimeType: 'audio/mp4',
-                    representations: [
-                        {
-                            id: `audio-muxed-${index}-rep-0`,
-                            codecs: codecs
-                                .split(',')
-                                .find((c) => c.startsWith('mp4a')),
-                            bandwidth: variant.attributes.BANDWIDTH,
-                            width: null,
-                            height: null,
-                            mimeType: null,
-                            profiles: null,
-                            qualityRanking: null,
-                            selectionPriority: null,
-                            codingDependency: null,
-                            scanType: null,
-                            associationId: null,
-                            associationType: null,
-                            segmentProfiles: null,
-                            mediaStreamStructureId: null,
-                            maximumSAPPeriod: null,
-                            startWithSAP: null,
-                            maxPlayoutRate: null,
-                            tag: null,
-                            eptDelta: null,
-                            pdDelta: null,
-                            representationIndex: null,
-                            failoverContent: null,
-                            audioChannelConfigurations: [],
-                            framePackings: [],
-                            ratings: [],
-                            viewpoints: [],
-                            accessibility: [],
-                            labels: [],
-                            groupLabels: [],
-                            videoRange: undefined,
-                            subRepresentations: [],
-                            dependencyId: null,
-                            frameRate: null,
-                            sar: null,
-                            serializedManifest: variant,
-                        },
-                    ],
-                    contentProtection: [],
-                    roles: [],
-                    profiles: null,
-                    group: null,
-                    bitstreamSwitching: null,
-                    maxWidth: null,
-                    maxHeight: null,
-                    maxFrameRate: null,
-                    framePackings: [],
-                    ratings: [],
-                    viewpoints: [],
-                    accessibility: [],
-                    labels: [],
-                    groupLabels: [],
-                    serializedManifest: variant,
-                };
-                periodIR.adaptationSets.push(asIR);
-            }
+            /** @type {AdaptationSet} */
+            const asIR = {
+                id: `variant-${index}`,
+                contentType: 'video', // Assume video if resolution/video codec is present
+                lang: null,
+                mimeType: 'video/mp2t',
+                representations: [rep],
+                contentProtection: [],
+                roles: [],
+                profiles: null,
+                group: null,
+                bitstreamSwitching: null,
+                maxWidth: null,
+                maxHeight: null,
+                maxFrameRate: null,
+                framePackings: [],
+                ratings: [],
+                viewpoints: [],
+                accessibility: [],
+                labels: [],
+                groupLabels: [],
+                serializedManifest: variant,
+            };
+            periodIR.adaptationSets.push(asIR);
         });
     } else {
         // Handle a simple Media Playlist

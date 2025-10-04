@@ -8,16 +8,16 @@ import { buildByteMap } from './view-model.js';
 // --- STATE & CONFIG ---
 const allIsoTooltipData = getAllIsoTooltipData(); // Fetch the data once
 const boxColors = [
-    { bg: 'bg-red-500', border: 'border-red-500' },
-    { bg: 'bg-yellow-500', border: 'border-yellow-500' },
-    { bg: 'bg-green-500', border: 'border-green-500' },
-    { bg: 'bg-blue-500', border: 'border-blue-500' },
-    { bg: 'bg-indigo-500', border: 'border-indigo-500' },
-    { bg: 'bg-purple-500', border: 'border-purple-500' },
-    { bg: 'bg-pink-500', border: 'border-pink-500' },
-    { bg: 'bg-teal-500', border: 'border-teal-500' },
+    { bg: 'bg-red-800', border: 'border-red-700' },
+    { bg: 'bg-yellow-800', border: 'border-yellow-700' },
+    { bg: 'bg-green-800', border: 'border-green-700' },
+    { bg: 'bg-blue-800', border: 'border-blue-700' },
+    { bg: 'bg-indigo-800', border: 'border-indigo-700' },
+    { bg: 'bg-purple-800', border: 'border-purple-700' },
+    { bg: 'bg-pink-800', border: 'border-pink-700' },
+    { bg: 'bg-teal-800', border: 'border-teal-700' },
 ];
-const chunkColor = { bg: 'bg-slate-600', border: 'border-slate-500' };
+const chunkColor = { bg: 'bg-slate-700', border: 'border-slate-600' };
 
 // --- HELPERS ---
 function findBox(boxes, predicate) {
@@ -200,8 +200,8 @@ export const inspectorPanelTemplate = (box, rootData, highlightedField) => {
         <div class="overflow-y-auto">
             <table class="w-full table-fixed">
                 <colgroup>
-                    <col class="w-1/3" />
-                    <col class="w-2/3" />
+                    <col class="w-2/5" />
+                    <col class="w-3/5" />
                 </colgroup>
                 <tbody>
                     ${fields}

@@ -324,6 +324,18 @@ export const dashTooltipData = {
         text: 'The value for the audio channel configuration according to the specified scheme (e.g., "2" for stereo).',
         isoRef: 'Clause 5.8.2, Table 32',
     },
+    Label: {
+        text: 'Provides a human-readable textual description for the element it is annotating (e.g., AdaptationSet, Representation).',
+        isoRef: 'Clause 5.3.10',
+    },
+    'Label@id': {
+        text: 'A unique identifier for this Label within the scope of the MPD.',
+        isoRef: 'Clause 5.3.10.3',
+    },
+    'Label@lang': {
+        text: "Specifies the language of the label text, using RFC 5646 codes (e.g., 'en', 'es').",
+        isoRef: 'Clause 5.3.10.3',
+    },
     Role: {
         text: 'Describes the role or purpose of an AdaptationSet (e.g., "main", "alternate", "commentary").',
         isoRef: 'Clause 5.8.4.2',

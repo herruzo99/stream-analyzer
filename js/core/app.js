@@ -17,13 +17,11 @@ import { initializeViewManager } from '../ui/view-manager.js';
 import { initializeToastManager, showToast } from '../ui/components/toast.js';
 import { initializeLiveUpdateProcessor } from '../services/liveUpdateProcessor.js';
 import { useStore, storeActions } from './store.js';
+import { saveToHistory } from '../shared/utils/stream-storage.js';
+import { initializeHlsVariantPoller } from '../services/hlsVariantPollerService.js';
 
 import '../services/streamService.js';
 import '../services/segmentService.js';
-
-const HISTORY_KEY = 'dash_analyzer_history';
-const PRESETS_KEY = 'dash_analyzer_presets';
-const MAX_HISTORY_ITEMS = 10;
 
 function handleShare() {
     const streams = useStore.getState().streams;
@@ -125,30 +123,6 @@ function initializeEventListeners() {
     dom.copyDebugBtn.addEventListener('click', handleCopyDebugInfo);
 }
 
-// --- HISTORY & PRESET MANAGEMENT ---
-function saveStreamToHistory(stream) {
-    if (!stream || !stream.originalUrl) return;
-    const presets = /** @type {Array<object>} */ (
-        JSON.parse(localStorage.getItem(PRESETS_KEY) || '[]')
-    );
-    const isPreset = presets.some((p) => p.url === stream.originalUrl);
-    if (isPreset) return;
-    let history = /** @type {Array<object>} */ (
-        JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]')
-    );
-    history = history.filter((item) => item.url !== stream.originalUrl);
-    history.unshift({
-        name: stream.name,
-        url: stream.originalUrl,
-        protocol: stream.protocol,
-        type: stream.manifest?.type === 'dynamic' ? 'live' : 'vod',
-    });
-    if (history.length > MAX_HISTORY_ITEMS) {
-        history.length = MAX_HISTORY_ITEMS;
-    }
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
-}
-
 // --- CORE ANALYSIS TRIGGER ---
 function handleAnalysis() {
     const inputGroups = dom.streamInputs.querySelectorAll(
@@ -185,7 +159,7 @@ export function initializeApp() {
     // --- EVENT BUS SUBSCRIPTIONS (Application Level) ---
     eventBus.subscribe('state:analysis-complete', ({ streams }) => {
         if (streams.length > 0) {
-            saveStreamToHistory(streams[0]);
+            saveToHistory(streams[0]);
         }
     });
 
@@ -212,6 +186,7 @@ export async function startApp() {
     initializeModal();
     initializeUiController();
     initializeLiveStreamMonitor(); // Initialize the central monitor
+    initializeHlsVariantPoller(); // Initialize HLS variant interaction service
 
     if (streamUrls.length > 0 && streamUrls[0]) {
         const inputs = streamUrls.map((url, index) => ({

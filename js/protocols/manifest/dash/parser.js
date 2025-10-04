@@ -6,7 +6,7 @@ import { XMLParser } from 'fast-xml-parser';
  * This is the public entry point for the DASH manifest parsing module.
  * @param {string} xmlString The raw MPD XML.
  * @param {string} baseUrl The URL from which the MPD was fetched.
- * @returns {Promise<{manifest: import('../../../core/store.js').Manifest, serializedManifest: object, baseUrl: string}>}
+ * @returns {Promise<{manifest: import('../../../core/types.js').Manifest, serializedManifest: object, baseUrl: string}>}
  */
 export async function parseManifest(xmlString, baseUrl) {
     const parser = new XMLParser({

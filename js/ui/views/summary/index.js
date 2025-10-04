@@ -40,59 +40,81 @@ const statCardTemplate = (
 
 const trackTableTemplate = (tracks, type) => {
     if (!tracks || tracks.length === 0) return '';
-    let headers, rows;
+    let headers;
+    let rows;
+
+    const formatBitrate = (bps) => {
+        if (typeof bps === 'string' && bps.includes('bps')) return bps; // Already formatted
+        if (!bps || isNaN(bps)) return 'N/A';
+        if (bps >= 1000000) return `${(bps / 1000000).toFixed(2)} Mbps`;
+        return `${(bps / 1000).toFixed(0)} kbps`;
+    };
 
     if (type === 'video') {
-        headers = ['ID', 'Codecs', 'Resolutions', 'Bitrate', 'Roles'];
+        headers = ['ID', 'Bitrate', 'Resolution', 'Codecs', 'Scan Type', 'SAR'];
         rows = tracks.map(
             (track) => html`
                 <tr>
                     <td class="p-2 font-mono">${track.id}</td>
-                    <td class="p-2 font-mono">${track.codecs.join(', ')}</td>
                     <td class="p-2 font-mono">
-                        ${track.resolutions.join(', ')}
+                        ${track.bitrateRange || formatBitrate(track.bandwidth)}
                     </td>
-                    <td class="p-2 font-mono">${track.bitrateRange}</td>
                     <td class="p-2 font-mono">
-                        ${track.roles.join(', ') || 'N/A'}
+                        ${track.resolutions?.join(', ') ||
+                        `${track.width}x${track.height}`}
                     </td>
+                    <td class="p-2 font-mono">
+                        ${track.codecs?.join
+                            ? track.codecs.join(', ')
+                            : track.codecs || 'N/A'}
+                    </td>
+                    <td class="p-2 font-mono">${track.scanType || 'N/A'}</td>
+                    <td class="p-2 font-mono">${track.sar || 'N/A'}</td>
                 </tr>
             `
         );
     } else if (type === 'audio') {
-        headers = ['ID', 'Lang', 'Codecs', 'Channels', 'Default', 'Roles'];
+        headers = ['ID', 'Bitrate', 'Codecs', 'Channels', 'Sample Rate'];
         rows = tracks.map(
             (track) => html`
                 <tr>
                     <td class="p-2 font-mono">${track.id}</td>
-                    <td class="p-2 font-mono">${track.lang || 'N/A'}</td>
-                    <td class="p-2 font-mono">${track.codecs.join(', ')}</td>
-                    <td class="p-2 font-mono">${track.channels.join(', ')}</td>
                     <td class="p-2 font-mono">
-                        ${track.isDefault ? 'Yes' : 'No'}
+                        ${track.bitrateRange || formatBitrate(track.bandwidth)}
                     </td>
                     <td class="p-2 font-mono">
-                        ${track.roles.join(', ') || 'N/A'}
+                        ${track.codecs?.join
+                            ? track.codecs.join(', ')
+                            : track.codecs || 'N/A'}
+                    </td>
+                    <td class="p-2 font-mono">
+                        ${track.channels?.join(', ') ||
+                        track.audioChannelConfigurations
+                            ?.map((c) => c.value)
+                            .join(', ') ||
+                        'N/A'}
+                    </td>
+                    <td class="p-2 font-mono">
+                        ${track.audioSamplingRate || 'N/A'}
                     </td>
                 </tr>
             `
         );
     } else {
         // text
-        headers = ['ID', 'Lang', 'Format', 'Default', 'Roles'];
+        headers = ['ID', 'Bitrate', 'Format'];
         rows = tracks.map(
             (track) => html`
                 <tr>
                     <td class="p-2 font-mono">${track.id}</td>
-                    <td class="p-2 font-mono">${track.lang || 'N/A'}</td>
                     <td class="p-2 font-mono">
-                        ${track.codecsOrMimeTypes.join(', ')}
+                        ${track.bitrateRange || formatBitrate(track.bandwidth)}
                     </td>
                     <td class="p-2 font-mono">
-                        ${track.isDefault ? 'Yes' : 'No'}
-                    </td>
-                    <td class="p-2 font-mono">
-                        ${track.roles.join(', ') || 'N/A'}
+                        ${track.codecsOrMimeTypes?.join(', ') ||
+                        track.codecs ||
+                        track.mimeType ||
+                        'N/A'}
                     </td>
                 </tr>
             `
@@ -101,28 +123,90 @@ const trackTableTemplate = (tracks, type) => {
 
     return html`
         <div
-            class="bg-gray-800/50 rounded-lg border border-gray-700 overflow-x-auto"
+            class="bg-gray-900/50 rounded border border-gray-700/50 overflow-x-auto"
         >
             <table class="w-full text-left text-xs">
-                <thead class="bg-gray-900/50">
+                <thead class="bg-gray-800/50">
                     <tr>
                         ${headers.map(
                             (h) =>
                                 html`<th
-                                    class="p-2 font-semibold text-gray-300"
+                                    class="p-2 font-semibold text-gray-400"
                                 >
                                     ${h}
                                 </th>`
                         )}
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-gray-700">
+                <tbody class="divide-y divide-gray-700/50">
                     ${rows}
                 </tbody>
             </table>
         </div>
     `;
 };
+
+const adaptationSetTemplate = (as, type) => {
+    const roles = as.roles.map((r) => r.value).join(', ');
+    const title = `${
+        type.charAt(0).toUpperCase() + type.slice(1)
+    } AdaptationSet`;
+
+    return html`
+        <div class="space-y-2">
+            <h5 class="font-semibold text-gray-300">
+                ${title}:
+                <span class="font-mono text-sm">${as.id || 'N/A'}</span>
+                ${as.lang
+                    ? html` <span class="text-sm font-normal"
+                          >(Lang: ${as.lang})</span
+                      >`
+                    : ''}
+                ${roles
+                    ? html` <span class="text-sm font-normal"
+                          >(Roles: ${roles})</span
+                      >`
+                    : ''}
+            </h5>
+            <div class="pl-4">
+                ${trackTableTemplate(as.representations, type)}
+            </div>
+        </div>
+    `;
+};
+
+const periodTemplate = (period, index) => html`
+    <details class="bg-gray-800 rounded-lg border border-gray-700" open>
+        <summary
+            class="font-bold text-lg p-3 cursor-pointer hover:bg-gray-700/50"
+        >
+            Period ${index + 1}
+            <span class="font-normal font-mono text-sm text-gray-400"
+                >(ID: ${period.id || 'N/A'}, Start: ${period.start}s, Duration:
+                ${period.duration ? period.duration + 's' : 'N/A'})</span
+            >
+        </summary>
+        <div class="p-4 border-t border-gray-700 space-y-4">
+            ${period.videoTracks.length > 0
+                ? period.videoTracks.map((as) =>
+                      adaptationSetTemplate(as, 'video')
+                  )
+                : html`<p class="text-xs text-gray-500">
+                      No video Adaptation Sets in this period.
+                  </p>`}
+            ${period.audioTracks.length > 0
+                ? period.audioTracks.map((as) =>
+                      adaptationSetTemplate(as, 'audio')
+                  )
+                : ''}
+            ${period.textTracks.length > 0
+                ? period.textTracks.map((as) =>
+                      adaptationSetTemplate(as, 'text')
+                  )
+                : ''}
+        </div>
+    </details>
+`;
 
 const protocolSectionTemplate = (summary) => {
     if (summary.dash) {
@@ -182,7 +266,9 @@ const protocolSectionTemplate = (summary) => {
                 )}
                 ${statCardTemplate(
                     'Target Duration',
-                    `${summary.hls.targetDuration}s`,
+                    summary.hls.targetDuration
+                        ? `${summary.hls.targetDuration}s`
+                        : null,
                     'The maximum Media Segment duration.',
                     'HLS: 4.3.3.1'
                 )}
@@ -366,6 +452,45 @@ export function getGlobalSummaryTemplate(stream) {
     const summary = manifest.summary;
     const mediaPlaylistDetails = summary.hls?.mediaPlaylistDetails;
 
+    const streamStructureTemplate = () => {
+        if (stream.protocol === 'hls') {
+            return html`
+                ${summary.videoTracks.length > 0
+                    ? html`<div>
+                          <h4 class="text-lg font-bold mb-2">Video Tracks</h4>
+                          ${trackTableTemplate(summary.videoTracks, 'video')}
+                      </div>`
+                    : ''}
+                ${summary.audioTracks.length > 0
+                    ? html`<div>
+                          <h4 class="text-lg font-bold mb-2 mt-4">
+                              Audio Renditions
+                          </h4>
+                          ${trackTableTemplate(summary.audioTracks, 'audio')}
+                      </div>`
+                    : ''}
+                ${summary.textTracks.length > 0
+                    ? html`<div>
+                          <h4 class="text-lg font-bold mb-2 mt-4">
+                              Text Renditions
+                          </h4>
+                          ${trackTableTemplate(summary.textTracks, 'text')}
+                      </div>`
+                    : ''}
+            `;
+        }
+        // DASH protocol
+        return summary.content.periods.length > 0
+            ? html`
+                  <div class="space-y-4">
+                      ${summary.content.periods.map((p, i) =>
+                          periodTemplate(p, i)
+                      )}
+                  </div>
+              `
+            : '';
+    };
+
     return html`
         <div class="space-y-8">
             <!-- General Section -->
@@ -494,21 +619,27 @@ export function getGlobalSummaryTemplate(stream) {
                     class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(280px,1fr))]"
                 >
                     ${statCardTemplate(
-                        'Video Tracks',
-                        summary.content.videoTracks,
-                        'Number of distinct video tracks or variants.',
+                        'Total Periods',
+                        summary.content.totalPeriods,
+                        'Number of distinct content periods. HLS is always 1.',
+                        'DASH: 5.3.2'
+                    )}
+                    ${statCardTemplate(
+                        'Total Video Tracks',
+                        summary.content.totalVideoTracks,
+                        'Total number of distinct video tracks or variants across all periods.',
                         'DASH: 5.3.3 / HLS: 4.3.4.2'
                     )}
                     ${statCardTemplate(
-                        'Audio Tracks',
-                        summary.content.audioTracks,
-                        'Number of distinct audio tracks or renditions.',
+                        'Total Audio Tracks',
+                        summary.content.totalAudioTracks,
+                        'Total number of distinct audio tracks or renditions across all periods.',
                         'DASH: 5.3.3 / HLS: 4.3.4.1'
                     )}
                     ${statCardTemplate(
-                        'Text Tracks',
-                        summary.content.textTracks,
-                        'Number of distinct subtitle or text tracks.',
+                        'Total Text Tracks',
+                        summary.content.totalTextTracks,
+                        'Total number of distinct subtitle or text tracks across all periods.',
                         'DASH: 5.3.3 / HLS: 4.3.4.1'
                     )}
                     ${summary.security
@@ -577,49 +708,11 @@ export function getGlobalSummaryTemplate(stream) {
                   `
                 : ''}
 
-            <!-- Track Details -->
-            ${!mediaPlaylistDetails && summary.videoTracks.length > 0
-                ? html`
-                      <div>
-                          <h3 class="text-xl font-bold mb-4">
-                              Video Track Details
-                          </h3>
-                          <div class="space-y-4">
-                              ${trackTableTemplate(
-                                  summary.videoTracks,
-                                  'video'
-                              )}
-                          </div>
-                      </div>
-                  `
-                : ''}
-            ${!mediaPlaylistDetails && summary.audioTracks.length > 0
-                ? html`
-                      <div>
-                          <h3 class="text-xl font-bold mb-4">
-                              Audio Track Details
-                          </h3>
-                          <div class="space-y-4">
-                              ${trackTableTemplate(
-                                  summary.audioTracks,
-                                  'audio'
-                              )}
-                          </div>
-                      </div>
-                  `
-                : ''}
-            ${!mediaPlaylistDetails && summary.textTracks.length > 0
-                ? html`
-                      <div>
-                          <h3 class="text-xl font-bold mb-4">
-                              Text Track Details
-                          </h3>
-                          <div class="space-y-4">
-                              ${trackTableTemplate(summary.textTracks, 'text')}
-                          </div>
-                      </div>
-                  `
-                : ''}
+            <!-- Hierarchical Track Details -->
+            <div>
+                <h3 class="text-xl font-bold mb-4">Stream Structure</h3>
+                <div class="space-y-4">${streamStructureTemplate()}</div>
+            </div>
             ${stream.protocol === 'hls' ? deliveryInfoTemplate(stream) : ''}
         </div>
     `;

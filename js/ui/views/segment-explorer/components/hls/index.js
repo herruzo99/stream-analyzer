@@ -4,11 +4,41 @@ import { eventBus } from '../../../../../core/event-bus.js';
 
 let liveSegmentHighlighterInterval = null;
 
-export function startLiveSegmentHighlighter(renderCallback) {
+export function startLiveSegmentHighlighter(container, stream) {
     stopLiveSegmentHighlighter();
-    if (renderCallback) {
-        liveSegmentHighlighterInterval = setInterval(renderCallback, 1000);
-    }
+
+    const updateHighlights = () => {
+        if (!container || container.offsetParent === null) {
+            stopLiveSegmentHighlighter();
+            return;
+        }
+
+        const now = Date.now();
+        const liveClass = 'bg-green-700/50';
+        const staleClass = 'text-gray-500',
+            opacityClass = 'opacity-50';
+
+        const rows = container.querySelectorAll('tr.segment-row');
+        rows.forEach((row) => {
+            const tr = /** @type {HTMLElement} */ (row);
+            const startTime = parseInt(tr.dataset.startTime, 10);
+            const endTime = parseInt(tr.dataset.endTime, 10);
+
+            // Remove all state classes first
+            tr.classList.remove(liveClass, staleClass, opacityClass);
+
+            if (!startTime || !endTime) return;
+
+            if (now >= startTime && now < endTime) {
+                tr.classList.add(liveClass);
+            } else if (now > endTime + 30000) {
+                // Mark as stale if it's more than 30s past its end time
+                tr.classList.add(staleClass, opacityClass);
+            }
+        });
+    };
+
+    liveSegmentHighlighterInterval = setInterval(updateHighlights, 1000);
 }
 
 export function stopLiveSegmentHighlighter() {
@@ -16,30 +46,6 @@ export function stopLiveSegmentHighlighter() {
         clearInterval(liveSegmentHighlighterInterval);
         liveSegmentHighlighterInterval = null;
     }
-}
-
-function getHlsSegmentLivenessState(stream, segment, variantState) {
-    if (!stream || stream.manifest.type !== 'dynamic' || !variantState) {
-        return 'default';
-    }
-
-    if (!variantState.freshSegmentUrls.has(segment.resolvedUrl)) {
-        return 'stale';
-    }
-
-    const freshSegments = variantState.segments;
-    const liveSegmentCount = Math.min(3, Math.floor(freshSegments.length / 2));
-    const liveEdgeIndex = freshSegments.length - liveSegmentCount;
-
-    const currentIndex = freshSegments.findIndex(
-        (s) => s.resolvedUrl === segment.resolvedUrl
-    );
-
-    if (currentIndex !== -1 && currentIndex >= liveEdgeIndex) {
-        return 'live';
-    }
-
-    return 'default';
 }
 
 const liveEdgeIndicatorTemplate = (stream, segments) => {
@@ -95,23 +101,33 @@ const renderVariant = (stream, variant, variantUri) => {
     } = variantState;
 
     // Transform raw parser segments into the view model the template expects
-    const hlsTimescale = 90000;
-    let currentTime = 0;
-    const mediaSequence = stream.manifest?.mediaSequence || 0;
+    let pdtAnchorTime = 0;
+    let cumulativeDuration = 0;
     const allSegments = (Array.isArray(rawSegments) ? rawSegments : []).map(
         (seg, index) => {
+            if (seg.dateTime) {
+                pdtAnchorTime = new Date(seg.dateTime).getTime();
+                cumulativeDuration = 0; // Reset cumulative duration at each PDT tag
+            }
+
+            const startTimeUTC = pdtAnchorTime + cumulativeDuration * 1000;
+            const endTimeUTC = startTimeUTC + seg.duration * 1000;
+            const segmentTime = cumulativeDuration;
+            cumulativeDuration += seg.duration;
+
             const transformedSeg = {
                 repId: 'hls-media',
                 type: seg.type || 'Media',
-                number: mediaSequence + index,
+                number: (stream.manifest.mediaSequence || 0) + index,
                 resolvedUrl: seg.resolvedUrl,
                 template: seg.uri,
-                time: Math.round(currentTime * hlsTimescale),
-                duration: Math.round(seg.duration * hlsTimescale),
-                timescale: hlsTimescale,
+                time: segmentTime * 90000,
+                duration: seg.duration * 90000,
+                timescale: 90000,
                 gap: seg.gap || false,
+                startTimeUTC: startTimeUTC || 0,
+                endTimeUTC: endTimeUTC || 0,
             };
-            currentTime += seg.duration;
             return transformedSeg;
         }
     );
@@ -119,11 +135,13 @@ const renderVariant = (stream, variant, variantUri) => {
     const segmentsToDisplay =
         displayMode === 'last10' ? allSegments.slice(-10) : allSegments;
 
-    const onToggleExpand = () =>
+    const onToggleExpand = (e) => {
+        e.preventDefault();
         eventBus.dispatch('hls-explorer:toggle-variant', {
             streamId: stream.id,
             variantUri,
         });
+    };
     const onTogglePolling = (e) => {
         e.stopPropagation();
         eventBus.dispatch('hls-explorer:toggle-polling', {
@@ -147,11 +165,11 @@ const renderVariant = (stream, variant, variantUri) => {
         </div>`;
     } else if (error) {
         content = html`<div class="p-4 text-red-400">Error: ${error}</div>`;
-    } else if (allSegments.length === 0) {
+    } else if (allSegments.length === 0 && isExpanded) {
         content = html`<div class="p-4 text-center text-gray-400">
             No segments found in this playlist.
         </div>`;
-    } else {
+    } else if (isExpanded) {
         content = html` <div class="overflow-y-auto relative max-h-[70vh]">
             ${liveEdgeIndicatorTemplate(stream, segmentsToDisplay)}
             <table class="w-full text-left text-sm table-auto">
@@ -167,12 +185,7 @@ const renderVariant = (stream, variant, variantUri) => {
                     ${segmentsToDisplay.map((seg) =>
                         segmentRowTemplate(
                             seg,
-                            freshSegmentUrls.has(seg.resolvedUrl),
-                            getHlsSegmentLivenessState(
-                                stream,
-                                seg,
-                                variantState
-                            )
+                            freshSegmentUrls.has(seg.resolvedUrl)
                         )
                     )}
                 </tbody>
@@ -181,20 +194,40 @@ const renderVariant = (stream, variant, variantUri) => {
     }
 
     return html`
+        <style>
+            details > summary {
+                list-style: none;
+            }
+            details > summary::-webkit-details-marker {
+                display: none;
+            }
+            details[open] .chevron {
+                transform: rotate(90deg);
+            }
+        </style>
         <details
             class="bg-gray-800 rounded-lg border border-gray-700"
             ?open=${isExpanded}
         >
             <summary
-                @click=${(e) => {
-                    e.preventDefault();
-                    onToggleExpand();
-                }}
-                class="flex items-center p-2 bg-gray-900/50 cursor-pointer"
+                @click=${onToggleExpand}
+                class="flex items-center p-2 bg-gray-900/50 cursor-pointer list-none"
             >
                 <div class="flex-grow font-semibold text-gray-200">
                     ${variant.title}
                 </div>
+                <svg
+                    class="chevron w-5 h-5 text-gray-400 transition-transform duration-200"
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                >
+                    <path
+                        fill-rule="evenodd"
+                        d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
+                        clip-rule="evenodd"
+                    />
+                </svg>
             </summary>
             ${isExpanded
                 ? html`
@@ -232,14 +265,16 @@ const renderVariant = (stream, variant, variantUri) => {
 
 /**
  * Creates the lit-html template for the HLS segment explorer content.
- * @param {import('../../../../../core/store.js').Stream} stream
+ * @param {import('../../../../../core/types.js').Stream} stream
  * @returns {import('lit-html').TemplateResult}
  */
 export function getHlsExplorerTemplate(stream) {
     if (stream.manifest.isMaster) {
         const variants = (stream.manifest.variants || []).map((v, i) => ({
             ...v,
-            title: `Variant Stream ${i + 1} (BW: ${(v.attributes.BANDWIDTH / 1000).toFixed(0)}k)`,
+            title: `Variant Stream ${i + 1} (BW: ${(
+                v.attributes.BANDWIDTH / 1000
+            ).toFixed(0)}k)`,
         }));
         return html`<div class="space-y-1">
             ${variants.map((v) => renderVariant(stream, v, v.resolvedUri))}

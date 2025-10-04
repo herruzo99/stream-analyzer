@@ -105,8 +105,8 @@ export const inspectorPanelTemplate = (packet, rootData, highlightedField) => {
         <div class="overflow-y-auto">
             <table class="w-full table-fixed">
                 <colgroup>
-                    <col class="w-1/2" />
-                    <col class="w-1/2" />
+                    <col class="w-2/5" />
+                    <col class="w-3/5" />
                 </colgroup>
                 <tbody>
                     ${Object.entries(packet.header).map(([key, value]) =>

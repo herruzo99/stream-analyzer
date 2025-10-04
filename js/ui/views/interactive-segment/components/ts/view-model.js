@@ -7,17 +7,17 @@
 export function buildByteMapTs(parsedData) {
     const byteMap = new Map();
     const colors = {
-        header: { bg: 'bg-blue-900/60' },
-        af: { bg: 'bg-yellow-800/60' },
-        pcr: { bg: 'bg-yellow-500/60' },
-        pes: { bg: 'bg-purple-800/60' },
-        pts: { bg: 'bg-purple-500/60' },
-        dts: { bg: 'bg-purple-400/60' },
-        psi: { bg: 'bg-green-800/60' },
-        payload: { bg: 'bg-gray-800/50' },
-        stuffing: { bg: 'bg-gray-700/50' },
-        pointer: { bg: 'bg-cyan-800/60' },
-        null: { bg: 'bg-gray-900/80' },
+        header: { bg: 'bg-blue-900/30' },
+        af: { bg: 'bg-yellow-900/30' },
+        pcr: { bg: 'bg-yellow-700/30' },
+        pes: { bg: 'bg-purple-900/30' },
+        pts: { bg: 'bg-purple-700/30' },
+        dts: { bg: 'bg-purple-600/30' },
+        psi: { bg: 'bg-green-900/30' },
+        payload: { bg: 'bg-gray-800/20' },
+        stuffing: { bg: 'bg-gray-700/20' },
+        pointer: { bg: 'bg-cyan-900/30' },
+        null: { bg: 'bg-gray-900/40' },
     };
 
     if (!parsedData || !parsedData.data || !parsedData.data.packets) {

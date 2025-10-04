@@ -6,32 +6,19 @@ import { navigationTemplate } from './components/navigation.js';
 
 // --- MODULE STATE ---
 let activeFilter = 'all';
-let interactionHandlerAttached = false;
 
 // --- INTERACTION LOGIC ---
-function initializeInteractions(container) {
-    if (interactionHandlerAttached) return;
-    interactionHandlerAttached = true;
+function handleFilterClick(newFilter) {
+    if (newFilter === activeFilter) return;
+    activeFilter = newFilter;
 
-    const filterBar = container.querySelector('.compliance-filter-bar');
-    if (!filterBar) return;
-
-    filterBar.addEventListener('click', (e) => {
-        const target = /** @type {Element} */ (e.target);
-        const button = target.closest('[data-filter]');
-        if (!button) return;
-
-        const newFilter = /** @type {HTMLElement} */ (button).dataset.filter;
-        if (newFilter === activeFilter) return;
-        activeFilter = newFilter;
-
-        // Re-render the entire component with the new state
-        const { streams, activeStreamId } = useStore.getState();
-        const stream = streams.find((s) => s.id === activeStreamId);
-        if (stream) {
-            render(getComplianceReportTemplate(stream), container);
-        }
-    });
+    // Re-render the entire component with the new state
+    const { streams, activeStreamId } = useStore.getState();
+    const stream = streams.find((s) => s.id === activeStreamId);
+    const container = document.getElementById('tab-compliance');
+    if (stream && container) {
+        render(getComplianceReportTemplate(stream), container);
+    }
 }
 
 // --- MAIN TEMPLATE ---
@@ -49,54 +36,47 @@ export function getComplianceReportTemplate(stream) {
     const { complianceResults, rawManifest, serializedManifest } =
         currentUpdate;
 
-    // setTimeout ensures this runs after the DOM is updated by lit-html,
-    // allowing the event listener to be attached to the newly rendered elements.
-    setTimeout(() => {
-        const container = document.getElementById('tab-compliance');
-        if (container) {
-            initializeInteractions(container);
-        }
-    }, 0);
-
     return html`
-        <div class="grid grid-cols-1 lg:grid-cols-[1fr_450px] gap-6 h-full">
-            <div class="flex flex-col min-h-0">
-                <div
-                    class="flex flex-col sm:flex-row justify-between items-center mb-4 flex-shrink-0"
-                >
-                    <h3 class="text-xl font-bold">
-                        Interactive Compliance Report
-                    </h3>
-                    ${navigationTemplate(stream)}
-                </div>
-                <div
-                    class="compliance-manifest-view bg-slate-800 rounded-lg p-4 font-mono text-sm leading-relaxed overflow-auto flex-grow"
-                >
-                    ${manifestViewTemplate(
-                        rawManifest,
-                        stream.protocol,
+        <div
+            class="flex flex-col sm:flex-row justify-between items-center mb-4 flex-shrink-0"
+        >
+            <h3 class="text-xl font-bold">Interactive Compliance Report</h3>
+            ${navigationTemplate(stream)}
+        </div>
+
+        <div class="lg:grid lg:grid-cols-[1fr_450px] lg:gap-6 relative">
+            <div
+                class="compliance-manifest-view bg-slate-800 rounded-lg p-4 font-mono text-sm leading-relaxed overflow-x-auto mb-6 lg:mb-0"
+            >
+                ${manifestViewTemplate(
+                    rawManifest,
+                    stream.protocol,
+                    complianceResults,
+                    serializedManifest,
+                    activeFilter
+                )}
+            </div>
+            <div class="lg:sticky lg:top-4 h-fit">
+                <div class="flex flex-col max-h-[calc(100vh-12rem)]">
+                    ${sidebarTemplate(
                         complianceResults,
-                        serializedManifest,
-                        activeFilter
+                        activeFilter,
+                        handleFilterClick
                     )}
                 </div>
-            </div>
-            <!-- FIX: This is now a flex container that constrains the sidebar's height -->
-            <div class="flex flex-col h-full min-h-0">
-                ${sidebarTemplate(complianceResults, activeFilter)}
             </div>
         </div>
     `;
 }
 
 export function attachComplianceFilterListeners() {
-    // This function now simply triggers the initial render, which sets up its own listeners.
+    // This function now simply triggers the initial render.
+    // Event handling is managed declaratively by lit-html.
     const { streams, activeStreamId } = useStore.getState();
     const stream = streams.find((s) => s.id === activeStreamId);
     const container = document.getElementById('tab-compliance');
     if (stream && container) {
         // Reset state for re-initialization when tab is clicked
-        interactionHandlerAttached = false;
         activeFilter = 'all';
         render(getComplianceReportTemplate(stream), container);
     }

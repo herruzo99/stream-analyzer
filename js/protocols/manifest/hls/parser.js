@@ -110,7 +110,7 @@ function applyVariableSubstitution(
  * @param {string} manifestString The raw HLS playlist.
  * @param {string} baseUrl The URL from which the playlist was fetched.
  * @param {Map<string, {value: string, source: string}>=} parentVariables - Variables inherited from a master playlist.
- * @returns {Promise<{manifest: import('../../../core/store.js').Manifest, definedVariables: Map<string, {value: string, source: string}>, baseUrl: string}>}
+ * @returns {Promise<{manifest: import('../../../core/types.js').Manifest, definedVariables: Map<string, {value: string, source: string}>, baseUrl: string}>}
  */
 export async function parseManifest(manifestString, baseUrl, parentVariables) {
     let rawManifestForParsing = manifestString;
@@ -128,8 +128,10 @@ export async function parseManifest(manifestString, baseUrl, parentVariables) {
     const { substitutedLines: lines, definedVariables } =
         applyVariableSubstitution(initialLines, baseUrl, parentVariables);
 
+    const isMaster = lines.some((line) => line.startsWith('#EXT-X-STREAM-INF'));
+
     const parsed = {
-        isMaster: false,
+        isMaster: isMaster,
         version: 1,
         tags: [],
         segments: [],
@@ -137,7 +139,7 @@ export async function parseManifest(manifestString, baseUrl, parentVariables) {
         media: [],
         raw: rawManifestForParsing, // Original raw string
         baseUrl: baseUrl,
-        isLive: true,
+        isLive: !isMaster, // Heuristic: Master is VOD by default, Media is Live by default
         preloadHints: [],
         renditionReports: [],
     };
@@ -265,6 +267,8 @@ export async function parseManifest(manifestString, baseUrl, parentVariables) {
                     parsed.playlistType = tagValue;
                     if (tagValue === 'VOD') {
                         parsed.isLive = false;
+                    } else if (tagValue === 'EVENT') {
+                        parsed.isLive = true;
                     }
                     break;
                 case 'EXT-X-ENDLIST':

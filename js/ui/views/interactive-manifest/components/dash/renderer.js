@@ -37,16 +37,23 @@ const getTagHTML = (tagName) => {
         : '';
     const tagClass =
         'text-blue-300 rounded-sm px-1 -mx-1 transition-colors hover:bg-slate-700';
-    const tooltipAttrs = tagInfo
-        ? `data-tooltip="${escapeHtml(tagInfo.text)}" data-iso="${escapeHtml(
-              tagInfo.isoRef
-          )}"`
-        : `data-tooltip="No definition for &lt;${cleanTagName}&gt;"`;
-    const triggerClass = tooltipTriggerClasses;
+
+    let dynamicClasses = '';
+    let tooltipAttrs = '';
+
+    if (tagInfo) {
+        dynamicClasses = tooltipTriggerClasses;
+        tooltipAttrs = `data-tooltip="${escapeHtml(
+            tagInfo.text
+        )}" data-iso="${escapeHtml(tagInfo.isoRef)}"`;
+    } else {
+        dynamicClasses = 'cursor-help bg-red-900/50 missing-tooltip-trigger';
+        tooltipAttrs = `data-tooltip="No definition for &lt;${cleanTagName}&gt;"`;
+    }
 
     return `&lt;${
         isClosing ? '/' : ''
-    }<span class="${triggerClass}" ${tooltipAttrs}>${displayPrefix}<span class="${tagClass}">${localName}</span></span>`;
+    }<span class="${dynamicClasses}" ${tooltipAttrs}>${displayPrefix}<span class="${tagClass}">${localName}</span></span>`;
 };
 
 const getAttributeHTML = (tagName, attr) => {

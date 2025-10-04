@@ -85,7 +85,11 @@ const commentCard = (result) => {
     `;
 };
 
-export const sidebarTemplate = (complianceResults, activeFilter) => {
+export const sidebarTemplate = (
+    complianceResults,
+    activeFilter,
+    onFilterClick
+) => {
     const counts = {
         pass: 0,
         warn: 0,
@@ -109,6 +113,7 @@ export const sidebarTemplate = (complianceResults, activeFilter) => {
                 ? 'bg-blue-600 text-white font-semibold'
                 : 'bg-gray-700 text-gray-300'}"
             data-filter="${filter}"
+            @click=${() => onFilterClick(filter)}
         >
             ${label} (${count})
         </button>`;

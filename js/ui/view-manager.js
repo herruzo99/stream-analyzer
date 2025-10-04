@@ -1,8 +1,10 @@
 import { dom } from '../core/dom.js';
 import { eventBus } from '../core/event-bus.js';
+import { html, render } from 'lit-html';
 import { populateContextSwitcher, renderAllTabs } from './rendering.js';
 import { resetAndRenderAllStreamInputs } from './components/stream-inputs.js';
 import { showToast } from './components/toast.js';
+import { stopLiveSegmentHighlighter } from './views/segment-explorer/components/hls/index.js';
 
 const ViewState = {
     INPUT: 'input',
@@ -19,6 +21,7 @@ function setView(state, data) {
 
     if (state === ViewState.INPUT) {
         // --- Reset to Input View ---
+        stopLiveSegmentHighlighter(); // Explicitly stop any running timers.
         dom.results.classList.add('hidden');
         dom.newAnalysisBtn.classList.add('hidden');
         dom.shareAnalysisBtn.classList.add('hidden');
@@ -37,9 +40,11 @@ function setView(state, data) {
 
         resetAndRenderAllStreamInputs();
 
-        // Clear out old results to prevent stale data flashing on next analysis
+        // Clear out old results using lit-html to avoid stale references
         Object.values(dom.tabContents).forEach((container) => {
-            if (container) container.innerHTML = '';
+            if (container) {
+                render(html``, container);
+            }
         });
     } else if (state === ViewState.RESULTS) {
         // --- Transition to Results View ---
