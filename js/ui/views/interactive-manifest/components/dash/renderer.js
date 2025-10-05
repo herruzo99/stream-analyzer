@@ -1,29 +1,28 @@
-import { html, render } from 'lit-html';
+import { html } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { dashTooltipData } from './tooltip-data.js';
 import { tooltipTriggerClasses } from '../../../../../shared/constants.js';
+import { useStore, storeActions } from '../../../../../core/store.js';
+import { debugLog } from '../../../../../shared/utils/debug.js';
 
-// --- MODULE STATE FOR VIRTUALIZATION ---
-let currentPage = 1;
 const linesPerPage = 500;
-let lastRenderedManifestString = null;
 
-const onPageChange = (offset, stream, totalPages) => {
-    const newPage = currentPage + offset;
+const onPageChange = (offset, totalPages) => {
+    const { interactiveManifestCurrentPage } = useStore.getState();
+    const newPage = interactiveManifestCurrentPage + offset;
     if (newPage >= 1 && newPage <= totalPages) {
-        currentPage = newPage;
-        const container = document.getElementById('tab-interactive-manifest');
-        // Re-render the template to update the view
-        render(dashManifestTemplate(stream), container);
+        storeActions.setInteractiveManifestPage(newPage);
     }
 };
 
-const escapeHtml = (str) =>
-    str
+const escapeHtml = (str) => {
+    if (!str) return '';
+    return str
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
+};
 
 const getTagHTML = (tagName) => {
     const isClosing = tagName.startsWith('/');
@@ -137,13 +136,24 @@ const preformattedDash = (node, depth = 0) => {
     }
 };
 
-export const dashManifestTemplate = (stream) => {
+export const dashManifestTemplate = (stream, currentPage) => {
     // Determine which manifest string to display
     const hasUpdates =
         stream.manifestUpdates && stream.manifestUpdates.length > 0;
     const manifestStringToDisplay = hasUpdates
         ? stream.manifestUpdates[stream.activeManifestUpdateIndex].rawManifest
         : stream.rawManifest;
+
+    debugLog(
+        'DashRenderer',
+        'dashManifestTemplate called.',
+        'Stream has updates:',
+        hasUpdates,
+        'Active update index:',
+        stream.activeManifestUpdateIndex,
+        'Manifest string length:',
+        manifestStringToDisplay.length
+    );
 
     // On-demand parsing for the view. This is NOT cached on the stream object
     // to ensure updates are reflected.
@@ -156,6 +166,7 @@ export const dashManifestTemplate = (stream) => {
     const parserError = xmlDoc.querySelector('parsererror');
 
     if (parserError) {
+        debugLog('DashRenderer', 'XML parsing failed.', parserError.textContent);
         console.error('XML Parsing Error:', parserError.textContent);
         return html`<div class="text-red-400 p-4 font-mono">
             <p class="font-bold">Failed to parse manifest XML.</p>
@@ -168,18 +179,18 @@ ${parserError.textContent}</pre
     manifestElement = xmlDoc.querySelector('MPD');
 
     if (!manifestElement) {
+        debugLog('DashRenderer', '<MPD> element not found.');
         return html`<div class="text-red-400 p-4">
             Error: &lt;MPD&gt; root element not found in the manifest.
         </div>`;
     }
 
     const allLines = preformattedDash(manifestElement);
+    debugLog(
+        'DashRenderer',
+        `Generated ${allLines.length} lines of HTML for manifest view.`
+    );
     const totalPages = Math.ceil(allLines.length / linesPerPage);
-
-    if (manifestStringToDisplay !== lastRenderedManifestString) {
-        currentPage = 1;
-        lastRenderedManifestString = manifestStringToDisplay;
-    }
 
     const startLine = (currentPage - 1) * linesPerPage;
     const endLine = startLine + linesPerPage;
@@ -189,7 +200,7 @@ ${parserError.textContent}</pre
         totalPages > 1
             ? html` <div class="text-center text-sm text-gray-400 mt-4">
                   <button
-                      @click=${() => onPageChange(-1, stream, totalPages)}
+                      @click=${() => onPageChange(-1, totalPages)}
                       ?disabled=${currentPage === 1}
                       class="px-3 py-1 rounded bg-gray-600 hover:bg-gray-500 disabled:opacity-50 mx-2"
                   >
@@ -203,7 +214,7 @@ ${parserError.textContent}</pre
                       )})</span
                   >
                   <button
-                      @click=${() => onPageChange(1, stream, totalPages)}
+                      @click=${() => onPageChange(1, totalPages)}
                       ?disabled=${currentPage === totalPages}
                       class="px-3 py-1 rounded bg-gray-600 hover:bg-gray-500 disabled:opacity-50 mx-2"
                   >

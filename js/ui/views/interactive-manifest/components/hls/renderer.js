@@ -1,29 +1,29 @@
-import { html, render } from 'lit-html';
+import { html } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { hlsTooltipData } from './tooltip-data.js';
 import { tooltipTriggerClasses } from '../../../../../shared/constants.js';
 import { eventBus } from '../../../../../core/event-bus.js';
+import { useStore, storeActions } from '../../../../../core/store.js';
+import { debugLog } from '../../../../../shared/utils/debug.js';
 
-// --- MODULE STATE FOR VIRTUALIZATION ---
-let currentPage = 1;
 const linesPerPage = 500;
-let lastRenderedManifestString = null;
 
-const onPageChange = (offset, stream, totalPages) => {
-    const newPage = currentPage + offset;
+const onPageChange = (offset, totalPages) => {
+    const { interactiveManifestCurrentPage } = useStore.getState();
+    const newPage = interactiveManifestCurrentPage + offset;
     if (newPage >= 1 && newPage <= totalPages) {
-        currentPage = newPage;
-        const container = document.getElementById('tab-interactive-manifest');
-        render(hlsManifestTemplate(stream), container);
+        storeActions.setInteractiveManifestPage(newPage);
     }
 };
 
-const escapeHtml = (str) =>
-    str
+const escapeHtml = (str) => {
+    if (!str) return '';
+    return str
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
+};
 
 const variableTableTemplate = (definedVariables) => {
     if (!definedVariables || definedVariables.size === 0) {
@@ -188,7 +188,7 @@ const getHlsLineHTML = (line) => {
                     dynamicClasses = tooltipClass;
                     attrTooltipAttrs = `data-tooltip="${escapeHtml(
                         attrInfo.text
-                    )}" data-iso="${escapeHtml(attrInfo.isoRef)}"`;
+                    )}" data-iso="${escapeHtml(attrInfo.ref)}"`;
                 } else {
                     dynamicClasses =
                         'cursor-help bg-red-900/50 missing-tooltip-trigger';
@@ -215,96 +215,82 @@ const getHlsLineHTML = (line) => {
 
 const structuredTagTemplate = (tag) => {
     const tagInfo = hlsTooltipData[tag.name] || {};
-    return html`
-        <div class="flex">
-            <span
-                class="text-right text-gray-500 pr-4 select-none flex-shrink-0 w-10"
-                >&nbsp;</span
-            >
-            <span
-                class="flex-grow whitespace-pre-wrap break-all bg-gray-900/50 p-2 rounded border-l-2 border-cyan-500"
-            >
-                <div
-                    class="font-semibold text-cyan-300 mb-1 ${tooltipTriggerClasses}"
-                    data-tooltip="${tagInfo.text}"
-                    data-iso="${tagInfo.isoRef}"
-                >
-                    ${tag.name}
-                </div>
-                <dl class="grid grid-cols-[auto_1fr] gap-x-4 text-xs">
-                    ${Object.entries(tag.value).map(([key, value]) => {
-                        const attrInfo =
-                            hlsTooltipData[`${tag.name}@${key}`] || {};
-                        return html`
-                            <dt
-                                class="text-gray-400 ${tooltipTriggerClasses}"
-                                data-tooltip="${attrInfo.text}"
-                                data-iso="${attrInfo.ref}"
-                            >
-                                ${key}
-                            </dt>
-                            <dd class="text-gray-200 font-mono">${value}</dd>
-                        `;
-                    })}
-                </dl>
-            </span>
+    return html` <div
+        class="flex-grow whitespace-pre-wrap break-all bg-gray-900/50 p-2 rounded border-l-2 border-cyan-500"
+    >
+        <div
+            class="font-semibold text-cyan-300 mb-1 ${tooltipTriggerClasses}"
+            data-tooltip="${tagInfo.text}"
+            data-iso="${tagInfo.isoRef}"
+        >
+            ${tag.name}
         </div>
-    `;
+        <dl class="grid grid-cols-[auto_1fr] gap-x-4 text-xs">
+            ${Object.entries(tag.value).map(([key, value]) => {
+                const attrInfo = hlsTooltipData[`${tag.name}@${key}`] || {};
+                return html`
+                    <dt
+                        class="text-gray-400 ${tooltipTriggerClasses}"
+                        data-tooltip="${attrInfo.text}"
+                        data-iso="${attrInfo.ref}"
+                    >
+                        ${key}
+                    </dt>
+                    <dd class="text-gray-200 font-mono">${value}</dd>
+                `;
+            })}
+        </dl>
+    </div>`;
 };
 
-export const hlsManifestTemplate = (stream) => {
+export const hlsManifestTemplate = (stream, currentPage) => {
+    debugLog('HlsRenderer', 'hlsManifestTemplate called.', 'Stream:', stream);
+
     const manifestToDisplay = stream.activeManifestForView || stream.manifest;
     const manifestString = stream.activeMediaPlaylistUrl
         ? stream.mediaPlaylists.get(stream.activeMediaPlaylistUrl)?.rawManifest
         : stream.rawManifest;
 
-    if (manifestString !== lastRenderedManifestString) {
-        currentPage = 1;
-        lastRenderedManifestString = manifestString;
-    }
+    debugLog(
+        'HlsRenderer',
+        'Using manifest string of length:',
+        manifestString?.length,
+        'Active media playlist URL:',
+        stream.activeMediaPlaylistUrl
+    );
 
     const { renditionReports, preloadHints } = manifestToDisplay;
-
     const lines = manifestString ? manifestString.split(/\r?\n/) : [];
 
-    const specialTags = [
-        'EXT-X-PRELOAD-HINT',
-        'EXT-X-RENDITION-REPORT',
-        'EXT-X-DEFINE',
-    ];
+    let reportIndex = 0;
+    let hintIndex = 0;
 
-    const allLineTemplates = lines
-        .map((line) => {
-            const trimmedLine = line.trim();
-            if (specialTags.some((tag) => trimmedLine.startsWith(`#${tag}`))) {
-                return null; // We'll render these separately
-            }
-            return (lineNumber) => html`
-                <div class="flex">
-                    <span
-                        class="text-right text-gray-500 pr-4 select-none flex-shrink-0 w-10"
-                        >${lineNumber}</span
-                    >
-                    <span class="flex-grow whitespace-pre-wrap break-all"
-                        >${unsafeHTML(getHlsLineHTML(line))}</span
-                    >
-                </div>
-            `;
-        })
-        .filter(Boolean);
+    const allLineTemplates = lines.map((line) => {
+        const trimmedLine = line.trim();
+        if (trimmedLine.startsWith('#EXT-X-RENDITION-REPORT')) {
+            const reportData = renditionReports[reportIndex++];
+            return reportData
+                ? structuredTagTemplate({
+                      name: 'EXT-X-RENDITION-REPORT',
+                      value: reportData,
+                  })
+                : html`${unsafeHTML(getHlsLineHTML(line))}`;
+        }
+        if (trimmedLine.startsWith('#EXT-X-PRELOAD-HINT')) {
+            const hintData = preloadHints[hintIndex++];
+            return hintData
+                ? structuredTagTemplate({
+                      name: 'EXT-X-PRELOAD-HINT',
+                      value: hintData,
+                  })
+                : html`${unsafeHTML(getHlsLineHTML(line))}`;
+        }
+        return html`${unsafeHTML(getHlsLineHTML(line))}`;
+    });
 
-    (renditionReports || []).forEach((report) =>
-        allLineTemplates.push(() =>
-            structuredTagTemplate({
-                name: 'EXT-X-RENDITION-REPORT',
-                value: report,
-            })
-        )
-    );
-    (preloadHints || []).forEach((hint) =>
-        allLineTemplates.push(() =>
-            structuredTagTemplate({ name: 'EXT-X-PRELOAD-HINT', value: hint })
-        )
+    debugLog(
+        'HlsRenderer',
+        `Generated ${allLineTemplates.length} lines/templates for manifest view.`
     );
 
     const totalPages = Math.ceil(allLineTemplates.length / linesPerPage);
@@ -317,7 +303,7 @@ export const hlsManifestTemplate = (stream) => {
         totalPages > 1
             ? html` <div class="text-center text-sm text-gray-400 mt-4">
                   <button
-                      @click=${() => onPageChange(-1, stream, totalPages)}
+                      @click=${() => onPageChange(-1, totalPages)}
                       ?disabled=${currentPage === 1}
                       class="px-3 py-1 rounded bg-gray-600 hover:bg-gray-500 disabled:opacity-50 mx-2"
                   >
@@ -331,7 +317,7 @@ export const hlsManifestTemplate = (stream) => {
                       )})</span
                   >
                   <button
-                      @click=${() => onPageChange(1, stream, totalPages)}
+                      @click=${() => onPageChange(1, totalPages)}
                       ?disabled=${currentPage === totalPages}
                       class="px-3 py-1 rounded bg-gray-600 hover:bg-gray-500 disabled:opacity-50 mx-2"
                   >
@@ -346,8 +332,18 @@ export const hlsManifestTemplate = (stream) => {
         <div
             class="bg-slate-800 rounded-lg p-4 font-mono text-sm leading-relaxed overflow-x-auto"
         >
-            ${visibleLineTemplates.map((templateFn, i) =>
-                templateFn(startLine + i + 1)
+            ${visibleLineTemplates.map(
+                (template, i) => html`
+                    <div class="flex">
+                        <span
+                            class="text-right text-gray-500 pr-4 select-none flex-shrink-0 w-10"
+                            >${startLine + i + 1}</span
+                        >
+                        <span class="flex-grow whitespace-pre-wrap break-all"
+                            >${template}</span
+                        >
+                    </div>
+                `
             )}
         </div>
         ${paginationControls}

@@ -1,5 +1,4 @@
 import { html } from 'lit-html';
-import { useStore } from '../../../core/store.js';
 import { createComparisonViewModel } from './view-model.js';
 import { comparisonRowTemplate } from './row.js';
 
@@ -10,11 +9,9 @@ const sectionTemplate = (title, points, streams) => html`
     </div>
 `;
 
-export function getComparisonTemplate() {
-    const { streams } = useStore.getState();
-
+export function getComparisonTemplate(streams) {
     if (streams.length < 2) {
-        return html``; // Should not be visible anyway
+        return html``;
     }
 
     const groupedComparisonPoints = createComparisonViewModel(streams);

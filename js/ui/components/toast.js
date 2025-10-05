@@ -1,5 +1,15 @@
-import { dom } from '../../core/dom.js';
 import { eventBus } from '../../core/event-bus.js';
+
+let toastContainer;
+
+/**
+ * Initializes the toast manager by setting the container element.
+ * @param {object} dom - The application's DOM context.
+ */
+export function initializeToastManager(dom) {
+    toastContainer = dom.toastContainer;
+    eventBus.subscribe('ui:show-status', showToast);
+}
 
 /**
  * Displays a transient toast notification.
@@ -9,7 +19,7 @@ import { eventBus } from '../../core/event-bus.js';
  * @param {number} [options.duration=4000] - The duration in ms to show the toast.
  */
 export function showToast({ message, type, duration = 4000 }) {
-    if (!dom.toastContainer) return;
+    if (!toastContainer) return;
 
     const toast = document.createElement('div');
     const colors = {
@@ -20,7 +30,7 @@ export function showToast({ message, type, duration = 4000 }) {
     };
     toast.className = `p-4 rounded-lg border text-white shadow-lg transition-all duration-300 ease-in-out transform translate-x-full opacity-0 ${colors[type]}`;
     toast.textContent = message;
-    dom.toastContainer.appendChild(toast);
+    toastContainer.appendChild(toast);
 
     // Animate in
     setTimeout(() => {
@@ -32,11 +42,4 @@ export function showToast({ message, type, duration = 4000 }) {
         toast.classList.add('opacity-0', 'translate-x-8');
         toast.addEventListener('transitionend', () => toast.remove());
     }, duration);
-}
-
-/**
- * Initializes the toast manager by subscribing to the global status update event.
- */
-export function initializeToastManager() {
-    eventBus.subscribe('ui:show-status', showToast);
 }

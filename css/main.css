@@ -1,3 +1,34 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+.loader-animation span {
+    @apply w-2 h-3 mx-0.5 bg-blue-400 origin-bottom;
+    animation: streaming-bars 1.2s ease-in-out infinite;
+}
+
+.loader-animation span:nth-child(1) {
+    animation-delay: 0s;
+}
+.loader-animation span:nth-child(2) {
+    animation-delay: 0.1s;
+}
+.loader-animation span:nth-child(3) {
+    animation-delay: 0.2s;
+}
+.loader-animation span:nth-child(4) {
+    animation-delay: 0.3s;
+}
+.loader-animation span:nth-child(5) {
+    animation-delay: 0.4s;
+}
+
+@keyframes streaming-bars {
+    0%,
+    100% {
+        transform: scaleY(0.2);
+    }
+    50% {
+        transform: scaleY(1);
+    }
+}

@@ -60,7 +60,7 @@
         </style>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Exhaustive Stream Analyzer</title>
+        <title>Stream Analyzer</title>
         <link rel="stylesheet" href="dist/main.css" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -82,7 +82,7 @@
             >
                 <div id="header-title-group" class="text-center">
                     <h1 class="text-3xl sm:text-4xl font-bold text-white">
-                        Exhaustive Stream Analyzer
+                        Stream Analyzer
                     </h1>
                     <p class="text-gray-400 mt-2">
                         Analyze and compare DASH & HLS streams against industry
@@ -135,6 +135,12 @@
                 </div>
                 <div class="flex flex-col sm:flex-row gap-4 mt-6">
                     <button
+                        id="clear-all-btn"
+                        class="w-full sm:w-auto flex-grow bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-md transition duration-300"
+                    >
+                        Clear All
+                    </button>
+                    <button
                         id="add-stream-btn"
                         class="w-full sm:w-auto flex-grow bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md transition duration-300"
                     >
@@ -154,54 +160,63 @@
                     <nav class="flex flex-wrap items-center" id="tabs">
                         <div class="flex -mb-px flex-wrap flex-grow">
                             <button
+                                id="tab-btn-comparison"
                                 class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
                                 data-tab="comparison"
                             >
                                 Comparison
                             </button>
                             <button
+                                id="tab-btn-summary"
                                 class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
                                 data-tab="summary"
                             >
                                 Global Summary
                             </button>
                             <button
+                                id="tab-btn-timeline-visuals"
                                 class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
                                 data-tab="timeline-visuals"
                             >
                                 Timeline &amp; Visuals
                             </button>
                             <button
+                                id="tab-btn-features"
                                 class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
                                 data-tab="features"
                             >
                                 Features
                             </button>
                             <button
+                                id="tab-btn-compliance"
                                 class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
                                 data-tab="compliance"
                             >
                                 Compliance Report
                             </button>
                             <button
+                                id="tab-btn-explorer"
                                 class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
                                 data-tab="explorer"
                             >
                                 Segment Explorer
                             </button>
                             <button
+                                id="tab-btn-interactive-segment"
                                 class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent hidden"
                                 data-tab="interactive-segment"
                             >
                                 Interactive Segment
                             </button>
                             <button
+                                id="tab-btn-interactive-manifest"
                                 class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
                                 data-tab="interactive-manifest"
                             >
                                 Interactive Manifest
                             </button>
                             <button
+                                id="tab-btn-updates"
                                 class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
                                 data-tab="updates"
                             >
@@ -295,6 +310,20 @@
             id="toast-container"
             class="fixed top-5 right-5 z-[100] space-y-2"
         ></div>
+
+        <div
+            id="global-loader"
+            class="hidden fixed inset-0 bg-gray-900/70 flex-col items-center justify-center z-[200] space-y-4"
+        >
+            <div class="loader-animation flex items-end justify-center h-12">
+                <span></span>
+                <span></span>
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+            <p id="loader-message" class="text-lg text-gray-300"></p>
+        </div>
 
         <script type="module" src="dist/main.js"></script>
     </body>

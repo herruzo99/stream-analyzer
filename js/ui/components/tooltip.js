@@ -1,6 +1,4 @@
-import { dom } from '../../core/dom.js';
-
-export function setupGlobalTooltipListener() {
+export function setupGlobalTooltipListener(dom) {
     document.body.addEventListener('mouseover', (e) => {
         const target = /** @type {HTMLElement} */ (e.target);
 

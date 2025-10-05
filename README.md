@@ -1,4 +1,4 @@
-# Exhaustive Stream Analyzer
+# Stream Analyzer
 
 > **Work in Progress**: This project is under active development. Features may change, and documentation might be incomplete. Issues may exists.
 
