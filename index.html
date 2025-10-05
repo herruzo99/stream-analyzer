@@ -1,9 +1,15 @@
 <!doctype html>
 <html lang="en">
     <head>
+        <link
+            rel="stylesheet"
+            href="https://cdn.jsdelivr.net/gh/orestbida/cookieconsent@v3.0.0/dist/cookieconsent.css"
+        />
         <script>
-            if (window.location.hostname === 'stream-analyzer.herruzo.dev') {
-                // Google tag (gtag.js)
+            // Define functions to load your trackers. These will be called by the consent manager.
+            // They are attached to the window object to make them globally accessible.
+            window.loadGoogleAnalytics = function () {
+                if (window.gaLoaded) return;
                 const gtagScript = document.createElement('script');
                 gtagScript.async = true;
                 gtagScript.src =
@@ -16,15 +22,23 @@
                 }
                 gtag('js', new Date());
                 gtag('config', 'G-MEXDCSX5HT');
+                console.log('Consent given: Loading Google Analytics.');
+                window.gaLoaded = true;
+            };
 
-                // Sentry
+            window.loadSentry = function () {
+                if (window.sentryLoaded) return;
                 const sentryScript = document.createElement('script');
                 sentryScript.src =
                     'https://js-de.sentry-cdn.com/04b8c5065c12bbd50437ea0ebd2f1967.min.js';
                 sentryScript.crossOrigin = 'anonymous';
                 document.head.appendChild(sentryScript);
+                console.log('Consent given: Loading Sentry.');
+                window.sentryLoaded = true;
+            };
 
-                // Clarity
+            window.loadClarity = function () {
+                if (window.clarityLoaded) return;
                 (function (c, l, a, r, i, t, y) {
                     c[a] =
                         c[a] ||
@@ -37,7 +51,9 @@
                     y = l.getElementsByTagName(r)[0];
                     y.parentNode.insertBefore(t, y);
                 })(window, document, 'clarity', 'script', 'tl14wx36g1');
-            }
+                console.log('Consent given: Loading Clarity.');
+                window.clarityLoaded = true;
+            };
         </script>
 
         <style>
@@ -329,6 +345,7 @@
             <p id="loader-message" class="text-lg text-gray-300"></p>
         </div>
 
+        <script src="https://cdn.jsdelivr.net/gh/orestbida/cookieconsent@v3.0.0/dist/cookieconsent.umd.js"></script>
         <script type="module" src="dist/main.js"></script>
     </body>
 </html>
