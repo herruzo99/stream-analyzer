@@ -2,6 +2,7 @@ import { showToast } from '../../ui/components/toast.js';
 
 const HISTORY_KEY = 'stream-analyzer_history';
 const PRESETS_KEY = 'stream-analyzer_presets';
+const LAST_USED_KEY = 'stream-analyzer_last-used';
 const MAX_HISTORY_ITEMS = 10;
 const MAX_PRESETS = 50;
 
@@ -55,6 +56,8 @@ function setStreams(key, streams) {
 
 export const getHistory = () => getStreams(HISTORY_KEY);
 export const getPresets = () => getStreams(PRESETS_KEY);
+export const getLastUsedStreams = () => getStreams(LAST_USED_KEY);
+export const saveLastUsedStreams = (streams) => setStreams(LAST_USED_KEY, streams);
 
 /**
  * Saves a stream object to the history.

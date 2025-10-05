@@ -5,7 +5,7 @@
  * @typedef {import('../../../core/types.js').Representation} Representation
  */
 
-import { generateHlsSummary } from '../../../ui/views/summary/hls-summary.js';
+import { generateHlsSummary } from './summary-generator.js';
 
 /**
  * Transforms a parsed HLS manifest object into a protocol-agnostic Intermediate Representation (IR).

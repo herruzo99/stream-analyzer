@@ -1,8 +1,5 @@
-import { useStore } from '../../core/store.js';
-import { eventBus } from '../../core/event-bus.js';
 import { cmafTrackRules } from './rules.js';
 import { compareBoxes } from './utils.js';
-import { parseAllSegmentUrls } from '../../protocols/manifest/dash/segment-parser.js';
 import { validateCmafProfiles } from './profile-validator.js';
 import {
     findChild,
@@ -12,14 +9,14 @@ import {
 
 // Configuration for CMAF Switching Set validation based on ISO/IEC 23000-19:2020(E), Table 11.
 const SWITCHING_SET_BOX_CHECKS = [
-    { box: 'ftyp', ignore: [] }, // Should be identical except for media profile brands, which we'll check separately.
+    { box: 'ftyp', ignore: [] },
     { box: 'mvhd', ignore: ['creation_time', 'modification_time'] },
     {
         box: 'tkhd',
         ignore: ['creation_time', 'modification_time', 'width', 'height'],
     },
     { box: 'trex', ignore: [] },
-    { box: 'elst', ignore: [] }, // Should be identical except for specific video cases not handled here.
+    { box: 'elst', ignore: [] },
     { box: 'mdhd', ignore: ['creation_time', 'modification_time'] },
     { box: 'mehd', ignore: [] },
     { box: 'hdlr', ignore: [] },
@@ -27,65 +24,33 @@ const SWITCHING_SET_BOX_CHECKS = [
     { box: 'smhd', ignore: [] },
     { box: 'sthd', ignore: [] },
     { box: 'dref', ignore: [] },
-    { box: 'stsd', ignore: ['codingname'], childBoxesToIgnore: ['avcC'] }, // Ignore avcC content for now
+    { box: 'stsd', ignore: ['codingname'], childBoxesToIgnore: ['avcC'] },
     { box: 'pssh', ignore: [] },
     { box: 'sinf', ignore: [] },
-    { box: 'tenc', ignore: [] }, // Should be identical except IV values, which aren't in the header.
+    { box: 'tenc', ignore: [] },
 ];
 
 /**
- * Robustly retrieves a parsed segment, interacting with the central segment cache and service.
- * @param {string} url The URL of the segment to retrieve.
- * @returns {Promise<object>} A promise that resolves with the parsed segment data.
+ * Finds the Initialization Segment URL for a given Representation.
+ * @param {import('../../core/types.js').Representation} representation
+ * @param {import('../../core/types.js').AdaptationSet} adaptationSet
+ * @param {import('../../core/types.js').Period} period
+ * @param {string} baseUrl
+ * @returns {string | null}
  */
-export function getParsedSegment(url) {
-    const cachedEntry = useStore.getState().segmentCache.get(url);
-    if (cachedEntry && cachedEntry.status !== -1 && cachedEntry.parsedData) {
-        if (cachedEntry.parsedData.error) {
-            return Promise.reject(new Error(cachedEntry.parsedData.error));
-        }
-        return Promise.resolve(cachedEntry.parsedData);
-    }
-
-    return new Promise((resolve, reject) => {
-        const onSegmentLoaded = ({ url: loadedUrl, entry }) => {
-            if (loadedUrl === url) {
-                unsubscribe(); // CRITICAL: prevent memory leaks
-                if (entry.status !== 200) {
-                    reject(new Error(`HTTP ${entry.status} for ${url}`));
-                } else if (entry.parsedData?.error) {
-                    reject(new Error(entry.parsedData.error));
-                } else {
-                    resolve(entry.parsedData);
-                }
-            }
-        };
-
-        const unsubscribe = eventBus.subscribe(
-            'segment:loaded',
-            onSegmentLoaded
-        );
-
-        // Only dispatch a new fetch if one isn't already pending.
-        if (!cachedEntry || cachedEntry.status !== -1) {
-            eventBus.dispatch('segment:fetch', { url });
-        }
-    });
-}
-
 export function findInitSegmentUrl(
     representation,
     adaptationSet,
     period,
     baseUrl
 ) {
-    const repElement = representation.rawElement;
+    const repElement = representation.serializedManifest;
     if (!repElement) return null;
 
     const template =
         findChild(repElement, 'SegmentTemplate') ||
-        findChild(adaptationSet.rawElement, 'SegmentTemplate') ||
-        findChild(period.rawElement, 'SegmentTemplate');
+        findChild(adaptationSet.serializedManifest, 'SegmentTemplate') ||
+        findChild(period.serializedManifest, 'SegmentTemplate');
 
     if (template && getAttr(template, 'initialization')) {
         return new URL(
@@ -105,128 +70,51 @@ export function findInitSegmentUrl(
         return new URL(getAttr(initialization, 'sourceURL'), baseUrl).href;
     }
 
-    // Fallback for single-file representations
     const baseURL = findChild(repElement, 'BaseURL');
-    if (baseURL) {
-        return new URL(baseURL.children[0].content, baseUrl).href;
+    if (baseURL && baseURL['#text']) {
+        return new URL(baseURL['#text'], baseUrl).href;
     }
 
     return null;
 }
 
-export async function validateCmafTrack(stream) {
-    if (stream.protocol !== 'dash') {
+/**
+ * Performs CMAF conformance checks on a single track using pre-fetched segment data.
+ * @param {object} initData - The parsed initialization segment data.
+ * @param {object} mediaData - The parsed media segment data.
+ * @returns {Array<object>} An array of validation results.
+ */
+export function validateCmafTrack(initData, mediaData) {
+    const ftyp = initData?.boxes?.find((b) => b.type === 'ftyp');
+    const cmafBrands = ftyp?.details?.cmafBrands?.value?.split(', ') || [];
+
+    if (!cmafBrands.includes('cmfc')) {
         return [
             {
-                id: 'CMAF-META',
-                text: 'CMAF Conformance',
-                status: 'info',
-                details:
-                    'CMAF validation is currently only supported for DASH manifests.',
-            },
-        ];
-    }
-
-    const period = stream.manifest?.periods[0];
-    const adaptationSet = period?.adaptationSets[0];
-    const representation = adaptationSet?.representations[0];
-
-    if (!representation || !adaptationSet || !period) {
-        return [
-            {
-                id: 'CMAF-META',
-                text: 'CMAF Conformance',
-                status: 'fail',
-                details: 'No representations found to validate.',
-            },
-        ];
-    }
-
-    const segmentsByRep = parseAllSegmentUrls(
-        stream.manifest.rawElement,
-        stream.baseUrl
-    );
-    const repSegments = segmentsByRep[representation.id];
-
-    const manifestElement = stream.manifest.rawElement; // The serialized object
-    const resolvedBaseUrl = resolveBaseUrl(
-        stream.baseUrl,
-        manifestElement,
-        period.rawElement,
-        adaptationSet.rawElement,
-        representation.rawElement
-    );
-    const initSegmentUrl = findInitSegmentUrl(
-        representation,
-        adaptationSet,
-        period,
-        resolvedBaseUrl
-    );
-
-    const firstMediaSegment = repSegments?.find((s) => s.type === 'Media');
-
-    if (!initSegmentUrl || !firstMediaSegment?.resolvedUrl) {
-        return [
-            {
-                id: 'CMAF-META',
-                text: 'CMAF Conformance',
+                id: 'CMAF-BRAND',
+                text: 'CMAF Brand Presence',
                 status: 'fail',
                 details:
-                    'Could not determine initialization or media segment URL for validation.',
+                    'The structural brand "cmfc" was not found in the initialization segment\'s ftyp box. This is not a CMAF track.',
             },
         ];
     }
 
-    try {
-        const [initData, mediaData] = await Promise.all([
-            getParsedSegment(initSegmentUrl),
-            getParsedSegment(firstMediaSegment.resolvedUrl),
-        ]);
+    const brandResult = {
+        id: 'CMAF-BRAND',
+        text: 'CMAF Brand Presence',
+        status: 'pass',
+        details: `Structural brand "cmfc" found. Detected CMAF brands: ${cmafBrands.join(
+            ', '
+        )}`,
+    };
 
-        const ftyp = initData?.data?.boxes?.find((b) => b.type === 'ftyp');
-        const cmafBrands = ftyp?.details?.cmafBrands?.value?.split(', ') || [];
+    const trackRuleResults = cmafTrackRules
+        .map((rule) => rule(initData, mediaData))
+        .filter(Boolean);
+    const profileRuleResults = validateCmafProfiles(cmafBrands, initData);
 
-        if (!cmafBrands.includes('cmfc')) {
-            return [
-                {
-                    id: 'CMAF-BRAND',
-                    text: 'CMAF Brand Presence',
-                    status: 'fail',
-                    details:
-                        'The structural brand "cmfc" was not found in the initialization segment\'s ftyp box. This is not a CMAF track.',
-                },
-            ];
-        }
-
-        const brandResult = {
-            id: 'CMAF-BRAND',
-            text: 'CMAF Brand Presence',
-            status: 'pass',
-            details: `Structural brand "cmfc" found. Detected CMAF brands: ${cmafBrands.join(
-                ', '
-            )}`,
-        };
-        const trackRuleResults = cmafTrackRules.map((rule) =>
-            rule(initData.data, mediaData.data)
-        );
-        const profileRuleResults = validateCmafProfiles(
-            cmafBrands,
-            initData.data
-        );
-
-        return [brandResult, ...trackRuleResults, ...profileRuleResults].filter(
-            Boolean
-        );
-    } catch (e) {
-        return [
-            {
-                id: 'CMAF-META',
-                text: 'CMAF Conformance',
-                status: 'fail',
-                details: `Failed to fetch or parse segments for validation: ${e.message}`,
-            },
-        ];
-    }
+    return [brandResult, ...trackRuleResults, ...profileRuleResults];
 }
 
 const findBoxRecursive = (boxes, type) => {
@@ -240,12 +128,15 @@ const findBoxRecursive = (boxes, type) => {
     return null;
 };
 
-export async function validateCmafSwitchingSets(stream) {
+/**
+ * Performs CMAF Switching Set validation on a stream.
+ * @param {import('../../core/types.js').Stream} stream
+ * @param {(url: string) => Promise<object>} segmentFetcher - A function to fetch and parse a segment by URL.
+ * @returns {Promise<Array<object>>} A promise that resolves to an array of validation results.
+ */
+export async function validateCmafSwitchingSets(stream, segmentFetcher) {
     const results = [];
-    if (stream.protocol !== 'dash') {
-        return results;
-    }
-    const manifestElement = stream.manifest.rawElement;
+    const manifestElement = stream.manifest.serializedManifest;
 
     for (const period of stream.manifest.periods) {
         for (const as of period.adaptationSets) {
@@ -265,29 +156,24 @@ export async function validateCmafSwitchingSets(stream) {
                     const resolvedBaseUrl = resolveBaseUrl(
                         stream.baseUrl,
                         manifestElement,
-                        period.rawElement,
-                        as.rawElement,
-                        rep.rawElement
+                        period.serializedManifest,
+                        as.serializedManifest,
+                        rep.serializedManifest
                     );
                     return findInitSegmentUrl(rep, as, period, resolvedBaseUrl);
                 });
 
                 const parsedInitSegments = await Promise.all(
                     initSegmentUrls.map((url) =>
-                        url ? getParsedSegment(url) : Promise.resolve(null)
+                        url ? segmentFetcher(url) : Promise.resolve(null)
                     )
                 );
 
                 const baseInitData = parsedInitSegments[0]?.data;
                 if (!baseInitData) {
-                    results.push({
-                        id: `SS-VALID-${setId}`,
-                        text: `Switching Set: ${setId}`,
-                        status: 'fail',
-                        details:
-                            'Could not parse initialization segment for baseline representation.',
-                    });
-                    continue;
+                    throw new Error(
+                        'Could not parse initialization segment for baseline representation.'
+                    );
                 }
 
                 let allSetsMatch = true;
@@ -339,30 +225,6 @@ export async function validateCmafSwitchingSets(stream) {
                         }
                     }
                 }
-                // Separate check for avcC boxes, which are expected to differ.
-                const baseAvcC = findBoxRecursive(baseInitData.boxes, 'avcC');
-                let avcCDiffers = false;
-                for (let i = 1; i < parsedInitSegments.length; i++) {
-                    const currentInitData = parsedInitSegments[i]?.data;
-                    if (!currentInitData) continue;
-                    const currentAvcC = findBoxRecursive(
-                        currentInitData.boxes,
-                        'avcC'
-                    );
-                    if (baseAvcC && currentAvcC) {
-                        const avcCComparison = compareBoxes(
-                            baseAvcC,
-                            currentAvcC
-                        );
-                        if (!avcCComparison.areEqual) {
-                            avcCDiffers = true;
-                            break;
-                        }
-                    } else if (baseAvcC || currentAvcC) {
-                        avcCDiffers = true; // Presence mismatch
-                        break;
-                    }
-                }
 
                 if (allSetsMatch) {
                     results.push({
@@ -377,17 +239,9 @@ export async function validateCmafSwitchingSets(stream) {
                         id: `SS-VALID-${setId}`,
                         text: `Switching Set: ${setId}`,
                         status: 'fail',
-                        details: `Inconsistencies found: ${differences.join('; ')}`,
-                    });
-                }
-
-                if (avcCDiffers) {
-                    results.push({
-                        id: `SS-AVCC-${setId}`,
-                        text: `Switching Set: ${setId} (avcC)`,
-                        status: 'warn',
-                        details:
-                            'AVC Configuration (`avcC`) boxes differ across Representations. This is common due to resolution-specific SPS/PPS data but is a deviation from strict CMAF switching set rules.',
+                        details: `Inconsistencies found: ${differences.join(
+                            '; '
+                        )}`,
                     });
                 }
             } catch (e) {

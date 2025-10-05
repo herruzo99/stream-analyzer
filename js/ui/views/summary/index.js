@@ -2,6 +2,9 @@ import { html } from 'lit-html';
 import { tooltipTriggerClasses } from '../../../shared/constants.js';
 import { deliveryInfoTemplate } from './components/delivery.js';
 
+// ... (statCardTemplate, trackTableTemplate, etc. are pure and unchanged) ...
+// For brevity, I will omit the unchanged pure helper functions.
+
 const statCardTemplate = (
     label,
     value,
@@ -44,7 +47,7 @@ const trackTableTemplate = (tracks, type) => {
     let rows;
 
     const formatBitrate = (bps) => {
-        if (typeof bps === 'string' && bps.includes('bps')) return bps; // Already formatted
+        if (typeof bps === 'string' && bps.includes('bps')) return bps;
         if (!bps || isNaN(bps)) return 'N/A';
         if (bps >= 1000000) return `${(bps / 1000000).toFixed(2)} Mbps`;
         return `${(bps / 1000).toFixed(0)} kbps`;

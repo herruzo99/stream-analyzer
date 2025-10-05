@@ -1,72 +1,74 @@
-import { render } from 'lit-html';
-import { dom } from '../core/dom.js';
-import { useStore, storeActions } from '../core/store.js';
-import { getInteractiveSegmentTemplate } from './views/interactive-segment/index.js';
-import {
-    renderManifestUpdates,
-    navigateManifestUpdates,
-} from './views/manifest-updates/index.js';
-import { renderSingleStreamTabs } from './rendering.js';
-import { initializeSegmentExplorer } from './views/segment-explorer/index.js';
 import { stopLiveSegmentHighlighter } from './views/segment-explorer/components/hls/index.js';
+import { useStore, storeActions } from '../core/store.js';
+import { showLoader } from './components/loader.js';
 
+let dom;
 let keyboardNavigationListener = null;
 
-export function handleTabClick(e) {
-    const target = /** @type {HTMLElement} */ (e.target);
-    const targetTab = /** @type {HTMLElement} */ (target.closest('[data-tab]'));
-    if (!targetTab) return;
+export function initializeTabs(domContext) {
+    dom = domContext;
+    dom.tabs.addEventListener('click', handleTabClick);
 
-    // --- Cleanup logic for timers ---
-    if (keyboardNavigationListener) {
-        document.removeEventListener('keydown', keyboardNavigationListener);
-        keyboardNavigationListener = null;
-    }
-    stopLiveSegmentHighlighter(); // Stop the live segment UI updater
+    // Subscribe to activeTab changes in the store to update button styling
+    useStore.subscribe((state, prevState) => {
+        if (state.activeTab !== prevState.activeTab) {
+            updateTabButtonStyling(state.activeTab);
+        }
+    });
 
+    // Initial styling on load
+    updateTabButtonStyling(useStore.getState().activeTab);
+}
+
+function updateTabButtonStyling(activeTabName) {
     const activeClasses = ['border-blue-600', 'text-gray-100', 'bg-gray-700'];
     const inactiveClasses = ['border-transparent'];
 
     dom.tabs.querySelectorAll('[data-tab]').forEach((t) => {
-        t.classList.remove(...activeClasses);
-        t.classList.add(...inactiveClasses);
-    });
-    targetTab.classList.add(...activeClasses);
-    targetTab.classList.remove(...inactiveClasses);
-
-    Object.values(dom.tabContents).forEach((c) => {
-        if (c) c.classList.add('hidden');
-    });
-
-    const activeTabName = targetTab.dataset.tab;
-    const activeTabContent = dom.tabContents[activeTabName];
-    if (activeTabContent) activeTabContent.classList.remove('hidden');
-
-    const { activeStreamId, streams } = useStore.getState();
-
-    if (activeTabName === 'interactive-segment') {
-        render(
-            getInteractiveSegmentTemplate(),
-            dom.tabContents['interactive-segment']
-        );
-    }
-    if (activeTabName === 'interactive-manifest') {
-        renderSingleStreamTabs(activeStreamId);
-    }
-
-    if (activeTabName === 'explorer') {
-        const stream = streams.find((s) => s.id === activeStreamId);
-        if (stream) {
-            initializeSegmentExplorer(dom.tabContents.explorer, stream);
+        if (t.dataset.tab === activeTabName) {
+            t.classList.add(...activeClasses);
+            t.classList.remove(...inactiveClasses);
+        } else {
+            t.classList.remove(...activeClasses);
+            t.classList.add(...inactiveClasses);
         }
+    });
+}
+
+async function handleTabClick(e) {
+    const target = /** @type {HTMLElement} */ (e.target);
+    const targetTab = /** @type {HTMLElement} */ (target.closest('[data-tab]'));
+    if (!targetTab) return;
+
+    if (useStore.getState().activeTab === targetTab.dataset.tab) {
+        return; // Do not re-render if the same tab is clicked
     }
 
-    if (activeTabName === 'updates') {
-        keyboardNavigationListener = (event) => {
-            if (event.key === 'ArrowRight') navigateManifestUpdates(1);
-            if (event.key === 'ArrowLeft') navigateManifestUpdates(-1);
-        };
-        document.addEventListener('keydown', keyboardNavigationListener);
-        renderManifestUpdates(activeStreamId); // Initial render
-    }
+    showLoader('Loading view...');
+
+    // Defer the state change and subsequent render to the next event loop tick.
+    // This gives the browser a chance to paint the loader before the main thread
+    // gets blocked by the potentially heavy rendering work of the new tab.
+    setTimeout(async () => {
+        if (keyboardNavigationListener) {
+            document.removeEventListener('keydown', keyboardNavigationListener);
+            keyboardNavigationListener = null;
+        }
+        stopLiveSegmentHighlighter();
+
+        const activeTabName = targetTab.dataset.tab;
+        storeActions.setActiveTab(activeTabName);
+
+        // Special handling for keyboard navigation in the 'updates' tab
+        if (activeTabName === 'updates') {
+            const { navigateManifestUpdates } = await import(
+                './views/manifest-updates/index.js'
+            );
+            keyboardNavigationListener = (event) => {
+                if (event.key === 'ArrowRight') navigateManifestUpdates(1);
+                if (event.key === 'ArrowLeft') navigateManifestUpdates(-1);
+            };
+            document.addEventListener('keydown', keyboardNavigationListener);
+        }
+    }, 0);
 }

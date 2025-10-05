@@ -1,27 +1,17 @@
-import { html, render } from 'lit-html';
-import { useStore } from '../../../core/store.js';
+import { html } from 'lit-html';
 import { manifestViewTemplate } from './components/renderer.js';
 import { sidebarTemplate } from './components/sidebar.js';
 import { navigationTemplate } from './components/navigation.js';
+import { renderApp } from '../../mainRenderer.js';
 
-// --- MODULE STATE ---
 let activeFilter = 'all';
 
-// --- INTERACTION LOGIC ---
 function handleFilterClick(newFilter) {
     if (newFilter === activeFilter) return;
     activeFilter = newFilter;
-
-    // Re-render the entire component with the new state
-    const { streams, activeStreamId } = useStore.getState();
-    const stream = streams.find((s) => s.id === activeStreamId);
-    const container = document.getElementById('tab-compliance');
-    if (stream && container) {
-        render(getComplianceReportTemplate(stream), container);
-    }
+    renderApp(); // Trigger a re-render of the entire app
 }
 
-// --- MAIN TEMPLATE ---
 export function getComplianceReportTemplate(stream) {
     if (!stream || !stream.manifest) return html``;
 
@@ -67,17 +57,4 @@ export function getComplianceReportTemplate(stream) {
             </div>
         </div>
     `;
-}
-
-export function attachComplianceFilterListeners() {
-    // This function now simply triggers the initial render.
-    // Event handling is managed declaratively by lit-html.
-    const { streams, activeStreamId } = useStore.getState();
-    const stream = streams.find((s) => s.id === activeStreamId);
-    const container = document.getElementById('tab-compliance');
-    if (stream && container) {
-        // Reset state for re-initialization when tab is clicked
-        activeFilter = 'all';
-        render(getComplianceReportTemplate(stream), container);
-    }
 }

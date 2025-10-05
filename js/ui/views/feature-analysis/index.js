@@ -1,11 +1,7 @@
-import { html, render } from 'lit-html';
+import { html } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { tooltipTriggerClasses } from '../../../shared/constants.js';
 import { createFeatureViewModel } from '../../../engines/feature-analysis/analyzer.js';
-import { eventBus } from '../../../core/event-bus.js';
-import { useStore } from '../../../core/store.js';
-
-let isListenerAttached = false;
 
 const featureCardTemplate = (feature) => {
     const badge = feature.used
@@ -62,30 +58,6 @@ export function getFeaturesAnalysisTemplate(stream) {
         return acc;
     }, {});
 
-    // Ensure the re-render listener is attached only once per page load
-    if (!isListenerAttached) {
-        eventBus.subscribe('stream:data-updated', ({ streamId }) => {
-            const currentStreamId = useStore.getState().activeStreamId;
-            const container = document.getElementById('tab-features');
-            if (
-                streamId === currentStreamId &&
-                container &&
-                container.offsetParent !== null
-            ) {
-                const updatedStream = useStore
-                    .getState()
-                    .streams.find((s) => s.id === streamId);
-                if (updatedStream) {
-                    render(
-                        getFeaturesAnalysisTemplate(updatedStream),
-                        container
-                    );
-                }
-            }
-        });
-        isListenerAttached = true;
-    }
-
     const getStatusIndicator = () => {
         if (stream.manifest?.type !== 'dynamic') {
             return html`
@@ -123,7 +95,6 @@ export function getFeaturesAnalysisTemplate(stream) {
             `;
         }
 
-        // Dynamic stream
         const isPolling = stream.isPolling;
         const statusText = isPolling ? 'Polling Active' : 'Polling Paused';
         const statusColor = isPolling ? 'text-cyan-400' : 'text-yellow-400';

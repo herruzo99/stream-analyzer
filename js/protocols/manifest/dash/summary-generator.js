@@ -3,13 +3,8 @@
  * @typedef {import('../../../core/types.js').PeriodSummary} PeriodSummary
  */
 
-import { findChildrenRecursive } from '../../../protocols/manifest/dash/recursive-parser.js';
-
-const formatBitrate = (bps) => {
-    if (!bps || isNaN(bps)) return 'N/A';
-    if (bps >= 1000000) return `${(bps / 1000000).toFixed(2)} Mbps`;
-    return `${(bps / 1000).toFixed(0)} kbps`;
-};
+import { findChildrenRecursive } from './recursive-parser.js';
+import { formatBitrate } from '../../../shared/utils/format.js';
 
 const getSegmentingStrategy = (serializedManifest) => {
     if (!serializedManifest) return 'unknown';

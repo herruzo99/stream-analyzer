@@ -7,13 +7,12 @@ import {
     startLiveSegmentHighlighter,
     stopLiveSegmentHighlighter,
 } from './components/hls/index.js';
+import { renderApp } from '../../mainRenderer.js';
 
-// --- MODULE STATE ---
 let currentContainer = null;
 let currentStreamId = null;
-let dashDisplayMode = 'first'; // 'first' or 'last'
+let dashDisplayMode = 'first';
 
-// --- EVENT HANDLERS ---
 function handleCompareClick() {
     const { segmentsForCompare } = useStore.getState();
     if (segmentsForCompare.length !== 2) return;
@@ -26,17 +25,18 @@ function handleCompareClick() {
 function handleDashModeClick(mode) {
     if (dashDisplayMode === mode) return;
     dashDisplayMode = mode;
-    const stream = useStore
-        .getState()
-        .streams.find((s) => s.id === currentStreamId);
-    if (stream && currentContainer) {
-        // Just re-render. The template will use the new display mode.
-        // Segment fetching is handled by the state manager.
-        initializeSegmentExplorer(currentContainer, stream);
+    renderApp();
+}
+
+function updateCompareButton() {
+    const { segmentsForCompare } = useStore.getState();
+    const compareButton = document.getElementById('segment-compare-btn');
+    if (compareButton) {
+        compareButton.textContent = `Compare Selected (${segmentsForCompare.length}/2)`;
+        compareButton.toggleAttribute('disabled', segmentsForCompare.length !== 2);
     }
 }
 
-// --- MAIN TEMPLATE ---
 function getSegmentExplorerTemplate(stream) {
     const isDynamic = stream.manifest?.type === 'dynamic';
 
@@ -49,14 +49,20 @@ function getSegmentExplorerTemplate(stream) {
                 ? html`
                       <button
                           @click=${() => handleDashModeClick('first')}
-                          class="text-sm bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-3 rounded-md transition-colors"
+                          class="text-sm font-bold py-2 px-3 rounded-md transition-colors ${dashDisplayMode ===
+                          'first'
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-gray-600 hover:bg-gray-700 text-white'}"
                       >
                           First 10
                       </button>
                       ${isDynamic
                           ? html`<button
                                 @click=${() => handleDashModeClick('last')}
-                                class="text-sm bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-3 rounded-md transition-colors"
+                                class="text-sm font-bold py-2 px-3 rounded-md transition-colors ${dashDisplayMode ===
+                                'last'
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-gray-600 hover:bg-gray-700 text-white'}"
                             >
                                 Last 10
                             </button>`
@@ -67,7 +73,6 @@ function getSegmentExplorerTemplate(stream) {
                 id="segment-compare-btn"
                 @click=${handleCompareClick}
                 class="bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled
             >
                 Compare Selected (0/2)
             </button>
@@ -80,6 +85,9 @@ function getSegmentExplorerTemplate(stream) {
     } else {
         contentTemplate = getHlsExplorerTemplate(stream);
     }
+
+    // Defer the button update until after the render
+    setTimeout(updateCompareButton, 0);
 
     return html`
         <div class="flex flex-wrap justify-between items-center mb-4 gap-4">
@@ -95,72 +103,15 @@ function getSegmentExplorerTemplate(stream) {
     `;
 }
 
-// --- INITIALIZER & LIFECYCLE ---
 export function initializeSegmentExplorer(container, stream) {
     currentContainer = container;
     currentStreamId = stream.id;
 
-    // Stop any existing timers before starting new ones.
     stopLiveSegmentHighlighter();
 
-    if (stream.manifest.type === 'dynamic') {
+    if (stream.manifest.type === 'dynamic' && stream.protocol === 'hls') {
         startLiveSegmentHighlighter(container, stream);
     }
 
-    // Initial render
     render(getSegmentExplorerTemplate(stream), container);
 }
-
-// --- GLOBAL EVENT LISTENERS ---
-eventBus.subscribe('state:compare-list-changed', ({ count }) => {
-    const compareButton = document.getElementById('segment-compare-btn');
-    if (compareButton) {
-        compareButton.textContent = `Compare Selected (${count}/2)`;
-        compareButton.toggleAttribute('disabled', count !== 2);
-    }
-});
-
-// Re-render the explorer component when its stream's data has been updated by the monitor
-eventBus.subscribe('stream:data-updated', ({ streamId }) => {
-    if (
-        streamId === currentStreamId &&
-        currentContainer &&
-        currentContainer.offsetParent !== null
-    ) {
-        const stream = useStore
-            .getState()
-            .streams.find((s) => s.id === streamId);
-        if (stream) {
-            // Re-initialize to ensure timers and state are fresh
-            initializeSegmentExplorer(currentContainer, stream);
-        }
-    }
-});
-
-eventBus.subscribe('state:stream-variant-changed', ({ streamId }) => {
-    if (
-        streamId === currentStreamId &&
-        currentContainer &&
-        currentContainer.offsetParent !== null
-    ) {
-        const stream = useStore
-            .getState()
-            .streams.find((s) => s.id === streamId);
-        if (stream)
-            render(getSegmentExplorerTemplate(stream), currentContainer);
-    }
-});
-
-eventBus.subscribe('segment:loaded', () => {
-    if (
-        currentContainer &&
-        currentContainer.offsetParent !== null // Only re-render if the tab is visible
-    ) {
-        const stream = useStore
-            .getState()
-            .streams.find((s) => s.id === currentStreamId);
-        if (stream) {
-            render(getSegmentExplorerTemplate(stream), currentContainer);
-        }
-    }
-});

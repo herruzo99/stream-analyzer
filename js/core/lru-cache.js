@@ -78,4 +78,14 @@ export class LRUCache {
     clear() {
         this.cache.clear();
     }
+
+    /**
+     * Creates a new LRUCache instance with a shallow copy of the current cache's contents.
+     * @returns {LRUCache}
+     */
+    clone() {
+        const newCache = new LRUCache(this.maxSize);
+        newCache.cache = new Map(this.cache);
+        return newCache;
+    }
 }
