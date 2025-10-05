@@ -23,6 +23,7 @@ import { copyDebugInfoToClipboard } from '../services/debugService.js';
 import { copyShareUrlToClipboard } from '../services/shareService.js';
 import { initializeRenderer, renderApp } from '../ui/mainRenderer.js';
 import { initializeLoader } from '../ui/components/loader.js';
+import { initializeConsentManager } from './consent-manager.js';
 
 import '../services/streamService.js';
 import '../services/segmentService.js';
@@ -179,6 +180,7 @@ export async function startApp() {
     };
 
     // --- INITIALIZATION ---
+    initializeConsentManager();
     initializeApp();
     initializeRenderer(dom);
     initializeToastManager(dom);
