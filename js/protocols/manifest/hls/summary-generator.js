@@ -3,11 +3,7 @@
  * @typedef {import('../../../core/types.js').PeriodSummary} PeriodSummary
  */
 
-const formatBitrate = (bps) => {
-    if (!bps || isNaN(bps)) return 'N/A';
-    if (bps >= 1000000) return `${(bps / 1000000).toFixed(2)} Mbps`;
-    return `${(bps / 1000).toFixed(0)} kbps`;
-};
+import { formatBitrate } from '../../../shared/utils/format.js';
 
 /**
  * Creates a protocol-agnostic summary view-model from an HLS manifest.

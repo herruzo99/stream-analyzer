@@ -1,15 +1,19 @@
-import { html, render } from 'lit-html';
+import { html } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { useStore, storeActions } from '../../../core/store.js';
-import { dom } from '../../../core/dom.js';
+
+let dom;
+
+export function initializeManifestUpdates(domContext) {
+    dom = domContext;
+}
 
 export function navigateManifestUpdates(direction) {
     const { activeStreamId } = useStore.getState();
     storeActions.navigateManifestUpdate(activeStreamId, direction);
-    renderManifestUpdates(activeStreamId);
 }
 
-const manifestUpdatesTemplate = (stream) => {
+export const manifestUpdatesTemplate = (stream) => {
     if (!stream) {
         return html`<p class="warn">No active stream to monitor.</p>`;
     }
@@ -23,7 +27,9 @@ const manifestUpdatesTemplate = (stream) => {
     const updateCount = manifestUpdates.length;
 
     if (updateCount === 0) {
-        return html`<p class="info">Awaiting first manifest update...</p>`;
+        return html`<div id="mpd-updates-content">
+            <p class="info">Awaiting first manifest update...</p>
+        </div>`;
     }
 
     const currentIndex = updateCount - activeManifestUpdateIndex;
@@ -58,7 +64,8 @@ const manifestUpdatesTemplate = (stream) => {
             )}
         </div>`;
 
-    return html` <div
+    return html` <div id="mpd-updates-content">
+        <div
             class="flex flex-col sm:flex-row justify-end items-center mb-4 space-y-2 sm:space-y-0"
         >
             <div class="flex items-center space-x-2">
@@ -89,25 +96,6 @@ const manifestUpdatesTemplate = (stream) => {
         </div>
         <div id="current-manifest-update" class="manifest-update-entry">
             ${currentDisplay}
-        </div>`;
+        </div>
+    </div>`;
 };
-
-export function renderManifestUpdates(streamId) {
-    let updatesContainer = /** @type {HTMLDivElement} */ (
-        dom.tabContents.updates?.querySelector('#mpd-updates-content')
-    );
-
-    if (dom.tabContents.updates && !updatesContainer) {
-        const newContainer = document.createElement('div');
-        newContainer.id = 'mpd-updates-content';
-        dom.tabContents.updates.appendChild(newContainer);
-        updatesContainer = newContainer;
-    }
-
-    if (updatesContainer) {
-        const stream = useStore
-            .getState()
-            .streams.find((s) => s.id === streamId);
-        render(manifestUpdatesTemplate(stream), updatesContainer);
-    }
-}

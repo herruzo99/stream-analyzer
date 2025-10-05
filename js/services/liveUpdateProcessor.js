@@ -39,47 +39,6 @@ function checkForNewIssues(oldResults, newResults) {
 }
 
 /**
- * Safely creates a deep clone of the mutable parts of the stream state.
- * Specifically handles Map objects which JSON.stringify/parse cannot handle.
- * @param {import('../core/types.js').Stream} stream The stream object to clone.
- * @returns {import('../core/types.js').Stream} A deep clone of the stream.
- */
-function safeStreamClone(stream) {
-    // Manually deep copy or shallow copy properties that are safe.
-    const clonedStream = {
-        ...stream,
-        // Deep clone maps and arrays that hold state
-        mediaPlaylists: new Map(stream.mediaPlaylists),
-        manifestUpdates: [...stream.manifestUpdates],
-        semanticData: new Map(stream.semanticData),
-        featureAnalysis: {
-            ...stream.featureAnalysis,
-            results: new Map(stream.featureAnalysis.results),
-        },
-        // Deep clone nested maps
-        hlsVariantState: new Map(
-            Array.from(stream.hlsVariantState.entries()).map(([key, value]) => [
-                key,
-                { ...value },
-            ])
-        ),
-        dashRepresentationState: new Map(
-            Array.from(stream.dashRepresentationState.entries()).map(
-                ([key, value]) => [
-                    key,
-                    {
-                        ...value,
-                        segments: [...value.segments],
-                        freshSegmentUrls: new Set(value.freshSegmentUrls),
-                    },
-                ]
-            )
-        ),
-    };
-    return clonedStream;
-}
-
-/**
  * Updates the core properties of a stream object with new manifest data.
  * @param {import('../core/types.js').Stream} stream The stream to update.
  * @param {string} newManifestString The raw string of the new manifest.
@@ -235,9 +194,8 @@ function processLiveUpdate(updateData) {
         .streams.findIndex((s) => s.id === streamId);
     if (streamIndex === -1) return;
 
-    // Use safe cloning instead of JSON.parse(JSON.stringify())
-    const streams = useStore.getState().streams;
-    const stream = safeStreamClone(streams[streamIndex]);
+    // Use structuredClone for a robust, deep copy of the stream state.
+    const stream = structuredClone(useStore.getState().streams[streamIndex]);
 
     // Add type guard to satisfy TypeScript compiler and prevent runtime errors.
     if (stream.protocol === 'unknown') return;

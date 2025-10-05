@@ -3,13 +3,13 @@
  * @typedef {import('../../../core/types.js').Period} Period
  * @typedef {import('../../../core/types.js').AdaptationSet} AdaptationSet
  * @typedef {import('../../../core/types.js').Representation} Representation
- * @typedef {import('../../../core/dom.js').SubRepresentation} SubRepresentation
+ * @typedef {import('../../../core/types.js').SubRepresentation} SubRepresentation
  * @typedef {import('../../../core/types.js').Descriptor} Descriptor
  */
 
 import { getDrmSystemName } from '../../../shared/utils/drm.js';
 import { parseDuration } from '../../../shared/utils/time.js';
-import { generateDashSummary } from '../../../ui/views/summary/dash-summary.js';
+import { generateDashSummary } from './summary-generator.js';
 import {
     getAttr,
     findChild,

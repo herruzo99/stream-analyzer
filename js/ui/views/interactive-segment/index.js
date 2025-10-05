@@ -1,44 +1,67 @@
 import { html, render } from 'lit-html';
-import { useStore } from '../../../core/store.js';
-import { dom } from '../../../core/dom.js';
+import { useStore, storeActions } from '../../../core/store.js';
 import {
     getInteractiveIsobmffTemplate,
-    inspectorPanelTemplate as isobmffInspector,
     findBoxByOffset,
 } from './components/isobmff/index.js';
-import { buildByteMap } from './components/isobmff/view-model.js';
 import {
     getInteractiveTsTemplate,
-    inspectorPanelTemplate as tsInspector,
     findPacketByOffset,
 } from './components/ts/index.js';
-import { buildByteMapTs } from './components/ts/view-model.js';
 import {
     cleanupSegmentViewInteractivity,
     initializeSegmentViewInteractivity,
 } from './components/interaction-logic.js';
 
-// Import all tooltip data sources
 import { getTooltipData as getIsobmffTooltipData } from '../../../protocols/segment/isobmff/index.js';
 import { getTooltipData as getTsTooltipData } from '../../../protocols/segment/ts/index.js';
 
-let currentSegmentUrl = null;
-let hexCurrentPage = 1;
+let lastProcessedSegmentUrl = null;
 const HEX_BYTES_PER_PAGE = 1024;
 
-// Aggregate all tooltip data once
 const ALL_TOOLTIPS_DATA = {
     ...getIsobmffTooltipData(),
     ...getTsTooltipData(),
 };
 
-export function getInteractiveSegmentTemplate() {
-    const { activeSegmentUrl, segmentCache } = useStore.getState();
+let isInitialized = false;
 
-    if (activeSegmentUrl !== currentSegmentUrl) {
-        cleanupSegmentViewInteractivity();
-        currentSegmentUrl = activeSegmentUrl;
-        hexCurrentPage = 1; // Reset pagination when segment changes
+function initializeAllInteractivity(dom, cachedSegment) {
+    if (isInitialized) return;
+
+    let byteMap, findFn, parsedDataForLogic;
+    if (cachedSegment.parsedData?.format === 'ts') {
+        const tsData = cachedSegment.parsedData;
+        byteMap = tsData.byteMap;
+        findFn = findPacketByOffset;
+        parsedDataForLogic = tsData;
+    } else if (cachedSegment.parsedData?.format === 'isobmff') {
+        const isobmffData = cachedSegment.parsedData;
+        byteMap = isobmffData.byteMap;
+        findFn = findBoxByOffset;
+        parsedDataForLogic = isobmffData.data;
+    }
+
+    if (byteMap && findFn && parsedDataForLogic) {
+        initializeSegmentViewInteractivity(
+            dom,
+            parsedDataForLogic,
+            byteMap,
+            findFn
+        );
+        isInitialized = true;
+    }
+}
+
+export function getInteractiveSegmentTemplate(dom) {
+    const { activeSegmentUrl, segmentCache, interactiveSegmentCurrentPage } =
+        useStore.getState();
+
+    if (activeSegmentUrl !== lastProcessedSegmentUrl) {
+        cleanupSegmentViewInteractivity(dom);
+        isInitialized = false; // Reset for the new segment
+        lastProcessedSegmentUrl = activeSegmentUrl;
+        // The page is now reset automatically by the `setActiveSegmentUrl` action.
     }
 
     if (!activeSegmentUrl) {
@@ -84,65 +107,36 @@ export function getInteractiveSegmentTemplate() {
         const totalPages = Math.ceil(
             cachedSegment.data.byteLength / HEX_BYTES_PER_PAGE
         );
-        const newPage = hexCurrentPage + offset;
+        const newPage = interactiveSegmentCurrentPage + offset;
         if (newPage >= 1 && newPage <= totalPages) {
-            hexCurrentPage = newPage;
-            render(
-                getInteractiveSegmentTemplate(),
-                dom.tabContents['interactive-segment']
-            );
+            isInitialized = false;
+            storeActions.setInteractiveSegmentPage(newPage);
         }
     };
-
-    const startOffset = (hexCurrentPage - 1) * HEX_BYTES_PER_PAGE;
-    const endByte = Math.min(
-        startOffset + HEX_BYTES_PER_PAGE,
-        cachedSegment.data.byteLength
-    );
 
     let contentTemplate;
     if (cachedSegment.parsedData?.format === 'ts') {
         contentTemplate = getInteractiveTsTemplate(
-            hexCurrentPage,
+            interactiveSegmentCurrentPage,
             HEX_BYTES_PER_PAGE,
             onPageChange,
-            ALL_TOOLTIPS_DATA // Pass aggregated tooltips
+            ALL_TOOLTIPS_DATA
+        );
+    } else if (cachedSegment.parsedData?.format === 'isobmff') {
+        contentTemplate = getInteractiveIsobmffTemplate(
+            interactiveSegmentCurrentPage,
+            HEX_BYTES_PER_PAGE,
+            onPageChange,
+            ALL_TOOLTIPS_DATA
         );
     } else {
-        contentTemplate = getInteractiveIsobmffTemplate(
-            hexCurrentPage,
-            HEX_BYTES_PER_PAGE,
-            onPageChange,
-            ALL_TOOLTIPS_DATA // Pass aggregated tooltips
-        );
+        contentTemplate = html`<div class="text-yellow-400 p-4">
+            Interactive view not supported for this segment format.
+        </div>`;
     }
 
-    // Defer initialization until after the first render
-    setTimeout(() => {
-        if (cachedSegment.parsedData?.format === 'ts') {
-            const byteMap = buildByteMapTs(cachedSegment.parsedData);
-            initializeSegmentViewInteractivity(
-                cachedSegment.parsedData,
-                byteMap,
-                findPacketByOffset,
-                tsInspector,
-                startOffset,
-                endByte
-            );
-        } else if (cachedSegment.parsedData?.format === 'isobmff') {
-            const groupedBoxes = cachedSegment.parsedData.data.boxes || [];
-            const byteMap = buildByteMap(groupedBoxes);
-            initializeSegmentViewInteractivity(
-                cachedSegment.parsedData.data,
-                byteMap,
-                findBoxByOffset,
-                (box, rootData, highlightedField) =>
-                    isobmffInspector(box, rootData, highlightedField),
-                startOffset,
-                endByte
-            );
-        }
-    }, 0);
+    // Defer initialization until after the first render of the new segment
+    setTimeout(() => initializeAllInteractivity(dom, cachedSegment), 0);
 
     return html`
         <div class="mb-6">
