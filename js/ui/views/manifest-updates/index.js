@@ -2,12 +2,6 @@ import { html } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { useStore, storeActions } from '../../../core/store.js';
 
-let dom;
-
-export function initializeManifestUpdates(domContext) {
-    dom = domContext;
-}
-
 export function navigateManifestUpdates(direction) {
     const { activeStreamId } = useStore.getState();
     storeActions.navigateManifestUpdate(activeStreamId, direction);

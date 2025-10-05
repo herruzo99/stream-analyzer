@@ -1,4 +1,4 @@
-import { html, render } from 'lit-html';
+import { html } from 'lit-html';
 import { useStore, storeActions } from '../../../core/store.js';
 import {
     getInteractiveIsobmffTemplate,

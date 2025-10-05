@@ -1,9 +1,6 @@
 import { setupGlobalTooltipListener } from '../ui/components/tooltip.js';
 import { eventBus } from './event-bus.js';
-import {
-    initializeStreamInputs,
-    addStreamInput,
-} from '../ui/components/stream-inputs.js';
+import { addStreamInput } from '../ui/components/stream-inputs.js';
 import { initializeTabs } from '../ui/tabs.js';
 import { initializeModalComponent } from '../ui/components/modal.js';
 import {
@@ -21,7 +18,6 @@ import {
     getLastUsedStreams,
 } from '../shared/utils/stream-storage.js';
 import { initializeHlsVariantPoller } from '../services/hlsVariantPollerService.js';
-import { initializeManifestUpdates } from '../ui/views/manifest-updates/index.js';
 import { initializeCmafService } from '../services/cmafService.js';
 import { copyDebugInfoToClipboard } from '../services/debugService.js';
 import { copyShareUrlToClipboard } from '../services/shareService.js';
@@ -121,8 +117,9 @@ function populateLastUsedStreams(dom) {
 
         // Defer DOM manipulation until after the state change has rendered.
         Promise.resolve().then(() => {
-            const inputGroups =
-                dom.streamInputs.querySelectorAll('.stream-input-group');
+            const inputGroups = dom.streamInputs.querySelectorAll(
+                '.stream-input-group'
+            );
             inputGroups.forEach((group, index) => {
                 const urlInput = /** @type {HTMLInputElement} */ (
                     group.querySelector('.input-url')
@@ -188,11 +185,9 @@ export async function startApp() {
     initializeLoader(dom);
     initializeViewManager();
     initializeLiveUpdateProcessor();
-    initializeStreamInputs(dom);
     initializeTabs(dom);
     initializeModalComponent(dom);
     initializeUiController(dom);
-    initializeManifestUpdates(dom);
     setupGlobalTooltipListener(dom);
     initializeLiveStreamMonitor();
     initializeHlsVariantPoller();

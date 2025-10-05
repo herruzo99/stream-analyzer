@@ -11,12 +11,6 @@ import {
 } from '../../shared/utils/stream-storage.js';
 import { showToast } from './toast.js';
 
-let dom;
-
-export function initializeStreamInputs(domContext) {
-    dom = domContext;
-}
-
 const getBadge = (text, colorClasses) => {
     if (!text) return '';
     return html`<span
@@ -80,7 +74,9 @@ const renderStreamListItem = (stream, isPreset, presets) => {
                 const isFirst =
                     useStore
                         .getState()
-                        .streamInputIds.indexOf(parseInt(group.dataset.id, 10)) === 0;
+                        .streamInputIds.indexOf(
+                            parseInt(group.dataset.id, 10)
+                        ) === 0;
                 const newTemplate = streamInputTemplate(
                     id,
                     isFirst,
@@ -137,7 +133,9 @@ const renderDropdownSection = (title, items, isPreset = false, presets) => {
             ${title}
         </h4>
         <ul class="divide-y divide-gray-700/50">
-            ${items.map((item) => renderStreamListItem(item, isPreset, presets))}
+            ${items.map((item) =>
+                renderStreamListItem(item, isPreset, presets)
+            )}
         </ul>
     </div>`;
 };
@@ -372,7 +370,9 @@ const streamInputTemplate = (streamId, isFirstStream, history, presets) => {
                     class="save-preset-btn w-full sm:w-auto flex-shrink-0 bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-4 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     @click=${handleSavePreset}
                     ?disabled=${presetUrls.has(
-                        isFirstStream && history.length > 0 ? history[0].url : ''
+                        isFirstStream && history.length > 0
+                            ? history[0].url
+                            : ''
                     )}
                 >
                     Save as Preset

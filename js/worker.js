@@ -4,7 +4,6 @@ import { parseManifest as parseDashManifestString } from './protocols/manifest/d
 import { parseManifest as parseHlsManifest } from './protocols/manifest/hls/parser.js';
 import { parseAllSegmentUrls as parseDashSegments } from './protocols/manifest/dash/segment-parser.js';
 import { runChecks } from './engines/compliance/engine.js';
-import { showToast } from './ui/components/toast.js';
 
 /** @typedef {import('./core/types.js').SerializedStream} SerializedStream */
 

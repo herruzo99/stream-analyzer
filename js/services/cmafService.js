@@ -1,5 +1,5 @@
 import { eventBus } from '../core/event-bus.js';
-import { useStore, storeActions } from '../core/store.js';
+import { storeActions } from '../core/store.js';
 import {
     validateCmafTrack,
     validateCmafSwitchingSets,
