@@ -37,7 +37,7 @@ jobs:
             - name: Build static site
               run: |
                   npm run build
-                  mkdir ./deployment
+                  mkdir -p ./deployment/dist/
                   cp ./index.html ./deployment/
                   cp -r ./dist/* ./deployment/dist/
             - name: Setup Pages
