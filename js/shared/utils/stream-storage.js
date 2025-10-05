@@ -57,7 +57,8 @@ function setStreams(key, streams) {
 export const getHistory = () => getStreams(HISTORY_KEY);
 export const getPresets = () => getStreams(PRESETS_KEY);
 export const getLastUsedStreams = () => getStreams(LAST_USED_KEY);
-export const saveLastUsedStreams = (streams) => setStreams(LAST_USED_KEY, streams);
+export const saveLastUsedStreams = (streams) =>
+    setStreams(LAST_USED_KEY, streams);
 
 /**
  * Saves a stream object to the history.

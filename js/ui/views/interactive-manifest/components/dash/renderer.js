@@ -166,7 +166,11 @@ export const dashManifestTemplate = (stream, currentPage) => {
     const parserError = xmlDoc.querySelector('parsererror');
 
     if (parserError) {
-        debugLog('DashRenderer', 'XML parsing failed.', parserError.textContent);
+        debugLog(
+            'DashRenderer',
+            'XML parsing failed.',
+            parserError.textContent
+        );
         console.error('XML Parsing Error:', parserError.textContent);
         return html`<div class="text-red-400 p-4 font-mono">
             <p class="font-bold">Failed to parse manifest XML.</p>

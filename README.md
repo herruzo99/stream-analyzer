@@ -10,13 +10,13 @@ An advanced, browser-based tool for analyzing and comparing DASH & HLS streaming
 
 ## Features
 
--   **Multi-Stream Comparison**: Analyze and compare multiple DASH and HLS streams simultaneously.
--   **Interactive Manifest View**: Syntax-highlighted, interactive manifest viewer with tooltips explaining every element and attribute.
--   **Interactive Segment Inspector**: A hex/ASCII viewer for segments with a structured tree view of ISOBMFF boxes or TS packets.
--   **Compliance Checking**: Validate manifests against industry standards (MPEG-DASH, HLS) and best practices.
--   **Timeline Visualization**: Visual representation of segments, events, and ad breaks.
--   **Feature Analysis**: A summary of which streaming features (e.g., low latency, multi-period, DRM) are being used.
--   **Live Stream Monitoring**: Automatically fetch and diff manifest updates for live streams, highlighting changes and new compliance issues.
+- **Multi-Stream Comparison**: Analyze and compare multiple DASH and HLS streams simultaneously.
+- **Interactive Manifest View**: Syntax-highlighted, interactive manifest viewer with tooltips explaining every element and attribute.
+- **Interactive Segment Inspector**: A hex/ASCII viewer for segments with a structured tree view of ISOBMFF boxes or TS packets.
+- **Compliance Checking**: Validate manifests against industry standards (MPEG-DASH, HLS) and best practices.
+- **Timeline Visualization**: Visual representation of segments, events, and ad breaks.
+- **Feature Analysis**: A summary of which streaming features (e.g., low latency, multi-period, DRM) are being used.
+- **Live Stream Monitoring**: Automatically fetch and diff manifest updates for live streams, highlighting changes and new compliance issues.
 
 ## Local Development
 
@@ -37,9 +37,11 @@ This project uses [Nix](https://nixos.org/) and [direnv](https://direnv.net/) to
     cd your-repo-name
     ```
 2.  Allow direnv to load the environment:
+
     ```bash
     direnv allow
     ```
+
     The first time you do this, Nix will download all the required dependencies. This may take a few minutes. Subsequent loads will be instantaneous.
 
 3.  Install Node.js dependencies:
@@ -49,11 +51,11 @@ This project uses [Nix](https://nixos.org/) and [direnv](https://direnv.net/) to
 
 ### Available Scripts
 
--   `npm run start`: Starts a local server to serve the application (usually on `http://localhost:3000`).
--   `npm run build`: Builds the static assets (CSS and JS) into the `dist/` directory.
--   `npm run lint`: Lints the JavaScript codebase.
--   `npm run format`: Formats the code using Prettier.
--   `npm run typecheck`: Runs the TypeScript checker on the JSDoc-annotated code.
+- `npm run start`: Starts a local server to serve the application (usually on `http://localhost:3000`).
+- `npm run build`: Builds the static assets (CSS and JS) into the `dist/` directory.
+- `npm run lint`: Lints the JavaScript codebase.
+- `npm run format`: Formats the code using Prettier.
+- `npm run typecheck`: Runs the TypeScript checker on the JSDoc-annotated code.
 
 ## Deployment
 
