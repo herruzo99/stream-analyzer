@@ -87,18 +87,89 @@ function groupboxesIntoChunks(boxes) {
     return grouped;
 }
 
-const placeholderTemplate = () => html`...`; // Unchanged
+const placeholderTemplate = () => html`
+    <div class="p-3 text-sm text-gray-500">
+        Hover over an item in the tree view or hex view to see details.
+    </div>
+`;
+
+const issuesTemplate = (issues) => {
+    if (!issues || issues.length === 0) return '';
+    return html`
+        <div class="p-3 border-b border-gray-700 bg-yellow-900/50">
+            <h4 class="font-bold text-yellow-300 text-sm mb-1">
+                Parsing Issues
+            </h4>
+            <ul class="list-disc pl-5 text-xs text-yellow-200">
+                ${issues.map(
+                    (issue) =>
+                        html`<li>
+                            <span class="font-semibold"
+                                >[${issue.type.toUpperCase()}]</span
+                            >
+                            ${issue.message}
+                        </li>`
+                )}
+            </ul>
+        </div>
+    `;
+};
+
+const renderBoxNode = (box) => {
+    const { itemForDisplay } = getInspectorState();
+    const isSelected = itemForDisplay?.offset === box.offset;
+    const isChunk = box.isChunk;
+    const selectionClass = isSelected
+        ? 'bg-blue-900/50 ring-1 ring-blue-500'
+        : '';
+
+    return html`
+        <details class="box-node" ?open=${isChunk || box.children.length > 0}>
+            <summary
+                class="p-1 rounded cursor-pointer ${selectionClass}"
+                data-box-offset=${box.offset}
+                style="background-color: ${box.color?.bg || 'transparent'}"
+            >
+                <span class="font-mono text-sm text-white">${box.type}</span>
+                <span class="text-xs text-gray-500 ml-2"
+                    >(${box.size} bytes)</span
+                >
+            </summary>
+            ${box.children.length > 0
+                ? html`<ul class="pl-4 border-l border-gray-700 list-none">
+                      ${box.children.map(
+                          (child) => html`<li>${renderBoxNode(child)}</li>`
+                      )}
+                  </ul>`
+                : ''}
+        </details>
+    `;
+};
+
+const treeViewTemplate = (boxes) => {
+    if (!boxes || boxes.length === 0) return '';
+    return html`
+        <div
+            class="box-tree-area rounded-md bg-gray-900/90 border border-gray-700"
+        >
+            <h3 class="font-bold text-base p-2 border-b border-gray-700">
+                Box Structure
+            </h3>
+            <div class="p-2 overflow-y-auto max-h-96">
+                <ul class="list-none p-0">
+                    ${boxes.map((box) => html`<li>${renderBoxNode(box)}</li>`)}
+                </ul>
+            </div>
+        </div>
+    `;
+};
+
 const inspectorPanelTemplate = (rootData) => {
     const { itemForDisplay, fieldForDisplay } = getInspectorState();
     const box = itemForDisplay;
 
     if (!box) return placeholderTemplate();
     const boxInfo = allIsoTooltipData[box.type] || {};
-
-    const issuesTemplate =
-        box.issues && box.issues.length > 0
-            ? html`...` /* Unchanged */
-            : '';
 
     const fields = Object.entries(box.details).map(([key, field]) => {
         const highlightClass =
@@ -149,7 +220,7 @@ const inspectorPanelTemplate = (rootData) => {
                 ${boxInfo.text || 'No description available.'}
             </p>
         </div>
-        ${issuesTemplate}
+        ${issuesTemplate(box.issues)}
         <div class="overflow-y-auto">
             <table class="w-full table-fixed">
                 <colgroup>
@@ -163,9 +234,6 @@ const inspectorPanelTemplate = (rootData) => {
         </div>
     `;
 };
-const renderBoxNode = (box) => { /* Unchanged */ };
-const treeViewTemplate = (boxes) => { /* Unchanged */ };
-const issuesTemplate = (issues) => { /* Unchanged */ };
 
 export function getInteractiveIsobmffTemplate(
     currentPage,
@@ -205,7 +273,7 @@ export function getInteractiveIsobmffTemplate(
                         ${inspectorPanelTemplate(parsedSegmentData.data)}
                     </div>
                     ${issuesTemplate(parsedSegmentData.data.issues)}
-                    ${treeViewTemplate(parsedSegmentData.data.boxes)}
+                    ${treeViewTemplate(groupedBoxes)}
                 </div>
             </div>
             <div>

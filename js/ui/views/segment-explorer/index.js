@@ -9,8 +9,6 @@ import {
 } from './components/hls/index.js';
 import { renderApp } from '../../mainRenderer.js';
 
-let currentContainer = null;
-let currentStreamId = null;
 let dashDisplayMode = 'first';
 
 function handleCompareClick() {
@@ -33,7 +31,10 @@ function updateCompareButton() {
     const compareButton = document.getElementById('segment-compare-btn');
     if (compareButton) {
         compareButton.textContent = `Compare Selected (${segmentsForCompare.length}/2)`;
-        compareButton.toggleAttribute('disabled', segmentsForCompare.length !== 2);
+        compareButton.toggleAttribute(
+            'disabled',
+            segmentsForCompare.length !== 2
+        );
     }
 }
 
@@ -104,9 +105,6 @@ function getSegmentExplorerTemplate(stream) {
 }
 
 export function initializeSegmentExplorer(container, stream) {
-    currentContainer = container;
-    currentStreamId = stream.id;
-
     stopLiveSegmentHighlighter();
 
     if (stream.manifest.type === 'dynamic' && stream.protocol === 'hls') {

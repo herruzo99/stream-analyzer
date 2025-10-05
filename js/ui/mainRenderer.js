@@ -149,8 +149,7 @@ export function renderApp() {
                         template = getFeaturesAnalysisTemplate(activeStream);
                         break;
                     case 'interactive-manifest':
-                        template =
-                            getInteractiveManifestTemplate(activeStream);
+                        template = getInteractiveManifestTemplate(activeStream);
                         break;
                     case 'interactive-segment':
                         template = getInteractiveSegmentTemplate(dom);

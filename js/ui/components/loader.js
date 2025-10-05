@@ -38,7 +38,9 @@ export function initializeLoader(domContext) {
     eventBus.subscribe('analysis:error', hideLoader);
 
     // --- Segment Loading ---
-    eventBus.subscribe('segment:pending', () => showLoader('Loading segment...'));
+    eventBus.subscribe('segment:pending', () =>
+        showLoader('Loading segment...')
+    );
     eventBus.subscribe('segment:loaded', hideLoader);
 
     // --- HLS Media Playlist Loading ---

@@ -58,7 +58,7 @@ const commentCard = (result) => {
     };
 
     const locationId = result.location.path
-        ? `loc-path-${result.location.path.replace(/[\[\].]/g, '-')}`
+        ? `loc-path-${result.location.path.replace(/[[].]/g, '-')}`
         : `loc-line-${result.location.startLine}`;
 
     return html`

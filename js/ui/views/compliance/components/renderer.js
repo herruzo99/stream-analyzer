@@ -66,7 +66,7 @@ const renderDashNode = (
     );
     let highestSeverityResult = null;
     let highlightClass = '';
-    const elementId = `loc-path-${path.replace(/[\[\].]/g, '-')}`;
+    const elementId = `loc-path-${path.replace(/[[].]/g, '-')}`;
 
     if (resultsForPath.length > 0) {
         const severityOrder = { fail: 0, warn: 1, info: 2, pass: 3 };

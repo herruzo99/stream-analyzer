@@ -116,8 +116,8 @@ export function initializeSegmentViewInteractivity(
             item?.type === 'CMAF Chunk'
                 ? 'Chunk'
                 : item?.type
-                ? 'Box Header'
-                : 'TS Header';
+                  ? 'Box Header'
+                  : 'TS Header';
         if (item) handleHover(item, fieldName);
     };
 

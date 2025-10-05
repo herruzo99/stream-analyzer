@@ -1,20 +1,3 @@
-const FNV_OFFSET_BASIS = 2166136261;
-const FNV_PRIME = 16777619;
-
-/**
- * Simple FNV-1a hash function for strings.
- * @param {string} str The string to hash.
- * @returns {number} A 32-bit hash value.
- */
-function fnv1a(str) {
-    let hash = FNV_OFFSET_BASIS;
-    for (let i = 0; i < str.length; i++) {
-        hash ^= str.charCodeAt(i);
-        hash *= FNV_PRIME;
-    }
-    return hash >>> 0;
-}
-
 /**
  * Generates a slightly different background color shade based on a field name by varying opacity.
  * @param {object} baseColor - The base color object with a 'bg' property (e.g., 'bg-red-500/20').

@@ -1,4 +1,4 @@
-import { html, render } from 'lit-html';
+import { html } from 'lit-html';
 import { eventBus } from '../core/event-bus.js';
 import { useStore } from '../core/store.js';
 import { getSegmentAnalysisTemplate } from './views/segment-analysis/index.js';
@@ -8,8 +8,6 @@ import {
     toggleStreamPolling,
 } from '../services/streamActionsService.js';
 import { openModalWithContent } from '../services/modalService.js';
-
-let dom;
 
 const handleSaveCurrentStream = () => {
     const { streams, activeStreamId } = useStore.getState();
@@ -73,8 +71,6 @@ export const globalControlsTemplate = (stream) => {
 };
 
 export function initializeUiController(domContext) {
-    dom = domContext;
-
     eventBus.subscribe('ui:request-segment-analysis', ({ url }) => {
         const cachedSegment = useStore.getState().segmentCache.get(url);
         openModalWithContent({
