@@ -15,8 +15,8 @@ import { tooltipTriggerClasses } from '../../../shared/constants.js';
 export const comparisonRowTemplate = (comparisonPoint, numStreams) => {
     const { label, tooltip, isoRef, values } = comparisonPoint;
 
-    // Use a CSS grid to ensure alignment and scalability
-    const gridStyle = `grid-template-columns: 200px repeat(${numStreams}, 1fr);`;
+    // The grid is now inside a scrolling container, so it can have a minimum width.
+    const gridStyle = `grid-template-columns: 200px repeat(${numStreams}, minmax(200px, 1fr));`;
 
     return html`
         <div

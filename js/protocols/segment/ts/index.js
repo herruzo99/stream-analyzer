@@ -14,7 +14,22 @@ export function parse(buffer) {
         return {
             format: 'ts',
             error: e.message,
-            data: { summary: { errors: [e.message] }, packets: [] },
+            data: {
+                summary: {
+                    totalPackets: 0,
+                    errors: [e.message],
+                    pmtPids: new Set(),
+                    privateSectionPids: new Set(),
+                    dsmccPids: new Set(),
+                    programMap: {},
+                    pcrPid: null,
+                    pcrList: [],
+                    continuityCounters: {},
+                    tsdt: null,
+                    ipmp: null,
+                },
+                packets: [],
+            },
         };
     }
 }

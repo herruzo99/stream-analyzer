@@ -77,10 +77,11 @@ export function renderApp() {
         render(globalControlsTemplate(activeStream), globalControls);
     }
 
-    dom.mainHeader.classList.toggle('justify-center', !isResultsView);
-    dom.mainHeader.classList.toggle('justify-between', isResultsView);
+    // Responsive header alignment
+    dom.mainHeader.classList.toggle('md:justify-center', !isResultsView);
+    dom.mainHeader.classList.toggle('md:justify-between', isResultsView);
     dom.headerTitleGroup.classList.toggle('text-center', !isResultsView);
-    dom.headerTitleGroup.classList.toggle('text-left', isResultsView);
+    dom.headerTitleGroup.classList.toggle('md:text-left', isResultsView);
     dom.headerUrlDisplay.classList.toggle('hidden', !isResultsView);
 
     if (isResultsView) {

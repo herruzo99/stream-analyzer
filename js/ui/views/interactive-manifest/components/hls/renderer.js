@@ -75,16 +75,7 @@ const variableTableTemplate = (definedVariables) => {
 };
 
 const hlsSubNavTemplate = (stream) => {
-    const masterPlaylist = stream.mediaPlaylists.get('master');
-    if (!masterPlaylist || !masterPlaylist.manifest.isMaster) return html``;
-
-    const _variants = masterPlaylist.manifest.summary.videoTracks.map(
-        (vt, i) => ({
-            // A bit of a hack to get variant info
-            attributes: { BANDWIDTH: parseFloat(vt.bitrateRange) * 1000 },
-            resolvedUri: stream.manifest.rawElement?.variants[i]?.resolvedUri, // This is still problematic
-        })
-    );
+    if (!stream.manifest?.isMaster) return html``;
 
     const handleNavClick = (e) => {
         const button = /** @type {HTMLElement} */ (e.target).closest('button');
@@ -112,20 +103,14 @@ const hlsSubNavTemplate = (stream) => {
             class="mb-4 p-2 bg-gray-900/50 rounded-lg flex flex-wrap gap-2"
             @click=${handleNavClick}
         >
-            ${navItem(
-                'Master Playlist',
-                'master',
-                !stream.activeMediaPlaylistUrl
-            )}
-            ${stream.manifest.summary.videoTracks.map((vt, i) =>
-                navItem(
-                    `Variant ${i + 1} (${vt.bitrateRange})`,
-                    stream.mediaPlaylists.get('master')?.manifest.rawElement
-                        ?.variants[i]?.resolvedUri,
-                    stream.activeMediaPlaylistUrl ===
-                        stream.mediaPlaylists.get('master')?.manifest.rawElement
-                            ?.variants[i]?.resolvedUri
-                )
+            ${navItem('Master', 'master', !stream.activeMediaPlaylistUrl)}
+            ${(stream.manifest.variants || []).map(
+                (variant, i) =>
+                    html`${navItem(
+                        `Variant ${i + 1}`,
+                        variant.resolvedUri,
+                        stream.activeMediaPlaylistUrl === variant.resolvedUri
+                    )}`
             )}
         </div>
     `;
@@ -246,28 +231,37 @@ const structuredTagTemplate = (tag) => {
 export const hlsManifestTemplate = (stream, currentPage) => {
     debugLog('HlsRenderer', 'hlsManifestTemplate called.', 'Stream:', stream);
 
-    const manifestToDisplay = stream.activeManifestForView || stream.manifest;
-    const manifestString = stream.activeMediaPlaylistUrl
-        ? stream.mediaPlaylists.get(stream.activeMediaPlaylistUrl)?.rawManifest
-        : stream.rawManifest;
+    const { activeMediaPlaylistUrl } = stream;
+    let manifestStringToDisplay;
+    let manifestObjectForView;
 
-    debugLog(
-        'HlsRenderer',
-        'Using manifest string of length:',
-        manifestString?.length,
-        'Active media playlist URL:',
-        stream.activeMediaPlaylistUrl
-    );
+    if (activeMediaPlaylistUrl) {
+        const mediaPlaylist = stream.mediaPlaylists.get(activeMediaPlaylistUrl);
+        manifestStringToDisplay = mediaPlaylist?.rawManifest;
+        manifestObjectForView = mediaPlaylist?.manifest;
+    } else {
+        manifestStringToDisplay = stream.rawManifest;
+        manifestObjectForView = stream.manifest;
+    }
 
-    const { renditionReports, preloadHints } = manifestToDisplay;
-    const lines = manifestString ? manifestString.split(/\r?\n/) : [];
+    if (!manifestStringToDisplay || !manifestObjectForView) {
+        return html`<div class="text-yellow-400 p-4">
+            Awaiting manifest content...
+        </div>`;
+    }
+
+    const { renditionReports, preloadHints } = manifestObjectForView;
+    const lines = manifestStringToDisplay.split(/\r?\n/);
 
     let reportIndex = 0;
     let hintIndex = 0;
 
     const allLineTemplates = lines.map((line) => {
         const trimmedLine = line.trim();
-        if (trimmedLine.startsWith('#EXT-X-RENDITION-REPORT')) {
+        if (
+            renditionReports &&
+            trimmedLine.startsWith('#EXT-X-RENDITION-REPORT')
+        ) {
             const reportData = renditionReports[reportIndex++];
             return reportData
                 ? structuredTagTemplate({
@@ -276,7 +270,7 @@ export const hlsManifestTemplate = (stream, currentPage) => {
                   })
                 : html`${unsafeHTML(getHlsLineHTML(line))}`;
         }
-        if (trimmedLine.startsWith('#EXT-X-PRELOAD-HINT')) {
+        if (preloadHints && trimmedLine.startsWith('#EXT-X-PRELOAD-HINT')) {
             const hintData = preloadHints[hintIndex++];
             return hintData
                 ? structuredTagTemplate({
@@ -288,13 +282,7 @@ export const hlsManifestTemplate = (stream, currentPage) => {
         return html`${unsafeHTML(getHlsLineHTML(line))}`;
     });
 
-    debugLog(
-        'HlsRenderer',
-        `Generated ${allLineTemplates.length} lines/templates for manifest view.`
-    );
-
     const totalPages = Math.ceil(allLineTemplates.length / linesPerPage);
-
     const startLine = (currentPage - 1) * linesPerPage;
     const endLine = startLine + linesPerPage;
     const visibleLineTemplates = allLineTemplates.slice(startLine, endLine);

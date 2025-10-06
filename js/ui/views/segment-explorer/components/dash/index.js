@@ -44,14 +44,14 @@ const dashSegmentTableTemplate = (
             No segments found for this representation.
         </div>`;
     } else {
-        content = html`<div class="overflow-y-auto max-h-[70vh]">
-            <table class="w-full text-left text-sm table-auto">
+        content = html`<div class="overflow-x-auto">
+            <table class="w-full text-left text-sm table-auto min-w-[600px]">
                 <thead class="sticky top-0 bg-gray-900 z-10">
                     <tr>
                         <th class="px-3 py-2 w-8"></th>
-                        <th class="px-3 py-2 w-[25%]">Status / Type</th>
-                        <th class="px-3 py-2 w-[20%]">Timing (s)</th>
-                        <th class="px-3 py-2 w-[55%]">URL & Actions</th>
+                        <th class="px-3 py-2">Status / Type</th>
+                        <th class="px-3 py-2">Timing (s)</th>
+                        <th class="px-3 py-2">URL & Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -91,10 +91,9 @@ export function getDashExplorerTemplate(stream, displayMode) {
                         <h3
                             class="text-lg font-bold text-gray-300 border-b-2 border-gray-700 pb-1"
                         >
-                            Period ${index + 1}
+                            Period: ${period.id || `(index ${index})`}
                             <span class="text-sm font-mono text-gray-500"
-                                >(ID: ${period.id || 'N/A'}, Start:
-                                ${period.start}s)</span
+                                >(Start: ${period.start}s)</span
                             >
                         </h3>
                         <div class="space-y-4 mt-2">
@@ -107,6 +106,9 @@ export function getDashExplorerTemplate(stream, displayMode) {
                                                 class="text-md font-semibold text-gray-400"
                                             >
                                                 AdaptationSet
+                                                ${as.id
+                                                    ? `(ID: ${as.id})`
+                                                    : ''}
                                                 (${as.contentType || 'N/A'})
                                             </h4>
                                             ${as.representations.map((rep) =>

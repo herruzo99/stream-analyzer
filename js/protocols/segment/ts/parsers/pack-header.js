@@ -37,6 +37,7 @@ export function parsePackHeader(view, baseOffset) {
     const details = {};
     let offset = 0;
 
+    if (view.byteLength < 4) return details;
     details.pack_start_code = {
         value: `0x${view.getUint32(0).toString(16)}`,
         offset: baseOffset,
@@ -44,6 +45,7 @@ export function parsePackHeader(view, baseOffset) {
     };
     offset += 4;
 
+    if (view.byteLength < offset + 6) return details;
     const scrView = new DataView(view.buffer, view.byteOffset + offset, 6);
     details.system_clock_reference = {
         value: parseScr(scrView).toString(),
@@ -52,6 +54,7 @@ export function parsePackHeader(view, baseOffset) {
     };
     offset += 6;
 
+    if (view.byteLength < offset + 3) return details;
     const muxRateVal =
         (view.getUint8(offset) << 14) |
         (view.getUint8(offset + 1) << 6) |
@@ -71,6 +74,7 @@ export function parsePackHeader(view, baseOffset) {
     };
 
     if (stuffingLength > 0) {
+        if (view.byteLength < offset + stuffingLength) return details;
         details.stuffing_bytes = {
             value: `${stuffingLength} bytes`,
             offset: baseOffset + offset,

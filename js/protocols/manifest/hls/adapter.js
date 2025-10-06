@@ -79,6 +79,7 @@ export function adaptHlsToIr(hlsParsed) {
                     : `Date Range: ${range.value['ID'] || 'N/A'}`,
                 messageData: isInterstitial ? range.value : null,
                 type: 'hls-daterange',
+                cue: range.value['CUE'] || null,
             });
         }
     }
@@ -140,6 +141,17 @@ export function adaptHlsToIr(hlsParsed) {
                             accessibility: [],
                             labels: [],
                             groupLabels: [],
+                            contentComponents: [],
+                            stableRenditionId:
+                                media['STABLE-RENDITION-ID'] || null,
+                            bitDepth: media['BIT-DEPTH'] || null,
+                            sampleRate: media['SAMPLE-RATE'] || null,
+                            channels: media.CHANNELS || null,
+                            assocLanguage: media['ASSOC-LANGUAGE'] || null,
+                            characteristics: media.CHARACTERISTICS
+                                ? String(media.CHARACTERISTICS).split(',')
+                                : null,
+                            forced: media.FORCED === 'YES',
                             serializedManifest: media,
                         };
                         periodIR.adaptationSets.push(as);
@@ -149,7 +161,6 @@ export function adaptHlsToIr(hlsParsed) {
         });
 
         // Second, process all variant streams from EXT-X-STREAM-INF tags.
-        // This is the corrected logic.
         hlsParsed.variants.forEach((variant, index) => {
             const resolution = variant.attributes.RESOLUTION;
 
@@ -167,7 +178,14 @@ export function adaptHlsToIr(hlsParsed) {
                     ? parseInt(String(resolution).split('x')[1], 10)
                     : null,
                 frameRate: variant.attributes['FRAME-RATE'] || null,
-                videoRange: variant.attributes['VIDEO-RANGE'],
+                videoRange: variant.attributes['VIDEO-RANGE'] || null,
+                supplementalCodecs:
+                    variant.attributes['SUPPLEMENTAL-CODECS'] || null,
+                reqVideoLayout:
+                    variant.attributes['REQ-VIDEO-LAYOUT'] || null,
+                pathwayId: variant.attributes['PATHWAY-ID'] || null,
+                stableVariantId:
+                    variant.attributes['STABLE-VARIANT-ID'] || null,
                 sar: null,
                 qualityRanking: variant.attributes.SCORE,
                 mimeType: null,
@@ -220,6 +238,14 @@ export function adaptHlsToIr(hlsParsed) {
                 accessibility: [],
                 labels: [],
                 groupLabels: [],
+                contentComponents: [],
+                stableRenditionId: null,
+                bitDepth: null,
+                sampleRate: null,
+                channels: null,
+                assocLanguage: null,
+                characteristics: null,
+                forced: false,
                 serializedManifest: variant,
             };
             periodIR.adaptationSets.push(asIR);
@@ -269,6 +295,10 @@ export function adaptHlsToIr(hlsParsed) {
                     dependencyId: null,
                     frameRate: null,
                     sar: null,
+                    stableVariantId: null,
+                    pathwayId: null,
+                    supplementalCodecs: null,
+                    reqVideoLayout: null,
                     serializedManifest: hlsParsed,
                 },
             ],
@@ -286,6 +316,14 @@ export function adaptHlsToIr(hlsParsed) {
             accessibility: [],
             labels: [],
             groupLabels: [],
+            contentComponents: [],
+            stableRenditionId: null,
+            bitDepth: null,
+            sampleRate: null,
+            channels: null,
+            assocLanguage: null,
+            characteristics: null,
+            forced: false,
             serializedManifest: hlsParsed,
         };
         const keyTag = hlsParsed.segments.find((s) => s.key)?.key;

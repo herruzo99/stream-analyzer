@@ -16,6 +16,7 @@ export async function pollHlsVariant(streamId, variantUri) {
     eventBus.dispatch('hls:media-playlist-fetch-request', {
         streamId,
         variantUri,
+        isBackground: true, // Signal that this is a background poll
     });
 }
 
@@ -109,6 +110,7 @@ export function initializeHlsVariantPoller() {
                     eventBus.dispatch('hls:media-playlist-fetch-request', {
                         streamId,
                         variantUri,
+                        isBackground: false, // This is a user action
                     });
                 }
             }
@@ -154,6 +156,7 @@ export function initializeHlsVariantPoller() {
                 eventBus.dispatch('hls:media-playlist-fetch-request', {
                     streamId: firstHlsStream.id,
                     variantUri: firstVariantUri,
+                    isBackground: false, // Initial load is a foreground action
                 });
             }
         }

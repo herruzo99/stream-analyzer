@@ -2,6 +2,16 @@ import { html } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { tooltipTriggerClasses } from '../../../shared/constants.js';
 import { createFeatureViewModel } from '../../../engines/feature-analysis/analyzer.js';
+import { standardSelectorTemplate } from '../compliance/components/standard-selector.js';
+import { renderApp } from '../../mainRenderer.js';
+
+let activeStandardVersion = 13;
+
+function handleVersionChange(newVersion) {
+    if (newVersion === activeStandardVersion) return;
+    activeStandardVersion = newVersion;
+    renderApp(); // Re-render to re-filter features
+}
 
 const featureCardTemplate = (feature) => {
     const badge = feature.used
@@ -26,6 +36,7 @@ const featureCardTemplate = (feature) => {
                     data-iso="${feature.isoRef}"
                 >
                     ${feature.name}
+                    <span class="text-xs text-gray-500">(v${feature.version}+)</span>
                 </p>
                 <p class="text-xs text-gray-400 italic mt-1 font-mono">
                     ${unsafeHTML(feature.details)}
@@ -48,7 +59,11 @@ export function getFeaturesAnalysisTemplate(stream) {
     if (!stream) return html`<p class="warn">No stream loaded to display.</p>`;
 
     const { results, manifestCount } = stream.featureAnalysis;
-    const viewModel = createFeatureViewModel(results, stream.protocol);
+    const viewModel = createFeatureViewModel(
+        results,
+        stream.protocol,
+        activeStandardVersion
+    );
 
     const groupedFeatures = viewModel.reduce((acc, feature) => {
         if (!acc[feature.category]) {
@@ -57,6 +72,14 @@ export function getFeaturesAnalysisTemplate(stream) {
         acc[feature.category].push(feature);
         return acc;
     }, {});
+
+    const selector =
+        stream.protocol === 'hls'
+            ? standardSelectorTemplate({
+                  selectedVersion: activeStandardVersion,
+                  onVersionChange: handleVersionChange,
+              })
+            : '';
 
     const getStatusIndicator = () => {
         if (stream.manifest?.type !== 'dynamic') {
@@ -163,7 +186,10 @@ export function getFeaturesAnalysisTemplate(stream) {
     };
 
     return html`
-        <h3 class="text-xl font-bold mb-2">Feature Usage Analysis</h3>
+        <div class="flex items-center justify-between mb-2">
+            <h3 class="text-xl font-bold">Feature Usage Analysis</h3>
+            ${selector}
+        </div>
         ${getStatusIndicator()}
         <p class="text-sm text-gray-500 mb-4">
             A breakdown of key features detected across all analyzed manifest

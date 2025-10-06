@@ -149,28 +149,33 @@ export function parseAllSegmentUrls(manifestElement, manifestUrl) {
                 const segmentDuration = parseInt(getAttr(template, 'duration'));
                 const segmentDurationSeconds = segmentDuration / timescale;
                 let numSegments = 0;
-                let firstSegmentNumber = startNumber;
+                const endNumber = getAttr(template, 'endNumber')
+                    ? parseInt(getAttr(template, 'endNumber'))
+                    : null;
 
                 if (isDynamic) {
-                    numSegments = 10;
+                    numSegments = 10; // Heuristic for live streams
                 } else {
-                    const totalDuration =
-                        parseDuration(
-                            getAttr(
-                                manifestElement,
-                                'mediaPresentationDuration'
-                            )
-                        ) || parseDuration(getAttr(period, 'duration'));
-                    if (!totalDuration || !segmentDurationSeconds) return;
-                    numSegments = Math.ceil(
-                        totalDuration / segmentDurationSeconds
-                    );
+                    if (endNumber !== null) {
+                        numSegments = endNumber - startNumber + 1;
+                    } else {
+                        const totalDuration =
+                            parseDuration(
+                                getAttr(
+                                    manifestElement,
+                                    'mediaPresentationDuration'
+                                )
+                            ) || parseDuration(getAttr(period, 'duration'));
+                        if (!totalDuration || !segmentDurationSeconds) return;
+                        numSegments = Math.ceil(
+                            totalDuration / segmentDurationSeconds
+                        );
+                    }
                 }
 
                 for (let i = 0; i < numSegments; i++) {
-                    const segmentNumber = firstSegmentNumber + i;
-                    const time =
-                        (segmentNumber - startNumber) * segmentDuration;
+                    const segmentNumber = startNumber + i;
+                    const time = (segmentNumber - startNumber) * segmentDuration;
                     const startTimeSeconds = periodStart + time / timescale;
                     const url = mediaTemplate
                         .replace(/\$RepresentationID\$/g, repId)
@@ -264,10 +269,10 @@ export function findInitSegmentUrl(
     period,
     baseUrl
 ) {
-    const repElement = representation.rawElement;
+    const repElement = representation.serializedManifest;
     if (!repElement) return null;
 
-    const hierarchy = [repElement, adaptationSet.rawElement, period.rawElement];
+    const hierarchy = [repElement, adaptationSet.serializedManifest, period.serializedManifest];
 
     const template = getInheritedElement('SegmentTemplate', hierarchy);
 

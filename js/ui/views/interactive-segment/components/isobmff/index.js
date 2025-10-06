@@ -31,7 +31,18 @@ function findBox(boxes, predicate) {
 
 export function findBoxByOffset(parsedData, offset) {
     if (!parsedData || !parsedData.boxes) return null;
-    return findBox(parsedData.boxes, (box) => box.offset === offset) || null;
+    const findInGrouped = (grouped, off) => {
+        for (const item of grouped) {
+            if (item.offset === off) return item;
+            if (item.children?.length > 0) {
+                const found = findInGrouped(item.children, off);
+                if (found) return found;
+            }
+        }
+        return null;
+    };
+    const grouped = groupboxesIntoChunks(parsedData.boxes);
+    return findInGrouped(grouped, offset);
 }
 
 function assignBoxColors(boxes) {
@@ -121,22 +132,22 @@ const renderBoxNode = (box) => {
     const isChunk = box.isChunk;
     const selectionClass = isSelected
         ? 'bg-blue-900/50 ring-1 ring-blue-500'
-        : '';
+        : 'hover:bg-gray-800/50';
+    const colorClass = box.color?.border || 'border-transparent';
 
     return html`
         <details class="box-node" ?open=${isChunk || box.children.length > 0}>
             <summary
-                class="p-1 rounded cursor-pointer ${selectionClass}"
+                class="p-1 rounded cursor-pointer ${selectionClass} border-l-4 ${colorClass}"
                 data-box-offset=${box.offset}
-                style="background-color: ${box.color?.bg || 'transparent'}"
             >
-                <span class="font-mono text-sm text-white">${box.type}</span>
+                <span class="font-mono text-sm text-white ml-2">${box.type}</span>
                 <span class="text-xs text-gray-500 ml-2"
                     >(${box.size} bytes)</span
                 >
             </summary>
             ${box.children.length > 0
-                ? html`<ul class="pl-4 border-l border-gray-700 list-none">
+                ? html`<ul class="pl-4 border-l border-gray-700 list-none ml-2">
                       ${box.children.map(
                           (child) => html`<li>${renderBoxNode(child)}</li>`
                       )}
@@ -239,7 +250,8 @@ export function getInteractiveIsobmffTemplate(
     currentPage,
     bytesPerPage,
     onPageChange,
-    allTooltips
+    allTooltips,
+    inspectorState
 ) {
     const { activeSegmentUrl, segmentCache } = useStore.getState();
     const cachedSegment = segmentCache.get(activeSegmentUrl);
@@ -268,7 +280,7 @@ export function getInteractiveIsobmffTemplate(
             <div class="sticky top-4 h-max">
                 <div class="flex flex-col gap-4">
                     <div
-                        class="segment-inspector-panel rounded-md bg-gray-900/90 border border-gray-700 transition-opacity duration-200 h-[24rem] overflow-hidden flex flex-col"
+                        class="segment-inspector-panel rounded-md bg-gray-900/90 border border-gray-700 transition-opacity duration-200 h-96 lg:h-[24rem] overflow-hidden flex flex-col"
                     >
                         ${inspectorPanelTemplate(parsedSegmentData.data)}
                     </div>
@@ -283,7 +295,8 @@ export function getInteractiveIsobmffTemplate(
                     currentPage,
                     bytesPerPage,
                     onPageChange,
-                    allTooltips
+                    allTooltips,
+                    inspectorState
                 )}
             </div>
         </div>

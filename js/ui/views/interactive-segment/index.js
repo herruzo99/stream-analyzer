@@ -11,6 +11,7 @@ import {
 import {
     cleanupSegmentViewInteractivity,
     initializeSegmentViewInteractivity,
+    getInspectorState,
 } from './components/interaction-logic.js';
 
 import { getTooltipData as getIsobmffTooltipData } from '../../../protocols/segment/isobmff/index.js';
@@ -115,19 +116,23 @@ export function getInteractiveSegmentTemplate(dom) {
     };
 
     let contentTemplate;
+    const inspectorState = getInspectorState();
+
     if (cachedSegment.parsedData?.format === 'ts') {
         contentTemplate = getInteractiveTsTemplate(
             interactiveSegmentCurrentPage,
             HEX_BYTES_PER_PAGE,
             onPageChange,
-            ALL_TOOLTIPS_DATA
+            ALL_TOOLTIPS_DATA,
+            inspectorState
         );
     } else if (cachedSegment.parsedData?.format === 'isobmff') {
         contentTemplate = getInteractiveIsobmffTemplate(
             interactiveSegmentCurrentPage,
             HEX_BYTES_PER_PAGE,
             onPageChange,
-            ALL_TOOLTIPS_DATA
+            ALL_TOOLTIPS_DATA,
+            inspectorState
         );
     } else {
         contentTemplate = html`<div class="text-yellow-400 p-4">

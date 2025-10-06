@@ -94,17 +94,17 @@
         class="bg-gray-900 text-gray-200 min-h-screen font-sans flex flex-col"
     >
         <div
-            class="w-full max-w-8xl mx-auto flex flex-col flex-grow p-4 sm:p-6 md:p-8"
+            class="w-full max-w-8xl mx-auto flex flex-col flex-grow p-4 sm:p-6"
         >
             <header
                 id="main-header"
-                class="flex justify-center items-center mb-8 flex-shrink-0"
+                class="flex flex-col md:flex-row justify-center items-center mb-6 md:mb-8 flex-shrink-0 gap-4 md:gap-8 flex-wrap"
             >
                 <div id="header-title-group" class="text-center">
                     <h1 class="text-3xl sm:text-4xl font-bold text-white">
                         Stream Analyzer
                     </h1>
-                    <p class="text-gray-400 mt-2">
+                    <p class="text-gray-400 mt-2 text-sm sm:text-base">
                         Analyze and compare DASH & HLS streams against industry
                         standards.
                     </p>
@@ -112,12 +112,14 @@
 
                 <div
                     id="header-url-display"
-                    class="hidden text-center text-xs font-mono text-gray-400 px-8"
+                    class="hidden text-center text-xs font-mono text-gray-400 px-4 md:px-8"
                 >
                     <!-- URLs injected by JS -->
                 </div>
 
-                <div class="flex items-center space-x-2 flex-shrink-0">
+                <div
+                    class="flex items-center space-x-2 flex-shrink-0 flex-wrap justify-center gap-2"
+                >
                     <div
                         id="global-stream-controls"
                         class="flex items-center gap-2"
@@ -148,7 +150,7 @@
             <div
                 id="input-section"
                 data-testid="input-section"
-                class="bg-gray-800 p-6 rounded-lg shadow-lg mb-8 flex-shrink-0"
+                class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-lg mb-8 flex-shrink-0"
             >
                 <div id="stream-inputs" class="space-y-6">
                     <!-- Stream inputs will be dynamically added here -->
@@ -261,7 +263,7 @@
                     </nav>
                 </div>
                 <div
-                    class="bg-gray-800 p-2 sm:p-6 rounded-lg shadow-lg flex-grow"
+                    class="bg-gray-800 p-2 sm:p-4 rounded-lg shadow-lg flex-grow min-h-0 overflow-y-auto"
                 >
                     <div
                         id="tab-comparison"

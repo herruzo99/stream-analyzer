@@ -3,10 +3,36 @@ import { storeActions } from '../core/store.js';
 import {
     validateCmafTrack,
     validateCmafSwitchingSets,
-    findInitSegmentUrl,
 } from '../engines/cmaf/validator.js';
 import { resolveBaseUrl } from '../protocols/manifest/dash/recursive-parser.js';
-import { getParsedSegment } from './segmentService.js';
+import { parseISOBMFF } from '../protocols/segment/isobmff/parser.js';
+import { findInitSegmentUrl } from '../protocols/manifest/dash/segment-parser.js';
+
+/**
+ * A private, isolated segment fetcher for this service that does not interact
+ * with the global store or cache.
+ * @param {string} url The URL of the ISOBMFF segment to fetch and parse.
+ * @returns {Promise<object>} The parsed segment data.
+ * @throws {Error} If the fetch or parsing fails.
+ */
+async function _fetchAndParseIsobmff(url) {
+    const response = await fetch(url);
+    if (!response.ok) {
+        throw new Error(
+            `HTTP ${response.status} fetching segment for CMAF validation: ${url}`
+        );
+    }
+    const buffer = await response.arrayBuffer();
+    const { boxes, issues, events } = parseISOBMFF(buffer);
+    if (issues.some((issue) => issue.type === 'error')) {
+        throw new Error(
+            `Failed to parse ISOBMFF segment for CMAF validation: ${url}`
+        );
+    }
+    // The validator expects the `data` property, which we are not providing.
+    // The validator's `validateCmafTrack` expects the direct parsed object.
+    return { boxes, issues, events };
+}
 
 /**
  * Runs all CMAF validation checks for a given stream and stores the results.
@@ -23,7 +49,9 @@ async function runCmafValidation(stream) {
 
         // --- Track Conformance Validation ---
         const firstPeriod = stream.manifest?.periods[0];
-        const firstAS = firstPeriod?.adaptationSets[0];
+        const firstAS = firstPeriod?.adaptationSets.find(
+            (as) => as.contentType === 'video'
+        );
         const firstRep = firstAS?.representations[0];
 
         if (firstRep && firstAS && firstPeriod) {
@@ -46,13 +74,10 @@ async function runCmafValidation(stream) {
 
             if (initUrl && mediaUrl) {
                 const [initData, mediaData] = await Promise.all([
-                    getParsedSegment(initUrl),
-                    getParsedSegment(mediaUrl),
+                    _fetchAndParseIsobmff(initUrl),
+                    _fetchAndParseIsobmff(mediaUrl),
                 ]);
-                const trackResults = validateCmafTrack(
-                    initData.data,
-                    mediaData.data
-                );
+                const trackResults = validateCmafTrack(initData, mediaData);
                 allResults.push(...trackResults);
             }
         }
@@ -60,7 +85,7 @@ async function runCmafValidation(stream) {
         // --- Switching Set Validation ---
         const switchingSetResults = await validateCmafSwitchingSets(
             stream,
-            getParsedSegment
+            _fetchAndParseIsobmff
         );
         allResults.push(...switchingSetResults);
 

@@ -5,6 +5,7 @@
  * @typedef {import('../../../core/types.js').Representation} Representation
  * @typedef {import('../../../core/types.js').SubRepresentation} SubRepresentation
  * @typedef {import('../../../core/types.js').Descriptor} Descriptor
+ * @typedef {import('../../../core/types.js').ContentComponent} ContentComponent
  */
 
 import { getDrmSystemName } from '../../../shared/utils/drm.js';
@@ -182,14 +183,76 @@ function parseRepresentation(repEl, parentMergedEl) {
             (subRepEl) => parseSubRepresentation(subRepEl, mergedRepEl)
         ),
         videoRange: undefined,
+        stableVariantId: null,
+        pathwayId: null,
+        supplementalCodecs: null,
+        reqVideoLayout: null,
         serializedManifest: repEl,
     };
 
     return repIR;
 }
 
+/**
+ * Parses a ContentComponent element.
+ * @param {object} ccEl - The raw parsed ContentComponent element.
+ * @param {object} parentEl - The parent AdaptationSet element.
+ * @returns {ContentComponent}
+ */
+function parseContentComponent(ccEl, parentEl) {
+    const mergedEl = mergeElements(parentEl, ccEl);
+    return {
+        id: getAttr(ccEl, 'id'),
+        lang: getAttr(mergedEl, 'lang'),
+        contentType: getAttr(mergedEl, 'contentType'),
+        par: getAttr(mergedEl, 'par'),
+        tag: getAttr(mergedEl, 'tag'),
+        accessibility: findChildren(mergedEl, 'Accessibility').map(
+            parseGenericDescriptor
+        ),
+        roles: findChildren(mergedEl, 'Role').map(parseGenericDescriptor),
+        ratings: findChildren(mergedEl, 'Rating').map(parseGenericDescriptor),
+        viewpoints: findChildren(mergedEl, 'Viewpoint').map(
+            parseGenericDescriptor
+        ),
+        serializedManifest: ccEl,
+    };
+}
+
 function parseAdaptationSet(asEl, parentMergedEl) {
     const mergedAsEl = mergeElements(parentMergedEl, asEl);
+    const contentComponentEls = findChildren(asEl, 'ContentComponent');
+
+    let contentComponents;
+    if (contentComponentEls.length > 0) {
+        contentComponents = contentComponentEls.map((ccEl) =>
+            parseContentComponent(ccEl, asEl)
+        );
+    } else {
+        // If no explicit ContentComponent, create one implicitly from the AdaptationSet's attributes
+        contentComponents = [
+            {
+                id: null,
+                lang: getAttr(asEl, 'lang'),
+                contentType:
+                    getAttr(asEl, 'contentType') ||
+                    getAttr(asEl, 'mimeType')?.split('/')[0],
+                par: getAttr(asEl, 'par'),
+                tag: getAttr(asEl, 'tag'),
+                accessibility: findChildren(asEl, 'Accessibility').map(
+                    parseGenericDescriptor
+                ),
+                roles: findChildren(asEl, 'Role').map(parseGenericDescriptor),
+                ratings: findChildren(asEl, 'Rating').map(
+                    parseGenericDescriptor
+                ),
+                viewpoints: findChildren(asEl, 'Viewpoint').map(
+                    parseGenericDescriptor
+                ),
+                serializedManifest: asEl,
+            },
+        ];
+    }
 
     /** @type {AdaptationSet} */
     const asIR = {
@@ -243,6 +306,14 @@ function parseAdaptationSet(asEl, parentMergedEl) {
             text: getText(el),
         })),
         roles: findChildren(mergedAsEl, 'Role').map(parseGenericDescriptor),
+        contentComponents: contentComponents,
+        stableRenditionId: null,
+        bitDepth: null,
+        sampleRate: null,
+        channels: null,
+        assocLanguage: null,
+        characteristics: null,
+        forced: false,
         serializedManifest: asEl,
     };
 
@@ -253,11 +324,51 @@ function parsePeriod(periodEl, parentMergedEl) {
     const mergedPeriodEl = mergeElements(parentMergedEl, periodEl);
     const assetIdentifierEl = findChild(periodEl, 'AssetIdentifier');
     const subsets = findChildren(periodEl, 'Subset');
+    const eventStreams = findChildren(periodEl, 'EventStream');
+    const periodStart = parseDuration(getAttr(periodEl, 'start')) || 0;
+
+    const allEvents = [];
+    const eventStreamIRs = eventStreams.map((esEl) => {
+        const timescale = parseInt(getAttr(esEl, 'timescale') || '1', 10);
+        const presentationTimeOffset = parseInt(
+            getAttr(esEl, 'presentationTimeOffset') || '0',
+            10
+        );
+
+        const events = findChildren(esEl, 'Event').map((eEl) => {
+            const presentationTime = parseInt(
+                getAttr(eEl, 'presentationTime') || '0',
+                10
+            );
+            const duration = parseInt(getAttr(eEl, 'duration') || '0', 10);
+            const startTime =
+                periodStart + (presentationTime - presentationTimeOffset) / timescale;
+            const eventDuration = duration / timescale;
+
+            return {
+                startTime,
+                duration: eventDuration,
+                message: getText(eEl) || getAttr(eEl, 'messageData'),
+                messageData: getAttr(eEl, 'messageData'),
+                type: 'dash-event',
+            };
+        });
+
+        allEvents.push(...events);
+
+        return {
+            schemeIdUri: getAttr(esEl, 'schemeIdUri'),
+            value: getAttr(esEl, 'value'),
+            timescale,
+            presentationTimeOffset,
+            events: [], // Events are aggregated at the Period level for the IR
+        };
+    });
 
     /** @type {Period} */
     const periodIR = {
         id: getAttr(periodEl, 'id'),
-        start: parseDuration(getAttr(periodEl, 'start')),
+        start: periodStart,
         duration: parseDuration(getAttr(periodEl, 'duration')),
         bitstreamSwitching: getAttr(periodEl, 'bitstreamSwitching') === 'true',
         assetIdentifier: assetIdentifierEl
@@ -273,8 +384,8 @@ function parsePeriod(periodEl, parentMergedEl) {
         adaptationSets: findChildren(periodEl, 'AdaptationSet').map((asEl) =>
             parseAdaptationSet(asEl, mergedPeriodEl)
         ),
-        eventStreams: [],
-        events: [],
+        eventStreams: eventStreamIRs,
+        events: allEvents,
         serializedManifest: periodEl,
     };
 

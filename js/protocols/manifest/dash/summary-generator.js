@@ -132,14 +132,15 @@ export function generateDashSummary(manifestIR, serializedManifest) {
                     as.representations.map((r) => r.codecs).filter(Boolean)
                 ),
             ],
-            channels: [
-                ...new Set(
-                    as.representations
-                        .flatMap((r) => r.audioChannelConfigurations)
-                        .map((c) => c.value)
-                        .filter(Boolean)
-                ),
-            ],
+            channels:
+                [
+                    ...new Set(
+                        as.representations
+                            .flatMap((r) => r.audioChannelConfigurations)
+                            .map((c) => c.value)
+                            .filter(Boolean)
+                    ),
+                ].join(', ') || null,
             isDefault: as.roles.some((r) => r.value === 'main'),
             isForced: false,
             roles: as.roles.map((r) => r.value).filter(Boolean),

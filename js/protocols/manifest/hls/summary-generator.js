@@ -7,97 +7,69 @@ import { formatBitrate } from '../../../shared/utils/format.js';
 
 /**
  * Creates a protocol-agnostic summary view-model from an HLS manifest.
- * @param {Manifest} manifestIR - The partially adapted manifest IR.
+ * @param {Manifest} manifestIR - The adapted manifest IR.
  * @returns {import('../../../core/types.js').ManifestSummary}
  */
 export function generateHlsSummary(manifestIR) {
     const { serializedManifest: rawElement } = manifestIR;
     const isMaster = rawElement.isMaster;
 
-    const videoTracks = [];
-    const audioTracks = [];
-    const textTracks = [];
+    const allAdaptationSets = manifestIR.periods.flatMap(
+        (p) => p.adaptationSets
+    );
+
+    const videoTracks = allAdaptationSets
+        .filter((as) => as.contentType === 'video')
+        .flatMap((as) =>
+            as.representations.map((rep) => ({
+                id: rep.stableVariantId || rep.id,
+                profiles: null,
+                bitrateRange: formatBitrate(rep.bandwidth),
+                resolutions: rep.width ? [`${rep.width}x${rep.height}`] : [],
+                codecs: [rep.codecs],
+                scanType: null,
+                videoRange: rep.videoRange || null,
+                roles: [],
+            }))
+        );
+
+    const audioTracks = allAdaptationSets
+        .filter((as) => as.contentType === 'audio')
+        .map((as) => ({
+            id: as.stableRenditionId || as.id,
+            lang: as.lang,
+            codecs: [],
+            channels: as.channels,
+            isDefault: as.serializedManifest.DEFAULT === 'YES',
+            isForced: as.forced,
+            roles: [],
+        }));
+
+    const textTracks = allAdaptationSets
+        .filter(
+            (as) => as.contentType === 'text' || as.contentType === 'subtitles'
+        )
+        .map((as) => ({
+            id: as.stableRenditionId || as.id,
+            lang: as.lang,
+            codecsOrMimeTypes: [],
+            isDefault: as.serializedManifest.DEFAULT === 'YES',
+            isForced: as.forced,
+            roles: [],
+        }));
+
     const protectionSchemes = new Set();
     const kids = new Set();
     let mediaPlaylistDetails = null;
 
     if (isMaster) {
-        // Correctly iterate over the original variants array, not the adapted structure
-        (rawElement.variants || []).forEach((v, i) => {
-            const codecs = v.attributes.CODECS || '';
-            const resolution = v.attributes.RESOLUTION;
-            const hasVideo =
-                codecs.includes('avc1') ||
-                codecs.includes('hvc1') ||
-                resolution;
-
-            if (hasVideo) {
-                videoTracks.push({
-                    id: v.attributes['STABLE-VARIANT-ID'] || `variant_${i}`,
-                    profiles: null,
-                    bitrateRange: formatBitrate(v.attributes.BANDWIDTH),
-                    resolutions: resolution ? [resolution] : [],
-                    codecs: [codecs],
-                    scanType: null,
-                    videoRange: v.attributes['VIDEO-RANGE'] || null,
-                    roles: [],
-                });
-            }
-        });
-
-        // Audio and Text tracks from media renditions
-        (rawElement.media || []).forEach((m, i) => {
-            const trackId =
-                m['STABLE-RENDITION-ID'] || `${m.TYPE.toLowerCase()}_${i}`;
-            if (m.TYPE === 'AUDIO') {
-                audioTracks.push({
-                    id: trackId,
-                    lang: m.LANGUAGE,
-                    codecs: [], // Codecs are on variants in HLS, not media tags
-                    channels: m.CHANNELS ? [m.CHANNELS] : [],
-                    isDefault: m.DEFAULT === 'YES',
-                    isForced: m.FORCED === 'YES',
-                    roles: [],
-                });
-            } else if (m.TYPE === 'SUBTITLES' || m.TYPE === 'CLOSED-CAPTIONS') {
-                textTracks.push({
-                    id: trackId,
-                    lang: m.LANGUAGE,
-                    codecsOrMimeTypes: [],
-                    isDefault: m.DEFAULT === 'YES',
-                    isForced: m.FORCED === 'YES',
-                    roles: [],
-                });
-            }
-        });
-
         const sessionKey = rawElement.tags.find(
             (t) => t.name === 'EXT-X-SESSION-KEY'
         );
         if (sessionKey && sessionKey.value.METHOD !== 'NONE') {
             protectionSchemes.add(sessionKey.value.METHOD);
-            if (
-                sessionKey.value.KEYFORMAT ===
-                    'urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed' &&
-                sessionKey.value.URI
-            ) {
-                try {
-                    const psshData = atob(sessionKey.value.URI.split(',')[1]);
-                    const kid = psshData.slice(32, 48);
-                    kids.add(
-                        Array.from(kid)
-                            .map((c) =>
-                                c.charCodeAt(0).toString(16).padStart(2, '0')
-                            )
-                            .join('')
-                    );
-                } catch (_e) {
-                    /* ignore parse error */
-                }
-            }
         }
     } else {
-        // Media playlist analysis
         const keyTag = rawElement.segments.find((s) => s.key)?.key;
         if (keyTag && keyTag.METHOD !== 'NONE') {
             protectionSchemes.add(keyTag.METHOD);
