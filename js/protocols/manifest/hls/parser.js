@@ -113,20 +113,19 @@ function applyVariableSubstitution(
  * @returns {Promise<{manifest: import('../../../core/types.js').Manifest, definedVariables: Map<string, {value: string, source: string}>, baseUrl: string}>}
  */
 export async function parseManifest(manifestString, baseUrl, parentVariables) {
-    let rawManifestForParsing = manifestString;
-    let initialLines = manifestString.split(/\r?\n/);
+    let linesForParsing = manifestString.split(/\r?\n/);
 
-    if (!initialLines[0] || initialLines[0].trim() !== '#EXTM3U') {
-        if (manifestString.includes('#EXTINF:')) {
-            initialLines.unshift('#EXTM3U');
-            rawManifestForParsing = initialLines.join('\n'); // Update raw string
-        } else {
-            throw new Error('Invalid HLS playlist. Must start with #EXTM3U.');
-        }
+    if (!manifestString.trim().startsWith('#EXTM3U')) {
+        // Leniency: Prepend #EXTM3U if missing to allow parsing to continue.
+        // The original `manifestString` is preserved in `parsed.raw`,
+        // so the compliance rule will still correctly catch the omission.
+        const newLines = [].concat(linesForParsing);
+        newLines.unshift('#EXTM3U');
+        linesForParsing = newLines;
     }
 
     const { substitutedLines: lines, definedVariables } =
-        applyVariableSubstitution(initialLines, baseUrl, parentVariables);
+        applyVariableSubstitution(linesForParsing, baseUrl, parentVariables);
 
     const isMaster = lines.some((line) => line.startsWith('#EXT-X-STREAM-INF'));
 
@@ -137,7 +136,7 @@ export async function parseManifest(manifestString, baseUrl, parentVariables) {
         segments: [],
         variants: [],
         media: [],
-        raw: rawManifestForParsing, // Original raw string
+        raw: manifestString, // Use the original, unmodified manifest for compliance checks
         baseUrl: baseUrl,
         isLive: !isMaster, // Heuristic: Master is VOD by default, Media is Live by default
         preloadHints: [],

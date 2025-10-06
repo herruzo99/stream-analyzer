@@ -17,30 +17,34 @@ export function getComparisonTemplate(streams) {
     const groupedComparisonPoints = createComparisonViewModel(streams);
 
     return html`
-        <!-- Main Sticky Header -->
-        <div
-            class="grid bg-gray-900/50 sticky top-0 z-10"
-            style="grid-template-columns: 200px repeat(${streams.length}, 1fr);"
-        >
+        <div class="overflow-x-auto">
+            <!-- Main Sticky Header -->
             <div
-                class="font-semibold text-gray-400 p-2 border-b border-r border-gray-700"
+                class="grid bg-gray-900/50 sticky top-0 z-10 min-w-[800px]"
+                style="grid-template-columns: 200px repeat(${streams.length}, minmax(200px, 1fr));"
             >
-                Property
+                <div
+                    class="font-semibold text-gray-400 p-2 border-b border-r border-gray-700"
+                >
+                    Property
+                </div>
+                ${streams.map(
+                    (stream) =>
+                        html`<div
+                            class="font-semibold text-gray-300 p-2 border-b border-r border-gray-700 truncate"
+                            title="${stream.name}"
+                        >
+                            ${stream.name}
+                        </div>`
+                )}
             </div>
-            ${streams.map(
-                (stream) =>
-                    html`<div
-                        class="font-semibold text-gray-300 p-2 border-b border-r border-gray-700 truncate"
-                        title="${stream.name}"
-                    >
-                        ${stream.name}
-                    </div>`
-            )}
-        </div>
 
-        <!-- Data Sections -->
-        ${groupedComparisonPoints.map((group) =>
-            sectionTemplate(group.title, group.points, streams)
-        )}
+            <!-- Data Sections -->
+            <div class="min-w-[800px]">
+                ${groupedComparisonPoints.map((group) =>
+                    sectionTemplate(group.title, group.points, streams)
+                )}
+            </div>
+        </div>
     `;
 }

@@ -16,23 +16,58 @@ export async function parseManifest(xmlString, baseUrl) {
         textNodeName: '#text',
         allowBooleanAttributes: true,
         removeNSPrefix: true,
-        alwaysCreateTextNode: true, // <-- FIX: Ensures consistent parsing for text-only nodes
-        // Force these tags to always be arrays for consistent traversal
+        alwaysCreateTextNode: true, 
         isArray: (tagName) => {
             return [
-                'Period',
-                'AdaptationSet',
-                'Representation',
-                'S',
-                'ContentProtection',
-                'Role',
-                'Location',
-                'BaseURL',
-                'EventStream',
-                'SegmentURL',
-                'Subset',
+                // MPD Level
                 'ProgramInformation',
+                'BaseURL',
+                'Location',
+                'PatchLocation',
+                'ServiceDescription',
+                'InitializationSet',
+                'InitializationGroup',
+                'InitializationPresentation',
+                'ContentProtection',
+                'Period',
                 'Metrics',
+                'EssentialProperty',
+                'SupplementalProperty',
+                'UTCTiming',
+                // Period Level
+                'EventStream',
+                'AdaptationSet',
+                'Subset',
+                'EmptyAdaptationSet',
+                'GroupLabel',
+                'Preselection',
+                // AdaptationSet & RepresentationBase Levels
+                'Accessibility',
+                'Role',
+                'Rating',
+                'Viewpoint',
+                'ContentComponent',
+                'Representation',
+                'FramePacking',
+                'AudioChannelConfiguration',
+                'InbandEventStream',
+                'Switching',
+                'RandomAccess',
+                'Label',
+                'ProducerReferenceTime',
+                'ContentPopularityRate',
+                'Resync',
+                // Representation Level
+                'SubRepresentation',
+                'ExtendedBandwidth',
+                // Segment Info
+                'SegmentURL',
+                'S',
+                // Event Info
+                'Event',
+                // Metrics Info
+                'Reporting',
+                'Range',
             ].includes(tagName);
         },
     });

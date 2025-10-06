@@ -4,8 +4,84 @@ import { parseManifest as parseDashManifestString } from './protocols/manifest/d
 import { parseManifest as parseHlsManifest } from './protocols/manifest/hls/parser.js';
 import { parseAllSegmentUrls as parseDashSegments } from './protocols/manifest/dash/segment-parser.js';
 import { runChecks } from './engines/compliance/engine.js';
+import { validateSteeringManifest } from './engines/hls/steering-validator.js';
+import { DOMParser, XMLSerializer } from 'xmldom';
+import xpath from 'xpath';
 
 /** @typedef {import('./core/types.js').SerializedStream} SerializedStream */
+
+// --- XML Patch Logic ---
+/**
+ * Applies an RFC 5261 XML patch to a source XML document.
+ * @param {string} sourceXml - The original XML string.
+ * @param {string} patchXml - The patch XML string.
+ * @returns {string} The new, patched XML string.
+ */
+function applyXmlPatch(sourceXml, patchXml) {
+    const domParser = new DOMParser();
+    const serializer = new XMLSerializer();
+
+    const sourceDoc = domParser.parseFromString(sourceXml, 'application/xml');
+    const patchDoc = domParser.parseFromString(patchXml, 'application/xml');
+
+    const patchOps = Array.from(patchDoc.documentElement.childNodes).filter(
+        (n) => n.nodeType === 1
+    ); // Only element nodes
+
+    const select = xpath.useNamespaces({ d: 'urn:mpeg:dash:schema:mpd:2011' });
+
+    for (const op of patchOps) {
+        const selector = op.getAttribute('sel');
+        if (!selector) continue;
+
+        const targets = select(selector, sourceDoc);
+        if (!Array.isArray(targets)) {
+            continue;
+        }
+
+        for (const target of targets) {
+            // Ensure target is a Node with expected methods
+            if (typeof target !== 'object' || !target.nodeType) {
+                continue;
+            }
+            const targetNode = /** @type {Node} */ (target);
+
+            switch (op.nodeName) {
+                case 'add': {
+                    const content = op.firstChild;
+                    if (
+                        content &&
+                        targetNode.nodeType === 1 /* ELEMENT_NODE */
+                    ) {
+                        /** @type {Element} */ (
+                            targetNode
+                        ).appendChild(content.cloneNode(true));
+                    }
+                    break;
+                }
+                case 'replace': {
+                    const content = op.firstChild;
+                    if (content && targetNode.parentNode) {
+                        targetNode.parentNode.replaceChild(
+                            content.cloneNode(true),
+                            targetNode
+                        );
+                    }
+                    break;
+                }
+                case 'remove': {
+                    if (targetNode.parentNode) {
+                        targetNode.parentNode.removeChild(targetNode);
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
+    return serializer.serializeToString(sourceDoc);
+}
+
 
 // --- HLS Delta Update Logic (moved from delta-updater.js) ---
 
@@ -182,12 +258,23 @@ async function processSingleStream(input) {
     const { diffManifest } = await import('./shared/utils/diff.js');
     const xmlFormatter = (await import('xml-formatter')).default;
 
-    let steeringInfo = null;
-    if (input.protocol === 'hls' && manifestIR.isMaster) {
-        steeringInfo =
-            (manifestIR.tags || []).find(
-                (t) => t.name === 'EXT-X-CONTENT-STEERING'
-            ) || null;
+    const semanticData = new Map();
+
+    // --- Content Steering Validation ---
+    const steeringTag =
+        input.protocol === 'hls' && manifestIR.isMaster
+            ? (manifestIR.tags || []).find(
+                  (t) => t.name === 'EXT-X-CONTENT-STEERING'
+              ) || null
+            : null;
+
+    if (steeringTag) {
+        const steeringUri = new URL(
+            steeringTag.value['SERVER-URI'],
+            finalBaseUrl
+        ).href;
+        const validationResult = await validateSteeringManifest(steeringUri);
+        semanticData.set('steeringValidation', validationResult);
     }
 
     const manifestObjectForChecks =
@@ -209,8 +296,8 @@ async function processSingleStream(input) {
         isPolling: manifestIR.type === 'dynamic',
         manifest: manifestIR,
         rawManifest: input.manifestString,
-        steeringInfo,
-        manifestUpdates: [],
+        steeringInfo: steeringTag,
+        manifestUpdates: [], // Initialize empty
         activeManifestUpdateIndex: 0,
         mediaPlaylists: new Map(),
         activeMediaPlaylistUrl: null,
@@ -222,8 +309,32 @@ async function processSingleStream(input) {
         hlsVariantState: new Map(),
         dashRepresentationState: new Map(),
         hlsDefinedVariables: manifestIR.hlsDefinedVariables,
-        semanticData: new Map(),
+        semanticData: semanticData,
     };
+
+    // --- Always add the initial manifest to manifestUpdates for compliance reports ---
+    let formattedInitial = streamObject.rawManifest;
+    if (streamObject.protocol === 'dash') {
+        formattedInitial = xmlFormatter(streamObject.rawManifest, {
+            indentation: '  ',
+            lineSeparator: '\n',
+        });
+    }
+    const initialDiffHtml = diffManifest(
+        '', // No previous manifest to diff against for the first entry
+        formattedInitial,
+        streamObject.protocol
+    );
+    streamObject.manifestUpdates.push({
+        timestamp: new Date().toLocaleTimeString(),
+        diffHtml: initialDiffHtml,
+        rawManifest: streamObject.rawManifest,
+        complianceResults,
+        hasNewIssues: false,
+        serializedManifest: serializedManifestObject,
+    });
+    // --- End of initial manifest update logic ---
+
 
     if (input.protocol === 'hls') {
         if (manifestIR.isMaster) {
@@ -271,29 +382,6 @@ async function processSingleStream(input) {
         );
     }
 
-    if (streamObject.manifest.type === 'dynamic') {
-        let formattedInitial = streamObject.rawManifest;
-        if (streamObject.protocol === 'dash') {
-            formattedInitial = xmlFormatter(streamObject.rawManifest, {
-                indentation: '  ',
-                lineSeparator: '\n',
-            });
-        }
-        const initialDiffHtml = diffManifest(
-            '',
-            formattedInitial,
-            streamObject.protocol
-        );
-        streamObject.manifestUpdates.push({
-            timestamp: new Date().toLocaleTimeString(),
-            diffHtml: initialDiffHtml,
-            rawManifest: streamObject.rawManifest,
-            complianceResults,
-            hasNewIssues: false,
-            serializedManifest: serializedManifestObject,
-        });
-    }
-
     // Explicitly cast to the SerializedStream type to satisfy TS
     const serializedStreamObject = /** @type {SerializedStream} */ (
         /** @type {any} */ (streamObject)
@@ -318,6 +406,10 @@ async function processSingleStream(input) {
 
 async function handleStartAnalysis(inputs) {
     try {
+        self.postMessage({
+            type: 'status-update',
+            payload: { message: `Starting analysis of ${inputs.length} stream(s)...` },
+        });
         const results = await Promise.all(inputs.map(processSingleStream));
         self.postMessage({
             type: 'analysis-complete',
@@ -358,6 +450,8 @@ async function handleFetchHlsMediaPlaylistInWorker({
             payload: {
                 streamId,
                 variantUri,
+                manifest, // Send the full manifest IR
+                manifestString, // Send the raw string
                 segments: manifest.segments,
                 freshSegmentUrls,
             },
@@ -374,26 +468,34 @@ async function handleParseLiveUpdate({
     streamId,
     newManifestString,
     oldRawManifest,
+    patchString, // New optional parameter
     protocol,
     baseUrl,
     hlsDefinedVariables,
     oldManifestObjectForDelta,
 }) {
     try {
-        let finalManifestString = newManifestString;
+        let finalManifestString;
         let newManifestObject;
         let newSerializedObject;
 
+        if (patchString) {
+            // Apply the XML patch to get the new manifest string
+            finalManifestString = applyXmlPatch(oldRawManifest, patchString);
+        } else {
+            finalManifestString = newManifestString;
+        }
+
         if (protocol === 'dash') {
             const { manifest, serializedManifest } =
-                await parseDashManifestString(newManifestString, baseUrl);
+                await parseDashManifestString(finalManifestString, baseUrl);
             newManifestObject = manifest;
             newSerializedObject = serializedManifest;
         } else {
             // HLS: Check for Delta Update
-            if (newManifestString.includes('#EXT-X-SKIP')) {
+            if (finalManifestString.includes('#EXT-X-SKIP')) {
                 const { manifest: deltaManifest } = await parseHlsManifest(
-                    newManifestString,
+                    finalManifestString,
                     baseUrl,
                     hlsDefinedVariables
                 );
@@ -413,7 +515,7 @@ async function handleParseLiveUpdate({
                 newSerializedObject = resolvedParsedHls;
             } else {
                 const { manifest } = await parseHlsManifest(
-                    newManifestString,
+                    finalManifestString,
                     baseUrl,
                     hlsDefinedVariables
                 );

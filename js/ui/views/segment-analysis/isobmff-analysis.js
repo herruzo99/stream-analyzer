@@ -1,74 +1,6 @@
 import { html } from 'lit-html';
 import { tooltipTriggerClasses } from '../../../shared/constants.js';
 import { getTooltipData as getIsobmffTooltipData } from '../../../protocols/segment/isobmff/index.js';
-import { useStore } from '../../../core/store.js';
-
-const cmafResultTemplate = (result) => {
-    const statusColors = {
-        pass: 'text-green-400',
-        fail: 'text-red-400',
-        warn: 'text-yellow-400',
-        info: 'text-blue-400',
-    };
-    const icon = {
-        pass: '✓',
-        fail: '✗',
-        warn: '⚠️',
-        info: 'ℹ',
-    };
-    return html`
-        <tr class="hover:bg-gray-700/50">
-            <td class="p-2 border border-gray-700 w-12 text-center">
-                <span class="${statusColors[result.status]} font-bold"
-                    >${icon[result.status]}</span
-                >
-            </td>
-            <td class="p-2 border border-gray-700 text-gray-300">
-                ${result.text}
-            </td>
-            <td class="p-2 border border-gray-700 text-gray-400 break-words">
-                ${result.details}
-            </td>
-        </tr>
-    `;
-};
-
-const cmafValidationTemplate = (stream) => {
-    const results = stream.semanticData?.get('cmafValidation');
-    if (!results) {
-        return html` <div class="text-sm text-gray-500 p-4 text-center">
-            Running CMAF conformance checks...
-        </div>`;
-    }
-
-    return html`
-        <div class="mt-4">
-            <h4 class="text-md font-bold mb-2">CMAF Conformance</h4>
-            <div
-                class="bg-gray-900/50 rounded border border-gray-700/50 overflow-hidden"
-            >
-                <table class="w-full text-left text-xs table-auto">
-                    <thead class="bg-gray-800/50">
-                        <tr>
-                            <th class="p-2 font-semibold text-gray-400">
-                                Status
-                            </th>
-                            <th class="p-2 font-semibold text-gray-400">
-                                Check
-                            </th>
-                            <th class="p-2 font-semibold text-gray-400">
-                                Details
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-700/50">
-                        ${results.map(cmafResultTemplate)}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    `;
-};
 
 const isoBoxTemplate = (box) => {
     const tooltipData = getIsobmffTooltipData();
@@ -157,13 +89,8 @@ const isoBoxTemplate = (box) => {
 };
 
 export const isobmffAnalysisTemplate = (isobmffData) => {
-    // We need the stream object to check for CMAF results
-    const { streams, activeStreamId } = useStore.getState();
-    const stream = streams.find((s) => s.id === activeStreamId);
-
     return html`
         <div>
-            ${stream ? cmafValidationTemplate(stream) : ''}
             <ul class="list-none p-0 space-y-2 mt-4">
                 ${isobmffData.boxes.map(
                     (box) => html`<li>${isoBoxTemplate(box)}</li>`

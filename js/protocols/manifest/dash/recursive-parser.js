@@ -135,8 +135,8 @@ const getText = (el) => el?.['#text'] || null;
 
 /**
  * Implements the hierarchical BaseURL resolution as per MPEG-DASH spec (Clause 5.6).
- * It traverses from a specific element up to the root, resolving BaseURLs at each level.
- * An empty <BaseURL> tag resets resolution to the manifest's location.
+ * This function correctly models inheritance and handles empty <BaseURL> tags
+ * by inheriting the parent's base URL, as per RFC 3986.
  * @param {string} manifestBaseUrl The URL of the manifest itself.
  * @param {object} mpdEl The root MPD element.
  * @param {object} periodEl The current Period element.
@@ -145,35 +145,35 @@ const getText = (el) => el?.['#text'] || null;
  * @returns {string} The fully resolved base URL for the current context.
  */
 export function resolveBaseUrl(manifestBaseUrl, mpdEl, periodEl, asEl, repEl) {
-    let currentBase = manifestBaseUrl;
-    const hierarchy = [mpdEl, periodEl, asEl, repEl];
+    /**
+     * Calculates the effective base URL at a specific level of the hierarchy.
+     * @param {object | undefined} el The manifest element for the current level.
+     * @param {string} parentBaseUrl The resolved base URL from the parent level.
+     * @returns {string} The effective base URL for this level.
+     */
+    const getEffectiveBase = (el, parentBaseUrl) => {
+        if (!el) return parentBaseUrl;
+        const baseUrlEl = findChild(el, 'BaseURL');
+        if (!baseUrlEl) return parentBaseUrl;
 
-    for (const el of hierarchy) {
-        if (!el) continue;
+        const urlContent = getText(baseUrlEl);
+        // An empty string is a valid relative reference that resolves to the base URI itself,
+        // effectively inheriting the parent base. A null value means the tag is empty (<BaseURL/>),
+        // which also means it should inherit.
+        const relativeUrl = (urlContent || '').trim();
 
-        const baseURLElements = findChildren(el, 'BaseURL');
-        if (baseURLElements.length > 0) {
-            const relativeUrl = getText(baseURLElements[0]);
-
-            // DASH spec (5.6.3): If BaseURL is empty, higher-level URLs are ignored,
-            // and resolution is relative to the MPD location.
-            if (relativeUrl === null || relativeUrl.trim() === '') {
-                currentBase = manifestBaseUrl;
-                continue; // Continue to next level in hierarchy
-            }
-
-            try {
-                const newUrl = new URL(relativeUrl.trim(), currentBase);
-                currentBase = newUrl.href;
-            } catch (e) {
-                // Ignore invalid URL parts and continue
-                console.warn(
-                    `Invalid URL part in BaseURL: "${relativeUrl}"`,
-                    e
-                );
-            }
+        try {
+            return new URL(relativeUrl, parentBaseUrl).href;
+        } catch (e) {
+            console.warn(`Invalid URL part in BaseURL: "${relativeUrl}"`, e);
+            return parentBaseUrl;
         }
-    }
+    };
 
-    return currentBase;
+    const baseMpd = getEffectiveBase(mpdEl, manifestBaseUrl);
+    const basePeriod = getEffectiveBase(periodEl, baseMpd);
+    const baseAs = getEffectiveBase(asEl, basePeriod);
+    const baseRep = getEffectiveBase(repEl, baseAs);
+
+    return baseRep;
 }

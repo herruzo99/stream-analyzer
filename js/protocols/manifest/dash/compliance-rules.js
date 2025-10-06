@@ -24,6 +24,7 @@ import {
  * @property {string} isoRef - The reference to the ISO/IEC 23009-1:2022 standard clause.
  * @property {CheckStatus} severity - The status to assign if the check fails ('fail' or 'warn').
  * @property {RuleScope} scope - The MPD element level this rule applies to.
+ * @property {string[]} profiles - An array of DASH profiles this rule applies to. 'common' for general applicability.
  * @property {(element: object, context: object) => boolean | 'skip'} check - The function that performs the validation. Returns `true` for pass, `false` for fail/warn, or `'skip'` if not applicable.
  * @property {string | ((element: object, context: object) => string)} passDetails - Details for a passing check.
  * @property {string | ((element: object, context: object) => string)} failDetails - Details for a failing or warning check.
@@ -39,6 +40,7 @@ export const rules = [
         isoRef: 'Clause 5.3.1.2',
         severity: 'fail',
         scope: 'MPD',
+        profiles: ['common'],
         category: 'Manifest Structure',
         check: (mpd) => !!mpd,
         passDetails: 'OK',
@@ -51,6 +53,7 @@ export const rules = [
         isoRef: 'Clause 5.3.1.2, Table 3',
         severity: 'fail',
         scope: 'MPD',
+        profiles: ['common'],
         category: 'Manifest Structure',
         check: (mpd) =>
             getAttr(mpd, 'profiles') !== undefined &&
@@ -65,6 +68,7 @@ export const rules = [
         isoRef: 'Clause 5.3.1.2, Table 3',
         severity: 'fail',
         scope: 'MPD',
+        profiles: ['common'],
         category: 'Manifest Structure',
         check: (mpd) => getAttr(mpd, 'minBufferTime') !== undefined,
         passDetails: 'OK',
@@ -76,6 +80,7 @@ export const rules = [
         isoRef: 'Clause 5.3.1.2, Table 3',
         severity: 'fail',
         scope: 'MPD',
+        profiles: ['common'],
         category: 'Manifest Structure',
         check: (mpd) =>
             getAttr(mpd, 'type') === 'static' ||
@@ -90,6 +95,7 @@ export const rules = [
         isoRef: 'Clause 5.6',
         severity: 'fail',
         scope: 'MPD',
+        profiles: ['common'],
         category: 'Manifest Structure',
         check: (mpd) => findChildren(mpd, 'BaseURL').length <= 1,
         passDetails: 'OK',
@@ -101,6 +107,7 @@ export const rules = [
         isoRef: 'Clause 5.15.2',
         severity: 'fail',
         scope: 'MPD',
+        profiles: ['isoff-live:2011', 'cmaf:2019'], // Applies to live profiles using patching
         category: 'Live Stream Properties',
         check: (mpd) => {
             if (!findChild(mpd, 'PatchLocation')) return 'skip';
@@ -121,6 +128,7 @@ export const rules = [
         isoRef: 'Clause 5.3.1.2, Table 3',
         severity: 'fail',
         scope: 'MPD',
+        profiles: ['isoff-live:2011', 'cmaf:2019', 'mp2t-main:2011'],
         category: 'Live Stream Properties',
         check: (mpd, { isDynamic }) =>
             isDynamic
@@ -135,6 +143,7 @@ export const rules = [
         isoRef: 'Clause 5.3.1.2, Table 3',
         severity: 'fail',
         scope: 'MPD',
+        profiles: ['isoff-live:2011', 'cmaf:2019', 'mp2t-main:2011'],
         category: 'Live Stream Properties',
         check: (mpd, { isDynamic }) =>
             isDynamic ? getAttr(mpd, 'publishTime') !== undefined : 'skip',
@@ -147,6 +156,7 @@ export const rules = [
         isoRef: 'Clause 5.3.1.2, Table 3',
         severity: 'warn',
         scope: 'MPD',
+        profiles: ['isoff-live:2011', 'cmaf:2019', 'mp2t-main:2011'],
         category: 'Live Stream Properties',
         check: (mpd, { isDynamic }) =>
             isDynamic
@@ -163,6 +173,7 @@ export const rules = [
         isoRef: 'Clause 5.3.1.2, Table 3',
         severity: 'fail',
         scope: 'MPD',
+        profiles: ['isoff-on-demand:2011', 'common'], // Applies to most static
         category: 'Manifest Structure',
         check: (mpd, { isDynamic }) => {
             if (isDynamic) return 'skip';
@@ -185,6 +196,7 @@ export const rules = [
         isoRef: 'Clause 5.3.1.2, Table 3',
         severity: 'fail',
         scope: 'MPD',
+        profiles: ['isoff-on-demand:2011', 'common'],
         category: 'Manifest Structure',
         check: (mpd, { isDynamic }) =>
             isDynamic
@@ -199,6 +211,7 @@ export const rules = [
         isoRef: 'Clause 5.3.1.2, Table 3',
         severity: 'fail',
         scope: 'MPD',
+        profiles: ['isoff-on-demand:2011', 'common'],
         category: 'Manifest Structure',
         check: (mpd, { isDynamic }) =>
             isDynamic
@@ -215,6 +228,7 @@ export const rules = [
         isoRef: 'Clause 5.3.2.2, Table 4',
         severity: 'fail',
         scope: 'Period',
+        profiles: ['isoff-live:2011', 'cmaf:2019', 'mp2t-main:2011'],
         category: 'Live Stream Properties',
         check: (period, { isDynamic }) =>
             isDynamic ? getAttr(period, 'id') !== undefined : 'skip',
@@ -228,6 +242,7 @@ export const rules = [
         isoRef: 'Clause 5.3.2.2, Table 4',
         severity: 'warn',
         scope: 'Period',
+        profiles: ['common'],
         category: 'Manifest Structure',
         check: (period) => {
             const duration = getAttr(period, 'duration');
@@ -247,6 +262,7 @@ export const rules = [
         isoRef: 'Clause 5.10.2, Table 24',
         severity: 'fail',
         scope: 'Period',
+        profiles: ['common'],
         category: 'Manifest Structure',
         check: (period) => {
             const eventStreams = findChildren(period, 'EventStream');
@@ -265,6 +281,7 @@ export const rules = [
         isoRef: 'Clause 5.3.3.2, Table 5',
         severity: 'warn',
         scope: 'AdaptationSet',
+        profiles: ['common'],
         category: 'General Best Practices',
         check: (as) =>
             getAttr(as, 'contentType') !== undefined ||
@@ -278,6 +295,7 @@ export const rules = [
         isoRef: 'Clause 5.3.3.2, Table 5',
         severity: 'warn',
         scope: 'AdaptationSet',
+        profiles: ['common'],
         category: 'General Best Practices',
         check: (as) =>
             findChildren(as, 'Representation').length > 1
@@ -295,6 +313,7 @@ export const rules = [
         isoRef: 'Clause 5.3.5.2, Table 9',
         severity: 'fail',
         scope: 'Representation',
+        profiles: ['common'],
         category: 'Manifest Structure',
         check: (rep) => getAttr(rep, 'id') !== undefined,
         passDetails: 'OK',
@@ -306,6 +325,7 @@ export const rules = [
         isoRef: 'Clause 5.3.5.2, Table 9',
         severity: 'fail',
         scope: 'Representation',
+        profiles: ['common'],
         category: 'Manifest Structure',
         check: (rep) => getAttr(rep, 'bandwidth') !== undefined,
         passDetails: 'OK',
@@ -317,6 +337,7 @@ export const rules = [
         isoRef: 'Clause 5.3.7.2, Table 14',
         severity: 'fail',
         scope: 'Representation',
+        profiles: ['common'],
         category: 'Manifest Structure',
         check: (rep, { adaptationSet }) =>
             getAttr(rep, 'mimeType') !== undefined ||
@@ -331,6 +352,7 @@ export const rules = [
         isoRef: 'Clause 5.3.5.2, Table 9',
         severity: 'warn',
         scope: 'Representation',
+        profiles: ['common'],
         category: 'Manifest Structure',
         check: (rep, { allRepIdsInPeriod }) => {
             const dependencyId = getAttr(rep, 'dependencyId');
@@ -351,6 +373,7 @@ export const rules = [
         isoRef: 'Clause 5.3.9.1',
         severity: 'fail',
         scope: 'Representation',
+        profiles: ['common'],
         category: 'Segment & Timing Info',
         check: (rep) => {
             const elements = [
@@ -370,6 +393,7 @@ export const rules = [
         isoRef: 'Clause 5.3.9.5.3',
         severity: 'fail',
         scope: 'Representation',
+        profiles: ['isoff-live:2011', 'cmaf:2019', 'isoff-on-demand:2011'],
         category: 'Segment & Timing Info',
         check: (rep, { adaptationSet, period }) => {
             const hierarchy = [rep, adaptationSet, period];
@@ -396,6 +420,7 @@ export const rules = [
         isoRef: 'Clause 5.3.9.4.4, Table 21',
         severity: 'fail',
         scope: 'Representation',
+        profiles: ['isoff-live:2011', 'cmaf:2019'],
         category: 'Segment & Timing Info',
         check: (rep, { adaptationSet, period }) => {
             const hierarchy = [rep, adaptationSet, period];
@@ -418,14 +443,9 @@ export const rules = [
         isoRef: 'Clause 8.3.2',
         severity: 'fail',
         scope: 'MPD',
+        profiles: ['isoff-on-demand:2011'],
         category: 'Profile Conformance',
-        check: (mpd, { profiles }) => {
-            if (
-                !profiles.includes('urn:mpeg:dash:profile:isoff-on-demand:2011')
-            )
-                return 'skip';
-            return getAttr(mpd, 'type') === 'static';
-        },
+        check: (mpd) => getAttr(mpd, 'type') === 'static',
         passDetails: 'OK',
         failDetails: (mpd) =>
             `Profile requires 'static', but found '${getAttr(mpd, 'type')}'`,
@@ -438,16 +458,14 @@ export const rules = [
         isoRef: 'Clause 8.4.2',
         severity: 'fail',
         scope: 'Representation',
+        profiles: ['isoff-live:2011'],
         category: 'Profile Conformance',
-        check: (rep, { profiles, adaptationSet, period }) => {
-            if (!profiles.includes('urn:mpeg:dash:profile:isoff-live:2011'))
-                return 'skip';
-            return !!(
+        check: (rep, { adaptationSet, period }) =>
+            !!(
                 findChild(rep, 'SegmentTemplate') ||
                 findChild(adaptationSet, 'SegmentTemplate') ||
                 findChild(period, 'SegmentTemplate')
-            );
-        },
+            ),
         passDetails: 'OK',
         failDetails: 'SegmentTemplate must be used in this profile.',
     },
@@ -459,10 +477,9 @@ export const rules = [
         isoRef: 'Clause 8.12.4.3',
         severity: 'fail',
         scope: 'AdaptationSet',
+        profiles: ['cmaf:2019'],
         category: 'Profile Conformance',
-        check: (as, { profiles }) => {
-            if (!profiles.includes('urn:mpeg:dash:profile:cmaf:2019'))
-                return 'skip';
+        check: (as) => {
             const mimeType = getAttr(as, 'mimeType');
             if (mimeType !== 'video/mp4' && mimeType !== 'audio/mp4')
                 return 'skip';
@@ -484,6 +501,7 @@ export const rules = [
         isoRef: 'Annex K.3.2.2',
         severity: 'fail',
         scope: 'AdaptationSet',
+        profiles: ['isoff-live:2011', 'cmaf:2019'], // Applies where LL is supported
         category: 'Live Stream Properties',
         check: (as) => {
             const serviceDescription = findChild(as, 'ServiceDescription');

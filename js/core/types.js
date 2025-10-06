@@ -81,6 +81,10 @@
  * @property {Label[]} groupLabels
  * @property {SubRepresentation[]} subRepresentations
  * @property {string | undefined} videoRange
+ * @property {string | null} stableVariantId
+ * @property {string | null} pathwayId
+ * @property {string | null} supplementalCodecs
+ * @property {string | null} reqVideoLayout
  * @property {object} serializedManifest
  */
 
@@ -89,6 +93,20 @@
  * @property {string} schemeIdUri
  * @property {string} system
  * @property {string | null} defaultKid
+ */
+
+/**
+ * @typedef {object} ContentComponent
+ * @property {string | null} id
+ * @property {string | null} lang
+ * @property {string | null} contentType
+ * @property {string | null} par
+ * @property {string | null} tag
+ * @property {Descriptor[]} accessibility
+ * @property {Descriptor[]} roles
+ * @property {Descriptor[]} ratings
+ * @property {Descriptor[]} viewpoints
+ * @property {object} serializedManifest
  */
 
 /**
@@ -112,6 +130,14 @@
  * @property {Label[]} labels
  * @property {Label[]} groupLabels
  * @property {Descriptor[]} roles
+ * @property {ContentComponent[]} contentComponents
+ * @property {string | null} stableRenditionId
+ * @property {number | null} bitDepth
+ * @property {number | null} sampleRate
+ * @property {string | null} channels
+ * @property {string | null} assocLanguage
+ * @property {string[] | null} characteristics
+ * @property {boolean} forced
  * @property {object} serializedManifest
  */
 
@@ -122,6 +148,7 @@
  * @property {string} message - A descriptive message for the event.
  * @property {string | null} messageData
  * @property {string} type - A category for the event (e.g., 'dash-event', 'hls-daterange').
+ * @property {string | null} cue
  */
 
 /**
@@ -192,7 +219,7 @@
  * @property {string} id
  * @property {string | null} lang
  * @property {string[]} codecs
- * @property {string[]} channels
+ * @property {string | null} channels
  * @property {boolean} isDefault
  * @property {boolean} isForced
  * @property {string[]} roles
@@ -398,6 +425,7 @@
  * @property {boolean} isPolling - The current polling state for this stream.
  * @property {Manifest | null} manifest - The currently active manifest (master or media).
  * @property {string} rawManifest - The raw text of the currently active manifest.
+ * @property {object | null} steeringInfo - The parsed EXT-X-CONTENT-STEERING tag.
  * @property {ManifestUpdate[]} manifestUpdates
  * @property {number} activeManifestUpdateIndex
  * @property {Map<string, MediaPlaylist>} mediaPlaylists - A cache of fetched media playlists for HLS.

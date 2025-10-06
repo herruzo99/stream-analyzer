@@ -16,6 +16,8 @@ import {
     saveToHistory,
     saveLastUsedStreams,
     getLastUsedStreams,
+    getHistory,
+    getPresets,
 } from '../shared/utils/stream-storage.js';
 import { initializeHlsVariantPoller } from '../services/hlsVariantPollerService.js';
 import { initializeCmafService } from '../services/cmafService.js';
@@ -60,12 +62,16 @@ function handleAnalysis(dom) {
             const urlInput = /** @type {HTMLInputElement} */ (
                 group.querySelector('.input-url')
             );
+            const nameInput = /** @type {HTMLInputElement} */ (
+                group.querySelector('.input-name')
+            );
             const fileInput = /** @type {HTMLInputElement} */ (
                 group.querySelector('.input-file')
             );
             return {
                 id,
                 url: urlInput.value,
+                name: nameInput.value,
                 file: fileInput.files.length > 0 ? fileInput.files[0] : null,
             };
         })
@@ -74,7 +80,7 @@ function handleAnalysis(dom) {
     if (inputs.length > 0) {
         const streamsToSave = inputs
             .filter((i) => i.url) // Only save URL-based inputs
-            .map((i) => ({ url: i.url }));
+            .map((i) => ({ url: i.url, name: i.name }));
         saveLastUsedStreams(streamsToSave);
 
         eventBus.dispatch('analysis:request', { inputs });
@@ -115,6 +121,7 @@ function populateLastUsedStreams(dom) {
     const lastUsed = getLastUsedStreams();
     if (lastUsed && lastUsed.length > 0) {
         storeActions.setStreamInputsFromData(lastUsed);
+        const allStoredStreams = [...getHistory(), ...getPresets()];
 
         // Defer DOM manipulation until after the state change has rendered.
         Promise.resolve().then(() => {
@@ -122,11 +129,28 @@ function populateLastUsedStreams(dom) {
                 '.stream-input-group'
             );
             inputGroups.forEach((group, index) => {
+                if (!lastUsed[index]) return;
+
                 const urlInput = /** @type {HTMLInputElement} */ (
                     group.querySelector('.input-url')
                 );
-                if (lastUsed[index] && urlInput) {
-                    urlInput.value = lastUsed[index].url || '';
+                const nameInput = /** @type {HTMLInputElement} */ (
+                    group.querySelector('.input-name')
+                );
+
+                if (urlInput) {
+                    const lastUsedUrl = lastUsed[index].url || '';
+                    urlInput.value = lastUsedUrl;
+
+                    const storedItem = allStoredStreams.find(
+                        (s) => s.url === lastUsedUrl
+                    );
+                    if (storedItem) {
+                        nameInput.value = storedItem.name;
+                    }
+
+                    // Manually trigger the input event to correctly set the save button state
+                    urlInput.dispatchEvent(new Event('input', { bubbles: true }));
                 }
             });
         });

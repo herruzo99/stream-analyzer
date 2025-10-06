@@ -121,7 +121,7 @@ export const sidebarTemplate = (
     return html`
         <!-- FIX: Filter bar is now a non-growing element -->
         <div
-            class="compliance-filter-bar flex-shrink-0 flex items-center gap-2 mb-4 p-2 bg-gray-900/50 rounded-md sticky top-0 z-20 border-b border-gray-700"
+            class="compliance-filter-bar flex-shrink-0 flex flex-wrap justify-center sm:justify-start items-center gap-2 mb-4 p-2 bg-gray-900/50 rounded-md sticky top-0 z-20 border-b border-gray-700"
         >
             ${filterButton('all', 'All', counts.all)}
             ${filterButton('fail', 'Errors', counts.fail)}

@@ -224,7 +224,8 @@ export function getInteractiveTsTemplate(
     currentPage,
     bytesPerPage,
     onHexPageChange,
-    allTooltips
+    allTooltips,
+    inspectorState
 ) {
     const { activeSegmentUrl, segmentCache } = useStore.getState();
     const cachedSegment = segmentCache.get(activeSegmentUrl);
@@ -258,7 +259,8 @@ export function getInteractiveTsTemplate(
                         currentPage,
                         bytesPerPage,
                         onHexPageChange,
-                        allTooltips
+                        allTooltips,
+                        inspectorState
                     ),
                     container
                 );
@@ -272,7 +274,7 @@ export function getInteractiveTsTemplate(
         >
             <div class="sticky top-4 h-max flex flex-col gap-4">
                 <div
-                    class="segment-inspector-panel rounded-md bg-gray-900/90 border border-gray-700 transition-opacity duration-200 h-[24rem] overflow-hidden flex flex-col"
+                    class="segment-inspector-panel rounded-md bg-gray-900/90 border border-gray-700 transition-opacity duration-200 h-96 lg:h-[24rem] overflow-hidden flex flex-col"
                 >
                     ${inspectorPanelTemplate()}
                 </div>
@@ -289,7 +291,8 @@ export function getInteractiveTsTemplate(
                     currentPage,
                     bytesPerPage,
                     onHexPageChange,
-                    allTooltips
+                    allTooltips,
+                    inspectorState
                 )}
             </div>
         </div>

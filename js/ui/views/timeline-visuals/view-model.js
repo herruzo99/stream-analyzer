@@ -39,6 +39,7 @@ export async function createDashTimelineViewModel(stream) {
                     }
 
                     const fragments = mediaSegments.map((seg) => ({
+                        number: seg.number,
                         startTime: seg.time / seg.timescale,
                         duration: seg.duration / seg.timescale,
                     }));
