@@ -6,19 +6,19 @@
  * @returns {object} The parsed descriptor.
  */
 export function parseSmoothingBufferDescriptor(view, baseOffset) {
-    const bytes = new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
-    // sb_leak_rate is 22 bits, spanning from bit 2 of byte 0 to bit 7 of byte 2
-    const sb_leak_rate =
-        ((bytes[0] & 0x03) << 20) |
-        (bytes[1] << 12) |
-        (bytes[2] << 4) |
-        (bytes[3] >> 4);
-    // sb_size is 22 bits, spanning from bit 2 of byte 3 to bit 7 of byte 5
-    const sb_size =
-        ((bytes[3] & 0x03) << 20) |
-        (bytes[4] << 12) |
-        (bytes[5] << 4) |
-        (view.getUint8(6) >> 4);
+    if (view.byteLength < 6) {
+        return { error: 'Payload too short for SmoothingBufferDescriptor' };
+    }
+
+    const byte0 = view.getUint8(0);
+    const byte1 = view.getUint8(1);
+    const byte2 = view.getUint8(2);
+    const sb_leak_rate = ((byte0 & 0x3f) << 16) | (byte1 << 8) | byte2;
+
+    const byte3 = view.getUint8(3);
+    const byte4 = view.getUint8(4);
+    const byte5 = view.getUint8(5);
+    const sb_size = ((byte3 & 0x3f) << 16) | (byte4 << 8) | byte5;
 
     return {
         sb_leak_rate: {

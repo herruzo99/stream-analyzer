@@ -44,8 +44,14 @@ export function initializeLoader(domContext) {
     eventBus.subscribe('segment:loaded', hideLoader);
 
     // --- HLS Media Playlist Loading ---
-    eventBus.subscribe('hls:media-playlist-fetch-request', () =>
-        showLoader('Fetching media playlist...')
+    eventBus.subscribe(
+        'hls:media-playlist-fetch-request',
+        ({ isBackground }) => {
+            // Only show loader for user-initiated (foreground) fetches.
+            if (!isBackground) {
+                showLoader('Fetching media playlist...');
+            }
+        }
     );
     eventBus.subscribe('hls-media-playlist-fetched', hideLoader);
     eventBus.subscribe('hls-media-playlist-error', hideLoader);

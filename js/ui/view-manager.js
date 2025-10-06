@@ -2,15 +2,18 @@ import { eventBus } from '../core/event-bus.js';
 import { storeActions } from '../core/store.js';
 
 export function initializeViewManager() {
-    // The `startAnalysis` action resets the entire store to its initial state,
-    // which includes setting `viewState` to 'input'. This correctly transitions the UI.
+    // This event should only indicate that the process has begun, typically
+    // to show a loader. It should not reset the application state.
     eventBus.subscribe('analysis:started', () => {
-        storeActions.startAnalysis();
+        // DO NOT reset state here. The loader is handled separately.
+        // The store is now only reset when a new analysis is explicitly requested
+        // by the user via the "Analyze New Streams" button.
     });
 
     // If analysis fails after starting, we ensure we're back in the input state.
+    // The `startAnalysis` action resets the store, which includes setting viewState to 'input'.
     eventBus.subscribe('analysis:failed', () => {
-        storeActions.startAnalysis();
+        storeActions.setViewState('input');
     });
 
     // The `completeAnalysis` action, called on 'state:analysis-complete',

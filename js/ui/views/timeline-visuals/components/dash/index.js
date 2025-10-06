@@ -15,13 +15,16 @@ const renderEvents = (events, totalDuration, timelineStart = 0) => {
 
         if (left < 0 || left > 100) return '';
 
+        const tooltipContent = `Event: ${
+            event.scheme_id_uri?.value
+        }\nID: ${event.id?.value}\nValue: ${
+            event.value?.value
+        }\nTime: ${startTime.toFixed(2)}s\nDuration: ${duration.toFixed(2)}s`;
+
         return html`<div
             class="absolute top-0 h-full bg-yellow-500/50 border-l-2 border-yellow-400 z-10"
             style="left: ${left}%; width: ${Math.max(0.2, width)}%;"
-            title="Event: ${event.scheme_id_uri?.value}
-ID: ${event.id?.value}
-Time: ${startTime.toFixed(2)}s
-Duration: ${duration.toFixed(2)}s"
+            data-tooltip="${tooltipContent}"
         ></div>`;
     });
 };
@@ -41,9 +44,9 @@ const dashAbrLadderTemplate = (representations) => {
                     return html` <div class="flex items-center">
                         <div
                             class="w-28 text-xs text-gray-400 font-mono flex-shrink-0"
-                            title="Representation ID: ${rep.id}"
+                            title="Resolution: ${rep.resolution}"
                         >
-                            ${rep.resolution}
+                            ID: ${rep.id}
                         </div>
                         <div class="w-full bg-gray-700 rounded-full h-5">
                             <div
@@ -74,7 +77,9 @@ const timelineGridTemplate = (switchingSet) => {
 
     return html`
         <div class="mt-8">
-            <h4 class="text-lg font-bold">Switching Set: ${switchingSet.id}</h4>
+            <h4 class="text-lg font-bold">
+                Switching Set: ${switchingSet.id}
+            </h4>
             <div class="bg-gray-900 rounded-lg p-4 mt-2 relative">
                 ${renderEvents(allEvents, totalDuration)}
                 ${representations.map(
@@ -82,9 +87,9 @@ const timelineGridTemplate = (switchingSet) => {
                         <div class="flex items-center mb-1">
                             <div
                                 class="w-32 text-xs text-gray-400 font-mono flex-shrink-0 pr-2 text-right"
-                                title="Representation ID: ${rep.id}"
+                                title="Resolution: ${rep.resolution}"
                             >
-                                ${rep.resolution}
+                                Rep ID: ${rep.id}
                             </div>
                             <div
                                 class="w-full h-8 bg-gray-700/50 rounded flex items-center relative"
@@ -97,11 +102,16 @@ const timelineGridTemplate = (switchingSet) => {
                                                   style="width: ${(frag.duration /
                                                       totalDuration) *
                                                   100}%;"
-                                                  title="Start: ${frag.startTime.toFixed(
+                                                  data-tooltip="Segment #${
+                                                      frag.number
+                                                  }\nStart: ${frag.startTime.toFixed(
                                                       2
-                                                  )}s, Duration: ${frag.duration.toFixed(
+                                                  )}s\nDuration: ${frag.duration.toFixed(
                                                       2
-                                                  )}s"
+                                                  )}s\nEnd: ${(
+                                                      frag.startTime +
+                                                      frag.duration
+                                                  ).toFixed(2)}s"
                                               ></div>
                                           `
                                       )

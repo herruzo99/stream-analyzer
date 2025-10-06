@@ -6,6 +6,7 @@ import {
     getAttr,
     resolveBaseUrl,
 } from '../../protocols/manifest/dash/recursive-parser.js';
+import { findInitSegmentUrl } from '../../protocols/manifest/dash/segment-parser.js';
 
 // Configuration for CMAF Switching Set validation based on ISO/IEC 23000-19:2020(E), Table 11.
 const SWITCHING_SET_BOX_CHECKS = [
@@ -29,54 +30,6 @@ const SWITCHING_SET_BOX_CHECKS = [
     { box: 'sinf', ignore: [] },
     { box: 'tenc', ignore: [] },
 ];
-
-/**
- * Finds the Initialization Segment URL for a given Representation.
- * @param {import('../../core/types.js').Representation} representation
- * @param {import('../../core/types.js').AdaptationSet} adaptationSet
- * @param {import('../../core/types.js').Period} period
- * @param {string} baseUrl
- * @returns {string | null}
- */
-export function findInitSegmentUrl(
-    representation,
-    adaptationSet,
-    period,
-    baseUrl
-) {
-    const repElement = representation.serializedManifest;
-    if (!repElement) return null;
-
-    const template =
-        findChild(repElement, 'SegmentTemplate') ||
-        findChild(adaptationSet.serializedManifest, 'SegmentTemplate') ||
-        findChild(period.serializedManifest, 'SegmentTemplate');
-
-    if (template && getAttr(template, 'initialization')) {
-        return new URL(
-            getAttr(template, 'initialization').replace(
-                /\$RepresentationID\$/g,
-                representation.id
-            ),
-            baseUrl
-        ).href;
-    }
-
-    const segmentBase = findChild(repElement, 'SegmentBase');
-    const initialization = segmentBase
-        ? findChild(segmentBase, 'Initialization')
-        : null;
-    if (initialization && getAttr(initialization, 'sourceURL')) {
-        return new URL(getAttr(initialization, 'sourceURL'), baseUrl).href;
-    }
-
-    const baseURL = findChild(repElement, 'BaseURL');
-    if (baseURL && baseURL['#text']) {
-        return new URL(baseURL['#text'], baseUrl).href;
-    }
-
-    return null;
-}
 
 /**
  * Performs CMAF conformance checks on a single track using pre-fetched segment data.
@@ -169,7 +122,7 @@ export async function validateCmafSwitchingSets(stream, segmentFetcher) {
                     )
                 );
 
-                const baseInitData = parsedInitSegments[0]?.data;
+                const baseInitData = parsedInitSegments[0];
                 if (!baseInitData) {
                     throw new Error(
                         'Could not parse initialization segment for baseline representation.'
@@ -181,7 +134,7 @@ export async function validateCmafSwitchingSets(stream, segmentFetcher) {
 
                 for (let i = 1; i < parsedInitSegments.length; i++) {
                     const currentRepId = as.representations[i].id;
-                    const currentInitData = parsedInitSegments[i]?.data;
+                    const currentInitData = parsedInitSegments[i];
                     if (!currentInitData) {
                         allSetsMatch = false;
                         differences.push(

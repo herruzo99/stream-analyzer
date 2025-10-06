@@ -14,6 +14,9 @@ export function analyzeHlsFeatures(manifestIR) {
     /** @type {Record<string, FeatureCheckResult>} */
     const results = {};
     const tags = manifestIR.tags || [];
+    const allAdaptationSets = manifestIR.periods.flatMap(
+        (p) => p.adaptationSets
+    );
 
     results['Presentation Type'] = {
         used: true,
@@ -23,11 +26,61 @@ export function analyzeHlsFeatures(manifestIR) {
                 : '<code>VOD</code>',
     };
 
-    results['Master Playlist'] = {
+    results['Multivariant Playlist'] = {
         used: manifestIR.isMaster,
         details: manifestIR.isMaster
             ? `${manifestIR.variants?.length || 0} Variant Streams found.`
             : 'Media Playlist.',
+    };
+
+    results['Byte-Range Segments'] = {
+        used: tags.some((t) => t.name === 'EXT-X-BYTERANGE'),
+        details: 'Uses #EXT-X-BYTERANGE to define segments as sub-ranges.',
+    };
+
+    results['Discontinuity Sequence'] = {
+        used: tags.some((t) => t.name === 'EXT-X-DISCONTINUITY-SEQUENCE'),
+        details: 'Uses #EXT-X-DISCONTINUITY-SEQUENCE for synchronization.',
+    };
+
+    results['HDCP Level'] = {
+        used: (manifestIR.variants || []).some(
+            (v) => v.attributes['HDCP-LEVEL']
+        ),
+        details: 'HDCP-LEVEL attribute is present on one or more variants.',
+    };
+
+    const hasStableIds =
+        (manifestIR.variants || []).some(
+            (v) => v.attributes['STABLE-VARIANT-ID']
+        ) || allAdaptationSets.some((as) => as.stableRenditionId);
+    results['Stable Variant/Rendition IDs'] = {
+        used: hasStableIds,
+        details: hasStableIds
+            ? 'Uses STABLE-VARIANT-ID and/or STABLE-RENDITION-ID for persistent references.'
+            : 'Not used.',
+    };
+
+    const hasAdvancedChannels = allAdaptationSets.some(
+        (as) => as.channels && as.channels.includes('/')
+    );
+    results['Advanced Spatial Audio (CHANNELS)'] = {
+        used: hasAdvancedChannels,
+        details: hasAdvancedChannels
+            ? 'CHANNELS attribute contains advanced spatial audio parameters.'
+            : 'Not used.',
+    };
+
+    const hasMachineGenerated = allAdaptationSets.some(
+        (as) =>
+            as.characteristics &&
+            as.characteristics.includes('public.machine-generated')
+    );
+    results['Machine-Generated Content Flag'] = {
+        used: hasMachineGenerated,
+        details: hasMachineGenerated
+            ? 'One or more renditions are marked as machine-generated.'
+            : 'Not used.',
     };
 
     const hasDiscontinuity = (manifestIR.segments || []).some(
@@ -68,6 +121,22 @@ export function analyzeHlsFeatures(manifestIR) {
             : 'Likely Transport Stream (TS) segments.',
     };
 
+    const hasGap = (manifestIR.segments || []).some((s) => s.gap);
+    results['Gap Segments'] = {
+        used: hasGap,
+        details: hasGap
+            ? 'Contains #EXT-X-GAP tags to signal missing media.'
+            : 'No gap tags found.',
+    };
+
+    const hasBitrate = (manifestIR.segments || []).some((s) => s.bitrate);
+    results['Bitrate Hinting'] = {
+        used: hasBitrate,
+        details: hasBitrate
+            ? 'Contains #EXT-X-BITRATE tags.'
+            : 'No bitrate tags found.',
+    };
+
     results['I-Frame Playlists'] = {
         used: tags.some((t) => t.name === 'EXT-X-I-FRAME-STREAM-INF'),
         details: 'Provides dedicated playlists for trick-play modes.',
@@ -80,6 +149,27 @@ export function analyzeHlsFeatures(manifestIR) {
             mediaTags.length > 0
                 ? `${mediaTags.length} #EXT-X-MEDIA tags found.`
                 : 'No separate audio/video/subtitle renditions declared.',
+    };
+
+    results['Associated Language'] = {
+        used: allAdaptationSets.some((as) => as.assocLanguage),
+        details: 'Uses ASSOC-LANGUAGE to link related language renditions.',
+    };
+
+    results['Forced Subtitles'] = {
+        used: allAdaptationSets.some((as) => as.forced),
+        details: 'Contains subtitle renditions marked as FORCED.',
+    };
+
+    const allCharacteristics = [
+        ...new Set(allAdaptationSets.flatMap((as) => as.characteristics || [])),
+    ];
+    results['Rendition Characteristics'] = {
+        used: allCharacteristics.length > 0,
+        details:
+            allCharacteristics.length > 0
+                ? `Detected: ${allCharacteristics.join(', ')}`
+                : 'Not used.',
     };
 
     results['Date Ranges / Timed Metadata'] = {
@@ -98,12 +188,12 @@ export function analyzeHlsFeatures(manifestIR) {
 
     results['Session Data'] = {
         used: tags.some((t) => t.name === 'EXT-X-SESSION-DATA'),
-        details: 'Carries arbitrary session data in the master playlist.',
+        details: 'Carries arbitrary session data in the multivariant playlist.',
     };
     results['Session Keys'] = {
         used: tags.some((t) => t.name === 'EXT-X-SESSION-KEY'),
         details:
-            'Allows pre-loading of encryption keys from the master playlist.',
+            'Allows pre-loading of encryption keys from the multivariant playlist.',
     };
     results['Independent Segments'] = {
         used: tags.some((t) => t.name === 'EXT-X-INDEPENDENT-SEGMENTS'),
@@ -157,12 +247,50 @@ export function analyzeHlsFeatures(manifestIR) {
             : 'No content steering information found.',
     };
 
+    const videoRangeValues = new Set(
+        manifestIR.periods
+            .flatMap((p) => p.adaptationSets)
+            .flatMap((as) => as.representations)
+            .map((r) => r.videoRange)
+            .filter(Boolean)
+    );
+    results['Video Range (SDR/PQ/HLG)'] = {
+        used: videoRangeValues.size > 0,
+        details:
+            videoRangeValues.size > 0
+                ? `Detected: ${Array.from(videoRangeValues).join(', ')}`
+                : 'Not specified.',
+    };
+
+    const hasGeneralizedInstreamId = (manifestIR.periods || [])
+        .flatMap((p) => p.adaptationSets)
+        .some(
+            (as) =>
+                as.serializedManifest['INSTREAM-ID'] &&
+                as.serializedManifest.TYPE !== 'CLOSED-CAPTIONS'
+        );
+    results['Generalized INSTREAM-ID'] = {
+        used: hasGeneralizedInstreamId,
+        details: hasGeneralizedInstreamId
+            ? 'INSTREAM-ID used on non-CC media types.'
+            : 'Not used.',
+    };
+
+    const hasImmersiveVideo = (manifestIR.periods || [])
+        .flatMap((p) => p.adaptationSets)
+        .flatMap((as) => as.representations)
+        .some((r) => r.reqVideoLayout);
+    results['Immersive Video (REQ-VIDEO-LAYOUT)'] = {
+        used: hasImmersiveVideo,
+        details: hasImmersiveVideo
+            ? 'REQ-VIDEO-LAYOUT attribute found on one or more variants.'
+            : 'Not used.',
+    };
+
     // --- Advanced Metadata Check ---
     const advancedMetadata = [];
     if ((manifestIR.variants || []).some((v) => v.attributes.SCORE))
         advancedMetadata.push('SCORE');
-    if ((manifestIR.variants || []).some((v) => v.attributes['VIDEO-RANGE']))
-        advancedMetadata.push('VIDEO-RANGE');
     if (
         (manifestIR.variants || []).some(
             (v) => v.attributes['STABLE-VARIANT-ID']

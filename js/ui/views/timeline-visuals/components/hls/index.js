@@ -15,12 +15,16 @@ const renderEvents = (events, totalDuration) => {
             ? `Interstitial Ad: ${event.message}`
             : event.message;
 
+        const tooltipContent = `${title}\nStart: ${event.startTime.toFixed(
+            2
+        )}s\nDuration: ${event.duration.toFixed(2)}s${
+            event.cue ? `\nCue: ${event.cue}` : ''
+        }`;
+
         return html`<div
             class="absolute top-0 bottom-0 ${eventClasses}"
             style="left: ${left}%; width: ${width}%;"
-            title="${title}
-Start: ${event.startTime.toFixed(2)}s
-Duration: ${event.duration.toFixed(2)}s"
+            data-tooltip="${tooltipContent}"
         ></div>`;
     });
 };
@@ -116,15 +120,20 @@ const vodTimelineTemplate = (manifest) => {
 
     const timelineSegments = segments.map((seg, index) => {
         const isDiscontinuity = seg.discontinuity;
+        const tooltipContent = `Segment #${
+            (manifest.mediaSequence || 0) + index
+        }\nDuration: ${seg.duration.toFixed(3)}s${
+            isDiscontinuity ? '\n(Discontinuity)' : ''
+        }${
+            seg.dateTime ? `\nPDT: ${new Date(seg.dateTime).toISOString()}` : ''
+        }`;
+
         return html`
             <div
                 class="bg-gray-700 rounded h-10 border-r-2 ${isDiscontinuity
                     ? 'border-l-4 border-l-yellow-400'
                     : 'border-gray-900'} last:border-r-0"
-                title="Segment ${index + 1}
-Duration: ${seg.duration.toFixed(3)}s ${isDiscontinuity
-                    ? '\n(Discontinuity)'
-                    : ''}"
+                data-tooltip="${tooltipContent}"
             ></div>
         `;
     });
@@ -194,7 +203,7 @@ const liveTimelineTemplate = (manifest) => {
                         (seg, i) =>
                             html`<div
                                 class="bg-gray-700/50 border-r border-gray-900 flex"
-                                title="Segment Duration: ${seg.duration.toFixed(
+                                data-tooltip="Segment Duration: ${seg.duration.toFixed(
                                     2
                                 )}s"
                             >
@@ -205,9 +214,12 @@ const liveTimelineTemplate = (manifest) => {
                                             style="width: ${(part.DURATION /
                                                 seg.duration) *
                                             100}%"
-                                            title="Partial Segment
-Duration: ${part.DURATION.toFixed(3)}s
-Independent: ${part.INDEPENDENT === 'YES' ? 'Yes' : 'No'}"
+                                            data-tooltip="Partial Segment\nDuration: ${part.DURATION.toFixed(
+                                                3
+                                            )}s\nIndependent: ${part.INDEPENDENT ===
+                                            'YES'
+                                                ? 'Yes'
+                                                : 'No'}"
                                         ></div>
                                     `
                                 )}
@@ -220,8 +232,7 @@ Independent: ${part.INDEPENDENT === 'YES' ? 'Yes' : 'No'}"
                           <div
                               class="absolute top-0 right-0 h-full bg-blue-500/20 border-l-2 border-dashed border-blue-400"
                               style="width: ${preloadWidth}%; transform: translateX(100%);"
-                              title="Preload Hint: ${preloadHint.URI}
-Duration: ${preloadDuration}s"
+                              data-tooltip="Preload Hint: ${preloadHint.URI}\nDuration: ${preloadDuration}s"
                           ></div>
                       `
                     : ''}
@@ -229,12 +240,12 @@ Duration: ${preloadDuration}s"
                     ? html`<div
                           class="absolute top-0 bottom-0 w-0.5 bg-cyan-400"
                           style="left: ${holdBackPosition}%;"
-                          title="Server Recommended Playback Position (PART-HOLD-BACK: ${partHoldBack}s)"
+                          data-tooltip="Server Recommended Playback Position (PART-HOLD-BACK: ${partHoldBack}s)"
                       ></div>`
                     : ''}
                 <div
                     class="absolute right-0 top-0 bottom-0 w-1 bg-red-500 rounded-full"
-                    title="Approximate Live Edge"
+                    data-tooltip="Approximate Live Edge"
                 ></div>
             </div>
         </div>

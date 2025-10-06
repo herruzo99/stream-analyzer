@@ -30,6 +30,7 @@ import { eventBus } from './event-bus.js';
  * @property {'input' | 'results'} viewState
  * @property {string} activeTab
  * @property {ModalState} modalState
+ * @property {boolean} isCmafSummaryExpanded
  */
 
 /**
@@ -52,6 +53,7 @@ import { eventBus } from './event-bus.js';
  * @property {(view: 'input' | 'results') => void} setViewState
  * @property {(tabName: string) => void} setActiveTab
  * @property {(modalState: Partial<ModalState>) => void} setModalState
+ * @property {() => void} toggleCmafSummary
  */
 
 // --- Store Definition ---
@@ -81,6 +83,7 @@ const createInitialState = () => ({
         modalUrl: '',
         modalContentTemplate: null,
     },
+    isCmafSummaryExpanded: false,
 });
 
 /**
@@ -227,6 +230,12 @@ const store = createStore((set, get) => ({
             modalState: { ...state.modalState, ...newModalState },
         }));
     },
+
+    toggleCmafSummary: () => {
+        set((state) => ({
+            isCmafSummaryExpanded: !state.isCmafSummaryExpanded,
+        }));
+    },
 }));
 
 // --- Exporting Store and Actions ---
@@ -256,4 +265,5 @@ export const storeActions = {
     setViewState: (view) => store.getState().setViewState(view),
     setActiveTab: (tabName) => store.getState().setActiveTab(tabName),
     setModalState: (state) => store.getState().setModalState(state),
+    toggleCmafSummary: () => store.getState().toggleCmafSummary(),
 };

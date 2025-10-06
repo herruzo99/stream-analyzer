@@ -170,15 +170,15 @@ const renderVariant = (stream, variant, variantUri) => {
             No segments found in this playlist.
         </div>`;
     } else if (isExpanded) {
-        content = html` <div class="overflow-y-auto relative max-h-[70vh]">
+        content = html`<div class="overflow-x-auto relative">
             ${liveEdgeIndicatorTemplate(stream, segmentsToDisplay)}
-            <table class="w-full text-left text-sm table-auto">
+            <table class="w-full text-left text-sm table-auto min-w-[600px]">
                 <thead class="sticky top-0 bg-gray-900 z-10">
                     <tr>
                         <th class="px-3 py-2 w-8"></th>
-                        <th class="px-3 py-2 w-[25%]">Status / Type</th>
-                        <th class="px-3 py-2 w-[20%]">Timing (s)</th>
-                        <th class="px-3 py-2 w-[55%]">URL & Actions</th>
+                        <th class="px-3 py-2">Status / Type</th>
+                        <th class="px-3 py-2">Timing (s)</th>
+                        <th class="px-3 py-2">URL & Actions</th>
                     </tr>
                 </thead>
                 <tbody>

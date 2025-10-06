@@ -72,26 +72,43 @@ analysisWorker.onmessage = (event) => {
             break;
         }
         case 'hls-media-playlist-fetched': {
-            const { streamId, variantUri, segments, freshSegmentUrls } =
-                payload;
+            const {
+                streamId,
+                variantUri,
+                manifest,
+                manifestString,
+                segments,
+                freshSegmentUrls,
+            } = payload;
             const stream = useStore
                 .getState()
                 .streams.find((s) => s.id === streamId);
             if (stream) {
+                // Update hlsVariantState for segment explorer
                 const newVariantState = new Map(stream.hlsVariantState);
                 const currentState = newVariantState.get(variantUri);
                 if (currentState) {
                     newVariantState.set(variantUri, {
                         ...currentState,
                         segments,
-                        freshSegmentUrls: new Set(freshSegmentUrls), // Reconstruct Set
+                        freshSegmentUrls: new Set(freshSegmentUrls),
                         isLoading: false,
                         error: null,
                     });
-                    storeActions.updateStream(streamId, {
-                        hlsVariantState: newVariantState,
-                    });
                 }
+
+                // Update mediaPlaylists cache for interactive manifest view
+                const newMediaPlaylists = new Map(stream.mediaPlaylists);
+                newMediaPlaylists.set(variantUri, {
+                    manifest: manifest,
+                    rawManifest: manifestString,
+                    lastFetched: new Date(),
+                });
+
+                storeActions.updateStream(streamId, {
+                    hlsVariantState: newVariantState,
+                    mediaPlaylists: newMediaPlaylists,
+                });
             }
             break;
         }
@@ -127,11 +144,10 @@ async function analyzeStreams(inputs) {
     const workerInputs = [];
     for (const input of inputs) {
         try {
-            self.postMessage({
-                type: 'status-update',
-                payload: {
-                    message: `Fetching ${input.url || input.file.name}...`,
-                },
+            eventBus.dispatch('ui:show-status', {
+                message: `Fetching ${input.url || input.file.name}...`,
+                type: 'info',
+                duration: 2000,
             });
             let manifestString = '';
             if (input.url) {
@@ -182,9 +198,41 @@ function fetchHlsMediaPlaylist({ streamId, variantUri }) {
     });
 }
 
+/**
+ * Handles activating a media playlist for the interactive view.
+ * @param {object} payload
+ * @param {number} payload.streamId
+ * @param {string} payload.url
+ */
+function activateHlsMediaPlaylist({ streamId, url }) {
+    if (url === 'master') {
+        storeActions.updateStream(streamId, { activeMediaPlaylistUrl: null });
+        return;
+    }
+
+    const stream = useStore.getState().streams.find((s) => s.id === streamId);
+    if (!stream) return;
+
+    if (!stream.mediaPlaylists.has(url)) {
+        // Not cached, so we need to fetch it. The 'hls:media-playlist-fetch-request'
+        // is now more generic and used by the explorer too.
+        eventBus.dispatch('hls:media-playlist-fetch-request', {
+            streamId,
+            variantUri: url,
+            isBackground: false, // This is a user action
+        });
+    }
+    // Set the active URL. If it wasn't cached, the view will re-render
+    // with a loading state until the fetch completes and updates the store again.
+    storeActions.updateStream(streamId, { activeMediaPlaylistUrl: url });
+}
+
 eventBus.subscribe('analysis:request', ({ inputs }) => analyzeStreams(inputs));
 eventBus.subscribe(
     'hls:media-playlist-fetch-request',
     ({ streamId, variantUri }) =>
         fetchHlsMediaPlaylist({ streamId, variantUri })
+);
+eventBus.subscribe('hls:media-playlist-activate', (payload) =>
+    activateHlsMediaPlaylist(payload)
 );

@@ -10,7 +10,7 @@ import {
  * Runs a set of predefined compliance checks against a manifest.
  * @param {object} manifest - The raw manifest element (DASH) or the manifest IR (HLS).
  * @param {'dash' | 'hls'} protocol - The protocol of the manifest.
- * @param {object} [context={}] - Additional context for the checks.
+ * @param {object} [context={}] - Additional context for the checks, including standardVersion or manifestProfiles.
  * @returns {Array<object>} An array of check result objects, now including location data.
  */
 export function runChecks(manifest, protocol, context = {}) {
@@ -29,6 +29,10 @@ export function runChecks(manifest, protocol, context = {}) {
             ];
         }
 
+        const standardVersion = context.standardVersion || 13; // Default to latest
+        const applicableRules = hlsRules.filter(
+            (rule) => rule.version <= standardVersion
+        );
         const results = [];
         const isLive = manifestIR.type === 'dynamic';
         const version = manifestIR.hls?.version || 1;
@@ -38,6 +42,7 @@ export function runChecks(manifest, protocol, context = {}) {
             version,
             targetDuration,
             hlsParsed: manifestIR, // Pass IR for context
+            standardVersion, // Pass the selected standard version
             ...context,
         };
 
@@ -68,30 +73,30 @@ export function runChecks(manifest, protocol, context = {}) {
         } else {
             playlistScopes.push('MediaPlaylist');
         }
-        hlsRules
+        applicableRules
             .filter((rule) => playlistScopes.includes(rule.scope))
-            .forEach((rule) =>
+            .forEach((rule) => {
                 runRule(
                     /** @type {import('../../protocols/manifest/hls/compliance-rules.js').HlsRule} */ (
                         rule
                     ),
                     manifestIR
-                )
-            );
+                );
+            });
 
         if (!manifestIR.isMaster) {
             (manifestIR.segments || []).forEach((segment, index) => {
-                hlsRules
+                applicableRules
                     .filter((rule) => rule.scope === 'Segment')
-                    .forEach((rule) =>
+                    .forEach((rule) => {
                         runRule(
                             /** @type {import('../../protocols/manifest/hls/compliance-rules.js').HlsRule} */ (
                                 rule
                             ),
                             segment,
                             `(Segment ${index + 1})`
-                        )
-                    );
+                        );
+                    });
             });
 
             (manifestIR.tags || [])
@@ -101,25 +106,25 @@ export function runChecks(manifest, protocol, context = {}) {
                         ...keyTag.value,
                         lineNumber: keyTag.lineNumber,
                     };
-                    hlsRules
+                    applicableRules
                         .filter((rule) => rule.scope === 'Key')
-                        .forEach((rule) =>
+                        .forEach((rule) => {
                             runRule(
                                 /** @type {import('../../protocols/manifest/hls/compliance-rules.js').HlsRule} */ (
                                     rule
                                 ),
                                 key,
                                 `(Key ${index + 1}, Method: ${key.METHOD})`
-                            )
-                        );
+                            );
+                        });
                 });
         }
 
         if (manifestIR.isMaster) {
             (manifestIR.variants || []).forEach((variant, index) => {
-                hlsRules
+                applicableRules
                     .filter((rule) => rule.scope === 'Variant')
-                    .forEach((rule) =>
+                    .forEach((rule) => {
                         runRule(
                             /** @type {import('../../protocols/manifest/hls/compliance-rules.js').HlsRule} */ (
                                 rule
@@ -128,8 +133,8 @@ export function runChecks(manifest, protocol, context = {}) {
                             `(Variant Stream ${
                                 index + 1
                             }, BW: ${variant.attributes?.BANDWIDTH || 'N/A'})`
-                        )
-                    );
+                        );
+                    });
             });
 
             (manifestIR.tags || [])
@@ -139,9 +144,9 @@ export function runChecks(manifest, protocol, context = {}) {
                         ...iframeTag.value,
                         lineNumber: iframeTag.lineNumber,
                     };
-                    hlsRules
+                    applicableRules
                         .filter((rule) => rule.scope === 'IframeVariant')
-                        .forEach((rule) =>
+                        .forEach((rule) => {
                             runRule(
                                 /** @type {import('../../protocols/manifest/hls/compliance-rules.js').HlsRule} */ (
                                     rule
@@ -150,8 +155,8 @@ export function runChecks(manifest, protocol, context = {}) {
                                 `(I-Frame Stream ${index + 1}, BW: ${
                                     iframeStream?.BANDWIDTH || 'N/A'
                                 })`
-                            )
-                        );
+                            );
+                        });
                 });
 
             const mediaGroups = {};
@@ -171,9 +176,9 @@ export function runChecks(manifest, protocol, context = {}) {
 
             Object.values(mediaGroups).forEach((typeGroups) => {
                 Object.values(typeGroups).forEach((group, index) => {
-                    hlsRules
+                    applicableRules
                         .filter((rule) => rule.scope === 'MediaGroup')
-                        .forEach((rule) =>
+                        .forEach((rule) => {
                             runRule(
                                 /** @type {import('../../protocols/manifest/hls/compliance-rules.js').HlsRule} */ (
                                     rule
@@ -182,14 +187,15 @@ export function runChecks(manifest, protocol, context = {}) {
                                 `(Media Group ${index + 1}, ID: ${
                                     group[0]?.['GROUP-ID'] || 'N/A'
                                 }, Type: ${group[0]?.TYPE || 'N/A'})`
-                            )
-                        );
+                            );
+                        });
                 });
             });
         }
         return results;
     }
 
+    // DASH logic
     const mpd = /** @type {object} */ (manifest);
     const rootPath = 'MPD[0]';
 
@@ -207,10 +213,21 @@ export function runChecks(manifest, protocol, context = {}) {
         ];
     }
 
+    // Extract profiles from the manifest
+    const manifestProfilesString = (getAttr(mpd, 'profiles') || '')
+        .toLowerCase()
+        .replace(/urn:mpeg:dash:profile:/g, '')
+        .replace(/:20\d\d/g, ''); // Normalize profile strings
+    const manifestProfiles = new Set(
+        manifestProfilesString.split(',').map((p) => p.trim()).filter(Boolean)
+    );
+    if (manifestProfiles.size === 0) {
+        manifestProfiles.add('common'); // Fallback to common if no profiles declared
+    }
+
     const results = [];
     const isDynamic = getAttr(mpd, 'type') === 'dynamic';
-    const profiles = (getAttr(mpd, 'profiles') || '').toLowerCase();
-    const dashContext = { isDynamic, profiles };
+    const dashContext = { isDynamic, profiles: Array.from(manifestProfiles) }; // Pass manifestProfiles in context as an array
 
     const getDetails = (detail, element, detailContext) => {
         return typeof detail === 'function'
@@ -219,6 +236,19 @@ export function runChecks(manifest, protocol, context = {}) {
     };
 
     dashRules
+        .filter((rule) => {
+            // A rule applies if it's a 'common' rule OR if its profiles array
+            // overlaps with the profiles declared in the manifest.
+            if (rule.profiles.includes('common')) return true;
+            return rule.profiles.some((p) =>
+                manifestProfiles.has(
+                    p
+                        .toLowerCase()
+                        .replace(/urn:mpeg:dash:profile:/g, '')
+                        .replace(/:20\d\d/g, '')
+                )
+            );
+        })
         .filter((rule) => rule.scope === 'MPD')
         .forEach((rule) => {
             const result = rule.check(mpd, dashContext);
@@ -250,6 +280,17 @@ export function runChecks(manifest, protocol, context = {}) {
         const periodContext = { ...dashContext, allRepIdsInPeriod, period };
 
         dashRules
+            .filter((rule) => {
+                if (rule.profiles.includes('common')) return true;
+                return rule.profiles.some((p) =>
+                    manifestProfiles.has(
+                        p
+                            .toLowerCase()
+                            .replace(/urn:mpeg:dash:profile:/g, '')
+                            .replace(/:20\d\d/g, '')
+                    )
+                );
+            })
             .filter((rule) => rule.scope === 'Period')
             .forEach((rule) => {
                 const result = rule.check(period, periodContext);
@@ -277,6 +318,17 @@ export function runChecks(manifest, protocol, context = {}) {
             const asPath = `${periodPath}.AdaptationSet[${asIndex}]`;
             const asContext = { ...periodContext, adaptationSet: as };
             dashRules
+                .filter((rule) => {
+                    if (rule.profiles.includes('common')) return true;
+                    return rule.profiles.some((p) =>
+                        manifestProfiles.has(
+                            p
+                                .toLowerCase()
+                                .replace(/urn:mpeg:dash:profile:/g, '')
+                                .replace(/:20\d\d/g, '')
+                        )
+                    );
+                })
                 .filter((rule) => rule.scope === 'AdaptationSet')
                 .forEach((rule) => {
                     const result = rule.check(as, asContext);
@@ -304,6 +356,17 @@ export function runChecks(manifest, protocol, context = {}) {
                 const repPath = `${asPath}.Representation[${repIndex}]`;
                 const repContext = { ...asContext, representation: rep };
                 dashRules
+                    .filter((rule) => {
+                        if (rule.profiles.includes('common')) return true;
+                        return rule.profiles.some((p) =>
+                            manifestProfiles.has(
+                                p
+                                    .toLowerCase()
+                                    .replace(/urn:mpeg:dash:profile:/g, '')
+                                    .replace(/:20\d\d/g, '')
+                            )
+                        );
+                    })
                     .filter((rule) => rule.scope === 'Representation')
                     .forEach((rule) => {
                         const result = rule.check(rep, repContext);

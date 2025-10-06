@@ -104,11 +104,26 @@ export function createComparisonViewModel(streams) {
             label: 'Video Bitrate Range',
             tooltip: 'Min and Max bandwidth values for video.',
             isoRef: 'DASH: 5.3.5.2 / HLS: 4.3.4.2',
-            values: streams.map((s) =>
-                s.manifest?.summary.videoTracks.length > 0
-                    ? s.manifest.summary.videoTracks[0].bitrateRange
-                    : 'N/A'
-            ),
+            values: streams.map((s) => {
+                const tracks = s.manifest?.summary.videoTracks;
+                if (!tracks || tracks.length === 0) return 'N/A';
+                if (tracks.length === 1) return tracks[0].bitrateRange;
+
+                const bitrates = tracks
+                    .map((t) =>
+                        parseInt(t.bitrateRange.replace(/[^0-9]/g, ''), 10)
+                    )
+                    .filter(Boolean);
+                if (bitrates.length === 0) return 'N/A';
+
+                const min = Math.min(...bitrates);
+                const max = Math.max(...bitrates);
+                const unit = tracks[0].bitrateRange.includes('Mbps')
+                    ? 'Mbps'
+                    : 'kbps';
+
+                return `${min} - ${max} ${unit}`;
+            }),
         },
         {
             label: 'Video Resolutions',

@@ -21,6 +21,8 @@
         "lit-html": "^3.3.1",
         "serve": "^14.2.5",
         "xml-formatter": "^3.6.7",
+        "xmldom": "^0.6.0",
+        "xpath": "^0.0.34",
         "zustand": "^5.0.8"
     },
     "devDependencies": {
