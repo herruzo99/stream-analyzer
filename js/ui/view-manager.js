@@ -1,5 +1,5 @@
-import { eventBus } from '../core/event-bus.js';
-import { storeActions } from '../core/store.js';
+import { eventBus } from '../app/event-bus.js';
+import { storeActions } from '../app/store.js';
 
 export function initializeViewManager() {
     // This event should only indicate that the process has begun, typically

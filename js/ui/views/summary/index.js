@@ -5,7 +5,7 @@ import { getHlsSummaryTemplate } from './hls.js';
 /**
  * Main dispatcher for the Global Summary view.
  * It selects the appropriate protocol-specific template to render.
- * @param {import('../../../core/types.js').Stream} stream The active stream.
+ * @param {import('../../../app/types.js').Stream} stream The active stream.
  * @returns {import('lit-html').TemplateResult} The rendered template for the summary.
  */
 export function getGlobalSummaryTemplate(stream) {

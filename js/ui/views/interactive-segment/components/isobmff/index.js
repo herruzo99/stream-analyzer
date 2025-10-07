@@ -1,6 +1,6 @@
 import { html } from 'lit-html';
-import { useStore } from '../../../../../core/store.js';
-import { getTooltipData as getAllIsoTooltipData } from '../../../../../protocols/segment/isobmff/index.js';
+import { useStore } from '../../../../../app/store.js';
+import { getTooltipData as getAllIsoTooltipData } from '../../../../../infrastructure/segment/isobmff/index.js';
 import { hexViewTemplate } from '../../../../components/hex-view.js';
 import { buildByteMap } from './view-model.js';
 import { getInspectorState } from '../interaction-logic.js';
@@ -154,7 +154,9 @@ const renderBoxNode = (box) => {
                 class="p-1 rounded cursor-pointer ${selectionClass} border-l-4 ${colorClass}"
                 data-box-offset=${box.offset}
             >
-                <span class="font-mono text-sm text-white ml-2">${box.type}</span>
+                <span class="font-mono text-sm text-white ml-2"
+                    >${box.type}</span
+                >
                 <span class="text-xs text-gray-500 ml-2"
                     >(${box.size} bytes)</span
                 >

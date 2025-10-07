@@ -1,5 +1,5 @@
 import { html, render } from 'lit-html';
-import { useStore } from '../../../../../core/store.js';
+import { useStore } from '../../../../../app/store.js';
 import { hexViewTemplate } from '../../../../components/hex-view.js';
 import { buildByteMapTs } from './view-model.js';
 import { getInspectorState } from '../interaction-logic.js';

@@ -1,8 +1,35 @@
-import { render } from 'lit-html';
-import { useStore } from '../../core/store.js';
+import { html, render } from 'lit-html';
+import { useStore } from '../../app/store.js';
 import { closeModal } from '../../services/modalService.js';
+import { getSegmentAnalysisTemplate } from '../views/segment-analysis/index.js';
+import { scte35DetailsTemplate } from '../shared/scte35-details.js';
 
 let dom;
+
+/**
+ * Generates the correct lit-html template based on the modal content object.
+ * @param {{ type: string; data: any; } | null} modalContent
+ * @returns {import('lit-html').TemplateResult}
+ */
+function getContentTemplate(modalContent) {
+    if (!modalContent) {
+        return html``;
+    }
+
+    switch (modalContent.type) {
+        case 'segmentAnalysis':
+            return getSegmentAnalysisTemplate(
+                modalContent.data.parsedData,
+                modalContent.data.parsedDataB
+            );
+        case 'scte35':
+            return scte35DetailsTemplate(modalContent.data.scte35);
+        default:
+            return html`<p class="text-red-400">
+                Unknown modal content type: ${modalContent.type}
+            </p>`;
+    }
+}
 
 /**
  * Renders the modal based on the current state from the store.
@@ -16,7 +43,10 @@ function renderModal() {
     if (modalState.isModalOpen) {
         dom.modalTitle.textContent = modalState.modalTitle;
         dom.modalSegmentUrl.textContent = modalState.modalUrl;
-        render(modalState.modalContentTemplate, dom.modalContentArea);
+
+        // The rendering logic is now inside the UI component.
+        const template = getContentTemplate(modalState.modalContent);
+        render(template, dom.modalContentArea);
 
         dom.segmentModal.classList.remove('opacity-0', 'invisible');
         dom.segmentModal.classList.add('opacity-100', 'visible');

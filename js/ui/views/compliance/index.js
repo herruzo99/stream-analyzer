@@ -4,7 +4,7 @@ import { sidebarTemplate } from './components/sidebar.js';
 import { navigationTemplate } from './components/navigation.js';
 import { standardSelectorTemplate } from './components/standard-selector.js';
 import { renderApp } from '../../mainRenderer.js';
-import { runChecks } from '../../../engines/compliance/engine.js';
+import { runChecks } from '../../../domain/compliance/engine.js';
 
 let activeFilter = 'all';
 let activeStandardVersion = 13; // Default to the latest HLS version

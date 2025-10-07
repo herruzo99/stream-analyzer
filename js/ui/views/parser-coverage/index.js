@@ -1,6 +1,9 @@
 import { html } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
-import { highlightDash, highlightHls } from '../../shared/syntax-highlighter.js';
+import {
+    highlightDash,
+    highlightHls,
+} from '../../shared/syntax-highlighter.js';
 import { copyTextToClipboard } from '../../../shared/utils/clipboard.js';
 
 // --- Sidebar Logic ---
@@ -232,8 +235,7 @@ const manifestViewTemplate = (stream, coverageReport) => {
             const locationId = `cov-loc-${lineNumber}`;
 
             return html`<div class="flex">
-                <span
-                    class="text-right text-gray-500 pr-4 select-none w-12"
+                <span class="text-right text-gray-500 pr-4 select-none w-12"
                     >${lineNumber}</span
                 >
                 <span

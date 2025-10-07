@@ -1,5 +1,5 @@
 import { html } from 'lit-html';
-import { storeActions } from '../../../../core/store.js';
+import { storeActions } from '../../../../app/store.js';
 
 export const navigationTemplate = (stream) => {
     if (stream.manifest.type !== 'dynamic') return html``;

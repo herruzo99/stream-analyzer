@@ -1,9 +1,9 @@
-import { eventBus } from '../core/event-bus.js';
-import { storeActions } from '../core/store.js';
+import { eventBus } from '../app/event-bus.js';
+import { storeActions } from '../app/store.js';
 
 /**
  * Toggles the polling state for a given stream.
- * @param {import('../core/types.js').Stream | null} stream The stream to modify.
+ * @param {import('../app/types.js').Stream | null} stream The stream to modify.
  */
 export function toggleStreamPolling(stream) {
     if (stream) {
@@ -15,7 +15,7 @@ export function toggleStreamPolling(stream) {
 
 /**
  * Reloads the manifest for a given stream, handling different protocols and states.
- * @param {import('../core/types.js').Stream | null} stream The stream to reload.
+ * @param {import('../app/types.js').Stream | null} stream The stream to reload.
  */
 export function reloadStream(stream) {
     if (!stream) {

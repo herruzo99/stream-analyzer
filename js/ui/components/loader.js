@@ -1,4 +1,4 @@
-import { eventBus } from '../../core/event-bus.js';
+import { eventBus } from '../../app/event-bus.js';
 
 let dom;
 

@@ -1,8 +1,6 @@
 import { html } from 'lit-html';
-import { eventBus } from '../core/event-bus.js';
-import { useStore } from '../core/store.js';
-import { getSegmentAnalysisTemplate } from './views/segment-analysis/index.js';
-import { scte35DetailsTemplate } from './shared/scte35-details.js';
+import { eventBus } from '../app/event-bus.js';
+import { useStore } from '../app/store.js';
 import { savePreset } from '../shared/utils/stream-storage.js';
 import {
     reloadStream,
@@ -77,9 +75,10 @@ export function initializeUiController(domContext) {
         openModalWithContent({
             title: 'Segment Analysis',
             url: url,
-            contentTemplate: getSegmentAnalysisTemplate(
-                cachedSegment?.parsedData
-            ),
+            content: {
+                type: 'segmentAnalysis',
+                data: { parsedData: cachedSegment?.parsedData },
+            },
         });
     });
 
@@ -90,10 +89,13 @@ export function initializeUiController(domContext) {
         openModalWithContent({
             title: 'Segment Comparison',
             url: 'Comparing Segment A vs. Segment B',
-            contentTemplate: getSegmentAnalysisTemplate(
-                segmentA?.parsedData,
-                segmentB?.parsedData
-            ),
+            content: {
+                type: 'segmentAnalysis',
+                data: {
+                    parsedData: segmentA?.parsedData,
+                    parsedDataB: segmentB?.parsedData,
+                },
+            },
         });
     });
 
@@ -101,7 +103,7 @@ export function initializeUiController(domContext) {
         openModalWithContent({
             title: `SCTE-35 Details @ ${startTime.toFixed(3)}s`,
             url: 'Decoded Splice Info Section',
-            contentTemplate: scte35DetailsTemplate(scte35),
+            content: { type: 'scte35', data: { scte35, startTime } },
         });
     });
 }

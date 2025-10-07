@@ -67,7 +67,9 @@ export const trackTableTemplate = (tracks, type) => {
                             ? track.codecs.join(', ')
                             : track.codecs || 'N/A'}
                     </td>
-                    <td class="p-2 font-mono">${track.roles?.join(', ') || 'N/A'}</td>
+                    <td class="p-2 font-mono">
+                        ${track.roles?.join(', ') || 'N/A'}
+                    </td>
                 </tr>
             `
         );
@@ -83,10 +85,10 @@ export const trackTableTemplate = (tracks, type) => {
                             ? track.codecs.join(', ')
                             : track.codecs || 'N/A'}
                     </td>
+                    <td class="p-2 font-mono">${track.channels || 'N/A'}</td>
                     <td class="p-2 font-mono">
-                        ${track.channels || 'N/A'}
+                        ${track.roles?.join(', ') || 'N/A'}
                     </td>
-                    <td class="p-2 font-mono">${track.roles?.join(', ') || 'N/A'}</td>
                 </tr>
             `
         );
@@ -104,7 +106,9 @@ export const trackTableTemplate = (tracks, type) => {
                         track.mimeType ||
                         'N/A'}
                     </td>
-                    <td class="p-2 font-mono">${track.roles?.join(', ') || 'N/A'}</td>
+                    <td class="p-2 font-mono">
+                        ${track.roles?.join(', ') || 'N/A'}
+                    </td>
                 </tr>
             `
         );

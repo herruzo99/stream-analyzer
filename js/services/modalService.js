@@ -1,18 +1,18 @@
-import { storeActions } from '../core/store.js';
+import { storeActions } from '../app/store.js';
 
 /**
  * Opens the global modal with specific content.
  * @param {object} options
  * @param {string} options.title - The title to display in the modal header.
  * @param {string} options.url - The URL or identifier for the content being displayed.
- * @param {import('lit-html').TemplateResult} options.contentTemplate - The lit-html template to render as the modal's content.
+ * @param {{ type: string; data: any; }} options.content - A serializable object describing the content to be rendered.
  */
-export function openModalWithContent({ title, url, contentTemplate }) {
+export function openModalWithContent({ title, url, content }) {
     storeActions.setModalState({
         isModalOpen: true,
         modalTitle: title,
         modalUrl: url,
-        modalContentTemplate: contentTemplate,
+        modalContent: content,
     });
 }
 
@@ -24,6 +24,6 @@ export function closeModal() {
         isModalOpen: false,
         modalTitle: '',
         modalUrl: '',
-        modalContentTemplate: null,
+        modalContent: null,
     });
 }

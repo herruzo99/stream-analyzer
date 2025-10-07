@@ -1,6 +1,6 @@
 import { html } from 'lit-html';
 import { segmentRowTemplate } from '../../../../components/segment-row.js';
-import { eventBus } from '../../../../../core/event-bus.js';
+import { eventBus } from '../../../../../app/event-bus.js';
 
 let liveSegmentHighlighterInterval = null;
 
@@ -265,7 +265,7 @@ const renderVariant = (stream, variant, variantUri) => {
 
 /**
  * Creates the lit-html template for the HLS segment explorer content.
- * @param {import('../../../../../core/types.js').Stream} stream
+ * @param {import('../../../../../app/types.js').Stream} stream
  * @returns {import('lit-html').TemplateResult}
  */
 export function getHlsExplorerTemplate(stream) {
@@ -275,10 +275,62 @@ export function getHlsExplorerTemplate(stream) {
             title: `Variant Stream ${i + 1} (BW: ${(
                 v.attributes.BANDWIDTH / 1000
             ).toFixed(0)}k)`,
+            resolvedUri: v.resolvedUri,
         }));
-        return html`<div class="space-y-1">
-            ${variants.map((v) => renderVariant(stream, v, v.resolvedUri))}
-        </div>`;
+
+        const mediaPlaylists = (
+            stream.manifest.serializedManifest.media || []
+        ).filter((media) => media.URI);
+
+        const groupedMedia = mediaPlaylists.reduce((acc, media) => {
+            const type = media.TYPE || 'UNKNOWN';
+            if (!acc[type]) {
+                acc[type] = [];
+            }
+            acc[type].push(media);
+            return acc;
+        }, {});
+
+        const mediaGroupTemplate = (type, items) => html`
+            <div class="mt-4">
+                <h4 class="text-md font-semibold text-gray-400 mb-2">
+                    ${type} Renditions
+                </h4>
+                <div class="space-y-1">
+                    ${items.map((item) => {
+                        const resolvedUri = new URL(item.URI, stream.baseUrl)
+                            .href;
+                        const mediaItem = {
+                            title: `${
+                                item.NAME || item.LANGUAGE || `Default ${type}`
+                            } (${item.LANGUAGE || 'N/A'})`,
+                            resolvedUri: resolvedUri,
+                        };
+                        return renderVariant(
+                            stream,
+                            mediaItem,
+                            mediaItem.resolvedUri
+                        );
+                    })}
+                </div>
+            </div>
+        `;
+
+        return html`
+            <div>
+                <h4 class="text-md font-semibold text-gray-400 mb-2">
+                    Variant Streams
+                </h4>
+                <div class="space-y-1">
+                    ${variants.map((v) =>
+                        renderVariant(stream, v, v.resolvedUri)
+                    )}
+                </div>
+                ${Object.entries(groupedMedia).map(([type, items]) =>
+                    mediaGroupTemplate(type, items)
+                )}
+            </div>
+        `;
     } else {
         const mediaVariant = {
             title: 'Media Playlist Segments',

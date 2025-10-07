@@ -2,7 +2,7 @@ import { html } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { dashTooltipData } from './tooltip-data.js';
 import { tooltipTriggerClasses } from '../../../../../shared/constants.js';
-import { useStore, storeActions } from '../../../../../core/store.js';
+import { useStore, storeActions } from '../../../../../app/store.js';
 import { debugLog } from '../../../../../shared/utils/debug.js';
 
 const linesPerPage = 500;
