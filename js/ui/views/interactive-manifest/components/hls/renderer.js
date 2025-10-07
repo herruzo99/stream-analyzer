@@ -5,8 +5,10 @@ import { tooltipTriggerClasses } from '../../../../../shared/constants.js';
 import { eventBus } from '../../../../../core/event-bus.js';
 import { useStore, storeActions } from '../../../../../core/store.js';
 import { debugLog } from '../../../../../shared/utils/debug.js';
+import { renderApp } from '../../../../mainRenderer.js';
 
 const linesPerPage = 500;
+let showSubstituted = true; // Local state for this view
 
 const onPageChange = (offset, totalPages) => {
     const { interactiveManifestCurrentPage } = useStore.getState();
@@ -155,42 +157,45 @@ const getHlsLineHTML = (line) => {
 
     let valueHtml = '';
     if (tagValue.includes('=')) {
-        const parts = tagValue.match(/("[^"]*")|[^,]+/g) || [];
-        valueHtml = parts
-            .map((part) => {
-                const eqIndex = part.indexOf('=');
-                if (eqIndex === -1) return escapeHtml(part);
-                const attr = part.substring(0, eqIndex);
-                const val = part.substring(eqIndex + 1);
+        const regex = /([A-Z0-9-]+)=("[^"]*"|[^,]+)/g;
+        let match;
+        const parts = [];
 
-                const attrKey = `${tagName}@${attr}`;
-                const attrInfo = hlsTooltipData[attrKey];
+        while ((match = regex.exec(tagValue)) !== null) {
+            const attr = match[1];
+            let val = match[2];
+            const isQuoted = val.startsWith('"') && val.endsWith('"');
+            if (isQuoted) {
+                val = val.substring(1, val.length - 1);
+            }
 
-                let dynamicClasses = '';
-                let attrTooltipAttrs = '';
+            const attrKey = `${tagName}@${attr}`;
+            const attrInfo = hlsTooltipData[attrKey];
+            let dynamicClasses = '';
+            let attrTooltipAttrs = '';
 
-                if (attrInfo) {
-                    dynamicClasses = tooltipClass;
-                    attrTooltipAttrs = `data-tooltip="${escapeHtml(
-                        attrInfo.text
-                    )}" data-iso="${escapeHtml(attrInfo.ref)}"`;
-                } else {
-                    dynamicClasses =
-                        'cursor-help bg-red-900/50 missing-tooltip-trigger';
-                    attrTooltipAttrs = `data-tooltip="Tooltip definition missing for '${attr}' on tag #${tagName}"`;
-                }
+            if (attrInfo) {
+                dynamicClasses = tooltipClass;
+                attrTooltipAttrs = `data-tooltip="${escapeHtml(
+                    attrInfo.text
+                )}" data-iso="${escapeHtml(attrInfo.ref)}"`;
+            } else {
+                dynamicClasses =
+                    'cursor-help bg-red-900/50 missing-tooltip-trigger';
+                attrTooltipAttrs = `data-tooltip="Tooltip definition missing for '${attr}' on tag #${tagName}"`;
+            }
 
-                return `<span class="${attributeClass} ${dynamicClasses}" ${attrTooltipAttrs}>${escapeHtml(
+            parts.push(
+                `<span class="${attributeClass} ${dynamicClasses}" ${attrTooltipAttrs}>${escapeHtml(
                     attr
-                )}</span>=<span class="${valueClass}">${escapeHtml(
-                    val
-                )}</span>`;
-            })
-            .join('<span class="text-gray-400">,</span>');
+                )}</span>=<span class="${valueClass}">${
+                    isQuoted ? '&quot;' : ''
+                }${escapeHtml(val)}${isQuoted ? '&quot;' : ''}</span>`
+            );
+        }
+        valueHtml = parts.join('<span class="text-gray-400">,</span>');
     } else {
-        valueHtml = `<span class="${valueClass}">${escapeHtml(
-            tagValue
-        )}</span>`;
+        valueHtml = `<span class="${valueClass}">${escapeHtml(tagValue)}</span>`;
     }
 
     return `#<span class="${tagClass} ${
@@ -234,15 +239,21 @@ export const hlsManifestTemplate = (stream, currentPage) => {
     const { activeMediaPlaylistUrl } = stream;
     let manifestStringToDisplay;
     let manifestObjectForView;
+    let rawManifestString; // Keep the original raw string for the toggle
 
     if (activeMediaPlaylistUrl) {
         const mediaPlaylist = stream.mediaPlaylists.get(activeMediaPlaylistUrl);
-        manifestStringToDisplay = mediaPlaylist?.rawManifest;
+        rawManifestString = mediaPlaylist?.rawManifest;
         manifestObjectForView = mediaPlaylist?.manifest;
     } else {
-        manifestStringToDisplay = stream.rawManifest;
+        rawManifestString = stream.rawManifest;
         manifestObjectForView = stream.manifest;
     }
+
+    // This is the string WITH variables substituted, which we get from serializing the IR.
+    manifestStringToDisplay = showSubstituted
+        ? manifestObjectForView.serializedManifest.raw
+        : rawManifestString;
 
     if (!manifestStringToDisplay || !manifestObjectForView) {
         return html`<div class="text-yellow-400 p-4">
@@ -314,9 +325,28 @@ export const hlsManifestTemplate = (stream, currentPage) => {
               </div>`
             : '';
 
+    const handleToggle = () => {
+        showSubstituted = !showSubstituted;
+        renderApp(); // Trigger a re-render of the entire app to update this view
+    };
+
+    const variableControls =
+        stream.hlsDefinedVariables && stream.hlsDefinedVariables.size > 0
+            ? html`<div class="mb-2">
+                  <button
+                      @click=${handleToggle}
+                      class="text-xs px-3 py-1 rounded ${showSubstituted
+                          ? 'bg-blue-800 text-blue-200'
+                          : 'bg-gray-700 text-gray-300'}"
+                  >
+                      ${showSubstituted ? 'Show Raw' : 'Show Substituted'}
+                  </button>
+              </div>`
+            : '';
+
     return html`
-        ${hlsSubNavTemplate(stream)}
-        ${variableTableTemplate(stream.hlsDefinedVariables)}
+        ${hlsSubNavTemplate(stream)} ${variableTableTemplate(stream.hlsDefinedVariables)}
+        ${variableControls}
         <div
             class="bg-slate-800 rounded-lg p-4 font-mono text-sm leading-relaxed overflow-x-auto"
         >

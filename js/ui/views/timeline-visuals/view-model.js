@@ -42,6 +42,7 @@ export async function createDashTimelineViewModel(stream) {
                         number: seg.number,
                         startTime: seg.time / seg.timescale,
                         duration: seg.duration / seg.timescale,
+                        startTimeUTC: seg.startTimeUTC,
                     }));
 
                     const events = [];

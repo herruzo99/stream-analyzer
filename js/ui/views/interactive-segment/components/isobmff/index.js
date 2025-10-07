@@ -88,6 +88,19 @@ function groupboxesIntoChunks(boxes) {
                 offset: box.offset,
                 size: box.size + mdat.size,
                 children: [box, mdat],
+                details: {
+                    info: {
+                        value: 'A logical grouping of a moof and mdat box, representing a single CMAF chunk.',
+                        offset: box.offset,
+                        length: 0,
+                    },
+                    size: {
+                        value: `${box.size + mdat.size} bytes`,
+                        offset: box.offset,
+                        length: 0,
+                    },
+                },
+                issues: [],
             });
             i += 2;
         } else {

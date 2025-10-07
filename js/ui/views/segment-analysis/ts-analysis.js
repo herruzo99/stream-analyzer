@@ -1,4 +1,8 @@
 import { html } from 'lit-html';
+import { tooltipTriggerClasses } from '../../../shared/constants.js';
+import { getTooltipData as getTsTooltipData } from '../../../protocols/segment/ts/index.js';
+
+const tsTooltipData = getTsTooltipData();
 
 const dataItem = (label, value) => {
     if (value === null || value === undefined) return '';
@@ -12,9 +16,67 @@ const dataItem = (label, value) => {
     `;
 };
 
+const descriptorTableTemplate = (descriptors) => {
+    if (!descriptors || descriptors.length === 0) {
+        return html`<p class="text-xs text-gray-500 italic px-2">
+            No descriptors present.
+        </p>`;
+    }
+    return html`
+        <table
+            class="w-full text-left text-xs bg-gray-900/50 rounded-md my-2"
+        >
+            <thead>
+                <tr>
+                    <th class="p-2 font-semibold text-gray-400 w-1/4">
+                        Descriptor Name (Tag)
+                    </th>
+                    <th class="p-2 font-semibold text-gray-400">Details</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-700/50">
+                ${descriptors.map(
+                    (desc) => html`
+                        <tr>
+                            <td
+                                class="p-2 font-medium text-gray-300 align-top ${tooltipTriggerClasses}"
+                                data-tooltip="${tsTooltipData[desc.name]
+                                    ?.text || 'No description available'}"
+                                data-iso="${tsTooltipData[desc.name]?.ref ||
+                                ''}"
+                            >
+                                ${desc.name}
+                                <span class="text-gray-500"
+                                    >(0x${desc.tag.toString(16)})</span
+                                >
+                            </td>
+                            <td class="p-2 font-mono">
+                                <dl
+                                    class="grid grid-cols-[auto_1fr] gap-x-2"
+                                >
+                                    ${Object.entries(desc.details).map(
+                                        ([key, field]) => html`
+                                            <dt class="text-gray-400">
+                                                ${key}:
+                                            </dt>
+                                            <dd class="text-white break-all">
+                                                ${field.value}
+                                            </dd>
+                                        `
+                                    )}
+                                </dl>
+                            </td>
+                        </tr>
+                    `
+                )}
+            </tbody>
+        </table>
+    `;
+};
+
 export const tsAnalysisTemplate = (analysis) => {
     const { summary, packets } = analysis.data;
-    const pmtPid = Object.keys(summary.programMap)[0];
+    const pmtPid = [...summary.pmtPids][0];
     const program = pmtPid ? summary.programMap[pmtPid] : null;
 
     // Calculate PID counts for the new table
@@ -23,19 +85,11 @@ export const tsAnalysisTemplate = (analysis) => {
         return acc;
     }, {});
 
-    const pidTypes = {};
-    if (program) {
-        Object.assign(pidTypes, program.streams);
-        pidTypes[summary.pcrPid] = `${
-            pidTypes[summary.pcrPid] || 'Unknown'
-        } (PCR)`;
-    }
-    pidTypes[0] = 'PAT';
-    summary.pmtPids.forEach((pid) => (pidTypes[pid] = 'PMT'));
+    const pmtPacket = packets.find((p) => p.pid === pmtPid && p.psi);
 
     return html`
         <div
-            class="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3 bg-gray-900 border border-gray-700 rounded p-3 mb-4"
+            class="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3 bg-gray-900 border border-gray-700 rounded p-3 mb-6"
         >
             ${dataItem('Total Packets', summary.totalPackets)}
             ${dataItem('PCR PID', summary.pcrPid || 'N/A')}
@@ -45,43 +99,64 @@ export const tsAnalysisTemplate = (analysis) => {
                 : ''}
         </div>
 
-        <h4 class="text-md font-bold mb-2 mt-4">PID Allocation</h4>
-        <div
-            class="bg-gray-800/50 rounded-lg border border-gray-700 overflow-x-auto"
-        >
-            <table class="w-full text-left text-xs">
-                <thead class="bg-gray-900/50">
-                    <tr>
-                        <th class="p-2 font-semibold text-gray-300">PID</th>
-                        <th class="p-2 font-semibold text-gray-300">
-                            Packet Count
-                        </th>
-                        <th class="p-2 font-semibold text-gray-300">
-                            Stream Type / Purpose
-                        </th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-700">
-                    ${Object.entries(pidCounts)
-                        .sort(([a], [b]) => parseInt(a, 10) - parseInt(b, 10))
-                        .map(
-                            ([pid, count]) => html`
-                                <tr>
-                                    <td class="p-2 font-mono">
-                                        ${pid}
-                                        (0x${parseInt(pid)
-                                            .toString(16)
-                                            .padStart(4, '0')})
-                                    </td>
-                                    <td class="p-2 font-mono">${count}</td>
-                                    <td class="p-2">
-                                        ${pidTypes[pid] || 'Unknown/Data'}
-                                    </td>
-                                </tr>
-                            `
-                        )}
-                </tbody>
-            </table>
-        </div>
+        <h3 class="text-xl font-bold mb-4">Program Map Table (PMT) Details</h3>
+        ${pmtPacket
+            ? html`
+                  <div class="bg-gray-800 p-4 rounded-lg border border-gray-700">
+                      <div
+                          class="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3 mb-4"
+                      >
+                          ${dataItem('PMT PID', pmtPid)}
+                          ${dataItem('PCR PID', pmtPacket.psi.pcr_pid.value)}
+                      </div>
+
+                      <h4 class="text-md font-semibold mb-2 text-gray-300">
+                          Program Descriptors
+                      </h4>
+                      ${descriptorTableTemplate(
+                          pmtPacket.psi.program_descriptors
+                      )}
+
+                      <h4 class="text-md font-semibold mb-2 mt-4 text-gray-300">
+                          Elementary Streams
+                      </h4>
+                      <div class="space-y-4">
+                          ${pmtPacket.psi.streams.map(
+                              (stream) => html`
+                                  <div
+                                      class="border border-gray-700 rounded-lg p-3"
+                                  >
+                                      <div
+                                          class="flex items-baseline gap-4 font-mono text-sm"
+                                      >
+                                          <span
+                                              >PID:
+                                              <strong class="text-white"
+                                                  >${stream.elementary_PID
+                                                      .value}</strong
+                                              ></span
+                                          >
+                                          <span
+                                              >Stream Type:
+                                              <strong class="text-white"
+                                                  >${stream.stream_type
+                                                      .value}</strong
+                                              ></span
+                                          >
+                                      </div>
+                                      <div class="mt-2">
+                                          ${descriptorTableTemplate(
+                                              stream.es_descriptors
+                                          )}
+                                      </div>
+                                  </div>
+                              `
+                          )}
+                      </div>
+                  </div>
+              `
+            : html`<p class="text-sm text-gray-400">
+                  No PMT packet found in this segment.
+              </p>`}
     `;
 };

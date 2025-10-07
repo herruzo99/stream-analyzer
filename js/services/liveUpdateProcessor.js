@@ -11,6 +11,60 @@ import xmlFormatter from 'xml-formatter';
  */
 
 /**
+ * Checks for future SCTE-35 events and schedules a high-priority poll.
+ * @param {KnownProtocolStream} stream The stream being updated.
+ * @param {import('../core/types.js').Manifest} newManifestObject The newly parsed manifest IR.
+ */
+function schedulePollsFromScte35(stream, newManifestObject) {
+    if (stream.manifest.type !== 'dynamic' || !newManifestObject.events) {
+        return;
+    }
+
+    const now = Date.now();
+    const preRollBufferMs = 1000; // Poll 1 second before the event
+
+    for (const event of newManifestObject.events) {
+        if (!event.scte35 || event.scte35.error) {
+            continue;
+        }
+
+        const command = event.scte35.splice_command;
+        if (
+            !command ||
+            !command.splice_time ||
+            !command.splice_time.time_specified
+        ) {
+            continue;
+        }
+
+        const ptsTime = command.splice_time.pts_time;
+        const ptsAdjustment = event.scte35.pts_adjustment || 0;
+        const adjustedPts = ptsTime + ptsAdjustment;
+
+        // Find the most recent Program Clock Reference (PCR) from a segment to anchor our wall-clock calculation
+        // This is a simplified approach; a real-world client would maintain a running timeline.
+        // For our purposes, we anchor to availabilityStartTime.
+        const availabilityStartTime =
+            newManifestObject.availabilityStartTime?.getTime();
+        if (!availabilityStartTime) continue;
+
+        const eventMediaTimeSeconds = adjustedPts / 90000;
+        const eventWallClockTime =
+            availabilityStartTime + eventMediaTimeSeconds * 1000;
+
+        const pollTime = eventWallClockTime - preRollBufferMs;
+
+        if (pollTime > now) {
+            eventBus.dispatch('monitor:schedule-one-time-poll', {
+                streamId: stream.id,
+                pollTime: pollTime,
+                reason: `SCTE-35 ${command.type || 'Event'}`,
+            });
+        }
+    }
+}
+
+/**
  * Compares two sets of compliance results to see if any new issues have appeared.
  * @param {import('../core/types.js').ComplianceResult[]} oldResults
  * @param {import('../core/types.js').ComplianceResult[]} newResults
@@ -219,6 +273,9 @@ function processLiveUpdate(updateData) {
     } else if (knownProtocolStream.protocol === 'hls') {
         _updateHlsSegmentState(knownProtocolStream);
     }
+
+    // NEW: Check for SCTE-35 events to schedule a proactive poll
+    schedulePollsFromScte35(knownProtocolStream, newManifestObject);
 
     // Update the stream in the store
     useStore.setState((state) => ({

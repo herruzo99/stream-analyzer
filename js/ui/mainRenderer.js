@@ -9,10 +9,13 @@ import { getInteractiveSegmentTemplate } from './views/interactive-segment/index
 import { initializeSegmentExplorer } from './views/segment-explorer/index.js';
 import { getComparisonTemplate } from './views/comparison/index.js';
 import { manifestUpdatesTemplate } from './views/manifest-updates/index.js';
+import { getParserCoverageTemplate } from './views/parser-coverage/index.js';
+import { getIntegratorsReportTemplate } from './views/integrators-report/index.js';
 import { globalControlsTemplate } from './ui-controller.js';
 import { getStreamInputsTemplate } from './components/stream-inputs.js';
 import { debugLog } from '../shared/utils/debug.js';
 import { hideLoader } from './components/loader.js';
+import { isDebugMode } from '../shared/utils/env.js';
 
 /** @typedef {import('lit-html').TemplateResult} TemplateResult */
 
@@ -110,6 +113,13 @@ export function renderApp() {
         comparisonTabButton?.classList.remove('hidden');
     }
 
+    const parserCoverageTabButton = document.getElementById(
+        'tab-btn-parser-coverage'
+    );
+    if (parserCoverageTabButton) {
+        parserCoverageTabButton.classList.toggle('hidden', !isDebugMode);
+    }
+
     // --- Content Rendering Logic ---
     if (isResultsView) {
         populateContextSwitcher();
@@ -143,6 +153,9 @@ export function renderApp() {
                     case 'summary':
                         template = getGlobalSummaryTemplate(activeStream);
                         break;
+                    case 'integrators-report':
+                        template = getIntegratorsReportTemplate(activeStream);
+                        break;
                     case 'compliance':
                         template = getComplianceReportTemplate(activeStream);
                         break;
@@ -157,6 +170,9 @@ export function renderApp() {
                         break;
                     case 'updates':
                         template = manifestUpdatesTemplate(activeStream);
+                        break;
+                    case 'parser-coverage':
+                        template = getParserCoverageTemplate(activeStream);
                         break;
                 }
             }

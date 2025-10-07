@@ -196,6 +196,13 @@
                                 Global Summary
                             </button>
                             <button
+                                id="tab-btn-integrators-report"
+                                class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
+                                data-tab="integrators-report"
+                            >
+                                Integrator's Report
+                            </button>
+                            <button
                                 id="tab-btn-timeline-visuals"
                                 class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
                                 data-tab="timeline-visuals"
@@ -244,6 +251,13 @@
                             >
                                 Manifest Updates
                             </button>
+                            <button
+                                id="tab-btn-parser-coverage"
+                                class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent hidden"
+                                data-tab="parser-coverage"
+                            >
+                                Parser Coverage
+                            </button>
                         </div>
 
                         <div
@@ -275,6 +289,10 @@
                         data-testid="tab-summary"
                         class="hidden"
                     ></div>
+                    <div
+                        id="tab-integrators-report"
+                        class="hidden"
+                    ></div>
                     <div id="tab-timeline-visuals" class="hidden"></div>
                     <div id="tab-features" class="hidden"></div>
                     <div id="tab-compliance" class="hidden h-full"></div>
@@ -287,6 +305,7 @@
                     <div id="tab-updates" class="hidden">
                         <div id="mpd-updates-content"></div>
                     </div>
+                    <div id="tab-parser-coverage" class="hidden h-full"></div>
                 </div>
             </div>
         </div>

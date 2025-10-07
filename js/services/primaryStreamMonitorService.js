@@ -2,6 +2,7 @@ import { eventBus } from '../core/event-bus.js';
 import { useStore } from '../core/store.js';
 
 const pollers = new Map();
+const oneTimePollers = new Map(); // Store for high-priority, one-off polls
 let managerInterval = null;
 
 // The monitor service will have its own dedicated worker to avoid conflicts with the main analysis worker.
@@ -111,6 +112,11 @@ function stopMonitoring(streamId) {
         clearInterval(pollers.get(streamId));
         pollers.delete(streamId);
     }
+    // Also clear any scheduled one-time polls for this stream
+    if (oneTimePollers.has(streamId)) {
+        clearTimeout(oneTimePollers.get(streamId));
+        oneTimePollers.delete(streamId);
+    }
 }
 
 /**
@@ -141,6 +147,41 @@ export function managePollers() {
 }
 
 /**
+ * Schedules a high-priority, one-time poll for a specific stream.
+ * @param {object} detail The event detail.
+ * @param {number} detail.streamId The ID of the stream.
+ * @param {number} detail.pollTime The UTC timestamp when the poll should execute.
+ * @param {string} detail.reason A description of why the poll is being scheduled.
+ */
+function scheduleOneTimePoll({ streamId, pollTime, reason }) {
+    const now = Date.now();
+    const delay = pollTime - now;
+
+    if (delay <= 0) {
+        return; // Event is in the past
+    }
+
+    // Do not schedule if another one-time poll is already pending for this stream
+    if (oneTimePollers.has(streamId)) {
+        return;
+    }
+
+    console.log(
+        `[Monitor] Scheduling high-priority poll for stream ${streamId} in ${delay}ms. Reason: ${reason}`
+    );
+
+    const timerId = setTimeout(() => {
+        console.log(
+            `[Monitor] Executing high-priority poll for stream ${streamId}. Reason: ${reason}`
+        );
+        monitorStream(streamId);
+        oneTimePollers.delete(streamId);
+    }, delay);
+
+    oneTimePollers.set(streamId, timerId);
+}
+
+/**
  * Initializes the monitoring service.
  */
 export function initializeLiveStreamMonitor() {
@@ -154,6 +195,7 @@ export function initializeLiveStreamMonitor() {
     eventBus.subscribe('manifest:force-reload', ({ streamId }) =>
         monitorStream(streamId)
     );
+    eventBus.subscribe('monitor:schedule-one-time-poll', scheduleOneTimePoll);
 }
 
 /**
@@ -168,4 +210,9 @@ export function stopAllMonitoring() {
         clearInterval(pollerId);
     }
     pollers.clear();
+
+    for (const timerId of oneTimePollers.values()) {
+        clearTimeout(timerId);
+    }
+    oneTimePollers.clear();
 }

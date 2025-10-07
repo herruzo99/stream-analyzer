@@ -133,6 +133,45 @@ export const cmafTrackRules = [
                 : 'trun data-offset-present flag was not set to true.',
         };
     },
+    // --- CMAF Chunk Rules (Low-Latency) ---
+    (initData, mediaData) => {
+        const moofs = mediaData.boxes.filter((b) => b.type === 'moof');
+        if (moofs.length <= 1) return null; // Rule is for multi-chunk segments
+
+        const firstTfhd = findBox(moofs[0].children, 'tfhd');
+        if (!firstTfhd) return null;
+        const baselineTrackId = firstTfhd.details.track_ID.value;
+
+        for (let i = 1; i < moofs.length; i++) {
+            const currentTfhd = findBox(moofs[i].children, 'tfhd');
+            if (
+                !currentTfhd ||
+                currentTfhd.details.track_ID.value !== baselineTrackId
+            ) {
+                return {
+                    id: 'CMAF-CHUNK-CONSISTENCY',
+                    text: 'All chunks in a segment must belong to the same track',
+                    isoRef: 'Best Practice',
+                    status: 'fail',
+                    details: `FAIL: Chunk ${
+                        i + 1
+                    } (moof @ offset ${moofs[
+                        i
+                    ].offset}) has track_ID ${
+                        currentTfhd?.details.track_ID.value
+                    }, but expected ${baselineTrackId}.`,
+                };
+            }
+        }
+
+        return {
+            id: 'CMAF-CHUNK-CONSISTENCY',
+            text: 'All chunks in a segment must belong to the same track',
+            isoRef: 'Best Practice',
+            status: 'pass',
+            details: 'OK: All chunks have a consistent track_ID.',
+        };
+    },
     // --- Common Encryption (CENC) Rules ---
     (initData) => {
         const schm = findBox(initData.boxes, 'schm');

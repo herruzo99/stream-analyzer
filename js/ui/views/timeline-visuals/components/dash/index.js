@@ -1,30 +1,54 @@
 import { html } from 'lit-html';
+import { eventBus } from '../../../../../core/event-bus.js';
 
 const renderEvents = (events, totalDuration, timelineStart = 0) => {
     if (!events || events.length === 0) return '';
-    return events.map((eventBox) => {
-        const event = eventBox.details;
-        const startTime =
-            (event.presentation_time?.value || 0) /
-            (event.timescale?.value || 1);
-        const duration =
-            (event.event_duration?.value || 0) / (event.timescale?.value || 1);
+    return events.map((event) => {
+        const startTime = event.startTime;
+        const duration = event.duration;
 
         const left = ((startTime - timelineStart) / totalDuration) * 100;
         const width = (duration / totalDuration) * 100;
 
         if (left < 0 || left > 100) return '';
 
-        const tooltipContent = `Event: ${
-            event.scheme_id_uri?.value
-        }\nID: ${event.id?.value}\nValue: ${
-            event.value?.value
-        }\nTime: ${startTime.toFixed(2)}s\nDuration: ${duration.toFixed(2)}s`;
+        let tooltipContent;
+        let eventClasses = 'bg-yellow-500/50 border-l-2 border-yellow-400';
+        let clickHandler = () => {};
+
+        if (event.scte35 && !event.scte35.error) {
+            const cmd = event.scte35.splice_command;
+            const desc = event.scte35.descriptors?.[0];
+            eventClasses =
+                'bg-purple-500/60 border-l-4 border-purple-400 cursor-pointer hover:ring-2 hover:ring-purple-300';
+            let details = '';
+            if (cmd.type === 'Splice Insert' && cmd.break_duration) {
+                details = `Break Duration: ${(
+                    cmd.break_duration.duration / 90000
+                ).toFixed(3)}s`;
+            } else if (cmd.type === 'Time Signal' && desc) {
+                details = `Type: ${desc.segmentation_type_id}\nUPID: ${desc.segmentation_upid || 'N/A'}`;
+            }
+
+            tooltipContent = `SCTE-35: ${cmd.type}\nTime: ${startTime.toFixed(
+                3
+            )}s\n${details}\n(Click for full details)`;
+            clickHandler = () =>
+                eventBus.dispatch('ui:show-scte35-details', {
+                    scte35: event.scte35,
+                    startTime,
+                });
+        } else {
+            tooltipContent = `Event: ${event.message}\nTime: ${startTime.toFixed(
+                2
+            )}s\nDuration: ${duration.toFixed(2)}s`;
+        }
 
         return html`<div
-            class="absolute top-0 h-full bg-yellow-500/50 border-l-2 border-yellow-400 z-10"
+            class="absolute top-0 h-full ${eventClasses} z-10"
             style="left: ${left}%; width: ${Math.max(0.2, width)}%;"
             data-tooltip="${tooltipContent}"
+            @click=${clickHandler}
         ></div>`;
     });
 };
@@ -74,6 +98,13 @@ const timelineGridTemplate = (switchingSet) => {
         </p>`;
 
     const allEvents = representations.flatMap((r) => r.events || []);
+    const allFragments = representations.flatMap((r) => r.fragments || []);
+    const utcTimes = allFragments
+        .map((f) => f.startTimeUTC)
+        .filter((t) => t);
+    const hasUtcTimes = utcTimes.length > 0;
+    const minUtcTime = hasUtcTimes ? Math.min(...utcTimes) : 0;
+    const maxUtcTime = hasUtcTimes ? Math.max(...utcTimes) : 0;
 
     return html`
         <div class="mt-8">
@@ -111,7 +142,13 @@ const timelineGridTemplate = (switchingSet) => {
                                                   )}s\nEnd: ${(
                                                       frag.startTime +
                                                       frag.duration
-                                                  ).toFixed(2)}s"
+                                                  ).toFixed(2)}s${
+                                                      frag.startTimeUTC
+                                                          ? `\nAvailable (UTC): ${new Date(
+                                                                frag.startTimeUTC
+                                                            ).toLocaleTimeString()}`
+                                                          : ''
+                                                  }"
                                               ></div>
                                           `
                                       )
@@ -127,8 +164,21 @@ const timelineGridTemplate = (switchingSet) => {
             </div>
             <div class="text-xs text-gray-400 mt-2 flex justify-between">
                 <span>0.00s</span>
-                <span>Total Duration: ${totalDuration.toFixed(2)}s</span>
+                <span>Media Time - Total: ${totalDuration.toFixed(2)}s</span>
             </div>
+            ${hasUtcTimes
+                ? html`<div
+                      class="text-xs text-gray-500 mt-1 flex justify-between"
+                  >
+                      <span
+                          >${new Date(minUtcTime).toLocaleTimeString()}</span
+                      >
+                      <span>Wall-Clock Time (UTC)</span>
+                      <span
+                          >${new Date(maxUtcTime).toLocaleTimeString()}</span
+                      >
+                  </div>`
+                : ''}
             ${dashAbrLadderTemplate(representations)}
         </div>
     `;

@@ -6,6 +6,13 @@
  * @typedef {import('../../../core/types.js').SubRepresentation} SubRepresentation
  * @typedef {import('../../../core/types.js').Descriptor} Descriptor
  * @typedef {import('../../../core/types.js').ContentComponent} ContentComponent
+ * @typedef {import('../../../core/types.js').Resync} Resync
+ * @typedef {import('../../../core/types.js').Preselection} Preselection
+ * @typedef {import('../../../core/types.js').FailoverContent} FailoverContent
+ * @typedef {import('../../../core/types.js').OutputProtection} OutputProtection
+ * @typedef {import('../../../core/types.js').ExtendedBandwidth} ExtendedBandwidth
+ * @typedef {import('../../../core/types.js').ServiceDescription} ServiceDescription
+ * @typedef {import('../../../core/types.js').InitializationSet} InitializationSet
  */
 
 import { getDrmSystemName } from '../../../shared/utils/drm.js';
@@ -18,6 +25,7 @@ import {
     findChildrenRecursive,
     mergeElements,
 } from './recursive-parser.js';
+import { parseScte35 } from '../../metadata/scte35/parser.js';
 
 const getText = (el) => el?.['#text'] || null;
 
@@ -58,6 +66,83 @@ const parseGenericDescriptor = (el) => ({
     value: getAttr(el, 'value'),
     id: getAttr(el, 'id'),
 });
+
+/**
+ * Parses a Label or GroupLabel element.
+ * @param {object} el The raw parsed element.
+ * @returns {import('../../../core/types.js').Label}
+ */
+const parseLabel = (el) => ({
+    id: getAttr(el, 'id'),
+    lang: getAttr(el, 'lang'),
+    text: getText(el),
+});
+
+/**
+ * Parses a Resync element.
+ * @param {object} el The raw parsed Resync element.
+ * @returns {Resync}
+ */
+const parseResync = (el) => ({
+    type: parseInt(getAttr(el, 'type') || '0', 10),
+    dT: getAttr(el, 'dT') ? parseInt(getAttr(el, 'dT'), 10) : null,
+    dImax: getAttr(el, 'dImax') ? parseFloat(getAttr(el, 'dImax')) : null,
+    dImin: getAttr(el, 'dImin') ? parseFloat(getAttr(el, 'dImin')) : null,
+    marker: getAttr(el, 'marker') === 'true',
+});
+
+/**
+ * Parses an OutputProtection element.
+ * @param {object} el The raw parsed element.
+ * @returns {OutputProtection | null}
+ */
+const parseOutputProtection = (el) => {
+    const opEl = findChild(el, 'OutputProtection');
+    if (!opEl) return null;
+    return {
+        schemeIdUri: getAttr(opEl, 'schemeIdUri'),
+        value: getAttr(opEl, 'value'),
+        robustness: getAttr(opEl, 'robustness'),
+    };
+};
+
+/**
+ * Parses an ExtendedBandwidth element.
+ * @param {object} el The raw parsed element.
+ * @returns {ExtendedBandwidth | null}
+ */
+const parseExtendedBandwidth = (el) => {
+    const ebEl = findChild(el, 'ExtendedBandwidth');
+    if (!ebEl) return null;
+    return {
+        vbr: getAttr(ebEl, 'vbr') === 'true',
+        modelPairs: findChildren(ebEl, 'ModelPair').map((mpEl) => ({
+            bufferTime: parseDuration(getAttr(mpEl, 'bufferTime')),
+            bandwidth: parseInt(getAttr(mpEl, 'bandwidth'), 10),
+        })),
+    };
+};
+
+/**
+ * Parses a FailoverContent element.
+ * @param {object} mergedEl The merged parent element containing SegmentBase info.
+ * @returns {FailoverContent | null}
+ */
+function parseFailoverContent(mergedEl) {
+    const segmentBaseEl = findChild(mergedEl, 'SegmentBase');
+    if (!segmentBaseEl) return null;
+
+    const failoverEl = findChild(segmentBaseEl, 'FailoverContent');
+    if (!failoverEl) return null;
+
+    return {
+        valid: getAttr(failoverEl, 'valid') !== 'false', // Defaults to true
+        fcs: findChildren(failoverEl, 'FCS').map((fcsEl) => ({
+            t: parseInt(getAttr(fcsEl, 't'), 10),
+            d: getAttr(fcsEl, 'd') ? parseInt(getAttr(fcsEl, 'd'), 10) : null,
+        })),
+    };
+}
 
 /**
  * Parses a SubRepresentation element, inheriting from its parent Representation/AdaptationSet.
@@ -149,7 +234,7 @@ function parseRepresentation(repEl, parentMergedEl) {
         eptDelta: null,
         pdDelta: null,
         representationIndex: null,
-        failoverContent: null,
+        failoverContent: parseFailoverContent(mergedRepEl),
         audioChannelConfigurations: findChildren(
             mergedRepEl,
             'AudioChannelConfiguration'
@@ -169,19 +254,14 @@ function parseRepresentation(repEl, parentMergedEl) {
         accessibility: findChildren(mergedRepEl, 'Accessibility').map(
             parseGenericDescriptor
         ),
-        labels: findChildren(mergedRepEl, 'Label').map((el) => ({
-            id: getAttr(el, 'id'),
-            lang: getAttr(el, 'lang'),
-            text: getText(el),
-        })),
-        groupLabels: findChildren(mergedRepEl, 'GroupLabel').map((el) => ({
-            id: getAttr(el, 'id'),
-            lang: getAttr(el, 'lang'),
-            text: getText(el),
-        })),
+        labels: findChildren(mergedRepEl, 'Label').map(parseLabel),
+        groupLabels: findChildren(mergedRepEl, 'GroupLabel').map(parseLabel),
         subRepresentations: findChildren(repEl, 'SubRepresentation').map(
             (subRepEl) => parseSubRepresentation(subRepEl, mergedRepEl)
         ),
+        resyncs: findChildren(mergedRepEl, 'Resync').map(parseResync),
+        outputProtection: parseOutputProtection(mergedRepEl),
+        extendedBandwidth: parseExtendedBandwidth(mergedRepEl),
         videoRange: undefined,
         stableVariantId: null,
         pathwayId: null,
@@ -266,6 +346,7 @@ function parseAdaptationSet(asEl, parentMergedEl) {
             getAttr(asEl, 'mimeType')?.split('/')[0],
         bitstreamSwitching:
             getAttr(asEl, 'bitstreamSwitching') === 'true' ? true : null,
+        segmentAlignment: getAttr(mergedAsEl, 'segmentAlignment') === 'true',
         maxWidth: getAttr(asEl, 'maxWidth')
             ? parseInt(getAttr(asEl, 'maxWidth'), 10)
             : null,
@@ -283,6 +364,7 @@ function parseAdaptationSet(asEl, parentMergedEl) {
                 schemeIdUri: getAttr(cpEl, 'schemeIdUri'),
                 system: getDrmSystemName(getAttr(cpEl, 'schemeIdUri')),
                 defaultKid: getAttr(cpEl, 'cenc:default_KID'),
+                robustness: getAttr(cpEl, 'robustness'),
             })
         ),
         framePackings: findChildren(mergedAsEl, 'FramePacking').map(
@@ -295,18 +377,12 @@ function parseAdaptationSet(asEl, parentMergedEl) {
         accessibility: findChildren(mergedAsEl, 'Accessibility').map(
             parseGenericDescriptor
         ),
-        labels: findChildren(mergedAsEl, 'Label').map((el) => ({
-            id: getAttr(el, 'id'),
-            lang: getAttr(el, 'lang'),
-            text: getText(el),
-        })),
-        groupLabels: findChildren(mergedAsEl, 'GroupLabel').map((el) => ({
-            id: getAttr(el, 'id'),
-            lang: getAttr(el, 'lang'),
-            text: getText(el),
-        })),
+        labels: findChildren(mergedAsEl, 'Label').map(parseLabel),
+        groupLabels: findChildren(mergedAsEl, 'GroupLabel').map(parseLabel),
         roles: findChildren(mergedAsEl, 'Role').map(parseGenericDescriptor),
         contentComponents: contentComponents,
+        resyncs: findChildren(mergedAsEl, 'Resync').map(parseResync),
+        outputProtection: parseOutputProtection(mergedAsEl),
         stableRenditionId: null,
         bitDepth: null,
         sampleRate: null,
@@ -320,6 +396,57 @@ function parseAdaptationSet(asEl, parentMergedEl) {
     return asIR;
 }
 
+/**
+ * Parses a Preselection element.
+ * @param {object} preselectionEl The raw parsed Preselection element.
+ * @param {object} parentMergedEl The parent Period element.
+ * @returns {Preselection}
+ */
+function parsePreselection(preselectionEl, parentMergedEl) {
+    const mergedEl = mergeElements(parentMergedEl, preselectionEl);
+    return {
+        id: getAttr(preselectionEl, 'id') || '1',
+        preselectionComponents:
+            getAttr(preselectionEl, 'preselectionComponents')?.split(' ') || [],
+        lang: getAttr(preselectionEl, 'lang'),
+        order: getAttr(preselectionEl, 'order') || 'undefined',
+        accessibility: findChildren(mergedEl, 'Accessibility').map(
+            parseGenericDescriptor
+        ),
+        roles: findChildren(mergedEl, 'Role').map(parseGenericDescriptor),
+        ratings: findChildren(mergedEl, 'Rating').map(parseGenericDescriptor),
+        viewpoints: findChildren(mergedEl, 'Viewpoint').map(
+            parseGenericDescriptor
+        ),
+        serializedManifest: preselectionEl,
+    };
+}
+
+/**
+ * Parses a ServiceDescription element.
+ * @param {object} sdEl Raw parsed ServiceDescription element.
+ * @returns {ServiceDescription}
+ */
+const parseServiceDescription = (sdEl) => ({
+    id: getAttr(sdEl, 'id'),
+    scopes: findChildren(sdEl, 'Scope').map(parseGenericDescriptor),
+    latencies: findChildren(sdEl, 'Latency').map((el) => ({
+        min: getAttr(el, 'min') ? parseInt(getAttr(el, 'min'), 10) : null,
+        max: getAttr(el, 'max') ? parseInt(getAttr(el, 'max'), 10) : null,
+        target: getAttr(el, 'target')
+            ? parseInt(getAttr(el, 'target'), 10)
+            : null,
+        referenceId: getAttr(el, 'referenceId')
+            ? parseInt(getAttr(el, 'referenceId'), 10)
+            : null,
+    })),
+    playbackRates: findChildren(sdEl, 'PlaybackRate').map((el) => ({
+        min: getAttr(el, 'min') ? parseFloat(getAttr(el, 'min')) : null,
+        max: getAttr(el, 'max') ? parseFloat(getAttr(el, 'max')) : null,
+    })),
+    serializedManifest: sdEl,
+});
+
 function parsePeriod(periodEl, parentMergedEl) {
     const mergedPeriodEl = mergeElements(parentMergedEl, periodEl);
     const assetIdentifierEl = findChild(periodEl, 'AssetIdentifier');
@@ -329,6 +456,7 @@ function parsePeriod(periodEl, parentMergedEl) {
 
     const allEvents = [];
     const eventStreamIRs = eventStreams.map((esEl) => {
+        const schemeIdUri = getAttr(esEl, 'schemeIdUri');
         const timescale = parseInt(getAttr(esEl, 'timescale') || '1', 10);
         const presentationTimeOffset = parseInt(
             getAttr(esEl, 'presentationTimeOffset') || '0',
@@ -344,20 +472,38 @@ function parsePeriod(periodEl, parentMergedEl) {
             const startTime =
                 periodStart + (presentationTime - presentationTimeOffset) / timescale;
             const eventDuration = duration / timescale;
+            const messageData = getAttr(eEl, 'messageData');
 
-            return {
+            const event = {
                 startTime,
                 duration: eventDuration,
-                message: getText(eEl) || getAttr(eEl, 'messageData'),
-                messageData: getAttr(eEl, 'messageData'),
+                message: getText(eEl) || messageData,
+                messageData: messageData,
                 type: 'dash-event',
+                cue: null,
             };
+
+            if (
+                messageData &&
+                schemeIdUri?.toLowerCase().includes('scte35')
+            ) {
+                try {
+                    const binaryData = Uint8Array.from(atob(messageData), (c) =>
+                        c.charCodeAt(0)
+                    );
+                    event.scte35 = parseScte35(binaryData);
+                } catch (e) {
+                    console.error('Failed to parse SCTE-35 from DASH Event:', e);
+                }
+            }
+
+            return event;
         });
 
         allEvents.push(...events);
 
         return {
-            schemeIdUri: getAttr(esEl, 'schemeIdUri'),
+            schemeIdUri: schemeIdUri,
             value: getAttr(esEl, 'value'),
             timescale,
             presentationTimeOffset,
@@ -384,6 +530,13 @@ function parsePeriod(periodEl, parentMergedEl) {
         adaptationSets: findChildren(periodEl, 'AdaptationSet').map((asEl) =>
             parseAdaptationSet(asEl, mergedPeriodEl)
         ),
+        preselections: findChildren(periodEl, 'Preselection').map((pEl) =>
+            parsePreselection(pEl, mergedPeriodEl)
+        ),
+        serviceDescriptions: findChildren(
+            periodEl,
+            'ServiceDescription'
+        ).map(parseServiceDescription),
         eventStreams: eventStreamIRs,
         events: allEvents,
         serializedManifest: periodEl,
@@ -455,6 +608,22 @@ export function adaptDashToIr(manifestElement, baseUrl) {
             moreInformationURL: getAttr(el, 'moreInformationURL'),
         })),
         locations: findChildren(manifestCopy, 'Location').map(getText),
+        patchLocations: findChildren(manifestCopy, 'PatchLocation').map(getText),
+        serviceDescriptions: findChildren(
+            manifestCopy,
+            'ServiceDescription'
+        ).map(parseServiceDescription),
+        initializationSets: findChildren(
+            manifestCopy,
+            'InitializationSet'
+        ).map((el) => ({
+            id: getAttr(el, 'id'),
+            inAllPeriods: getAttr(el, 'inAllPeriods') !== 'false',
+            contentType: getAttr(el, 'contentType'),
+            initialization: getAttr(el, 'initialization'),
+            codecs: getAttr(el, 'codecs'),
+            serializedManifest: el,
+        })),
         periods: findChildren(manifestCopy, 'Period').map((p) =>
             parsePeriod(p, manifestCopy)
         ),

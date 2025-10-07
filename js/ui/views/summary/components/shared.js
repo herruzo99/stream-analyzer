@@ -50,7 +50,7 @@ export const trackTableTemplate = (tracks, type) => {
     };
 
     if (type === 'video') {
-        headers = ['ID', 'Bitrate', 'Resolution', 'Codecs', 'Scan Type', 'SAR'];
+        headers = ['ID', 'Bitrate', 'Resolution', 'Codecs', 'Roles'];
         rows = tracks.map(
             (track) => html`
                 <tr>
@@ -67,54 +67,44 @@ export const trackTableTemplate = (tracks, type) => {
                             ? track.codecs.join(', ')
                             : track.codecs || 'N/A'}
                     </td>
-                    <td class="p-2 font-mono">${track.scanType || 'N/A'}</td>
-                    <td class="p-2 font-mono">${track.sar || 'N/A'}</td>
+                    <td class="p-2 font-mono">${track.roles?.join(', ') || 'N/A'}</td>
                 </tr>
             `
         );
     } else if (type === 'audio') {
-        headers = ['ID', 'Bitrate', 'Codecs', 'Channels', 'Sample Rate'];
+        headers = ['ID', 'Language', 'Codecs', 'Channels', 'Roles'];
         rows = tracks.map(
             (track) => html`
                 <tr>
                     <td class="p-2 font-mono">${track.id}</td>
-                    <td class="p-2 font-mono">
-                        ${track.bitrateRange || formatBitrate(track.bandwidth)}
-                    </td>
+                    <td class="p-2 font-mono">${track.lang || 'N/A'}</td>
                     <td class="p-2 font-mono">
                         ${track.codecs?.join
                             ? track.codecs.join(', ')
                             : track.codecs || 'N/A'}
                     </td>
                     <td class="p-2 font-mono">
-                        ${track.channels?.join(', ') ||
-                        track.audioChannelConfigurations
-                            ?.map((c) => c.value)
-                            .join(', ') ||
-                        'N/A'}
+                        ${track.channels || 'N/A'}
                     </td>
-                    <td class="p-2 font-mono">
-                        ${track.audioSamplingRate || 'N/A'}
-                    </td>
+                    <td class="p-2 font-mono">${track.roles?.join(', ') || 'N/A'}</td>
                 </tr>
             `
         );
     } else {
         // text
-        headers = ['ID', 'Bitrate', 'Format'];
+        headers = ['ID', 'Language', 'Format', 'Roles'];
         rows = tracks.map(
             (track) => html`
                 <tr>
                     <td class="p-2 font-mono">${track.id}</td>
-                    <td class="p-2 font-mono">
-                        ${track.bitrateRange || formatBitrate(track.bandwidth)}
-                    </td>
+                    <td class="p-2 font-mono">${track.lang || 'N/A'}</td>
                     <td class="p-2 font-mono">
                         ${track.codecsOrMimeTypes?.join(', ') ||
                         track.codecs ||
                         track.mimeType ||
                         'N/A'}
                     </td>
+                    <td class="p-2 font-mono">${track.roles?.join(', ') || 'N/A'}</td>
                 </tr>
             `
         );
