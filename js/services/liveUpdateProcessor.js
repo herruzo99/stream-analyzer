@@ -24,11 +24,11 @@ function schedulePollsFromScte35(stream, newManifestObject) {
     const preRollBufferMs = 1000; // Poll 1 second before the event
 
     for (const event of newManifestObject.events) {
-        if (!event.scte35 || (/** @type {any} */ (event.scte35)).error) {
+        if (!event.scte35 || /** @type {any} */ (event.scte35).error) {
             continue;
         }
 
-        const command = (/** @type {any} */ (event.scte35)).splice_command;
+        const command = /** @type {any} */ (event.scte35).splice_command;
         if (
             !command ||
             !command.splice_time ||
@@ -39,7 +39,7 @@ function schedulePollsFromScte35(stream, newManifestObject) {
 
         const ptsTime = command.splice_time.pts_time;
         const ptsAdjustment =
-            (/** @type {any} */ (event.scte35)).pts_adjustment || 0;
+            /** @type {any} */ (event.scte35).pts_adjustment || 0;
         const adjustedPts = ptsTime + ptsAdjustment;
 
         // Find the most recent Program Clock Reference (PCR) from a segment to anchor our wall-clock calculation
@@ -175,15 +175,13 @@ function processLiveUpdate(updateData) {
                 if (repState) {
                     const existingUrls = new Set(
                         repState.segments.map(
-                            (s) =>
-                                (/** @type {any} */ (s))
-                                    .resolvedUrl
+                            (s) => /** @type {any} */ (s).resolvedUrl
                         )
                     );
                     newSegments.forEach((newSeg) => {
                         if (
                             !existingUrls.has(
-                                (/** @type {any} */ (newSeg)).resolvedUrl
+                                /** @type {any} */ (newSeg).resolvedUrl
                             )
                         ) {
                             repState.segments.push(newSeg);
@@ -191,9 +189,7 @@ function processLiveUpdate(updateData) {
                     });
                     repState.freshSegmentUrls = new Set(
                         newSegments.map(
-                            (s) =>
-                                (/** @type {any} */ (s))
-                                    .resolvedUrl
+                            (s) => /** @type {any} */ (s).resolvedUrl
                         )
                     );
                 }
@@ -208,7 +204,7 @@ function processLiveUpdate(updateData) {
                 variant.segments = newManifestObject.segments || [];
                 variant.freshSegmentUrls = new Set(
                     variant.segments.map(
-                        (s) => (/** @type {any} */ (s)).resolvedUrl
+                        (s) => /** @type {any} */ (s).resolvedUrl
                     )
                 );
             }

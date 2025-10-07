@@ -28,15 +28,15 @@ function getNetworkInfo(stream, activeManifest) {
             );
             stream.dashRepresentationState.forEach((repState) => {
                 const sampleSegments = repState.segments
-                    .filter((s) => (/** @type {any} */ (s)).type === 'Media')
+                    .filter((s) => /** @type {any} */ (s).type === 'Media')
                     .slice(0, 10);
                 sampleSegments.forEach((seg) => {
                     hostnames.media.add(
-                        new URL((/** @type {any} */ (seg)).resolvedUrl).hostname
+                        new URL(/** @type {any} */ (seg).resolvedUrl).hostname
                     );
                     totalSegmentDuration +=
-                        (/** @type {any} */ (seg)).duration /
-                        (/** @type {any} */ (seg)).timescale;
+                        /** @type {any} */ (seg).duration /
+                        /** @type {any} */ (seg).timescale;
                     segmentCount++;
                 });
             });
@@ -45,16 +45,20 @@ function getNetworkInfo(stream, activeManifest) {
                 hostnames.manifest.add(new URL(v.resolvedUri).hostname)
             );
             // NEW: Also check EXT-X-MEDIA tags for additional playlist hostnames
-            (
-                /** @type {any} */ (activeManifest.serializedManifest).media ||
-                []
-            ).forEach((media) => {
-                if (media.URI) {
-                    hostnames.manifest.add(
-                        new URL(media.URI, stream.baseUrl).hostname
-                    );
-                }
-            });
+            const hlsManifest = activeManifest.serializedManifest;
+            if (
+                hlsManifest &&
+                'media' in hlsManifest &&
+                Array.isArray(hlsManifest.media)
+            ) {
+                hlsManifest.media.forEach((media) => {
+                    if (media.URI) {
+                        hostnames.manifest.add(
+                            new URL(media.URI, stream.baseUrl).hostname
+                        );
+                    }
+                });
+            }
 
             const segments = activeManifest.segments || [];
             segments.forEach((seg) => {
@@ -90,10 +94,10 @@ function getNetworkInfo(stream, activeManifest) {
         avgSegmentSize: null, // Size requires fetching, deferring this feature.
         contentSteering: stream.steeringInfo
             ? {
-                  serverUri: (/** @type {any} */ (stream.steeringInfo)).value[
+                  serverUri: /** @type {any} */ (stream.steeringInfo).value[
                       'SERVER-URI'
                   ],
-                  defaultPathway: (/** @type {any} */ (stream.steeringInfo))
+                  defaultPathway: /** @type {any} */ (stream.steeringInfo)
                       .value['PATHWAY-ID'],
                   allPathways: [
                       ...new Set(

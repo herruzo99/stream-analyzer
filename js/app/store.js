@@ -3,8 +3,6 @@ import { LRUCache } from './lru-cache.js';
 import { eventBus } from './event-bus.js';
 // --- Type Definitions ---
 /** @typedef {import('./types.ts').Stream} Stream */
-
-// --- Type Definitions ---
 /** @typedef {import('./types.ts').DecodedSample} DecodedSample */
 
 /**
@@ -46,6 +44,7 @@ import { eventBus } from './event-bus.js';
  * @property {(url: string) => void} removeSegmentFromCompare
  * @property {() => void} clearSegmentsToCompare
  * @property {(streamId: number, updatedStreamData: Partial<Stream>) => void} updateStream
+ * @property {(isPolling: boolean) => void} setAllLiveStreamsPolling
  * @property {(streamId: number, direction: number) => void} navigateManifestUpdate
  * @property {(page: number) => void} setInteractiveManifestPage
  * @property {(page: number) => void} setInteractiveSegmentPage
@@ -202,9 +201,17 @@ const store = createStore((set, get) => ({
                 s.id === streamId ? { ...s, ...updatedStreamData } : s
             ),
         }));
-        if (updatedStreamData.hlsVariantState) {
-            eventBus.dispatch('state:stream-variant-changed', { streamId });
-        }
+        eventBus.dispatch('state:stream-updated', { streamId });
+    },
+
+    setAllLiveStreamsPolling: (isPolling) => {
+        set((state) => ({
+            streams: state.streams.map((s) =>
+                s.manifest?.type === 'dynamic' ? { ...s, isPolling } : s
+            ),
+        }));
+        // Notify the monitor service to react to the global state change immediately.
+        eventBus.dispatch('state:stream-updated');
     },
 
     navigateManifestUpdate: (streamId, direction) => {
@@ -281,6 +288,8 @@ export const storeActions = {
         store.getState().removeSegmentFromCompare(url),
     clearSegmentsToCompare: () => store.getState().clearSegmentsToCompare(),
     updateStream: (id, data) => store.getState().updateStream(id, data),
+    setAllLiveStreamsPolling: (isPolling) =>
+        store.getState().setAllLiveStreamsPolling(isPolling),
     navigateManifestUpdate: (id, dir) =>
         store.getState().navigateManifestUpdate(id, dir),
     setInteractiveManifestPage: (page) =>

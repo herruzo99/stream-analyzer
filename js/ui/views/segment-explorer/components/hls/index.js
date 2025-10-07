@@ -282,10 +282,18 @@ export function getHlsExplorerTemplate(stream) {
             const variant = (stream.manifest.variants || []).find(
                 (v) => v.resolvedUri === uri
             );
-            const media = (
-                /** @type {any} */ (stream.manifest.serializedManifest).media ||
-                []
-            ).find((m) => m.URI && new URL(m.URI, stream.baseUrl).href === uri);
+
+            const serialized = stream.manifest.serializedManifest;
+            const media =
+                serialized &&
+                'media' in serialized &&
+                Array.isArray(serialized.media)
+                    ? serialized.media.find(
+                          (m) =>
+                              m.URI &&
+                              new URL(m.URI, stream.baseUrl).href === uri
+                      )
+                    : null;
 
             if (variant) {
                 groupedPlaylists.VIDEO.push({

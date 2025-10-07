@@ -60,7 +60,8 @@ export function renderApp() {
     if (!dom) return;
 
     const state = useStore.getState();
-    const { streams, activeStreamId, viewState, activeTab } = state;
+    const { streams, activeStreamId, viewState, activeTab, activeSegmentUrl } =
+        state;
     const activeStream = streams.find((s) => s.id === activeStreamId);
 
     // --- Top-Level View State Management ---
@@ -77,7 +78,7 @@ export function renderApp() {
     const globalControls = document.getElementById('global-stream-controls');
     if (globalControls) {
         globalControls.classList.toggle('hidden', !isResultsView);
-        render(globalControlsTemplate(activeStream), globalControls);
+        render(globalControlsTemplate(streams), globalControls);
     }
 
     // Responsive header alignment
@@ -101,16 +102,21 @@ export function renderApp() {
 
     // --- Conditional Tab Visibility ---
     const comparisonTabButton = document.getElementById('tab-btn-comparison');
-    const comparisonTabContent = document.getElementById('tab-comparison');
-    if (streams.length <= 1) {
-        comparisonTabButton?.classList.add('hidden');
-        comparisonTabContent?.classList.add('hidden');
-        // If comparison was active and now only one stream, switch to summary
-        if (activeTab === 'comparison') {
+    if (comparisonTabButton) {
+        comparisonTabButton.classList.toggle('hidden', streams.length <= 1);
+        if (streams.length <= 1 && activeTab === 'comparison') {
             storeActions.setActiveTab('summary');
         }
-    } else {
-        comparisonTabButton?.classList.remove('hidden');
+    }
+
+    const interactiveSegmentTabButton = document.getElementById(
+        'tab-btn-interactive-segment'
+    );
+    if (interactiveSegmentTabButton) {
+        interactiveSegmentTabButton.classList.toggle(
+            'hidden',
+            !activeSegmentUrl
+        );
     }
 
     const parserCoverageTabButton = document.getElementById(

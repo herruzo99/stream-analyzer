@@ -4,7 +4,7 @@ import { useStore, useSegmentCacheStore } from '../app/store.js';
 import { savePreset } from '../shared/utils/stream-storage.js';
 import {
     reloadStream,
-    toggleStreamPolling,
+    toggleAllLiveStreamsPolling,
 } from '../services/streamActionsService.js';
 import { openModalWithContent } from '../services/modalService.js';
 
@@ -34,37 +34,42 @@ const handleSaveCurrentStream = () => {
     }
 };
 
-export const globalControlsTemplate = (stream) => {
-    if (!stream) return html``;
-    const isDynamic = stream.manifest?.type === 'dynamic';
-    const isPolling = stream.isPolling;
+export const globalControlsTemplate = (streams) => {
+    const { activeStreamId } = useStore.getState();
+    const activeStream = streams.find((s) => s.id === activeStreamId);
 
-    const pollingButton = isDynamic
-        ? html`
-              <button
-                  @click=${() => toggleStreamPolling(stream)}
-                  class="font-bold text-sm py-2 px-4 rounded-md transition-colors text-white ${isPolling
-                      ? 'bg-red-600 hover:bg-red-700'
-                      : 'bg-blue-600 hover:bg-blue-700'}"
-              >
-                  ${isPolling ? 'Stop Polling' : 'Start Polling'}
-              </button>
-          `
-        : '';
+    const hasLiveStreams = streams.some((s) => s.manifest?.type === 'dynamic');
+    if (!hasLiveStreams) return html``; // Don't show controls if no live streams are loaded
+
+    const isAnyPolling = streams.some(
+        (s) => s.manifest?.type === 'dynamic' && s.isPolling
+    );
+
+    const pollingButton = html`
+        <button
+            @click=${toggleAllLiveStreamsPolling}
+            class="font-bold text-sm py-2 px-4 rounded-md transition-colors text-white ${isAnyPolling
+                ? 'bg-red-600 hover:bg-red-700'
+                : 'bg-blue-600 hover:bg-blue-700'}"
+        >
+            ${isAnyPolling ? 'Stop All Polling' : 'Start All Polling'}
+        </button>
+    `;
+
     return html`
         ${pollingButton}
         <button
-            @click=${() => reloadStream(stream)}
+            @click=${() => reloadStream(activeStream)}
             class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md transition-colors"
         >
-            Reload
+            Reload Active
         </button>
         <button
             @click=${handleSaveCurrentStream}
             class="bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-4 rounded-md transition-colors"
             title="Save the current stream URL as a preset"
         >
-            Save Stream
+            Save Active Stream
         </button>
     `;
 };

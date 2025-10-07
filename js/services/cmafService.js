@@ -56,12 +56,10 @@ async function runCmafValidation(stream) {
             );
             const mediaSegment = stream.dashRepresentationState
                 .get(`${firstPeriod.id}-${firstRep.id}`)
-                ?.segments.find(
-                    (s) => (/** @type {any} */ (s)).type === 'Media'
-                );
+                ?.segments.find((s) => /** @type {any} */ (s).type === 'Media');
 
             const mediaUrl = mediaSegment
-                ? (/** @type {any} */ (mediaSegment)).resolvedUrl
+                ? /** @type {any} */ (mediaSegment).resolvedUrl
                 : undefined;
 
             if (initUrl && mediaUrl) {

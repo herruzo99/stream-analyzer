@@ -118,8 +118,8 @@ const hlsSubNavTemplate = (stream) => {
         const variant = (stream.manifest.variants || []).find(
             (v) => v.resolvedUri === uri
         );
-        const media = (
-            /** @type {any} */ (stream.manifest.serializedManifest).media || []
+        const media = /** @type {any} */ (
+            stream.manifest.serializedManifest.media || []
         ).find((m) => m.URI && new URL(m.URI, stream.baseUrl).href === uri);
 
         if (variant) {
@@ -290,21 +290,27 @@ export const hlsManifestTemplate = (stream, currentPage) => {
     debugLog('HlsRenderer', 'hlsManifestTemplate called.', 'Stream:', stream);
 
     const { activeMediaPlaylistUrl } = stream;
-    let manifestStringToDisplay;
     let manifestObjectForView;
     let rawManifestString; // Keep the original raw string for the toggle
 
     if (activeMediaPlaylistUrl) {
         const mediaPlaylist = stream.mediaPlaylists.get(activeMediaPlaylistUrl);
-        rawManifestString = mediaPlaylist?.rawManifest;
-        manifestObjectForView = mediaPlaylist?.manifest;
+        // *** FIX START ***
+        if (!mediaPlaylist) {
+            return html`<div class="text-yellow-400 p-4">
+                Loading rendition playlist...
+            </div>`;
+        }
+        // *** FIX END ***
+        rawManifestString = mediaPlaylist.rawManifest;
+        manifestObjectForView = mediaPlaylist.manifest;
     } else {
         rawManifestString = stream.rawManifest;
         manifestObjectForView = stream.manifest;
     }
 
     // This is the string WITH variables substituted, which we get from serializing the IR.
-    manifestStringToDisplay = showSubstituted
+    const manifestStringToDisplay = showSubstituted
         ? manifestObjectForView.serializedManifest.raw
         : rawManifestString;
 

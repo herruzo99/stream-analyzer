@@ -10,7 +10,7 @@ import { initializeUiController } from '../ui/ui-controller.js';
 import { initializeViewManager } from '../ui/view-manager.js';
 import { initializeToastManager } from '../ui/components/toast.js';
 import { initializeLiveUpdateProcessor } from '../services/liveUpdateProcessor.js';
-import { useStore, storeActions } from './store.js';
+import { useStore, storeActions, useSegmentCacheStore } from './store.js';
 import { initializeHlsVariantPoller } from '../services/hlsVariantPollerService.js';
 import { initializeCmafService } from '../services/cmafService.js';
 import { initializeRenderer, renderApp } from '../ui/mainRenderer.js';
@@ -64,7 +64,7 @@ async function startApp() {
             compliance: document.getElementById('tab-compliance'),
             explorer: document.getElementById('tab-explorer'),
             'interactive-segment': document.getElementById(
-                'interactive-segment'
+                'tab-interactive-segment'
             ),
             'interactive-manifest': document.getElementById(
                 'tab-interactive-manifest'
@@ -118,6 +118,7 @@ async function startApp() {
 
     // --- MAIN RENDER LOOP ---
     useStore.subscribe(renderApp);
+    useSegmentCacheStore.subscribe(renderApp); // Ensure UI updates on cache changes
 
     // Initial render based on default state
     renderApp();
