@@ -1,6 +1,11 @@
 import { html } from 'lit-html';
-import { useStore, storeActions, useSegmentCacheStore } from '../../app/store.js';
+import {
+    useStore,
+    storeActions,
+    useSegmentCacheStore,
+} from '../../app/store.js';
 import { eventBus } from '../../app/event-bus.js';
+import { loadSegment } from '../../services/streamActionsService.js';
 
 function handleSegmentCheck(e) {
     const checkbox = /** @type {HTMLInputElement} */ (e.target);
@@ -70,12 +75,10 @@ const getActions = (cacheEntry, seg, isFresh) => {
     const viewRawHandler = (e) => {
         const url = /** @type {HTMLElement} */ (e.currentTarget).dataset.url;
         storeActions.setActiveSegmentUrl(url);
-        /** @type {HTMLElement} */ (
-            document.querySelector('[data-tab="interactive-segment"]')
-        )?.click();
+        storeActions.setActiveTab('interactive-segment');
     };
     const loadHandler = () => {
-        eventBus.dispatch('segment:fetch', { url: seg.resolvedUrl });
+        loadSegment(seg.resolvedUrl);
     };
 
     if (!cacheEntry) {

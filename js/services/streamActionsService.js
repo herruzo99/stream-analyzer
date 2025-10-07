@@ -1,21 +1,28 @@
 import { eventBus } from '../app/event-bus.js';
-import { storeActions } from '../app/store.js';
+import { storeActions, useStore } from '../app/store.js';
 
 /**
- * Toggles the polling state for a given stream.
- * @param {import('../app/types.js').Stream | null} stream The stream to modify.
+ * Toggles the polling state for all live streams.
  */
-export function toggleStreamPolling(stream) {
-    if (stream) {
-        storeActions.updateStream(stream.id, {
-            isPolling: !stream.isPolling,
-        });
-    }
+export function toggleAllLiveStreamsPolling() {
+    const { streams } = useStore.getState();
+    const isAnyPolling = streams.some(
+        (s) => s.manifest?.type === 'dynamic' && s.isPolling
+    );
+    storeActions.setAllLiveStreamsPolling(!isAnyPolling);
+}
+
+/**
+ * Dispatches an event to request fetching and parsing of a single segment.
+ * @param {string} url The URL of the segment to load.
+ */
+export function loadSegment(url) {
+    eventBus.dispatch('segment:fetch', { url });
 }
 
 /**
  * Reloads the manifest for a given stream, handling different protocols and states.
- * @param {import('../app/types.js').Stream | null} stream The stream to reload.
+ * @param {import('../app/types.ts').Stream | null} stream The stream to reload.
  */
 export function reloadStream(stream) {
     if (!stream) {

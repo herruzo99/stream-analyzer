@@ -1,5 +1,9 @@
 import { html } from 'lit-html';
-import { useStore, storeActions, useSegmentCacheStore } from '../../../app/store.js';
+import {
+    useStore,
+    storeActions,
+    useSegmentCacheStore,
+} from '../../../app/store.js';
 import {
     getInteractiveIsobmffTemplate,
     findBoxByOffset,
@@ -13,7 +17,7 @@ import {
     initializeSegmentViewInteractivity,
     getInspectorState,
 } from './components/interaction-logic.js';
-
+import { getInteractiveVttTemplate } from './components/vtt/index.js';
 import { getTooltipData as getIsobmffTooltipData } from '../../../infrastructure/segment/isobmff/index.js';
 import { getTooltipData as getTsTooltipData } from '../../../infrastructure/segment/ts/index.js';
 
@@ -119,7 +123,9 @@ export function getInteractiveSegmentTemplate(dom) {
     let contentTemplate;
     const inspectorState = getInspectorState();
 
-    if (cachedSegment.parsedData?.format === 'ts') {
+    if (cachedSegment.parsedData?.format === 'vtt') {
+        contentTemplate = getInteractiveVttTemplate(cachedSegment.data);
+    } else if (cachedSegment.parsedData?.format === 'ts') {
         contentTemplate = getInteractiveTsTemplate(
             interactiveSegmentCurrentPage,
             HEX_BYTES_PER_PAGE,
