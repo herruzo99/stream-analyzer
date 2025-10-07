@@ -1,30 +1,83 @@
 import { html } from 'lit-html';
 import { trackTableTemplate } from './shared.js';
 
-const adaptationSetTemplate = (as, type) => {
-    const roles = as.roles.map((r) => r.value).join(', ');
-    const title = `${
-        type.charAt(0).toUpperCase() + type.slice(1)
-    } AdaptationSet`;
+const advancedPropertiesTemplate = (as) => {
+    const failover = as.representations[0]?.failoverContent;
+    const resyncs = as.resyncs || as.representations[0]?.resyncs;
+    const switchingProperty = (as.serializedManifest.SupplementalProperty || []).find(
+        (p) =>
+            p[':@'].schemeIdUri ===
+            'urn:mpeg:dash:adaptation-set-switching:2016'
+    );
 
+    if (!failover && (!resyncs || resyncs.length === 0) && !switchingProperty) return '';
+
+    return html`
+        <div class="mt-2 p-2 bg-gray-900/50 rounded-md">
+            <h6 class="text-xs font-semibold text-gray-400">
+                Advanced Properties
+            </h6>
+            <dl
+                class="grid grid-cols-[auto_1fr] gap-x-2 text-xs font-mono mt-1"
+            >
+                ${failover
+                    ? html`
+                          <dt class="text-gray-500">Failover:</dt>
+                          <dd class="text-gray-300">
+                              ${failover.valid ? 'Valid' : 'Not Valid'}
+                          </dd>
+                      `
+                    : ''}
+                ${resyncs && resyncs.length > 0
+                    ? html`
+                          <dt class="text-gray-500">Resync:</dt>
+                          <dd class="text-gray-300">
+                              Type ${resyncs[0].type}
+                              ${resyncs[0].dT ? `| dT=${resyncs[0].dT}` : ''}
+                          </dd>
+                      `
+                    : ''}
+                ${switchingProperty
+                    ? html`
+                          <dt class="text-gray-500">Switching:</dt>
+                          <dd class="text-gray-300">
+                              &#8660; ${switchingProperty[':@'].value}
+                          </dd>
+                      `
+                    : ''}
+            </dl>
+        </div>
+    `;
+};
+
+const adaptationSetTemplate = (as, type) => {
     return html`
         <div class="space-y-2">
             <h5 class="font-semibold text-gray-300">
-                ${title}:
+                ${type.charAt(0).toUpperCase() + type.slice(1)} AdaptationSet:
                 <span class="font-mono text-sm">${as.id || 'N/A'}</span>
-                ${as.lang
-                    ? html` <span class="text-sm font-normal"
-                          >(Lang: ${as.lang})</span
-                      >`
-                    : ''}
-                ${roles
-                    ? html` <span class="text-sm font-normal"
-                          >(Roles: ${roles})</span
-                      >`
-                    : ''}
             </h5>
             <div class="pl-4">
                 ${trackTableTemplate(as.representations, type)}
+                ${advancedPropertiesTemplate(as)}
+            </div>
+        </div>
+    `;
+};
+
+const subsetTemplate = (period) => {
+    if (!period.subsets || period.subsets.length === 0) return '';
+    return html`
+        <div class="mt-4">
+            <h5 class="font-semibold text-gray-300">Subsets</h5>
+            <div class="text-xs font-mono text-gray-400 pl-4">
+                ${period.subsets.map(
+                    (s) =>
+                        html`<div>
+                            <strong>${s.id || 'default'}:</strong> contains
+                            [${s.contains.join(', ')}]
+                        </div>`
+                )}
             </div>
         </div>
     `;
@@ -59,6 +112,7 @@ const periodTemplate = (period, index) => html`
                       adaptationSetTemplate(as, 'text')
                   )
                 : ''}
+            ${subsetTemplate(period)}
         </div>
     </details>
 `;

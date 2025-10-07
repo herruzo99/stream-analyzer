@@ -27,19 +27,22 @@ import { adaptHlsToIr } from './adapter.js';
 function parseAttributeList(attrString) {
     /** @type {Record<string, string | number>} */
     const attributes = {};
-    // This regex splits by comma, but not inside quotes.
-    const parts = attrString.match(/("[^"]*")|[^,]+/g) || [];
-    parts.forEach((part) => {
-        const eqIndex = part.indexOf('=');
-        if (eqIndex === -1) return;
-        const key = part.substring(0, eqIndex);
-        const value = part.substring(eqIndex + 1).replace(/"/g, '');
-        // Attempt to convert numbers
+    const regex = /([A-Z0-9-]+)=("[^"]*"|[^,]+)/g;
+    let match;
+
+    while ((match = regex.exec(attrString)) !== null) {
+        const key = match[1];
+        let value = match[2];
+
+        if (value.startsWith('"') && value.endsWith('"')) {
+            value = value.substring(1, value.length - 1);
+        }
+
         const numValue = /^-?\d+(\.\d+)?$/.test(value)
             ? parseFloat(value)
             : value;
         attributes[key] = numValue;
-    });
+    }
     return attributes;
 }
 
@@ -128,6 +131,7 @@ export async function parseManifest(manifestString, baseUrl, parentVariables) {
         applyVariableSubstitution(linesForParsing, baseUrl, parentVariables);
 
     const isMaster = lines.some((line) => line.startsWith('#EXT-X-STREAM-INF'));
+    const isLive = !lines.some((line) => line.startsWith('#EXT-X-ENDLIST'));
 
     const parsed = {
         isMaster: isMaster,
@@ -138,7 +142,7 @@ export async function parseManifest(manifestString, baseUrl, parentVariables) {
         media: [],
         raw: manifestString, // Use the original, unmodified manifest for compliance checks
         baseUrl: baseUrl,
-        isLive: !isMaster, // Heuristic: Master is VOD by default, Media is Live by default
+        isLive: isLive,
         preloadHints: [],
         renditionReports: [],
     };

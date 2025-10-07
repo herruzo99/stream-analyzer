@@ -1,5 +1,5 @@
-import { rules as dashRules } from '../../protocols/manifest/dash/compliance-rules.js';
-import { rules as hlsRules } from '../../protocols/manifest/hls/compliance-rules.js';
+import { rules as dashRules } from '../../protocols/manifest/dash/compliance-rules/index.js';
+import { rules as hlsRules } from '../../protocols/manifest/hls/compliance-rules/index.js';
 import {
     findChildren,
     getAttr,
@@ -77,7 +77,7 @@ export function runChecks(manifest, protocol, context = {}) {
             .filter((rule) => playlistScopes.includes(rule.scope))
             .forEach((rule) => {
                 runRule(
-                    /** @type {import('../../protocols/manifest/hls/compliance-rules.js').HlsRule} */ (
+                    /** @type {import('../../protocols/manifest/hls/compliance-rules/index.js').HlsRule} */ (
                         rule
                     ),
                     manifestIR
@@ -90,7 +90,7 @@ export function runChecks(manifest, protocol, context = {}) {
                     .filter((rule) => rule.scope === 'Segment')
                     .forEach((rule) => {
                         runRule(
-                            /** @type {import('../../protocols/manifest/hls/compliance-rules.js').HlsRule} */ (
+                            /** @type {import('../../protocols/manifest/hls/compliance-rules/index.js').HlsRule} */ (
                                 rule
                             ),
                             segment,
@@ -110,7 +110,7 @@ export function runChecks(manifest, protocol, context = {}) {
                         .filter((rule) => rule.scope === 'Key')
                         .forEach((rule) => {
                             runRule(
-                                /** @type {import('../../protocols/manifest/hls/compliance-rules.js').HlsRule} */ (
+                                /** @type {import('../../protocols/manifest/hls/compliance-rules/index.js').HlsRule} */ (
                                     rule
                                 ),
                                 key,
@@ -126,7 +126,7 @@ export function runChecks(manifest, protocol, context = {}) {
                     .filter((rule) => rule.scope === 'Variant')
                     .forEach((rule) => {
                         runRule(
-                            /** @type {import('../../protocols/manifest/hls/compliance-rules.js').HlsRule} */ (
+                            /** @type {import('../../protocols/manifest/hls/compliance-rules/index.js').HlsRule} */ (
                                 rule
                             ),
                             variant,
@@ -148,7 +148,7 @@ export function runChecks(manifest, protocol, context = {}) {
                         .filter((rule) => rule.scope === 'IframeVariant')
                         .forEach((rule) => {
                             runRule(
-                                /** @type {import('../../protocols/manifest/hls/compliance-rules.js').HlsRule} */ (
+                                /** @type {import('../../protocols/manifest/hls/compliance-rules/index.js').HlsRule} */ (
                                     rule
                                 ),
                                 iframeStream,
@@ -180,7 +180,7 @@ export function runChecks(manifest, protocol, context = {}) {
                         .filter((rule) => rule.scope === 'MediaGroup')
                         .forEach((rule) => {
                             runRule(
-                                /** @type {import('../../protocols/manifest/hls/compliance-rules.js').HlsRule} */ (
+                                /** @type {import('../../protocols/manifest/hls/compliance-rules/index.js').HlsRule} */ (
                                     rule
                                 ),
                                 group,

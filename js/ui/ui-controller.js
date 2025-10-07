@@ -2,6 +2,7 @@ import { html } from 'lit-html';
 import { eventBus } from '../core/event-bus.js';
 import { useStore } from '../core/store.js';
 import { getSegmentAnalysisTemplate } from './views/segment-analysis/index.js';
+import { scte35DetailsTemplate } from './shared/scte35-details.js';
 import { savePreset } from '../shared/utils/stream-storage.js';
 import {
     reloadStream,
@@ -93,6 +94,14 @@ export function initializeUiController(domContext) {
                 segmentA?.parsedData,
                 segmentB?.parsedData
             ),
+        });
+    });
+
+    eventBus.subscribe('ui:show-scte35-details', ({ scte35, startTime }) => {
+        openModalWithContent({
+            title: `SCTE-35 Details @ ${startTime.toFixed(3)}s`,
+            url: 'Decoded Splice Info Section',
+            contentTemplate: scte35DetailsTemplate(scte35),
         });
     });
 }

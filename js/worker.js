@@ -5,6 +5,7 @@ import { parseManifest as parseHlsManifest } from './protocols/manifest/hls/pars
 import { parseAllSegmentUrls as parseDashSegments } from './protocols/manifest/dash/segment-parser.js';
 import { runChecks } from './engines/compliance/engine.js';
 import { validateSteeringManifest } from './engines/hls/steering-validator.js';
+import { analyzeDashCoverage, analyzeParserDrift } from './engines/debug/coverage-analyzer.js';
 import { DOMParser, XMLSerializer } from 'xmldom';
 import xpath from 'xpath';
 
@@ -235,6 +236,24 @@ async function processSingleStream(input) {
         serializedManifestObject = manifest.serializedManifest; // HLS adapter places the parsed object here
         manifestIR.hlsDefinedVariables = definedVariables;
         finalBaseUrl = baseUrl;
+
+        // --- Live Stream Detection for HLS ---
+        if (manifestIR.isMaster && manifestIR.variants.length > 0) {
+            try {
+                const firstVariantUrl = manifestIR.variants[0].resolvedUri;
+                const response = await fetch(firstVariantUrl);
+                const mediaPlaylistString = await response.text();
+                if (!mediaPlaylistString.includes('#EXT-X-ENDLIST')) {
+                    manifestIR.type = 'dynamic';
+                } else {
+                    manifestIR.type = 'static';
+                }
+            } catch (e) {
+                console.error("Could not fetch first variant to determine liveness, defaulting to VOD.", e);
+                manifestIR.type = 'static';
+            }
+        }
+        // The parser now sets isLive correctly for media playlists, which adaptHlsToIr uses
     } else {
         // DASH
         const { manifest, serializedManifest, baseUrl } =
@@ -310,7 +329,20 @@ async function processSingleStream(input) {
         dashRepresentationState: new Map(),
         hlsDefinedVariables: manifestIR.hlsDefinedVariables,
         semanticData: semanticData,
+        coverageReport: [],
     };
+
+    // --- Parser Coverage Analysis ---
+    if (input.isDebug) {
+        let coverageFindings = [];
+        if (streamObject.protocol === 'dash') {
+            coverageFindings = analyzeDashCoverage(serializedManifestObject);
+        }
+        // HLS coverage analysis would go here if implemented
+
+        const driftFindings = analyzeParserDrift(manifestIR);
+        streamObject.coverageReport = [...coverageFindings, ...driftFindings];
+    }
 
     // --- Always add the initial manifest to manifestUpdates for compliance reports ---
     let formattedInitial = streamObject.rawManifest;

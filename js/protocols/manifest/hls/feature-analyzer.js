@@ -62,7 +62,7 @@ export function analyzeHlsFeatures(manifestIR) {
     };
 
     const hasAdvancedChannels = allAdaptationSets.some(
-        (as) => as.channels && as.channels.includes('/')
+        (as) => as.channels && String(as.channels).includes('/')
     );
     results['Advanced Spatial Audio (CHANNELS)'] = {
         used: hasAdvancedChannels,

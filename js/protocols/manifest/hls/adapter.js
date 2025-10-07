@@ -6,6 +6,7 @@
  */
 
 import { generateHlsSummary } from './summary-generator.js';
+import { parseScte35 } from '../../metadata/scte35/parser.js';
 
 /**
  * Transforms a parsed HLS manifest object into a protocol-agnostic Intermediate Representation (IR).
@@ -31,6 +32,9 @@ export function adaptHlsToIr(hlsParsed) {
         programInformations: [],
         metrics: [],
         locations: [],
+        patchLocations: [],
+        serviceDescriptions: [],
+        initializationSets: [],
         segmentFormat: hlsParsed.map ? 'isobmff' : 'ts',
         periods: [],
         events: [],
@@ -71,7 +75,7 @@ export function adaptHlsToIr(hlsParsed) {
             const timeOffset = (startDate - closestPdt) / 1000;
             const isInterstitial =
                 range.value.CLASS === 'com.apple.hls.interstitial';
-            manifestIR.events.push({
+            const event = {
                 startTime: pdtMap.get(closestPdt) + timeOffset,
                 duration: duration,
                 message: isInterstitial
@@ -80,7 +84,27 @@ export function adaptHlsToIr(hlsParsed) {
                 messageData: isInterstitial ? range.value : null,
                 type: 'hls-daterange',
                 cue: range.value['CUE'] || null,
-            });
+                scte35: null,
+            };
+
+            const scte35Out = range.value['SCTE35-OUT'];
+            const scte35In = range.value['SCTE35-IN'];
+            const scte35Cmd = range.value['SCTE35-CMD'];
+            const scte35Data = scte35Out || scte35In || scte35Cmd;
+
+            if (scte35Data) {
+                try {
+                    // SCTE-35 data in HLS is typically hex-encoded
+                    const hex = String(scte35Data).replace(/^0x/, '');
+                    const binaryData = new Uint8Array(
+                        hex.match(/.{1,2}/g).map((byte) => parseInt(byte, 16))
+                    );
+                    event.scte35 = parseScte35(binaryData);
+                } catch (e) {
+                    console.error('Failed to parse SCTE-35 from DATERANGE:', e);
+                }
+            }
+            manifestIR.events.push(event);
         }
     }
 
@@ -96,6 +120,8 @@ export function adaptHlsToIr(hlsParsed) {
         eventStreams: [],
         events: [], // HLS events are manifest-level
         serializedManifest: hlsParsed,
+        serviceDescriptions: [],
+        preselections: [],
     };
 
     if (hlsParsed.isMaster) {
@@ -142,6 +168,8 @@ export function adaptHlsToIr(hlsParsed) {
                             labels: [],
                             groupLabels: [],
                             contentComponents: [],
+                            resyncs: [],
+                            outputProtection: null,
                             stableRenditionId:
                                 media['STABLE-RENDITION-ID'] || null,
                             bitDepth: media['BIT-DEPTH'] || null,
@@ -213,6 +241,9 @@ export function adaptHlsToIr(hlsParsed) {
                 labels: [],
                 groupLabels: [],
                 subRepresentations: [],
+                resyncs: [],
+                outputProtection: null,
+                extendedBandwidth: null,
                 dependencyId: null,
                 serializedManifest: variant,
             };
@@ -239,6 +270,8 @@ export function adaptHlsToIr(hlsParsed) {
                 labels: [],
                 groupLabels: [],
                 contentComponents: [],
+                resyncs: [],
+                outputProtection: null,
                 stableRenditionId: null,
                 bitDepth: null,
                 sampleRate: null,
@@ -292,6 +325,9 @@ export function adaptHlsToIr(hlsParsed) {
                     groupLabels: [],
                     videoRange: undefined,
                     subRepresentations: [],
+                    resyncs: [],
+                    outputProtection: null,
+                    extendedBandwidth: null,
                     dependencyId: null,
                     frameRate: null,
                     sar: null,
@@ -317,6 +353,8 @@ export function adaptHlsToIr(hlsParsed) {
             labels: [],
             groupLabels: [],
             contentComponents: [],
+            resyncs: [],
+            outputProtection: null,
             stableRenditionId: null,
             bitDepth: null,
             sampleRate: null,

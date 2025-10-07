@@ -181,6 +181,9 @@ export async function startApp() {
         tabContents: {
             comparison: document.getElementById('tab-comparison'),
             summary: document.getElementById('tab-summary'),
+            'integrators-report': document.getElementById(
+                'tab-integrators-report'
+            ),
             'timeline-visuals': document.getElementById('tab-timeline-visuals'),
             features: document.getElementById('tab-features'),
             compliance: document.getElementById('tab-compliance'),
@@ -192,6 +195,7 @@ export async function startApp() {
                 'tab-interactive-manifest'
             ),
             updates: document.getElementById('tab-updates'),
+            'parser-coverage': document.getElementById('tab-parser-coverage'),
         },
         segmentModal: document.getElementById('segment-modal'),
         modalTitle: document.getElementById('modal-title'),
