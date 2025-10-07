@@ -1,9 +1,9 @@
-import { useStore } from '../../../app/store.js';
+import { useSegmentCacheStore } from '../../../app/store.js';
 import { parseAllSegmentUrls } from '../../../infrastructure/manifest/dash/segment-parser.js';
 
 /**
  * Creates a view model for the DASH timeline visualization by leveraging the central segment parser.
- * @param {import('../../../app/types.js').Stream} stream
+ * @param {import('../../../app/types.ts').Stream} stream
  * @returns {Promise<object[]>} A promise that resolves to an array of switching set view models.
  */
 export async function createDashTimelineViewModel(stream) {
@@ -24,7 +24,7 @@ export async function createDashTimelineViewModel(stream) {
                     const compositeKey = `${period.id}-${rep.id}`;
                     const segments = segmentsByRepId[compositeKey] || [];
                     const mediaSegments = segments.filter(
-                        (s) => s.type === 'Media'
+                        (s) => (/** @type {any} */ (s)).type === 'Media'
                     );
 
                     if (mediaSegments.length === 0) {
@@ -39,14 +39,18 @@ export async function createDashTimelineViewModel(stream) {
                     }
 
                     const fragments = mediaSegments.map((seg) => ({
-                        number: seg.number,
-                        startTime: seg.time / seg.timescale,
-                        duration: seg.duration / seg.timescale,
-                        startTimeUTC: seg.startTimeUTC,
+                        number: (/** @type {any} */ (seg)).number,
+                        startTime:
+                            (/** @type {any} */ (seg)).time /
+                            (/** @type {any} */ (seg)).timescale,
+                        duration:
+                            (/** @type {any} */ (seg)).duration /
+                            (/** @type {any} */ (seg)).timescale,
+                        startTimeUTC: (/** @type {any} */ (seg)).startTimeUTC,
                     }));
 
                     const events = [];
-                    useStore.getState().segmentCache.forEach((entry) => {
+                    useSegmentCacheStore.getState().cache.forEach((entry) => {
                         if (entry.parsedData?.data?.events) {
                             events.push(...entry.parsedData.data.events);
                         }

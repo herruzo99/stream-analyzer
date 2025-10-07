@@ -15,6 +15,6 @@
         "allowJs": true,
         "maxNodeModuleJsDepth": 0
     },
-    "include": ["js/**/*.js", "tests/**/*.js", "js/types/**/*.d.ts"],
+    "include": ["js/**/*.js", "tests/**/*.js", "js/**/*.ts"],
     "exclude": ["node_modules", "dist"]
 }

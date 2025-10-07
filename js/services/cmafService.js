@@ -5,38 +5,24 @@ import {
     validateCmafSwitchingSets,
 } from '../domain/cmaf/validator.js';
 import { resolveBaseUrl } from '../infrastructure/manifest/dash/recursive-parser.js';
-import { parseISOBMFF } from '../infrastructure/segment/isobmff/parser.js';
 import { findInitSegmentUrl } from '../infrastructure/manifest/dash/segment-parser.js';
+import { getParsedSegment } from './segmentService.js';
 
 /**
  * A private, isolated segment fetcher for this service that does not interact
- * with the global store or cache.
- * @param {string} url The URL of the ISOBMFF segment to fetch and parse.
+ * with the global store or cache directly, but uses the public segment service API.
+ * @param {string} url The URL of the ISOBFF segment to fetch and parse.
  * @returns {Promise<object>} The parsed segment data.
  * @throws {Error} If the fetch or parsing fails.
  */
 async function _fetchAndParseIsobmff(url) {
-    const response = await fetch(url);
-    if (!response.ok) {
-        throw new Error(
-            `HTTP ${response.status} fetching segment for CMAF validation: ${url}`
-        );
-    }
-    const buffer = await response.arrayBuffer();
-    const { boxes, issues, events } = parseISOBMFF(buffer);
-    if (issues.some((issue) => issue.type === 'error')) {
-        throw new Error(
-            `Failed to parse ISOBMFF segment for CMAF validation: ${url}`
-        );
-    }
-    // The validator expects the `data` property, which we are not providing.
-    // The validator's `validateCmafTrack` expects the direct parsed object.
-    return { boxes, issues, events };
+    // Re-use the main segment service, which now handles caching and parsing.
+    return getParsedSegment(url);
 }
 
 /**
  * Runs all CMAF validation checks for a given stream and stores the results.
- * @param {import('../app/types.js').Stream} stream
+ * @param {import('../app/types.ts').Stream} stream
  */
 async function runCmafValidation(stream) {
     if (stream.protocol !== 'dash') {
@@ -68,16 +54,25 @@ async function runCmafValidation(stream) {
                 firstPeriod,
                 resolvedBaseUrl
             );
-            const mediaUrl = stream.dashRepresentationState
+            const mediaSegment = stream.dashRepresentationState
                 .get(`${firstPeriod.id}-${firstRep.id}`)
-                ?.segments.find((s) => s.type === 'Media')?.resolvedUrl;
+                ?.segments.find(
+                    (s) => (/** @type {any} */ (s)).type === 'Media'
+                );
+
+            const mediaUrl = mediaSegment
+                ? (/** @type {any} */ (mediaSegment)).resolvedUrl
+                : undefined;
 
             if (initUrl && mediaUrl) {
                 const [initData, mediaData] = await Promise.all([
                     _fetchAndParseIsobmff(initUrl),
                     _fetchAndParseIsobmff(mediaUrl),
                 ]);
-                const trackResults = validateCmafTrack(initData, mediaData);
+                const trackResults = validateCmafTrack(
+                    /** @type {any} */ (initData).data,
+                    /** @type {any} */ (mediaData).data
+                );
                 allResults.push(...trackResults);
             }
         }

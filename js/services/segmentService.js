@@ -1,4 +1,4 @@
-import { useStore } from '../app/store.js';
+import { useSegmentCacheStore } from '../app/store.js';
 import { eventBus } from '../app/event-bus.js';
 
 const parsingWorker = new Worker('/dist/worker.js', {
@@ -7,9 +7,9 @@ const parsingWorker = new Worker('/dist/worker.js', {
 
 parsingWorker.onmessage = (event) => {
     const { url, parsedData, error } = event.data;
-    const { segmentCache } = useStore.getState();
+    const { get, set } = useSegmentCacheStore.getState();
 
-    const entry = segmentCache.get(url);
+    const entry = get(url);
     if (!entry) return;
 
     const finalEntry = {
@@ -18,14 +18,7 @@ parsingWorker.onmessage = (event) => {
         parsedData: parsedData,
     };
 
-    // 1. Mutate the current cache instance so other operations in this event loop see it.
-    segmentCache.set(url, finalEntry);
-
-    // 2. Set the state with a *clone* of the cache. This creates a new object
-    //    reference, which Zustand's shallow comparison will detect, triggering a re-render.
-    useStore.setState({ segmentCache: segmentCache.clone() });
-
-    // 3. Dispatch the event for other non-UI listeners (like promises in getParsedSegment).
+    set(url, finalEntry);
     eventBus.dispatch('segment:loaded', { url, entry: finalEntry });
 };
 
@@ -38,10 +31,10 @@ parsingWorker.onerror = (error) => {
  * @param {string} url The URL of the segment to fetch.
  */
 async function _fetchAndParseSegment(url) {
-    const { segmentCache } = useStore.getState();
+    const { set } = useSegmentCacheStore.getState();
     try {
         const pendingEntry = { status: -1, data: null, parsedData: null };
-        segmentCache.set(url, pendingEntry);
+        set(url, pendingEntry);
         eventBus.dispatch('segment:pending', { url });
 
         const response = await fetch(url, { method: 'GET', cache: 'no-store' });
@@ -52,7 +45,7 @@ async function _fetchAndParseSegment(url) {
             data,
             parsedData: null,
         };
-        segmentCache.set(url, entryWithData);
+        set(url, entryWithData);
 
         if (data) {
             parsingWorker.postMessage({
@@ -65,7 +58,7 @@ async function _fetchAndParseSegment(url) {
                 data: null,
                 parsedData: { error: `HTTP ${response.status}` },
             };
-            segmentCache.set(url, errorEntry);
+            set(url, errorEntry);
             eventBus.dispatch('segment:loaded', { url, entry: errorEntry });
         }
     } catch (error) {
@@ -75,7 +68,7 @@ async function _fetchAndParseSegment(url) {
             data: null,
             parsedData: { error: error.message },
         };
-        segmentCache.set(url, errorEntry);
+        set(url, errorEntry);
         eventBus.dispatch('segment:loaded', { url, entry: errorEntry });
     }
 }
@@ -87,8 +80,9 @@ async function _fetchAndParseSegment(url) {
  * @returns {Promise<object>} A promise that resolves with the parsed segment data.
  */
 export function getParsedSegment(url) {
-    const { segmentCache } = useStore.getState();
-    const cachedEntry = segmentCache.get(url);
+    const { get } = useSegmentCacheStore.getState();
+    const cachedEntry = get(url);
+
     if (cachedEntry && cachedEntry.status !== -1 && cachedEntry.parsedData) {
         if (cachedEntry.parsedData.error) {
             return Promise.reject(new Error(cachedEntry.parsedData.error));

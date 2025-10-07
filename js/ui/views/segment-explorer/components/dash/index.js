@@ -72,7 +72,7 @@ const dashSegmentTableTemplate = (
 
 /**
  * Creates the lit-html template for the DASH segment explorer content.
- * @param {import('../../../../../app/store.js').Stream} stream
+ * @param {import('../../../../../app/types.ts').Stream} stream
  * @param {string} displayMode - 'first' or 'last'
  * @returns {import('lit-html').TemplateResult}
  */

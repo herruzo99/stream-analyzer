@@ -267,7 +267,7 @@ export function analyzeHlsFeatures(manifestIR) {
         .some(
             (as) =>
                 as.serializedManifest['INSTREAM-ID'] &&
-                as.serializedManifest.TYPE !== 'CLOSED-CAPTIONS'
+                /** @type {any} */ (as.serializedManifest).TYPE !== 'CLOSED-CAPTIONS'
         );
     results['Generalized INSTREAM-ID'] = {
         used: hasGeneralizedInstreamId,
