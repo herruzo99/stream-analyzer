@@ -1,6 +1,6 @@
 import { html } from 'lit-html';
 import { eventBus } from '../app/event-bus.js';
-import { useStore } from '../app/store.js';
+import { useStore, useSegmentCacheStore } from '../app/store.js';
 import { savePreset } from '../shared/utils/stream-storage.js';
 import {
     reloadStream,
@@ -71,7 +71,7 @@ export const globalControlsTemplate = (stream) => {
 
 export function initializeUiController(domContext) {
     eventBus.subscribe('ui:request-segment-analysis', ({ url }) => {
-        const cachedSegment = useStore.getState().segmentCache.get(url);
+        const cachedSegment = useSegmentCacheStore.getState().get(url);
         openModalWithContent({
             title: 'Segment Analysis',
             url: url,
@@ -83,9 +83,9 @@ export function initializeUiController(domContext) {
     });
 
     eventBus.subscribe('ui:request-segment-comparison', ({ urlA, urlB }) => {
-        const { segmentCache } = useStore.getState();
-        const segmentA = segmentCache.get(urlA);
-        const segmentB = segmentCache.get(urlB);
+        const { get: getFromCache } = useSegmentCacheStore.getState();
+        const segmentA = getFromCache(urlA);
+        const segmentB = getFromCache(urlB);
         openModalWithContent({
             title: 'Segment Comparison',
             url: 'Comparing Segment A vs. Segment B',

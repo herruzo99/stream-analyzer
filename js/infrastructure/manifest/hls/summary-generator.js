@@ -12,7 +12,7 @@ import { formatBitrate } from '../../../shared/utils/format.js';
  */
 export function generateHlsSummary(manifestIR) {
     const { serializedManifest: rawElement } = manifestIR;
-    const isMaster = rawElement.isMaster;
+    const isMaster = (/** @type {any} */ (rawElement)).isMaster;
 
     const allAdaptationSets = manifestIR.periods.flatMap(
         (p) => p.adaptationSets
@@ -40,7 +40,8 @@ export function generateHlsSummary(manifestIR) {
             lang: as.lang,
             codecs: [],
             channels: as.channels,
-            isDefault: as.serializedManifest.DEFAULT === 'YES',
+            isDefault:
+                (/** @type {any} */ (as.serializedManifest)).DEFAULT === 'YES',
             isForced: as.forced,
             roles: [],
         }));
@@ -53,7 +54,8 @@ export function generateHlsSummary(manifestIR) {
             id: as.stableRenditionId || as.id,
             lang: as.lang,
             codecsOrMimeTypes: [],
-            isDefault: as.serializedManifest.DEFAULT === 'YES',
+            isDefault:
+                (/** @type {any} */ (as.serializedManifest)).DEFAULT === 'YES',
             isForced: as.forced,
             roles: [],
         }));
@@ -63,20 +65,22 @@ export function generateHlsSummary(manifestIR) {
     let mediaPlaylistDetails = null;
 
     if (isMaster) {
-        const sessionKey = rawElement.tags.find(
+        const sessionKey = (/** @type {any} */ (rawElement)).tags.find(
             (t) => t.name === 'EXT-X-SESSION-KEY'
         );
         if (sessionKey && sessionKey.value.METHOD !== 'NONE') {
             protectionSchemes.add(sessionKey.value.METHOD);
         }
     } else {
-        const keyTag = rawElement.segments.find((s) => s.key)?.key;
+        const keyTag = (/** @type {any} */ (rawElement)).segments.find(
+            (s) => s.key
+        )?.key;
         if (keyTag && keyTag.METHOD !== 'NONE') {
             protectionSchemes.add(keyTag.METHOD);
         }
 
-        const segmentCount = rawElement.segments.length;
-        const totalDuration = rawElement.segments.reduce(
+        const segmentCount = (/** @type {any} */ (rawElement)).segments.length;
+        const totalDuration = (/** @type {any} */ (rawElement)).segments.reduce(
             (sum, seg) => sum + seg.duration,
             0
         );
@@ -85,14 +89,16 @@ export function generateHlsSummary(manifestIR) {
             segmentCount: segmentCount,
             averageSegmentDuration:
                 segmentCount > 0 ? totalDuration / segmentCount : 0,
-            hasDiscontinuity: rawElement.segments.some((s) => s.discontinuity),
-            isIFrameOnly: rawElement.tags.some(
+            hasDiscontinuity: (
+                /** @type {any} */ (rawElement)
+            ).segments.some((s) => s.discontinuity),
+            isIFrameOnly: (/** @type {any} */ (rawElement)).tags.some(
                 (t) => t.name === 'EXT-X-I-FRAMES-ONLY'
             ),
         };
     }
 
-    const iFramePlaylists = rawElement.tags.filter(
+    const iFramePlaylists = (/** @type {any} */ (rawElement)).tags.filter(
         (t) => t.name === 'EXT-X-I-FRAME-STREAM-INF'
     ).length;
 
@@ -116,14 +122,16 @@ export function generateHlsSummary(manifestIR) {
         },
         dash: null,
         hls: {
-            version: rawElement.version,
-            targetDuration: rawElement.targetDuration,
+            version: (/** @type {any} */ (rawElement)).version,
+            targetDuration: (/** @type {any} */ (rawElement)).targetDuration,
             iFramePlaylists: iFramePlaylists,
             mediaPlaylistDetails,
         },
         lowLatency: {
-            isLowLatency: !!rawElement.partInf,
-            partTargetDuration: rawElement.partInf?.['PART-TARGET'] || null,
+            isLowLatency: !!(/** @type {any} */ (rawElement)).partInf,
+            partTargetDuration:
+                (/** @type {any} */ (rawElement)).partInf?.['PART-TARGET'] ||
+                null,
             partHoldBack: manifestIR.serverControl?.['PART-HOLD-BACK'] || null,
             canBlockReload:
                 manifestIR.serverControl?.['CAN-BLOCK-RELOAD'] === 'YES',
@@ -136,7 +144,9 @@ export function generateHlsSummary(manifestIR) {
             totalVideoTracks: videoTracks.length,
             totalAudioTracks: audioTracks.length,
             totalTextTracks: textTracks.length,
-            mediaPlaylists: isMaster ? (rawElement.variants || []).length : 1,
+            mediaPlaylists: isMaster
+                ? ((/** @type {any} */ (rawElement)).variants || []).length
+                : 1,
             periods: [], // HLS does not have periods, so this is empty.
         },
         videoTracks,

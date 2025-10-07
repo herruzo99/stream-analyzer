@@ -1,4 +1,4 @@
-import { useStore } from '../app/store.js';
+import { useStore, storeActions } from '../app/store.js';
 import { eventBus } from '../app/event-bus.js';
 import { generateFeatureAnalysis } from '../domain/feature-analysis/analyzer.js';
 import { parseAllSegmentUrls as parseDashSegments } from '../infrastructure/manifest/dash/segment-parser.js';
@@ -7,13 +7,13 @@ import xmlFormatter from 'xml-formatter';
 
 /**
  * A more specific stream type where the protocol is guaranteed to be 'dash' or 'hls'.
- * @typedef {import('../app/types.js').Stream & { protocol: 'dash' | 'hls' }} KnownProtocolStream
+ * @typedef {import('../app/types.ts').Stream & { protocol: 'dash' | 'hls' }} KnownProtocolStream
  */
 
 /**
  * Checks for future SCTE-35 events and schedules a high-priority poll.
  * @param {KnownProtocolStream} stream The stream being updated.
- * @param {import('../app/types.js').Manifest} newManifestObject The newly parsed manifest IR.
+ * @param {import('../app/types.ts').Manifest} newManifestObject The newly parsed manifest IR.
  */
 function schedulePollsFromScte35(stream, newManifestObject) {
     if (stream.manifest.type !== 'dynamic' || !newManifestObject.events) {
@@ -24,11 +24,11 @@ function schedulePollsFromScte35(stream, newManifestObject) {
     const preRollBufferMs = 1000; // Poll 1 second before the event
 
     for (const event of newManifestObject.events) {
-        if (!event.scte35 || event.scte35.error) {
+        if (!event.scte35 || (/** @type {any} */ (event.scte35)).error) {
             continue;
         }
 
-        const command = event.scte35.splice_command;
+        const command = (/** @type {any} */ (event.scte35)).splice_command;
         if (
             !command ||
             !command.splice_time ||
@@ -38,7 +38,8 @@ function schedulePollsFromScte35(stream, newManifestObject) {
         }
 
         const ptsTime = command.splice_time.pts_time;
-        const ptsAdjustment = event.scte35.pts_adjustment || 0;
+        const ptsAdjustment =
+            (/** @type {any} */ (event.scte35)).pts_adjustment || 0;
         const adjustedPts = ptsTime + ptsAdjustment;
 
         // Find the most recent Program Clock Reference (PCR) from a segment to anchor our wall-clock calculation
@@ -66,8 +67,8 @@ function schedulePollsFromScte35(stream, newManifestObject) {
 
 /**
  * Compares two sets of compliance results to see if any new issues have appeared.
- * @param {import('../app/types.js').ComplianceResult[]} oldResults
- * @param {import('../app/types.js').ComplianceResult[]} newResults
+ * @param {import('../app/types.ts').ComplianceResult[]} oldResults
+ * @param {import('../app/types.ts').ComplianceResult[]} newResults
  * @returns {boolean}
  */
 function checkForNewIssues(oldResults, newResults) {
@@ -93,76 +94,33 @@ function checkForNewIssues(oldResults, newResults) {
 }
 
 /**
- * Updates the core properties of a stream object with new manifest data.
- * @param {import('../app/types.js').Stream} stream The stream to update.
- * @param {string} newManifestString The raw string of the new manifest.
- * @param {import('../app/types.js').Manifest} newManifestObject The new manifest IR.
+ * The main handler for processing a live manifest update. This version is optimized
+ * to build a partial update object, avoiding expensive deep clones of the entire stream state.
+ * @param {object} updateData The event data from `livestream:manifest-updated`.
  */
-function _updateStreamProperties(stream, newManifestString, newManifestObject) {
-    stream.rawManifest = newManifestString;
-    stream.manifest = newManifestObject;
-    stream.featureAnalysis.manifestCount++;
-}
+function processLiveUpdate(updateData) {
+    const {
+        streamId,
+        newManifestString,
+        newManifestObject,
+        oldManifestString,
+        complianceResults,
+        serializedManifest,
+    } = updateData;
+    const stream = useStore.getState().streams.find((s) => s.id === streamId);
 
-/**
- * Re-runs feature analysis and updates the stream's feature analysis results.
- * @param {KnownProtocolStream} stream The stream to update.
- */
-function _updateFeatureAnalysis(stream) {
-    // Note: The manifest object on the stream has already been updated.
-    const newAnalysisResults = generateFeatureAnalysis(
-        stream.manifest,
-        stream.protocol,
-        stream.manifest.serializedManifest // DASH needs the serialized object
-    );
+    if (!stream || stream.protocol === 'unknown') return;
 
-    Object.entries(newAnalysisResults).forEach(([name, result]) => {
-        const existing = stream.featureAnalysis.results.get(name);
-        if (result.used && (!existing || !existing.used)) {
-            stream.featureAnalysis.results.set(name, {
-                used: true,
-                details: result.details,
-            });
-        } else if (!existing) {
-            stream.featureAnalysis.results.set(name, {
-                used: result.used,
-                details: result.details,
-            });
-        }
-    });
-}
-
-/**
- * Generates a diff of the manifest update and prepends it to the update list.
- * @param {KnownProtocolStream} stream The stream to update.
- * @param {string} oldManifestString The raw string of the previous manifest.
- * @param {string} newManifestString The raw string of the new manifest.
- * @param {import('../app/types.js').ComplianceResult[]} complianceResults The new compliance results.
- * @param {object} serializedManifest The pristine serialized manifest object for this update.
- */
-function _updateManifestDiff(
-    stream,
-    oldManifestString,
-    newManifestString,
-    complianceResults,
-    serializedManifest
-) {
+    // --- Create a new manifestUpdates array ---
     let formattedOld = oldManifestString;
     let formattedNew = newManifestString;
 
     if (stream.protocol === 'dash') {
-        formattedOld = xmlFormatter(oldManifestString, {
-            indentation: '  ',
-            lineSeparator: '\n',
-        });
-        formattedNew = xmlFormatter(newManifestString, {
-            indentation: '  ',
-            lineSeparator: '\n',
-        });
+        formattedOld = xmlFormatter(oldManifestString, { indentation: '  ' });
+        formattedNew = xmlFormatter(newManifestString, { indentation: '  ' });
     }
 
     const diffHtml = diffManifest(formattedOld, formattedNew, stream.protocol);
-
     const previousResults = stream.manifestUpdates[0]?.complianceResults;
     const hasNewIssues = checkForNewIssues(previousResults, complianceResults);
 
@@ -174,117 +132,107 @@ function _updateManifestDiff(
         hasNewIssues,
         serializedManifest,
     };
-    stream.manifestUpdates.unshift(newUpdate);
 
-    if (stream.manifestUpdates.length > 20) {
-        stream.manifestUpdates.pop();
-    }
-}
-
-/**
- * Updates the segment list for a DASH stream's representations across all periods.
- * @param {KnownProtocolStream} stream The stream to update.
- */
-function _updateDashSegmentState(stream) {
-    const newSegmentsByCompositeKey = parseDashSegments(
-        stream.manifest.serializedManifest,
-        stream.baseUrl
+    const newManifestUpdates = [newUpdate, ...stream.manifestUpdates].slice(
+        0,
+        20
     );
 
-    Object.entries(newSegmentsByCompositeKey).forEach(
-        ([compositeKey, newSegments]) => {
-            const repState = stream.dashRepresentationState.get(compositeKey);
-            if (repState) {
-                const existingSegmentUrls = new Set(
-                    repState.segments.map((s) => s.resolvedUrl)
-                );
-                newSegments.forEach((newSeg) => {
-                    if (!existingSegmentUrls.has(newSeg.resolvedUrl)) {
-                        repState.segments.push(newSeg);
-                    }
-                });
-                repState.freshSegmentUrls = new Set(
-                    newSegments.map((s) => s.resolvedUrl)
+    // --- Recalculate feature analysis ---
+    const newFeatureAnalysisState = {
+        ...stream.featureAnalysis,
+        manifestCount: stream.featureAnalysis.manifestCount + 1,
+        results: new Map(stream.featureAnalysis.results),
+    };
+
+    const newAnalysisResults = generateFeatureAnalysis(
+        newManifestObject,
+        stream.protocol,
+        serializedManifest
+    );
+
+    Object.entries(newAnalysisResults).forEach(([name, result]) => {
+        const existing = newFeatureAnalysisState.results.get(name);
+        if (result.used && (!existing || !existing.used)) {
+            newFeatureAnalysisState.results.set(name, {
+                used: true,
+                details: result.details,
+            });
+        }
+    });
+
+    // --- Recalculate segment state ---
+    let newDashState, newHlsState;
+    if (stream.protocol === 'dash') {
+        newDashState = new Map(stream.dashRepresentationState);
+        const newSegmentsByCompositeKey = parseDashSegments(
+            serializedManifest,
+            stream.baseUrl
+        );
+        Object.entries(newSegmentsByCompositeKey).forEach(
+            ([compositeKey, newSegments]) => {
+                const repState = newDashState.get(compositeKey);
+                if (repState) {
+                    const existingUrls = new Set(
+                        repState.segments.map(
+                            (s) =>
+                                (/** @type {any} */ (s))
+                                    .resolvedUrl
+                        )
+                    );
+                    newSegments.forEach((newSeg) => {
+                        if (
+                            !existingUrls.has(
+                                (/** @type {any} */ (newSeg)).resolvedUrl
+                            )
+                        ) {
+                            repState.segments.push(newSeg);
+                        }
+                    });
+                    repState.freshSegmentUrls = new Set(
+                        newSegments.map(
+                            (s) =>
+                                (/** @type {any} */ (s))
+                                    .resolvedUrl
+                        )
+                    );
+                }
+            }
+        );
+    } else {
+        // HLS
+        newHlsState = new Map(stream.hlsVariantState);
+        if (!newManifestObject.isMaster) {
+            const variant = newHlsState.get(stream.originalUrl);
+            if (variant) {
+                variant.segments = newManifestObject.segments || [];
+                variant.freshSegmentUrls = new Set(
+                    variant.segments.map(
+                        (s) => (/** @type {any} */ (s)).resolvedUrl
+                    )
                 );
             }
         }
-    );
-}
-
-/**
- * Updates the segment list for an HLS media playlist.
- * @param {KnownProtocolStream} stream The stream to update.
- */
-function _updateHlsSegmentState(stream) {
-    if (stream.manifest.serializedManifest.isMaster) {
-        return;
     }
 
-    const variant = stream.hlsVariantState.get(stream.originalUrl);
-    if (variant) {
-        const latestParsed = stream.manifest.serializedManifest;
-        variant.segments = latestParsed.segments || [];
-        variant.freshSegmentUrls = new Set(
-            variant.segments.map((s) => s.resolvedUrl)
-        );
-    }
-}
-
-/**
- * The main handler for processing a live manifest update.
- * @param {object} updateData The event data from `livestream:manifest-updated`.
- */
-function processLiveUpdate(updateData) {
-    const {
-        streamId,
-        newManifestString,
-        newManifestObject,
-        oldManifestString,
-        complianceResults,
-        serializedManifest, // Extract the new pristine manifest object
-    } = updateData;
-    const streamIndex = useStore
-        .getState()
-        .streams.findIndex((s) => s.id === streamId);
-    if (streamIndex === -1) return;
-
-    // Use structuredClone for a robust, deep copy of the stream state.
-    const stream = structuredClone(useStore.getState().streams[streamIndex]);
-
-    // Add type guard to satisfy TypeScript compiler and prevent runtime errors.
-    if (stream.protocol === 'unknown') return;
-
-    // After the guard, TypeScript knows 'stream' now conforms to 'KnownProtocolStream'.
-    // We use an explicit cast to ensure the compiler understands this for subsequent function calls.
-    const knownProtocolStream = /** @type {KnownProtocolStream} */ (stream);
-
-    _updateStreamProperties(stream, newManifestString, newManifestObject);
-    _updateFeatureAnalysis(knownProtocolStream);
-    _updateManifestDiff(
-        knownProtocolStream,
-        oldManifestString,
-        newManifestString,
-        complianceResults,
-        serializedManifest // Pass the pristine object
+    // --- Schedule polls based on SCTE-35 ---
+    schedulePollsFromScte35(
+        /** @type {KnownProtocolStream} */ (stream),
+        newManifestObject
     );
 
-    if (knownProtocolStream.protocol === 'dash') {
-        _updateDashSegmentState(knownProtocolStream);
-    } else if (knownProtocolStream.protocol === 'hls') {
-        _updateHlsSegmentState(knownProtocolStream);
-    }
+    // --- Construct the partial update payload ---
+    const updatePayload = {
+        rawManifest: newManifestString,
+        manifest: newManifestObject,
+        manifestUpdates: newManifestUpdates,
+        featureAnalysis: newFeatureAnalysisState,
+        dashRepresentationState: newDashState,
+        hlsVariantState: newHlsState,
+    };
 
-    // NEW: Check for SCTE-35 events to schedule a proactive poll
-    schedulePollsFromScte35(knownProtocolStream, newManifestObject);
-
-    // Update the stream in the store
-    useStore.setState((state) => ({
-        streams: state.streams.map((s, index) =>
-            index === streamIndex ? stream : s
-        ),
-    }));
-
-    // Notify the UI that data for this stream has been refreshed.
+    // --- Dispatch the update action ---
+    storeActions.updateStream(streamId, updatePayload);
     eventBus.dispatch('stream:data-updated', { streamId });
 }
 

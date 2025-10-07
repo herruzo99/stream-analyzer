@@ -1,5 +1,5 @@
 import { html } from 'lit-html';
-import { useStore, storeActions } from '../../app/store.js';
+import { useStore, storeActions, useSegmentCacheStore } from '../../app/store.js';
 import { eventBus } from '../../app/event-bus.js';
 
 function handleSegmentCheck(e) {
@@ -132,8 +132,10 @@ const getActions = (cacheEntry, seg, isFresh) => {
  * @returns {import('lit-html').TemplateResult}
  */
 export const segmentRowTemplate = (seg, isFresh) => {
-    const { segmentCache, segmentsForCompare } = useStore.getState();
-    const cacheEntry = segmentCache.get(seg.resolvedUrl);
+    const { segmentsForCompare } = useStore.getState();
+    const { get: getFromCache } = useSegmentCacheStore.getState();
+
+    const cacheEntry = getFromCache(seg.resolvedUrl);
     const isChecked = segmentsForCompare.includes(seg.resolvedUrl);
 
     let stateClasses = 'hover:bg-gray-800/80 transition-colors duration-200';

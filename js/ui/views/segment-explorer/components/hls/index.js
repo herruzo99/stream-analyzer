@@ -265,78 +265,81 @@ const renderVariant = (stream, variant, variantUri) => {
 
 /**
  * Creates the lit-html template for the HLS segment explorer content.
- * @param {import('../../../../../app/types.js').Stream} stream
+ * @param {import('../../../../../app/types.ts').Stream} stream
  * @returns {import('lit-html').TemplateResult}
  */
 export function getHlsExplorerTemplate(stream) {
     if (stream.manifest.isMaster) {
-        const variants = (stream.manifest.variants || []).map((v, i) => ({
-            ...v,
-            title: `Variant Stream ${i + 1} (BW: ${(
-                v.attributes.BANDWIDTH / 1000
-            ).toFixed(0)}k)`,
-            resolvedUri: v.resolvedUri,
-        }));
+        // Group all playlists by their type (video, audio, subtitles)
+        const groupedPlaylists = {
+            VIDEO: [],
+            AUDIO: [],
+            SUBTITLES: [],
+        };
 
-        const mediaPlaylists = (
-            stream.manifest.serializedManifest.media || []
-        ).filter((media) => media.URI);
+        for (const uri of stream.hlsVariantState.keys()) {
+            // Find the original parsed tag (either variant or media) to get its metadata
+            const variant = (stream.manifest.variants || []).find(
+                (v) => v.resolvedUri === uri
+            );
+            const media = (
+                /** @type {any} */ (stream.manifest.serializedManifest).media ||
+                []
+            ).find((m) => m.URI && new URL(m.URI, stream.baseUrl).href === uri);
 
-        const groupedMedia = mediaPlaylists.reduce((acc, media) => {
-            const type = media.TYPE || 'UNKNOWN';
-            if (!acc[type]) {
-                acc[type] = [];
+            if (variant) {
+                groupedPlaylists.VIDEO.push({
+                    title: `Variant Stream (BW: ${(
+                        variant.attributes.BANDWIDTH / 1000
+                    ).toFixed(0)}k, Res: ${
+                        variant.attributes.RESOLUTION || 'N/A'
+                    })`,
+                    uri,
+                });
+            } else if (media) {
+                const type = media.TYPE || 'UNKNOWN';
+                if (!groupedPlaylists[type]) groupedPlaylists[type] = [];
+                groupedPlaylists[type].push({
+                    title: `${media.NAME || media.LANGUAGE || 'Rendition'} (${
+                        media.LANGUAGE || 'N/A'
+                    })`,
+                    uri,
+                });
             }
-            acc[type].push(media);
-            return acc;
-        }, {});
+        }
 
-        const mediaGroupTemplate = (type, items) => html`
-            <div class="mt-4">
-                <h4 class="text-md font-semibold text-gray-400 mb-2">
-                    ${type} Renditions
-                </h4>
-                <div class="space-y-1">
-                    ${items.map((item) => {
-                        const resolvedUri = new URL(item.URI, stream.baseUrl)
-                            .href;
-                        const mediaItem = {
-                            title: `${
-                                item.NAME || item.LANGUAGE || `Default ${type}`
-                            } (${item.LANGUAGE || 'N/A'})`,
-                            resolvedUri: resolvedUri,
-                        };
-                        return renderVariant(
-                            stream,
-                            mediaItem,
-                            mediaItem.resolvedUri
-                        );
-                    })}
+        const groupTemplate = (title, items) => {
+            if (items.length === 0) return '';
+            return html`
+                <div class="mt-4">
+                    <h4 class="text-md font-semibold text-gray-400 mb-2">
+                        ${title}
+                    </h4>
+                    <div class="space-y-1">
+                        ${items.map((item) =>
+                            renderVariant(stream, item, item.uri)
+                        )}
+                    </div>
                 </div>
-            </div>
-        `;
+            `;
+        };
 
         return html`
             <div>
-                <h4 class="text-md font-semibold text-gray-400 mb-2">
-                    Variant Streams
-                </h4>
-                <div class="space-y-1">
-                    ${variants.map((v) =>
-                        renderVariant(stream, v, v.resolvedUri)
-                    )}
-                </div>
-                ${Object.entries(groupedMedia).map(([type, items]) =>
-                    mediaGroupTemplate(type, items)
+                ${groupTemplate('Variant Streams', groupedPlaylists.VIDEO)}
+                ${groupTemplate('Audio Renditions', groupedPlaylists.AUDIO)}
+                ${groupTemplate(
+                    'Subtitle Renditions',
+                    groupedPlaylists.SUBTITLES
                 )}
             </div>
         `;
     } else {
+        // This is a simple Media Playlist
         const mediaVariant = {
             title: 'Media Playlist Segments',
-            uri: null,
-            resolvedUri: stream.originalUrl,
+            uri: stream.originalUrl,
         };
-        return renderVariant(stream, mediaVariant, mediaVariant.resolvedUri);
+        return renderVariant(stream, mediaVariant, mediaVariant.uri);
     }
 }

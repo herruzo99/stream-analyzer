@@ -12,7 +12,7 @@ import {
 import { DOMParser, XMLSerializer } from 'xmldom';
 import xpath from 'xpath';
 
-/** @typedef {import('./app/types.js').SerializedStream} SerializedStream */
+/** @typedef {import('./app/types.ts').SerializedStream} SerializedStream */
 
 // --- XML Patch Logic ---
 /**
@@ -203,17 +203,17 @@ function serializeHls(parsedHls) {
     return lines.join('\n');
 }
 
-// --- Worker Logic ---
+// --- MODULARIZED ANALYSIS PIPELINE ---
 
-async function processSingleStream(input) {
-    // --- Determine protocol FIRST ---
+async function preProcessInput(input) {
     const trimmedManifest = input.manifestString.trim();
+    let protocol;
     if (trimmedManifest.startsWith('#EXTM3U')) {
-        input.protocol = 'hls';
+        protocol = 'hls';
     } else if (trimmedManifest.includes('<MPD')) {
-        input.protocol = 'dash';
+        protocol = 'dash';
     } else {
-        input.protocol = (input.url || input.file.name)
+        protocol = (input.url || input.file.name)
             .toLowerCase()
             .includes('.m3u8')
             ? 'hls'
@@ -222,12 +222,14 @@ async function processSingleStream(input) {
 
     self.postMessage({
         type: 'status-update',
-        payload: { message: `Parsing (${input.protocol.toUpperCase()})...` },
+        payload: { message: `Parsing (${protocol.toUpperCase()})...` },
     });
 
-    let manifestIR;
-    let serializedManifestObject;
-    let finalBaseUrl = input.url;
+    return { ...input, protocol };
+}
+
+async function parseManifest(input) {
+    let manifestIR, serializedManifestObject, finalBaseUrl;
 
     if (input.protocol === 'hls') {
         const { manifest, definedVariables, baseUrl } = await parseHlsManifest(
@@ -235,30 +237,23 @@ async function processSingleStream(input) {
             input.url
         );
         manifestIR = manifest;
-        serializedManifestObject = manifest.serializedManifest; // HLS adapter places the parsed object here
+        serializedManifestObject = manifest.serializedManifest;
         manifestIR.hlsDefinedVariables = definedVariables;
         finalBaseUrl = baseUrl;
 
-        // --- Live Stream Detection for HLS ---
+        // Determine liveness for master playlists by checking the first variant
         if (manifestIR.isMaster && manifestIR.variants.length > 0) {
             try {
                 const firstVariantUrl = manifestIR.variants[0].resolvedUri;
                 const response = await fetch(firstVariantUrl);
                 const mediaPlaylistString = await response.text();
-                if (!mediaPlaylistString.includes('#EXT-X-ENDLIST')) {
-                    manifestIR.type = 'dynamic';
-                } else {
-                    manifestIR.type = 'static';
-                }
-            } catch (e) {
-                console.error(
-                    'Could not fetch first variant to determine liveness, defaulting to VOD.',
-                    e
-                );
-                manifestIR.type = 'static';
+                manifestIR.type = mediaPlaylistString.includes('#EXT-X-ENDLIST')
+                    ? 'static'
+                    : 'dynamic';
+            } catch (_e) {
+                manifestIR.type = 'static'; // Default to VOD on error
             }
         }
-        // The parser now sets isLive correctly for media playlists, which adaptHlsToIr uses
     } else {
         // DASH
         const { manifest, serializedManifest, baseUrl } =
@@ -267,31 +262,33 @@ async function processSingleStream(input) {
         serializedManifestObject = serializedManifest;
         finalBaseUrl = baseUrl;
     }
+    return { input, manifestIR, serializedManifestObject, finalBaseUrl };
+}
 
-    // Pass serializedManifestObject explicitly to functions that need to traverse it
+async function runAllAnalyses({
+    input,
+    manifestIR,
+    serializedManifestObject,
+    finalBaseUrl,
+}) {
     const { generateFeatureAnalysis } = await import(
         './domain/feature-analysis/analyzer.js'
     );
     const rawInitialAnalysis = generateFeatureAnalysis(
-        manifestIR, // HLS analyzer uses the IR
+        manifestIR,
         input.protocol,
-        serializedManifestObject // DASH analyzer uses the serialized object
+        serializedManifestObject
     );
     const featureAnalysisResults = new Map(Object.entries(rawInitialAnalysis));
-
-    const { diffManifest } = await import('./shared/utils/diff.js');
-    const xmlFormatter = (await import('xml-formatter')).default;
-
     const semanticData = new Map();
 
-    // --- Content Steering Validation ---
+    // Content Steering Validation for HLS
     const steeringTag =
         input.protocol === 'hls' && manifestIR.isMaster
             ? (manifestIR.tags || []).find(
                   (t) => t.name === 'EXT-X-CONTENT-STEERING'
-              ) || null
+              )
             : null;
-
     if (steeringTag) {
         const steeringUri = new URL(
             steeringTag.value['SERVER-URI'],
@@ -308,8 +305,36 @@ async function processSingleStream(input) {
         input.protocol
     );
 
-    // Ensure rawElement is the correct serializable object before sending
-    manifestIR.serializedManifest = serializedManifestObject;
+    let coverageReport = [];
+    if (input.isDebug) {
+        let findings =
+            input.protocol === 'dash'
+                ? analyzeDashCoverage(serializedManifestObject)
+                : [];
+        const drift = analyzeParserDrift(manifestIR);
+        coverageReport = [...findings, ...drift];
+    }
+
+    return {
+        featureAnalysisResults,
+        semanticData,
+        steeringTag,
+        complianceResults,
+        coverageReport,
+    };
+}
+
+async function buildStreamObject(
+    { input, manifestIR, serializedManifestObject, finalBaseUrl },
+    analysisResults
+) {
+    const {
+        featureAnalysisResults,
+        semanticData,
+        steeringTag,
+        complianceResults,
+        coverageReport,
+    } = analysisResults;
 
     const streamObject = {
         id: input.id,
@@ -321,11 +346,10 @@ async function processSingleStream(input) {
         manifest: manifestIR,
         rawManifest: input.manifestString,
         steeringInfo: steeringTag,
-        manifestUpdates: [], // Initialize empty
+        manifestUpdates: [],
         activeManifestUpdateIndex: 0,
         mediaPlaylists: new Map(),
         activeMediaPlaylistUrl: null,
-        activeManifestForView: manifestIR,
         featureAnalysis: {
             results: featureAnalysisResults,
             manifestCount: 1,
@@ -334,82 +358,49 @@ async function processSingleStream(input) {
         dashRepresentationState: new Map(),
         hlsDefinedVariables: manifestIR.hlsDefinedVariables,
         semanticData: semanticData,
-        coverageReport: [],
+        coverageReport,
     };
 
-    // --- Parser Coverage Analysis ---
-    if (input.isDebug) {
-        let coverageFindings = [];
-        if (streamObject.protocol === 'dash') {
-            coverageFindings = analyzeDashCoverage(serializedManifestObject);
-        }
-        // HLS coverage analysis would go here if implemented
-
-        const driftFindings = analyzeParserDrift(manifestIR);
-        streamObject.coverageReport = [...coverageFindings, ...driftFindings];
-    }
-
-    // --- Always add the initial manifest to manifestUpdates for compliance reports ---
-    let formattedInitial = streamObject.rawManifest;
-    if (streamObject.protocol === 'dash') {
-        formattedInitial = xmlFormatter(streamObject.rawManifest, {
-            indentation: '  ',
-            lineSeparator: '\n',
+    // Initialize states
+    if (input.protocol === 'hls' && manifestIR.isMaster) {
+        // Add video variants
+        (manifestIR.variants || []).forEach((v, index) => {
+            streamObject.hlsVariantState.set(v.resolvedUri, {
+                segments: [],
+                freshSegmentUrls: new Set(),
+                isLoading: false,
+                isPolling: manifestIR.type === 'dynamic',
+                isExpanded: index === 0,
+                displayMode: 'last10',
+                error: null,
+            });
         });
-    }
-    const initialDiffHtml = diffManifest(
-        '', // No previous manifest to diff against for the first entry
-        formattedInitial,
-        streamObject.protocol
-    );
-    streamObject.manifestUpdates.push({
-        timestamp: new Date().toLocaleTimeString(),
-        diffHtml: initialDiffHtml,
-        rawManifest: streamObject.rawManifest,
-        complianceResults,
-        hasNewIssues: false,
-        serializedManifest: serializedManifestObject,
-    });
-    // --- End of initial manifest update logic ---
-
-    if (input.protocol === 'hls') {
-        if (manifestIR.isMaster) {
-            (manifestIR.variants || []).forEach((v, index) => {
-                if (streamObject.hlsVariantState.has(v.resolvedUri)) return;
-                streamObject.hlsVariantState.set(v.resolvedUri, {
+        // Add media renditions (audio, subtitles)
+        (
+            /** @type {any} */ (serializedManifestObject).media || []
+        ).forEach((media) => {
+            if (media.URI) {
+                const resolvedUri = new URL(media.URI, finalBaseUrl).href;
+                streamObject.hlsVariantState.set(resolvedUri, {
                     segments: [],
                     freshSegmentUrls: new Set(),
                     isLoading: false,
                     isPolling: manifestIR.type === 'dynamic',
-                    isExpanded: index === 0, // Expand the first variant by default
+                    isExpanded: false, // Collapse non-video tracks by default
                     displayMode: 'last10',
                     error: null,
                 });
-            });
-        } else {
-            // This is a media playlist, so its state should be pre-populated
-            streamObject.hlsVariantState.set(streamObject.originalUrl, {
-                segments: manifestIR.segments || [],
-                freshSegmentUrls: new Set(
-                    (manifestIR.segments || []).map((s) => s.resolvedUrl)
-                ),
-                isLoading: false,
-                isPolling: manifestIR.type === 'dynamic',
-                isExpanded: true, // Expand media playlists by default
-                displayMode: 'last10',
-                error: null,
-            });
-        }
+            }
+        });
     } else if (input.protocol === 'dash') {
-        // Use the serializedManifestObject here explicitly
         const segmentsByCompositeKey = parseDashSegments(
             serializedManifestObject,
             streamObject.baseUrl
         );
         Object.entries(segmentsByCompositeKey).forEach(
-            ([compositeKey, segments]) => {
-                streamObject.dashRepresentationState.set(compositeKey, {
-                    segments: segments,
+            ([key, segments]) => {
+                streamObject.dashRepresentationState.set(key, {
+                    segments,
                     freshSegmentUrls: new Set(
                         segments.map((s) => s.resolvedUrl)
                     ),
@@ -418,27 +409,60 @@ async function processSingleStream(input) {
         );
     }
 
-    // Explicitly cast to the SerializedStream type to satisfy TS
-    const serializedStreamObject = /** @type {SerializedStream} */ (
-        /** @type {any} */ (streamObject)
-    );
+    // Add initial manifest to updates list
+    const { diffManifest } = await import('./shared/utils/diff.js');
+    const xmlFormatter = (await import('xml-formatter')).default;
+    let formattedInitial = streamObject.rawManifest;
+    if (streamObject.protocol === 'dash') {
+        formattedInitial = xmlFormatter(streamObject.rawManifest, {
+            indentation: '  ',
+            lineSeparator: '\n',
+        });
+    }
+    streamObject.manifestUpdates.push({
+        timestamp: new Date().toLocaleTimeString(),
+        diffHtml: diffManifest('', formattedInitial, streamObject.protocol),
+        rawManifest: streamObject.rawManifest,
+        complianceResults,
+        hasNewIssues: false,
+        serializedManifest: serializedManifestObject,
+    });
 
-    // Serialize Maps to Arrays before returning
-    serializedStreamObject.hlsVariantState = Array.from(
+    return streamObject;
+}
+
+function serializeStreamForTransport(streamObject) {
+    const serialized = { ...streamObject };
+    serialized.hlsVariantState = Array.from(
         streamObject.hlsVariantState.entries()
     );
-    serializedStreamObject.dashRepresentationState = Array.from(
+    serialized.dashRepresentationState = Array.from(
         streamObject.dashRepresentationState.entries()
     );
-    serializedStreamObject.featureAnalysis.results = Array.from(
+    serialized.featureAnalysis.results = Array.from(
         streamObject.featureAnalysis.results.entries()
     );
-    serializedStreamObject.semanticData = Array.from(
-        streamObject.semanticData.entries()
+    serialized.semanticData = Array.from(streamObject.semanticData.entries());
+    serialized.mediaPlaylists = Array.from(
+        streamObject.mediaPlaylists.entries()
+    );
+    // Ensure manifest.serializedManifest is serializable for transport
+    streamObject.manifest.serializedManifest = JSON.parse(
+        JSON.stringify(streamObject.manifest.serializedManifest)
     );
 
-    return serializedStreamObject;
+    return /** @type {SerializedStream} */ (/** @type {any} */ (serialized));
 }
+
+async function processSingleStream(input) {
+    const preProcessed = await preProcessInput(input);
+    const parsed = await parseManifest(preProcessed);
+    const analysisResults = await runAllAnalyses(parsed);
+    const streamObject = await buildStreamObject(parsed, analysisResults);
+    return serializeStreamForTransport(streamObject);
+}
+
+// --- Worker Message Handlers ---
 
 async function handleStartAnalysis(inputs) {
     try {
