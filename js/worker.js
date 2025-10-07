@@ -11,6 +11,7 @@ import {
 } from './domain/debug/coverage-analyzer.js';
 import { DOMParser, XMLSerializer } from 'xmldom';
 import xpath from 'xpath';
+import { parseVTT } from './infrastructure/segment/vtt/parser.js';
 
 /** @typedef {import('./app/types.ts').SerializedStream} SerializedStream */
 
@@ -35,7 +36,7 @@ function applyXmlPatch(sourceXml, patchXml) {
     const select = xpath.useNamespaces({ d: 'urn:mpeg:dash:schema:mpd:2011' });
 
     for (const op of patchOps) {
-        const selector = op.getAttribute('sel');
+        const selector = /** @type {Element} */ (op).getAttribute('sel');
         if (!selector) continue;
 
         const targets = select(selector, sourceDoc);
@@ -376,37 +377,33 @@ async function buildStreamObject(
             });
         });
         // Add media renditions (audio, subtitles)
-        (
-            /** @type {any} */ (serializedManifestObject).media || []
-        ).forEach((media) => {
-            if (media.URI) {
-                const resolvedUri = new URL(media.URI, finalBaseUrl).href;
-                streamObject.hlsVariantState.set(resolvedUri, {
-                    segments: [],
-                    freshSegmentUrls: new Set(),
-                    isLoading: false,
-                    isPolling: manifestIR.type === 'dynamic',
-                    isExpanded: false, // Collapse non-video tracks by default
-                    displayMode: 'last10',
-                    error: null,
-                });
+        /** @type {any} */ (serializedManifestObject.media || []).forEach(
+            (media) => {
+                if (media.URI) {
+                    const resolvedUri = new URL(media.URI, finalBaseUrl).href;
+                    streamObject.hlsVariantState.set(resolvedUri, {
+                        segments: [],
+                        freshSegmentUrls: new Set(),
+                        isLoading: false,
+                        isPolling: manifestIR.type === 'dynamic',
+                        isExpanded: false, // Collapse non-video tracks by default
+                        displayMode: 'last10',
+                        error: null,
+                    });
+                }
             }
-        });
+        );
     } else if (input.protocol === 'dash') {
         const segmentsByCompositeKey = parseDashSegments(
             serializedManifestObject,
             streamObject.baseUrl
         );
-        Object.entries(segmentsByCompositeKey).forEach(
-            ([key, segments]) => {
-                streamObject.dashRepresentationState.set(key, {
-                    segments,
-                    freshSegmentUrls: new Set(
-                        segments.map((s) => s.resolvedUrl)
-                    ),
-                });
-            }
-        );
+        Object.entries(segmentsByCompositeKey).forEach(([key, segments]) => {
+            streamObject.dashRepresentationState.set(key, {
+                segments,
+                freshSegmentUrls: new Set(segments.map((s) => s.resolvedUrl)),
+            });
+        });
     }
 
     // Add initial manifest to updates list
@@ -669,18 +666,29 @@ async function handleMessage(event) {
             const { url, data } = payload;
             let parsedData = null;
             try {
-                const isLikelyTS =
-                    data.byteLength > 188 &&
-                    new DataView(data).getUint8(0) === 0x47 &&
-                    new DataView(data).getUint8(188) === 0x47;
-                if (isLikelyTS || url.toLowerCase().endsWith('.ts')) {
-                    parsedData = parseTsSegment(data);
-                } else {
-                    const { boxes, issues, events } = parseISOBMFF(data);
+                // Check for VTT signature
+                const decoder = new TextDecoder();
+                const text = decoder.decode(data.slice(0, 10));
+                if (text.startsWith('WEBVTT')) {
+                    const vttString = decoder.decode(data);
                     parsedData = {
-                        format: 'isobmff',
-                        data: { boxes, issues, events },
+                        format: 'vtt',
+                        data: parseVTT(vttString),
                     };
+                } else {
+                    const isLikelyTS =
+                        data.byteLength > 188 &&
+                        new DataView(data).getUint8(0) === 0x47 &&
+                        new DataView(data).getUint8(188) === 0x47;
+                    if (isLikelyTS || url.toLowerCase().endsWith('.ts')) {
+                        parsedData = parseTsSegment(data);
+                    } else {
+                        const { boxes, issues, events } = parseISOBMFF(data);
+                        parsedData = {
+                            format: 'isobmff',
+                            data: { boxes, issues, events },
+                        };
+                    }
                 }
                 self.postMessage({ url, parsedData, error: null });
             } catch (e) {

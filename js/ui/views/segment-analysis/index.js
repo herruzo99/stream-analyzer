@@ -1,6 +1,7 @@
 import { html } from 'lit-html';
 import { isobmffAnalysisTemplate } from './isobmff-analysis.js';
 import { tsAnalysisTemplate } from './ts-analysis.js';
+import { vttAnalysisTemplate } from './vtt-analysis.js';
 
 // --- UTILITY ---
 function diffObjects(obj1, obj2) {
@@ -96,7 +97,8 @@ export function getSegmentAnalysisTemplate(parsedData, parsedDataB = null) {
     }
 
     const format = parsedData.format;
-    const isSupported = format === 'isobmff' || format === 'ts';
+    const isSupported =
+        format === 'isobmff' || format === 'ts' || format === 'vtt';
 
     const icon = isSupported
         ? html`<svg
@@ -132,6 +134,7 @@ export function getSegmentAnalysisTemplate(parsedData, parsedDataB = null) {
         {
             isobmff: 'ISO Base Media File Format',
             ts: 'MPEG-2 Transport Stream',
+            vtt: 'Web Video Text Tracks (WebVTT)',
         }[format] || 'Unknown Format';
 
     let contentTemplate;
@@ -141,6 +144,9 @@ export function getSegmentAnalysisTemplate(parsedData, parsedDataB = null) {
             break;
         case 'ts':
             contentTemplate = tsAnalysisTemplate(parsedData);
+            break;
+        case 'vtt':
+            contentTemplate = vttAnalysisTemplate(parsedData.data);
             break;
         default:
             contentTemplate = html`<p class="fail">
