@@ -6,7 +6,21 @@ export const hlsStructureTemplate = (summary) => {
     const hasAudio = summary.audioTracks.length > 0;
     const hasText = summary.textTracks.length > 0;
 
-    if (!hasVideo && !hasAudio && !hasText) {
+    const iFramePlaylists =
+        summary.hls.iFramePlaylists > 0
+            ? summary.hlsParsed.tags
+                  .filter((t) => t.name === 'EXT-X-I-FRAME-STREAM-INF')
+                  .map((t) => ({
+                      id: 'I-Frame',
+                      bitrateRange: t.value.BANDWIDTH,
+                      resolutions: [t.value.RESOLUTION],
+                      codecs: [t.value.CODECS],
+                      roles: [],
+                  }))
+            : [];
+    const hasIFrame = iFramePlaylists.length > 0;
+
+    if (!hasVideo && !hasAudio && !hasText && !hasIFrame) {
         return html`<div>
             <h3 class="text-xl font-bold mb-4">Stream Structure</h3>
             <p class="text-xs text-gray-500">
@@ -39,6 +53,14 @@ export const hlsStructureTemplate = (summary) => {
                               Text Renditions
                           </h4>
                           ${trackTableTemplate(summary.textTracks, 'text')}
+                      </div>`
+                    : ''}
+                ${hasIFrame
+                    ? html`<div class="mt-4">
+                          <h4 class="text-lg font-bold mb-2">
+                              I-Frame Playlists (for Trick Play)
+                          </h4>
+                          ${trackTableTemplate(iFramePlaylists, 'video')}
                       </div>`
                     : ''}
             </div>

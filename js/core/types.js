@@ -45,6 +45,34 @@
  */
 
 /**
+ * @typedef {object} Resync
+ * @property {number} type
+ * @property {number | null} dT
+ * @property {number | null} dImax
+ * @property {number | null} dImin
+ * @property {boolean} marker
+ */
+
+/**
+ * @typedef {object} OutputProtection
+ * @property {string} schemeIdUri
+ * @property {string | null} value
+ * @property {string | null} robustness
+ */
+
+/**
+ * @typedef {object} ModelPair
+ * @property {number} bufferTime
+ * @property {number} bandwidth
+ */
+
+/**
+ * @typedef {object} ExtendedBandwidth
+ * @property {boolean} vbr
+ * @property {ModelPair[]} modelPairs
+ */
+
+/**
  * @typedef {object} Representation
  * @property {string} id
  * @property {string} codecs
@@ -80,6 +108,9 @@
  * @property {Label[]} labels
  * @property {Label[]} groupLabels
  * @property {SubRepresentation[]} subRepresentations
+ * @property {Resync[]} resyncs
+ * @property {OutputProtection | null} outputProtection
+ * @property {ExtendedBandwidth | null} extendedBandwidth
  * @property {string | undefined} videoRange
  * @property {string | null} stableVariantId
  * @property {string | null} pathwayId
@@ -93,6 +124,7 @@
  * @property {string} schemeIdUri
  * @property {string} system
  * @property {string | null} defaultKid
+ * @property {string | null} robustness
  */
 
 /**
@@ -118,6 +150,7 @@
  * @property {string | null} profiles
  * @property {number | null} group
  * @property {boolean | null} bitstreamSwitching
+ * @property {boolean} segmentAlignment
  * @property {number | null} maxWidth
  * @property {number | null} maxHeight
  * @property {string | null} maxFrameRate
@@ -131,6 +164,8 @@
  * @property {Label[]} groupLabels
  * @property {Descriptor[]} roles
  * @property {ContentComponent[]} contentComponents
+ * @property {Resync[]} resyncs
+ * @property {OutputProtection | null} outputProtection
  * @property {string | null} stableRenditionId
  * @property {number | null} bitDepth
  * @property {number | null} sampleRate
@@ -149,6 +184,7 @@
  * @property {string | null} messageData
  * @property {string} type - A category for the event (e.g., 'dash-event', 'hls-daterange').
  * @property {string | null} cue
+ * @property {object} [scte35] - The parsed SCTE-35 message object.
  */
 
 /**
@@ -173,6 +209,42 @@
  */
 
 /**
+ * @typedef {object} Preselection
+ * @property {string} id
+ * @property {string[]} preselectionComponents
+ * @property {string | null} lang
+ * @property {'undefined' | 'time-ordered' | 'fully-ordered'} order
+ * @property {Descriptor[]} accessibility
+ * @property {Descriptor[]} roles
+ * @property {Descriptor[]} ratings
+ * @property {Descriptor[]} viewpoints
+ * @property {object} serializedManifest
+ */
+
+/**
+ * @typedef {object} Latency
+ * @property {number | null} min
+ * @property {number | null} max
+ * @property {number | null} target
+ * @property {number | null} referenceId
+ */
+
+/**
+ * @typedef {object} PlaybackRate
+ * @property {number | null} min
+ * @property {number | null} max
+ */
+
+/**
+ * @typedef {object} ServiceDescription
+ * @property {string} id
+ * @property {Descriptor[]} scopes
+ * @property {Latency[]} latencies
+ * @property {PlaybackRate[]} playbackRates
+ * @property {object} serializedManifest
+ */
+
+/**
  * @typedef {object} Period
  * @property {string} id
  * @property {number} start
@@ -181,6 +253,8 @@
  * @property {AssetIdentifier | null} assetIdentifier
  * @property {AdaptationSet[]} adaptationSets
  * @property {Subset[]} subsets
+ * @property {Preselection[]} preselections
+ * @property {ServiceDescription[]} serviceDescriptions
  * @property {EventStream[]} eventStreams
  * @property {Event[]} events
  * @property {object} serializedManifest
@@ -304,6 +378,16 @@
  */
 
 /**
+ * @typedef {object} InitializationSet
+ * @property {string} id
+ * @property {boolean} inAllPeriods
+ * @property {string | null} contentType
+ * @property {string | null} initialization
+ * @property {string | null} codecs
+ * @property {object} serializedManifest
+ */
+
+/**
  * @typedef {object} Manifest
  * @property {string | null} id
  * @property {'static' | 'dynamic'} type
@@ -319,6 +403,9 @@
  * @property {ProgramInformation[]} programInformations
  * @property {Metrics[]} metrics
  * @property {string[]} locations
+ * @property {string[]} patchLocations
+ * @property {ServiceDescription[]} serviceDescriptions
+ * @property {InitializationSet[]} initializationSets
  * @property {'isobmff' | 'ts' | 'unknown'} segmentFormat
  * @property {Event[]} events
  * @property {Period[]} periods
@@ -435,6 +522,7 @@
  * @property {Map<string, DashRepresentationState>} dashRepresentationState
  * @property {Map<string, {value: string, source: string}>=} hlsDefinedVariables
  * @property {Map<string, any>} semanticData
+ * @property {CoverageFinding[]=} coverageReport
  */
 
 /**
@@ -448,7 +536,18 @@
  *   dashRepresentationState: [string, DashRepresentationState][],
  *   hlsDefinedVariables: [string, {value: string, source: string}][],
  *   semanticData: [string, any][],
+ *   coverageReport: CoverageFinding[],
  * }} SerializedStream
+ */
+
+/**
+ * @typedef {object} CoverageFinding
+ * @property {'unparsed' | 'drift'} status - Type of coverage issue.
+ * @property {string} pathOrLine - The JSON path (DASH) or line number (HLS) of the finding.
+ * @property {'element' | 'attribute' | 'tag' | 'property'} type
+ * @property {string} name - The name of the unparsed item or drift property.
+ * @property {string} details - A brief explanation.
+ * @property {number} [lineNumber] - line number for HLS
  */
 
 export {};

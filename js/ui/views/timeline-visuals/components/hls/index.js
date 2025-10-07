@@ -1,4 +1,5 @@
 import { html } from 'lit-html';
+import { eventBus } from '../../../../../core/event-bus.js';
 
 const renderEvents = (events, totalDuration) => {
     if (!events || events.length === 0) return '';
@@ -8,23 +9,54 @@ const renderEvents = (events, totalDuration) => {
         const isInterstitial = event.message
             .toLowerCase()
             .includes('interstitial');
-        const eventClasses = isInterstitial
+
+        let eventClasses = isInterstitial
             ? 'bg-purple-500/60 border-l-4 border-purple-400'
             : 'bg-yellow-500/50 border-l-2 border-yellow-400';
-        const title = isInterstitial
-            ? `Interstitial Ad: ${event.message}`
-            : event.message;
 
-        const tooltipContent = `${title}\nStart: ${event.startTime.toFixed(
-            2
-        )}s\nDuration: ${event.duration.toFixed(2)}s${
-            event.cue ? `\nCue: ${event.cue}` : ''
-        }`;
+        let tooltipContent;
+        let clickHandler = () => {};
+
+        if (event.scte35 && !event.scte35.error) {
+            const cmd = event.scte35.splice_command;
+            const desc = event.scte35.descriptors?.[0];
+            eventClasses =
+                'bg-purple-500/60 border-l-4 border-purple-400 cursor-pointer hover:ring-2 hover:ring-purple-300';
+
+            let details = `Cue: ${event.cue || 'N/A'}`;
+            if (cmd.type === 'Splice Insert' && cmd.break_duration) {
+                details = `Break Duration: ${(
+                    cmd.break_duration.duration / 90000
+                ).toFixed(3)}s`;
+            } else if (cmd.type === 'Time Signal' && desc) {
+                details = `Type: ${desc.segmentation_type_id}\nUPID: ${desc.segmentation_upid || 'N/A'}`;
+            }
+
+            tooltipContent = `SCTE-35: ${cmd.type}\nStart: ${event.startTime.toFixed(
+                3
+            )}s\n${details}\n(Click for full details)`;
+            clickHandler = () =>
+                eventBus.dispatch('ui:show-scte35-details', {
+                    scte35: event.scte35,
+                    startTime: event.startTime,
+                });
+        } else {
+            const title = isInterstitial
+                ? `Interstitial Ad: ${event.message}`
+                : event.message;
+
+            tooltipContent = `${title}\nStart: ${event.startTime.toFixed(
+                2
+            )}s\nDuration: ${event.duration.toFixed(2)}s${
+                event.cue ? `\nCue: ${event.cue}` : ''
+            }`;
+        }
 
         return html`<div
             class="absolute top-0 bottom-0 ${eventClasses}"
             style="left: ${left}%; width: ${width}%;"
             data-tooltip="${tooltipContent}"
+            @click=${clickHandler}
         ></div>`;
     });
 };

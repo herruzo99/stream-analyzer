@@ -112,6 +112,126 @@ const profilesCardTemplate = (stream) => {
     `;
 };
 
+const serviceDescriptionTemplate = (stream) => {
+    const serviceDescriptions = [
+        ...(stream.manifest.serviceDescriptions || []),
+        ...stream.manifest.periods.flatMap((p) => p.serviceDescriptions || []),
+    ];
+    const latency = serviceDescriptions.flatMap((sd) => sd.latencies)[0];
+    if (!latency) return '';
+
+    return html`
+        <div>
+            <h3 class="text-xl font-bold mb-4">Low-Latency Service Description</h3>
+            <dl
+                class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(200px,1fr))]"
+            >
+                ${statCardTemplate(
+                    'Target Latency',
+                    latency.target ? `${latency.target}ms` : 'N/A',
+                    'The service provider’s preferred presentation latency.',
+                    'DASH: K.3.2'
+                )}
+                ${statCardTemplate(
+                    'Min Latency',
+                    latency.min ? `${latency.min}ms` : 'N/A',
+                    'The service provider’s indicated minimum presentation latency.',
+                    'DASH: K.3.2'
+                )}
+                ${statCardTemplate(
+                    'Max Latency',
+                    latency.max ? `${latency.max}ms` : 'N/A',
+                    'The service provider’s indicated maximum presentation latency.',
+                    'DASH: K.3.2'
+                )}
+            </dl>
+        </div>
+    `;
+};
+
+const outputProtectionTemplate = (stream) => {
+    // Find the first OutputProtection descriptor available on any AdaptationSet or Representation
+    const firstProtection = stream.manifest.periods
+        .flatMap((p) => p.adaptationSets)
+        .map(
+            (as) =>
+                as.outputProtection ||
+                as.representations.find((r) => r.outputProtection)
+                    ?.outputProtection
+        )
+        .find(Boolean);
+
+    if (!firstProtection) return '';
+
+    return statCardTemplate(
+        'Output Protection',
+        firstProtection.value || firstProtection.schemeIdUri,
+        'Minimum required output protection level (e.g., HDCP version).',
+        'DASH: 5.8.4.12'
+    );
+};
+
+const preselectionTemplate = (stream) => {
+    const preselections = stream.manifest.periods.flatMap(
+        (p) => p.preselections || []
+    );
+    if (preselections.length === 0) return '';
+
+    return html`
+        <div>
+            <h3 class="text-xl font-bold mb-4">Preselections</h3>
+            <div class="space-y-2">
+                ${preselections.map(
+                    (p) => html`
+                        <div
+                            class="bg-gray-800 p-3 rounded-lg border border-gray-700"
+                        >
+                            <div class="font-semibold text-gray-300">
+                                ID: ${p.id}
+                                ${p.lang ? `(Lang: ${p.lang})` : ''}
+                            </div>
+                            <div class="text-xs text-gray-400 mt-1">
+                                Components:
+                                <span class="font-mono">${p.preselectionComponents.join(
+                                    ', '
+                                )}</span>
+                            </div>
+                        </div>
+                    `
+                )}
+            </div>
+        </div>
+    `;
+};
+
+const initializationSetsTemplate = (stream) => {
+    const initSets = stream.manifest.initializationSets || [];
+    if (initSets.length === 0) return '';
+
+    return html`
+        <div>
+            <h3 class="text-xl font-bold mb-4">Initialization Sets</h3>
+            <div class="space-y-2">
+                ${initSets.map(
+                    (is) => html`
+                        <div
+                            class="bg-gray-800 p-3 rounded-lg border border-gray-700"
+                        >
+                            <div class="font-semibold text-gray-300">
+                                ID: ${is.id}
+                            </div>
+                            <div class="text-xs text-gray-400 mt-1">
+                                Codecs:
+                                <span class="font-mono">${is.codecs}</span>
+                            </div>
+                        </div>
+                    `
+                )}
+            </div>
+        </div>
+    `;
+};
+
 export function getDashSummaryTemplate(stream) {
     const summary = stream.manifest.summary;
 
@@ -153,21 +273,7 @@ export function getDashSummaryTemplate(stream) {
             </div>
 
             <!-- Low Latency Section -->
-            <div>
-                <h3 class="text-xl font-bold mb-4">Low-Latency Status</h3>
-                <dl
-                    class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(280px,1fr))]"
-                >
-                    ${statCardTemplate(
-                        'Target Latency',
-                        summary.lowLatency.targetLatency
-                            ? `${summary.lowLatency.targetLatency}ms`
-                            : 'Not Detected',
-                        'The target latency for LL-DASH.',
-                        'DASH: K.3.2'
-                    )}
-                </dl>
-            </div>
+            ${serviceDescriptionTemplate(stream)}
 
             <!-- Compliance and Conformance Section -->
             <div class="space-y-8">
@@ -203,8 +309,13 @@ export function getDashSummaryTemplate(stream) {
                               'ISO/IEC 23001-7'
                           )
                         : ''}
+                    ${outputProtectionTemplate(stream)}
                 </dl>
             </div>
+
+            <!-- Advanced Structures -->
+            ${preselectionTemplate(stream)}
+            ${initializationSetsTemplate(stream)}
 
             <!-- Stream Structure Section -->
             ${dashStructureTemplate(summary)}

@@ -1,5 +1,7 @@
 import { eventBus } from '../core/event-bus.js';
 import { useStore, storeActions } from '../core/store.js';
+import { isDebugMode } from '../shared/utils/env.js';
+import { debugLog } from '../shared/utils/debug.js';
 
 /** @typedef {import('../core/types.js').SerializedStream} SerializedStream */
 
@@ -39,8 +41,9 @@ analysisWorker.onmessage = (event) => {
                 )
             );
             const tEndTotal = performance.now();
-            console.log(
-                `[DEBUG] Total Analysis Pipeline (success): ${(
+            debugLog(
+                'StreamService',
+                `Total Analysis Pipeline (success): ${(
                     tEndTotal - analysisStartTime
                 ).toFixed(2)}ms`
             );
@@ -56,8 +59,9 @@ analysisWorker.onmessage = (event) => {
         case 'analysis-failed': {
             eventBus.dispatch('analysis:failed');
             const tEnd = performance.now();
-            console.log(
-                `[DEBUG] Total Analysis Pipeline (failed): ${(
+            debugLog(
+                'StreamService',
+                `Total Analysis Pipeline (failed): ${(
                     tEnd - analysisStartTime
                 ).toFixed(2)}ms`
             );
@@ -138,7 +142,7 @@ analysisWorker.onmessage = (event) => {
 
 async function analyzeStreams(inputs) {
     analysisStartTime = performance.now();
-    console.log('[DEBUG] Starting analysis pipeline...');
+    debugLog('StreamService', 'Starting analysis pipeline...');
     eventBus.dispatch('analysis:started');
 
     const workerInputs = [];
@@ -162,7 +166,11 @@ async function analyzeStreams(inputs) {
             } else {
                 manifestString = await input.file.text();
             }
-            workerInputs.push({ ...input, manifestString });
+            workerInputs.push({
+                ...input,
+                manifestString,
+                isDebug: isDebugMode,
+            });
         } catch (e) {
             eventBus.dispatch('analysis:error', {
                 message: `Failed to fetch or read input: ${e.message}`,
@@ -171,8 +179,9 @@ async function analyzeStreams(inputs) {
     }
 
     if (workerInputs.length > 0) {
-        console.log(
-            `[DEBUG] Pre-processing complete. Dispatching ${workerInputs.length} stream(s) to worker.`
+        debugLog(
+            'StreamService',
+            `Pre-processing complete. Dispatching ${workerInputs.length} stream(s) to worker.`
         );
         analysisWorker.postMessage({
             type: 'start-analysis',

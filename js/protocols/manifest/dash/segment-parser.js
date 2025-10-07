@@ -87,6 +87,8 @@ export function parseAllSegmentUrls(manifestElement, manifestUrl) {
                 timescale: parseInt(
                     getAttr(template || segmentList, 'timescale') || '1'
                 ),
+                startTimeUTC: null,
+                endTimeUTC: null,
             });
         }
 
@@ -98,6 +100,8 @@ export function parseAllSegmentUrls(manifestElement, manifestUrl) {
                 getAttr(template, 'startNumber') || '1'
             );
             const periodStart = parseDuration(getAttr(period, 'start')) || 0;
+            const availabilityTimeOffset =
+                parseFloat(getAttr(template, 'availabilityTimeOffset')) || 0;
 
             if (mediaTemplate && timeline) {
                 let segmentNumber = startNumber;
@@ -112,9 +116,16 @@ export function parseAllSegmentUrls(manifestElement, manifestUrl) {
 
                     for (let i = 0; i <= r; i++) {
                         const segTime = currentTime;
-                        const startTimeSeconds =
-                            periodStart + segTime / timescale;
+                        const startTimeSeconds = periodStart + segTime / timescale;
                         const durationSeconds = d / timescale;
+                        const segAvailabilityStartTime = isDynamic
+                            ? availabilityStartTime +
+                              (startTimeSeconds +
+                                  durationSeconds -
+                                  availabilityTimeOffset) *
+                                  1000
+                            : null;
+
                         const url = mediaTemplate
                             .replace(/\$RepresentationID\$/g, repId)
                             .replace(/\$Number(%0\d+d)?\$/g, (match, p) =>
@@ -135,11 +146,10 @@ export function parseAllSegmentUrls(manifestElement, manifestUrl) {
                             time: segTime,
                             duration: d,
                             timescale,
-                            startTimeUTC:
-                                availabilityStartTime + startTimeSeconds * 1000,
-                            endTimeUTC:
-                                availabilityStartTime +
-                                (startTimeSeconds + durationSeconds) * 1000,
+                            startTimeUTC: segAvailabilityStartTime,
+                            endTimeUTC: segAvailabilityStartTime
+                                ? segAvailabilityStartTime + durationSeconds * 1000
+                                : null,
                         });
                         currentTime += d;
                         segmentNumber++;
@@ -177,6 +187,14 @@ export function parseAllSegmentUrls(manifestElement, manifestUrl) {
                     const segmentNumber = startNumber + i;
                     const time = (segmentNumber - startNumber) * segmentDuration;
                     const startTimeSeconds = periodStart + time / timescale;
+                    const segAvailabilityStartTime = isDynamic
+                        ? availabilityStartTime +
+                          (startTimeSeconds +
+                              segmentDurationSeconds -
+                              availabilityTimeOffset) *
+                              1000
+                        : null;
+
                     const url = mediaTemplate
                         .replace(/\$RepresentationID\$/g, repId)
                         .replace(/\$Number(%0\d+d)?\$/g, (m, p) =>
@@ -194,11 +212,11 @@ export function parseAllSegmentUrls(manifestElement, manifestUrl) {
                         time: time,
                         duration: segmentDuration,
                         timescale,
-                        startTimeUTC:
-                            availabilityStartTime + startTimeSeconds * 1000,
-                        endTimeUTC:
-                            availabilityStartTime +
-                            (startTimeSeconds + segmentDurationSeconds) * 1000,
+                        startTimeUTC: segAvailabilityStartTime,
+                        endTimeUTC: segAvailabilityStartTime
+                            ? segAvailabilityStartTime +
+                              segmentDurationSeconds * 1000
+                            : null,
                     });
                 }
             }
@@ -210,6 +228,8 @@ export function parseAllSegmentUrls(manifestElement, manifestUrl) {
             const durationSeconds = duration / timescale;
             let currentTime = 0;
             const periodStart = parseDuration(getAttr(period, 'start')) || 0;
+            const availabilityTimeOffset =
+                parseFloat(getAttr(segmentList, 'availabilityTimeOffset')) || 0;
 
             const segmentUrls = findChildren(segmentList, 'SegmentURL');
             segmentUrls.forEach((segmentUrlEl, i) => {
@@ -217,6 +237,13 @@ export function parseAllSegmentUrls(manifestElement, manifestUrl) {
                 if (mediaUrl) {
                     const startTimeSeconds =
                         periodStart + currentTime / timescale;
+                    const segAvailabilityStartTime = isDynamic
+                        ? availabilityStartTime +
+                          (startTimeSeconds +
+                              durationSeconds -
+                              availabilityTimeOffset) *
+                              1000
+                        : null;
                     segmentsByRep[compositeKey].push({
                         repId,
                         type: 'Media',
@@ -226,11 +253,10 @@ export function parseAllSegmentUrls(manifestElement, manifestUrl) {
                         time: currentTime,
                         duration: duration,
                         timescale,
-                        startTimeUTC:
-                            availabilityStartTime + startTimeSeconds * 1000,
-                        endTimeUTC:
-                            availabilityStartTime +
-                            (startTimeSeconds + durationSeconds) * 1000,
+                        startTimeUTC: segAvailabilityStartTime,
+                        endTimeUTC: segAvailabilityStartTime
+                            ? segAvailabilityStartTime + durationSeconds * 1000
+                            : null,
                     });
                     currentTime += duration;
                 }
@@ -255,8 +281,8 @@ export function parseAllSegmentUrls(manifestElement, manifestUrl) {
                 time: 0,
                 duration: totalDuration * timescale,
                 timescale,
-                startTimeUTC: 0,
-                endTimeUTC: 0,
+                startTimeUTC: null,
+                endTimeUTC: null,
             });
         }
     });

@@ -1,6 +1,7 @@
 import { html } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { useStore, storeActions } from '../../../core/store.js';
+import { copyTextToClipboard } from '../../../shared/utils/clipboard.js';
 
 export function navigateManifestUpdates(direction) {
     const { activeStreamId } = useStore.getState();
@@ -34,6 +35,15 @@ export const manifestUpdatesTemplate = (stream) => {
             ? 'Initial Manifest loaded:'
             : 'Update received at:';
 
+    const handleCopyClick = () => {
+        if (currentUpdate) {
+            copyTextToClipboard(
+                currentUpdate.rawManifest,
+                'Manifest version copied to clipboard!'
+            );
+        }
+    };
+
     const currentDisplay = html` <div class="text-sm text-gray-400 mb-2">
             ${updateLabel}
             <span class="font-semibold text-gray-200"
@@ -60,8 +70,14 @@ export const manifestUpdatesTemplate = (stream) => {
 
     return html` <div id="mpd-updates-content">
         <div
-            class="flex flex-col sm:flex-row justify-end items-center mb-4 space-y-2 sm:space-y-0"
+            class="flex flex-col sm:flex-row justify-between items-center mb-4 space-y-2 sm:space-y-0"
         >
+            <button
+                @click=${handleCopyClick}
+                class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-3 rounded-md transition-colors"
+            >
+                Copy This Version
+            </button>
             <div class="flex items-center space-x-2">
                 <button
                     id="prev-manifest-btn"

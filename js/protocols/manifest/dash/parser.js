@@ -16,7 +16,7 @@ export async function parseManifest(xmlString, baseUrl) {
         textNodeName: '#text',
         allowBooleanAttributes: true,
         removeNSPrefix: true,
-        alwaysCreateTextNode: true, 
+        alwaysCreateTextNode: true,
         isArray: (tagName) => {
             return [
                 // MPD Level
@@ -57,12 +57,21 @@ export async function parseManifest(xmlString, baseUrl) {
                 'ProducerReferenceTime',
                 'ContentPopularityRate',
                 'Resync',
+                'OutputProtection',
                 // Representation Level
                 'SubRepresentation',
                 'ExtendedBandwidth',
+                'ModelPair',
+                // ServiceDescription Level
+                'Scope',
+                'Latency',
+                'PlaybackRate',
+                'OperatingQuality',
+                'OperatingBandwidth',
                 // Segment Info
                 'SegmentURL',
                 'S',
+                'FCS', // FailoverContent child
                 // Event Info
                 'Event',
                 // Metrics Info
