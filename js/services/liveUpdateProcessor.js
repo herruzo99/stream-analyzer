@@ -1,19 +1,19 @@
-import { useStore } from '../core/store.js';
-import { eventBus } from '../core/event-bus.js';
-import { generateFeatureAnalysis } from '../engines/feature-analysis/analyzer.js';
-import { parseAllSegmentUrls as parseDashSegments } from '../protocols/manifest/dash/segment-parser.js';
+import { useStore } from '../app/store.js';
+import { eventBus } from '../app/event-bus.js';
+import { generateFeatureAnalysis } from '../domain/feature-analysis/analyzer.js';
+import { parseAllSegmentUrls as parseDashSegments } from '../infrastructure/manifest/dash/segment-parser.js';
 import { diffManifest } from '../shared/utils/diff.js';
 import xmlFormatter from 'xml-formatter';
 
 /**
  * A more specific stream type where the protocol is guaranteed to be 'dash' or 'hls'.
- * @typedef {import('../core/types.js').Stream & { protocol: 'dash' | 'hls' }} KnownProtocolStream
+ * @typedef {import('../app/types.js').Stream & { protocol: 'dash' | 'hls' }} KnownProtocolStream
  */
 
 /**
  * Checks for future SCTE-35 events and schedules a high-priority poll.
  * @param {KnownProtocolStream} stream The stream being updated.
- * @param {import('../core/types.js').Manifest} newManifestObject The newly parsed manifest IR.
+ * @param {import('../app/types.js').Manifest} newManifestObject The newly parsed manifest IR.
  */
 function schedulePollsFromScte35(stream, newManifestObject) {
     if (stream.manifest.type !== 'dynamic' || !newManifestObject.events) {
@@ -66,8 +66,8 @@ function schedulePollsFromScte35(stream, newManifestObject) {
 
 /**
  * Compares two sets of compliance results to see if any new issues have appeared.
- * @param {import('../core/types.js').ComplianceResult[]} oldResults
- * @param {import('../core/types.js').ComplianceResult[]} newResults
+ * @param {import('../app/types.js').ComplianceResult[]} oldResults
+ * @param {import('../app/types.js').ComplianceResult[]} newResults
  * @returns {boolean}
  */
 function checkForNewIssues(oldResults, newResults) {
@@ -94,9 +94,9 @@ function checkForNewIssues(oldResults, newResults) {
 
 /**
  * Updates the core properties of a stream object with new manifest data.
- * @param {import('../core/types.js').Stream} stream The stream to update.
+ * @param {import('../app/types.js').Stream} stream The stream to update.
  * @param {string} newManifestString The raw string of the new manifest.
- * @param {import('../core/types.js').Manifest} newManifestObject The new manifest IR.
+ * @param {import('../app/types.js').Manifest} newManifestObject The new manifest IR.
  */
 function _updateStreamProperties(stream, newManifestString, newManifestObject) {
     stream.rawManifest = newManifestString;
@@ -137,7 +137,7 @@ function _updateFeatureAnalysis(stream) {
  * @param {KnownProtocolStream} stream The stream to update.
  * @param {string} oldManifestString The raw string of the previous manifest.
  * @param {string} newManifestString The raw string of the new manifest.
- * @param {import('../core/types.js').ComplianceResult[]} complianceResults The new compliance results.
+ * @param {import('../app/types.js').ComplianceResult[]} complianceResults The new compliance results.
  * @param {object} serializedManifest The pristine serialized manifest object for this update.
  */
 function _updateManifestDiff(

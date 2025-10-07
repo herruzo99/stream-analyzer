@@ -1,0 +1,385 @@
+/**
+ * @typedef {import('../../../app/types.js').Manifest} Manifest
+ * @typedef {import('../../../app/types.js').Period} Period
+ * @typedef {import('../../../app/types.js').AdaptationSet} AdaptationSet
+ * @typedef {import('../../../app/types.js').Representation} Representation
+ */
+
+import { generateHlsSummary } from './summary-generator.js';
+import { parseScte35 } from '../../metadata/scte35/parser.js';
+
+/**
+ * Transforms a parsed HLS manifest object into a protocol-agnostic Intermediate Representation (IR).
+ * @param {object} hlsParsed - The parsed HLS manifest data from the parser.
+ * @returns {Manifest} The manifest IR object.
+ */
+export function adaptHlsToIr(hlsParsed) {
+    /** @type {Manifest} */
+    const manifestIR = {
+        id: null,
+        type: hlsParsed.isLive ? 'dynamic' : 'static',
+        profiles: `HLS v${hlsParsed.version}`,
+        minBufferTime: hlsParsed.targetDuration || null,
+        publishTime: null,
+        availabilityStartTime: null,
+        timeShiftBufferDepth: null,
+        minimumUpdatePeriod: hlsParsed.isLive ? hlsParsed.targetDuration : null,
+        duration: hlsParsed.isMaster
+            ? null
+            : hlsParsed.segments.reduce((sum, seg) => sum + seg.duration, 0),
+        maxSegmentDuration: null,
+        maxSubsegmentDuration: null,
+        programInformations: [],
+        metrics: [],
+        locations: [],
+        patchLocations: [],
+        serviceDescriptions: [],
+        initializationSets: [],
+        segmentFormat: hlsParsed.map ? 'isobmff' : 'ts',
+        periods: [],
+        events: [],
+        serializedManifest: hlsParsed,
+        summary: null, // Will be populated after main parsing
+        serverControl: hlsParsed.serverControl || null,
+        tags: hlsParsed.tags || [], // Copy tags for feature analysis
+        isMaster: hlsParsed.isMaster,
+        variants: hlsParsed.variants || [],
+        segments: hlsParsed.segments || [],
+        preloadHints: hlsParsed.preloadHints || [],
+        renditionReports: hlsParsed.renditionReports || [],
+        partInf: hlsParsed.partInf || null,
+    };
+
+    // Parse Date Ranges into standard Event objects
+    const dateRanges = hlsParsed.tags.filter(
+        (t) => t.name === 'EXT-X-DATERANGE'
+    );
+    let cumulativeTime = 0;
+    const pdtMap = new Map();
+    for (const seg of hlsParsed.segments) {
+        if (seg.dateTime) {
+            pdtMap.set(new Date(seg.dateTime).getTime(), cumulativeTime);
+        }
+        cumulativeTime += seg.duration;
+    }
+
+    for (const range of dateRanges) {
+        const startDate = new Date(range.value['START-DATE']).getTime();
+        const duration = parseFloat(range.value['DURATION']);
+        // Find the closest preceding PDT to calculate start time
+        const closestPdt = Array.from(pdtMap.keys())
+            .filter((t) => t <= startDate)
+            .pop();
+
+        if (closestPdt) {
+            const timeOffset = (startDate - closestPdt) / 1000;
+            const isInterstitial =
+                range.value.CLASS === 'com.apple.hls.interstitial';
+            const event = {
+                startTime: pdtMap.get(closestPdt) + timeOffset,
+                duration: duration,
+                message: isInterstitial
+                    ? `Interstitial: ${range.value['ID'] || 'N/A'}`
+                    : `Date Range: ${range.value['ID'] || 'N/A'}`,
+                messageData: isInterstitial ? range.value : null,
+                type: 'hls-daterange',
+                cue: range.value['CUE'] || null,
+                scte35: null,
+            };
+
+            const scte35Out = range.value['SCTE35-OUT'];
+            const scte35In = range.value['SCTE35-IN'];
+            const scte35Cmd = range.value['SCTE35-CMD'];
+            const scte35Data = scte35Out || scte35In || scte35Cmd;
+
+            if (scte35Data) {
+                try {
+                    // SCTE-35 data in HLS is typically hex-encoded
+                    const hex = String(scte35Data).replace(/^0x/, '');
+                    const binaryData = new Uint8Array(
+                        hex.match(/.{1,2}/g).map((byte) => parseInt(byte, 16))
+                    );
+                    event.scte35 = parseScte35(binaryData);
+                } catch (e) {
+                    console.error('Failed to parse SCTE-35 from DATERANGE:', e);
+                }
+            }
+            manifestIR.events.push(event);
+        }
+    }
+
+    /** @type {Period} */
+    const periodIR = {
+        id: 'hls-period-0',
+        start: 0,
+        duration: manifestIR.duration,
+        bitstreamSwitching: null,
+        assetIdentifier: null,
+        subsets: [],
+        adaptationSets: [],
+        eventStreams: [],
+        events: [], // HLS events are manifest-level
+        serializedManifest: hlsParsed,
+        serviceDescriptions: [],
+        preselections: [],
+    };
+
+    if (hlsParsed.isMaster) {
+        // First, process all alternative renditions defined in EXT-X-MEDIA tags.
+        const mediaGroups = hlsParsed.media.reduce((acc, media) => {
+            const groupId = media['GROUP-ID'];
+            const type = media.TYPE.toLowerCase();
+            if (!acc[type]) acc[type] = {};
+            if (!acc[type][groupId]) acc[type][groupId] = [];
+            acc[type][groupId].push(media);
+            return acc;
+        }, {});
+
+        Object.entries(mediaGroups).forEach(([type, groups]) => {
+            Object.entries(groups).forEach(
+                ([groupId, renditions], groupIndex) => {
+                    renditions.forEach((media, mediaIndex) => {
+                        const contentType =
+                            type === 'subtitles' ? 'text' : type;
+                        /** @type {AdaptationSet} */
+                        const as = {
+                            id:
+                                media['STABLE-RENDITION-ID'] ||
+                                `${type}-rendition-${groupId}-${mediaIndex}`,
+                            contentType: contentType,
+                            lang: media.LANGUAGE,
+                            mimeType:
+                                contentType === 'text'
+                                    ? 'text/vtt'
+                                    : 'video/mp2t',
+                            segmentAlignment: false, // HLS doesn't signal this in the same way as DASH
+                            representations: [], // Representations for these are in their own playlists
+                            contentProtection: [],
+                            roles: [],
+                            profiles: null,
+                            group: null,
+                            bitstreamSwitching: null,
+                            maxWidth: null,
+                            maxHeight: null,
+                            maxFrameRate: null,
+                            framePackings: [],
+                            ratings: [],
+                            viewpoints: [],
+                            accessibility: [],
+                            labels: [],
+                            groupLabels: [],
+                            contentComponents: [],
+                            resyncs: [],
+                            outputProtection: null,
+                            stableRenditionId:
+                                media['STABLE-RENDITION-ID'] || null,
+                            bitDepth: media['BIT-DEPTH'] || null,
+                            sampleRate: media['SAMPLE-RATE'] || null,
+                            channels: media.CHANNELS || null,
+                            assocLanguage: media['ASSOC-LANGUAGE'] || null,
+                            characteristics: media.CHARACTERISTICS
+                                ? String(media.CHARACTERISTICS).split(',')
+                                : null,
+                            forced: media.FORCED === 'YES',
+                            serializedManifest: media,
+                        };
+                        periodIR.adaptationSets.push(as);
+                    });
+                }
+            );
+        });
+
+        // Second, process all variant streams from EXT-X-STREAM-INF tags.
+        hlsParsed.variants.forEach((variant, index) => {
+            const resolution = variant.attributes.RESOLUTION;
+
+            /** @type {Representation} */
+            const rep = {
+                id:
+                    variant.attributes['STABLE-VARIANT-ID'] ||
+                    `variant-${index}-rep-0`,
+                codecs: variant.attributes.CODECS || '',
+                bandwidth: variant.attributes.BANDWIDTH,
+                width: resolution
+                    ? parseInt(String(resolution).split('x')[0], 10)
+                    : null,
+                height: resolution
+                    ? parseInt(String(resolution).split('x')[1], 10)
+                    : null,
+                frameRate: variant.attributes['FRAME-RATE'] || null,
+                videoRange: variant.attributes['VIDEO-RANGE'] || null,
+                supplementalCodecs:
+                    variant.attributes['SUPPLEMENTAL-CODECS'] || null,
+                reqVideoLayout: variant.attributes['REQ-VIDEO-LAYOUT'] || null,
+                pathwayId: variant.attributes['PATHWAY-ID'] || null,
+                stableVariantId:
+                    variant.attributes['STABLE-VARIANT-ID'] || null,
+                sar: null,
+                qualityRanking: variant.attributes.SCORE,
+                mimeType: null,
+                profiles: null,
+                selectionPriority: null,
+                codingDependency: null,
+                scanType: null,
+                associationId: null,
+                associationType: null,
+                segmentProfiles: null,
+                mediaStreamStructureId: null,
+                maximumSAPPeriod: null,
+                startWithSAP: null,
+                maxPlayoutRate: null,
+                tag: null,
+                eptDelta: null,
+                pdDelta: null,
+                representationIndex: null,
+                failoverContent: null,
+                audioChannelConfigurations: [],
+                framePackings: [],
+                ratings: [],
+                viewpoints: [],
+                accessibility: [],
+                labels: [],
+                groupLabels: [],
+                subRepresentations: [],
+                resyncs: [],
+                outputProtection: null,
+                extendedBandwidth: null,
+                dependencyId: null,
+                serializedManifest: variant,
+            };
+
+            /** @type {AdaptationSet} */
+            const asIR = {
+                id: `variant-${index}`,
+                contentType: 'video', // Assume video if resolution/video codec is present
+                lang: null,
+                mimeType: 'video/mp2t',
+                segmentAlignment: false, // HLS doesn't signal this in the same way as DASH
+                representations: [rep],
+                contentProtection: [],
+                roles: [],
+                profiles: null,
+                group: null,
+                bitstreamSwitching: null,
+                maxWidth: null,
+                maxHeight: null,
+                maxFrameRate: null,
+                framePackings: [],
+                ratings: [],
+                viewpoints: [],
+                accessibility: [],
+                labels: [],
+                groupLabels: [],
+                contentComponents: [],
+                resyncs: [],
+                outputProtection: null,
+                stableRenditionId: null,
+                bitDepth: null,
+                sampleRate: null,
+                channels: null,
+                assocLanguage: null,
+                characteristics: null,
+                forced: false,
+                serializedManifest: variant,
+            };
+            periodIR.adaptationSets.push(asIR);
+        });
+    } else {
+        // Handle a simple Media Playlist
+        /** @type {AdaptationSet} */
+        const asIR = {
+            id: 'media-0',
+            contentType: 'video', // Assume video/muxed if not master
+            lang: null,
+            mimeType: hlsParsed.map ? 'video/mp4' : 'video/mp2t',
+            segmentAlignment: false, // HLS doesn't signal this in the same way as DASH
+            representations: [
+                {
+                    id: 'media-0-rep-0',
+                    codecs: null,
+                    bandwidth: 0,
+                    width: null,
+                    height: null,
+                    mimeType: null,
+                    profiles: null,
+                    qualityRanking: null,
+                    selectionPriority: null,
+                    codingDependency: null,
+                    scanType: null,
+                    associationId: null,
+                    associationType: null,
+                    segmentProfiles: null,
+                    mediaStreamStructureId: null,
+                    maximumSAPPeriod: null,
+                    startWithSAP: null,
+                    maxPlayoutRate: null,
+                    tag: null,
+                    eptDelta: null,
+                    pdDelta: null,
+                    representationIndex: null,
+                    failoverContent: null,
+                    audioChannelConfigurations: [],
+                    framePackings: [],
+                    ratings: [],
+                    viewpoints: [],
+                    accessibility: [],
+                    labels: [],
+                    groupLabels: [],
+                    videoRange: undefined,
+                    subRepresentations: [],
+                    resyncs: [],
+                    outputProtection: null,
+                    extendedBandwidth: null,
+                    dependencyId: null,
+                    frameRate: null,
+                    sar: null,
+                    stableVariantId: null,
+                    pathwayId: null,
+                    supplementalCodecs: null,
+                    reqVideoLayout: null,
+                    serializedManifest: hlsParsed,
+                },
+            ],
+            contentProtection: [],
+            roles: [],
+            profiles: null,
+            group: null,
+            bitstreamSwitching: null,
+            maxWidth: null,
+            maxHeight: null,
+            maxFrameRate: null,
+            framePackings: [],
+            ratings: [],
+            viewpoints: [],
+            accessibility: [],
+            labels: [],
+            groupLabels: [],
+            contentComponents: [],
+            resyncs: [],
+            outputProtection: null,
+            stableRenditionId: null,
+            bitDepth: null,
+            sampleRate: null,
+            channels: null,
+            assocLanguage: null,
+            characteristics: null,
+            forced: false,
+            serializedManifest: hlsParsed,
+        };
+        const keyTag = hlsParsed.segments.find((s) => s.key)?.key;
+        if (keyTag && keyTag.METHOD !== 'NONE') {
+            asIR.contentProtection.push({
+                schemeIdUri: keyTag.KEYFORMAT || 'identity',
+                system: keyTag.METHOD,
+                defaultKid: null,
+                robustness: null, // HLS EXT-X-KEY does not define robustness
+            });
+        }
+        periodIR.adaptationSets.push(asIR);
+    }
+
+    manifestIR.periods.push(periodIR);
+    manifestIR.summary = generateHlsSummary(manifestIR);
+
+    return manifestIR;
+}

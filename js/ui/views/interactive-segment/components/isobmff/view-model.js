@@ -21,14 +21,14 @@ function getFieldShade(baseColor, fieldName, fieldIndex) {
  * A utility to build a detailed map of every byte in an ISOBMFF segment,
  * associating it with its parent box, specific field, and assigned color.
  * This is crucial for interactive highlighting.
- * @param {Array<import('../../../../../protocols/segment/isobmff/parser.js').Box | object>} boxesOrChunks
- * @returns {Map<number, {box: import('../../../../../protocols/segment/isobmff/parser.js').Box, fieldName: string, color: {bg: string, style: string}}>}
+ * @param {Array<import('../../../../../infrastructure/segment/isobmff/parser.js').Box | object>} boxesOrChunks
+ * @returns {Map<number, {box: import('../../../../../infrastructure/segment/isobmff/parser.js').Box, fieldName: string, color: {bg: string, style: string}}>}
  */
 export function buildByteMap(boxesOrChunks) {
     const byteMap = new Map();
 
     /**
-     * @param {import('../../../../../protocols/segment/isobmff/parser.js').Box} box
+     * @param {import('../../../../../infrastructure/segment/isobmff/parser.js').Box} box
      */
     const traverse = (box) => {
         // Post-order traversal: children paint first, then parent fills the gaps.

@@ -1,5 +1,5 @@
 import { html } from 'lit-html';
-import { useStore, storeActions } from '../../../../core/store.js';
+import { useStore, storeActions } from '../../../../app/store.js';
 
 const getOverallStatus = (results) => {
     if (!results || results.length === 0) {

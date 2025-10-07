@@ -72,7 +72,7 @@ const dashSegmentTableTemplate = (
 
 /**
  * Creates the lit-html template for the DASH segment explorer content.
- * @param {import('../../../../../core/store.js').Stream} stream
+ * @param {import('../../../../../app/store.js').Stream} stream
  * @param {string} displayMode - 'first' or 'last'
  * @returns {import('lit-html').TemplateResult}
  */
@@ -106,9 +106,7 @@ export function getDashExplorerTemplate(stream, displayMode) {
                                                 class="text-md font-semibold text-gray-400"
                                             >
                                                 AdaptationSet
-                                                ${as.id
-                                                    ? `(ID: ${as.id})`
-                                                    : ''}
+                                                ${as.id ? `(ID: ${as.id})` : ''}
                                                 (${as.contentType || 'N/A'})
                                             </h4>
                                             ${as.representations.map((rep) =>

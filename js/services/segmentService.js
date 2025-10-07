@@ -1,5 +1,5 @@
-import { useStore } from '../core/store.js';
-import { eventBus } from '../core/event-bus.js';
+import { useStore } from '../app/store.js';
+import { eventBus } from '../app/event-bus.js';
 
 const parsingWorker = new Worker('/dist/worker.js', {
     type: 'module',

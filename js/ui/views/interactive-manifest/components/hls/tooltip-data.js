@@ -66,7 +66,7 @@ export const hlsTooltipData = {
 
     // --- Media Playlist Tags ---
     'EXT-X-TARGETDURATION': {
-        text: 'A required tag specifying the maximum media segment duration in seconds. It provides the fundamental time base for a client\'s reload logic in live streams.',
+        text: "A required tag specifying the maximum media segment duration in seconds. It provides the fundamental time base for a client's reload logic in live streams.",
         category: 'Media Playlist',
         ref: 'HLS 2nd Ed: 4.4.3.1',
     },
@@ -245,7 +245,7 @@ export const hlsTooltipData = {
         ref: 'HLS 2nd Ed: Appendix D.2',
     },
     'EXT-X-DATERANGE@X-RESUME-OFFSET': {
-        text: '(Interstitial) A time offset from the interstitial\'s start point at which primary content playback should resume.',
+        text: "(Interstitial) A time offset from the interstitial's start point at which primary content playback should resume.",
         category: 'Ad Insertion / Metadata',
         ref: 'HLS 2nd Ed: Appendix D.2',
     },
@@ -265,7 +265,7 @@ export const hlsTooltipData = {
         ref: 'HLS 2nd Ed: 4.4.5.3',
     },
     'EXT-X-RENDITION-REPORT': {
-        text: 'Provides an up-to-date report on the last media sequence/part number of another rendition, allowing a client to make informed ABR switches in low-latency mode without fetching that rendition\'s playlist.',
+        text: "Provides an up-to-date report on the last media sequence/part number of another rendition, allowing a client to make informed ABR switches in low-latency mode without fetching that rendition's playlist.",
         category: 'Low-Latency HLS',
         ref: 'HLS 2nd Ed: 4.4.5.4',
     },
@@ -307,7 +307,7 @@ export const hlsTooltipData = {
         ref: 'HLS 2nd Ed: 4.4.6.1',
     },
     'EXT-X-MEDIA@STABLE-RENDITION-ID': {
-        text: 'A quoted-string which is a stable identifier for the URI within the Multivariant Playlist. All characters in the quoted-string MUST be from the following set: [a-z], [A-Z], [0-9], \'+\', \'/\', \'=\', \'.\', \'-\', and \'_\'. This attribute is OPTIONAL.',
+        text: "A quoted-string which is a stable identifier for the URI within the Multivariant Playlist. All characters in the quoted-string MUST be from the following set: [a-z], [A-Z], [0-9], '+', '/', '=', '.', '-', and '_'. This attribute is OPTIONAL.",
         category: 'Multivariant Playlist',
         ref: 'HLS 2nd Ed: 4.4.6.1',
     },
@@ -367,7 +367,7 @@ export const hlsTooltipData = {
         ref: 'HLS 2nd Ed: 4.4.6.2',
     },
     'EXT-X-STREAM-INF@SCORE': {
-        text: 'An optional floating-point value indicating the author\'s preference for this variant. Higher scores are better. Used to guide ABR decisions beyond just bandwidth.',
+        text: "An optional floating-point value indicating the author's preference for this variant. Higher scores are better. Used to guide ABR decisions beyond just bandwidth.",
         category: 'Multivariant Playlist',
         ref: 'HLS 2nd Ed: 4.4.6.2',
     },

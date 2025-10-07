@@ -1,5 +1,5 @@
 import { html, render } from 'lit-html';
-import { useStore, storeActions } from '../../core/store.js';
+import { useStore, storeActions } from '../../app/store.js';
 import { exampleStreams } from '../../data/example-streams.js';
 import {
     getHistory,

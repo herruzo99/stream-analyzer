@@ -9,7 +9,7 @@ const renderList = (items) =>
 /**
  * Defines the points of comparison and contains the logic to extract
  * data for each stream from the new summary model.
- * @param {import('../../../core/types.js').Stream[]} streams
+ * @param {import('../../../app/types.js').Stream[]} streams
  * @returns {object[]} An array of comparison point objects ready for rendering.
  */
 export function createComparisonViewModel(streams) {

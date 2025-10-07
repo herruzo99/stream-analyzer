@@ -1,6 +1,6 @@
 import { html, render } from 'lit-html';
-import { useStore } from '../../../core/store.js';
-import { eventBus } from '../../../core/event-bus.js';
+import { useStore } from '../../../app/store.js';
+import { eventBus } from '../../../app/event-bus.js';
 import { getDashExplorerTemplate } from './components/dash/index.js';
 import {
     getHlsExplorerTemplate,

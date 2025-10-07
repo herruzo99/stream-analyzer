@@ -6,7 +6,7 @@ import { statCardTemplate } from './components/shared.js';
 import { tooltipTriggerClasses } from '../../../shared/constants.js';
 
 const profilesCardTemplate = (stream) => {
-    const { manifest, protocol } = stream;
+    const { manifest } = stream;
     const summary = manifest.summary;
     const profileString = summary.dash.profiles || '';
     const profiles = profileString.split(',').map((p) => p.trim());
@@ -95,17 +95,18 @@ const profilesCardTemplate = (stream) => {
             </dt>
             <dd class="text-base text-left font-mono text-white mt-2 space-y-2">
                 ${profileDetails.map(
-                    (item) => html` <div
-                        class="flex items-center gap-2 text-xs p-1 bg-gray-900/50 rounded"
-                    >
-                        <span
-                            class="flex-shrink-0 ${tooltipTriggerClasses}"
-                            data-tooltip="${item.explanation}"
+                    (item) =>
+                        html` <div
+                            class="flex items-center gap-2 text-xs p-1 bg-gray-900/50 rounded"
                         >
-                            <!-- Icons omitted for brevity -->
-                        </span>
-                        <span class="break-all">${item.profile}</span>
-                    </div>`
+                            <span
+                                class="flex-shrink-0 ${tooltipTriggerClasses}"
+                                data-tooltip="${item.explanation}"
+                            >
+                                <!-- Icons omitted for brevity -->
+                            </span>
+                            <span class="break-all">${item.profile}</span>
+                        </div>`
                 )}
             </dd>
         </div>
@@ -122,7 +123,9 @@ const serviceDescriptionTemplate = (stream) => {
 
     return html`
         <div>
-            <h3 class="text-xl font-bold mb-4">Low-Latency Service Description</h3>
+            <h3 class="text-xl font-bold mb-4">
+                Low-Latency Service Description
+            </h3>
             <dl
                 class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(200px,1fr))]"
             >
@@ -187,14 +190,15 @@ const preselectionTemplate = (stream) => {
                             class="bg-gray-800 p-3 rounded-lg border border-gray-700"
                         >
                             <div class="font-semibold text-gray-300">
-                                ID: ${p.id}
-                                ${p.lang ? `(Lang: ${p.lang})` : ''}
+                                ID: ${p.id} ${p.lang ? `(Lang: ${p.lang})` : ''}
                             </div>
                             <div class="text-xs text-gray-400 mt-1">
                                 Components:
-                                <span class="font-mono">${p.preselectionComponents.join(
-                                    ', '
-                                )}</span>
+                                <span class="font-mono"
+                                    >${p.preselectionComponents.join(
+                                        ', '
+                                    )}</span
+                                >
                             </div>
                         </div>
                     `

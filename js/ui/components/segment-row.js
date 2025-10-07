@@ -1,6 +1,6 @@
 import { html } from 'lit-html';
-import { useStore, storeActions } from '../../core/store.js';
-import { eventBus } from '../../core/event-bus.js';
+import { useStore, storeActions } from '../../app/store.js';
+import { eventBus } from '../../app/event-bus.js';
 
 function handleSegmentCheck(e) {
     const checkbox = /** @type {HTMLInputElement} */ (e.target);

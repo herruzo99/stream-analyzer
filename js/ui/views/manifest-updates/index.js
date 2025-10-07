@@ -1,6 +1,6 @@
 import { html } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
-import { useStore, storeActions } from '../../../core/store.js';
+import { useStore, storeActions } from '../../../app/store.js';
 import { copyTextToClipboard } from '../../../shared/utils/clipboard.js';
 
 export function navigateManifestUpdates(direction) {

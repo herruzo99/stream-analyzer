@@ -1,5 +1,5 @@
 import { html, render } from 'lit-html';
-import { useStore, storeActions } from '../core/store.js';
+import { useStore, storeActions } from '../app/store.js';
 import { getGlobalSummaryTemplate } from './views/summary/index.js';
 import { getComplianceReportTemplate } from './views/compliance/index.js';
 import { initializeTimelineView } from './views/timeline-visuals/index.js';

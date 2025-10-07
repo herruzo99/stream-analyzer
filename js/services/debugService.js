@@ -1,4 +1,4 @@
-import { useStore } from '../core/store.js';
+import { useStore } from '../app/store.js';
 import { showToast } from '../ui/components/toast.js';
 
 /**
