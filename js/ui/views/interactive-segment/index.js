@@ -1,5 +1,5 @@
 import { html } from 'lit-html';
-import { useStore, storeActions } from '../../../app/store.js';
+import { useStore, storeActions, useSegmentCacheStore } from '../../../app/store.js';
 import {
     getInteractiveIsobmffTemplate,
     findBoxByOffset,
@@ -55,8 +55,9 @@ function initializeAllInteractivity(dom, cachedSegment) {
 }
 
 export function getInteractiveSegmentTemplate(dom) {
-    const { activeSegmentUrl, segmentCache, interactiveSegmentCurrentPage } =
+    const { activeSegmentUrl, interactiveSegmentCurrentPage } =
         useStore.getState();
+    const { get: getFromCache } = useSegmentCacheStore.getState();
 
     if (activeSegmentUrl !== lastProcessedSegmentUrl) {
         cleanupSegmentViewInteractivity(dom);
@@ -79,7 +80,7 @@ export function getInteractiveSegmentTemplate(dom) {
         `;
     }
 
-    const cachedSegment = segmentCache.get(activeSegmentUrl);
+    const cachedSegment = getFromCache(activeSegmentUrl);
 
     if (!cachedSegment || cachedSegment.status === -1) {
         return html`

@@ -1,5 +1,5 @@
 import { html } from 'lit-html';
-import { useStore } from '../../../../../app/store.js';
+import { useStore, useSegmentCacheStore } from '../../../../../app/store.js';
 import { getTooltipData as getAllIsoTooltipData } from '../../../../../infrastructure/segment/isobmff/index.js';
 import { hexViewTemplate } from '../../../../components/hex-view.js';
 import { buildByteMap } from './view-model.js';
@@ -268,8 +268,9 @@ export function getInteractiveIsobmffTemplate(
     allTooltips,
     inspectorState
 ) {
-    const { activeSegmentUrl, segmentCache } = useStore.getState();
-    const cachedSegment = segmentCache.get(activeSegmentUrl);
+    const { activeSegmentUrl } = useStore.getState();
+    const { get: getFromCache } = useSegmentCacheStore.getState();
+    const cachedSegment = getFromCache(activeSegmentUrl);
     const parsedSegmentData =
         cachedSegment?.parsedData &&
         cachedSegment.parsedData.format === 'isobmff'

@@ -100,76 +100,73 @@ const hlsSubNavTemplate = (stream) => {
         </button>
     `;
 
-    const variantUris = new Set(
-        (stream.manifest.variants || []).map((v) => v.resolvedUri)
-    );
+    // Group all available playlists from the state by their type
+    const groupedPlaylists = {
+        MASTER: [
+            {
+                label: 'View',
+                url: 'master',
+                isActive: !stream.activeMediaPlaylistUrl,
+            },
+        ],
+        VIDEO: [],
+        AUDIO: [],
+        SUBTITLES: [],
+    };
 
-    const mediaPlaylists = Array.from(stream.hlsVariantState.keys()).filter(
-        (uri) => !variantUris.has(uri)
-    );
-
-    const groupedMedia = mediaPlaylists.reduce((acc, uri) => {
-        // Find the original media tag from the manifest to get its metadata
-        const mediaTag = (stream.manifest.serializedManifest.media || []).find(
-            (m) => new URL(m.URI, stream.baseUrl).href === uri
+    for (const uri of stream.hlsVariantState.keys()) {
+        const variant = (stream.manifest.variants || []).find(
+            (v) => v.resolvedUri === uri
         );
-        if (mediaTag) {
-            const type = mediaTag.TYPE || 'UNKNOWN';
-            if (!acc[type]) {
-                acc[type] = [];
-            }
-            acc[type].push(mediaTag);
+        const media = (
+            /** @type {any} */ (stream.manifest.serializedManifest).media || []
+        ).find((m) => m.URI && new URL(m.URI, stream.baseUrl).href === uri);
+
+        if (variant) {
+            groupedPlaylists.VIDEO.push({
+                label: `Variant (BW: ${(
+                    variant.attributes.BANDWIDTH / 1000
+                ).toFixed(0)}k)`,
+                url: uri,
+                isActive: stream.activeMediaPlaylistUrl === uri,
+            });
+        } else if (media) {
+            const type = media.TYPE || 'UNKNOWN';
+            if (!groupedPlaylists[type]) groupedPlaylists[type] = [];
+            groupedPlaylists[type].push({
+                label: `${media.NAME || media.LANGUAGE || 'Rendition'}`,
+                url: uri,
+                isActive: stream.activeMediaPlaylistUrl === uri,
+            });
         }
-        return acc;
-    }, {});
+    }
+
+    const navGroupTemplate = (title, items) => {
+        if (!items || items.length === 0) return '';
+        return html`
+            <div class="flex flex-wrap items-center gap-2">
+                <strong class="text-xs text-gray-400 uppercase mr-2"
+                    >${title}:</strong
+                >
+                ${items.map((item) =>
+                    navItem(item.label, item.url, item.isActive)
+                )}
+            </div>
+        `;
+    };
 
     return html`
         <div
             class="mb-4 p-2 bg-gray-900/50 rounded-lg flex flex-col gap-2"
             @click=${handleNavClick}
         >
-            <div class="flex flex-wrap items-center gap-2">
-                <strong class="text-xs text-gray-400 uppercase mr-2"
-                    >Master Playlist:</strong
-                >
-                ${navItem('View', 'master', !stream.activeMediaPlaylistUrl)}
-            </div>
-
-            ${(stream.manifest.variants || []).length > 0
-                ? html` <div class="flex flex-wrap items-center gap-2">
-                      <strong class="text-xs text-gray-400 uppercase mr-2"
-                          >Variant Streams:</strong
-                      >
-                      ${(stream.manifest.variants || []).map(
-                          (variant, i) =>
-                              html`${navItem(
-                                  `Variant ${i + 1}`,
-                                  variant.resolvedUri,
-                                  stream.activeMediaPlaylistUrl ===
-                                      variant.resolvedUri
-                              )}`
-                      )}
-                  </div>`
-                : ''}
-            ${Object.entries(groupedMedia).map(([type, mediaItems]) => {
-                return html` <div class="flex flex-wrap items-center gap-2">
-                    <strong class="text-xs text-gray-400 uppercase mr-2"
-                        >${type} Renditions:</strong
-                    >
-                    ${mediaItems.map((media) => {
-                        const resolvedUri = new URL(media.URI, stream.baseUrl)
-                            .href;
-                        const label = `${
-                            media.NAME || media.LANGUAGE || `Default ${type}`
-                        }`;
-                        return navItem(
-                            label,
-                            resolvedUri,
-                            stream.activeMediaPlaylistUrl === resolvedUri
-                        );
-                    })}
-                </div>`;
-            })}
+            ${navGroupTemplate('Master Playlist', groupedPlaylists.MASTER)}
+            ${navGroupTemplate('Variant Streams', groupedPlaylists.VIDEO)}
+            ${navGroupTemplate('Audio Renditions', groupedPlaylists.AUDIO)}
+            ${navGroupTemplate(
+                'Subtitle Renditions',
+                groupedPlaylists.SUBTITLES
+            )}
         </div>
     `;
 };

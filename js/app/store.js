@@ -1,10 +1,11 @@
 import { createStore } from 'zustand/vanilla';
 import { LRUCache } from './lru-cache.js';
 import { eventBus } from './event-bus.js';
+// --- Type Definitions ---
+/** @typedef {import('./types.ts').Stream} Stream */
 
 // --- Type Definitions ---
-/** @typedef {import('./types.js').Stream} Stream */
-/** @typedef {import('./types.js').DecodedSample} DecodedSample */
+/** @typedef {import('./types.ts').DecodedSample} DecodedSample */
 
 /**
  * @typedef {object} ModalState
@@ -21,7 +22,6 @@ import { eventBus } from './event-bus.js';
  * @property {string | null} activeSegmentUrl
  * @property {number} streamIdCounter
  * @property {number[]} streamInputIds
- * @property {LRUCache} segmentCache
  * @property {string[]} segmentsForCompare
  * @property {Map<string, DecodedSample>} decodedSamples
  * @property {number} interactiveManifestCurrentPage
@@ -55,27 +55,56 @@ import { eventBus } from './event-bus.js';
  * @property {() => void} toggleCmafSummary
  */
 
-// --- Store Definition ---
+// --- Segment Cache Store (New) ---
 
 const SEGMENT_CACHE_SIZE = 200;
 
 /**
- * Creates the initial state for the Zustand store.
+ * @typedef {object} SegmentCacheState
+ * @property {LRUCache} cache
+ */
+
+/**
+ * @typedef {object} SegmentCacheActions
+ * @property {(url: string, entry: any) => void} set
+ * @property {(url: string) => any} get
+ * @property {() => void} clear
+ */
+
+/**
+ * A dedicated store for managing the segment cache.
+ * @type {import('zustand/vanilla').StoreApi<SegmentCacheState & SegmentCacheActions>}
+ */
+export const useSegmentCacheStore = createStore((set, get) => ({
+    cache: new LRUCache(SEGMENT_CACHE_SIZE),
+    set: (url, entry) => {
+        const currentCache = get().cache;
+        currentCache.set(url, entry);
+        // Create a new object reference to trigger Zustand's shallow comparison
+        set({ cache: currentCache.clone() });
+    },
+    get: (url) => get().cache.get(url),
+    clear: () => set({ cache: new LRUCache(SEGMENT_CACHE_SIZE) }),
+}));
+
+// --- Main Analysis Store Definition ---
+
+/**
+ * Creates the initial state for the main analysis store.
  * @returns {AnalysisState}
  */
 const createInitialState = () => ({
     streams: [],
     activeStreamId: null,
     activeSegmentUrl: null,
-    streamIdCounter: 1, // Start counter at 1
-    streamInputIds: [0], // Default to one input field
-    segmentCache: new LRUCache(SEGMENT_CACHE_SIZE),
+    streamIdCounter: 1,
+    streamInputIds: [0],
     segmentsForCompare: [],
     decodedSamples: new Map(),
     interactiveManifestCurrentPage: 1,
     interactiveSegmentCurrentPage: 1,
     viewState: 'input',
-    activeTab: 'summary', // Default to summary for single stream
+    activeTab: 'summary',
     modalState: {
         isModalOpen: false,
         modalTitle: '',
@@ -93,7 +122,10 @@ const store = createStore((set, get) => ({
     ...createInitialState(),
 
     // --- Actions ---
-    startAnalysis: () => set(createInitialState()),
+    startAnalysis: () => {
+        useSegmentCacheStore.getState().clear(); // Also clear segment cache on new analysis
+        set(createInitialState());
+    },
 
     completeAnalysis: (streams) => {
         const defaultTab = streams.length > 1 ? 'comparison' : 'summary';
@@ -101,9 +133,8 @@ const store = createStore((set, get) => ({
             streams: streams,
             activeStreamId: streams[0]?.id ?? null,
             viewState: 'results',
-            activeTab: defaultTab, // Set default tab based on stream count
+            activeTab: defaultTab,
         });
-        // Dispatch an event for non-state side effects
         eventBus.dispatch('state:analysis-complete', { streams });
     },
 
@@ -125,19 +156,14 @@ const store = createStore((set, get) => ({
     },
 
     resetStreamInputIds: () => {
-        get().startAnalysis(); // Resetting inputs is the same as starting a new analysis.
+        get().startAnalysis();
     },
 
     setStreamInputsFromData: (data) => {
-        const newIds = [];
-        let counter = 0;
-        for (let i = 0; i < data.length; i++) {
-            newIds.push(counter);
-            counter++;
-        }
+        const newIds = Array.from({ length: data.length }, (_, i) => i);
         set({
             streamInputIds: newIds,
-            streamIdCounter: counter,
+            streamIdCounter: data.length,
         });
     },
 

@@ -1,5 +1,5 @@
 import { html, render } from 'lit-html';
-import { useStore } from '../../../../../app/store.js';
+import { useStore, useSegmentCacheStore } from '../../../../../app/store.js';
 import { hexViewTemplate } from '../../../../components/hex-view.js';
 import { buildByteMapTs } from './view-model.js';
 import { getInspectorState } from '../interaction-logic.js';
@@ -125,9 +125,11 @@ const summaryTemplate = (summary) => {
     const pidTypes = {};
     if (program) {
         Object.assign(pidTypes, program.streams);
-        pidTypes[summary.pcrPid] = `${
-            pidTypes[summary.pcrPid] || 'Unknown'
-        } (PCR)`;
+        if (summary.pcrPid) {
+            pidTypes[summary.pcrPid] = `${
+                pidTypes[summary.pcrPid] || 'Unknown'
+            } (PCR)`;
+        }
     }
     pidTypes[0] = 'PAT';
     summary.pmtPids.forEach((pid) => (pidTypes[pid] = 'PMT'));
@@ -227,8 +229,9 @@ export function getInteractiveTsTemplate(
     allTooltips,
     inspectorState
 ) {
-    const { activeSegmentUrl, segmentCache } = useStore.getState();
-    const cachedSegment = segmentCache.get(activeSegmentUrl);
+    const { activeSegmentUrl } = useStore.getState();
+    const { get: getFromCache } = useSegmentCacheStore.getState();
+    const cachedSegment = getFromCache(activeSegmentUrl);
     const tsAnalysisData =
         cachedSegment?.parsedData && cachedSegment.parsedData.format === 'ts'
             ? cachedSegment.parsedData

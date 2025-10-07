@@ -1,8 +1,8 @@
 import { getDrmSystemName } from '../../../shared/utils/drm.js';
 
 /**
- * @typedef {import('../../../app/types.js').Stream} Stream
- * @typedef {import('../../../app/types.js').Manifest} Manifest
+ * @typedef {import('../../../app/types.ts').Stream} Stream
+ * @typedef {import('../../../app/types.ts').Manifest} Manifest
  */
 
 /**
@@ -28,11 +28,15 @@ function getNetworkInfo(stream, activeManifest) {
             );
             stream.dashRepresentationState.forEach((repState) => {
                 const sampleSegments = repState.segments
-                    .filter((s) => s.type === 'Media')
+                    .filter((s) => (/** @type {any} */ (s)).type === 'Media')
                     .slice(0, 10);
                 sampleSegments.forEach((seg) => {
-                    hostnames.media.add(new URL(seg.resolvedUrl).hostname);
-                    totalSegmentDuration += seg.duration / seg.timescale;
+                    hostnames.media.add(
+                        new URL((/** @type {any} */ (seg)).resolvedUrl).hostname
+                    );
+                    totalSegmentDuration +=
+                        (/** @type {any} */ (seg)).duration /
+                        (/** @type {any} */ (seg)).timescale;
                     segmentCount++;
                 });
             });
@@ -41,7 +45,10 @@ function getNetworkInfo(stream, activeManifest) {
                 hostnames.manifest.add(new URL(v.resolvedUri).hostname)
             );
             // NEW: Also check EXT-X-MEDIA tags for additional playlist hostnames
-            (activeManifest.serializedManifest.media || []).forEach((media) => {
+            (
+                /** @type {any} */ (activeManifest.serializedManifest).media ||
+                []
+            ).forEach((media) => {
                 if (media.URI) {
                     hostnames.manifest.add(
                         new URL(media.URI, stream.baseUrl).hostname
@@ -83,8 +90,11 @@ function getNetworkInfo(stream, activeManifest) {
         avgSegmentSize: null, // Size requires fetching, deferring this feature.
         contentSteering: stream.steeringInfo
             ? {
-                  serverUri: stream.steeringInfo.value['SERVER-URI'],
-                  defaultPathway: stream.steeringInfo.value['PATHWAY-ID'],
+                  serverUri: (/** @type {any} */ (stream.steeringInfo)).value[
+                      'SERVER-URI'
+                  ],
+                  defaultPathway: (/** @type {any} */ (stream.steeringInfo))
+                      .value['PATHWAY-ID'],
                   allPathways: [
                       ...new Set(
                           stream.manifest.variants
