@@ -6,12 +6,14 @@ import { hlsReportTemplate } from './components/hls-report.js';
 /**
  * Main dispatcher for the Integrator's Report view.
  * It selects the appropriate protocol-specific template to render.
- * @param {import('../../../core/types.js').Stream} stream The active stream.
+ * @param {import('../../../app/types.js').Stream} stream The active stream.
  * @returns {import('lit-html').TemplateResult} The rendered template for the report.
  */
 export function getIntegratorsReportTemplate(stream) {
     if (!stream || !stream.manifest) {
-        return html`<p class="warn">No stream data available for this report.</p>`;
+        return html`<p class="warn">
+            No stream data available for this report.
+        </p>`;
     }
 
     const viewModel = createIntegratorsReportViewModel(stream);

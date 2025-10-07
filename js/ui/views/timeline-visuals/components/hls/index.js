@@ -1,5 +1,5 @@
 import { html } from 'lit-html';
-import { eventBus } from '../../../../../core/event-bus.js';
+import { eventBus } from '../../../../../app/event-bus.js';
 
 const renderEvents = (events, totalDuration) => {
     if (!events || events.length === 0) return '';
@@ -246,12 +246,9 @@ const liveTimelineTemplate = (manifest) => {
                                             style="width: ${(part.DURATION /
                                                 seg.duration) *
                                             100}%"
-                                            data-tooltip="Partial Segment\nDuration: ${part.DURATION.toFixed(
-                                                3
-                                            )}s\nIndependent: ${part.INDEPENDENT ===
-                                            'YES'
-                                                ? 'Yes'
-                                                : 'No'}"
+                                            data-tooltip="Partial Segment
+Duration: ${part.DURATION.toFixed(3)}s
+Independent: ${part.INDEPENDENT === 'YES' ? 'Yes' : 'No'}"
                                         ></div>
                                     `
                                 )}
@@ -264,7 +261,8 @@ const liveTimelineTemplate = (manifest) => {
                           <div
                               class="absolute top-0 right-0 h-full bg-blue-500/20 border-l-2 border-dashed border-blue-400"
                               style="width: ${preloadWidth}%; transform: translateX(100%);"
-                              data-tooltip="Preload Hint: ${preloadHint.URI}\nDuration: ${preloadDuration}s"
+                              data-tooltip="Preload Hint: ${preloadHint.URI}
+Duration: ${preloadDuration}s"
                           ></div>
                       `
                     : ''}

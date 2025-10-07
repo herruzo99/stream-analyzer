@@ -62,7 +62,7 @@ export const saveLastUsedStreams = (streams) =>
 
 /**
  * Saves a stream object to the history.
- * @param {import('../../core/types.js').Stream} stream The stream object to save.
+ * @param {import('../../app/types.js').Stream} stream The stream object to save.
  */
 export function saveToHistory(stream) {
     if (!stream || !stream.originalUrl) return;

@@ -1,5 +1,5 @@
-import { eventBus } from '../core/event-bus.js';
-import { useStore, storeActions } from '../core/store.js';
+import { eventBus } from '../app/event-bus.js';
+import { useStore, storeActions } from '../app/store.js';
 
 const pollers = new Map();
 let managerInterval = null;

@@ -34,7 +34,7 @@ export function getTimelineAndVisualsTemplate(
  * Controller function to orchestrate the rendering of the timeline view.
  * It handles the asynchronous loading of the view model.
  * @param {HTMLElement} container - The DOM element to render into.
- * @param {import('../../../core/types.js').Stream} stream - The stream data.
+ * @param {import('../../../app/types.js').Stream} stream - The stream data.
  */
 export function initializeTimelineView(container, stream) {
     if (stream.protocol === 'hls') {

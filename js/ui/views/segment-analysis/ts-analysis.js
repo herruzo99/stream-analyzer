@@ -1,6 +1,6 @@
 import { html } from 'lit-html';
 import { tooltipTriggerClasses } from '../../../shared/constants.js';
-import { getTooltipData as getTsTooltipData } from '../../../protocols/segment/ts/index.js';
+import { getTooltipData as getTsTooltipData } from '../../../infrastructure/segment/ts/index.js';
 
 const tsTooltipData = getTsTooltipData();
 
@@ -23,9 +23,7 @@ const descriptorTableTemplate = (descriptors) => {
         </p>`;
     }
     return html`
-        <table
-            class="w-full text-left text-xs bg-gray-900/50 rounded-md my-2"
-        >
+        <table class="w-full text-left text-xs bg-gray-900/50 rounded-md my-2">
             <thead>
                 <tr>
                     <th class="p-2 font-semibold text-gray-400 w-1/4">
@@ -51,9 +49,7 @@ const descriptorTableTemplate = (descriptors) => {
                                 >
                             </td>
                             <td class="p-2 font-mono">
-                                <dl
-                                    class="grid grid-cols-[auto_1fr] gap-x-2"
-                                >
+                                <dl class="grid grid-cols-[auto_1fr] gap-x-2">
                                     ${Object.entries(desc.details).map(
                                         ([key, field]) => html`
                                             <dt class="text-gray-400">
@@ -80,10 +76,6 @@ export const tsAnalysisTemplate = (analysis) => {
     const program = pmtPid ? summary.programMap[pmtPid] : null;
 
     // Calculate PID counts for the new table
-    const pidCounts = packets.reduce((acc, packet) => {
-        acc[packet.pid] = (acc[packet.pid] || 0) + 1;
-        return acc;
-    }, {});
 
     const pmtPacket = packets.find((p) => p.pid === pmtPid && p.psi);
 
@@ -102,7 +94,9 @@ export const tsAnalysisTemplate = (analysis) => {
         <h3 class="text-xl font-bold mb-4">Program Map Table (PMT) Details</h3>
         ${pmtPacket
             ? html`
-                  <div class="bg-gray-800 p-4 rounded-lg border border-gray-700">
+                  <div
+                      class="bg-gray-800 p-4 rounded-lg border border-gray-700"
+                  >
                       <div
                           class="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3 mb-4"
                       >

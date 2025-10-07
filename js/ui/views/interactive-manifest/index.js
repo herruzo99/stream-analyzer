@@ -1,5 +1,5 @@
 import { html } from 'lit-html';
-import { useStore } from '../../../core/store.js';
+import { useStore } from '../../../app/store.js';
 import { dashManifestTemplate } from './components/dash/renderer.js';
 import { hlsManifestTemplate } from './components/hls/renderer.js';
 import { debugLog } from '../../../shared/utils/debug.js';
@@ -106,7 +106,7 @@ function findHlsMissingTooltips(serializedManifest) {
 
 /**
  * Gathers manifest and missing tooltip data and copies it to the clipboard.
- * @param {import('../../../core/types.js').Stream} stream
+ * @param {import('../../../app/types.js').Stream} stream
  */
 const handleDebugCopy = (stream) => {
     let manifestToCopy = stream.rawManifest;
@@ -118,7 +118,8 @@ const handleDebugCopy = (stream) => {
         );
         if (mediaPlaylist) {
             manifestToCopy = mediaPlaylist.rawManifest;
-            manifestObjectForAnalysis = mediaPlaylist.manifest.serializedManifest;
+            manifestObjectForAnalysis =
+                mediaPlaylist.manifest.serializedManifest;
         }
     }
 
@@ -141,7 +142,7 @@ const handleDebugCopy = (stream) => {
 
 /**
  * Dispatches to the correct manifest renderer based on stream protocol.
- * @param {import('../../../core/types.js').Stream} stream
+ * @param {import('../../../app/types.js').Stream} stream
  * @returns {import('lit-html').TemplateResult}
  */
 export function getInteractiveManifestTemplate(stream) {

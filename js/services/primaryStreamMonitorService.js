@@ -1,5 +1,5 @@
-import { eventBus } from '../core/event-bus.js';
-import { useStore } from '../core/store.js';
+import { eventBus } from '../app/event-bus.js';
+import { useStore } from '../app/store.js';
 
 const pollers = new Map();
 const oneTimePollers = new Map(); // Store for high-priority, one-off polls
@@ -81,7 +81,7 @@ async function monitorStream(streamId) {
 
 /**
  * Starts the polling monitor for a given stream if it's dynamic.
- * @param {import('../core/types.js').Stream} stream
+ * @param {import('../app/types.js').Stream} stream
  */
 function startMonitoring(stream) {
     if (pollers.has(stream.id)) {

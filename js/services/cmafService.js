@@ -1,12 +1,12 @@
-import { eventBus } from '../core/event-bus.js';
-import { storeActions } from '../core/store.js';
+import { eventBus } from '../app/event-bus.js';
+import { storeActions } from '../app/store.js';
 import {
     validateCmafTrack,
     validateCmafSwitchingSets,
-} from '../engines/cmaf/validator.js';
-import { resolveBaseUrl } from '../protocols/manifest/dash/recursive-parser.js';
-import { parseISOBMFF } from '../protocols/segment/isobmff/parser.js';
-import { findInitSegmentUrl } from '../protocols/manifest/dash/segment-parser.js';
+} from '../domain/cmaf/validator.js';
+import { resolveBaseUrl } from '../infrastructure/manifest/dash/recursive-parser.js';
+import { parseISOBMFF } from '../infrastructure/segment/isobmff/parser.js';
+import { findInitSegmentUrl } from '../infrastructure/manifest/dash/segment-parser.js';
 
 /**
  * A private, isolated segment fetcher for this service that does not interact
@@ -36,7 +36,7 @@ async function _fetchAndParseIsobmff(url) {
 
 /**
  * Runs all CMAF validation checks for a given stream and stores the results.
- * @param {import('../core/types.js').Stream} stream
+ * @param {import('../app/types.js').Stream} stream
  */
 async function runCmafValidation(stream) {
     if (stream.protocol !== 'dash') {

@@ -1,8 +1,8 @@
 import { getDrmSystemName } from '../../../shared/utils/drm.js';
 
 /**
- * @typedef {import('../../../core/types.js').Stream} Stream
- * @typedef {import('../../../core/types.js').Manifest} Manifest
+ * @typedef {import('../../../app/types.js').Stream} Stream
+ * @typedef {import('../../../app/types.js').Manifest} Manifest
  */
 
 /**
@@ -17,36 +17,63 @@ function getNetworkInfo(stream, activeManifest) {
     let segmentCount = 0;
 
     try {
-        if (stream.originalUrl) hostnames.manifest.add(new URL(stream.originalUrl).hostname);
-        if (stream.baseUrl && stream.baseUrl !== stream.originalUrl) hostnames.manifest.add(new URL(stream.baseUrl).hostname);
+        if (stream.originalUrl)
+            hostnames.manifest.add(new URL(stream.originalUrl).hostname);
+        if (stream.baseUrl && stream.baseUrl !== stream.originalUrl)
+            hostnames.manifest.add(new URL(stream.baseUrl).hostname);
 
         if (stream.protocol === 'dash') {
-            activeManifest.locations?.forEach(loc => hostnames.manifest.add(new URL(loc, stream.baseUrl).hostname));
+            activeManifest.locations?.forEach((loc) =>
+                hostnames.manifest.add(new URL(loc, stream.baseUrl).hostname)
+            );
             stream.dashRepresentationState.forEach((repState) => {
-                const sampleSegments = repState.segments.filter(s => s.type === 'Media').slice(0, 10);
-                sampleSegments.forEach(seg => {
+                const sampleSegments = repState.segments
+                    .filter((s) => s.type === 'Media')
+                    .slice(0, 10);
+                sampleSegments.forEach((seg) => {
                     hostnames.media.add(new URL(seg.resolvedUrl).hostname);
                     totalSegmentDuration += seg.duration / seg.timescale;
                     segmentCount++;
                 });
             });
         } else if (stream.protocol === 'hls') {
-            activeManifest.variants?.forEach(v => hostnames.manifest.add(new URL(v.resolvedUri).hostname));
+            activeManifest.variants?.forEach((v) =>
+                hostnames.manifest.add(new URL(v.resolvedUri).hostname)
+            );
+            // NEW: Also check EXT-X-MEDIA tags for additional playlist hostnames
+            (activeManifest.serializedManifest.media || []).forEach((media) => {
+                if (media.URI) {
+                    hostnames.manifest.add(
+                        new URL(media.URI, stream.baseUrl).hostname
+                    );
+                }
+            });
+
             const segments = activeManifest.segments || [];
-            segments.forEach(seg => {
+            segments.forEach((seg) => {
                 hostnames.media.add(new URL(seg.resolvedUrl).hostname);
                 totalSegmentDuration += seg.duration;
             });
             segmentCount = segments.length;
             activeManifest.tags
-                .filter(t => t.name === 'EXT-X-KEY' && t.value.URI && !t.value.URI.startsWith('data:'))
-                .forEach(t => hostnames.key.add(new URL(t.value.URI, stream.baseUrl).hostname));
+                .filter(
+                    (t) =>
+                        t.name === 'EXT-X-KEY' &&
+                        t.value.URI &&
+                        !t.value.URI.startsWith('data:')
+                )
+                .forEach((t) =>
+                    hostnames.key.add(
+                        new URL(t.value.URI, stream.baseUrl).hostname
+                    )
+                );
         }
     } catch (e) {
-        console.error("Error extracting network info:", e);
+        console.error('Error extracting network info:', e);
     }
-    
-    const avgReqRate = segmentCount > 0 ? totalSegmentDuration / segmentCount : null;
+
+    const avgReqRate =
+        segmentCount > 0 ? totalSegmentDuration / segmentCount : null;
 
     return {
         manifestHostnames: Array.from(hostnames.manifest),
@@ -58,7 +85,13 @@ function getNetworkInfo(stream, activeManifest) {
             ? {
                   serverUri: stream.steeringInfo.value['SERVER-URI'],
                   defaultPathway: stream.steeringInfo.value['PATHWAY-ID'],
-                  allPathways: [...new Set(stream.manifest.variants.map(v => v.attributes['PATHWAY-ID']).filter(Boolean))],
+                  allPathways: [
+                      ...new Set(
+                          stream.manifest.variants
+                              .map((v) => v.attributes['PATHWAY-ID'])
+                              .filter(Boolean)
+                      ),
+                  ],
               }
             : null,
     };
@@ -77,14 +110,17 @@ function getTimingInfo(stream, activeManifest) {
     let lowLatency = { active: false, mechanism: 'Standard Polling' };
     if (summary.lowLatency?.isLowLatency) {
         lowLatency.active = true;
-        lowLatency.mechanism = summary.general.protocol === 'DASH'
-            ? 'DASH Low-Latency (Chunked Transfer)'
-            : 'HLS Low-Latency (Partial Segments)';
+        lowLatency.mechanism =
+            summary.general.protocol === 'DASH'
+                ? 'DASH Low-Latency (Chunked Transfer)'
+                : 'HLS Low-Latency (Partial Segments)';
     }
 
     return {
-        pollingInterval: stream.manifest.minimumUpdatePeriod ?? summary.hls?.targetDuration,
-        dvrWindow: stream.manifest.timeShiftBufferDepth ?? activeManifest.duration,
+        pollingInterval:
+            stream.manifest.minimumUpdatePeriod ?? summary.hls?.targetDuration,
+        dvrWindow:
+            stream.manifest.timeShiftBufferDepth ?? activeManifest.duration,
         lowLatency: lowLatency,
         blockingRequestSupport: summary.lowLatency?.canBlockReload ?? false,
         targetLatency: summary.lowLatency?.targetLatency,
@@ -99,16 +135,29 @@ function getTimingInfo(stream, activeManifest) {
  * @returns {object}
  */
 function getSecurityInfo(activeManifest) {
-    const keyTags = activeManifest.tags?.filter((t) => t.name === 'EXT-X-KEY' && t.value.METHOD !== 'NONE') || [];
-    const contentProtection = activeManifest.periods?.flatMap(p => p.adaptationSets).flatMap(as => as.contentProtection) || [];
+    const keyTags =
+        activeManifest.tags?.filter(
+            (t) => t.name === 'EXT-X-KEY' && t.value.METHOD !== 'NONE'
+        ) || [];
+    const contentProtection =
+        activeManifest.periods
+            ?.flatMap((p) => p.adaptationSets)
+            .flatMap((as) => as.contentProtection) || [];
 
     if (keyTags.length > 0) {
-        const uniqueKeyFormats = [...new Set(keyTags.map(k => k.value.KEYFORMAT).filter(Boolean))];
-        const uniqueKeyIDs = [...new Set(keyTags.map(k => k.value.KEYID).filter(Boolean))];
-        
+        const uniqueKeyFormats = [
+            ...new Set(keyTags.map((k) => k.value.KEYFORMAT).filter(Boolean)),
+        ];
+        const uniqueKeyIDs = [
+            ...new Set(keyTags.map((k) => k.value.KEYID).filter(Boolean)),
+        ];
+
         return {
             isEncrypted: true,
-            drmSystems: uniqueKeyFormats.map(s => ({ name: getDrmSystemName(s), uuid: s })),
+            drmSystems: uniqueKeyFormats.map((s) => ({
+                name: getDrmSystemName(s),
+                uuid: s,
+            })),
             defaultKIDs: uniqueKeyIDs,
             hlsEncryptionMethod: keyTags[0].value.METHOD,
             emeRobustnessLevels: [],
@@ -116,19 +165,34 @@ function getSecurityInfo(activeManifest) {
     }
 
     if (contentProtection.length > 0) {
-        const uniqueRobustness = [...new Set(contentProtection.map(cp => cp.robustness).filter(Boolean))];
+        const uniqueRobustness = [
+            ...new Set(
+                contentProtection.map((cp) => cp.robustness).filter(Boolean)
+            ),
+        ];
         return {
             isEncrypted: true,
-            drmSystems: [...new Set(contentProtection.map(cp => cp.schemeIdUri))].map(s => ({ name: getDrmSystemName(s), uuid: s })),
-            defaultKIDs: [...new Set(contentProtection.map(cp => cp.defaultKid).filter(Boolean))],
+            drmSystems: [
+                ...new Set(contentProtection.map((cp) => cp.schemeIdUri)),
+            ].map((s) => ({ name: getDrmSystemName(s), uuid: s })),
+            defaultKIDs: [
+                ...new Set(
+                    contentProtection.map((cp) => cp.defaultKid).filter(Boolean)
+                ),
+            ],
             hlsEncryptionMethod: null,
             emeRobustnessLevels: uniqueRobustness,
         };
     }
 
-    return { isEncrypted: false, drmSystems: [], defaultKIDs: [], hlsEncryptionMethod: null, emeRobustnessLevels: [] };
+    return {
+        isEncrypted: false,
+        drmSystems: [],
+        defaultKIDs: [],
+        hlsEncryptionMethod: null,
+        emeRobustnessLevels: [],
+    };
 }
-
 
 /**
  * Gathers core player integration requirements from the active manifest.
@@ -141,9 +205,9 @@ function getIntegrationRequirements(activeManifest) {
         ...summary.videoTracks.flatMap((t) => t.codecs),
         ...summary.audioTracks.flatMap((t) => t.codecs),
     ]);
-    
+
     const subtitleFormats = new Set();
-    summary.textTracks.forEach(tt => {
+    summary.textTracks.forEach((tt) => {
         const format = tt.codecsOrMimeTypes.join(', ');
         if (format.includes('stpp') || format.includes('im1t')) {
             subtitleFormats.add('IMSC1 (TTML)');
@@ -153,16 +217,20 @@ function getIntegrationRequirements(activeManifest) {
             subtitleFormats.add(format);
         }
     });
-    
+
     const isDashSegmentAlignment = activeManifest.periods
-        ?.flatMap(p => p.adaptationSets)
-        .some(as => as.segmentAlignment === true);
+        ?.flatMap((p) => p.adaptationSets)
+        .some((as) => as.segmentAlignment === true);
 
     return {
         requiredDashProfiles: summary.dash?.profiles || null,
         requiredHlsVersion: summary.hls?.version || null,
         segmentContainerFormat: summary.general.segmentFormat,
-        trickPlaySupport: summary.hls?.iFramePlaylists > 0 || activeManifest.periods.flatMap(p => p.adaptationSets).some(as => as.roles.some(r => r.value === 'trick')),
+        trickPlaySupport:
+            summary.hls?.iFramePlaylists > 0 ||
+            activeManifest.periods
+                .flatMap((p) => p.adaptationSets)
+                .some((as) => as.roles.some((r) => r.value === 'trick')),
         requiredCodecs: Array.from(allCodecs),
         subtitleFormats: Array.from(subtitleFormats),
         segmentAlignment: isDashSegmentAlignment ?? null,
@@ -175,9 +243,10 @@ function getIntegrationRequirements(activeManifest) {
  * @returns {object}
  */
 export function createIntegratorsReportViewModel(stream) {
-    const activeManifest = (stream.protocol === 'hls' && stream.activeMediaPlaylistUrl)
-        ? stream.mediaPlaylists.get(stream.activeMediaPlaylistUrl)?.manifest
-        : stream.manifest;
+    const activeManifest =
+        stream.protocol === 'hls' && stream.activeMediaPlaylistUrl
+            ? stream.mediaPlaylists.get(stream.activeMediaPlaylistUrl)?.manifest
+            : stream.manifest;
 
     if (!activeManifest) {
         return { network: {}, timing: null, security: {}, integration: {} };

@@ -1,5 +1,5 @@
 import { stopLiveSegmentHighlighter } from './views/segment-explorer/components/hls/index.js';
-import { useStore, storeActions } from '../core/store.js';
+import { useStore, storeActions } from '../app/store.js';
 import { showLoader } from './components/loader.js';
 
 let dom;

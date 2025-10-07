@@ -1,7 +1,7 @@
 import { html } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { tooltipTriggerClasses } from '../../../shared/constants.js';
-import { createFeatureViewModel } from '../../../engines/feature-analysis/analyzer.js';
+import { createFeatureViewModel } from '../../../domain/feature-analysis/analyzer.js';
 import { standardSelectorTemplate } from '../compliance/components/standard-selector.js';
 import { renderApp } from '../../mainRenderer.js';
 
@@ -36,7 +36,9 @@ const featureCardTemplate = (feature) => {
                     data-iso="${feature.isoRef}"
                 >
                     ${feature.name}
-                    <span class="text-xs text-gray-500">(v${feature.version}+)</span>
+                    <span class="text-xs text-gray-500"
+                        >(v${feature.version}+)</span
+                    >
                 </p>
                 <p class="text-xs text-gray-400 italic mt-1 font-mono">
                     ${unsafeHTML(feature.details)}

@@ -1,6 +1,6 @@
 import { html } from 'lit-html';
 import { tooltipTriggerClasses } from '../../../shared/constants.js';
-import { getTooltipData as getIsobmffTooltipData } from '../../../protocols/segment/isobmff/index.js';
+import { getTooltipData as getIsobmffTooltipData } from '../../../infrastructure/segment/isobmff/index.js';
 
 const findBoxRecursive = (boxes, type) => {
     for (const box of boxes) {
@@ -22,9 +22,7 @@ const semanticCard = (title, box, fields) => {
             >
                 ${title}
             </h4>
-            <dl
-                class="grid grid-cols-[auto_1fr] gap-x-2 p-2 text-xs font-mono"
-            >
+            <dl class="grid grid-cols-[auto_1fr] gap-x-2 p-2 text-xs font-mono">
                 ${fields.map((field) => {
                     const value = box.details[field.key]?.value;
                     return value !== undefined
@@ -106,11 +104,12 @@ const samplesTableTemplate = (box) => {
                                 <tr class="hover:bg-gray-700/50">
                                     <td class="p-2">${index + 1}</td>
                                     ${headers.map(
-                                        (h) => html`<td class="p-2 font-mono">
-                                            ${sample[h] !== undefined
-                                                ? sample[h]
-                                                : 'N/A'}
-                                        </td>`
+                                        (h) =>
+                                            html`<td class="p-2 font-mono">
+                                                ${sample[h] !== undefined
+                                                    ? sample[h]
+                                                    : 'N/A'}
+                                            </td>`
                                     )}
                                 </tr>
                             `

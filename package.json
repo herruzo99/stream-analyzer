@@ -8,7 +8,7 @@
         "lint": "eslint . --ext .js",
         "format": "prettier --write .",
         "build:css": "tailwindcss -i css/main.css -o dist/main.css --minify",
-        "build:js": "esbuild js/core/app.js --bundle --minify --outfile=dist/main.js && esbuild js/worker.js --bundle --minify --outfile=dist/worker.js",
+        "build:js": "esbuild js/app/main.js --bundle --minify --outfile=dist/main.js && esbuild js/worker.js --bundle --minify --outfile=dist/worker.js",
         "build": "npm run build:css && npm run build:js"
     },
     "keywords": [],

@@ -1,5 +1,5 @@
 import { html } from 'lit-html';
-import { useStore, storeActions } from '../../../core/store.js';
+import { useStore, storeActions } from '../../../app/store.js';
 import {
     getInteractiveIsobmffTemplate,
     findBoxByOffset,
@@ -14,8 +14,8 @@ import {
     getInspectorState,
 } from './components/interaction-logic.js';
 
-import { getTooltipData as getIsobmffTooltipData } from '../../../protocols/segment/isobmff/index.js';
-import { getTooltipData as getTsTooltipData } from '../../../protocols/segment/ts/index.js';
+import { getTooltipData as getIsobmffTooltipData } from '../../../infrastructure/segment/isobmff/index.js';
+import { getTooltipData as getTsTooltipData } from '../../../infrastructure/segment/ts/index.js';
 
 let lastProcessedSegmentUrl = null;
 const HEX_BYTES_PER_PAGE = 1024;

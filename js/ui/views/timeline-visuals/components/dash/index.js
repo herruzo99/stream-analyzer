@@ -1,5 +1,5 @@
 import { html } from 'lit-html';
-import { eventBus } from '../../../../../core/event-bus.js';
+import { eventBus } from '../../../../../app/event-bus.js';
 
 const renderEvents = (events, totalDuration, timelineStart = 0) => {
     if (!events || events.length === 0) return '';
@@ -99,18 +99,14 @@ const timelineGridTemplate = (switchingSet) => {
 
     const allEvents = representations.flatMap((r) => r.events || []);
     const allFragments = representations.flatMap((r) => r.fragments || []);
-    const utcTimes = allFragments
-        .map((f) => f.startTimeUTC)
-        .filter((t) => t);
+    const utcTimes = allFragments.map((f) => f.startTimeUTC).filter((t) => t);
     const hasUtcTimes = utcTimes.length > 0;
     const minUtcTime = hasUtcTimes ? Math.min(...utcTimes) : 0;
     const maxUtcTime = hasUtcTimes ? Math.max(...utcTimes) : 0;
 
     return html`
         <div class="mt-8">
-            <h4 class="text-lg font-bold">
-                Switching Set: ${switchingSet.id}
-            </h4>
+            <h4 class="text-lg font-bold">Switching Set: ${switchingSet.id}</h4>
             <div class="bg-gray-900 rounded-lg p-4 mt-2 relative">
                 ${renderEvents(allEvents, totalDuration)}
                 ${representations.map(
@@ -133,22 +129,14 @@ const timelineGridTemplate = (switchingSet) => {
                                                   style="width: ${(frag.duration /
                                                       totalDuration) *
                                                   100}%;"
-                                                  data-tooltip="Segment #${
-                                                      frag.number
-                                                  }\nStart: ${frag.startTime.toFixed(
-                                                      2
-                                                  )}s\nDuration: ${frag.duration.toFixed(
-                                                      2
-                                                  )}s\nEnd: ${(
-                                                      frag.startTime +
-                                                      frag.duration
-                                                  ).toFixed(2)}s${
-                                                      frag.startTimeUTC
-                                                          ? `\nAvailable (UTC): ${new Date(
-                                                                frag.startTimeUTC
-                                                            ).toLocaleTimeString()}`
-                                                          : ''
-                                                  }"
+                                                  data-tooltip="Segment #${frag.number}
+Start: ${frag.startTime.toFixed(2)}s
+Duration: ${frag.duration.toFixed(2)}s
+End: ${(frag.startTime + frag.duration).toFixed(2)}s${frag.startTimeUTC
+                                                      ? `\nAvailable (UTC): ${new Date(
+                                                            frag.startTimeUTC
+                                                        ).toLocaleTimeString()}`
+                                                      : ''}"
                                               ></div>
                                           `
                                       )
@@ -170,13 +158,9 @@ const timelineGridTemplate = (switchingSet) => {
                 ? html`<div
                       class="text-xs text-gray-500 mt-1 flex justify-between"
                   >
-                      <span
-                          >${new Date(minUtcTime).toLocaleTimeString()}</span
-                      >
+                      <span>${new Date(minUtcTime).toLocaleTimeString()}</span>
                       <span>Wall-Clock Time (UTC)</span>
-                      <span
-                          >${new Date(maxUtcTime).toLocaleTimeString()}</span
-                      >
+                      <span>${new Date(maxUtcTime).toLocaleTimeString()}</span>
                   </div>`
                 : ''}
             ${dashAbrLadderTemplate(representations)}

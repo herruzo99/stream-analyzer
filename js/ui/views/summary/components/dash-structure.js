@@ -4,13 +4,16 @@ import { trackTableTemplate } from './shared.js';
 const advancedPropertiesTemplate = (as) => {
     const failover = as.representations[0]?.failoverContent;
     const resyncs = as.resyncs || as.representations[0]?.resyncs;
-    const switchingProperty = (as.serializedManifest.SupplementalProperty || []).find(
+    const switchingProperty = (
+        as.serializedManifest.SupplementalProperty || []
+    ).find(
         (p) =>
             p[':@'].schemeIdUri ===
             'urn:mpeg:dash:adaptation-set-switching:2016'
     );
 
-    if (!failover && (!resyncs || resyncs.length === 0) && !switchingProperty) return '';
+    if (!failover && (!resyncs || resyncs.length === 0) && !switchingProperty)
+        return '';
 
     return html`
         <div class="mt-2 p-2 bg-gray-900/50 rounded-md">

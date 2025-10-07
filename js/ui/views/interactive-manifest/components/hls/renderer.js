@@ -2,8 +2,8 @@ import { html } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { hlsTooltipData } from './tooltip-data.js';
 import { tooltipTriggerClasses } from '../../../../../shared/constants.js';
-import { eventBus } from '../../../../../core/event-bus.js';
-import { useStore, storeActions } from '../../../../../core/store.js';
+import { eventBus } from '../../../../../app/event-bus.js';
+import { useStore, storeActions } from '../../../../../app/store.js';
 import { debugLog } from '../../../../../shared/utils/debug.js';
 import { renderApp } from '../../../../mainRenderer.js';
 
@@ -100,20 +100,76 @@ const hlsSubNavTemplate = (stream) => {
         </button>
     `;
 
+    const variantUris = new Set(
+        (stream.manifest.variants || []).map((v) => v.resolvedUri)
+    );
+
+    const mediaPlaylists = Array.from(stream.hlsVariantState.keys()).filter(
+        (uri) => !variantUris.has(uri)
+    );
+
+    const groupedMedia = mediaPlaylists.reduce((acc, uri) => {
+        // Find the original media tag from the manifest to get its metadata
+        const mediaTag = (stream.manifest.serializedManifest.media || []).find(
+            (m) => new URL(m.URI, stream.baseUrl).href === uri
+        );
+        if (mediaTag) {
+            const type = mediaTag.TYPE || 'UNKNOWN';
+            if (!acc[type]) {
+                acc[type] = [];
+            }
+            acc[type].push(mediaTag);
+        }
+        return acc;
+    }, {});
+
     return html`
         <div
-            class="mb-4 p-2 bg-gray-900/50 rounded-lg flex flex-wrap gap-2"
+            class="mb-4 p-2 bg-gray-900/50 rounded-lg flex flex-col gap-2"
             @click=${handleNavClick}
         >
-            ${navItem('Master', 'master', !stream.activeMediaPlaylistUrl)}
-            ${(stream.manifest.variants || []).map(
-                (variant, i) =>
-                    html`${navItem(
-                        `Variant ${i + 1}`,
-                        variant.resolvedUri,
-                        stream.activeMediaPlaylistUrl === variant.resolvedUri
-                    )}`
-            )}
+            <div class="flex flex-wrap items-center gap-2">
+                <strong class="text-xs text-gray-400 uppercase mr-2"
+                    >Master Playlist:</strong
+                >
+                ${navItem('View', 'master', !stream.activeMediaPlaylistUrl)}
+            </div>
+
+            ${(stream.manifest.variants || []).length > 0
+                ? html` <div class="flex flex-wrap items-center gap-2">
+                      <strong class="text-xs text-gray-400 uppercase mr-2"
+                          >Variant Streams:</strong
+                      >
+                      ${(stream.manifest.variants || []).map(
+                          (variant, i) =>
+                              html`${navItem(
+                                  `Variant ${i + 1}`,
+                                  variant.resolvedUri,
+                                  stream.activeMediaPlaylistUrl ===
+                                      variant.resolvedUri
+                              )}`
+                      )}
+                  </div>`
+                : ''}
+            ${Object.entries(groupedMedia).map(([type, mediaItems]) => {
+                return html` <div class="flex flex-wrap items-center gap-2">
+                    <strong class="text-xs text-gray-400 uppercase mr-2"
+                        >${type} Renditions:</strong
+                    >
+                    ${mediaItems.map((media) => {
+                        const resolvedUri = new URL(media.URI, stream.baseUrl)
+                            .href;
+                        const label = `${
+                            media.NAME || media.LANGUAGE || `Default ${type}`
+                        }`;
+                        return navItem(
+                            label,
+                            resolvedUri,
+                            stream.activeMediaPlaylistUrl === resolvedUri
+                        );
+                    })}
+                </div>`;
+            })}
         </div>
     `;
 };
@@ -345,8 +401,8 @@ export const hlsManifestTemplate = (stream, currentPage) => {
             : '';
 
     return html`
-        ${hlsSubNavTemplate(stream)} ${variableTableTemplate(stream.hlsDefinedVariables)}
-        ${variableControls}
+        ${hlsSubNavTemplate(stream)}
+        ${variableTableTemplate(stream.hlsDefinedVariables)} ${variableControls}
         <div
             class="bg-slate-800 rounded-lg p-4 font-mono text-sm leading-relaxed overflow-x-auto"
         >

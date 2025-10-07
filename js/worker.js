@@ -1,15 +1,18 @@
-import { parseISOBMFF } from './protocols/segment/isobmff/parser.js';
-import { parse as parseTsSegment } from './protocols/segment/ts/index.js';
-import { parseManifest as parseDashManifestString } from './protocols/manifest/dash/parser.js';
-import { parseManifest as parseHlsManifest } from './protocols/manifest/hls/parser.js';
-import { parseAllSegmentUrls as parseDashSegments } from './protocols/manifest/dash/segment-parser.js';
-import { runChecks } from './engines/compliance/engine.js';
-import { validateSteeringManifest } from './engines/hls/steering-validator.js';
-import { analyzeDashCoverage, analyzeParserDrift } from './engines/debug/coverage-analyzer.js';
+import { parseISOBMFF } from './infrastructure/segment/isobmff/parser.js';
+import { parse as parseTsSegment } from './infrastructure/segment/ts/index.js';
+import { parseManifest as parseDashManifestString } from './infrastructure/manifest/dash/parser.js';
+import { parseManifest as parseHlsManifest } from './infrastructure/manifest/hls/parser.js';
+import { parseAllSegmentUrls as parseDashSegments } from './infrastructure/manifest/dash/segment-parser.js';
+import { runChecks } from './domain/compliance/engine.js';
+import { validateSteeringManifest } from './domain/hls/steering-validator.js';
+import {
+    analyzeDashCoverage,
+    analyzeParserDrift,
+} from './domain/debug/coverage-analyzer.js';
 import { DOMParser, XMLSerializer } from 'xmldom';
 import xpath from 'xpath';
 
-/** @typedef {import('./core/types.js').SerializedStream} SerializedStream */
+/** @typedef {import('./app/types.js').SerializedStream} SerializedStream */
 
 // --- XML Patch Logic ---
 /**
@@ -54,9 +57,9 @@ function applyXmlPatch(sourceXml, patchXml) {
                         content &&
                         targetNode.nodeType === 1 /* ELEMENT_NODE */
                     ) {
-                        /** @type {Element} */ (
-                            targetNode
-                        ).appendChild(content.cloneNode(true));
+                        /** @type {Element} */ (targetNode).appendChild(
+                            content.cloneNode(true)
+                        );
                     }
                     break;
                 }
@@ -82,7 +85,6 @@ function applyXmlPatch(sourceXml, patchXml) {
 
     return serializer.serializeToString(sourceDoc);
 }
-
 
 // --- HLS Delta Update Logic (moved from delta-updater.js) ---
 
@@ -249,7 +251,10 @@ async function processSingleStream(input) {
                     manifestIR.type = 'static';
                 }
             } catch (e) {
-                console.error("Could not fetch first variant to determine liveness, defaulting to VOD.", e);
+                console.error(
+                    'Could not fetch first variant to determine liveness, defaulting to VOD.',
+                    e
+                );
                 manifestIR.type = 'static';
             }
         }
@@ -265,7 +270,7 @@ async function processSingleStream(input) {
 
     // Pass serializedManifestObject explicitly to functions that need to traverse it
     const { generateFeatureAnalysis } = await import(
-        './engines/feature-analysis/analyzer.js'
+        './domain/feature-analysis/analyzer.js'
     );
     const rawInitialAnalysis = generateFeatureAnalysis(
         manifestIR, // HLS analyzer uses the IR
@@ -367,7 +372,6 @@ async function processSingleStream(input) {
     });
     // --- End of initial manifest update logic ---
 
-
     if (input.protocol === 'hls') {
         if (manifestIR.isMaster) {
             (manifestIR.variants || []).forEach((v, index) => {
@@ -440,7 +444,9 @@ async function handleStartAnalysis(inputs) {
     try {
         self.postMessage({
             type: 'status-update',
-            payload: { message: `Starting analysis of ${inputs.length} stream(s)...` },
+            payload: {
+                message: `Starting analysis of ${inputs.length} stream(s)...`,
+            },
         });
         const results = await Promise.all(inputs.map(processSingleStream));
         self.postMessage({

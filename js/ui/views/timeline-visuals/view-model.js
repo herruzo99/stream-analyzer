@@ -1,9 +1,9 @@
-import { useStore } from '../../../core/store.js';
-import { parseAllSegmentUrls } from '../../../protocols/manifest/dash/segment-parser.js';
+import { useStore } from '../../../app/store.js';
+import { parseAllSegmentUrls } from '../../../infrastructure/manifest/dash/segment-parser.js';
 
 /**
  * Creates a view model for the DASH timeline visualization by leveraging the central segment parser.
- * @param {import('../../../core/types.js').Stream} stream
+ * @param {import('../../../app/types.js').Stream} stream
  * @returns {Promise<object[]>} A promise that resolves to an array of switching set view models.
  */
 export async function createDashTimelineViewModel(stream) {

@@ -236,11 +236,11 @@ export const dashTooltipData = {
         isoRef: 'Clause 5.3.3.2, Table 5',
     },
     'AdaptationSet@bitstreamSwitching': {
-        text: "If true, indicates that segments from different Representations in this set can be concatenated to form a single, conforming bitstream, enabling switching without re-initializing the decoder.",
+        text: 'If true, indicates that segments from different Representations in this set can be concatenated to form a single, conforming bitstream, enabling switching without re-initializing the decoder.',
         isoRef: 'Clause 5.3.3.2, Table 5',
     },
     'AdaptationSet@initializationPrincipal': {
-        text: "A URL to a CMAF Principal Header that is sufficient to initialize any Representation in this Adaptation Set. This promotes efficiency by allowing a single initialization segment to cover all quality levels.",
+        text: 'A URL to a CMAF Principal Header that is sufficient to initialize any Representation in this Adaptation Set. This promotes efficiency by allowing a single initialization segment to cover all quality levels.',
         isoRef: 'Clause 5.3.3.2, Table 5',
     },
     ContentComponent: {

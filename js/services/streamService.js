@@ -1,9 +1,9 @@
-import { eventBus } from '../core/event-bus.js';
-import { useStore, storeActions } from '../core/store.js';
+import { eventBus } from '../app/event-bus.js';
+import { useStore, storeActions } from '../app/store.js';
 import { isDebugMode } from '../shared/utils/env.js';
 import { debugLog } from '../shared/utils/debug.js';
 
-/** @typedef {import('../core/types.js').SerializedStream} SerializedStream */
+/** @typedef {import('../app/types.js').SerializedStream} SerializedStream */
 
 const analysisWorker = new Worker('/dist/worker.js', { type: 'module' });
 let analysisStartTime = 0;
@@ -36,7 +36,7 @@ analysisWorker.onmessage = (event) => {
                 stream.mediaPlaylists = new Map(stream.mediaPlaylists || []);
             });
             storeActions.completeAnalysis(
-                /** @type {import('../core/types.js').Stream[]} */ (
+                /** @type {import('../app/types.js').Stream[]} */ (
                     /** @type {any} */ (results)
                 )
             );

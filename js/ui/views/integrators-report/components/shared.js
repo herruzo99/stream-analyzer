@@ -1,7 +1,13 @@
 import { html } from 'lit-html';
 import { tooltipTriggerClasses } from '../../../../shared/constants.js';
 
-export const statCardTemplate = ({ label, value, tooltip, isoRef = null, isCode = true }) => {
+export const statCardTemplate = ({
+    label,
+    value,
+    tooltip,
+    isoRef = null,
+    isCode = true,
+}) => {
     if (value === null || value === undefined || value === '') return '';
     const valueClass = isCode ? 'font-mono' : 'font-sans';
     return html`
@@ -13,7 +19,9 @@ export const statCardTemplate = ({ label, value, tooltip, isoRef = null, isCode 
             >
                 ${label}
             </dt>
-            <dd class="text-base text-left text-white mt-1 break-words ${valueClass}">
+            <dd
+                class="text-base text-left text-white mt-1 break-words ${valueClass}"
+            >
                 ${value}
             </dd>
         </div>
@@ -32,7 +40,12 @@ export const listCardTemplate = ({ label, items, tooltip, isoRef = null }) => {
                 ${label}
             </dt>
             <dd class="text-sm text-left font-mono text-white mt-2 space-y-1">
-                ${items.map((item) => html`<div class="bg-gray-900/50 p-1 rounded">${item}</div>`)}
+                ${items.map(
+                    (item) =>
+                        html`<div class="bg-gray-900/50 p-1 rounded">
+                            ${item}
+                        </div>`
+                )}
             </dd>
         </div>
     `;
