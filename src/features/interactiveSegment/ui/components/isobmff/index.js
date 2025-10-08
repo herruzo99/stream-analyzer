@@ -1,8 +1,6 @@
 import { html } from 'lit-html';
-import {
-    useAnalysisStore,
-    useSegmentCacheStore,
-} from '@/state/analysisStore.js';
+import { useAnalysisStore } from '@/state/analysisStore.js';
+import { useSegmentCacheStore } from '@/state/segmentCacheStore.js';
 import { getTooltipData as getAllIsoTooltipData } from '@/infrastructure/parsing/isobmff/index.js';
 import { hexViewTemplate } from '@/ui/components/hex-view.js';
 import { buildByteMap } from './view-model.js';

@@ -3,37 +3,26 @@ import { manifestViewTemplate } from './components/renderer.js';
 import { sidebarTemplate } from './components/sidebar.js';
 import { navigationTemplate } from './components/navigation.js';
 import { standardSelectorTemplate } from './components/standard-selector.js';
-import { renderApp } from '@/ui/shell/mainRenderer.js';
+import { useUiStore } from '@/state/uiStore.js';
 import { runChecks } from '@/features/compliance/domain/engine.js';
-
-let activeFilter = 'all';
-let activeStandardVersion = 13; // Default to the latest HLS version
-
-function handleFilterClick(newFilter) {
-    if (newFilter === activeFilter) return;
-    activeFilter = newFilter;
-    renderApp();
-}
-
-function handleVersionChange(newVersion) {
-    if (newVersion === activeStandardVersion) return;
-    activeStandardVersion = newVersion;
-    renderApp(); // Re-render to re-run checks with the new version
-}
+import { eventBus } from '@/application/event-bus.js';
 
 export function getComplianceReportTemplate(stream) {
     if (!stream || !stream.manifest) return html``;
 
+    const {
+        complianceActiveFilter: activeFilter,
+        complianceStandardVersion: activeStandardVersion,
+    } = useUiStore.getState();
     const { manifestUpdates, activeManifestUpdateIndex, protocol } = stream;
     const currentUpdate = manifestUpdates[activeManifestUpdateIndex];
 
     if (!currentUpdate) {
         return html`<p class="text-gray-400 p-4">
-            Awaiting first manifest update with compliance data...
+            Awaiting first manifest update...
         </p>`;
     }
 
-    // Determine the context for compliance checks
     let manifestObjectForChecks;
     let complianceCheckContext = {};
 
@@ -42,14 +31,12 @@ export function getComplianceReportTemplate(stream) {
         complianceCheckContext.standardVersion = activeStandardVersion;
     } else if (protocol === 'dash') {
         manifestObjectForChecks = currentUpdate.serializedManifest;
-        // The DASH compliance engine will automatically extract profiles from the manifest
     } else {
         return html`<p class="text-yellow-400 p-4">
             Compliance report not available for unknown protocol.
         </p>`;
     }
 
-    // Re-run checks on the fly based on the selected version/profiles
     const complianceResults = runChecks(
         manifestObjectForChecks,
         protocol,
@@ -62,9 +49,13 @@ export function getComplianceReportTemplate(stream) {
         protocol === 'hls'
             ? standardSelectorTemplate({
                   selectedVersion: activeStandardVersion,
-                  onVersionChange: handleVersionChange,
+                  onVersionChange: (version) =>
+                      eventBus.dispatch(
+                          'ui:compliance:standard-version-changed',
+                          { version }
+                      ),
               })
-            : ''; // No selector for DASH
+            : '';
 
     return html`
         <div
@@ -97,7 +88,10 @@ export function getComplianceReportTemplate(stream) {
                     ${sidebarTemplate(
                         complianceResults,
                         activeFilter,
-                        handleFilterClick
+                        (filter) =>
+                            eventBus.dispatch('ui:compliance:filter-changed', {
+                                filter,
+                            })
                     )}
                 </div>
             </div>

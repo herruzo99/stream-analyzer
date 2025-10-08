@@ -1,8 +1,6 @@
 import { html } from 'lit-html';
-import {
-    useAnalysisStore,
-    useSegmentCacheStore,
-} from '@/state/analysisStore.js';
+import { useAnalysisStore } from '@/state/analysisStore.js';
+import { useSegmentCacheStore } from '@/state/segmentCacheStore.js';
 import { useUiStore, uiActions } from '@/state/uiStore.js';
 import {
     getInteractiveIsobmffTemplate,

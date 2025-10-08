@@ -153,6 +153,8 @@ export function adaptHlsToIr(hlsParsed) {
                                     ? 'text/vtt'
                                     : 'video/mp2t',
                             segmentAlignment: false, // HLS doesn't signal this in the same way as DASH
+                            width: null,
+                            height: null,
                             representations: [], // Representations for these are in their own playlists
                             contentProtection: [],
                             roles: [],
@@ -255,6 +257,8 @@ export function adaptHlsToIr(hlsParsed) {
                 lang: null,
                 mimeType: 'video/mp2t',
                 segmentAlignment: false, // HLS doesn't signal this in the same way as DASH
+                width: rep.width,
+                height: rep.height,
                 representations: [rep],
                 contentProtection: [],
                 roles: [],
@@ -293,6 +297,8 @@ export function adaptHlsToIr(hlsParsed) {
             lang: null,
             mimeType: hlsParsed.map ? 'video/mp4' : 'video/mp2t',
             segmentAlignment: false, // HLS doesn't signal this in the same way as DASH
+            width: null,
+            height: null,
             representations: [
                 {
                     id: 'media-0-rep-0',

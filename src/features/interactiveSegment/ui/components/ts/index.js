@@ -1,8 +1,10 @@
 import { html, render } from 'lit-html';
 import {
-    useAnalysisStore,
-    useSegmentCacheStore,
+    useAnalysisStore
 } from '@/state/analysisStore.js';
+import {
+    useSegmentCacheStore,
+} from '@/state/segmentCacheStore.js';
 import { hexViewTemplate } from '@/ui/components/hex-view.js';
 import { buildByteMapTs } from './view-model.js';
 import { getInspectorState } from '../interaction-logic.js';

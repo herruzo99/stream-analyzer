@@ -2,8 +2,8 @@ import { html } from 'lit-html';
 import {
     useAnalysisStore,
     analysisActions,
-    useSegmentCacheStore,
 } from '@/state/analysisStore.js';
+import { useSegmentCacheStore } from '@/state/segmentCacheStore.js';
 import { uiActions } from '@/state/uiStore.js';
 import { eventBus } from '@/application/event-bus.js';
 

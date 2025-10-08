@@ -5,7 +5,6 @@ import {
 } from '@/state/analysisStore.js';
 import { addStreamInput } from '@/ui/components/stream-inputs.js';
 import { startAnalysisUseCase } from '@/application/useCases/startAnalysis.js';
-import { saveLastUsedStreams } from '@/infrastructure/persistence/streamStorage.js';
 import { copyShareUrlToClipboard } from '@/ui/services/shareService.js';
 import { copyDebugInfoToClipboard } from '@/ui/services/debugService.js';
 import { UI_SELECTORS } from '@/ui/shared/constants.js';
@@ -14,6 +13,8 @@ import {
     toggleAllLiveStreamsPolling,
     reloadStream,
 } from '@/application/services/streamActionsService.js';
+import { useSegmentCacheStore } from '@/state/segmentCacheStore.js';
+import { container } from '@/application/container.js';
 
 /**
  * Renders the global controls for live streams (toggle polling, reload).
@@ -86,6 +87,8 @@ export class UiController {
 
         this.dom.newAnalysisBtn.addEventListener('click', () => {
             stopAllMonitoring();
+            // Reset stores before showing input view
+            useSegmentCacheStore.getState().clear();
             analysisActions.startAnalysis();
         });
 
@@ -135,6 +138,7 @@ export class UiController {
             };
         });
 
-        startAnalysisUseCase({ inputs }, { storage: { saveLastUsedStreams } });
+        // Call the authoritative use case, providing it with all necessary services from the container.
+        startAnalysisUseCase({ inputs }, container.services);
     }
 }
