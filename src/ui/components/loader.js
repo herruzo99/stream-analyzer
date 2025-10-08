@@ -1,4 +1,4 @@
-import { eventBus } from '@/application/event-bus.js';
+import { eventBus } from '@/application/event-bus';
 
 let dom;
 
@@ -33,7 +33,7 @@ export function initializeLoader(domContext) {
     eventBus.subscribe('analysis:started', () =>
         showLoader('Analyzing streams...')
     );
-    eventBus.subscribe('analysis:complete', hideLoader);
+    eventBus.subscribe('state:analysis-complete', hideLoader);
     eventBus.subscribe('analysis:failed', hideLoader);
     eventBus.subscribe('analysis:error', hideLoader);
 

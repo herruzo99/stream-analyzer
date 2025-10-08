@@ -1,11 +1,11 @@
-import { eventBus } from '@/application/event-bus.js';
-import { analysisActions } from '@/state/analysisStore.js';
+import { eventBus } from '@/application/event-bus';
+import { analysisActions } from '@/state/analysisStore';
 import {
     validateCmafTrack,
     validateCmafSwitchingSets,
-} from '@/domain/cmaf/validator.js';
-import { resolveBaseUrl } from '@/infrastructure/parsing/dash/recursive-parser.js';
-import { findInitSegmentUrl } from '@/infrastructure/parsing/dash/segment-parser.js';
+} from '@/domain/cmaf/validator';
+import { resolveBaseUrl } from '@/infrastructure/parsing/dash/recursive-parser';
+import { findInitSegmentUrl } from '@/infrastructure/parsing/dash/segment-parser';
 import { getParsedSegment } from './segmentService.js';
 
 /**

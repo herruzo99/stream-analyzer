@@ -1,4 +1,4 @@
-import { getDrmSystemName } from '@/infrastructure/parsing/utils/drm.js';
+import { getDrmSystemName } from '@/infrastructure/parsing/utils/drm';
 
 /**
  * @typedef {import('@/types.ts').Stream} Stream

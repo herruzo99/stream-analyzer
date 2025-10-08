@@ -3,7 +3,7 @@
  * @typedef {import('@/types.ts').PeriodSummary} PeriodSummary
  */
 
-import { formatBitrate } from '@/ui/shared/format.js';
+import { formatBitrate } from '@/ui/shared/format';
 
 /**
  * Creates a protocol-agnostic summary view-model from an HLS manifest.

@@ -1,4 +1,4 @@
-import { uiActions } from '@/state/uiStore.js';
+import { uiActions } from '@/state/uiStore';
 
 /**
  * Opens the global modal with specific content.

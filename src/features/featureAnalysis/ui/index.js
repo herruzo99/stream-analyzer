@@ -1,10 +1,10 @@
 import { html } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
-import { tooltipTriggerClasses } from '@/ui/shared/constants.js';
-import { createFeatureViewModel } from '@/features/featureAnalysis/domain/analyzer.js';
-import { standardSelectorTemplate } from '@/features/compliance/ui/components/standard-selector.js';
-import { useUiStore } from '@/state/uiStore.js';
-import { eventBus } from '@/application/event-bus.js';
+import { tooltipTriggerClasses } from '@/ui/shared/constants';
+import { createFeatureViewModel } from '@/features/featureAnalysis/domain/analyzer';
+import { standardSelectorTemplate } from '@/features/compliance/ui/components/standard-selector';
+import { useUiStore } from '@/state/uiStore';
+import { eventBus } from '@/application/event-bus';
 
 const featureCardTemplate = (feature) => {
     const badge = feature.used

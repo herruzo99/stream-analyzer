@@ -1,7 +1,7 @@
 /**
  * Compares two parsed ISOBMFF box objects for equivalence, ignoring specified fields.
- * @param {import('@/infrastructure/parsing/isobmff/parser.js').Box} boxA
- * @param {import('@/infrastructure/parsing/isobmff/parser.js').Box} boxB
+ * @param {import('@/infrastructure/parsing/isobmff/parser').Box} boxA
+ * @param {import('@/infrastructure/parsing/isobmff/parser').Box} boxB
  * @param {string[]} fieldsToIgnore - A list of field names to ignore during comparison.
  * @param {string[]} childBoxesToIgnore - A list of child box types to ignore during comparison.
  * @returns {{areEqual: boolean, differences: string[]}}

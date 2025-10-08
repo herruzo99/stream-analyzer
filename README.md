@@ -51,8 +51,9 @@ This project uses [Nix](https://nixos.org/) and [direnv](https://direnv.net/) to
 
 ### Available Scripts
 
-- `npm run start`: Starts a local server to serve the application (usually on `http://localhost:3000`).
-- `npm run build`: Builds the static assets (CSS and JS) into the `dist/` directory.
+- `npm run dev`: Starts a local development server with live reloading (e.g., on `http://localhost:8000`). This is the primary command for local development.
+- `npm run build`: Builds the static assets for production into the `dist/` directory. This includes content hashing for cache-busting.
+- `npm run start`: Serves the production-ready `dist/` folder. Use this to preview a production build locally.
 - `npm run lint`: Lints the JavaScript codebase.
 - `npm run format`: Formats the code using Prettier.
 - `npm run typecheck`: Runs the TypeScript checker on the JSDoc-annotated code.

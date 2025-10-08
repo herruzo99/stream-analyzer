@@ -1,5 +1,5 @@
 import { html } from 'lit-html';
-import { tooltipTriggerClasses } from '@/ui/shared/constants.js';
+import { tooltipTriggerClasses } from '@/ui/shared/constants';
 
 const steeringValidationResultTemplate = (result) => {
     if (!result) {

@@ -1,6 +1,6 @@
 import { html } from 'lit-html';
-import { tooltipTriggerClasses } from '@/ui/shared/constants.js';
-import { getTooltipData as getIsobmffTooltipData } from '@/infrastructure/parsing/isobmff/index.js';
+import { tooltipTriggerClasses } from '@/ui/shared/constants';
+import { getTooltipData as getIsobmffTooltipData } from '@/infrastructure/parsing/isobmff/index';
 
 /**
  * Formats a value from a sample table for display.

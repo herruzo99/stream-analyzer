@@ -8,22 +8,12 @@ import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
  * @param {number} end - The ending byte offset to render.
  * @param {Map<number, object>} byteMap - The pre-built map of byte properties.
  * @param {object} allTooltips - The aggregated tooltip data for all formats.
- * @param {object} inspectorState - The current state of the inspector (hovered/selected items).
  * @returns {{offsets: string, hexes: string, asciis: string}}
  */
-function renderHexGridContent(
-    view,
-    start,
-    end,
-    byteMap,
-    allTooltips,
-    inspectorState
-) {
+function renderHexGridContent(view, start, end, byteMap, allTooltips) {
     let offsetsHtml = '';
     let hexHtml = '';
     let asciiHtml = '';
-
-    const { itemForDisplay, fieldForDisplay } = inspectorState;
 
     const rowCount = Math.ceil((end - start) / 16);
 
@@ -47,37 +37,16 @@ function renderHexGridContent(
                 let tooltipText = '';
                 let isoRefText = '';
                 let fieldBoundaryClass = '';
-                let highlightClasses = '';
 
                 if (mapEntry) {
                     const item = mapEntry.box || mapEntry.packet;
                     const fieldName = mapEntry.fieldName;
 
-                    // --- Dynamic Highlighting Logic ---
-                    if (
-                        itemForDisplay &&
-                        item &&
-                        item.offset === itemForDisplay.offset
-                    ) {
-                        highlightClasses += ' is-box-hover-highlighted';
-                        if (fieldForDisplay && fieldName === fieldForDisplay) {
-                            highlightClasses += ' is-field-hover-highlighted';
-                        }
-                    }
-                    if (
-                        itemForDisplay?.isChunk &&
-                        byteOffset >= itemForDisplay.offset &&
-                        byteOffset < itemForDisplay.offset + itemForDisplay.size
-                    ) {
-                        highlightClasses += ' is-box-hover-highlighted';
-                    }
-
-                    // --- Tooltip Logic ---
                     const boxType = item?.type;
                     let primaryTooltip = fieldName;
                     let primaryIsoRef = '';
 
-                    if (boxType) {
+                    if (boxType && allTooltips) {
                         const boxInfo = allTooltips[boxType];
                         const fieldInfo =
                             allTooltips[`${boxType}@${fieldName}`];
@@ -98,7 +67,6 @@ function renderHexGridContent(
                     tooltipText = primaryTooltip;
                     isoRefText = primaryIsoRef;
 
-                    // --- Field Boundary Logic ---
                     if (
                         prevMapEntry &&
                         mapEntry.fieldName !== prevMapEntry.fieldName &&
@@ -117,14 +85,14 @@ function renderHexGridContent(
                     .toString(16)
                     .padStart(2, '0')
                     .toUpperCase();
-                const commonAttrs = `data-byte-offset="${byteOffset}" data-box-offset="${mapEntry?.box?.offset}" data-tooltip="${tooltipText}" data-iso="${isoRefText}"`;
-                hexRow += `<span ${commonAttrs} class="hex-byte relative ${bgColor} ${fieldBoundaryClass} ${highlightClasses}" style="${styleAttr}">${hexByte}</span>`;
+                const commonAttrs = `data-byte-offset="${byteOffset}" data-tooltip="${tooltipText}" data-iso="${isoRefText}"`;
+                hexRow += `<span ${commonAttrs} class="hex-byte relative ${bgColor} ${fieldBoundaryClass}" style="${styleAttr}">${hexByte}</span>`;
 
                 const asciiChar =
                     byte >= 32 && byte <= 126
                         ? String.fromCharCode(byte).replace('<', '&lt;')
                         : '.';
-                asciiRow += `<span ${commonAttrs} class="ascii-char relative ${bgColor} ${fieldBoundaryClass} ${highlightClasses}" style="${styleAttr}">${asciiChar}</span>`;
+                asciiRow += `<span ${commonAttrs} class="ascii-char relative ${bgColor} ${fieldBoundaryClass}" style="${styleAttr}">${asciiChar}</span>`;
             } else {
                 hexRow += '<span></span>';
                 asciiRow += '<span></span>';
@@ -142,8 +110,7 @@ export const hexViewTemplate = (
     currentPage,
     bytesPerPage,
     onPageChange,
-    allTooltips,
-    inspectorState
+    allTooltips
 ) => {
     const totalPages = Math.ceil(buffer.byteLength / bytesPerPage);
     const startOffset = (currentPage - 1) * bytesPerPage;
@@ -155,8 +122,7 @@ export const hexViewTemplate = (
         startOffset,
         endByte,
         byteMap,
-        allTooltips,
-        inspectorState
+        allTooltips
     );
 
     return html`

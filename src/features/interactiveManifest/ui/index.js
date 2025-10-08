@@ -1,12 +1,12 @@
 import { html } from 'lit-html';
-import { useUiStore } from '@/state/uiStore.js';
+import { useUiStore } from '@/state/uiStore';
 import { dashManifestTemplate } from './components/dash/renderer.js';
 import { hlsManifestTemplate } from './components/hls/renderer.js';
-import { debugLog } from '@/application/utils/debug.js';
-import { copyTextToClipboard } from '@/ui/shared/clipboard.js';
+import { debugLog } from '@/application/utils/debug';
+import { copyTextToClipboard } from '@/ui/shared/clipboard';
 import { dashTooltipData } from './components/dash/tooltip-data.js';
 import { hlsTooltipData } from './components/hls/tooltip-data.js';
-import { isDebugMode } from '@/application/utils/env.js';
+import { isDebugMode } from '@/application/utils/env';
 
 // --- New Functions for Debug Report ---
 

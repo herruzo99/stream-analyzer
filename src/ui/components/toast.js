@@ -1,4 +1,4 @@
-import { eventBus } from '@/application/event-bus.js';
+import { eventBus } from '@/application/event-bus';
 
 let toastContainer;
 

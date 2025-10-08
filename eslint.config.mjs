@@ -1,5 +1,5 @@
 import globals from 'globals';
-import js from '@eslint/js';
+import js from '@eslint';
 import prettierConfig from 'eslint-config-prettier';
 
 export default [

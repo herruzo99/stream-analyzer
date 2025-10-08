@@ -1,4 +1,4 @@
-import { getDrmSystemName } from '@/infrastructure/parsing/utils/drm.js';
+import { getDrmSystemName } from '@/infrastructure/parsing/utils/drm';
 import { getAttr, findChildrenRecursive } from './recursive-parser.js';
 
 /**

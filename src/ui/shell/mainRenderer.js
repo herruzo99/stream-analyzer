@@ -1,22 +1,22 @@
 import { html, render } from 'lit-html';
-import { useAnalysisStore } from '@/state/analysisStore.js';
-import { useUiStore, uiActions } from '@/state/uiStore.js';
-import { getGlobalSummaryTemplate } from '@/features/summary/ui/index.js';
-import { getComplianceReportTemplate } from '@/features/compliance/ui/index.js';
-import { initializeTimelineView } from '@/features/timelineVisuals/ui/index.js';
-import { getFeaturesAnalysisTemplate } from '@/features/featureAnalysis/ui/index.js';
-import { getInteractiveManifestTemplate } from '@/features/interactiveManifest/ui/index.js';
-import { getInteractiveSegmentTemplate } from '@/features/interactiveSegment/ui/index.js';
-import { initializeSegmentExplorer } from '@/features/segmentExplorer/ui/index.js';
-import { getComparisonTemplate } from '@/features/comparison/ui/index.js';
-import { manifestUpdatesTemplate } from '@/features/manifestUpdates/ui/index.js';
-import { getParserCoverageTemplate } from '@/features/parserCoverage/ui/index.js';
-import { getIntegratorsReportTemplate } from '@/features/integratorsReport/ui/index.js';
+import { useAnalysisStore } from '@/state/analysisStore';
+import { useUiStore, uiActions } from '@/state/uiStore';
+import { getGlobalSummaryTemplate } from '@/features/summary/ui/index';
+import { getComplianceReportTemplate } from '@/features/compliance/ui/index';
+import { initializeTimelineView } from '@/features/timelineVisuals/ui/index';
+import { getFeaturesAnalysisTemplate } from '@/features/featureAnalysis/ui/index';
+import { getInteractiveManifestTemplate } from '@/features/interactiveManifest/ui/index';
+import { getInteractiveSegmentTemplate } from '@/features/interactiveSegment/ui/index';
+import { initializeSegmentExplorer } from '@/features/segmentExplorer/ui/index';
+import { getComparisonTemplate } from '@/features/comparison/ui/index';
+import { manifestUpdatesTemplate } from '@/features/manifestUpdates/ui/index';
+import { getParserCoverageTemplate } from '@/features/parserCoverage/ui/index';
+import { getIntegratorsReportTemplate } from '@/features/integratorsReport/ui/index';
 import { globalControlsTemplate } from './ui-controller.js';
-import { getStreamInputsTemplate } from '@/ui/components/stream-inputs.js';
-import { debugLog } from '@/application/utils/debug.js';
-import { isDebugMode } from '@/application/utils/env.js';
-import { useSegmentCacheStore } from '@/state/segmentCacheStore.js';
+import { getStreamInputsTemplate } from '@/ui/components/stream-inputs';
+import { debugLog } from '@/application/utils/debug';
+import { isDebugMode } from '@/application/utils/env';
+import { useSegmentCacheStore } from '@/state/segmentCacheStore';
 
 let dom;
 
@@ -129,7 +129,7 @@ function renderActiveTabContent() {
 export function renderApp() {
     if (!dom) return;
 
-    const { streams, activeSegmentUrl, streamInputIds } =
+    const { streams, activeSegmentUrl, streamInputs } =
         useAnalysisStore.getState();
     const { viewState } = useUiStore.getState();
 
@@ -207,6 +207,6 @@ export function renderApp() {
         );
         if (analyzeBtn)
             analyzeBtn.textContent =
-                streamInputIds.length > 1 ? 'Analyze & Compare' : 'Analyze';
+                streamInputs.length > 1 ? 'Analyze & Compare' : 'Analyze';
     }
 }

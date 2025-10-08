@@ -1,5 +1,5 @@
-import { useAnalysisStore } from '@/state/analysisStore.js';
-import { showToast } from '@/ui/components/toast.js';
+import { useAnalysisStore } from '@/state/analysisStore';
+import { showToast } from '@/ui/components/toast';
 
 /**
  * Constructs a shareable URL from the current streams in the state and

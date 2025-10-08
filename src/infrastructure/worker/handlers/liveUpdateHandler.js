@@ -1,9 +1,11 @@
-import { parseManifest as parseDashManifest } from '@/infrastructure/parsing/dash/parser.js';
-import { parseManifest as parseHlsManifest } from '@/infrastructure/parsing/hls/index.js';
-import { runChecks } from '@/features/compliance/domain/engine.js';
-import { applyXmlPatch } from '@/infrastructure/parsing/dash/patch.js';
-import { applyDeltaUpdate } from '@/infrastructure/parsing/hls/delta-updater.js';
-import { adaptHlsToIr } from '@/infrastructure/parsing/hls/adapter.js';
+import { parseManifest as parseDashManifest } from '@/infrastructure/parsing/dash/parser';
+import { parseManifest as parseHlsManifest } from '@/infrastructure/parsing/hls/index';
+import { runChecks } from '@/features/compliance/domain/engine';
+import { applyXmlPatch } from '@/infrastructure/parsing/dash/patch';
+import { applyDeltaUpdate } from '@/infrastructure/parsing/hls/delta-updater';
+import { adaptHlsToIr } from '@/infrastructure/parsing/hls/adapter';
+import { diffManifest } from '@/ui/shared/diff';
+import xmlFormatter from 'xml-formatter';
 
 function detectProtocol(manifestString) {
     if (typeof manifestString !== 'string') return 'dash'; // Failsafe
@@ -60,7 +62,6 @@ export async function handleParseLiveUpdate(payload) {
             );
             newManifestObject = adaptHlsToIr(resolvedParsedHls);
             newSerializedObject = newManifestObject.serializedManifest;
-            // The raw string for diffing must be updated to the full, resolved manifest string
             finalManifestString = /** @type {{raw: string}} */ (
                 newSerializedObject
             ).raw;
@@ -81,6 +82,18 @@ export async function handleParseLiveUpdate(payload) {
 
     newManifestObject.serializedManifest = newSerializedObject;
 
+    // --- Perform diffing here in the worker ---
+    let formattedOld = oldRawManifest;
+    let formattedNew = finalManifestString;
+
+    if (protocol === 'dash') {
+        formattedOld = xmlFormatter(oldRawManifest || '', { indentation: '  ' });
+        formattedNew = xmlFormatter(finalManifestString || '', {
+            indentation: '  ',
+        });
+    }
+    const diffHtml = diffManifest(formattedOld, formattedNew, protocol);
+
     return {
         streamId,
         newManifestObject,
@@ -88,5 +101,6 @@ export async function handleParseLiveUpdate(payload) {
         oldRawManifest,
         complianceResults,
         serializedManifest: newSerializedObject,
+        diffHtml, // Include the generated diff in the response
     };
 }

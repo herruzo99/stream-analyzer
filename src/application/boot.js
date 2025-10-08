@@ -1,17 +1,17 @@
-import { setupGlobalTooltipListener } from '@/ui/components/tooltip.js';
-import { initializeTabs } from '@/ui/shell/tabs.js';
-import { initializeModalComponent } from '@/ui/components/modal.js';
-import { initializeLiveStreamMonitor } from '@/application/services/primaryStreamMonitorService.js';
-import { UiController } from '@/ui/shell/ui-controller.js';
-import { initializeViewManager } from '@/ui/shell/view-manager.js';
-import { initializeToastManager } from '@/ui/components/toast.js';
-import { initializeLiveUpdateProcessor } from '@/application/services/liveUpdateProcessor.js';
-import { initializeHlsVariantPoller } from '@/application/services/hlsVariantPollerService.js';
-import { initializeCmafService } from '@/application/services/cmafService.js';
-import { initializeRenderer, renderApp } from '@/ui/shell/mainRenderer.js';
-import { initializeLoader } from '@/ui/components/loader.js';
+import { setupGlobalTooltipListener } from '@/ui/components/tooltip';
+import { initializeTabs } from '@/ui/shell/tabs';
+import { initializeModalComponent } from '@/ui/components/modal';
+import { initializeLiveStreamMonitor } from '@/application/services/primaryStreamMonitorService';
+import { UiController } from '@/ui/shell/ui-controller';
+import { initializeViewManager } from '@/ui/shell/view-manager';
+import { initializeToastManager } from '@/ui/components/toast';
+import { initializeLiveUpdateProcessor } from '@/application/services/liveUpdateProcessor';
+import { initializeHlsVariantPoller } from '@/application/services/hlsVariantPollerService';
+import { initializeCmafService } from '@/application/services/cmafService';
+import { initializeRenderer, renderApp } from '@/ui/shell/mainRenderer';
+import { initializeLoader } from '@/ui/components/loader';
 import { initializeConsentManager } from './consent-manager.js';
-import { initializeSegmentService } from '@/application/services/segmentService.js';
+import { initializeSegmentService } from '@/application/services/segmentService';
 import { container } from './container.js';
 import { initializeUiOrchestration } from './services/uiOrchestrationService.js';
 import { initializeComplianceController } from './controllers/complianceController.js';
@@ -20,10 +20,10 @@ import { initializeInteractiveManifestController } from './controllers/interacti
 import { initializeSegmentExplorerController } from './controllers/segmentExplorerController.js';
 import { initializeStreamInputController } from './controllers/streamInputController.js';
 import { initializeSavePresetUseCase } from './useCases/savePresetUseCase.js';
-import { workerService } from '@/infrastructure/worker/workerService.js';
+import { workerService } from '@/infrastructure/worker/workerService';
 
 // Side-effect driven imports for services that primarily listen to the event bus
-import '@/application/services/streamService.js';
+import '@/application/services/streamService';
 
 /**
  * The main entry point for the application.

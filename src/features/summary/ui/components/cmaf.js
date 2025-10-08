@@ -1,5 +1,5 @@
 import { html } from 'lit-html';
-import { useUiStore, uiActions } from '@/state/uiStore.js';
+import { useUiStore, uiActions } from '@/state/uiStore';
 
 const getOverallStatus = (results) => {
     if (!results || results.length === 0) {

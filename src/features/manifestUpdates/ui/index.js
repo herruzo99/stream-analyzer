@@ -3,8 +3,8 @@ import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import {
     useAnalysisStore,
     analysisActions,
-} from '@/state/analysisStore.js';
-import { copyTextToClipboard } from '@/ui/shared/clipboard.js';
+} from '@/state/analysisStore';
+import { copyTextToClipboard } from '@/ui/shared/clipboard';
 
 export function navigateManifestUpdates(direction) {
     const { activeStreamId } = useAnalysisStore.getState();

@@ -3,9 +3,9 @@ import { manifestViewTemplate } from './components/renderer.js';
 import { sidebarTemplate } from './components/sidebar.js';
 import { navigationTemplate } from './components/navigation.js';
 import { standardSelectorTemplate } from './components/standard-selector.js';
-import { useUiStore } from '@/state/uiStore.js';
-import { runChecks } from '@/features/compliance/domain/engine.js';
-import { eventBus } from '@/application/event-bus.js';
+import { useUiStore } from '@/state/uiStore';
+import { runChecks } from '@/features/compliance/domain/engine';
+import { eventBus } from '@/application/event-bus';
 
 export function getComplianceReportTemplate(stream) {
     if (!stream || !stream.manifest) return html``;
