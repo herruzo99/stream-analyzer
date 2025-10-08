@@ -1,14 +1,23 @@
 import globals from 'globals';
-import js from '@eslint';
+import js from '@eslint/js';
 import prettierConfig from 'eslint-config-prettier';
 
 export default [
     {
-        ignores: ['node_modules/', '*.config.js', 'dist/', 'tests/'],
+        ignores: ['node_modules/', 'dist/', 'tests/'],
     },
-    js.configs.recommended,
-    prettierConfig,
+    // Configuration for Node.js-specific files (like config files)
     {
+        files: ['**/*.config.js', '**/*.config.mjs'],
+        languageOptions: {
+            globals: {
+                ...globals.node,
+            },
+        },
+    },
+    // Main configuration for browser-based source code
+    {
+        files: ['src/**/*.js'],
         languageOptions: {
             ecmaVersion: 'latest',
             sourceType: 'module',
@@ -29,4 +38,6 @@ export default [
             ],
         },
     },
+    js.configs.recommended,
+    prettierConfig,
 ];

@@ -1,6 +1,6 @@
 import { html, render } from 'lit-html';
 import { useAnalysisStore } from '@/state/analysisStore';
-import { useUiStore, uiActions } from '@/state/uiStore';
+import { useUiStore } from '@/state/uiStore';
 import { getGlobalSummaryTemplate } from '@/features/summary/ui/index';
 import { getComplianceReportTemplate } from '@/features/compliance/ui/index';
 import { initializeTimelineView } from '@/features/timelineVisuals/ui/index';
@@ -57,8 +57,7 @@ function renderContextSwitcher() {
  * Renders the content for the currently active tab.
  */
 function renderActiveTabContent() {
-    const { streams, activeStreamId, activeSegmentUrl } =
-        useAnalysisStore.getState();
+    const { streams, activeStreamId } = useAnalysisStore.getState();
     const { activeTab } = useUiStore.getState();
     const activeStream = streams.find((s) => s.id === activeStreamId);
 
@@ -129,9 +128,11 @@ function renderActiveTabContent() {
 export function renderApp() {
     if (!dom) return;
 
-    const { streams, activeSegmentUrl, streamInputs } =
-        useAnalysisStore.getState();
-    const { viewState } = useUiStore.getState();
+    const { streams, streamInputs } = useAnalysisStore.getState();
+    const { viewState, _activeTab } = useUiStore.getState();
+    const activeStream = streams.find(
+        (s) => s.id === useAnalysisStore.getState().activeStreamId
+    );
 
     const isResultsView = viewState === 'results' && streams.length > 0;
 
@@ -174,7 +175,7 @@ export function renderApp() {
     dom.headerTitleGroup.classList.toggle('md:text-left', isResultsView);
     dom.headerUrlDisplay.classList.toggle('hidden', !isResultsView);
 
-    if (isResultsView) {
+    if (isResultsView && activeStream) {
         // --- RENDER RESULTS VIEW ---
         const urlHtml = streams
             .map(
@@ -193,7 +194,10 @@ export function renderApp() {
             .classList.toggle('hidden', streams.length <= 1);
         document
             .getElementById('tab-btn-interactive-segment')
-            .classList.toggle('hidden', !activeSegmentUrl);
+            .classList.toggle(
+                'hidden',
+                !useAnalysisStore.getState().activeSegmentUrl
+            );
         document
             .getElementById('tab-btn-parser-coverage')
             .classList.toggle('hidden', !isDebugMode);

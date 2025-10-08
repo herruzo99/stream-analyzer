@@ -40,7 +40,8 @@ export function parseIods(box, view) {
 
     // --- InitialObjectDescriptor ---
     const iodTag = p.readUint8('InitialObjectDescriptor_tag');
-    // FIX: Allow IOD (0x02), ES (0x03), or MP4_IOD (0x10) tags.
+    // Per ISO/IEC 14496-1, valid tags can be InitialObjectDescriptorTag (0x02),
+    // ES_DescrTag (0x03), or MP4_IOD_Tag (0x10).
     if (iodTag !== 0x02 && iodTag !== 0x03 && iodTag !== 0x10) {
         p.addIssue(
             'warn',

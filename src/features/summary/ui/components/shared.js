@@ -37,6 +37,29 @@ export const statCardTemplate = (
     `;
 };
 
+export const listCardTemplate = ({ label, items, tooltip, isoRef = null }) => {
+    if (!items || items.length === 0) return '';
+    return html`
+        <div class="bg-gray-800 p-3 rounded-lg border border-gray-700">
+            <dt
+                class="text-xs font-medium text-gray-400 ${tooltipTriggerClasses}"
+                data-tooltip="${tooltip}"
+                data-iso="${isoRef || ''}"
+            >
+                ${label}
+            </dt>
+            <dd class="text-sm text-left font-mono text-white mt-2 space-y-1">
+                ${items.map(
+                    (item) =>
+                        html`<div class="bg-gray-900/50 p-1 rounded">
+                            ${item}
+                        </div>`
+                )}
+            </dd>
+        </div>
+    `;
+};
+
 export const trackTableTemplate = (tracks, type) => {
     if (!tracks || tracks.length === 0) return '';
     let headers;
@@ -59,8 +82,9 @@ export const trackTableTemplate = (tracks, type) => {
                         ${track.bitrateRange || formatBitrate(track.bandwidth)}
                     </td>
                     <td class="p-2 font-mono">
-                        ${track.resolutions?.join(', ') ||
-                        `${track.width}x${track.height}`}
+                        ${track.resolutions && track.resolutions.length > 0
+                            ? track.resolutions.join(', ')
+                            : 'Not in Manifest'}
                     </td>
                     <td class="p-2 font-mono">
                         ${track.codecs?.join

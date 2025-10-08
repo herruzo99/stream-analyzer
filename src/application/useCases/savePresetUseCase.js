@@ -3,7 +3,6 @@ import {
     fetchStreamMetadata,
     savePreset,
 } from '@/infrastructure/persistence/streamStorage';
-import { showToast } from '@/ui/components/toast';
 
 function handleSavePresetRequest({ name, url, button }) {
     button.disabled = true;

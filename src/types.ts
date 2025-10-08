@@ -108,11 +108,18 @@ export interface Representation {
     serializedManifest: object;
 }
 
+export interface PsshInfo {
+    systemId: string;
+    kids: string[];
+    data: string; // Base64 encoded PSSH box data
+}
+
 export interface ContentProtection {
     schemeIdUri: string;
     system: string;
     defaultKid: string | null;
     robustness: string | null;
+    pssh?: PsshInfo[];
 }
 
 export interface ContentComponent {
@@ -292,6 +299,12 @@ export interface PeriodSummary {
     textTracks: AdaptationSet[];
 }
 
+export interface SecuritySummary {
+    isEncrypted: boolean;
+    systems: PsshInfo[];
+    hlsEncryptionMethod?: 'AES-128' | 'SAMPLE-AES' | null;
+}
+
 export interface ManifestSummary {
     general: {
         protocol: 'DASH' | 'HLS';
@@ -342,11 +355,7 @@ export interface ManifestSummary {
     videoTracks: VideoTrackSummary[];
     audioTracks: AudioTrackSummary[];
     textTracks: TextTrackSummary[];
-    security: {
-        isEncrypted: boolean;
-        systems: string[];
-        kids: string[];
-    } | null;
+    security: SecuritySummary | null;
 }
 
 export interface InitializationSet {
@@ -377,8 +386,8 @@ export interface Manifest {
     serviceDescriptions: ServiceDescription[];
     initializationSets: InitializationSet[];
     segmentFormat: 'isobmff' | 'ts' | 'unknown';
-    events: Event[];
     periods: Period[];
+    events: Event[];
     serializedManifest: Element | object;
     summary: ManifestSummary | null;
     serverControl: object | null;

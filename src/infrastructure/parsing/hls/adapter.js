@@ -7,6 +7,7 @@
 
 import { generateHlsSummary } from './summary-generator.js';
 import { parseScte35 } from '@/infrastructure/parsing/scte35/parser';
+import { getDrmSystemName } from '../utils/drm.js';
 
 /**
  * Transforms a parsed HLS manifest object into a protocol-agnostic Intermediate Representation (IR).
@@ -124,8 +125,26 @@ export function adaptHlsToIr(hlsParsed) {
         preselections: [],
     };
 
+    // --- Enhanced ContentProtection Processing ---
+    const allKeyTags = [
+        ...hlsParsed.tags.filter((t) => t.name === 'EXT-X-KEY'),
+        ...hlsParsed.tags.filter((t) => t.name === 'EXT-X-SESSION-KEY'),
+    ];
+
+    const contentProtectionIRs = allKeyTags
+        .filter((tag) => tag.value.METHOD && tag.value.METHOD !== 'NONE')
+        .map((tag) => {
+            const schemeIdUri = tag.value.KEYFORMAT || 'identity';
+            return {
+                schemeIdUri: schemeIdUri,
+                system: getDrmSystemName(schemeIdUri) || tag.value.METHOD,
+                defaultKid: tag.value.KEYID || null,
+                robustness: null, // HLS does not define robustness in this context
+            };
+        });
+
     if (hlsParsed.isMaster) {
-        // First, process all alternative renditions defined in EXT-X-MEDIA tags.
+        // Process all alternative renditions defined in EXT-X-MEDIA tags.
         const mediaGroups = hlsParsed.media.reduce((acc, media) => {
             const groupId = media['GROUP-ID'];
             const type = media.TYPE.toLowerCase();
@@ -152,11 +171,11 @@ export function adaptHlsToIr(hlsParsed) {
                                 contentType === 'text'
                                     ? 'text/vtt'
                                     : 'video/mp2t',
-                            segmentAlignment: false, // HLS doesn't signal this in the same way as DASH
+                            segmentAlignment: false,
                             width: null,
                             height: null,
-                            representations: [], // Representations for these are in their own playlists
-                            contentProtection: [],
+                            representations: [],
+                            contentProtection: contentProtectionIRs,
                             roles: [],
                             profiles: null,
                             group: null,
@@ -191,7 +210,7 @@ export function adaptHlsToIr(hlsParsed) {
             );
         });
 
-        // Second, process all variant streams from EXT-X-STREAM-INF tags.
+        // Process all variant streams from EXT-X-STREAM-INF tags.
         hlsParsed.variants.forEach((variant, index) => {
             const resolution = variant.attributes.RESOLUTION;
 
@@ -256,11 +275,11 @@ export function adaptHlsToIr(hlsParsed) {
                 contentType: 'video', // Assume video if resolution/video codec is present
                 lang: null,
                 mimeType: 'video/mp2t',
-                segmentAlignment: false, // HLS doesn't signal this in the same way as DASH
+                segmentAlignment: false,
                 width: rep.width,
                 height: rep.height,
                 representations: [rep],
-                contentProtection: [],
+                contentProtection: contentProtectionIRs,
                 roles: [],
                 profiles: null,
                 group: null,
@@ -296,7 +315,7 @@ export function adaptHlsToIr(hlsParsed) {
             contentType: 'video', // Assume video/muxed if not master
             lang: null,
             mimeType: hlsParsed.map ? 'video/mp4' : 'video/mp2t',
-            segmentAlignment: false, // HLS doesn't signal this in the same way as DASH
+            segmentAlignment: false,
             width: null,
             height: null,
             representations: [
@@ -346,7 +365,7 @@ export function adaptHlsToIr(hlsParsed) {
                     serializedManifest: hlsParsed,
                 },
             ],
-            contentProtection: [],
+            contentProtection: contentProtectionIRs,
             roles: [],
             profiles: null,
             group: null,
@@ -372,15 +391,6 @@ export function adaptHlsToIr(hlsParsed) {
             forced: false,
             serializedManifest: hlsParsed,
         };
-        const keyTag = hlsParsed.segments.find((s) => s.key)?.key;
-        if (keyTag && keyTag.METHOD !== 'NONE') {
-            asIR.contentProtection.push({
-                schemeIdUri: keyTag.KEYFORMAT || 'identity',
-                system: keyTag.METHOD,
-                defaultKid: null,
-                robustness: null, // HLS EXT-X-KEY does not define robustness
-            });
-        }
         periodIR.adaptationSets.push(asIR);
     }
 

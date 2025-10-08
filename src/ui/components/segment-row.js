@@ -61,7 +61,7 @@ const getFreshnessIcon = (isFresh) => {
     ></div>`;
 };
 
-const getActions = (cacheEntry, seg, isFresh) => {
+const getActions = (cacheEntry, seg, isFresh, segmentFormat) => {
     if (seg.gap) {
         return html`<span class="text-xs text-gray-500 italic font-semibold"
             >GAP Segment</span
@@ -79,13 +79,16 @@ const getActions = (cacheEntry, seg, isFresh) => {
     };
     const loadHandler = (e) => {
         const url = /** @type {HTMLElement} */ (e.currentTarget).dataset.url;
-        eventBus.dispatch('segment:fetch', { url });
+        const format = /** @type {HTMLElement} */ (e.currentTarget).dataset
+            .format;
+        eventBus.dispatch('segment:fetch', { url, format });
     };
 
     if (!cacheEntry) {
         return html`<button
             @click=${loadHandler}
             data-url="${seg.resolvedUrl}"
+            data-format="${segmentFormat}"
             class="text-xs bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded"
         >
             Load
@@ -105,6 +108,7 @@ const getActions = (cacheEntry, seg, isFresh) => {
             ? html`<button
                   @click=${loadHandler}
                   data-url="${seg.resolvedUrl}"
+                  data-format="${segmentFormat}"
                   class="text-xs bg-yellow-600 hover:bg-yellow-700 px-2 py-1 rounded"
               >
                   Reload
@@ -135,9 +139,10 @@ const getActions = (cacheEntry, seg, isFresh) => {
  * Renders a single row in a segment explorer table.
  * @param {object} seg - The segment data object.
  * @param {boolean | null} isFresh - Whether the segment is in the latest playlist (HLS only).
+ * @param {'isobmff' | 'ts' | 'unknown'} segmentFormat
  * @returns {import('lit-html').TemplateResult}
  */
-export const segmentRowTemplate = (seg, isFresh) => {
+export const segmentRowTemplate = (seg, isFresh, segmentFormat) => {
     const { segmentsForCompare } = useAnalysisStore.getState();
     const { get: getFromCache } = useSegmentCacheStore.getState();
 
@@ -203,7 +208,7 @@ export const segmentRowTemplate = (seg, isFresh) => {
                         >${seg.template || 'GAP'}</span
                     >
                     <div class="flex items-center space-x-2 flex-shrink-0 ml-4">
-                        ${getActions(cacheEntry, seg, isFresh)}
+                        ${getActions(cacheEntry, seg, isFresh, segmentFormat)}
                     </div>
                 </div>
             </td>

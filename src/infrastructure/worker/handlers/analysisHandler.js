@@ -185,6 +185,18 @@ async function buildStreamObject(
                 });
             }
         });
+    } else if (input.protocol === 'hls' && !manifestIR.isMaster) {
+        // Handle standalone Media Playlists
+        const segments = manifestIR.segments || [];
+        streamObject.hlsVariantState.set(streamObject.originalUrl, {
+            segments: segments,
+            freshSegmentUrls: new Set(segments.map((s) => s.resolvedUrl)),
+            isLoading: false,
+            isPolling: manifestIR.type === 'dynamic',
+            isExpanded: true, // Always expand a single media playlist
+            displayMode: 'all',
+            error: null,
+        });
     } else if (input.protocol === 'dash') {
         const segmentsByCompositeKey = parseDashSegments(
             serializedManifestObject,
