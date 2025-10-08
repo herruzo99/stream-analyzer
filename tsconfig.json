@@ -1,0 +1,25 @@
+{
+    "compilerOptions": {
+        "target": "es2022",
+        "module": "es2022",
+        "moduleResolution": "node",
+        "checkJs": true,
+        "noEmit": true,
+        "types": ["node"],
+        "baseUrl": ".",
+        "paths": {
+            "@/*": ["src/*"],
+            "@types/*": ["types/*"]
+        },
+        "skipLibCheck": true,
+        "allowJs": true,
+        "maxNodeModuleJsDepth": 0
+    },
+    "include": [
+        "src/**/*.js",
+        "tests/**/*.js",
+        "src/**/*.ts",
+        "types/**/*.d.ts"
+    ],
+    "exclude": ["node_modules", "dist"]
+}
