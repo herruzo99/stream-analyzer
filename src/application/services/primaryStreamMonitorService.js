@@ -1,6 +1,6 @@
-import { eventBus } from '@/application/event-bus.js';
-import { useAnalysisStore } from '@/state/analysisStore.js';
-import { workerService } from '@/infrastructure/worker/workerService.js';
+import { eventBus } from '@/application/event-bus';
+import { useAnalysisStore } from '@/state/analysisStore';
+import { workerService } from '@/infrastructure/worker/workerService';
 
 const pollers = new Map();
 const oneTimePollers = new Map();

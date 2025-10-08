@@ -1,6 +1,6 @@
-import { useSegmentCacheStore } from '@/state/segmentCacheStore.js';
-import { eventBus } from '@/application/event-bus.js';
-import { workerService } from '@/infrastructure/worker/workerService.js';
+import { useSegmentCacheStore } from '@/state/segmentCacheStore';
+import { eventBus } from '@/application/event-bus';
+import { workerService } from '@/infrastructure/worker/workerService';
 
 async function _fetchAndParseSegment(url) {
     const { set } = useSegmentCacheStore.getState();
@@ -11,16 +11,12 @@ async function _fetchAndParseSegment(url) {
         const response = await fetch(url, { method: 'GET', cache: 'no-store' });
         const data = response.ok ? await response.arrayBuffer() : null;
 
-        const entryWithData = {
-            status: response.status,
-            data,
-            parsedData: null,
-        };
+        const entryWithData = { status: response.status, data, parsedData: null };
         set(url, entryWithData);
 
         if (data) {
             workerService
-                .postTask('parse-segment', { url, data })
+                .postTask('parse-segment-structure', { url, data })
                 .then((parsedData) => {
                     const finalEntry = {
                         status: response.status,

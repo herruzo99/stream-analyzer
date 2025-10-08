@@ -1,7 +1,7 @@
-import { eventBus } from '@/application/event-bus.js';
-import { useSegmentCacheStore } from '@/state/segmentCacheStore.js';
-import { openModalWithContent } from '@/ui/services/modalService.js';
-import { showToast } from '@/ui/components/toast.js';
+import { eventBus } from '@/application/event-bus';
+import { useSegmentCacheStore } from '@/state/segmentCacheStore';
+import { openModalWithContent } from '@/ui/services/modalService';
+import { showToast } from '@/ui/components/toast';
 
 /**
  * Initializes listeners for global UI events that orchestrate application-level responses.

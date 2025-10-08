@@ -1,6 +1,6 @@
 import { html } from 'lit-html';
-import { tooltipTriggerClasses } from '@/ui/shared/constants.js';
-import { getTooltipData as getTsTooltipData } from '@/infrastructure/parsing/ts/index.js';
+import { tooltipTriggerClasses } from '@/ui/shared/constants';
+import { getTooltipData as getTsTooltipData } from '@/infrastructure/parsing/ts/index';
 
 const tsTooltipData = getTsTooltipData();
 

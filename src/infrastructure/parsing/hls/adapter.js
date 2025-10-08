@@ -6,7 +6,7 @@
  */
 
 import { generateHlsSummary } from './summary-generator.js';
-import { parseScte35 } from '@/infrastructure/parsing/scte35/parser.js';
+import { parseScte35 } from '@/infrastructure/parsing/scte35/parser';
 
 /**
  * Transforms a parsed HLS manifest object into a protocol-agnostic Intermediate Representation (IR).

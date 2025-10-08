@@ -1,4 +1,4 @@
-import { createTstdModel } from '@/features/compliance/domain/t-std.js';
+import { createTstdModel } from '@/features/compliance/domain/t-std';
 
 const TS_PACKET_SIZE = 188;
 

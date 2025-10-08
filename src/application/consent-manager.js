@@ -93,7 +93,7 @@ export function initializeConsentManager() {
          */
         onChange: ({ acceptedCategories }) => {
             // Only run tracking scripts on the production domain
-            if (window.location.hostname !== 'stream-analyzer.herruzo.dev') {
+            if (window.location.hostname !== window.PROD_HOSTNAME) {
                 return;
             }
 

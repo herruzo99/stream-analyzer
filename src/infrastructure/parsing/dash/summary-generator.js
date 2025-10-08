@@ -4,7 +4,7 @@
  */
 
 import { findChildrenRecursive } from './recursive-parser.js';
-import { formatBitrate } from '@/ui/shared/format.js';
+import { formatBitrate } from '@/ui/shared/format';
 
 const getSegmentingStrategy = (serializedManifest) => {
     if (!serializedManifest) return 'unknown';

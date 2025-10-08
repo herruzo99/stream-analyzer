@@ -1,24 +1,18 @@
 import { html, render } from 'lit-html';
-import {
-    useAnalysisStore
-} from '@/state/analysisStore.js';
-import {
-    useSegmentCacheStore,
-} from '@/state/segmentCacheStore.js';
-import { hexViewTemplate } from '@/ui/components/hex-view.js';
-import { buildByteMapTs } from './view-model.js';
+import { useAnalysisStore } from '@/state/analysisStore';
+import { useSegmentCacheStore } from '@/state/segmentCacheStore';
+import { hexViewTemplate } from '@/ui/components/hex-view';
 import { getInspectorState } from '../interaction-logic.js';
 
 let packetCurrentPage = 1;
 const PACKETS_PER_PAGE = 50;
 
 export function findPacketByOffset(parsedData, offset) {
-    if (!parsedData?.data?.packets) return null;
-    let packet = parsedData.data.packets.find((p) => p.offset === offset);
+    if (!parsedData?.packets) return null;
+    let packet = parsedData.packets.find((p) => p.offset === offset);
     if (packet) return packet;
-    // Fallback for clicking inside a packet
     return (
-        parsedData.data.packets.find(
+        parsedData.packets.find(
             (p) => offset > p.offset && offset < p.offset + 188
         ) || null
     );
@@ -37,11 +31,7 @@ const groupPackets = (packets) => {
 
 const inspectorDetailRow = (packet, key, value) => {
     return html`
-        <tr
-            class="hover:bg-purple-900/50"
-            data-field-name="${key}"
-            data-packet-offset="${packet.offset}"
-        >
+        <tr data-field-name="${key}" data-packet-offset="${packet.offset}">
             <td class="p-1 pr-2 text-xs text-gray-400 align-top">${key}</td>
             <td class="p-1 text-xs font-mono text-white break-all">
                 ${String(value)}
@@ -187,7 +177,7 @@ const packetListTemplate = (packets, onPageChange) => {
                                 ${pkts.map(
                                     (p) => html`
                                         <li
-                                            class="flex justify-between p-2 border-b border-gray-800 hover:bg-slate-700"
+                                            class="flex justify-between p-2 border-b border-gray-800"
                                             data-packet-offset=${p.offset}
                                         >
                                             <span class="font-mono"
@@ -232,7 +222,7 @@ export function getInteractiveTsTemplate(
     bytesPerPage,
     onHexPageChange,
     allTooltips,
-    inspectorState
+    pagedByteMap
 ) {
     const { activeSegmentUrl } = useAnalysisStore.getState();
     const { get: getFromCache } = useSegmentCacheStore.getState();
@@ -248,8 +238,6 @@ export function getInteractiveTsTemplate(
         </div>`;
     }
 
-    tsAnalysisData.byteMap = buildByteMapTs(tsAnalysisData);
-
     const onPacketPageChange = (offset) => {
         const totalPages = Math.ceil(
             tsAnalysisData.data.packets.length / PACKETS_PER_PAGE
@@ -257,7 +245,6 @@ export function getInteractiveTsTemplate(
         const newPage = packetCurrentPage + offset;
         if (newPage >= 1 && newPage <= totalPages) {
             packetCurrentPage = newPage;
-            // Re-render the container
             const container = document.getElementById(
                 'tab-interactive-segment'
             );
@@ -268,7 +255,7 @@ export function getInteractiveTsTemplate(
                         bytesPerPage,
                         onHexPageChange,
                         allTooltips,
-                        inspectorState
+                        pagedByteMap
                     ),
                     container
                 );
@@ -283,9 +270,7 @@ export function getInteractiveTsTemplate(
             <div class="sticky top-4 h-max flex flex-col gap-4">
                 <div
                     class="segment-inspector-panel rounded-md bg-gray-900/90 border border-gray-700 transition-opacity duration-200 h-96 lg:h-[24rem] overflow-hidden flex flex-col"
-                >
-                    ${inspectorPanelTemplate()}
-                </div>
+                ></div>
                 ${summaryTemplate(tsAnalysisData.data.summary)}
                 ${packetListTemplate(
                     tsAnalysisData.data.packets,
@@ -295,12 +280,11 @@ export function getInteractiveTsTemplate(
             <div>
                 ${hexViewTemplate(
                     cachedSegment.data,
-                    tsAnalysisData.byteMap,
+                    pagedByteMap,
                     currentPage,
                     bytesPerPage,
                     onHexPageChange,
-                    allTooltips,
-                    inspectorState
+                    allTooltips
                 )}
             </div>
         </div>

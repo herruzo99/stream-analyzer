@@ -1,6 +1,6 @@
-import { eventBus } from '@/application/event-bus.js';
-import { uiActions } from '@/state/uiStore.js';
-import { renderApp } from '@/ui/shell/mainRenderer.js';
+import { eventBus } from '@/application/event-bus';
+import { uiActions } from '@/state/uiStore';
+import { renderApp } from '@/ui/shell/mainRenderer';
 
 export function initializeSegmentExplorerController() {
     eventBus.subscribe(

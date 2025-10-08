@@ -1,12 +1,10 @@
 import {
     useAnalysisStore,
     analysisActions,
-} from '@/state/analysisStore.js';
-import { eventBus } from '@/application/event-bus.js';
-import { generateFeatureAnalysis } from '@/features/featureAnalysis/domain/analyzer.js';
-import { parseAllSegmentUrls as parseDashSegments } from '@/infrastructure/parsing/dash/segment-parser.js';
-import { diffManifest } from '@/ui/shared/diff.js';
-import xmlFormatter from 'xml-formatter';
+} from '@/state/analysisStore';
+import { eventBus } from '@/application/event-bus';
+import { generateFeatureAnalysis } from '@/features/featureAnalysis/domain/analyzer';
+import { parseAllSegmentUrls as parseDashSegments } from '@/infrastructure/parsing/dash/segment-parser';
 
 /**
  * A more specific stream type where the protocol is guaranteed to be 'dash' or 'hls'.
@@ -45,9 +43,6 @@ function schedulePollsFromScte35(stream, newManifestObject) {
             /** @type {any} */ (event.scte35).pts_adjustment || 0;
         const adjustedPts = ptsTime + ptsAdjustment;
 
-        // Find the most recent Program Clock Reference (PCR) from a segment to anchor our wall-clock calculation
-        // This is a simplified approach; a real-world client would maintain a running timeline.
-        // For our purposes, we anchor to availabilityStartTime.
         const availabilityStartTime =
             newManifestObject.availabilityStartTime?.getTime();
         if (!availabilityStartTime) continue;
@@ -75,9 +70,8 @@ function schedulePollsFromScte35(stream, newManifestObject) {
  * @returns {boolean}
  */
 function checkForNewIssues(oldResults, newResults) {
-    if (!Array.isArray(newResults)) return false; // Defensive guard
+    if (!Array.isArray(newResults)) return false;
     if (!oldResults) {
-        // If there were no old results, any new issue is considered "new".
         return newResults.some(
             (res) => res.status === 'fail' || res.status === 'warn'
         );
@@ -97,8 +91,7 @@ function checkForNewIssues(oldResults, newResults) {
 }
 
 /**
- * The main handler for processing a live manifest update. This version is optimized
- * to build a partial update object, avoiding expensive deep clones of the entire stream state.
+ * The main handler for processing a live manifest update.
  * @param {object} updateData The event data from `livestream:manifest-updated`.
  */
 function processLiveUpdate(updateData) {
@@ -106,9 +99,9 @@ function processLiveUpdate(updateData) {
         streamId,
         newManifestString,
         newManifestObject,
-        oldRawManifest,
         complianceResults,
         serializedManifest,
+        diffHtml, // diffHtml is now provided by the worker
     } = updateData;
     const stream = useAnalysisStore
         .getState()
@@ -116,21 +109,6 @@ function processLiveUpdate(updateData) {
 
     if (!stream || stream.protocol === 'unknown') return;
 
-    // --- Create a new manifestUpdates array ---
-    let formattedOld = oldRawManifest;
-    let formattedNew = newManifestString;
-
-    if (stream.protocol === 'dash') {
-        // Defensively handle cases where manifests might be missing.
-        formattedOld = xmlFormatter(oldRawManifest || '', {
-            indentation: '  ',
-        });
-        formattedNew = xmlFormatter(newManifestString || '', {
-            indentation: '  ',
-        });
-    }
-
-    const diffHtml = diffManifest(formattedOld, formattedNew, stream.protocol);
     const previousResults = stream.manifestUpdates[0]?.complianceResults;
     const hasNewIssues = checkForNewIssues(previousResults, complianceResults);
 
@@ -148,7 +126,6 @@ function processLiveUpdate(updateData) {
         20
     );
 
-    // --- Recalculate feature analysis ---
     const newFeatureAnalysisState = {
         ...stream.featureAnalysis,
         manifestCount: stream.featureAnalysis.manifestCount + 1,
@@ -171,7 +148,6 @@ function processLiveUpdate(updateData) {
         }
     });
 
-    // --- Recalculate segment state ---
     let newDashState, newHlsState;
     if (stream.protocol === 'dash') {
         newDashState = new Map(stream.dashRepresentationState);
@@ -206,7 +182,6 @@ function processLiveUpdate(updateData) {
             }
         );
     } else {
-        // HLS
         newHlsState = new Map(stream.hlsVariantState);
         if (!newManifestObject.isMaster) {
             const variant = newHlsState.get(stream.originalUrl);
@@ -221,13 +196,11 @@ function processLiveUpdate(updateData) {
         }
     }
 
-    // --- Schedule polls based on SCTE-35 ---
     schedulePollsFromScte35(
         /** @type {KnownProtocolStream} */ (stream),
         newManifestObject
     );
 
-    // --- Construct the partial update payload ---
     const updatePayload = {
         rawManifest: newManifestString,
         manifest: newManifestObject,
@@ -237,7 +210,6 @@ function processLiveUpdate(updateData) {
         hlsVariantState: newHlsState,
     };
 
-    // --- Dispatch the update action ---
     analysisActions.updateStream(streamId, updatePayload);
     eventBus.dispatch('stream:data-updated', { streamId });
 }

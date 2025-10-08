@@ -1,13 +1,13 @@
 import { html, render } from 'lit-html';
-import { useAnalysisStore } from '@/state/analysisStore.js';
-import { eventBus } from '@/application/event-bus.js';
+import { useAnalysisStore } from '@/state/analysisStore';
+import { eventBus } from '@/application/event-bus';
 import { getDashExplorerTemplate } from './components/dash/index.js';
 import {
     getHlsExplorerTemplate,
     startLiveSegmentHighlighter,
     stopLiveSegmentHighlighter,
 } from './components/hls/index.js';
-import { useUiStore } from '@/state/uiStore.js';
+import { useUiStore } from '@/state/uiStore';
 
 function updateCompareButton() {
     const { segmentsForCompare } = useAnalysisStore.getState();

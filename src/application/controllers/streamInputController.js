@@ -1,36 +1,16 @@
-import { eventBus } from '@/application/event-bus.js';
-import { analysisActions } from '@/state/analysisStore.js';
+import { eventBus } from '@/application/event-bus';
+import { analysisActions } from '@/state/analysisStore';
 
 export function initializeStreamInputController() {
     eventBus.subscribe('ui:stream-input:populate-from-preset', (payload) => {
-        // This is a more complex interaction that requires direct DOM manipulation for now
-        // to avoid re-rendering the whole input list and losing focus.
-        // A future refactor could move the input values into a store.
+        // This is now handled by dispatching actions to the central store.
         const { id, url, name } = payload;
-        const group = document.querySelector(`[data-id="${id}"]`);
-        if (group) {
-            const urlInput = /** @type {HTMLInputElement | null} */ (
-                group.querySelector('.input-url')
-            );
-            const nameInput = /** @type {HTMLInputElement | null} */ (
-                group.querySelector('.input-name')
-            );
-            const fileInput = /** @type {HTMLInputElement | null} */ (
-                group.querySelector('.input-file')
-            );
-
-            if (urlInput) urlInput.value = url;
-            if (nameInput) nameInput.value = name;
-            if (fileInput) fileInput.value = '';
-
-            urlInput.dispatchEvent(new Event('input', { bubbles: true }));
-
-            const dropdown = group.querySelector('.preset-dropdown');
-            if (dropdown) dropdown.classList.add('hidden');
-        }
+        analysisActions.updateStreamInput(id, 'url', url);
+        analysisActions.updateStreamInput(id, 'name', name);
+        analysisActions.updateStreamInput(id, 'file', null); // Clear file input
     });
 
     eventBus.subscribe('ui:stream-input:remove-requested', ({ id }) => {
-        analysisActions.removeStreamInputId(id);
+        analysisActions.removeStreamInput(id);
     });
 }

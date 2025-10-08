@@ -2,16 +2,15 @@ import { html, render } from 'lit-html';
 import {
     useAnalysisStore,
     analysisActions,
-} from '@/state/analysisStore.js';
-import { exampleStreams } from '@/data/example-streams.js';
+} from '@/state/analysisStore';
+import { exampleStreams } from '@/data/example-streams';
 import {
     getHistory,
     getPresets,
-    savePreset,
     deleteHistoryItem,
     deletePreset,
-    fetchStreamMetadata,
-} from '@/infrastructure/persistence/streamStorage.js';
+} from '@/infrastructure/persistence/streamStorage';
+import { eventBus } from '@/application/event-bus';
 import { showToast } from './toast.js';
 
 const getBadge = (text, colorClasses) => {
@@ -24,22 +23,24 @@ const getBadge = (text, colorClasses) => {
 
 const handleDropdownItemClick = (e) => {
     const item = /** @type {HTMLElement} */ (e.currentTarget);
-    const group = item.closest('.stream-input-group');
-    const urlInput = /** @type {HTMLInputElement} */ (
-        group.querySelector('.input-url')
+    const group = /** @type {HTMLElement} */ (
+        item.closest('.stream-input-group')
     );
+    const inputId = parseInt(group.dataset.id, 10);
+
     if (item.dataset.url) {
-        urlInput.value = item.dataset.url;
-        /** @type {HTMLInputElement} */ (
-            group.querySelector('.input-name')
-        ).value = item.dataset.name || '';
-        /** @type {HTMLInputElement} */ (
+        analysisActions.updateStreamInput(inputId, 'url', item.dataset.url);
+        analysisActions.updateStreamInput(
+            inputId,
+            'name',
+            item.dataset.name || ''
+        );
+        analysisActions.updateStreamInput(inputId, 'file', null);
+        const fileInput = /** @type {HTMLInputElement} */ (
             group.querySelector('.input-file')
-        ).value = '';
-        // Manually trigger the input event to update the save button state
-        urlInput.dispatchEvent(new Event('input', { bubbles: true }));
+        );
+        if (fileInput) fileInput.value = '';
     }
-    // Hide dropdown
     const dropdown = group.querySelector('.preset-dropdown');
     if (dropdown) dropdown.classList.add('hidden');
 };
@@ -67,31 +68,32 @@ const renderStreamListItem = (stream, isPreset, presets) => {
             } else {
                 deleteHistoryItem(stream.url);
             }
-            // Re-render via store change is not ideal here as it re-renders EVERYTHING.
-            // For this specific, non-state-critical dropdown, a local re-render is acceptable.
+            // For a non-critical UI element like a dropdown, imperatively re-rendering
+            // the parent group is acceptable to avoid a full app re-render.
             const group = e.target.closest('.stream-input-group');
             if (group) {
                 const newHistory = getHistory();
                 const newPresets = getPresets();
-                const id = parseInt(group.dataset.id, 10);
-                const isFirst =
-                    useAnalysisStore
-                        .getState()
-                        .streamInputIds.indexOf(
-                            parseInt(group.dataset.id, 10)
-                        ) === 0;
+                const input = useAnalysisStore
+                    .getState()
+                    .streamInputs.find(
+                        (i) =>
+                            i.id ===
+                            parseInt(
+                                /** @type {HTMLElement} */ (group).dataset.id,
+                                10
+                            )
+                    );
+                const isOnly =
+                    useAnalysisStore.getState().streamInputs.length == 1;
+
                 const newTemplate = streamInputTemplate(
-                    id,
-                    isFirst,
+                    input,
+                    isOnly,
                     newHistory,
                     newPresets
                 );
-                const tempDiv = document.createElement('div');
-                document.body.appendChild(tempDiv);
-                render(newTemplate, tempDiv);
-                const newGroup = tempDiv.querySelector('.stream-input-group');
-                group.parentElement.replaceChild(newGroup, group);
-                document.body.removeChild(tempDiv);
+                render(newTemplate, group);
             }
         }
     };
@@ -153,57 +155,8 @@ const renderExampleCategory = (title, items, presets) => {
     </div>`;
 };
 
-const handleFileChange = (e) => {
-    const fileInput = /** @type {HTMLInputElement} */ (e.target);
-    const group = fileInput.closest('.stream-input-group');
-    if (fileInput.files[0]) {
-        /** @type {HTMLInputElement} */ (
-            group.querySelector('.input-url')
-        ).value = '';
-        const dropdown = group.querySelector('.preset-dropdown');
-        if (dropdown) dropdown.classList.add('hidden');
-    }
-};
-
-const handleSavePreset = async (e) => {
-    const button = /** @type {HTMLButtonElement} */ (e.target);
-    const group = button.closest('.stream-input-group');
-    const nameInput = /** @type {HTMLInputElement} */ (
-        group.querySelector('.input-name')
-    );
-    const urlInput = /** @type {HTMLInputElement} */ (
-        group.querySelector('.input-url')
-    );
-
-    const name = nameInput.value.trim();
-    const url = urlInput.value.trim();
-
-    if (!name || !url) {
-        showToast({
-            message:
-                'Please provide both a URL and a custom name to save a preset.',
-            type: 'warn',
-        });
-        return;
-    }
-
-    button.disabled = true;
-    button.textContent = 'Saving...';
-
-    try {
-        const { protocol, type } = await fetchStreamMetadata(url);
-        savePreset({ name, url, protocol, type });
-        nameInput.value = '';
-        button.textContent = 'Saved!';
-    } catch (err) {
-        console.error('Failed to save preset:', err);
-        button.textContent = 'Save as Preset';
-        button.disabled = false;
-    }
-};
-
-const streamInputTemplate = (streamId, isFirstStream, history, presets) => {
-    const { streamInputIds } = useAnalysisStore.getState();
+const streamInputTemplate = (input, isOnlyStream, history, presets) => {
+    const { streamInputs } = useAnalysisStore.getState();
     const presetUrls = new Set(presets.map((p) => p.url));
     const groupedExamples = exampleStreams.reduce(
         (acc, stream) => {
@@ -216,27 +169,21 @@ const streamInputTemplate = (streamId, isFirstStream, history, presets) => {
         { dash: {}, hls: {} }
     );
 
-    const removeHandler = (e) => {
-        const groupEl = /** @type {HTMLElement} */ (e.target).closest(
-            '.stream-input-group'
-        );
-        if (groupEl) {
-            const idToRemove = parseInt(
-                /** @type {HTMLElement} */ (groupEl).dataset.id
-            );
-            analysisActions.removeStreamInputId(idToRemove);
-        }
-    };
+    const handleSavePreset = (e) => {
+        const button = /** @type {HTMLButtonElement} */ (e.target);
+        const url = input.url.trim();
+        const name = input.name.trim();
 
-    const handleUrlInput = (e) => {
-        const input = /** @type {HTMLInputElement} */ (e.target);
-        const group = input.closest('.stream-input-group');
-        const saveButton = /** @type {HTMLButtonElement} */ (
-            group.querySelector('.save-preset-btn')
-        );
-        const url = input.value.trim();
-        saveButton.disabled = presetUrls.has(url) || url === '';
-        saveButton.textContent = 'Save as Preset';
+        if (!name || !url) {
+            showToast({
+                message:
+                    'Please provide both a URL and a custom name to save a preset.',
+                type: 'warn',
+            });
+            return;
+        }
+        // Dispatch to the use case via event bus
+        eventBus.dispatch('ui:save-preset-requested', { name, url, button });
     };
 
     const toggleDropdown = (groupEl, show) => {
@@ -246,40 +193,37 @@ const streamInputTemplate = (streamId, isFirstStream, history, presets) => {
         }
     };
 
-    const handleFocusIn = (e) => {
+    let hideTimeout;
+    const handleFocusIn = (e) =>
         toggleDropdown(
             /** @type {HTMLElement} */ (e.currentTarget).closest(
                 '.stream-input-group'
             ),
             true
         );
-    };
-    let hideTimeout;
     const handleFocusOut = (e) => {
-        const groupEl = /** @type {HTMLElement} */ (e.currentTarget).closest(
-            '.stream-input-group'
-        );
-        hideTimeout = setTimeout(() => {
-            toggleDropdown(groupEl, false);
-        }, 150);
+        const groupEl = /** @type {HTMLElement} */ (
+            e.currentTarget
+        ).closest('.stream-input-group');
+        hideTimeout = setTimeout(() => toggleDropdown(groupEl, false), 150);
     };
     const handleDropdownFocusIn = () => clearTimeout(hideTimeout);
 
     return html`<div
         data-testid="stream-input-group"
-        class="stream-input-group ${!isFirstStream
+        class="stream-input-group ${input.id > 1
             ? 'border-t border-gray-700 pt-6 mt-6'
             : ''}"
-        data-id="${streamId}"
+        data-id="${input.id}"
     >
         <div class="flex items-center justify-between mb-3">
             <h3 class="text-lg font-semibold text-gray-300">
-                Stream ${streamInputIds.indexOf(streamId) + 1}
+                Stream ${streamInputs.findIndex((i) => i.id === input.id) + 1}
             </h3>
-            ${!isFirstStream
+            ${!isOnlyStream
                 ? html`<button
                       class="remove-stream-btn text-red-400 hover:text-red-600 font-bold text-sm"
-                      @click=${removeHandler}
+                      @click=${() => analysisActions.removeStreamInput(input.id)}
                   >
                       &times; Remove
                   </button>`
@@ -294,26 +238,39 @@ const streamInputTemplate = (streamId, isFirstStream, history, presets) => {
                 <div class="flex flex-col md:flex-row items-center gap-4">
                     <input
                         type="url"
-                        id="url-${streamId}"
                         class="input-url w-full bg-gray-700 text-white rounded-md p-2 border border-gray-600 focus:ring-2 focus:ring-blue-500"
                         placeholder="Enter Manifest URL or click to see presets..."
-                        .value=${isFirstStream && history.length > 0
-                            ? history[0].url
-                            : ''}
-                        @input=${handleUrlInput}
+                        .value=${input.url}
+                        @input=${(e) =>
+                            analysisActions.updateStreamInput(
+                                input.id,
+                                'url',
+                                e.target.value
+                            )}
                         autocomplete="off"
                     />
                     <label
-                        for="file-${streamId}"
+                        for="file-${input.id}"
                         class="block w-full md:w-auto cursor-pointer bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md text-center flex-shrink-0"
                         >Upload File</label
                     >
                     <input
                         type="file"
-                        id="file-${streamId}"
+                        id="file-${input.id}"
                         class="input-file hidden"
                         accept=".mpd, .xml, .m3u8"
-                        @change=${handleFileChange}
+                        @change=${(e) => {
+                            analysisActions.updateStreamInput(
+                                input.id,
+                                'file',
+                                e.target.files[0]
+                            );
+                            analysisActions.updateStreamInput(
+                                input.id,
+                                'url',
+                                ''
+                            );
+                        }}
                     />
                 </div>
                 <div
@@ -365,18 +322,20 @@ const streamInputTemplate = (streamId, isFirstStream, history, presets) => {
             >
                 <input
                     type="text"
-                    id="name-${streamId}"
                     class="input-name w-full bg-gray-700 text-white rounded-md p-2 border border-gray-600"
                     placeholder="Enter a custom name to save this URL"
+                    .value=${input.name}
+                    @input=${(e) =>
+                        analysisActions.updateStreamInput(
+                            input.id,
+                            'name',
+                            e.target.value
+                        )}
                 />
                 <button
                     class="save-preset-btn w-full sm:w-auto flex-shrink-0 bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-4 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     @click=${handleSavePreset}
-                    ?disabled=${presetUrls.has(
-                        isFirstStream && history.length > 0
-                            ? history[0].url
-                            : ''
-                    )}
+                    ?disabled=${presetUrls.has(input.url) || !input.url}
                 >
                     Save as Preset
                 </button>
@@ -386,18 +345,10 @@ const streamInputTemplate = (streamId, isFirstStream, history, presets) => {
 };
 
 export function getStreamInputsTemplate() {
-    const { streamInputIds } = useAnalysisStore.getState();
+    const { streamInputs } = useAnalysisStore.getState();
     const history = getHistory();
     const presets = getPresets();
-    return html`${streamInputIds.map((id, index) =>
-        streamInputTemplate(id, index === 0, history, presets)
+    return html`${streamInputs.map((input, index) =>
+        streamInputTemplate(input, streamInputs.length == 1, history, presets)
     )}`;
-}
-
-export function addStreamInput() {
-    analysisActions.addStreamInputId();
-}
-
-export function resetAndRenderAllStreamInputs() {
-    analysisActions.resetStreamInputIds();
 }

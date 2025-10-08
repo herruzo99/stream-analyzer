@@ -1,15 +1,19 @@
 import { handleStartAnalysis } from './handlers/analysisHandler.js';
 import { handleParseLiveUpdate } from './handlers/liveUpdateHandler.js';
 import { handleGetManifestMetadata } from './handlers/metadataHandler.js';
-import { handleParseSegment } from './handlers/segmentParsingHandler.js';
-import { parseManifest as parseHlsManifest } from '@/infrastructure/parsing/hls/index.js';
+import {
+    handleParseSegmentStructure,
+    handleGeneratePagedByteMap,
+} from './handlers/segmentParsingHandler.js';
+import { parseManifest as parseHlsManifest } from '@/infrastructure/parsing/hls/index';
 
 const handlers = {
     'start-analysis': handleStartAnalysis,
     'parse-live-update': handleParseLiveUpdate,
     'get-manifest-metadata': handleGetManifestMetadata,
-    'parse-segment': handleParseSegment,
-    'fetch-hls-media-playlist': handleFetchHlsMediaPlaylist, // This one still involves a fetch
+    'parse-segment-structure': handleParseSegmentStructure,
+    'generate-paged-byte-map': handleGeneratePagedByteMap,
+    'fetch-hls-media-playlist': handleFetchHlsMediaPlaylist,
 };
 
 async function handleFetchHlsMediaPlaylist({
@@ -17,7 +21,6 @@ async function handleFetchHlsMediaPlaylist({
     variantUri,
     hlsDefinedVariables,
 }) {
-    // This handler is special as it performs a fetch, so it's kept here.
     const response = await fetch(variantUri);
     if (!response.ok) throw new Error(`HTTP error ${response.status}`);
     const manifestString = await response.text();
@@ -30,15 +33,12 @@ async function handleFetchHlsMediaPlaylist({
     const freshSegmentUrls = (manifest.segments || []).map((s) => s.resolvedUrl);
 
     return {
-        type: 'hls-media-playlist-fetched', // Special return type for the client service
-        result: {
-            streamId,
-            variantUri,
-            manifest,
-            manifestString,
-            segments: manifest.segments,
-            freshSegmentUrls,
-        },
+        streamId,
+        variantUri,
+        manifest,
+        manifestString,
+        segments: manifest.segments,
+        freshSegmentUrls,
     };
 }
 

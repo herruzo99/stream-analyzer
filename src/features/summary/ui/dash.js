@@ -3,7 +3,7 @@ import { cmafValidationSummaryTemplate } from './components/cmaf.js';
 import { dashComplianceSummaryTemplate } from './components/dash-compliance.js';
 import { dashStructureTemplate } from './components/dash-structure.js';
 import { statCardTemplate } from './components/shared.js';
-import { tooltipTriggerClasses } from '@/ui/shared/constants.js';
+import { tooltipTriggerClasses } from '@/ui/shared/constants';
 
 const profilesCardTemplate = (stream) => {
     const { manifest } = stream;

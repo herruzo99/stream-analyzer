@@ -15,8 +15,8 @@
  * @typedef {import('@/types.ts').InitializationSet} InitializationSet
  */
 
-import { getDrmSystemName } from '@/infrastructure/parsing/utils/drm.js';
-import { parseDuration } from '@/utils/time.js';
+import { getDrmSystemName } from '@/infrastructure/parsing/utils/drm';
+import { parseDuration } from '@/utils/time';
 import { generateDashSummary } from './summary-generator.js';
 import {
     getAttr,
@@ -25,7 +25,7 @@ import {
     findChildrenRecursive,
     mergeElements,
 } from './recursive-parser.js';
-import { parseScte35 } from '@/infrastructure/parsing/scte35/parser.js';
+import { parseScte35 } from '@/infrastructure/parsing/scte35/parser';
 
 const getText = (el) => el?.['#text'] || null;
 

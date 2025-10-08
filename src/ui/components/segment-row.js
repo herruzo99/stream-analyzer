@@ -2,10 +2,10 @@ import { html } from 'lit-html';
 import {
     useAnalysisStore,
     analysisActions,
-} from '@/state/analysisStore.js';
-import { useSegmentCacheStore } from '@/state/segmentCacheStore.js';
-import { uiActions } from '@/state/uiStore.js';
-import { eventBus } from '@/application/event-bus.js';
+} from '@/state/analysisStore';
+import { useSegmentCacheStore } from '@/state/segmentCacheStore';
+import { uiActions } from '@/state/uiStore';
+import { eventBus } from '@/application/event-bus';
 
 function handleSegmentCheck(e) {
     const checkbox = /** @type {HTMLInputElement} */ (e.target);

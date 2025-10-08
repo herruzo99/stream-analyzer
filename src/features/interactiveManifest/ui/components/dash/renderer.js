@@ -1,9 +1,9 @@
 import { html } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { dashTooltipData } from './tooltip-data.js';
-import { tooltipTriggerClasses } from '@/ui/shared/constants.js';
-import { useUiStore, uiActions } from '@/state/uiStore.js';
-import { debugLog } from '@/application/utils/debug.js';
+import { tooltipTriggerClasses } from '@/ui/shared/constants';
+import { useUiStore, uiActions } from '@/state/uiStore';
+import { debugLog } from '@/application/utils/debug';
 
 const linesPerPage = 500;
 

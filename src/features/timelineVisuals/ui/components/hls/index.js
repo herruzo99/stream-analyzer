@@ -1,5 +1,5 @@
 import { html } from 'lit-html';
-import { eventBus } from '@/application/event-bus.js';
+import { eventBus } from '@/application/event-bus';
 
 const renderEvents = (events, totalDuration) => {
     if (!events || events.length === 0) return '';

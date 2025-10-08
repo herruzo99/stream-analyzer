@@ -1,23 +1,11 @@
 import { html } from 'lit-html';
-import { useAnalysisStore } from '@/state/analysisStore.js';
-import { useSegmentCacheStore } from '@/state/segmentCacheStore.js';
-import { getTooltipData as getAllIsoTooltipData } from '@/infrastructure/parsing/isobmff/index.js';
-import { hexViewTemplate } from '@/ui/components/hex-view.js';
-import { buildByteMap } from './view-model.js';
+import { useAnalysisStore } from '@/state/analysisStore';
+import { useSegmentCacheStore } from '@/state/segmentCacheStore';
+import { getTooltipData as getAllIsoTooltipData } from '@/infrastructure/parsing/isobmff/index';
+import { hexViewTemplate } from '@/ui/components/hex-view';
 import { getInspectorState } from '../interaction-logic.js';
 
 const allIsoTooltipData = getAllIsoTooltipData();
-const boxColors = [
-    { bg: 'bg-red-800', border: 'border-red-700' },
-    { bg: 'bg-yellow-800', border: 'border-yellow-700' },
-    { bg: 'bg-green-800', border: 'border-green-700' },
-    { bg: 'bg-blue-800', border: 'border-blue-700' },
-    { bg: 'bg-indigo-800', border: 'border-indigo-700' },
-    { bg: 'bg-purple-800', border: 'border-purple-700' },
-    { bg: 'bg-pink-800', border: 'border-pink-700' },
-    { bg: 'bg-teal-800', border: 'border-teal-700' },
-];
-const chunkColor = { bg: 'bg-slate-700', border: 'border-slate-600' };
 
 function findBox(boxes, predicate) {
     for (const box of boxes) {
@@ -44,29 +32,6 @@ export function findBoxByOffset(parsedData, offset) {
     };
     const grouped = groupboxesIntoChunks(parsedData.boxes);
     return findInGrouped(grouped, offset);
-}
-
-function assignBoxColors(boxes) {
-    const colorState = { index: 0 };
-    const traverse = (boxList, state) => {
-        for (const box of boxList) {
-            if (box.isChunk) {
-                box.color = chunkColor;
-                if (box.children?.length > 0) {
-                    traverse(box.children, state);
-                }
-            } else {
-                box.color = boxColors[state.index % boxColors.length];
-                state.index++;
-                if (box.children?.length > 0) {
-                    traverse(box.children, state);
-                }
-            }
-        }
-    };
-    if (boxes) {
-        traverse(boxes, colorState);
-    }
 }
 
 const getTimescaleForBox = (box, rootData) => {
@@ -146,7 +111,7 @@ const renderBoxNode = (box) => {
     const isChunk = box.isChunk;
     const selectionClass = isSelected
         ? 'bg-blue-900/50 ring-1 ring-blue-500'
-        : 'hover:bg-gray-800/50';
+        : '';
     const colorClass = box.color?.border || 'border-transparent';
 
     return html`
@@ -154,6 +119,7 @@ const renderBoxNode = (box) => {
             <summary
                 class="p-1 rounded cursor-pointer ${selectionClass} border-l-4 ${colorClass}"
                 data-box-offset=${box.offset}
+                data-group-start-offset=${isChunk ? box.offset : null}
             >
                 <span class="font-mono text-sm text-white ml-2"
                     >${box.type}</span
@@ -191,16 +157,14 @@ const treeViewTemplate = (boxes) => {
     `;
 };
 
-const inspectorPanelTemplate = (rootData) => {
-    const { itemForDisplay, fieldForDisplay } = getInspectorState();
+export const inspectorPanelTemplate = (rootData) => {
+    const { itemForDisplay } = getInspectorState();
     const box = itemForDisplay;
 
     if (!box) return placeholderTemplate();
     const boxInfo = allIsoTooltipData[box.type] || {};
 
     const fields = Object.entries(box.details).map(([key, field]) => {
-        const highlightClass =
-            key === fieldForDisplay ? 'bg-purple-900/50' : '';
         const fieldInfo = allIsoTooltipData[`${box.type}@${key}`];
         let interpretedValue = html``;
 
@@ -215,11 +179,7 @@ const inspectorPanelTemplate = (rootData) => {
         }
 
         return html`
-            <tr
-                class="${highlightClass}"
-                data-field-name="${key}"
-                data-box-offset="${box.offset}"
-            >
+            <tr data-field-name="${key}" data-box-offset="${box.offset}">
                 <td
                     class="p-1 pr-2 text-xs text-gray-400 align-top"
                     title="${fieldInfo?.text || ''}"
@@ -267,7 +227,7 @@ export function getInteractiveIsobmffTemplate(
     bytesPerPage,
     onPageChange,
     allTooltips,
-    inspectorState
+    pagedByteMap
 ) {
     const { activeSegmentUrl } = useAnalysisStore.getState();
     const { get: getFromCache } = useSegmentCacheStore.getState();
@@ -287,8 +247,6 @@ export function getInteractiveIsobmffTemplate(
     const groupedBoxes = groupboxesIntoChunks(
         parsedSegmentData.data.boxes || []
     );
-    assignBoxColors(groupedBoxes);
-    parsedSegmentData.byteMap = buildByteMap(groupedBoxes);
 
     return html`
         <div
@@ -298,9 +256,7 @@ export function getInteractiveIsobmffTemplate(
                 <div class="flex flex-col gap-4">
                     <div
                         class="segment-inspector-panel rounded-md bg-gray-900/90 border border-gray-700 transition-opacity duration-200 h-96 lg:h-[24rem] overflow-hidden flex flex-col"
-                    >
-                        ${inspectorPanelTemplate(parsedSegmentData.data)}
-                    </div>
+                    ></div>
                     ${issuesTemplate(parsedSegmentData.data.issues)}
                     ${treeViewTemplate(groupedBoxes)}
                 </div>
@@ -308,12 +264,11 @@ export function getInteractiveIsobmffTemplate(
             <div>
                 ${hexViewTemplate(
                     cachedSegment.data,
-                    parsedSegmentData.byteMap,
+                    pagedByteMap,
                     currentPage,
                     bytesPerPage,
                     onPageChange,
-                    allTooltips,
-                    inspectorState
+                    allTooltips
                 )}
             </div>
         </div>

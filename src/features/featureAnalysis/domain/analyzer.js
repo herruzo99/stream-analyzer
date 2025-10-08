@@ -1,14 +1,14 @@
-import { dashFeatureDefinitions } from '@/infrastructure/parsing/dash/feature-definitions.js';
-import { hlsFeatureDefinitions } from '@/infrastructure/parsing/hls/feature-definitions.js';
-import { analyzeDashFeatures } from '@/infrastructure/parsing/dash/feature-analyzer.js';
-import { analyzeHlsFeatures } from '@/infrastructure/parsing/hls/feature-analyzer.js';
+import { dashFeatureDefinitions } from '@/infrastructure/parsing/dash/feature-definitions';
+import { hlsFeatureDefinitions } from '@/infrastructure/parsing/hls/feature-definitions';
+import { analyzeDashFeatures } from '@/infrastructure/parsing/dash/feature-analyzer';
+import { analyzeHlsFeatures } from '@/infrastructure/parsing/hls/feature-analyzer';
 
 /**
  * Analyzes a manifest for feature usage.
  * @param {import('@/types.ts').Manifest} manifestIR - The manifest IR object.
  * @param {'dash' | 'hls'} protocol
  * @param {object | null} serializedManifest - The serialized DOM object for DASH.
- * @returns {Record<string, import('@/infrastructure/parsing/dash/feature-analyzer.js').FeatureCheckResult>} A map of feature names to their analysis results.
+ * @returns {Record<string, import('@/infrastructure/parsing/dash/feature-analyzer').FeatureCheckResult>} A map of feature names to their analysis results.
  */
 export function generateFeatureAnalysis(
     manifestIR,

@@ -1,7 +1,7 @@
-import { eventBus } from '@/application/event-bus.js';
-import { analysisActions } from '@/state/analysisStore.js';
-import { isDebugMode } from '@/application/utils/env.js';
-import { debugLog } from '@/application/utils/debug.js';
+import { eventBus } from '@/application/event-bus';
+import { analysisActions } from '@/state/analysisStore';
+import { isDebugMode } from '@/application/utils/env';
+import { debugLog } from '@/application/utils/debug';
 
 /**
  * Orchestrates the business logic of starting a new stream analysis.
@@ -10,9 +10,9 @@ import { debugLog } from '@/application/utils/debug.js';
  * @param {Array<{id: number, url: string, name: string, file: File | null}>} params.inputs - The raw input data.
  * @param {object} services - Injected dependencies.
  * @param {{saveLastUsedStreams: Function}} services.storage - Storage service.
- * @param {import('@/infrastructure/worker/workerService.js').WorkerService} services.workerService - The worker service.
- * @param {import('@/application/event-bus.js').EventBus} services.eventBus - The application event bus.
- * @param {import('@/state/analysisStore.js').AnalysisActions} services.analysisActions - The analysis state actions.
+ * @param {import('@/infrastructure/worker/workerService').WorkerService} services.workerService - The worker service.
+ * @param {import('@/application/event-bus').EventBus} services.eventBus - The application event bus.
+ * @param {import('@/state/analysisStore').AnalysisActions} services.analysisActions - The analysis state actions.
  */
 export async function startAnalysisUseCase({ inputs }, services) {
     const { storage, workerService, eventBus, analysisActions } = services;
@@ -91,28 +91,6 @@ export async function startAnalysisUseCase({ inputs }, services) {
                 }
                 stream.semanticData = new Map(stream.semanticData || []);
                 stream.mediaPlaylists = new Map(stream.mediaPlaylists || []);
-            });
-
-            // --- Generate initial diff on main thread ---
-            const { diffManifest } = await import('@/ui/shared/diff.js');
-            const xmlFormatter = (await import('xml-formatter')).default;
-
-            results.forEach((stream) => {
-                if (stream.manifestUpdates.length > 0) {
-                    const initialUpdate = stream.manifestUpdates[0];
-                    let formattedInitial = initialUpdate.rawManifest;
-                    if (stream.protocol === 'dash') {
-                        formattedInitial = xmlFormatter(formattedInitial, {
-                            indentation: '  ',
-                            lineSeparator: '\n',
-                        });
-                    }
-                    initialUpdate.diffHtml = diffManifest(
-                        '',
-                        formattedInitial,
-                        stream.protocol
-                    );
-                }
             });
 
             analysisActions.completeAnalysis(results);

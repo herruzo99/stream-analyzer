@@ -1,5 +1,5 @@
-import { useSegmentCacheStore } from '@/state/segmentCacheStore.js';
-import { parseAllSegmentUrls } from '@/infrastructure/parsing/dash/segment-parser.js';
+import { useSegmentCacheStore } from '@/state/segmentCacheStore';
+import { parseAllSegmentUrls } from '@/infrastructure/parsing/dash/segment-parser';
 
 /**
  * Creates a view model for the DASH timeline visualization by leveraging the central segment parser.

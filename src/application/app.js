@@ -1,4 +1,4 @@
-import { saveToHistory } from '@/infrastructure/persistence/streamStorage.js';
+import { saveToHistory } from '@/infrastructure/persistence/streamStorage';
 import { uiActions } from '@/state/uiStore';
 import { startAnalysisUseCase } from './useCases/startAnalysis.js';
 
@@ -33,6 +33,13 @@ export class Application {
                 duration: 8000,
             });
             console.error('An analysis error occurred:', error);
+
+            // Report error to Sentry if available
+            if (window.Sentry) {
+                window.Sentry.captureException(error, {
+                    extra: { message },
+                });
+            }
         });
     }
 
@@ -50,7 +57,9 @@ export class Application {
                 file: null,
                 name: '', // Name is not available from URL params
             }));
-            // Call the authoritative use case with all necessary services
+
+            // Set the inputs in the store so the UI can reflect them if analysis fails
+            this.analysisActions.setStreamInputs(inputs);
             startAnalysisUseCase({ inputs }, this.services);
         } else {
             this._populateLastUsedStreams();
@@ -61,44 +70,8 @@ export class Application {
         const { storage } = this.services;
         const lastUsed = storage.getLastUsedStreams();
         if (lastUsed && lastUsed.length > 0) {
-            this.analysisActions.setStreamInputsFromData(lastUsed);
-            const allStoredStreams = [
-                ...storage.getHistory(),
-                ...storage.getPresets(),
-            ];
-
-            // This must run after the initial render populates the inputs
-            Promise.resolve().then(() => {
-                const inputGroups = document.querySelectorAll(
-                    '[data-testid="stream-input-group"]'
-                );
-                inputGroups.forEach((group, index) => {
-                    if (!lastUsed[index]) return;
-
-                    const urlInput = /** @type {HTMLInputElement} */ (
-                        group.querySelector('.input-url')
-                    );
-                    const nameInput = /** @type {HTMLInputElement} */ (
-                        group.querySelector('.input-name')
-                    );
-
-                    if (urlInput) {
-                        const lastUsedUrl = lastUsed[index].url || '';
-                        urlInput.value = lastUsedUrl;
-
-                        const storedItem = allStoredStreams.find(
-                            (s) => s.url === lastUsedUrl
-                        );
-                        if (storedItem) {
-                            nameInput.value = storedItem.name;
-                        }
-
-                        urlInput.dispatchEvent(
-                            new Event('input', { bubbles: true })
-                        );
-                    }
-                });
-            });
+            // Set inputs from storage. The UI will render declaratively.
+            this.analysisActions.setStreamInputs(lastUsed);
         }
     }
 

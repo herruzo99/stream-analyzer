@@ -30,22 +30,33 @@ jobs:
                   cache: 'npm'
             - name: Install dependencies
               run: npm ci
+            - name: Security Vulnerability Scan
+              run: npm audit --audit-level=high
             - name: Lint code
               run: npm run lint
             - name: Check types
               run: npm run typecheck
             - name: Build static site
+              run: npm run build
+            - name: Inject Configuration
+              env:
+                  GA_ID: ${{ secrets.GA_ID || 'G-XXXXXXXXXX' }}
+                  SENTRY_DSN: ${{ secrets.SENTRY_DSN || '00000000000000000000000000000000' }}
+                  CLARITY_ID: ${{ secrets.CLARITY_ID || '0000000000' }}
+                  PROD_HOSTNAME: 'stream-analyzer.herruzo.dev'
               run: |
-                  npm run build
-                  mkdir -p ./deployment/dist/
-                  cp ./index.html ./deployment/
-                  cp -r ./dist/* ./deployment/dist/
+                  MAIN_JS_FILE=$(find dist -name "main-*.js")
+                  echo "Injecting config into dist/index.html and $MAIN_JS_FILE"
+                  sed -i "s|__GA_ID__|$GA_ID|g" dist/index.html
+                  sed -i "s|__SENTRY_DSN__|$SENTRY_DSN|g" dist/index.html
+                  sed -i "s|__CLARITY_ID__|$CLARITY_ID|g" dist/index.html
+                  sed -i "s|__PROD_HOSTNAME__|$PROD_HOSTNAME|g" dist/index.html
             - name: Setup Pages
               uses: actions/configure-pages@v5
             - name: Upload artifact
               uses: actions/upload-pages-artifact@v3
               with:
-                  path: ./deployment
+                  path: ./dist
 
     # Deployment job
     deploy:

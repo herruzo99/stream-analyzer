@@ -1,9 +1,9 @@
-import { eventBus } from '@/application/event-bus.js';
+import { eventBus } from '@/application/event-bus';
 import {
     fetchStreamMetadata,
     savePreset,
-} from '@/infrastructure/persistence/streamStorage.js';
-import { showToast } from '@/ui/components/toast.js';
+} from '@/infrastructure/persistence/streamStorage';
+import { showToast } from '@/ui/components/toast';
 
 function handleSavePresetRequest({ name, url, button }) {
     button.disabled = true;

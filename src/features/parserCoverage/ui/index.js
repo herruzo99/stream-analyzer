@@ -3,8 +3,8 @@ import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import {
     highlightDash,
     highlightHls,
-} from '@/ui/shared/syntax-highlighter.js';
-import { copyTextToClipboard } from '@/ui/shared/clipboard.js';
+} from '@/ui/shared/syntax-highlighter';
+import { copyTextToClipboard } from '@/ui/shared/clipboard';
 
 // --- Sidebar Logic ---
 
