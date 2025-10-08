@@ -1,4 +1,5 @@
 import { BoxParser } from '../utils.js';
+import { formatUUID } from '../../utils/drm.js';
 
 /**
  * @param {import('../parser.js').Box} box
@@ -13,34 +14,46 @@ export function parsePssh(box, view) {
         return;
     }
 
-    // Read System ID as raw bytes and format as UUID
-    const systemIdBytes = [];
-    for (let i = 0; i < 16; i++) {
-        const byte = p.readUint8(`system_id_byte_${i}`);
-        if (byte === null) {
-            p.finalize();
-            return;
-        }
-        systemIdBytes.push(byte.toString(16).padStart(2, '0'));
-    }
-    const baseOffset = box.details['system_id_byte_0'].offset;
-    for (let i = 0; i < 16; i++) delete box.details[`system_id_byte_${i}`];
+    const systemIdBytes = new Uint8Array(
+        p.view.buffer,
+        p.view.byteOffset + p.offset,
+        16
+    );
     box.details['System ID'] = {
-        value: systemIdBytes.join('-'),
-        offset: baseOffset,
+        value: formatUUID(systemIdBytes),
+        offset: p.box.offset + p.offset,
         length: 16,
     };
+    p.offset += 16;
+    box.systemId = formatUUID(systemIdBytes); // Store for adapter
 
+    const kids = [];
     if (version > 0) {
         const keyIdCount = p.readUint32('Key ID Count');
         if (keyIdCount !== null) {
-            p.skip(keyIdCount * 16, 'Key IDs');
+            for (let i = 0; i < keyIdCount; i++) {
+                if (!p.checkBounds(16)) break;
+                const kidBytes = new Uint8Array(
+                    p.view.buffer,
+                    p.view.byteOffset + p.offset,
+                    16
+                );
+                kids.push(formatUUID(kidBytes));
+                p.offset += 16;
+            }
         }
     }
+    box.kids = kids; // Store for adapter
 
     const dataSize = p.readUint32('Data Size');
-    if (dataSize !== null) {
-        p.skip(dataSize, 'Data');
+    if (dataSize !== null && p.checkBounds(dataSize)) {
+        const dataBytes = new Uint8Array(
+            p.view.buffer,
+            p.view.byteOffset + p.offset,
+            dataSize
+        );
+        box.data = btoa(String.fromCharCode.apply(null, dataBytes));
+        p.offset += dataSize;
     }
 
     p.finalize();

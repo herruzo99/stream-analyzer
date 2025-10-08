@@ -3,7 +3,7 @@ import { deliveryInfoTemplate } from './components/delivery.js';
 import { hlsComplianceSummaryTemplate } from './components/hls-compliance.js';
 import { hlsStructureTemplate } from './components/hls-structure.js';
 import { hlsMediaPlaylistTemplate } from './components/hls-media-playlist.js';
-import { statCardTemplate } from './components/shared.js';
+import { statCardTemplate, listCardTemplate } from './components/shared.js';
 
 export function getHlsSummaryTemplate(stream) {
     const summary = stream.manifest.summary;
@@ -107,13 +107,25 @@ export function getHlsSummaryTemplate(stream) {
                         'HLS: 4.3.4.2'
                     )}
                     ${statCardTemplate(
-                        'Encryption',
+                        'Encryption Systems',
                         summary.security.isEncrypted
                             ? summary.security.systems.join(', ')
                             : 'No',
-                        'Detected encryption methods.',
+                        'Detected encryption methods and DRM systems.',
                         'HLS: 4.3.2.4'
                     )}
+                    ${statCardTemplate(
+                        'HLS Encryption Method',
+                        summary.security.hlsEncryptionMethod,
+                        'The specific HLS encryption method used (AES-128 or SAMPLE-AES).',
+                        'HLS: 4.3.2.4'
+                    )}
+                    ${listCardTemplate({
+                        label: 'Key IDs (KIDs)',
+                        items: summary.security.kids,
+                        tooltip:
+                            'Key IDs found in the manifest, crucial for debugging decryption.',
+                    })}
                 </dl>
             </div>
 

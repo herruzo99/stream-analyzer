@@ -2,8 +2,12 @@ import { html } from 'lit-html';
 import { cmafValidationSummaryTemplate } from './components/cmaf.js';
 import { dashComplianceSummaryTemplate } from './components/dash-compliance.js';
 import { dashStructureTemplate } from './components/dash-structure.js';
-import { statCardTemplate } from './components/shared.js';
+import { statCardTemplate, listCardTemplate } from './components/shared.js';
 import { tooltipTriggerClasses } from '@/ui/shared/constants';
+import { getDrmSystemName } from '@/infrastructure/parsing/utils/drm';
+import { copyTextToClipboard } from '@/ui/shared/clipboard';
+import { eventBus } from '@/application/event-bus';
+import { useAnalysisStore } from '@/state/analysisStore';
 
 const profilesCardTemplate = (stream) => {
     const { manifest } = stream;
@@ -152,85 +156,58 @@ const serviceDescriptionTemplate = (stream) => {
     `;
 };
 
-const outputProtectionTemplate = (stream) => {
-    // Find the first OutputProtection descriptor available on any AdaptationSet or Representation
-    const firstProtection = stream.manifest.periods
-        .flatMap((p) => p.adaptationSets)
-        .map(
-            (as) =>
-                as.outputProtection ||
-                as.representations.find((r) => r.outputProtection)
-                    ?.outputProtection
-        )
-        .find(Boolean);
-
-    if (!firstProtection) return '';
-
-    return statCardTemplate(
-        'Output Protection',
-        firstProtection.value || firstProtection.schemeIdUri,
-        'Minimum required output protection level (e.g., HDCP version).',
-        'DASH: 5.8.4.12'
-    );
-};
-
-const preselectionTemplate = (stream) => {
-    const preselections = stream.manifest.periods.flatMap(
-        (p) => p.preselections || []
-    );
-    if (preselections.length === 0) return '';
+const protectionSystemTemplate = (psshInfo) => {
+    const handleCopy = () => {
+        copyTextToClipboard(
+            psshInfo.data,
+            `PSSH data for ${getDrmSystemName(
+                psshInfo.systemId
+            )} copied to clipboard!`
+        );
+    };
 
     return html`
-        <div>
-            <h3 class="text-xl font-bold mb-4">Preselections</h3>
-            <div class="space-y-2">
-                ${preselections.map(
-                    (p) => html`
-                        <div
-                            class="bg-gray-800 p-3 rounded-lg border border-gray-700"
-                        >
-                            <div class="font-semibold text-gray-300">
-                                ID: ${p.id} ${p.lang ? `(Lang: ${p.lang})` : ''}
-                            </div>
-                            <div class="text-xs text-gray-400 mt-1">
-                                Components:
-                                <span class="font-mono"
-                                    >${p.preselectionComponents.join(
-                                        ', '
-                                    )}</span
-                                >
-                            </div>
-                        </div>
-                    `
-                )}
+        <div class="bg-gray-900/50 p-3 rounded-lg border border-gray-700">
+            <div class="flex justify-between items-start">
+                <div>
+                    <h4 class="font-bold text-gray-200">
+                        ${getDrmSystemName(psshInfo.systemId)}
+                    </h4>
+                    <p class="text-xs text-gray-400 font-mono mt-1">
+                        SystemID: ${psshInfo.systemId}
+                    </p>
+                </div>
+                <button
+                    @click=${handleCopy}
+                    class="text-xs bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded flex-shrink-0"
+                >
+                    Copy PSSH
+                </button>
             </div>
+            ${listCardTemplate({
+                label: 'Key IDs (KIDs)',
+                items: psshInfo.kids,
+                tooltip:
+                    'Key IDs found in this PSSH box. If empty, it applies to all KIDs.',
+            })}
         </div>
     `;
 };
 
-const initializationSetsTemplate = (stream) => {
-    const initSets = stream.manifest.initializationSets || [];
-    if (initSets.length === 0) return '';
-
+const contentProtectionTemplate = (security) => {
+    if (!security || !security.isEncrypted) {
+        return statCardTemplate(
+            'Encryption',
+            'No',
+            'No content protection descriptors were found.',
+            'DASH: 5.8.4.1'
+        );
+    }
     return html`
         <div>
-            <h3 class="text-xl font-bold mb-4">Initialization Sets</h3>
-            <div class="space-y-2">
-                ${initSets.map(
-                    (is) => html`
-                        <div
-                            class="bg-gray-800 p-3 rounded-lg border border-gray-700"
-                        >
-                            <div class="font-semibold text-gray-300">
-                                ID: ${is.id}
-                            </div>
-                            <div class="text-xs text-gray-400 mt-1">
-                                Codecs:
-                                <span class="font-mono">${is.codecs}</span>
-                            </div>
-                        </div>
-                    `
-                )}
+            <h3 class="text-xl font-bold mb-4">Content Protection</h3>
+            <div class="space-y-4">
+                ${security.systems.map(protectionSystemTemplate)}
             </div>
         </div>
     `;
@@ -238,12 +215,24 @@ const initializationSetsTemplate = (stream) => {
 
 export function getDashSummaryTemplate(stream) {
     const summary = stream.manifest.summary;
+    const { activeStreamId } = useAnalysisStore.getState();
 
     return html`
         <div class="space-y-8">
             <!-- General Section -->
             <div>
-                <h3 class="text-xl font-bold mb-4">General Properties</h3>
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-bold">General Properties</h3>
+                    <button
+                        class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md"
+                        @click=${() =>
+                            eventBus.dispatch('stream:play-request', {
+                                streamId: activeStreamId,
+                            })}
+                    >
+                        Play Stream
+                    </button>
+                </div>
                 <dl
                     class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(280px,1fr))]"
                 >
@@ -286,40 +275,7 @@ export function getDashSummaryTemplate(stream) {
             </div>
 
             <!-- Content & Security Section -->
-            <div>
-                <h3 class="text-xl font-bold mb-4">Content & Security</h3>
-                <dl
-                    class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(280px,1fr))]"
-                >
-                    ${statCardTemplate(
-                        'Total Periods',
-                        summary.content.totalPeriods,
-                        'Number of distinct content periods.',
-                        'DASH: 5.3.2'
-                    )}
-                    ${statCardTemplate(
-                        'Encryption',
-                        summary.security.isEncrypted
-                            ? summary.security.systems.join(', ')
-                            : 'No',
-                        'Detected DRM Systems or encryption methods.',
-                        'DASH: 5.8.4.1'
-                    )}
-                    ${summary.security?.kids.length > 0
-                        ? statCardTemplate(
-                              'Key IDs (KIDs)',
-                              summary.security.kids.join(', '),
-                              'Key IDs found in the manifest.',
-                              'ISO/IEC 23001-7'
-                          )
-                        : ''}
-                    ${outputProtectionTemplate(stream)}
-                </dl>
-            </div>
-
-            <!-- Advanced Structures -->
-            ${preselectionTemplate(stream)}
-            ${initializationSetsTemplate(stream)}
+            ${contentProtectionTemplate(summary.security)}
 
             <!-- Stream Structure Section -->
             ${dashStructureTemplate(summary)}

@@ -75,7 +75,27 @@ export const tsAnalysisTemplate = (analysis) => {
     const pmtPid = [...summary.pmtPids][0];
     const program = pmtPid ? summary.programMap[pmtPid] : null;
 
-    // Calculate PID counts for the new table
+    // Handle encrypted segment case
+    if (
+        summary.errors.length > 0 &&
+        summary.errors[0].includes('encrypted')
+    ) {
+        return html`
+            <div
+                class="bg-gray-800 p-4 rounded-lg border border-yellow-700 text-center"
+            >
+                <h4 class="font-bold text-yellow-300 text-lg mb-2">
+                    Encrypted Segment
+                </h4>
+                <p class="text-sm text-yellow-200">
+                    This segment appears to be encrypted (e.g., via AES-128).
+                    Its internal structure cannot be analyzed without
+                    decryption. You can still inspect the raw encrypted bytes
+                    in the "View Raw" interactive segment explorer.
+                </p>
+            </div>
+        `;
+    }
 
     const pmtPacket = packets.find((p) => p.pid === pmtPid && p.psi);
 

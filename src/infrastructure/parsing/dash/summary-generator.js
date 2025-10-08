@@ -1,6 +1,7 @@
 /**
  * @typedef {import('@/types.ts').Manifest} Manifest
  * @typedef {import('@/types.ts').PeriodSummary} PeriodSummary
+ * @typedef {import('@/types.ts').SecuritySummary} SecuritySummary
  */
 
 import { findChildrenRecursive } from './recursive-parser.js';
@@ -37,8 +38,7 @@ const getSegmentingStrategy = (serializedManifest) => {
  * @returns {import('@/types.ts').ManifestSummary}
  */
 export function generateDashSummary(manifestIR, serializedManifest) {
-    const protectionSchemes = new Set();
-    const kids = new Set();
+    const allPssh = new Map();
 
     const periodSummaries = manifestIR.periods.map((period) => {
         /** @type {import('@/types.ts').AdaptationSet[]} */
@@ -50,9 +50,12 @@ export function generateDashSummary(manifestIR, serializedManifest) {
 
         for (const as of period.adaptationSets) {
             for (const cp of as.contentProtection) {
-                protectionSchemes.add(cp.system);
-                if (cp.defaultKid) {
-                    kids.add(cp.defaultKid);
+                if (cp.pssh) {
+                    for (const pssh of cp.pssh) {
+                        if (!allPssh.has(pssh.systemId)) {
+                            allPssh.set(pssh.systemId, pssh);
+                        }
+                    }
                 }
             }
 
@@ -163,6 +166,12 @@ export function generateDashSummary(manifestIR, serializedManifest) {
             roles: as.roles.map((r) => r.value).filter(Boolean),
         }));
 
+    /** @type {SecuritySummary} */
+    const security = {
+        isEncrypted: allPssh.size > 0,
+        systems: Array.from(allPssh.values()),
+    };
+
     /** @type {import('@/types.ts').ManifestSummary} */
     const summary = {
         general: {
@@ -212,11 +221,7 @@ export function generateDashSummary(manifestIR, serializedManifest) {
         videoTracks: allVideoTracks,
         audioTracks: allAudioTracks,
         textTracks: allTextTracks,
-        security: {
-            isEncrypted: protectionSchemes.size > 0,
-            systems: Array.from(protectionSchemes),
-            kids: Array.from(kids),
-        },
+        security: security,
     };
 
     return summary;

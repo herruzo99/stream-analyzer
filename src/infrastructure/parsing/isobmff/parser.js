@@ -13,6 +13,9 @@ import { boxParsers } from './index.js';
  * @property {{type: 'error' | 'warn', message: string}[]=} issues
  * @property {boolean=} isChunk - Dynamically added property for view model
  * @property {object=} color - Dynamically added property for view model
+ * @property {string=} systemId - For 'pssh' boxes
+ * @property {string[]=} kids - For 'pssh' boxes (version > 0)
+ * @property {string=} data - For 'pssh' boxes (base64 encoded)
  */
 
 const knownContainerBoxes = new Set([

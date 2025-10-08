@@ -106,7 +106,7 @@ export async function parseManifest(manifestString, baseUrl, parentVariables) {
         applyVariableSubstitution(linesForParsing, baseUrl, parentVariables);
 
     const isMaster = lines.some((line) => line.startsWith('#EXT-X-STREAM-INF'));
-    const isLive = !lines.some((line) => line.startsWith('#EXT-X-ENDLIST'));
+    let isLive = !lines.some((line) => line.startsWith('#EXT-X-ENDLIST'));
 
     const parsed = {
         isMaster: isMaster,
@@ -126,6 +126,8 @@ export async function parseManifest(manifestString, baseUrl, parentVariables) {
     let currentSegment = null;
     let currentKey = null;
     let currentBitrate = null;
+    let discontinuity = false;
+    let isGap = false;
 
     for (let i = 1; i < lines.length; i++) {
         const line = lines[i].trim();
@@ -187,17 +189,13 @@ export async function parseManifest(manifestString, baseUrl, parentVariables) {
                         gap: false,
                         type: 'Media',
                         extinfLineNumber: i,
+                        discontinuity,
                     };
+                    discontinuity = false; // Consume the flag
                     break;
                 }
                 case 'EXT-X-GAP':
-                    if (currentSegment) {
-                        currentSegment.gap = true;
-                        currentSegment.uri = null;
-                        currentSegment.resolvedUrl = null;
-                        parsed.segments.push(currentSegment);
-                        currentSegment = null;
-                    }
+                    isGap = true;
                     break;
                 case 'EXT-X-BITRATE':
                     currentBitrate = parseInt(tagValue, 10);
@@ -211,7 +209,7 @@ export async function parseManifest(manifestString, baseUrl, parentVariables) {
                         });
                     break;
                 case 'EXT-X-DISCONTINUITY':
-                    if (currentSegment) currentSegment.discontinuity = true;
+                    discontinuity = true;
                     break;
                 case 'EXT-X-KEY': {
                     const keyAttributes = parseAttributeList(tagValue);
@@ -346,6 +344,10 @@ export async function parseManifest(manifestString, baseUrl, parentVariables) {
                 currentSegment.uri = line;
                 currentSegment.resolvedUrl = new URL(line, baseUrl).href;
                 currentSegment.uriLineNumber = i;
+                if (isGap) {
+                    currentSegment.gap = true;
+                    isGap = false; // consume it
+                }
                 parsed.segments.push(currentSegment);
                 currentSegment = null;
             }

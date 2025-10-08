@@ -30,6 +30,20 @@ export function parseTsSegment(buffer) {
     };
     const dataView = new DataView(buffer);
 
+    // --- Sanity Check for Encrypted Content ---
+    if (
+        buffer.byteLength >= TS_PACKET_SIZE &&
+        dataView.getUint8(0) !== SYNC_BYTE &&
+        (buffer.byteLength < TS_PACKET_SIZE * 2 ||
+            dataView.getUint8(TS_PACKET_SIZE) !== SYNC_BYTE)
+    ) {
+        summary.errors.push(
+            'Segment appears to be encrypted (no TS sync bytes found).'
+        );
+        return { format: 'ts', data: { summary, packets } };
+    }
+    // --- End Sanity Check ---
+
     for (
         let offset = 0;
         offset + TS_PACKET_SIZE <= buffer.byteLength;
@@ -116,6 +130,12 @@ export function parseTsSegment(buffer) {
         let payloadStart = 4;
         if (header.adaptation_field_control.value & 2) {
             const afLength = dataView.getUint8(offset + payloadStart);
+            if (offset + payloadStart + afLength + 1 > buffer.byteLength) {
+                summary.errors.push(
+                    `Invalid AF length at offset ${offset}. Skipping packet.`
+                );
+                continue;
+            }
             const afView = new DataView(
                 buffer,
                 offset + payloadStart,
