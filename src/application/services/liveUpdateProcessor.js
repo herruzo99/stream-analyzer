@@ -106,7 +106,7 @@ function processLiveUpdate(updateData) {
         streamId,
         newManifestString,
         newManifestObject,
-        oldManifestString,
+        oldRawManifest,
         complianceResults,
         serializedManifest,
     } = updateData;
@@ -117,12 +117,17 @@ function processLiveUpdate(updateData) {
     if (!stream || stream.protocol === 'unknown') return;
 
     // --- Create a new manifestUpdates array ---
-    let formattedOld = oldManifestString;
+    let formattedOld = oldRawManifest;
     let formattedNew = newManifestString;
 
     if (stream.protocol === 'dash') {
-        formattedOld = xmlFormatter(oldManifestString, { indentation: '  ' });
-        formattedNew = xmlFormatter(newManifestString, { indentation: '  ' });
+        // Defensively handle cases where manifests might be missing.
+        formattedOld = xmlFormatter(oldRawManifest || '', {
+            indentation: '  ',
+        });
+        formattedNew = xmlFormatter(newManifestString || '', {
+            indentation: '  ',
+        });
     }
 
     const diffHtml = diffManifest(formattedOld, formattedNew, stream.protocol);

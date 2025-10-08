@@ -1,4 +1,4 @@
-import { useSegmentCacheStore } from '@/state/analysisStore.js';
+import { useSegmentCacheStore } from '@/state/segmentCacheStore.js';
 import { parseAllSegmentUrls } from '@/infrastructure/parsing/dash/segment-parser.js';
 
 /**

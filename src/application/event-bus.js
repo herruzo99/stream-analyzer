@@ -2,7 +2,7 @@
  * A simple publish-subscribe event bus.
  * Enables decoupled communication between different parts of the application.
  */
-class EventBus {
+export class EventBus {
     constructor() {
         this.listeners = {};
     }

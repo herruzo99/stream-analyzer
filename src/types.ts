@@ -137,6 +137,8 @@ export interface AdaptationSet {
     group: number | null;
     bitstreamSwitching: boolean | null;
     segmentAlignment: boolean;
+    width: number | null;
+    height: number | null;
     maxWidth: number | null;
     maxHeight: number | null;
     maxFrameRate: string | null;

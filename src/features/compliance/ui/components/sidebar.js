@@ -1,49 +1,10 @@
 import { html } from 'lit-html';
+import { useUiStore } from '@/state/uiStore.js';
+import { eventBus } from '@/application/event-bus.js';
 
-export function handleCommentHover(e) {
-    const card = /** @type {HTMLElement} */ (e.currentTarget);
-    const locationId = card.dataset.locationId;
-    const manifestView = document.querySelector('.compliance-manifest-view');
-    if (!manifestView) return;
-
-    manifestView
-        .querySelectorAll('.compliance-highlight')
-        .forEach((el) =>
-            el.classList.remove(
-                'bg-purple-500/30',
-                'outline',
-                'outline-1',
-                'outline-purple-400',
-                '-outline-offset-1'
-            )
-        );
-    const target = document.getElementById(locationId);
-    if (target && manifestView.contains(target)) {
-        target.classList.add(
-            'bg-purple-500/30',
-            'outline',
-            'outline-1',
-            'outline-purple-400',
-            '-outline-offset-1'
-        );
-    }
-}
-
-export function handleCommentLeave() {
-    const manifestView = document.querySelector('.compliance-manifest-view');
-    if (!manifestView) return;
-    manifestView
-        .querySelectorAll('.compliance-highlight')
-        .forEach((el) =>
-            el.classList.remove(
-                'bg-purple-500/30',
-                'outline',
-                'outline-1',
-                'outline-purple-400',
-                '-outline-offset-1'
-            )
-        );
-}
+// The logic for highlighting is now moved to the main renderer/controller
+// which can subscribe to the uiStore and apply classes more efficiently.
+// This component now only dispatches events.
 
 export function handleCommentClick(e) {
     const card = /** @type {HTMLElement} */ (e.currentTarget);
@@ -55,6 +16,8 @@ export function handleCommentClick(e) {
 }
 
 const commentCard = (result) => {
+    const { highlightedCompliancePathId } = useUiStore.getState();
+
     const statusClasses = {
         fail: 'border-red-500',
         warn: 'border-yellow-500',
@@ -66,14 +29,23 @@ const commentCard = (result) => {
         ? `loc-path-${result.location.path.replace(/[[].]/g, '-')}`
         : `loc-line-${result.location.startLine}`;
 
+    const isHighlighted = highlightedCompliancePathId === locationId;
+    const highlightClass = isHighlighted ? 'bg-purple-500/30' : '';
+
     return html`
         <div
             class="compliance-comment-card bg-gray-800 p-3 rounded-lg border-l-4 ${statusClasses[
                 result.status
-            ]} status-${result.status} cursor-pointer hover:bg-gray-700/50"
+            ]} ${highlightClass} status-${
+                result.status
+            } cursor-pointer hover:bg-gray-700/50"
             data-location-id="${locationId}"
-            @mouseover=${handleCommentHover}
-            @mouseleave=${handleCommentLeave}
+            @mouseover=${() =>
+                eventBus.dispatch('ui:compliance:path-hovered', {
+                    pathId: locationId,
+                })}
+            @mouseleave=${() =>
+                eventBus.dispatch('ui:compliance:path-unhovered')}
             @click=${handleCommentClick}
         >
             <p class="font-semibold text-sm text-gray-200">
@@ -117,14 +89,12 @@ export const sidebarTemplate = (
             filter
                 ? 'bg-blue-600 text-white font-semibold'
                 : 'bg-gray-700 text-gray-300'}"
-            data-filter="${filter}"
             @click=${() => onFilterClick(filter)}
         >
             ${label} (${count})
         </button>`;
 
     return html`
-        <!-- FIX: Filter bar is now a non-growing element -->
         <div
             class="compliance-filter-bar flex-shrink-0 flex flex-wrap justify-center sm:justify-start items-center gap-2 mb-4 p-2 bg-gray-900/50 rounded-md sticky top-0 z-20 border-b border-gray-700"
         >
@@ -132,7 +102,6 @@ export const sidebarTemplate = (
             ${filterButton('fail', 'Errors', counts.fail)}
             ${filterButton('warn', 'Warnings', counts.warn)}
         </div>
-        <!-- FIX: This list container now grows to fill space and scrolls independently -->
         <div class="space-y-2 flex-grow min-h-0 overflow-y-auto">
             ${filteredResults.map(commentCard)}
         </div>

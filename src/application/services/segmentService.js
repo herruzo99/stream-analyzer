@@ -1,40 +1,11 @@
-import { useSegmentCacheStore } from '@/state/analysisStore.js';
+import { useSegmentCacheStore } from '@/state/segmentCacheStore.js';
 import { eventBus } from '@/application/event-bus.js';
+import { workerService } from '@/infrastructure/worker/workerService.js';
 
-const parsingWorker = new Worker('/dist/worker.js', {
-    type: 'module',
-});
-
-parsingWorker.onmessage = (event) => {
-    const { url, parsedData, error } = event.data;
-    const { get, set } = useSegmentCacheStore.getState();
-
-    const entry = get(url);
-    if (!entry) return;
-
-    const finalEntry = {
-        status: error ? 500 : entry.status,
-        data: entry.data,
-        parsedData: parsedData,
-    };
-
-    set(url, finalEntry);
-    eventBus.dispatch('segment:loaded', { url, entry: finalEntry });
-};
-
-parsingWorker.onerror = (error) => {
-    console.error('An error occurred in the parsing worker:', error);
-};
-
-/**
- * The internal implementation that performs the fetch and dispatches to the worker.
- * @param {string} url The URL of the segment to fetch.
- */
 async function _fetchAndParseSegment(url) {
     const { set } = useSegmentCacheStore.getState();
     try {
-        const pendingEntry = { status: -1, data: null, parsedData: null };
-        set(url, pendingEntry);
+        set(url, { status: -1, data: null, parsedData: null });
         eventBus.dispatch('segment:pending', { url });
 
         const response = await fetch(url, { method: 'GET', cache: 'no-store' });
@@ -48,10 +19,33 @@ async function _fetchAndParseSegment(url) {
         set(url, entryWithData);
 
         if (data) {
-            parsingWorker.postMessage({
-                type: 'parse-segment',
-                payload: { url, data },
-            });
+            workerService
+                .postTask('parse-segment', { url, data })
+                .then((parsedData) => {
+                    const finalEntry = {
+                        status: response.status,
+                        data,
+                        parsedData,
+                    };
+                    set(url, finalEntry);
+                    eventBus.dispatch('segment:loaded', {
+                        url,
+                        entry: finalEntry,
+                    });
+                })
+                .catch((error) => {
+                    console.error('Segment parsing failed in worker:', error);
+                    const errorEntry = {
+                        status: response.status,
+                        data,
+                        parsedData: { error: error.message },
+                    };
+                    set(url, errorEntry);
+                    eventBus.dispatch('segment:loaded', {
+                        url,
+                        entry: errorEntry,
+                    });
+                });
         } else {
             const errorEntry = {
                 status: response.status,
@@ -73,21 +67,14 @@ async function _fetchAndParseSegment(url) {
     }
 }
 
-/**
- * Public API to get a parsed segment. Returns a promise that resolves with the parsed data.
- * Handles caching, fetching, and event orchestration internally.
- * @param {string} url The URL of the segment to retrieve.
- * @returns {Promise<object>} A promise that resolves with the parsed segment data.
- */
 export function getParsedSegment(url) {
     const { get } = useSegmentCacheStore.getState();
     const cachedEntry = get(url);
 
     if (cachedEntry && cachedEntry.status !== -1 && cachedEntry.parsedData) {
-        if (cachedEntry.parsedData.error) {
-            return Promise.reject(new Error(cachedEntry.parsedData.error));
-        }
-        return Promise.resolve(cachedEntry.parsedData);
+        return cachedEntry.parsedData.error
+            ? Promise.reject(new Error(cachedEntry.parsedData.error))
+            : Promise.resolve(cachedEntry.parsedData);
     }
 
     return new Promise((resolve, reject) => {
@@ -116,7 +103,6 @@ export function getParsedSegment(url) {
 }
 
 export function initializeSegmentService() {
-    // Service setup: listen for legacy requests to fetch segments.
     eventBus.subscribe('segment:fetch', ({ url }) =>
         _fetchAndParseSegment(url)
     );
