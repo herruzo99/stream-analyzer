@@ -1,6 +1,6 @@
 import { html } from 'lit-html';
-import { useUiStore } from '@/state/uiStore.js';
-import { eventBus } from '@/application/event-bus.js';
+import { useUiStore } from '@/state/uiStore';
+import { eventBus } from '@/application/event-bus';
 
 // The logic for highlighting is now moved to the main renderer/controller
 // which can subscribe to the uiStore and apply classes more efficiently.

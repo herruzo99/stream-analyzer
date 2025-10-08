@@ -1,5 +1,5 @@
-import { showToast } from '@/ui/components/toast.js';
-import { workerService } from '@/infrastructure/worker/workerService.js';
+import { showToast } from '@/ui/components/toast';
+import { workerService } from '@/infrastructure/worker/workerService';
 
 const HISTORY_KEY = 'stream-analyzer_history';
 const PRESETS_KEY = 'stream-analyzer_presets';

@@ -1,13 +1,15 @@
-import { parseManifest as parseDashManifest } from '@/infrastructure/parsing/dash/parser.js';
-import { parseManifest as parseHlsManifest } from '@/infrastructure/parsing/hls/index.js';
-import { runChecks } from '@/features/compliance/domain/engine.js';
-import { validateSteeringManifest } from '@/domain/hls/steering-validator.js';
+import { parseManifest as parseDashManifest } from '@/infrastructure/parsing/dash/parser';
+import { parseManifest as parseHlsManifest } from '@/infrastructure/parsing/hls/index';
+import { runChecks } from '@/features/compliance/domain/engine';
+import { validateSteeringManifest } from '@/domain/hls/steering-validator';
 import {
     analyzeDashCoverage,
     analyzeParserDrift,
-} from '@/features/parserCoverage/domain/coverage-analyzer.js';
-import { generateFeatureAnalysis } from '@/features/featureAnalysis/domain/analyzer.js';
-import { parseAllSegmentUrls as parseDashSegments } from '@/infrastructure/parsing/dash/segment-parser.js';
+} from '@/features/parserCoverage/domain/coverage-analyzer';
+import { generateFeatureAnalysis } from '@/features/featureAnalysis/domain/analyzer';
+import { parseAllSegmentUrls as parseDashSegments } from '@/infrastructure/parsing/dash/segment-parser';
+import { diffManifest } from '@/ui/shared/diff';
+import xmlFormatter from 'xml-formatter';
 
 async function preProcessInput(input) {
     const trimmedManifest = input.manifestString.trim();
@@ -196,9 +198,19 @@ async function buildStreamObject(
         });
     }
 
+    // --- Generate initial diff here in the worker ---
+    let formattedInitial = streamObject.rawManifest;
+    if (streamObject.protocol === 'dash') {
+        formattedInitial = xmlFormatter(formattedInitial, {
+            indentation: '  ',
+            lineSeparator: '\n',
+        });
+    }
+    const diffHtml = diffManifest('', formattedInitial, streamObject.protocol);
+
     streamObject.manifestUpdates.push({
         timestamp: new Date().toLocaleTimeString(),
-        diffHtml: '',
+        diffHtml, // Add the generated diff
         rawManifest: streamObject.rawManifest,
         complianceResults,
         hasNewIssues: false,

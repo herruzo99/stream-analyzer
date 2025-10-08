@@ -8,8 +8,7 @@
         "types": ["node"],
         "baseUrl": ".",
         "paths": {
-            "@/*": ["src/*"],
-            "@types/*": ["types/*"]
+            "@/*": ["src/*"]
         },
         "skipLibCheck": true,
         "allowJs": true,

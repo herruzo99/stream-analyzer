@@ -1,11 +1,30 @@
 <!doctype html>
 <html lang="en">
     <head>
+        <meta
+            http-equiv="Content-Security-Policy"
+            content="
+                default-src 'self';
+                script-src 'self' 'nonce-__CSP_NONCE__' http://localhost:8000 https://www.googletagmanager.com https://js-de.sentry-cdn.com https://www.clarity.ms https://cdn.jsdelivr.net;
+                style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com;
+                font-src 'self' https://fonts.gstatic.com;
+                connect-src *;
+                img-src 'self' data: https://via.placeholder.com;
+                object-src 'none';
+                base-uri 'self';
+                form-action 'self';
+            "
+        />
+        <link rel="icon" href="/favicon.ico" type="image/x-icon" />
         <link
             rel="stylesheet"
             href="https://cdn.jsdelivr.net/gh/orestbida/cookieconsent@v3.0.0/dist/cookieconsent.css"
         />
-        <script>
+        <script nonce="__CSP_NONCE__">
+            // This global config will be populated by the build script
+            window.ASSET_PATHS = { worker: '__WORKER_PATH__' };
+            window.PROD_HOSTNAME = '__PROD_HOSTNAME__';
+
             // Define functions to load your trackers. These will be called by the consent manager.
             // They are attached to the window object to make them globally accessible.
             window.loadGoogleAnalytics = function () {
@@ -13,7 +32,7 @@
                 const gtagScript = document.createElement('script');
                 gtagScript.async = true;
                 gtagScript.src =
-                    'https://www.googletagmanager.com/gtag/js?id=G-MEXDCSX5HT';
+                    'https://www.googletagmanager.com/gtag/js?id=__GA_ID__';
                 document.head.appendChild(gtagScript);
 
                 window.dataLayer = window.dataLayer || [];
@@ -21,7 +40,7 @@
                     dataLayer.push(arguments);
                 }
                 gtag('js', new Date());
-                gtag('config', 'G-MEXDCSX5HT');
+                gtag('config', '__GA_ID__');
                 console.log('Consent given: Loading Google Analytics.');
                 window.gaLoaded = true;
             };
@@ -30,7 +49,7 @@
                 if (window.sentryLoaded) return;
                 const sentryScript = document.createElement('script');
                 sentryScript.src =
-                    'https://js-de.sentry-cdn.com/04b8c5065c12bbd50437ea0ebd2f1967.min.js';
+                    'https://js-de.sentry-cdn.com/__SENTRY_DSN__.min.js';
                 sentryScript.crossOrigin = 'anonymous';
                 document.head.appendChild(sentryScript);
                 console.log('Consent given: Loading Sentry.');
@@ -50,38 +69,16 @@
                     t.src = 'https://www.clarity.ms/tag/' + i;
                     y = l.getElementsByTagName(r)[0];
                     y.parentNode.insertBefore(t, y);
-                })(window, document, 'clarity', 'script', 'tl14wx36g1');
+                })(window, document, 'clarity', 'script', '__CLARITY_ID__');
                 console.log('Consent given: Loading Clarity.');
                 window.clarityLoaded = true;
             };
         </script>
 
-        <style>
-            .is-highlighted {
-                /* Blue overlay for selection, preserves underlying field colors */
-                box-shadow: inset 0 0 0 1000px rgba(59, 130, 246, 0.3);
-            }
-
-            .is-box-hover-highlighted {
-                /* Lighter blue overlay for the parent box on hover */
-                box-shadow: inset 0 0 0 1000px rgba(59, 131, 246, 0.319);
-            }
-
-            .is-field-hover-highlighted {
-                /* Opaque purple for the specific field on hover (sits on top) */
-                background-color: rgba(168, 85, 247, 0.8) !important;
-                z-index: 15 !important;
-            }
-
-            .missing-tooltip-trigger {
-                border-bottom: 1px dotted rgba(248, 113, 113, 0.7) !important;
-                cursor: help;
-            }
-        </style>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Stream Analyzer</title>
-        <link rel="stylesheet" href="dist/main.css" />
+        <link rel="stylesheet" href="/assets/main.css" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
         <link
@@ -185,10 +182,18 @@
 
             <div id="results" class="hidden flex flex-col flex-grow min-h-0">
                 <div class="mb-4 border-b border-gray-700 flex-shrink-0">
-                    <nav class="flex flex-wrap items-center" id="tabs">
+                    <nav
+                        class="flex flex-wrap items-center"
+                        id="tabs"
+                        role="tablist"
+                        aria-label="Analysis Sections"
+                    >
                         <div class="flex -mb-px flex-wrap flex-grow">
                             <button
                                 id="tab-btn-comparison"
+                                role="tab"
+                                aria-selected="false"
+                                aria-controls="tab-comparison"
                                 class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
                                 data-tab="comparison"
                             >
@@ -196,6 +201,9 @@
                             </button>
                             <button
                                 id="tab-btn-summary"
+                                role="tab"
+                                aria-selected="false"
+                                aria-controls="tab-summary"
                                 class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
                                 data-tab="summary"
                             >
@@ -203,6 +211,9 @@
                             </button>
                             <button
                                 id="tab-btn-integrators-report"
+                                role="tab"
+                                aria-selected="false"
+                                aria-controls="tab-integrators-report"
                                 class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
                                 data-tab="integrators-report"
                             >
@@ -210,6 +221,9 @@
                             </button>
                             <button
                                 id="tab-btn-timeline-visuals"
+                                role="tab"
+                                aria-selected="false"
+                                aria-controls="tab-timeline-visuals"
                                 class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
                                 data-tab="timeline-visuals"
                             >
@@ -217,6 +231,9 @@
                             </button>
                             <button
                                 id="tab-btn-features"
+                                role="tab"
+                                aria-selected="false"
+                                aria-controls="tab-features"
                                 class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
                                 data-tab="features"
                             >
@@ -224,6 +241,9 @@
                             </button>
                             <button
                                 id="tab-btn-compliance"
+                                role="tab"
+                                aria-selected="false"
+                                aria-controls="tab-compliance"
                                 class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
                                 data-tab="compliance"
                             >
@@ -231,6 +251,9 @@
                             </button>
                             <button
                                 id="tab-btn-explorer"
+                                role="tab"
+                                aria-selected="false"
+                                aria-controls="tab-explorer"
                                 class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
                                 data-tab="explorer"
                             >
@@ -238,6 +261,9 @@
                             </button>
                             <button
                                 id="tab-btn-interactive-segment"
+                                role="tab"
+                                aria-selected="false"
+                                aria-controls="tab-interactive-segment"
                                 class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent hidden"
                                 data-tab="interactive-segment"
                             >
@@ -245,6 +271,9 @@
                             </button>
                             <button
                                 id="tab-btn-interactive-manifest"
+                                role="tab"
+                                aria-selected="false"
+                                aria-controls="tab-interactive-manifest"
                                 class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
                                 data-tab="interactive-manifest"
                             >
@@ -252,6 +281,9 @@
                             </button>
                             <button
                                 id="tab-btn-updates"
+                                role="tab"
+                                aria-selected="false"
+                                aria-controls="tab-updates"
                                 class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
                                 data-tab="updates"
                             >
@@ -259,6 +291,9 @@
                             </button>
                             <button
                                 id="tab-btn-parser-coverage"
+                                role="tab"
+                                aria-selected="false"
+                                aria-controls="tab-parser-coverage"
                                 class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent hidden"
                                 data-tab="parser-coverage"
                             >
@@ -288,28 +323,74 @@
                 >
                     <div
                         id="tab-comparison"
+                        role="tabpanel"
+                        aria-labelledby="tab-btn-comparison"
                         data-testid="tab-comparison"
                         class="hidden"
                     ></div>
                     <div
                         id="tab-summary"
+                        role="tabpanel"
+                        aria-labelledby="tab-btn-summary"
                         data-testid="tab-summary"
                         class="hidden"
                     ></div>
-                    <div id="tab-integrators-report" class="hidden"></div>
-                    <div id="tab-timeline-visuals" class="hidden"></div>
-                    <div id="tab-features" class="hidden"></div>
-                    <div id="tab-compliance" class="hidden h-full"></div>
-                    <div id="tab-explorer" class="hidden"></div>
                     <div
-                        id="tab-interactive-segment"
+                        id="tab-integrators-report"
+                        role="tabpanel"
+                        aria-labelledby="tab-btn-integrators-report"
+                        class="hidden"
+                    ></div>
+                    <div
+                        id="tab-timeline-visuals"
+                        role="tabpanel"
+                        aria-labelledby="tab-btn-timeline-visuals"
+                        class="hidden"
+                    ></div>
+                    <div
+                        id="tab-features"
+                        role="tabpanel"
+                        aria-labelledby="tab-btn-features"
+                        class="hidden"
+                    ></div>
+                    <div
+                        id="tab-compliance"
+                        role="tabpanel"
+                        aria-labelledby="tab-btn-compliance"
                         class="hidden h-full"
                     ></div>
-                    <div id="tab-interactive-manifest" class="hidden"></div>
-                    <div id="tab-updates" class="hidden">
+                    <div
+                        id="tab-explorer"
+                        role="tabpanel"
+                        aria-labelledby="tab-btn-explorer"
+                        class="hidden"
+                    ></div>
+                    <div
+                        id="tab-interactive-segment"
+                        role="tabpanel"
+                        aria-labelledby="tab-btn-interactive-segment"
+                        class="hidden h-full"
+                    ></div>
+                    <div
+                        id="tab-interactive-manifest"
+                        role="tabpanel"
+                        aria-labelledby="tab-btn-interactive-manifest"
+                        class="hidden"
+                    ></div>
+                    <div
+                        id="tab-updates"
+                        role="tabpanel"
+                        aria-labelledby="tab-btn-updates"
+                        class="hidden"
+                    >
                         <div id="mpd-updates-content"></div>
                     </div>
-                    <div id="tab-parser-coverage" class="hidden h-full"></div>
+                    <div
+                        id="tab-parser-coverage"
+                        role="tabpanel"
+                        aria-labelledby="tab-btn-parser-coverage"
+                        class="hidden h-full"
+                    ></div>
                 </div>
             </div>
         </div>
@@ -370,7 +451,14 @@
             <p id="loader-message" class="text-lg text-gray-300"></p>
         </div>
 
-        <script src="https://cdn.jsdelivr.net/gh/orestbida/cookieconsent@v3.0.0/dist/cookieconsent.umd.js"></script>
-        <script type="module" src="dist/main.js"></script>
+        <script
+            nonce="__CSP_NONCE__"
+            src="https://cdn.jsdelivr.net/gh/orestbida/cookieconsent@v3.0.0/dist/cookieconsent.umd.js"
+        ></script>
+        <script
+            nonce="__CSP_NONCE__"
+            type="module"
+            src="__APP_SCRIPT_PATH__"
+        ></script>
     </body>
 </html>

@@ -1,6 +1,6 @@
 import { html } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
-import { tooltipTriggerClasses } from '@/ui/shared/constants.js';
+import { tooltipTriggerClasses } from '@/ui/shared/constants';
 
 /**
  * Renders a single row in the comparison view.

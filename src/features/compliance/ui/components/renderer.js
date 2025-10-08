@@ -3,7 +3,7 @@ import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import {
     highlightDash,
     highlightHls,
-} from '@/ui/shared/syntax-highlighter.js';
+} from '@/ui/shared/syntax-highlighter';
 
 const highlightColors = {
     fail: 'bg-red-900/60',

@@ -1,5 +1,5 @@
 import { createStore } from 'zustand/vanilla';
-import { LRUCache } from '@/application/lru-cache.js';
+import { LRUCache } from '@/application/lru-cache';
 
 const SEGMENT_CACHE_SIZE = 200;
 

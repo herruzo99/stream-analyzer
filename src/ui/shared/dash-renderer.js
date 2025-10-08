@@ -1,7 +1,7 @@
 import { html } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
-import { dashTooltipData } from '@/features/interactiveManifest/ui/components/dash/tooltip-data.js';
-import { tooltipTriggerClasses } from '@/ui/shared/constants.js';
+import { dashTooltipData } from '@/features/interactiveManifest/ui/components/dash/tooltip-data';
+import { tooltipTriggerClasses } from '@/ui/shared/constants';
 
 const highlightColors = {
     fail: 'bg-red-900/60',

@@ -1,6 +1,6 @@
-import { useAnalysisStore } from '@/state/analysisStore.js';
-import { useUiStore } from '@/state/uiStore.js';
-import { showToast } from '@/ui/components/toast.js';
+import { useAnalysisStore } from '@/state/analysisStore';
+import { useUiStore } from '@/state/uiStore';
+import { showToast } from '@/ui/components/toast';
 
 /**
  * Serializes the application state for debugging, handling complex types.

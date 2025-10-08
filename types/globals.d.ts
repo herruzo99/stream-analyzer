@@ -16,6 +16,20 @@ interface Window {
     // The CookieConsent library object
     CookieConsent: any;
 
+    // The Sentry SDK object
+    Sentry?: {
+        captureException: (
+            error: any,
+            context?: { extra: Record<string, any> }
+        ) => void;
+    };
+
     // Google Analytics dataLayer
     dataLayer: any[];
+
+    // Injected by post-build script
+    ASSET_PATHS: {
+        worker: string;
+    };
+    PROD_HOSTNAME: string;
 }

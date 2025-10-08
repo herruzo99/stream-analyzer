@@ -1,4 +1,4 @@
-import { parseDuration } from '@/utils/time.js';
+import { parseDuration } from '@/utils/time';
 import {
     getAttr,
     findChild,

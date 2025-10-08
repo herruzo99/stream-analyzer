@@ -1,5 +1,5 @@
 import { html } from 'lit-html';
-import { segmentRowTemplate } from '@/ui/components/segment-row.js';
+import { segmentRowTemplate } from '@/ui/components/segment-row';
 
 const dashSegmentTableTemplate = (
     stream,

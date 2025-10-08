@@ -1,4 +1,4 @@
-import { showToast } from '@/ui/components/toast.js';
+import { showToast } from '@/ui/components/toast';
 
 /**
  * Copies a given text string to the clipboard and shows a toast notification.

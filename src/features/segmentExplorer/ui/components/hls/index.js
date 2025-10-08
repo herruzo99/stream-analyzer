@@ -1,6 +1,6 @@
 import { html } from 'lit-html';
-import { segmentRowTemplate } from '@/ui/components/segment-row.js';
-import { eventBus } from '@/application/event-bus.js';
+import { segmentRowTemplate } from '@/ui/components/segment-row';
+import { eventBus } from '@/application/event-bus';
 
 let liveSegmentHighlighterInterval = null;
 

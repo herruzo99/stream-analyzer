@@ -1,5 +1,5 @@
-import { eventBus } from '@/application/event-bus.js';
-import { uiActions } from '@/state/uiStore.js';
+import { eventBus } from '@/application/event-bus';
+import { uiActions } from '@/state/uiStore';
 
 export function initializeViewManager() {
     // This event should only indicate that the process has begun, typically

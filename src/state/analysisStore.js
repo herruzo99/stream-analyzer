@@ -1,9 +1,10 @@
 import { createStore } from 'zustand/vanilla';
-import { eventBus } from '@/application/event-bus.js';
+import { eventBus } from '@/application/event-bus';
 import { uiActions } from './uiStore.js';
 // --- Type Definitions ---
 /** @typedef {import('@/types.ts').Stream} Stream */
 /** @typedef {import('@/types.ts').DecodedSample} DecodedSample */
+/** @typedef {{id: number, url: string, name: string, file: File | null}} StreamInput */
 
 /**
  * @typedef {object} AnalysisState
@@ -11,7 +12,7 @@ import { uiActions } from './uiStore.js';
  * @property {number | null} activeStreamId
  * @property {string | null} activeSegmentUrl
  * @property {number} streamIdCounter
- * @property {number[]} streamInputIds
+ * @property {StreamInput[]} streamInputs
  * @property {string[]} segmentsForCompare
  * @property {Map<string, DecodedSample>} decodedSamples
  */
@@ -22,10 +23,11 @@ import { uiActions } from './uiStore.js';
  * @property {(streams: Stream[]) => void} completeAnalysis
  * @property {(streamId: number) => void} setActiveStreamId
  * @property {(url: string) => void} setActiveSegmentUrl
- * @property {() => void} addStreamInputId
- * @property {(id: number) => void} removeStreamInputId
- * @property {() => void} resetStreamInputIds
- * @property {(data: object[]) => void} setStreamInputsFromData
+ * @property {() => void} addStreamInput
+ * @property {(id: number) => void} removeStreamInput
+ * @property {() => void} clearAllStreamInputs
+ * @property {(data: object[]) => void} setStreamInputs
+ * @property {(id: number, field: keyof StreamInput, value: string | File | null) => void} updateStreamInput
  * @property {(url: string) => void} addSegmentToCompare
  * @property {(url: string) => void} removeSegmentFromCompare
  * @property {() => void} clearSegmentsToCompare
@@ -45,7 +47,7 @@ const createInitialAnalysisState = () => ({
     activeStreamId: null,
     activeSegmentUrl: null,
     streamIdCounter: 1,
-    streamInputIds: [0],
+    streamInputs: [{ id: 0, url: '', name: '', file: null }],
     segmentsForCompare: [],
     decodedSamples: new Map(),
 });
@@ -63,8 +65,6 @@ export const useAnalysisStore = createStore((set, get) => ({
     },
 
     startAnalysis: () => {
-        // This is now the single point of entry for a full reset.
-        // It's the responsibility of the caller to clear other stores (like segment cache).
         get()._reset();
         uiActions.reset();
     },
@@ -74,40 +74,62 @@ export const useAnalysisStore = createStore((set, get) => ({
             streams: streams,
             activeStreamId: streams[0]?.id ?? null,
         });
-        // Dispatch event for UI store to react to
         eventBus.dispatch('state:analysis-complete', { streams });
     },
 
     setActiveStreamId: (streamId) => set({ activeStreamId: streamId }),
     setActiveSegmentUrl: (url) => {
         set({ activeSegmentUrl: url });
-        // Also reset the segment page in the UI store
         uiActions.setInteractiveSegmentPage(1);
     },
 
-    addStreamInputId: () => {
+    addStreamInput: () => {
         set((state) => ({
-            streamInputIds: [...state.streamInputIds, state.streamIdCounter],
+            streamInputs: [
+                ...state.streamInputs,
+                {
+                    id: state.streamIdCounter,
+                    url: '',
+                    name: '',
+                    file: null,
+                },
+            ],
             streamIdCounter: state.streamIdCounter + 1,
         }));
     },
 
-    removeStreamInputId: (id) => {
+    removeStreamInput: (id) => {
         set((state) => ({
-            streamInputIds: state.streamInputIds.filter((i) => i !== id),
+            streamInputs: state.streamInputs.filter((i) => i.id !== id),
         }));
     },
 
-    resetStreamInputIds: () => {
-        get().startAnalysis();
+    clearAllStreamInputs: () => {
+        set({
+            streamInputs: [{ id: 0, url: '', name: '', file: null }],
+            streamIdCounter: 1,
+        });
     },
 
-    setStreamInputsFromData: (data) => {
-        const newIds = Array.from({ length: data.length }, (_, i) => i);
+    setStreamInputs: (inputs) => {
+        const newInputs = inputs.map((input, index) => ({
+            id: index,
+            url: input.url || '',
+            name: input.name || '',
+            file: null, // Files cannot be persisted or set from URLs
+        }));
         set({
-            streamInputIds: newIds,
-            streamIdCounter: data.length,
+            streamInputs: newInputs,
+            streamIdCounter: newInputs.length,
         });
+    },
+
+    updateStreamInput: (id, field, value) => {
+        set((state) => ({
+            streamInputs: state.streamInputs.map((input) =>
+                input.id === id ? { ...input, [field]: value } : input
+            ),
+        }));
     },
 
     addSegmentToCompare: (url) => {
@@ -154,7 +176,6 @@ export const useAnalysisStore = createStore((set, get) => ({
                 s.manifest?.type === 'dynamic' ? { ...s, isPolling } : s
             ),
         }));
-        // Notify the monitor service to react to the global state change immediately.
         eventBus.dispatch('state:stream-updated');
     },
 
@@ -203,13 +224,15 @@ export const analysisActions = {
         useAnalysisStore.getState().setActiveStreamId(id),
     setActiveSegmentUrl: (url) =>
         useAnalysisStore.getState().setActiveSegmentUrl(url),
-    addStreamInputId: () => useAnalysisStore.getState().addStreamInputId(),
-    removeStreamInputId: (id) =>
-        useAnalysisStore.getState().removeStreamInputId(id),
-    resetStreamInputIds: () =>
-        useAnalysisStore.getState().resetStreamInputIds(),
-    setStreamInputsFromData: (data) =>
-        useAnalysisStore.getState().setStreamInputsFromData(data),
+    addStreamInput: () => useAnalysisStore.getState().addStreamInput(),
+    removeStreamInput: (id) =>
+        useAnalysisStore.getState().removeStreamInput(id),
+    clearAllStreamInputs: () =>
+        useAnalysisStore.getState().clearAllStreamInputs(),
+    setStreamInputs: (data) =>
+        useAnalysisStore.getState().setStreamInputs(data),
+    updateStreamInput: (id, field, value) =>
+        useAnalysisStore.getState().updateStreamInput(id, field, value),
     addSegmentToCompare: (url) =>
         useAnalysisStore.getState().addSegmentToCompare(url),
     removeSegmentFromCompare: (url) =>

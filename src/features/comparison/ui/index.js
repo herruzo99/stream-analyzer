@@ -1,6 +1,6 @@
 import { html } from 'lit-html';
-import { createComparisonViewModel } from '@/features/comparison/ui/view-model.js';
-import { comparisonRowTemplate } from '@/features/comparison/ui/row.js';
+import { createComparisonViewModel } from '@/features/comparison/ui/view-model';
+import { comparisonRowTemplate } from '@/features/comparison/ui/row';
 
 const sectionTemplate = (title, points, streams) => html`
     <h3 class="text-xl font-bold mt-6 mb-2">${title}</h3>

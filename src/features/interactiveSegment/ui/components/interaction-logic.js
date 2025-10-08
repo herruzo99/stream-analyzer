@@ -1,7 +1,14 @@
-import { renderApp } from '@/ui/shell/mainRenderer.js';
+import { render } from 'lit-html';
+import { inspectorPanelTemplate as isobmffInspector } from './isobmff/index.js';
+import { inspectorPanelTemplate as tsInspector } from './ts/index.js';
+import { html } from 'lit-html';
 
 let keydownListener = null;
 let containerListeners = new Map();
+let currentlyHighlightedElements = [];
+let inspectorContainer = null;
+let currentFormat = null;
+let rootParsedData = null;
 
 // --- LOCAL MODULE STATE for the inspector panel ---
 let selectedItem = null;
@@ -10,12 +17,94 @@ let highlightedField = null;
 
 export function getInspectorState() {
     return {
-        // Return the selected item for stable display, but fall back to hovered item if nothing is selected
         itemForDisplay: selectedItem || highlightedItem,
         fieldForDisplay: highlightedField,
     };
 }
 // --------------------------------------------------
+
+function clearHighlights() {
+    currentlyHighlightedElements.forEach((el) => {
+        el.classList.remove(
+            'is-box-hover-highlighted',
+            'is-field-hover-highlighted'
+        );
+    });
+    currentlyHighlightedElements = [];
+}
+
+function applyHighlights(item, fieldName) {
+    if (!item) return;
+    const container = document.getElementById('tab-interactive-segment');
+    if (!container) return;
+
+    // Highlight structure tree node
+    const structureNode = container.querySelector(
+        `[data-box-offset="${item.offset}"], [data-packet-offset="${item.offset}"], [data-group-start-offset="${item.offset}"]`
+    );
+    if (structureNode) {
+        structureNode.classList.add('is-box-hover-highlighted');
+        currentlyHighlightedElements.push(structureNode);
+    }
+
+    // --- OPTIMIZED HIGHLIGHTING LOGIC ---
+    const boxStart = item.offset;
+    const boxEnd = boxStart + item.size;
+
+    let fieldStart = -1;
+    let fieldEnd = -1;
+
+    if (fieldName && item.details?.[fieldName]) {
+        const fieldMeta = item.details[fieldName];
+        fieldStart = fieldMeta.offset;
+        fieldEnd = fieldStart + Math.ceil(fieldMeta.length);
+    }
+
+    // Perform a single query for all visible byte elements.
+    const visibleByteElements = container.querySelectorAll(
+        '[data-byte-offset]'
+    );
+
+    // Iterate over the small, fixed-size list of visible elements.
+    visibleByteElements.forEach((el) => {
+        const byteOffset = parseInt(
+            (/** @type {HTMLElement} */ (el)).dataset.byteOffset,
+            10
+        );
+
+        // Check if the byte is within the box's range.
+        if (byteOffset >= boxStart && byteOffset < boxEnd) {
+            el.classList.add('is-box-hover-highlighted');
+            currentlyHighlightedElements.push(el);
+
+            // If a specific field is being highlighted, apply the field highlight.
+            if (
+                fieldStart !== -1 &&
+                byteOffset >= fieldStart &&
+                byteOffset < fieldEnd
+            ) {
+                el.classList.add('is-field-hover-highlighted');
+                // The field highlight might not have been added to the list yet if it's the same as the box highlight.
+                if (!currentlyHighlightedElements.includes(el)) {
+                    currentlyHighlightedElements.push(el);
+                }
+            }
+        }
+    });
+}
+
+export function renderInspectorPanel() {
+    if (!inspectorContainer) return;
+    let template;
+    if (currentFormat === 'isobmff') {
+        template = isobmffInspector(rootParsedData);
+    } else if (currentFormat === 'ts') {
+        template = tsInspector();
+    } else {
+        template = html``;
+    }
+    render(template, inspectorContainer);
+}
 
 function cleanupEventListeners(container) {
     if (keydownListener) {
@@ -39,27 +128,35 @@ export function cleanupSegmentViewInteractivity(dom) {
     if (container) {
         cleanupEventListeners(container);
     }
-    // Reset local state when view is cleaned up
     selectedItem = null;
     highlightedItem = null;
     highlightedField = null;
+    inspectorContainer = null;
+    currentFormat = null;
+    rootParsedData = null;
 }
 
 export function initializeSegmentViewInteractivity(
     dom,
     parsedSegmentData,
     byteMap,
-    findDataByOffset
+    findDataByOffset,
+    format
 ) {
     const container = dom.tabContents['interactive-segment'];
     if (!container || !parsedSegmentData) return;
 
     cleanupEventListeners(container);
+    inspectorContainer = container.querySelector('.segment-inspector-panel');
+    currentFormat = format;
+    rootParsedData = parsedSegmentData;
 
     const handleHover = (item, field) => {
         highlightedItem = item;
         highlightedField = field;
-        renderApp();
+        clearHighlights();
+        applyHighlights(item, field);
+        renderInspectorPanel();
     };
 
     const handleSelection = (targetOffset) => {
@@ -68,10 +165,13 @@ export function initializeSegmentViewInteractivity(
         } else {
             selectedItem = findDataByOffset(parsedSegmentData, targetOffset);
         }
-        // Sync highlight with selection
         highlightedItem = selectedItem;
-        highlightedField = null; // Clear field highlight on selection change
-        renderApp();
+        highlightedField = null;
+        clearHighlights();
+        if (selectedItem) {
+            applyHighlights(selectedItem, null);
+        }
+        renderInspectorPanel();
     };
 
     const handleHexHover = (e) => {
@@ -133,11 +233,12 @@ export function initializeSegmentViewInteractivity(
         const relatedTarget = /** @type {Node | null} */ (e.relatedTarget);
         const currentTarget = /** @type {Node} */ (e.currentTarget);
         if (relatedTarget && currentTarget.contains(relatedTarget)) {
-            return; // Don't fire on mouseout to a child element
+            return;
         }
         highlightedItem = null;
         highlightedField = null;
-        renderApp();
+        clearHighlights();
+        renderInspectorPanel();
     };
 
     const handleClick = (e) => {

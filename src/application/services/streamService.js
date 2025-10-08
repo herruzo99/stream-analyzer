@@ -1,6 +1,6 @@
-import { eventBus } from '@/application/event-bus.js';
-import { useAnalysisStore, analysisActions } from '@/state/analysisStore.js';
-import { workerService } from '@/infrastructure/worker/workerService.js';
+import { eventBus } from '@/application/event-bus';
+import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
+import { workerService } from '@/infrastructure/worker/workerService';
 
 async function fetchHlsMediaPlaylist({ streamId, variantUri }) {
     const stream = useAnalysisStore
@@ -9,7 +9,7 @@ async function fetchHlsMediaPlaylist({ streamId, variantUri }) {
     if (!stream) return;
 
     try {
-        const { result } = await workerService.postTask(
+        const result = await workerService.postTask(
             'fetch-hls-media-playlist',
             {
                 streamId,
@@ -42,6 +42,11 @@ async function fetchHlsMediaPlaylist({ streamId, variantUri }) {
                 hlsVariantState: newVariantState,
                 mediaPlaylists: newMediaPlaylists,
             });
+
+            eventBus.dispatch('hls-media-playlist-fetched', {
+                streamId,
+                variantUri,
+            });
         }
     } catch (error) {
         const stream = useAnalysisStore
@@ -61,6 +66,11 @@ async function fetchHlsMediaPlaylist({ streamId, variantUri }) {
                 });
             }
         }
+        eventBus.dispatch('hls-media-playlist-error', {
+            streamId,
+            variantUri,
+            error,
+        });
     }
 }
 

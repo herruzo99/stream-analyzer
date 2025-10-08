@@ -1,6 +1,6 @@
-import { stopLiveSegmentHighlighter } from '@/features/segmentExplorer/ui/components/hls/index.js';
-import { useUiStore, uiActions } from '@/state/uiStore.js';
-import { showLoader, hideLoader } from '@/ui/components/loader.js';
+import { stopLiveSegmentHighlighter } from '@/features/segmentExplorer/ui/components/hls/index';
+import { useUiStore, uiActions } from '@/state/uiStore';
+import { showLoader, hideLoader } from '@/ui/components/loader';
 
 let dom;
 let keyboardNavigationListener = null;
@@ -62,7 +62,7 @@ function handleTabClick(e) {
         // Special handling for keyboard navigation in the 'updates' tab
         if (activeTabName === 'updates') {
             // Lazily import to avoid circular dependencies or premature loading
-            import('@/features/manifestUpdates/ui/index.js').then(
+            import('@/features/manifestUpdates/ui/index').then(
                 ({ navigateManifestUpdates }) => {
                     keyboardNavigationListener = (event) => {
                         if (event.key === 'ArrowRight')

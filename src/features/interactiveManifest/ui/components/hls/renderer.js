@@ -1,11 +1,11 @@
 import { html } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { hlsTooltipData } from './tooltip-data.js';
-import { tooltipTriggerClasses } from '@/ui/shared/constants.js';
-import { eventBus } from '@/application/event-bus.js';
-import { useUiStore, uiActions } from '@/state/uiStore.js';
-import { debugLog } from '@/application/utils/debug.js';
-import { renderApp } from '@/ui/shell/mainRenderer.js';
+import { tooltipTriggerClasses } from '@/ui/shared/constants';
+import { eventBus } from '@/application/event-bus';
+import { useUiStore, uiActions } from '@/state/uiStore';
+import { debugLog } from '@/application/utils/debug';
+import { renderApp } from '@/ui/shell/mainRenderer';
 
 const linesPerPage = 500;
 let showSubstituted = true; // Local state for this view

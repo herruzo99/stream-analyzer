@@ -2,14 +2,20 @@ const TASK_TIMEOUT = 30000; // 30 seconds
 
 export class WorkerService {
     constructor() {
-        this.worker = new Worker('/dist/worker.js', { type: 'module' });
+        this.worker = null;
         this.requestId = 0;
         this.pendingTasks = new Map();
         this.isInitialized = false;
     }
 
     initialize() {
-        if (this.isInitialized) return;
+        if (this.isInitialized || !window.ASSET_PATHS?.worker) {
+            console.error(
+                'WorkerService cannot be initialized. Hashed worker path not found.'
+            );
+            return;
+        }
+        this.worker = new Worker(window.ASSET_PATHS.worker, { type: 'module' });
         this.worker.onmessage = this._handleMessage.bind(this);
         this.worker.onerror = this._handleError.bind(this);
         this.isInitialized = true;
@@ -49,6 +55,11 @@ export class WorkerService {
     }
 
     postTask(type, payload) {
+        if (!this.isInitialized) {
+            return Promise.reject(
+                new Error('WorkerService has not been initialized.')
+            );
+        }
         return new Promise((resolve, reject) => {
             const id = this.requestId++;
 
