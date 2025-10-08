@@ -201,11 +201,23 @@ function buildByteMapTs(parsedData) {
     return byteMap;
 }
 
-export async function handleParseSegmentStructure({ url, data }) {
+export async function handleParseSegmentStructure({ url, data, formatHint }) {
+    // 1. Prioritize the explicit format hint from the UI.
+    if (formatHint === 'ts') {
+        return parseTsSegment(data);
+    }
+    if (formatHint === 'isobmff') {
+        const { boxes, issues, events } = parseISOBMFF(data);
+        assignBoxColors(boxes);
+        return { format: 'isobmff', data: { boxes, issues, events } };
+    }
+
+    // 2. Fallback to byte-sniffing only if no hint is provided.
     const decoder = new TextDecoder();
     try {
         if (decoder.decode(data.slice(0, 10)).startsWith('WEBVTT'))
             return { format: 'vtt', data: parseVTT(decoder.decode(data)) };
+        // eslint-disable-next-line no-empty
     } catch {}
 
     if (
@@ -216,8 +228,9 @@ export async function handleParseSegmentStructure({ url, data }) {
         return parseTsSegment(data);
     }
 
+    // 3. Default fallback is ISOBMFF. This is where the error occurred previously.
     const { boxes, issues, events } = parseISOBMFF(data);
-    assignBoxColors(boxes); // Assign colors before returning
+    assignBoxColors(boxes);
     return { format: 'isobmff', data: { boxes, issues, events } };
 }
 
@@ -232,7 +245,7 @@ export async function handleGeneratePagedByteMap({
     if (parsedData.format === 'isobmff') {
         // Ensure colors are assigned, in case the cached data didn't have them.
         // This is defensive and ensures robustness.
-        if (!parsedData.data.boxes[0]?.color) {
+        if (parsedData.data.boxes && !parsedData.data.boxes[0]?.color) {
             assignBoxColors(parsedData.data.boxes);
         }
         const fullMap = buildByteMapIsobmff(parsedData.data.boxes);

@@ -2,7 +2,7 @@ import { useSegmentCacheStore } from '@/state/segmentCacheStore';
 import { eventBus } from '@/application/event-bus';
 import { workerService } from '@/infrastructure/worker/workerService';
 
-async function _fetchAndParseSegment(url) {
+async function _fetchAndParseSegment(url, formatHint) {
     const { set } = useSegmentCacheStore.getState();
     try {
         set(url, { status: -1, data: null, parsedData: null });
@@ -16,7 +16,7 @@ async function _fetchAndParseSegment(url) {
 
         if (data) {
             workerService
-                .postTask('parse-segment-structure', { url, data })
+                .postTask('parse-segment-structure', { url, data, formatHint })
                 .then((parsedData) => {
                     const finalEntry = {
                         status: response.status,
@@ -93,13 +93,15 @@ export function getParsedSegment(url) {
         );
 
         if (!cachedEntry || cachedEntry.status !== -1) {
-            _fetchAndParseSegment(url);
+            // This case should not happen for user-initiated loads which now pass a format hint,
+            // but it's kept for internal callers that might not have context.
+            _fetchAndParseSegment(url, null);
         }
     });
 }
 
 export function initializeSegmentService() {
-    eventBus.subscribe('segment:fetch', ({ url }) =>
-        _fetchAndParseSegment(url)
+    eventBus.subscribe('segment:fetch', ({ url, format }) =>
+        _fetchAndParseSegment(url, format)
     );
 }

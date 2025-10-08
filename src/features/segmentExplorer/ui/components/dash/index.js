@@ -59,8 +59,11 @@ const dashSegmentTableTemplate = (
                         const isFresh = freshSegmentUrls.has(
                             /** @type {any} */ (seg).resolvedUrl
                         );
-                        // Liveness state is now handled by the real-time highlighter, not at render time.
-                        return segmentRowTemplate(seg, isFresh);
+                        return segmentRowTemplate(
+                            seg,
+                            isFresh,
+                            stream.manifest.segmentFormat
+                        );
                     })}
                 </tbody>
             </table>

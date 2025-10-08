@@ -365,14 +365,30 @@ function parseAdaptationSet(asEl, parentMergedEl) {
         representations: findChildren(asEl, 'Representation').map((repEl) =>
             parseRepresentation(repEl, mergedAsEl)
         ),
-        contentProtection: findChildren(mergedAsEl, 'ContentProtection').map(
-            (cpEl) => ({
+        contentProtection: findChildren(
+            mergedAsEl,
+            'ContentProtection'
+        ).map((cpEl) => {
+            const psshNode = findChild(cpEl, 'pssh');
+            const psshData = psshNode ? getText(psshNode) : null;
+            return {
                 schemeIdUri: getAttr(cpEl, 'schemeIdUri'),
                 system: getDrmSystemName(getAttr(cpEl, 'schemeIdUri')),
-                defaultKid: getAttr(cpEl, 'cenc:default_KID'),
+                defaultKid: getAttr(cpEl, 'default_KID'),
                 robustness: getAttr(cpEl, 'robustness'),
-            })
-        ),
+                pssh: psshData
+                    ? [
+                          {
+                              systemId: getDrmSystemName(
+                                  getAttr(cpEl, 'schemeIdUri')
+                              ),
+                              kids: [],
+                              data: psshData,
+                          },
+                      ]
+                    : [],
+            };
+        }),
         framePackings: findChildren(mergedAsEl, 'FramePacking').map(
             parseGenericDescriptor
         ),

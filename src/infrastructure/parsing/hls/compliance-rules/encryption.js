@@ -23,13 +23,13 @@ export const encryptionRules = [
     {
         id: 'HLS-KEY-1',
         text: 'EXT-X-KEY must have a URI if method is not NONE',
-        isoRef: 'HLS 2nd Ed: 4.4.4.4',
+        isoRef: 'HLS 2nd Ed: 4.3.2.4',
         version: 1,
         severity: 'fail',
         scope: 'Key',
         category: 'Encryption',
         check: (key) =>
-            key.METHOD === 'NONE' || (key.METHOD !== 'NONE' && key.URI),
+            key.METHOD === 'NONE' || (key.METHOD !== 'NONE' && !!key.URI),
         passDetails: 'OK',
         failDetails:
             'The URI attribute is REQUIRED for EXT-X-KEY unless the METHOD is NONE.',

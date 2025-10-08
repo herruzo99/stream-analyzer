@@ -1,6 +1,7 @@
 /**
  * @typedef {import('@/types.ts').Manifest} Manifest
  * @typedef {import('@/types.ts').PeriodSummary} PeriodSummary
+ * @typedef {import('@/types.ts').SecuritySummary} SecuritySummary
  */
 
 import { formatBitrate } from '@/ui/shared/format';
@@ -26,7 +27,7 @@ export function generateHlsSummary(manifestIR) {
                 profiles: null,
                 bitrateRange: formatBitrate(rep.bandwidth),
                 resolutions: rep.width ? [`${rep.width}x${rep.height}`] : [],
-                codecs: [rep.codecs],
+                codecs: rep.codecs ? [rep.codecs] : [],
                 scanType: null,
                 videoRange: rep.videoRange || null,
                 roles: [],
@@ -60,23 +61,33 @@ export function generateHlsSummary(manifestIR) {
             roles: [],
         }));
 
-    const protectionSchemes = new Set();
-    const kids = new Set();
+    // --- Enhanced Security Summary Generation ---
+    const allContentProtection = allAdaptationSets.flatMap(
+        (as) => as.contentProtection
+    );
+    const security = /** @type {SecuritySummary} */ ({
+        isEncrypted: allContentProtection.length > 0,
+        systems: [], // HLS does not use PSSH, so this remains empty.
+        kids: [
+            ...new Set(
+                allContentProtection.map((cp) => cp.defaultKid).filter(Boolean)
+            ),
+        ],
+        hlsEncryptionMethod: null,
+    });
+
+    if (security.isEncrypted) {
+        const methods = new Set(allContentProtection.map((cp) => cp.system));
+        if (methods.has('SAMPLE-AES')) {
+            security.hlsEncryptionMethod = 'SAMPLE-AES';
+        } else if (methods.has('AES-128')) {
+            security.hlsEncryptionMethod = 'AES-128';
+        }
+    }
+    // --- End Enhanced Security Summary ---
+
     let mediaPlaylistDetails = null;
-
-    if (isMaster) {
-        const sessionKey = (manifestIR.tags || []).find(
-            (t) => t.name === 'EXT-X-SESSION-KEY'
-        );
-        if (sessionKey && sessionKey.value.METHOD !== 'NONE') {
-            protectionSchemes.add(sessionKey.value.METHOD);
-        }
-    } else {
-        const keyTag = (manifestIR.segments || []).find((s) => s.key)?.key;
-        if (keyTag && keyTag.METHOD !== 'NONE') {
-            protectionSchemes.add(keyTag.METHOD);
-        }
-
+    if (!isMaster) {
         const segmentCount = (manifestIR.segments || []).length;
         const totalDuration = (manifestIR.segments || []).reduce(
             (sum, seg) => sum + seg.duration,
@@ -146,11 +157,7 @@ export function generateHlsSummary(manifestIR) {
         videoTracks,
         audioTracks,
         textTracks,
-        security: {
-            isEncrypted: protectionSchemes.size > 0,
-            systems: Array.from(protectionSchemes),
-            kids: Array.from(kids),
-        },
+        security,
     };
 
     return summary;

@@ -21,3 +21,18 @@ export function getDrmSystemName(schemeIdUri) {
     const lowerCaseUri = schemeIdUri.toLowerCase();
     return knownDrmSchemes[lowerCaseUri] || `Unknown (${schemeIdUri})`;
 }
+
+/**
+ * Formats a 16-byte array into a standard UUID string.
+ * @param {Uint8Array} bytes - The 16 bytes of the UUID.
+ * @returns {string} The formatted UUID string (e.g., "edef8ba9-79d6-4ace-a3c8-27dcd51d21ed").
+ */
+export function formatUUID(bytes) {
+    const hex = Array.from(bytes)
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('');
+    return `${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(
+        12,
+        16
+    )}-${hex.substring(16, 20)}-${hex.substring(20, 32)}`;
+}

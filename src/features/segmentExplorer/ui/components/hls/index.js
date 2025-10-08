@@ -193,7 +193,8 @@ const renderVariant = (stream, variant, variantUri) => {
                             seg,
                             freshSegmentUrls.has(
                                 /** @type {any} */ (seg).resolvedUrl
-                            )
+                            ),
+                            stream.manifest.segmentFormat
                         )
                     )}
                 </tbody>
