@@ -1,5 +1,4 @@
 import { createStore } from 'zustand/vanilla';
-import { LRUCache } from '@/application/lru-cache.js';
 import { eventBus } from '@/application/event-bus.js';
 import { uiActions } from './uiStore.js';
 // --- Type Definitions ---
@@ -33,40 +32,7 @@ import { uiActions } from './uiStore.js';
  * @property {(streamId: number, updatedStreamData: Partial<Stream>) => void} updateStream
  * @property {(isPolling: boolean) => void} setAllLiveStreamsPolling
  * @property {(streamId: number, direction: number) => void} navigateManifestUpdate
- * @property {() => void} _reset
  */
-
-// --- Segment Cache Store (New) ---
-
-const SEGMENT_CACHE_SIZE = 200;
-
-/**
- * @typedef {object} SegmentCacheState
- * @property {LRUCache} cache
- */
-
-/**
- * @typedef {object} SegmentCacheActions
- * @property {(url: string, entry: any) => void} set
- * @property {(url: string) => any} get
- * @property {() => void} clear
- */
-
-/**
- * A dedicated store for managing the segment cache.
- * @type {import('zustand/vanilla').StoreApi<SegmentCacheState & SegmentCacheActions>}
- */
-export const useSegmentCacheStore = createStore((set, get) => ({
-    cache: new LRUCache(SEGMENT_CACHE_SIZE),
-    set: (url, entry) => {
-        const currentCache = get().cache;
-        currentCache.set(url, entry);
-        // Create a new object reference to trigger Zustand's shallow comparison
-        set({ cache: currentCache.clone() });
-    },
-    get: (url) => get().cache.get(url),
-    clear: () => set({ cache: new LRUCache(SEGMENT_CACHE_SIZE) }),
-}));
 
 // --- Main Analysis Store Definition ---
 
@@ -86,7 +52,7 @@ const createInitialAnalysisState = () => ({
 
 /**
  * The main application state store, powered by Zustand.
- * @type {import('zustand/vanilla').StoreApi<AnalysisState & AnalysisActions>}
+ * @type {import('zustand/vanilla').StoreApi<AnalysisState & AnalysisActions & { _reset: () => void }>}
  */
 export const useAnalysisStore = createStore((set, get) => ({
     ...createInitialAnalysisState(),
@@ -98,7 +64,7 @@ export const useAnalysisStore = createStore((set, get) => ({
 
     startAnalysis: () => {
         // This is now the single point of entry for a full reset.
-        useSegmentCacheStore.getState().clear();
+        // It's the responsibility of the caller to clear other stores (like segment cache).
         get()._reset();
         uiActions.reset();
     },

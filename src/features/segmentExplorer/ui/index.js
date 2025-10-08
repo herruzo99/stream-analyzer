@@ -7,24 +7,7 @@ import {
     startLiveSegmentHighlighter,
     stopLiveSegmentHighlighter,
 } from './components/hls/index.js';
-import { renderApp } from '@/ui/shell/mainRenderer.js';
-
-let dashDisplayMode = 'first';
-
-function handleCompareClick() {
-    const { segmentsForCompare } = useAnalysisStore.getState();
-    if (segmentsForCompare.length !== 2) return;
-    eventBus.dispatch('ui:request-segment-comparison', {
-        urlA: segmentsForCompare[0],
-        urlB: segmentsForCompare[1],
-    });
-}
-
-function handleDashModeClick(mode) {
-    if (dashDisplayMode === mode) return;
-    dashDisplayMode = mode;
-    renderApp();
-}
+import { useUiStore } from '@/state/uiStore.js';
 
 function updateCompareButton() {
     const { segmentsForCompare } = useAnalysisStore.getState();
@@ -39,6 +22,7 @@ function updateCompareButton() {
 }
 
 function getSegmentExplorerTemplate(stream) {
+    const { segmentExplorerDashMode } = useUiStore.getState();
     const isDynamic = stream.manifest?.type === 'dynamic';
 
     const controlsTemplate = html`
@@ -49,8 +33,12 @@ function getSegmentExplorerTemplate(stream) {
             ${stream.protocol === 'dash'
                 ? html`
                       <button
-                          @click=${() => handleDashModeClick('first')}
-                          class="text-sm font-bold py-2 px-3 rounded-md transition-colors ${dashDisplayMode ===
+                          @click=${() =>
+                              eventBus.dispatch(
+                                  'ui:segment-explorer:dash-mode-changed',
+                                  { mode: 'first' }
+                              )}
+                          class="text-sm font-bold py-2 px-3 rounded-md transition-colors ${segmentExplorerDashMode ===
                           'first'
                               ? 'bg-blue-600 text-white'
                               : 'bg-gray-600 hover:bg-gray-700 text-white'}"
@@ -59,8 +47,12 @@ function getSegmentExplorerTemplate(stream) {
                       </button>
                       ${isDynamic
                           ? html`<button
-                                @click=${() => handleDashModeClick('last')}
-                                class="text-sm font-bold py-2 px-3 rounded-md transition-colors ${dashDisplayMode ===
+                                @click=${() =>
+                                    eventBus.dispatch(
+                                        'ui:segment-explorer:dash-mode-changed',
+                                        { mode: 'last' }
+                                    )}
+                                class="text-sm font-bold py-2 px-3 rounded-md transition-colors ${segmentExplorerDashMode ===
                                 'last'
                                     ? 'bg-blue-600 text-white'
                                     : 'bg-gray-600 hover:bg-gray-700 text-white'}"
@@ -72,7 +64,13 @@ function getSegmentExplorerTemplate(stream) {
                 : ''}
             <button
                 id="segment-compare-btn"
-                @click=${handleCompareClick}
+                @click=${() =>
+                    eventBus.dispatch('ui:request-segment-comparison', {
+                        urlA:
+                            useAnalysisStore.getState().segmentsForCompare[0],
+                        urlB:
+                            useAnalysisStore.getState().segmentsForCompare[1],
+                    })}
                 class="bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
                 Compare Selected (0/2)
@@ -82,12 +80,14 @@ function getSegmentExplorerTemplate(stream) {
 
     let contentTemplate;
     if (stream.protocol === 'dash') {
-        contentTemplate = getDashExplorerTemplate(stream, dashDisplayMode);
+        contentTemplate = getDashExplorerTemplate(
+            stream,
+            segmentExplorerDashMode
+        );
     } else {
         contentTemplate = getHlsExplorerTemplate(stream);
     }
 
-    // Defer the button update until after the render
     setTimeout(updateCompareButton, 0);
 
     return html`

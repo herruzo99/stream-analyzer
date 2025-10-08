@@ -3,15 +3,8 @@ import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { tooltipTriggerClasses } from '@/ui/shared/constants.js';
 import { createFeatureViewModel } from '@/features/featureAnalysis/domain/analyzer.js';
 import { standardSelectorTemplate } from '@/features/compliance/ui/components/standard-selector.js';
-import { renderApp } from '@/ui/shell/mainRenderer.js';
-
-let activeStandardVersion = 13;
-
-function handleVersionChange(newVersion) {
-    if (newVersion === activeStandardVersion) return;
-    activeStandardVersion = newVersion;
-    renderApp(); // Re-render to re-filter features
-}
+import { useUiStore } from '@/state/uiStore.js';
+import { eventBus } from '@/application/event-bus.js';
 
 const featureCardTemplate = (feature) => {
     const badge = feature.used
@@ -60,11 +53,12 @@ const categoryTemplate = (category, categoryFeatures) => html`
 export function getFeaturesAnalysisTemplate(stream) {
     if (!stream) return html`<p class="warn">No stream loaded to display.</p>`;
 
+    const { featureAnalysisStandardVersion } = useUiStore.getState();
     const { results, manifestCount } = stream.featureAnalysis;
     const viewModel = createFeatureViewModel(
         results,
         stream.protocol,
-        activeStandardVersion
+        featureAnalysisStandardVersion
     );
 
     const groupedFeatures = viewModel.reduce((acc, feature) => {
@@ -78,8 +72,12 @@ export function getFeaturesAnalysisTemplate(stream) {
     const selector =
         stream.protocol === 'hls'
             ? standardSelectorTemplate({
-                  selectedVersion: activeStandardVersion,
-                  onVersionChange: handleVersionChange,
+                  selectedVersion: featureAnalysisStandardVersion,
+                  onVersionChange: (version) =>
+                      eventBus.dispatch(
+                          'ui:feature-analysis:standard-version-changed',
+                          { version }
+                      ),
               })
             : '';
 

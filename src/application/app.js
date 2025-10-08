@@ -1,15 +1,15 @@
 import { saveToHistory } from '@/infrastructure/persistence/streamStorage.js';
 import { uiActions } from '@/state/uiStore';
+import { startAnalysisUseCase } from './useCases/startAnalysis.js';
 
 export class Application {
     /**
-     * @param {object} services The injected services and utilities.
+     * @param {object} services The injected services from the container.
      */
     constructor(services) {
+        this.services = services; // Store the whole services object
         this.eventBus = services.eventBus;
         this.analysisActions = services.analysisActions;
-        this.stopAllMonitoring = services.stopAllMonitoring;
-        this.storage = services.storage;
     }
 
     /**
@@ -48,20 +48,23 @@ export class Application {
                 id: index,
                 url: url,
                 file: null,
+                name: '', // Name is not available from URL params
             }));
-            this.eventBus.dispatch('analysis:request', { inputs });
+            // Call the authoritative use case with all necessary services
+            startAnalysisUseCase({ inputs }, this.services);
         } else {
             this._populateLastUsedStreams();
         }
     }
 
     _populateLastUsedStreams() {
-        const lastUsed = this.storage.getLastUsedStreams();
+        const { storage } = this.services;
+        const lastUsed = storage.getLastUsedStreams();
         if (lastUsed && lastUsed.length > 0) {
             this.analysisActions.setStreamInputsFromData(lastUsed);
             const allStoredStreams = [
-                ...this.storage.getHistory(),
-                ...this.storage.getPresets(),
+                ...storage.getHistory(),
+                ...storage.getPresets(),
             ];
 
             // This must run after the initial render populates the inputs

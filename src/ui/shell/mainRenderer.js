@@ -15,10 +15,8 @@ import { getIntegratorsReportTemplate } from '@/features/integratorsReport/ui/in
 import { globalControlsTemplate } from './ui-controller.js';
 import { getStreamInputsTemplate } from '@/ui/components/stream-inputs.js';
 import { debugLog } from '@/application/utils/debug.js';
-import { hideLoader } from '@/ui/components/loader.js';
 import { isDebugMode } from '@/application/utils/env.js';
-
-/** @typedef {import('lit-html').TemplateResult} TemplateResult */
+import { useSegmentCacheStore } from '@/state/segmentCacheStore.js';
 
 let dom;
 
@@ -28,12 +26,17 @@ let dom;
  */
 export function initializeRenderer(domContext) {
     dom = domContext;
+
+    // Centralize subscriptions here. Any state change will trigger a smart re-render.
+    useAnalysisStore.subscribe(renderApp);
+    useUiStore.subscribe(renderApp);
+    useSegmentCacheStore.subscribe(renderApp);
 }
 
 /**
  * Populates the context switcher dropdown when multiple streams are present.
  */
-export function populateContextSwitcher() {
+function renderContextSwitcher() {
     const { streams, activeStreamId } = useAnalysisStore.getState();
     if (streams.length > 1) {
         dom.contextSwitcherWrapper.classList.remove('hidden');
@@ -51,37 +54,103 @@ export function populateContextSwitcher() {
 }
 
 /**
- * The main application render function. Reads the current state from the store
- * and re-renders the entire UI declaratively.
+ * Renders the content for the currently active tab.
+ */
+function renderActiveTabContent() {
+    const { streams, activeStreamId, activeSegmentUrl } =
+        useAnalysisStore.getState();
+    const { activeTab } = useUiStore.getState();
+    const activeStream = streams.find((s) => s.id === activeStreamId);
+
+    // Hide all tab containers first
+    Object.values(dom.tabContents).forEach((container) => {
+        if (container) container.classList.add('hidden');
+    });
+
+    const activeContainer = dom.tabContents[activeTab];
+    if (!activeContainer) return;
+
+    debugLog(
+        'mainRenderer',
+        `Rendering active tab: ${activeTab}. Stream available: ${!!activeStream}`
+    );
+
+    /** @type {import('lit-html').TemplateResult} */
+    let template = html``;
+    if (activeTab === 'comparison' && streams.length > 1) {
+        template = getComparisonTemplate(streams);
+    } else if (activeStream) {
+        switch (activeTab) {
+            case 'summary':
+                template = getGlobalSummaryTemplate(activeStream);
+                break;
+            case 'integrators-report':
+                template = getIntegratorsReportTemplate(activeStream);
+                break;
+            case 'compliance':
+                template = getComplianceReportTemplate(activeStream);
+                break;
+            case 'features':
+                template = getFeaturesAnalysisTemplate(activeStream);
+                break;
+            case 'interactive-manifest':
+                template = getInteractiveManifestTemplate(activeStream);
+                break;
+            case 'interactive-segment':
+                template = getInteractiveSegmentTemplate(dom);
+                break;
+            case 'updates':
+                template = manifestUpdatesTemplate(activeStream);
+                break;
+            case 'parser-coverage':
+                if (isDebugMode) {
+                    template = getParserCoverageTemplate(activeStream);
+                }
+                break;
+        }
+    }
+
+    render(template, activeContainer);
+
+    // Some views have imperative initialization logic after render
+    if (activeTab === 'timeline-visuals' && activeStream) {
+        initializeTimelineView(activeContainer, activeStream);
+    }
+    if (activeTab === 'explorer' && activeStream) {
+        initializeSegmentExplorer(activeContainer, activeStream);
+    }
+
+    activeContainer.classList.remove('hidden');
+}
+
+/**
+ * The main application render function. It handles rendering for both the input and results views.
  */
 export function renderApp() {
     if (!dom) return;
 
-    const analysisState = useAnalysisStore.getState();
-    const uiState = useUiStore.getState();
+    const { streams, activeSegmentUrl, streamInputIds } =
+        useAnalysisStore.getState();
+    const { viewState } = useUiStore.getState();
 
-    const { streams, activeStreamId, activeSegmentUrl, streamInputIds } =
-        analysisState;
-    const { viewState, activeTab } = uiState;
-    const activeStream = streams.find((s) => s.id === activeStreamId);
-
-    // --- Top-Level View State Management ---
     const isResultsView = viewState === 'results' && streams.length > 0;
 
+    // --- Top-Level View State Management ---
     dom.inputSection.classList.toggle('hidden', isResultsView);
     dom.results.classList.toggle('hidden', !isResultsView);
-    // These buttons are now part of the UiController's managed DOM, not the global one.
-    // Their visibility is toggled directly in the UiController or through classes.
+
     const newAnalysisBtn = document.querySelector(
         '[data-testid="new-analysis-btn"]'
     );
     if (newAnalysisBtn)
         newAnalysisBtn.classList.toggle('hidden', !isResultsView);
+
     const shareAnalysisBtn = document.querySelector(
         '[data-testid="share-analysis-btn"]'
     );
     if (shareAnalysisBtn)
         shareAnalysisBtn.classList.toggle('hidden', !isResultsView);
+
     const copyDebugBtn = document.querySelector(
         '[data-testid="copy-debug-btn"]'
     );
@@ -91,15 +160,11 @@ export function renderApp() {
             !isResultsView || !isDebugMode
         );
 
-    const analyzeBtn = document.querySelector('[data-testid="analyze-btn"]');
-    if (analyzeBtn)
-        analyzeBtn.textContent =
-            streamInputIds.length > 1 ? 'Analyze & Compare' : 'Analyze';
-
-    const globalControls = document.getElementById('global-stream-controls');
-    if (globalControls) {
-        globalControls.classList.toggle('hidden', !isResultsView);
-        render(globalControlsTemplate(streams), globalControls);
+    const globalControlsContainer = document.getElementById(
+        'global-stream-controls'
+    );
+    if (globalControlsContainer) {
+        globalControlsContainer.classList.toggle('hidden', !isResultsView);
     }
 
     // Responsive header alignment
@@ -110,6 +175,7 @@ export function renderApp() {
     dom.headerUrlDisplay.classList.toggle('hidden', !isResultsView);
 
     if (isResultsView) {
+        // --- RENDER RESULTS VIEW ---
         const urlHtml = streams
             .map(
                 (s) =>
@@ -117,112 +183,30 @@ export function renderApp() {
             )
             .join('');
         dom.headerUrlDisplay.innerHTML = `<span class="font-bold text-gray-300 block mb-1">Analyzed Stream(s):</span>${urlHtml}`;
+
+        render(globalControlsTemplate(streams), globalControlsContainer);
+        renderContextSwitcher();
+
+        // --- Conditional Tab Visibility ---
+        document
+            .getElementById('tab-btn-comparison')
+            .classList.toggle('hidden', streams.length <= 1);
+        document
+            .getElementById('tab-btn-interactive-segment')
+            .classList.toggle('hidden', !activeSegmentUrl);
+        document
+            .getElementById('tab-btn-parser-coverage')
+            .classList.toggle('hidden', !isDebugMode);
+
+        renderActiveTabContent();
     } else {
-        dom.headerUrlDisplay.innerHTML = '';
-    }
-
-    // --- Conditional Tab Visibility ---
-    const comparisonTabButton = document.getElementById('tab-btn-comparison');
-    if (comparisonTabButton) {
-        comparisonTabButton.classList.toggle('hidden', streams.length <= 1);
-        if (streams.length <= 1 && activeTab === 'comparison') {
-            uiActions.setActiveTab('summary');
-        }
-    }
-
-    const interactiveSegmentTabButton = document.getElementById(
-        'tab-btn-interactive-segment'
-    );
-    if (interactiveSegmentTabButton) {
-        interactiveSegmentTabButton.classList.toggle(
-            'hidden',
-            !activeSegmentUrl
-        );
-    }
-
-    const parserCoverageTabButton = document.getElementById(
-        'tab-btn-parser-coverage'
-    );
-    if (parserCoverageTabButton) {
-        parserCoverageTabButton.classList.toggle('hidden', !isDebugMode);
-    }
-
-    // --- Content Rendering Logic ---
-    if (isResultsView) {
-        populateContextSwitcher();
-        render(html``, dom.streamInputs); // Clear inputs
-
-        Object.entries(dom.tabContents).forEach(([tabName, container]) => {
-            if (!container) return;
-            debugLog(
-                'mainRenderer',
-                `Processing tab: ${tabName}. Active tab: ${activeTab}.`
-            );
-
-            if (tabName !== activeTab) {
-                render(html``, container);
-                container.classList.add('hidden');
-                return;
-            }
-
-            container.classList.remove('hidden');
-            debugLog(
-                'mainRenderer',
-                `Rendering active tab: ${tabName}. Stream available: ${!!activeStream}`
-            );
-
-            /** @type {TemplateResult} */
-            let template = html``;
-            if (tabName === 'comparison' && streams.length > 1) {
-                template = getComparisonTemplate(streams);
-            } else if (activeStream) {
-                switch (tabName) {
-                    case 'summary':
-                        template = getGlobalSummaryTemplate(activeStream);
-                        break;
-                    case 'integrators-report':
-                        template = getIntegratorsReportTemplate(activeStream);
-                        break;
-                    case 'compliance':
-                        template = getComplianceReportTemplate(activeStream);
-                        break;
-                    case 'features':
-                        template = getFeaturesAnalysisTemplate(activeStream);
-                        break;
-                    case 'interactive-manifest':
-                        template = getInteractiveManifestTemplate(activeStream);
-                        break;
-                    case 'interactive-segment':
-                        template = getInteractiveSegmentTemplate(dom);
-                        break;
-                    case 'updates':
-                        template = manifestUpdatesTemplate(activeStream);
-                        break;
-                    case 'parser-coverage':
-                        template = getParserCoverageTemplate(activeStream);
-                        break;
-                }
-            }
-
-            render(template, container);
-
-            if (tabName === 'timeline-visuals' && activeStream) {
-                initializeTimelineView(container, activeStream);
-            }
-            if (tabName === 'explorer' && activeStream) {
-                initializeSegmentExplorer(container, activeStream);
-            }
-        });
-    } else {
+        // --- RENDER INPUT VIEW ---
         render(getStreamInputsTemplate(), dom.streamInputs);
-        Object.values(dom.tabContents).forEach((container) => {
-            if (container) {
-                render(html``, container);
-                container.classList.add('hidden');
-            }
-        });
+        const analyzeBtn = document.querySelector(
+            '[data-testid="analyze-btn"]'
+        );
+        if (analyzeBtn)
+            analyzeBtn.textContent =
+                streamInputIds.length > 1 ? 'Analyze & Compare' : 'Analyze';
     }
-
-    // Hide loader after render is complete and the browser is about to paint the new view
-    hideLoader();
 }

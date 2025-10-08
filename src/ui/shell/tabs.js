@@ -1,6 +1,6 @@
 import { stopLiveSegmentHighlighter } from '@/features/segmentExplorer/ui/components/hls/index.js';
 import { useUiStore, uiActions } from '@/state/uiStore.js';
-import { showLoader } from '@/ui/components/loader.js';
+import { showLoader, hideLoader } from '@/ui/components/loader.js';
 
 let dom;
 let keyboardNavigationListener = null;
@@ -35,7 +35,7 @@ function updateTabButtonStyling(activeTabName) {
     });
 }
 
-async function handleTabClick(e) {
+function handleTabClick(e) {
     const target = /** @type {HTMLElement} */ (e.target);
     const targetTab = /** @type {HTMLElement} */ (target.closest('[data-tab]'));
     if (!targetTab) return;
@@ -49,7 +49,7 @@ async function handleTabClick(e) {
     // Defer the state change and subsequent render to the next event loop tick.
     // This gives the browser a chance to paint the loader before the main thread
     // gets blocked by the potentially heavy rendering work of the new tab.
-    setTimeout(async () => {
+    setTimeout(() => {
         if (keyboardNavigationListener) {
             document.removeEventListener('keydown', keyboardNavigationListener);
             keyboardNavigationListener = null;
@@ -61,14 +61,23 @@ async function handleTabClick(e) {
 
         // Special handling for keyboard navigation in the 'updates' tab
         if (activeTabName === 'updates') {
-            const { navigateManifestUpdates } = await import(
-                '@/features/manifestUpdates/ui/index.js'
+            // Lazily import to avoid circular dependencies or premature loading
+            import('@/features/manifestUpdates/ui/index.js').then(
+                ({ navigateManifestUpdates }) => {
+                    keyboardNavigationListener = (event) => {
+                        if (event.key === 'ArrowRight')
+                            navigateManifestUpdates(1);
+                        if (event.key === 'ArrowLeft')
+                            navigateManifestUpdates(-1);
+                    };
+                    document.addEventListener(
+                        'keydown',
+                        keyboardNavigationListener
+                    );
+                }
             );
-            keyboardNavigationListener = (event) => {
-                if (event.key === 'ArrowRight') navigateManifestUpdates(1);
-                if (event.key === 'ArrowLeft') navigateManifestUpdates(-1);
-            };
-            document.addEventListener('keydown', keyboardNavigationListener);
         }
+
+        hideLoader();
     }, 0);
 }

@@ -1,31 +1,11 @@
 import { showToast } from '@/ui/components/toast.js';
+import { workerService } from '@/infrastructure/worker/workerService.js';
 
 const HISTORY_KEY = 'stream-analyzer_history';
 const PRESETS_KEY = 'stream-analyzer_presets';
 const LAST_USED_KEY = 'stream-analyzer_last-used';
 const MAX_HISTORY_ITEMS = 10;
 const MAX_PRESETS = 50;
-
-// Re-use the worker from streamService to avoid creating multiple workers.
-const metadataWorker = new Worker('/dist/worker.js', { type: 'module' });
-let metadataRequestId = 0;
-const metadataCallbacks = new Map();
-
-metadataWorker.onmessage = (event) => {
-    const { type, payload } = event.data;
-    if (type === 'manifest-metadata-result') {
-        const { id, metadata, error } = payload;
-        if (metadataCallbacks.has(id)) {
-            const { resolve, reject } = metadataCallbacks.get(id);
-            if (error) {
-                reject(new Error(error));
-            } else {
-                resolve(metadata);
-            }
-            metadataCallbacks.delete(id);
-        }
-    }
-};
 
 /**
  * Reads a list of streams from localStorage.
@@ -145,19 +125,9 @@ export async function fetchStreamMetadata(url) {
         }
         const manifestString = await response.text();
 
-        return new Promise((resolve, reject) => {
-            const id = metadataRequestId++;
-            metadataCallbacks.set(id, { resolve, reject });
-            metadataWorker.postMessage({
-                type: 'get-manifest-metadata',
-                payload: { id, manifestString },
-            });
-            setTimeout(() => {
-                if (metadataCallbacks.has(id)) {
-                    reject(new Error('Metadata request timed out.'));
-                    metadataCallbacks.delete(id);
-                }
-            }, 5000); // 5-second timeout
+        // Use the centralized worker service with a promise-based API
+        return await workerService.postTask('get-manifest-metadata', {
+            manifestString,
         });
     } catch (e) {
         showToast({ message: `Error: ${e.message}`, type: 'fail' });

@@ -347,6 +347,12 @@ function parseAdaptationSet(asEl, parentMergedEl) {
         bitstreamSwitching:
             getAttr(asEl, 'bitstreamSwitching') === 'true' ? true : null,
         segmentAlignment: getAttr(mergedAsEl, 'segmentAlignment') === 'true',
+        width: getAttr(mergedAsEl, 'width')
+            ? parseInt(getAttr(mergedAsEl, 'width'), 10)
+            : null,
+        height: getAttr(mergedAsEl, 'height')
+            ? parseInt(getAttr(mergedAsEl, 'height'), 10)
+            : null,
         maxWidth: getAttr(asEl, 'maxWidth')
             ? parseInt(getAttr(asEl, 'maxWidth'), 10)
             : null,
