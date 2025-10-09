@@ -10,7 +10,6 @@ import { UI_SELECTORS } from '@/ui/shared/constants';
 import { stopAllMonitoring } from '@/application/services/primaryStreamMonitorService';
 import {
     toggleAllLiveStreamsPolling,
-    reloadStream,
 } from '@/application/services/streamActionsService';
 import { useSegmentCacheStore } from '@/state/segmentCacheStore';
 import { container } from '@/application/container';
@@ -26,8 +25,6 @@ export const globalControlsTemplate = (streams) => {
     if (liveStreams.length === 0) return html``;
 
     const isAnyPolling = liveStreams.some((s) => s.isPolling);
-    const { activeStreamId } = useAnalysisStore.getState();
-    const activeStream = streams.find((s) => s.id === activeStreamId);
 
     const pollingButtonClass = isAnyPolling
         ? 'bg-red-600 hover:bg-red-700'
@@ -40,13 +37,6 @@ export const globalControlsTemplate = (streams) => {
             title="Toggle polling for all live streams"
         >
             ${isAnyPolling ? 'Pause All' : 'Resume All'}
-        </button>
-        <button
-            @click=${() => reloadStream(activeStream)}
-            class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md transition duration-300"
-            title="Force reload the manifest for the active stream"
-        >
-            Reload
         </button>
     `;
 };

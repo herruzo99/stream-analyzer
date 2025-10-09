@@ -69,8 +69,8 @@ export const structureRules = [
         severity: 'fail',
         scope: 'MediaPlaylist',
         category: 'HLS Structure',
-        check: (hls) =>
-            hls.targetDuration !== undefined && hls.targetDuration !== null,
+        check: (hls, { targetDuration }) =>
+            targetDuration !== undefined && targetDuration !== null,
         passDetails: 'OK',
         failDetails:
             'The EXT-X-TARGETDURATION tag is REQUIRED for Media Playlists.',
@@ -83,8 +83,8 @@ export const structureRules = [
         severity: 'fail',
         scope: 'MediaPlaylist',
         category: 'HLS Structure',
-        check: (hls) => {
-            if (hls.playlistType === 'VOD' || !hls.isLive) {
+        check: (hls, { isLive }) => {
+            if (!isLive) {
                 return hls.tags.some((t) => t.name === 'EXT-X-ENDLIST');
             }
             return 'skip';

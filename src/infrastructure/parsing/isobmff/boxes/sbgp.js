@@ -21,10 +21,24 @@ export function parseSbgp(box, view) {
     }
 
     const entryCount = p.readUint32('entry_count');
+    box.entries = [];
 
-    if (entryCount !== null && entryCount > 0) {
-        p.readUint32('entry_1_sample_count');
-        p.readUint32('entry_1_group_description_index');
+    if (entryCount !== null) {
+        for (let i = 0; i < entryCount; i++) {
+            if (p.stopped) break;
+            const sample_count = p.readUint32(`entry_${i}_sample_count`);
+            const group_description_index = p.readUint32(
+                `entry_${i}_group_description_index`
+            );
+
+            if (sample_count !== null && group_description_index !== null) {
+                box.entries.push({ sample_count, group_description_index });
+            }
+
+            // Clean up details to avoid clutter, as data is now in box.entries
+            delete box.details[`entry_${i}_sample_count`];
+            delete box.details[`entry_${i}_group_description_index`];
+        }
     }
     p.finalize();
 }

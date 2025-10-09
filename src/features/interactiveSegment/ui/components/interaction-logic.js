@@ -27,7 +27,8 @@ function clearHighlights() {
     currentlyHighlightedElements.forEach((el) => {
         el.classList.remove(
             'is-box-hover-highlighted',
-            'is-field-hover-highlighted'
+            'is-field-hover-highlighted',
+            'is-inspector-field-highlighted'
         );
     });
     currentlyHighlightedElements = [];
@@ -38,56 +39,53 @@ function applyHighlights(item, fieldName) {
     const container = document.getElementById('tab-interactive-segment');
     if (!container) return;
 
-    // Highlight structure tree node
-    const structureNode = container.querySelector(
-        `[data-box-offset="${item.offset}"], [data-packet-offset="${item.offset}"], [data-group-start-offset="${item.offset}"]`
-    );
-    if (structureNode) {
-        structureNode.classList.add('is-box-hover-highlighted');
-        currentlyHighlightedElements.push(structureNode);
+    // --- Highlight structure tree node ---
+    if (!item.isSample) {
+        const highlightSelector = `[data-box-offset="${item.offset}"], [data-packet-offset="${item.offset}"], [data-group-start-offset="${item.offset}"]`;
+        const structureNode = container.querySelector(highlightSelector);
+        if (structureNode) {
+            structureNode.classList.add('is-box-hover-highlighted');
+            currentlyHighlightedElements.push(structureNode);
+        }
     }
 
-    // --- OPTIMIZED HIGHLIGHTING LOGIC ---
-    const boxStart = item.offset;
-    const boxEnd = boxStart + item.size;
-
-    let fieldStart = -1;
-    let fieldEnd = -1;
+    // --- Determine byte ranges for hex view ---
+    let boxStart, boxEnd, fieldStart, fieldEnd;
+    boxStart = item.offset;
+    boxEnd = item.offset + item.size;
 
     if (fieldName && item.details?.[fieldName]) {
         const fieldMeta = item.details[fieldName];
         fieldStart = fieldMeta.offset;
         fieldEnd = fieldStart + Math.ceil(fieldMeta.length);
+    } else {
+        fieldStart = -1;
+        fieldEnd = -1;
     }
 
-    // Perform a single query for all visible byte elements.
+    // --- Apply highlights to hex view ---
     const visibleByteElements = container.querySelectorAll(
         '[data-byte-offset]'
     );
-
-    // Iterate over the small, fixed-size list of visible elements.
     visibleByteElements.forEach((el) => {
         const byteOffset = parseInt(
             (/** @type {HTMLElement} */ (el)).dataset.byteOffset,
             10
         );
 
-        // Check if the byte is within the box's range.
         if (byteOffset >= boxStart && byteOffset < boxEnd) {
             el.classList.add('is-box-hover-highlighted');
             currentlyHighlightedElements.push(el);
+        }
 
-            // If a specific field is being highlighted, apply the field highlight.
-            if (
-                fieldStart !== -1 &&
-                byteOffset >= fieldStart &&
-                byteOffset < fieldEnd
-            ) {
-                el.classList.add('is-field-hover-highlighted');
-                // The field highlight might not have been added to the list yet if it's the same as the box highlight.
-                if (!currentlyHighlightedElements.includes(el)) {
-                    currentlyHighlightedElements.push(el);
-                }
+        if (
+            fieldStart !== -1 &&
+            byteOffset >= fieldStart &&
+            byteOffset < fieldEnd
+        ) {
+            el.classList.add('is-field-hover-highlighted');
+            if (!currentlyHighlightedElements.includes(el)) {
+                currentlyHighlightedElements.push(el);
             }
         }
     });
@@ -97,7 +95,7 @@ export function renderInspectorPanel() {
     if (!inspectorContainer) return;
     let template;
     if (currentFormat === 'isobmff') {
-        template = isobmffInspector(rootParsedData);
+        template = isobmffInspector(rootParsedData.data);
     } else if (currentFormat === 'ts') {
         template = tsInspector();
     } else {
@@ -156,7 +154,7 @@ export function initializeSegmentViewInteractivity(
         highlightedField = field;
         clearHighlights();
         applyHighlights(item, field);
-        renderInspectorPanel();
+        renderInspectorPanel(); // This will apply inspector-specific highlights
     };
 
     const handleSelection = (targetOffset) => {
@@ -166,7 +164,7 @@ export function initializeSegmentViewInteractivity(
             selectedItem = findDataByOffset(parsedSegmentData, targetOffset);
         }
         highlightedItem = selectedItem;
-        highlightedField = null;
+        highlightedField = null; // Clear field highlight on selection
         clearHighlights();
         if (selectedItem) {
             applyHighlights(selectedItem, null);
@@ -181,8 +179,14 @@ export function initializeSegmentViewInteractivity(
         if (!target) return;
         const byteOffset = parseInt(target.dataset.byteOffset, 10);
         const mapEntry = byteMap.get(byteOffset);
+
         if (mapEntry) {
-            handleHover(mapEntry.box || mapEntry.packet, mapEntry.fieldName);
+            // **BUG FIX**: Prioritize the most specific item (sample).
+            if (mapEntry.sample) {
+                handleHover(mapEntry.sample, 'Sample Data');
+            } else if (mapEntry.box || mapEntry.packet) {
+                handleHover(mapEntry.box || mapEntry.packet, mapEntry.fieldName);
+            }
         }
     };
 
@@ -190,15 +194,31 @@ export function initializeSegmentViewInteractivity(
         const fieldRow = /** @type {HTMLElement | null} */ (
             e.target.closest('[data-field-name]')
         );
-        if (!fieldRow) return;
+        clearHighlights(); // Clear all previous highlights first
+
+        if (!fieldRow) {
+            highlightedField = null;
+            renderInspectorPanel();
+            return;
+        }
+
         const fieldName = fieldRow.dataset.fieldName;
+        highlightedField = fieldName;
+
+        fieldRow.classList.add('is-inspector-field-highlighted');
+        fieldRow.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        currentlyHighlightedElements.push(fieldRow);
+
         const dataOffset = parseInt(
-            fieldRow.dataset.boxOffset || fieldRow.dataset.packetOffset,
+            fieldRow.dataset.inspectorOffset,
             10
         );
         if (isNaN(dataOffset)) return;
+
         const item = findDataByOffset(parsedSegmentData, dataOffset);
-        if (item) handleHover(item, fieldName);
+        if (item && item.details && item.details[fieldName]) {
+            applyHighlights(item, fieldName);
+        }
     };
 
     const handleStructureHover = (e) => {
@@ -212,12 +232,7 @@ export function initializeSegmentViewInteractivity(
         );
         if (isNaN(dataOffset)) return;
         const item = findDataByOffset(parsedSegmentData, dataOffset);
-        const fieldName =
-            item?.type === 'CMAF Chunk'
-                ? 'Chunk'
-                : item?.type
-                  ? 'Box Header'
-                  : 'TS Header';
+        const fieldName = 'Box Header'; // Always highlight header on tree hover
         if (item) handleHover(item, fieldName);
     };
 
@@ -244,18 +259,35 @@ export function initializeSegmentViewInteractivity(
     const handleClick = (e) => {
         const target = /** @type {HTMLElement} */ (e.target);
         if (target.closest('summary')) e.preventDefault();
-        const targetNode = /** @type {HTMLElement | null} */ (
+
+        const treeNode = /** @type {HTMLElement | null} */ (
             target.closest(
                 '[data-box-offset], [data-packet-offset], [data-group-start-offset]'
             )
         );
-        if (targetNode) {
+        if (treeNode) {
             const offset =
-                parseInt(targetNode.dataset.boxOffset, 10) ??
-                parseInt(targetNode.dataset.packetOffset, 10) ??
-                parseInt(targetNode.dataset.groupStartOffset, 10);
+                parseInt(treeNode.dataset.boxOffset, 10) ??
+                parseInt(treeNode.dataset.packetOffset, 10) ??
+                parseInt(treeNode.dataset.groupStartOffset, 10);
             if (!isNaN(offset)) {
                 handleSelection(offset);
+            }
+            return;
+        }
+
+        const hexNode = /** @type {HTMLElement | null} */ (
+            target.closest('[data-byte-offset]')
+        );
+        if (hexNode) {
+            const byteOffset = parseInt(hexNode.dataset.byteOffset, 10);
+            const mapEntry = byteMap.get(byteOffset);
+            if (mapEntry) {
+                const itemToSelect =
+                    mapEntry.sample || mapEntry.box || mapEntry.packet;
+                if (itemToSelect) {
+                    handleSelection(itemToSelect.offset);
+                }
             }
         }
     };

@@ -140,7 +140,7 @@ export function getSegmentAnalysisTemplate(parsedData, parsedDataB = null) {
     let contentTemplate;
     switch (format) {
         case 'isobmff':
-            contentTemplate = isobmffAnalysisTemplate(parsedData.data);
+            contentTemplate = isobmffAnalysisTemplate(parsedData);
             break;
         case 'ts':
             contentTemplate = tsAnalysisTemplate(parsedData);

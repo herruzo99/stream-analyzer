@@ -9,6 +9,7 @@ import { parsePrivateSectionPayload } from './parsers/private-section.js';
 import { parseIpmpPayload } from './parsers/ipmp.js';
 import { parsePesHeader } from './parsers/pes.js';
 import { parseDsmccPayload } from './parsers/dsm-cc.js';
+import { analyzeSemantics } from '@/features/compliance/domain/semantic-analyzer';
 
 const TS_PACKET_SIZE = 188;
 const SYNC_BYTE = 0x47;
@@ -310,6 +311,8 @@ export function parseTsSegment(buffer) {
             packet.payloadType = 'Null Packet';
         }
     });
+
+    summary.semanticResults = analyzeSemantics({ packets, summary });
 
     return { format: 'ts', data: { summary, packets } };
 }
