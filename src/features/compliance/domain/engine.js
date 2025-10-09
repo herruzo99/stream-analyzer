@@ -35,8 +35,8 @@ export function runChecks(manifest, protocol, context = {}) {
         );
         const results = [];
         const isLive = manifestIR.type === 'dynamic';
-        const version = manifestIR.hls?.version || 1;
-        const targetDuration = manifestIR.hls?.targetDuration || null;
+        const version = manifestIR.summary?.hls?.version || 1;
+        const targetDuration = manifestIR.summary?.hls?.targetDuration || null;
         const hlsContext = {
             isLive,
             version,

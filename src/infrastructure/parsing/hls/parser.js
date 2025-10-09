@@ -165,14 +165,6 @@ export async function parseManifest(manifestString, baseUrl, parentVariables) {
                         lineNumber: i,
                     });
                     break;
-                case 'EXT-X-I-FRAME-STREAM-INF':
-                    parsed.isMaster = true;
-                    parsed.tags.push({
-                        name: tagName,
-                        value: parseAttributeList(tagValue),
-                        lineNumber: i,
-                    });
-                    break;
                 case 'EXTINF': {
                     const [durationStr, title] = tagValue.split(',');
                     let duration = parseFloat(durationStr);
@@ -200,45 +192,34 @@ export async function parseManifest(manifestString, baseUrl, parentVariables) {
                 case 'EXT-X-BITRATE':
                     currentBitrate = parseInt(tagValue, 10);
                     break;
-                case 'EXT-X-BYTERANGE':
-                    if (currentSegment)
-                        currentSegment.tags.push({
-                            name: tagName,
-                            value: tagValue,
-                            lineNumber: i,
-                        });
-                    break;
-                case 'EXT-X-DISCONTINUITY':
-                    discontinuity = true;
-                    break;
                 case 'EXT-X-KEY': {
                     const keyAttributes = parseAttributeList(tagValue);
                     currentKey = keyAttributes;
                     if (keyAttributes.METHOD === 'NONE') {
                         currentKey = null;
                     }
-                    parsed.tags.push({
-                        name: tagName,
-                        value: keyAttributes,
-                        lineNumber: i,
-                    });
-                    break;
+                    // Fallthrough to add to tags array
                 }
+                // eslint-disable-next-line no-fallthrough
                 case 'EXT-X-MAP':
                     parsed.map = {
                         ...parseAttributeList(tagValue),
                         lineNumber: i,
                     };
-                    break;
+                    // Fallthrough
+                // eslint-disable-next-line no-fallthrough
                 case 'EXT-X-PROGRAM-DATE-TIME':
                     if (currentSegment) currentSegment.dateTime = tagValue;
-                    break;
+                    // Fallthrough
+                // eslint-disable-next-line no-fallthrough
                 case 'EXT-X-TARGETDURATION':
                     parsed.targetDuration = parseInt(tagValue, 10);
-                    break;
+                    // Fallthrough
+                // eslint-disable-next-line no-fallthrough
                 case 'EXT-X-MEDIA-SEQUENCE':
                     parsed.mediaSequence = parseInt(tagValue, 10);
-                    break;
+                    // Fallthrough
+                // eslint-disable-next-line no-fallthrough
                 case 'EXT-X-PLAYLIST-TYPE':
                     parsed.playlistType = tagValue;
                     if (tagValue === 'VOD') {
@@ -246,41 +227,49 @@ export async function parseManifest(manifestString, baseUrl, parentVariables) {
                     } else if (tagValue === 'EVENT') {
                         parsed.isLive = true;
                     }
-                    break;
+                    // Fallthrough
+                // eslint-disable-next-line no-fallthrough
                 case 'EXT-X-ENDLIST':
-                    parsed.isLive = false;
-                    parsed.tags.push({
-                        name: tagName,
-                        value: null,
-                        lineNumber: i,
-                    });
-                    break;
+                    if (tagName === 'EXT-X-ENDLIST') parsed.isLive = false;
+                    // Fallthrough
+                // eslint-disable-next-line no-fallthrough
                 case 'EXT-X-VERSION':
-                    parsed.version = parseInt(tagValue, 10);
-                    parsed.tags.push({
-                        name: tagName,
-                        value: parsed.version,
-                        lineNumber: i,
-                    });
-                    break;
+                    if (tagName === 'EXT-X-VERSION')
+                        parsed.version = parseInt(tagValue, 10);
+                    // Fallthrough
+                // eslint-disable-next-line no-fallthrough
                 case 'EXT-X-PART-INF':
-                    parsed.partInf = parseAttributeList(tagValue);
-                    parsed.tags.push({
-                        name: tagName,
-                        value: parsed.partInf,
-                        lineNumber: i,
-                    });
-                    break;
+                    if (tagName === 'EXT-X-PART-INF')
+                        parsed.partInf = parseAttributeList(tagValue);
+                    // Fallthrough
+                // eslint-disable-next-line no-fallthrough
                 case 'EXT-X-SERVER-CONTROL':
-                    parsed.serverControl = parseAttributeList(tagValue);
-                    parsed.tags.push({
-                        name: tagName,
-                        value: parsed.serverControl,
-                        lineNumber: i,
-                    });
-                    break;
+                    if (tagName === 'EXT-X-SERVER-CONTROL')
+                        parsed.serverControl = parseAttributeList(tagValue);
+                    // Fallthrough
+                // eslint-disable-next-line no-fallthrough
+                case 'EXT-X-PRELOAD-HINT': {
+                    if (tagName === 'EXT-X-PRELOAD-HINT') {
+                        parsed.preloadHints.push({
+                            ...parseAttributeList(tagValue),
+                            lineNumber: i,
+                        });
+                    }
+                    // Fallthrough
+                }
+                // eslint-disable-next-line no-fallthrough
+                case 'EXT-X-RENDITION-REPORT': {
+                    if (tagName === 'EXT-X-RENDITION-REPORT') {
+                        parsed.renditionReports.push({
+                            ...parseAttributeList(tagValue),
+                            lineNumber: i,
+                        });
+                    }
+                    // Fallthrough
+                }
+                // eslint-disable-next-line no-fallthrough
                 case 'EXT-X-PART':
-                    if (currentSegment) {
+                    if (tagName === 'EXT-X-PART' && currentSegment) {
                         const partAttrs = parseAttributeList(tagValue);
                         currentSegment.parts.push({
                             ...partAttrs,
@@ -289,55 +278,37 @@ export async function parseManifest(manifestString, baseUrl, parentVariables) {
                             lineNumber: i,
                         });
                     }
-                    break;
-                case 'EXT-X-PRELOAD-HINT':
-                    parsed.preloadHints.push({
-                        ...parseAttributeList(tagValue),
-                        lineNumber: i,
-                    });
-                    parsed.tags.push({
-                        name: tagName,
-                        value: parsed.preloadHints.at(-1),
-                        lineNumber: i,
-                    });
-                    break;
-                case 'EXT-X-RENDITION-REPORT':
-                    parsed.renditionReports.push({
-                        ...parseAttributeList(tagValue),
-                        lineNumber: i,
-                    });
-                    parsed.tags.push({
-                        name: tagName,
-                        value: parsed.renditionReports.at(-1),
-                        lineNumber: i,
-                    });
-                    break;
-                case 'EXT-X-DEFINE':
-                case 'EXT-X-SKIP':
-                case 'EXT-X-CONTENT-STEERING':
-                case 'EXT-X-DATERANGE':
-                case 'EXT-X-SESSION-DATA':
-                    parsed.tags.push({
-                        name: tagName,
-                        value: parseAttributeList(tagValue),
-                        lineNumber: i,
-                    });
-                    break;
-                default:
+                    // Fallthrough
+                // eslint-disable-next-line no-fallthrough
+                default: {
+                    let value;
+                    if (tagValue === null) {
+                        value = null;
+                    } else if (tagValue.includes('=')) {
+                        value = parseAttributeList(tagValue);
+                    } else {
+                        // Check if it's a number after splitting by comma
+                        const parts = tagValue.split(',');
+                        value =
+                            parts.length > 1 &&
+                            !isNaN(parseFloat(parts[0]))
+                                ? tagValue // Keep comma-separated values as string for now
+                                : !isNaN(parseFloat(tagValue))
+                                  ? parseFloat(tagValue)
+                                  : tagValue;
+                    }
+
                     if (currentSegment) {
                         currentSegment.tags.push({
                             name: tagName,
-                            value: tagValue,
+                            value,
                             lineNumber: i,
                         });
                     } else {
-                        parsed.tags.push({
-                            name: tagName,
-                            value: tagValue,
-                            lineNumber: i,
-                        });
+                        parsed.tags.push({ name: tagName, value, lineNumber: i });
                     }
                     break;
+                }
             }
         } else if (!line.startsWith('#')) {
             if (currentSegment) {

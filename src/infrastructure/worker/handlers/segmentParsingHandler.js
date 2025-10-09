@@ -31,7 +31,19 @@ function assignBoxColors(boxes) {
     if (boxes) traverse(boxes, colorState);
 }
 
-function getFieldShade(baseColor, fieldName, fieldIndex) {
+const findBoxRecursive = (boxes, predicate) => {
+    if (!boxes) return null;
+    for (const box of boxes) {
+        if (predicate(box)) return box;
+        if (box.children?.length > 0) {
+            const found = findBoxRecursive(box.children, predicate);
+            if (found) return found;
+        }
+    }
+    return null;
+};
+
+function getFieldShade(baseColor, _fieldName, fieldIndex) {
     if (!baseColor || !baseColor.bg)
         return { bg: 'bg-gray-700', style: '--tw-bg-opacity: 0.5' };
     const opacities = [0.1, 0.2, 0.3, 0.4];
@@ -40,32 +52,188 @@ function getFieldShade(baseColor, fieldName, fieldIndex) {
     return { bg: baseClass, style: `--tw-bg-opacity: ${opacity}` };
 }
 
-function buildByteMapIsobmff(boxesOrChunks) {
-    const byteMap = new Map();
-    const traverse = (box) => {
-        if (box.children?.length > 0) {
-            for (const child of box.children) traverse(child);
+function groupboxesIntoChunks(boxes) {
+    const grouped = [];
+    let i = 0;
+    while (i < boxes.length) {
+        const box = boxes[i];
+        if (box.type === 'moof' && boxes[i + 1]?.type === 'mdat') {
+            const mdat = boxes[i + 1];
+            grouped.push({
+                isChunk: true,
+                type: 'CMAF Chunk',
+                offset: box.offset,
+                size: box.size + mdat.size,
+                children: [box, mdat],
+                details: {
+                    info: {
+                        value: 'A logical grouping of a moof and mdat box, representing a single CMAF chunk.',
+                        offset: box.offset,
+                        length: 0,
+                    },
+                    size: {
+                        value: `${box.size + mdat.size} bytes`,
+                        offset: box.offset,
+                        length: 0,
+                    },
+                },
+                issues: [],
+            });
+            i += 2;
+        } else {
+            grouped.push(box);
+            i += 1;
         }
-        const contentColor = getFieldShade(box.color, 'Box Content', 0);
-        for (
-            let i = box.offset + box.headerSize;
-            i < box.offset + box.size;
-            i++
-        ) {
-            if (!byteMap.has(i))
+    }
+    return grouped;
+}
+
+function buildCanonicalSampleList(parsedData) {
+    const samples = [];
+    // The groupedBoxes structure is temporary and local to this function.
+    const groupedBoxes = groupboxesIntoChunks(parsedData.data.boxes);
+    let sampleIndex = 0;
+
+    // Iterate through the logical top-level containers (chunks or standalone moofs)
+    groupedBoxes.forEach((container) => {
+        let moofBox;
+        if (container.isChunk) {
+            moofBox = container.children.find((c) => c.type === 'moof');
+        } else if (container.type === 'moof') {
+            moofBox = container;
+        }
+
+        if (!moofBox) {
+            return; // Not a container with samples, skip.
+        }
+
+        const trafBoxes = moofBox.children.filter((c) => c.type === 'traf');
+
+        trafBoxes.forEach((traf) => {
+            const tfhd = findBoxRecursive(
+                traf.children,
+                (b) => b.type === 'tfhd'
+            );
+            const trun = findBoxRecursive(
+                traf.children,
+                (b) => b.type === 'trun'
+            );
+            const tfdt = findBoxRecursive(
+                traf.children,
+                (b) => b.type === 'tfdt'
+            );
+
+            if (!trun || !tfhd) return;
+
+            // The `container` (moof or chunk) is the reference for baseDataOffset if it's not in tfhd.
+            const baseDataOffset =
+                tfhd.details.base_data_offset?.value || container.offset || 0;
+            const dataOffset = trun.details.data_offset?.value || 0;
+            let currentOffset = baseDataOffset + dataOffset;
+
+            (trun.samples || []).forEach((sampleInfo) => {
+                const sample = {
+                    isSample: true,
+                    index: sampleIndex,
+                    offset: currentOffset,
+                    size: sampleInfo.size,
+                    duration: sampleInfo.duration,
+                    compositionTimeOffset: sampleInfo.compositionTimeOffset,
+                    flags: sampleInfo.flags,
+                    baseMediaDecodeTime:
+                        tfdt?.details.baseMediaDecodeTime?.value,
+                    trackId: tfhd.details.track_ID?.value,
+                    color: { bg: 'bg-gray-700/20' },
+                };
+                samples.push(sample);
+                currentOffset += sampleInfo.size;
+                sampleIndex++;
+            });
+        });
+    });
+
+    return samples;
+}
+
+function decorateSamples(samples, parsedData) {
+    const sdtp = findBoxRecursive(
+        parsedData.data.boxes,
+        (b) => b.type === 'sdtp'
+    );
+    const stdp = findBoxRecursive(
+        parsedData.data.boxes,
+        (b) => b.type === 'stdp'
+    );
+    const sbgp = findBoxRecursive(
+        parsedData.data.boxes,
+        (b) => b.type === 'sbgp'
+    );
+    const senc = findBoxRecursive(
+        parsedData.data.boxes,
+        (b) => b.type === 'senc'
+    );
+
+    let sbgpSampleCounter = 0;
+    let sbgpEntryIndex = 0;
+    samples.forEach((sample, i) => {
+        if (sdtp?.details?.[`sample_${i + 1}_sample_depends_on`]) {
+            sample.dependsOn =
+                sdtp.details[`sample_${i + 1}_sample_depends_on`].value;
+        }
+        if (stdp?.entries?.[i]) {
+            sample.degradationPriority = stdp.entries[i];
+        }
+        if (sbgp?.entries) {
+            if (sbgpSampleCounter === 0) {
+                if (sbgp.entries[sbgpEntryIndex]) {
+                    sbgpSampleCounter =
+                        sbgp.entries[sbgpEntryIndex].sample_count;
+                }
+            }
+            if (sbgpSampleCounter > 0) {
+                sample.sampleGroup =
+                    sbgp.entries[sbgpEntryIndex].group_description_index;
+                sbgpSampleCounter--;
+                if (sbgpSampleCounter === 0) {
+                    sbgpEntryIndex++;
+                }
+            }
+        }
+        if (senc?.samples?.[i]) {
+            sample.encryption = senc.samples[i];
+        }
+    });
+}
+
+function buildByteMapIsobmff(parsedData) {
+    const byteMap = new Map();
+    // Group boxes for logical view, but do not mutate the original parsedData object.
+    const groupedBoxes = groupboxesIntoChunks(parsedData.data.boxes);
+    assignBoxColors(groupedBoxes);
+
+    // Pass 1: Map all boxes, their headers, and their fields, but EXCLUDE mdat content.
+    const traverseBoxes = (box) => {
+        const headerColor = { bg: box.color.bg, style: '--tw-bg-opacity: 0.6' };
+        for (let i = 0; i < box.headerSize; i++) {
+            byteMap.set(box.offset + i, {
+                box,
+                fieldName: 'Box Header',
+                color: headerColor,
+            });
+        }
+        if (box.type !== 'mdat') {
+            const contentColor = getFieldShade(box.color, 'Box Content', 0);
+            for (
+                let i = box.offset + box.headerSize;
+                i < box.offset + box.size;
+                i++
+            ) {
                 byteMap.set(i, {
                     box,
                     fieldName: 'Box Content',
                     color: contentColor,
                 });
-        }
-        const headerColor = getFieldShade(box.color, 'Box Header', 1);
-        for (let i = box.offset; i < box.offset + box.headerSize; i++) {
-            byteMap.set(i, {
-                box,
-                fieldName: 'Box Header',
-                color: headerColor,
-            });
+            }
         }
         if (box.details) {
             let fieldIndex = 2;
@@ -86,19 +254,36 @@ function buildByteMapIsobmff(boxesOrChunks) {
                         i < fieldMeta.offset + len;
                         i++
                     ) {
-                        byteMap.set(i, {
-                            box,
-                            fieldName: fieldName,
-                            color: fieldColor,
-                        });
+                        byteMap.set(i, { box, fieldName, color: fieldColor });
                     }
                 }
             }
         }
+        if (box.children) box.children.forEach(traverseBoxes);
     };
-    if (boxesOrChunks) {
-        for (const item of boxesOrChunks) traverse(item);
-    }
+    groupedBoxes.forEach(traverseBoxes);
+
+    // Pass 2: Use the pre-existing samples list from the initial parse.
+    const samples = parsedData.samples || [];
+
+    samples.forEach((sample) => {
+        for (let i = 0; i < sample.size; i++) {
+            byteMap.set(sample.offset + i, { sample });
+        }
+        // Pass 3: Layer sub-sample (encryption) info on top
+        if (sample.encryption?.subsamples) {
+            let currentSubsampleOffset = sample.offset;
+            sample.encryption.subsamples.forEach((sub) => {
+                for (let i = 0; i < sub.BytesOfClearData; i++) {
+                    const mapEntry = byteMap.get(currentSubsampleOffset + i);
+                    if (mapEntry) mapEntry.isClear = true;
+                }
+                currentSubsampleOffset +=
+                    sub.BytesOfClearData + sub.BytesOfProtectedData;
+            });
+        }
+    });
+
     return byteMap;
 }
 
@@ -202,36 +387,116 @@ function buildByteMapTs(parsedData) {
 }
 
 export async function handleParseSegmentStructure({ url, data, formatHint }) {
+    const dataView = new DataView(data);
+    const decoder = new TextDecoder();
+
     // 1. Prioritize the explicit format hint from the UI.
+    if (formatHint === 'isobmff') {
+        const parsed = parseISOBMFF(data);
+        const result = { format: 'isobmff', data: parsed };
+        if (result.data.boxes) {
+            const samples = buildCanonicalSampleList(result);
+            decorateSamples(samples, result);
+            result.samples = samples;
+        }
+        return result;
+    }
     if (formatHint === 'ts') {
         return parseTsSegment(data);
     }
-    if (formatHint === 'isobmff') {
-        const { boxes, issues, events } = parseISOBMFF(data);
-        assignBoxColors(boxes);
-        return { format: 'isobmff', data: { boxes, issues, events } };
+
+    // 2. Check file extension from URL if no hint is provided.
+    if (url) {
+        try {
+            const path = new URL(url).pathname.toLowerCase();
+            if (
+                path.endsWith('.m4s') ||
+                path.endsWith('.mp4') ||
+                path.endsWith('.cmfv') ||
+                path.endsWith('.cmfa') ||
+                path.endsWith('.cmfm')
+            ) {
+                const parsed = parseISOBMFF(data);
+                const result = { format: 'isobmff', data: parsed };
+                if (result.data.boxes) {
+                    const samples = buildCanonicalSampleList(result);
+                    decorateSamples(samples, result);
+                    result.samples = samples;
+                }
+                return result;
+            }
+            if (
+                path.endsWith('.ts') ||
+                path.endsWith('.aac') ||
+                path.endsWith('.ac3')
+            ) {
+                return parseTsSegment(data);
+            }
+            if (path.endsWith('.vtt')) {
+                return {
+                    format: 'vtt',
+                    data: parseVTT(decoder.decode(data)),
+                };
+            }
+        } catch (e) {
+            // Can fail if URL is not absolute, proceed to sniffing.
+        }
     }
 
-    // 2. Fallback to byte-sniffing only if no hint is provided.
-    const decoder = new TextDecoder();
+    // 3. Fallback to byte-sniffing if hint/extension are inconclusive.
+    // ISOBMFF sniffing: check for a valid box signature at the start.
+    if (data.byteLength >= 8) {
+        const size = dataView.getUint32(0);
+        const typeCode1 = dataView.getUint8(4);
+        const typeCode2 = dataView.getUint8(5);
+        const typeCode3 = dataView.getUint8(6);
+        const typeCode4 = dataView.getUint8(7);
+        const isPrintable = (code) => code >= 32 && code <= 126;
+
+        if (
+            (size >= 8 || size === 1) &&
+            size <= data.byteLength &&
+            isPrintable(typeCode1) &&
+            isPrintable(typeCode2) &&
+            isPrintable(typeCode3) &&
+            isPrintable(typeCode4)
+        ) {
+            const parsed = parseISOBMFF(data);
+            const result = { format: 'isobmff', data: parsed };
+            if (result.data.boxes) {
+                const samples = buildCanonicalSampleList(result);
+                decorateSamples(samples, result);
+                result.samples = samples;
+            }
+            return result;
+        }
+    }
+
+    // VTT sniffing
     try {
         if (decoder.decode(data.slice(0, 10)).startsWith('WEBVTT'))
             return { format: 'vtt', data: parseVTT(decoder.decode(data)) };
         // eslint-disable-next-line no-empty
     } catch {}
 
+    // TS sniffing
     if (
         data.byteLength > 188 &&
-        new DataView(data).getUint8(0) === 0x47 &&
-        new DataView(data).getUint8(188) === 0x47
+        dataView.getUint8(0) === 0x47 &&
+        dataView.getUint8(188) === 0x47
     ) {
         return parseTsSegment(data);
     }
 
-    // 3. Default fallback is ISOBMFF. This is where the error occurred previously.
-    const { boxes, issues, events } = parseISOBMFF(data);
-    assignBoxColors(boxes);
-    return { format: 'isobmff', data: { boxes, issues, events } };
+    // 4. Default fallback is ISOBMFF.
+    const parsed = parseISOBMFF(data);
+    const result = { format: 'isobmff', data: parsed };
+    if (result.data.boxes) {
+        const samples = buildCanonicalSampleList(result);
+        decorateSamples(samples, result);
+        result.samples = samples;
+    }
+    return result;
 }
 
 export async function handleGeneratePagedByteMap({
@@ -242,28 +507,18 @@ export async function handleGeneratePagedByteMap({
     const start = (page - 1) * bytesPerPage;
     const end = start + bytesPerPage;
 
+    let fullMap;
     if (parsedData.format === 'isobmff') {
-        // Ensure colors are assigned, in case the cached data didn't have them.
-        // This is defensive and ensures robustness.
-        if (parsedData.data.boxes && !parsedData.data.boxes[0]?.color) {
-            assignBoxColors(parsedData.data.boxes);
-        }
-        const fullMap = buildByteMapIsobmff(parsedData.data.boxes);
-        const pagedMap = new Map();
-        for (let i = start; i < end; i++) {
-            if (fullMap.has(i)) pagedMap.set(i, fullMap.get(i));
-        }
-        return Array.from(pagedMap.entries());
+        fullMap = buildByteMapIsobmff(parsedData);
+    } else if (parsedData.format === 'ts') {
+        fullMap = buildByteMapTs(parsedData);
+    } else {
+        return [];
     }
 
-    if (parsedData.format === 'ts') {
-        const fullMap = buildByteMapTs(parsedData);
-        const pagedMap = new Map();
-        for (let i = start; i < end; i++) {
-            if (fullMap.has(i)) pagedMap.set(i, fullMap.get(i));
-        }
-        return Array.from(pagedMap.entries());
+    const pagedMap = new Map();
+    for (let i = start; i < end; i++) {
+        if (fullMap.has(i)) pagedMap.set(i, fullMap.get(i));
     }
-
-    return [];
+    return Array.from(pagedMap.entries());
 }

@@ -59,7 +59,8 @@ export function manageHlsPollers() {
     for (const stream of hlsStreams) {
         for (const [variantUri, state] of stream.hlsVariantState.entries()) {
             const pollerKey = `${stream.id}-${variantUri}`;
-            const shouldBePolling = state.isPolling && state.isExpanded;
+            // Polling now depends on the GLOBAL stream polling state AND the local expanded state.
+            const shouldBePolling = stream.isPolling && state.isExpanded;
             const isCurrentlyPolling = pollers.has(pollerKey);
 
             if (shouldBePolling && !isCurrentlyPolling) {
@@ -120,21 +121,6 @@ export function initializeHlsVariantPoller() {
                         isBackground: false, // This is a user action
                     });
                 }
-            }
-        }
-    );
-
-    eventBus.subscribe(
-        'hls-explorer:toggle-polling',
-        ({ streamId, variantUri }) => {
-            const stream = useAnalysisStore
-                .getState()
-                .streams.find((s) => s.id === streamId);
-            const variantState = stream?.hlsVariantState.get(variantUri);
-            if (variantState) {
-                updateVariantState(streamId, variantUri, {
-                    isPolling: !variantState.isPolling,
-                });
             }
         }
     );

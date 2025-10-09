@@ -73,7 +73,14 @@ export const trackTableTemplate = (tracks, type) => {
     };
 
     if (type === 'video') {
-        headers = ['ID', 'Bitrate', 'Resolution', 'Codecs', 'Roles'];
+        headers = [
+            'ID',
+            'Bitrate',
+            'Resolution',
+            'Codecs',
+            'Roles',
+            'Dependencies',
+        ];
         rows = tracks.map(
             (track) => html`
                 <tr>
@@ -93,6 +100,13 @@ export const trackTableTemplate = (tracks, type) => {
                     </td>
                     <td class="p-2 font-mono">
                         ${track.roles?.join(', ') || 'N/A'}
+                    </td>
+                    <td
+                        class="p-2 font-mono ${tooltipTriggerClasses}"
+                        data-tooltip="A list of other Representation IDs that this Representation depends on for decoding (e.g., for Scalable Video Coding)."
+                        data-iso="DASH: 5.3.5.2"
+                    >
+                        ${track.dependencyId || 'N/A'}
                     </td>
                 </tr>
             `

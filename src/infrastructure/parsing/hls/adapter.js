@@ -10,11 +10,59 @@ import { parseScte35 } from '@/infrastructure/parsing/scte35/parser';
 import { getDrmSystemName } from '../utils/drm.js';
 
 /**
+ * Determines the segment format for an HLS manifest.
+ * @param {object} hlsParsed - The parsed HLS manifest data from the parser.
+ * @returns {'isobmff' | 'ts'}
+ */
+function determineSegmentFormat(hlsParsed) {
+    // If EXT-X-MAP is present, it's definitively fMP4 (ISOBMFF).
+    if (hlsParsed.map) {
+        return 'isobmff';
+    }
+
+    // For Master playlists, inspect the CODECS attribute of variants.
+    if (hlsParsed.isMaster && hlsParsed.variants && hlsParsed.variants.length > 0) {
+        const hasIsobmffCodecs = hlsParsed.variants.some(variant => {
+            const codecs = variant.attributes?.CODECS;
+            if (typeof codecs === 'string') {
+                return codecs.includes('avc1') || codecs.includes('hvc1') || codecs.includes('hev1') || codecs.includes('mp4a');
+            }
+            return false;
+        });
+        if (hasIsobmffCodecs) {
+            return 'isobmff';
+        }
+    }
+
+    // Default to 'ts' if no other indicators are found.
+    return 'ts';
+}
+
+/**
+ * Returns the correct MIME type based on content and segment format.
+ * @param {'video' | 'audio' | 'text'} contentType
+ * @param {'isobmff' | 'ts'} segmentFormat
+ * @returns {string} The corresponding MIME type.
+ */
+function getMimeType(contentType, segmentFormat) {
+    if (contentType === 'text') {
+        return 'text/vtt';
+    }
+    if (segmentFormat === 'isobmff') {
+        return `${contentType}/mp4`;
+    }
+    return `${contentType}/mp2t`;
+}
+
+
+/**
  * Transforms a parsed HLS manifest object into a protocol-agnostic Intermediate Representation (IR).
  * @param {object} hlsParsed - The parsed HLS manifest data from the parser.
  * @returns {Manifest} The manifest IR object.
  */
 export function adaptHlsToIr(hlsParsed) {
+    const segmentFormat = determineSegmentFormat(hlsParsed);
+
     /** @type {Manifest} */
     const manifestIR = {
         id: null,
@@ -36,7 +84,7 @@ export function adaptHlsToIr(hlsParsed) {
         patchLocations: [],
         serviceDescriptions: [],
         initializationSets: [],
-        segmentFormat: hlsParsed.map ? 'isobmff' : 'ts',
+        segmentFormat: segmentFormat,
         periods: [],
         events: [],
         serializedManifest: hlsParsed,
@@ -167,10 +215,7 @@ export function adaptHlsToIr(hlsParsed) {
                                 `${type}-rendition-${groupId}-${mediaIndex}`,
                             contentType: contentType,
                             lang: media.LANGUAGE,
-                            mimeType:
-                                contentType === 'text'
-                                    ? 'text/vtt'
-                                    : 'video/mp2t',
+                            mimeType: getMimeType(contentType, segmentFormat),
                             segmentAlignment: false,
                             width: null,
                             height: null,
@@ -274,7 +319,7 @@ export function adaptHlsToIr(hlsParsed) {
                 id: `variant-${index}`,
                 contentType: 'video', // Assume video if resolution/video codec is present
                 lang: null,
-                mimeType: 'video/mp2t',
+                mimeType: getMimeType('video', segmentFormat),
                 segmentAlignment: false,
                 width: rep.width,
                 height: rep.height,
@@ -314,7 +359,7 @@ export function adaptHlsToIr(hlsParsed) {
             id: 'media-0',
             contentType: 'video', // Assume video/muxed if not master
             lang: null,
-            mimeType: hlsParsed.map ? 'video/mp4' : 'video/mp2t',
+            mimeType: getMimeType('video', segmentFormat),
             segmentAlignment: false,
             width: null,
             height: null,

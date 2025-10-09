@@ -1,5 +1,6 @@
 import { html } from 'lit-html';
 import { trackTableTemplate } from './shared.js';
+import { tooltipTriggerClasses } from '@/ui/shared/constants';
 
 const advancedPropertiesTemplate = (as) => {
     const failover = as.representations[0]?.failoverContent;
@@ -54,11 +55,22 @@ const advancedPropertiesTemplate = (as) => {
 };
 
 const adaptationSetTemplate = (as, type) => {
+    const groupInfo =
+        as.group !== null
+            ? html`<span
+                  class="ml-2 text-xs font-mono bg-gray-700 text-gray-300 px-2 py-0.5 rounded-full ${tooltipTriggerClasses}"
+                  data-tooltip="AdaptationSets with the same Group ID are mutually exclusive; a client should only play one at a time (e.g., different camera angles)."
+                  data-iso="DASH: 5.3.3.1"
+                  >Group: ${as.group}</span
+              >`
+            : '';
+
     return html`
         <div class="space-y-2">
-            <h5 class="font-semibold text-gray-300">
+            <h5 class="font-semibold text-gray-300 flex items-center">
                 ${type.charAt(0).toUpperCase() + type.slice(1)} AdaptationSet:
-                <span class="font-mono text-sm">${as.id || 'N/A'}</span>
+                <span class="font-mono text-sm ml-2">${as.id || 'N/A'}</span>
+                ${groupInfo}
             </h5>
             <div class="pl-4">
                 ${trackTableTemplate(as.representations, type)}

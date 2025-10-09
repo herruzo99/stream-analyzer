@@ -21,7 +21,7 @@ const getBadge = (text, colorClasses) => {
     >`;
 };
 
-const handleDropdownItemClick = (e) => {
+const handleDropdownItemSelect = (e) => {
     const item = /** @type {HTMLElement} */ (e.currentTarget);
     const group = /** @type {HTMLElement} */ (
         item.closest('.stream-input-group')
@@ -29,13 +29,13 @@ const handleDropdownItemClick = (e) => {
     const inputId = parseInt(group.dataset.id, 10);
 
     if (item.dataset.url) {
-        analysisActions.updateStreamInput(inputId, 'url', item.dataset.url);
-        analysisActions.updateStreamInput(
+        analysisActions.populateStreamInput(
             inputId,
-            'name',
+            item.dataset.url,
             item.dataset.name || ''
         );
-        analysisActions.updateStreamInput(inputId, 'file', null);
+
+        // Also clear the file input imperatively for immediate UI feedback
         const fileInput = /** @type {HTMLInputElement} */ (
             group.querySelector('.input-file')
         );
@@ -102,7 +102,7 @@ const renderStreamListItem = (stream, isPreset, presets) => {
         class="group px-3 py-2 hover:bg-gray-700 cursor-pointer flex justify-between items-center"
         data-url="${stream.url}"
         data-name="${stream.name}"
-        @click=${handleDropdownItemClick}
+        @mousedown=${handleDropdownItemSelect}
     >
         <div class="flex flex-col min-w-0">
             <span

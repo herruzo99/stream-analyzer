@@ -223,15 +223,7 @@ export function getDashSummaryTemplate(stream) {
             <div>
                 <div class="flex justify-between items-center mb-4">
                     <h3 class="text-xl font-bold">General Properties</h3>
-                    <button
-                        class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md"
-                        @click=${() =>
-                            eventBus.dispatch('stream:play-request', {
-                                streamId: activeStreamId,
-                            })}
-                    >
-                        Play Stream
-                    </button>
+                   
                 </div>
                 <dl
                     class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(280px,1fr))]"

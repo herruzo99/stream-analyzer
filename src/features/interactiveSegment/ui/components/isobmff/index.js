@@ -7,36 +7,89 @@ import { getInspectorState } from '../interaction-logic.js';
 
 const allIsoTooltipData = getAllIsoTooltipData();
 
-function findBox(boxes, predicate) {
+const boxColors = [
+    { bg: 'bg-red-800', border: 'border-red-700' },
+    { bg: 'bg-yellow-800', border: 'border-yellow-700' },
+    { bg: 'bg-green-800', border: 'border-green-700' },
+    { bg: 'bg-blue-800', border: 'border-blue-700' },
+    { bg: 'bg-indigo-800', border: 'border-indigo-700' },
+    { bg: 'bg-purple-800', border: 'border-purple-700' },
+    { bg: 'bg-pink-800', border: 'border-pink-700' },
+    { bg: 'bg-teal-800', border: 'border-teal-700' },
+];
+const chunkColor = { bg: 'bg-slate-700', border: 'border-slate-600' };
+
+function assignBoxColors(boxes) {
+    const colorState = { index: 0 };
+    const traverse = (boxList, state) => {
+        for (const box of boxList) {
+            if (box.isChunk) {
+                box.color = chunkColor;
+                if (box.children?.length > 0) traverse(box.children, state);
+            } else {
+                box.color = boxColors[state.index % boxColors.length];
+                state.index++;
+                if (box.children?.length > 0) traverse(box.children, state);
+            }
+        }
+    };
+    if (boxes) traverse(boxes, colorState);
+}
+
+/**
+ * Recursively finds the first occurrence of a box that satisfies the predicate.
+ * @param {import('@/infrastructure/parsing/isobmff/parser.js').Box[]} boxes
+ * @param {string | ((box: import('@/infrastructure/parsing/isobmff/parser.js').Box) => boolean)} predicateOrType
+ * @returns {import('@/infrastructure/parsing/isobmff/parser.js').Box | null}
+ */
+function findBoxRecursive(boxes, predicateOrType) {
+    const predicate =
+        typeof predicateOrType === 'function'
+            ? predicateOrType
+            : (box) => box.type === predicateOrType;
+
+    if (!boxes) return null;
     for (const box of boxes) {
         if (predicate(box)) return box;
         if (box.children?.length > 0) {
-            const found = findBox(box.children, predicate);
+            const found = findBoxRecursive(box.children, predicate);
             if (found) return found;
         }
     }
     return null;
 }
 
-export function findBoxByOffset(parsedData, offset) {
-    if (!parsedData || !parsedData.boxes) return null;
+export function findItemByOffset(parsedData, offset) {
+    if (!parsedData) return null;
+
+    // First, check for a matching sample
+    if (parsedData.samples) {
+        const sample = parsedData.samples.find(
+            (s) => offset >= s.offset && offset < s.offset + s.size
+        );
+        if (sample) return sample;
+    }
+
+    // Fallback to finding the containing box
     const findInGrouped = (grouped, off) => {
         for (const item of grouped) {
-            if (item.offset === off) return item;
-            if (item.children?.length > 0) {
-                const found = findInGrouped(item.children, off);
-                if (found) return found;
+            if (off >= item.offset && off < item.offset + item.size) {
+                if (item.children?.length > 0) {
+                    const foundChild = findInGrouped(item.children, off);
+                    if (foundChild) return foundChild;
+                }
+                return item;
             }
         }
         return null;
     };
-    const grouped = groupboxesIntoChunks(parsedData.boxes);
+    const grouped = groupboxesIntoChunks(parsedData.data.boxes || []);
     return findInGrouped(grouped, offset);
 }
 
 const getTimescaleForBox = (box, rootData) => {
     if (!rootData || !rootData.boxes) return null;
-    const mdhd = findBox(rootData.boxes, (b) => b.type === 'mdhd');
+    const mdhd = findBoxRecursive(rootData.boxes, (b) => b.type === 'mdhd');
     if (mdhd) return mdhd.details?.timescale?.value;
     return null;
 };
@@ -77,6 +130,40 @@ function groupboxesIntoChunks(boxes) {
     return grouped;
 }
 
+const summaryTemplate = (parsedSegmentData) => {
+    if (!parsedSegmentData) return '';
+    const isInit = !!findBoxRecursive(parsedSegmentData.boxes, 'moov');
+    const isMedia = !!findBoxRecursive(parsedSegmentData.boxes, 'moof');
+    let summaryText = 'Unknown Segment Type';
+    if (isInit) summaryText = 'Initialization Segment';
+    if (isMedia) summaryText = 'Media Segment';
+
+    const ftyp = findBoxRecursive(parsedSegmentData.boxes, 'ftyp');
+    const brands = ftyp?.details?.compatibleBrands?.value || 'N/A';
+
+    return html`
+        <div
+            class="rounded-md bg-gray-900/90 border border-gray-700"
+            data-testid="isobmff-summary-panel"
+        >
+            <h3 class="font-bold text-base p-2 border-b border-gray-700">
+                ISOBMFF Summary
+            </h3>
+            <div class="p-2 text-xs space-y-2">
+                <div>Type: ${summaryText}</div>
+                <div>
+                    Compatible Brands: <span class="font-mono">${brands}</span>
+                </div>
+                ${parsedSegmentData.issues.length > 0
+                    ? html`<div class="text-red-400">
+                          Parsing Issues: ${parsedSegmentData.issues.length}
+                      </div>`
+                    : ''}
+            </div>
+        </div>
+    `;
+};
+
 const placeholderTemplate = () => html`
     <div class="p-3 text-sm text-gray-500">
         Hover over an item in the tree view or hex view to see details.
@@ -107,7 +194,10 @@ const issuesTemplate = (issues) => {
 
 const renderBoxNode = (box) => {
     const { itemForDisplay } = getInspectorState();
-    const isSelected = itemForDisplay?.offset === box.offset;
+    const isSelected =
+        itemForDisplay &&
+        itemForDisplay.offset === box.offset &&
+        !itemForDisplay.isSample;
     const isChunk = box.isChunk;
     const selectionClass = isSelected
         ? 'bg-blue-900/50 ring-1 ring-blue-500'
@@ -157,15 +247,63 @@ const treeViewTemplate = (boxes) => {
     `;
 };
 
-export const inspectorPanelTemplate = (rootData) => {
-    const { itemForDisplay } = getInspectorState();
-    const box = itemForDisplay;
+const sampleInspectorTemplate = (sample) => {
+    const dependsOnMap = { 2: 'No (I-Frame)', 1: 'Yes', 0: 'Unknown' };
+    return html`
+        <div class="p-3 border-b border-gray-700">
+            <div class="font-bold text-base mb-1">Sample ${sample.index}</div>
+            <div class="text-xs text-gray-400">${sample.size} bytes</div>
+        </div>
+        <div class="overflow-y-auto">
+            <table class="w-full table-fixed text-xs">
+                <tbody>
+                    <tr>
+                        <td class="p-1 pr-2 text-gray-400">Depends On Others</td>
+                        <td class="p-1 font-mono text-white">
+                            ${dependsOnMap[sample.dependsOn] || 'N/A'}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="p-1 pr-2 text-gray-400">Degradation Prio</td>
+                        <td class="p-1 font-mono text-white">
+                            ${sample.degradationPriority ?? 'N/A'}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="p-1 pr-2 text-gray-400">Sample Group</td>
+                        <td class="p-1 font-mono text-white">
+                            ${sample.sampleGroup ?? 'N/A'}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="p-1 pr-2 text-gray-400">Encrypted</td>
+                        <td class="p-1 font-mono text-white">
+                            ${sample.encryption ? 'Yes' : 'No'}
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    `;
+};
 
-    if (!box) return placeholderTemplate();
+export const inspectorPanelTemplate = (rootData) => {
+    const { itemForDisplay, fieldForDisplay } = getInspectorState();
+    const item = itemForDisplay;
+
+    if (!item) return placeholderTemplate();
+
+    if (item.isSample) {
+        return sampleInspectorTemplate(item);
+    }
+
+    const box = item;
     const boxInfo = allIsoTooltipData[box.type] || {};
 
     const fields = Object.entries(box.details).map(([key, field]) => {
         const fieldInfo = allIsoTooltipData[`${box.type}@${key}`];
+        const highlightClass =
+            fieldForDisplay === key ? 'is-inspector-field-highlighted' : '';
         let interpretedValue = html``;
 
         if (key === 'baseMediaDecodeTime' && box.type === 'tfdt') {
@@ -179,7 +317,11 @@ export const inspectorPanelTemplate = (rootData) => {
         }
 
         return html`
-            <tr data-field-name="${key}" data-box-offset="${box.offset}">
+            <tr
+                class=${highlightClass}
+                data-field-name="${key}"
+                data-inspector-offset="${box.offset}"
+            >
                 <td
                     class="p-1 pr-2 text-xs text-gray-400 align-top"
                     title="${fieldInfo?.text || ''}"
@@ -244,9 +386,8 @@ export function getInteractiveIsobmffTemplate(
         </div>`;
     }
 
-    const groupedBoxes = groupboxesIntoChunks(
-        parsedSegmentData.data.boxes || []
-    );
+    const groupedBoxes = groupboxesIntoChunks(parsedSegmentData.data.boxes || []);
+    assignBoxColors(groupedBoxes);
 
     return html`
         <div
@@ -257,6 +398,7 @@ export function getInteractiveIsobmffTemplate(
                     <div
                         class="segment-inspector-panel rounded-md bg-gray-900/90 border border-gray-700 transition-opacity duration-200 h-96 lg:h-[24rem] overflow-hidden flex flex-col"
                     ></div>
+                    ${summaryTemplate(parsedSegmentData.data)}
                     ${issuesTemplate(parsedSegmentData.data.issues)}
                     ${treeViewTemplate(groupedBoxes)}
                 </div>

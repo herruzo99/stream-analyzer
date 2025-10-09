@@ -6,6 +6,7 @@ import {
 import { useSegmentCacheStore } from '@/state/segmentCacheStore';
 import { uiActions } from '@/state/uiStore';
 import { eventBus } from '@/application/event-bus';
+import { copyTextToClipboard } from '@/ui/shared/clipboard';
 
 function handleSegmentCheck(e) {
     const checkbox = /** @type {HTMLInputElement} */ (e.target);
@@ -166,6 +167,11 @@ export const segmentRowTemplate = (seg, isFresh, segmentFormat) => {
         : '';
     const endTimeAttr = seg.endTimeUTC ? `data-end-time=${seg.endTimeUTC}` : '';
 
+    const handleCopyUrl = (e) => {
+        const url = /** @type {HTMLElement} */ (e.currentTarget).dataset.url;
+        copyTextToClipboard(url, 'Segment URL copied to clipboard!');
+    };
+
     return html`
         <tr
             class="segment-row ${stateClasses}"
@@ -199,15 +205,43 @@ export const segmentRowTemplate = (seg, isFresh, segmentFormat) => {
                 <span class="text-xs font-mono">${timingContent}</span>
             </td>
             <td class="px-3 py-1.5">
-                <div class="flex justify-between items-center">
-                    <span
-                        class="font-mono ${seg.gap
-                            ? ''
-                            : 'text-cyan-400'} truncate"
-                        title="${seg.resolvedUrl}"
-                        >${seg.template || 'GAP'}</span
+                <div class="flex justify-between items-center w-full">
+                    <div class="flex items-center min-w-0">
+                        <span
+                            class="font-mono ${seg.gap
+                                ? ''
+                                : 'text-cyan-400'} truncate"
+                            title="${seg.resolvedUrl}"
+                        >
+                            ${seg.template || 'GAP'}
+                        </span>
+                        ${!seg.gap
+                            ? html`<button
+                                  @click=${handleCopyUrl}
+                                  data-url="${seg.resolvedUrl}"
+                                  title="Copy segment URL"
+                                  class="ml-2 flex-shrink-0 text-gray-400 hover:text-white"
+                              >
+                                  <svg
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      class="h-4 w-4"
+                                      fill="none"
+                                      viewBox="0 0 24 24"
+                                      stroke="currentColor"
+                                      stroke-width="2"
+                                  >
+                                      <path
+                                          stroke-linecap="round"
+                                          stroke-linejoin="round"
+                                          d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                                      />
+                                  </svg>
+                              </button>`
+                            : ''}
+                    </div>
+                    <div
+                        class="flex items-center space-x-2 flex-shrink-0 ml-4"
                     >
-                    <div class="flex items-center space-x-2 flex-shrink-0 ml-4">
                         ${getActions(cacheEntry, seg, isFresh, segmentFormat)}
                     </div>
                 </div>
