@@ -1,6 +1,26 @@
 import { html } from 'lit-html';
 import { eventBus } from '@/application/event-bus';
 
+const renderRandomAccessPoints = (
+    points,
+    presentationDuration,
+    mediaTimelineOffset
+) => {
+    if (!points || points.length === 0) return '';
+    return points.map((point) => {
+        const left =
+            ((point.time - mediaTimelineOffset) / presentationDuration) * 100;
+        if (left < 0 || left > 100) return '';
+        return html`<div
+            class="absolute top-1/2 -mt-1.5 w-3 h-3 bg-cyan-400 border border-cyan-200 transform rotate-45 z-20"
+            style="left: calc(${left}% - 6px);"
+            data-tooltip="Random Access Point (Sync Sample)
+Time: ${point.time.toFixed(3)}s
+MOOF Offset: ${point.moofOffset}"
+        ></div>`;
+    });
+};
+
 const renderEvents = (events, totalDuration, timelineStart = 0) => {
     if (!events || events.length === 0) return '';
     return events.map((event) => {
@@ -91,8 +111,9 @@ const dashAbrLadderTemplate = (representations) => {
 };
 
 const timelineGridTemplate = (switchingSet) => {
-    const { totalDuration, representations } = switchingSet;
-    if (totalDuration === 0)
+    const { presentationDuration, mediaDuration, representations } =
+        switchingSet;
+    if (presentationDuration === 0)
         return html`<p class="text-gray-400 text-sm">
             Cannot render timeline: Total duration is zero or unknown.
         </p>`;
@@ -104,14 +125,16 @@ const timelineGridTemplate = (switchingSet) => {
     const minUtcTime = hasUtcTimes ? Math.min(...utcTimes) : 0;
     const maxUtcTime = hasUtcTimes ? Math.max(...utcTimes) : 0;
 
+    const mediaTimelineOffset = representations[0]?.mediaTimelineOffset || 0;
+
     return html`
         <div class="mt-8">
             <h4 class="text-lg font-bold">Switching Set: ${switchingSet.id}</h4>
             <div class="bg-gray-900 rounded-lg p-4 mt-2 relative">
-                ${renderEvents(allEvents, totalDuration)}
+                ${renderEvents(allEvents, presentationDuration)}
                 ${representations.map(
                     (rep) => html`
-                        <div class="flex items-center mb-1">
+                        <div class="flex items-center mb-1 relative">
                             <div
                                 class="w-32 text-xs text-gray-400 font-mono flex-shrink-0 pr-2 text-right"
                                 title="Resolution: ${rep.resolution}"
@@ -121,19 +144,30 @@ const timelineGridTemplate = (switchingSet) => {
                             <div
                                 class="w-full h-8 bg-gray-700/50 rounded flex items-center relative"
                             >
+                                ${renderRandomAccessPoints(
+                                    rep.randomAccessPoints,
+                                    presentationDuration,
+                                    mediaTimelineOffset
+                                )}
                                 ${rep.fragments
                                     ? rep.fragments.map(
                                           (frag) => html`
                                               <div
                                                   class="h-full bg-gray-600 border-r border-gray-800"
                                                   style="width: ${(frag.duration /
-                                                      totalDuration) *
+                                                      presentationDuration) *
                                                   100}%;"
                                                   data-tooltip="Segment #${frag.number}
-Start: ${frag.startTime.toFixed(2)}s
+Presentation Time: ${frag.presentationStartTime.toFixed(
+                                                      2
+                                                  )}s - ${(
+                                                      frag.presentationStartTime +
+                                                      frag.duration
+                                                  ).toFixed(2)}s
+Media Time: ${frag.mediaStartTime.toFixed(2)}s
 Duration: ${frag.duration.toFixed(2)}s
-End: ${(frag.startTime + frag.duration).toFixed(2)}s${frag.startTimeUTC
-                                                      ? `\nAvailable (UTC): ${new Date(
+${frag.startTimeUTC
+                                                      ? `Available (UTC): ${new Date(
                                                             frag.startTimeUTC
                                                         ).toLocaleTimeString()}`
                                                       : ''}"
@@ -150,10 +184,28 @@ End: ${(frag.startTime + frag.duration).toFixed(2)}s${frag.startTimeUTC
                     `
                 )}
             </div>
-            <div class="text-xs text-gray-400 mt-2 flex justify-between">
+            <div
+                class="text-xs text-gray-400 mt-2 flex justify-between font-semibold"
+            >
                 <span>0.00s</span>
-                <span>Media Time - Total: ${totalDuration.toFixed(2)}s</span>
+                <span>Presentation Time</span>
+                <span>${presentationDuration.toFixed(2)}s</span>
             </div>
+            ${mediaTimelineOffset > 0
+                ? html`<div
+                      class="text-xs text-gray-500 mt-1 flex justify-between"
+                  >
+                      <span
+                          >${mediaTimelineOffset.toFixed(2)}s</span
+                      >
+                      <span>Media Time</span>
+                      <span
+                          >${(
+                              mediaTimelineOffset + mediaDuration
+                          ).toFixed(2)}s</span
+                      >
+                  </div>`
+                : ''}
             ${hasUtcTimes
                 ? html`<div
                       class="text-xs text-gray-500 mt-1 flex justify-between"

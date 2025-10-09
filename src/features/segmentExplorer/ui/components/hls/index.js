@@ -48,47 +48,6 @@ export function stopLiveSegmentHighlighter() {
     }
 }
 
-const liveEdgeIndicatorTemplate = (stream, segments) => {
-    if (stream.manifest.type !== 'dynamic' || segments.length === 0) {
-        return '';
-    }
-
-    const totalDuration = segments.reduce(
-        (sum, seg) =>
-            sum +
-            /** @type {any} */ (seg).duration /
-                /** @type {any} */ (seg).timescale,
-        0
-    );
-    if (totalDuration <= 0) return '';
-
-    const _liveEdgeTime = totalDuration;
-    const partHoldBack = stream.manifest.summary.lowLatency?.partHoldBack;
-
-    let positionFromEnd;
-    let title;
-
-    if (partHoldBack != null) {
-        // LL-HLS: Position is based on PART-HOLD-BACK
-        positionFromEnd = (partHoldBack / totalDuration) * 100;
-        title = `Live Edge (Target: ${partHoldBack.toFixed(2)}s behind edge)`;
-    } else {
-        // Standard HLS: Position is at the very end
-        positionFromEnd = 0;
-        title = 'Live Edge';
-    }
-
-    return html`<div
-        class="absolute top-0 bottom-0 right-0 w-0.5 bg-red-500 rounded-full z-20"
-        style="right: ${positionFromEnd}%;"
-        title="${title}"
-    >
-        <div
-            class="absolute -top-1 -right-1.5 w-4 h-4 rounded-full bg-red-500 animate-ping"
-        ></div>
-    </div>`;
-};
-
 const renderVariant = (stream, variant, variantUri) => {
     const variantState = stream.hlsVariantState.get(variantUri);
     if (!variantState) return html``;
@@ -99,7 +58,6 @@ const renderVariant = (stream, variant, variantUri) => {
         isLoading,
         isExpanded,
         displayMode,
-        isPolling,
         freshSegmentUrls,
     } = variantState;
 
@@ -148,13 +106,7 @@ const renderVariant = (stream, variant, variantUri) => {
             variantUri,
         });
     };
-    const onTogglePolling = (e) => {
-        e.stopPropagation();
-        eventBus.dispatch('hls-explorer:toggle-polling', {
-            streamId: stream.id,
-            variantUri,
-        });
-    };
+
     const onSetDisplayMode = (e) => {
         e.stopPropagation();
         eventBus.dispatch('hls-explorer:set-display-mode', {
@@ -177,13 +129,14 @@ const renderVariant = (stream, variant, variantUri) => {
         </div>`;
     } else if (isExpanded) {
         content = html`<div class="overflow-x-auto relative">
-            ${liveEdgeIndicatorTemplate(stream, segmentsToDisplay)}
-            <table class="w-full text-left text-sm table-auto min-w-[600px]">
+            <table
+                class="w-full text-left text-sm table-fixed min-w-[600px]"
+            >
                 <thead class="sticky top-0 bg-gray-900 z-10">
                     <tr>
                         <th class="px-3 py-2 w-8"></th>
-                        <th class="px-3 py-2">Status / Type</th>
-                        <th class="px-3 py-2">Timing (s)</th>
+                        <th class="px-3 py-2 w-40">Status / Type</th>
+                        <th class="px-3 py-2 w-32">Timing (s)</th>
                         <th class="px-3 py-2">URL & Actions</th>
                     </tr>
                 </thead>
@@ -242,20 +195,6 @@ const renderVariant = (stream, variant, variantUri) => {
                 ? html`
                       <div class="p-2 border-t border-gray-700">
                           <div class="flex items-center gap-4 p-2">
-                              ${stream.manifest.type === 'dynamic'
-                                  ? html`
-                                        <button
-                                            @click=${onTogglePolling}
-                                            class="text-xs px-3 py-1 rounded ${isPolling
-                                                ? 'bg-red-600 hover:bg-red-700'
-                                                : 'bg-blue-600 hover:bg-blue-700'}"
-                                        >
-                                            ${isPolling
-                                                ? 'Stop Polling'
-                                                : 'Start Polling'}
-                                        </button>
-                                    `
-                                  : ''}
                               <button
                                   @click=${onSetDisplayMode}
                                   class="text-xs px-3 py-1 rounded bg-gray-600 hover:bg-gray-700"

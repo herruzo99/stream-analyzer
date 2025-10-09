@@ -15,34 +15,22 @@ export function parseStdp(box, view) {
         offset: 0,
         length: 0,
     };
+    box.entries = [];
 
-    if (sampleCount > 0) {
-        const maxEntriesToShow = 10;
-        for (let i = 0; i < sampleCount; i++) {
-            if (p.stopped) break;
-            if (i < maxEntriesToShow) {
-                p.readUint16(`priority_${i + 1}`);
-            } else {
-                p.offset += 2;
-            }
+    for (let i = 0; i < sampleCount; i++) {
+        if (p.stopped) break;
+        const priority = p.readUint16(`priority_${i}`);
+        if (priority !== null) {
+            box.entries.push(priority);
         }
-
-        if (sampleCount > maxEntriesToShow) {
-            box.details['...more_entries'] = {
-                value: `${
-                    sampleCount - maxEntriesToShow
-                } more entries not shown but parsed`,
-                offset: 0,
-                length: 0,
-            };
-        }
+        delete box.details[`priority_${i}`];
     }
     p.finalize();
 }
 
 export const stdpTooltip = {
     stdp: {
-        name: 'Degradation Priority',
+        name: 'Independent and Disposable Samples',
         text: 'Contains the degradation priority for each sample in the track.',
         ref: 'ISO/IEC 14496-12, 8.5.3',
     },

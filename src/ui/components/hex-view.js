@@ -1,6 +1,15 @@
 import { html } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 
+const escapeHtml = (str) => {
+    if (!str) return '';
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+};
+
 /**
  * Renders the full grid content as three separate HTML strings for each column.
  * @param {Uint8Array} view - The byte array view.
@@ -37,10 +46,16 @@ function renderHexGridContent(view, start, end, byteMap, allTooltips) {
                 let tooltipText = '';
                 let isoRefText = '';
                 let fieldBoundaryClass = '';
+                let isClearStyle = '';
 
                 if (mapEntry) {
-                    const item = mapEntry.box || mapEntry.packet;
+                    const item =
+                        mapEntry.box || mapEntry.packet || mapEntry.sample;
                     const fieldName = mapEntry.fieldName;
+
+                    if (mapEntry.isClear) {
+                        isClearStyle = 'clear-byte-pattern';
+                    }
 
                     const boxType = item?.type;
                     let primaryTooltip = fieldName;
@@ -63,16 +78,20 @@ function renderHexGridContent(view, start, end, byteMap, allTooltips) {
                             primaryTooltip = boxInfo.text;
                             primaryIsoRef = boxInfo.ref || '';
                         }
+                    } else if (item?.isSample) {
+                        primaryTooltip = `Sample ${item.index}`;
                     }
+
                     tooltipText = primaryTooltip;
                     isoRefText = primaryIsoRef;
 
                     if (
                         prevMapEntry &&
                         mapEntry.fieldName !== prevMapEntry.fieldName &&
-                        (mapEntry.box?.offset === prevMapEntry.box?.offset ||
-                            mapEntry.packet?.offset ===
-                                prevMapEntry.packet?.offset) &&
+                        (item?.offset ===
+                            (prevMapEntry.box ||
+                                prevMapEntry.packet ||
+                                prevMapEntry.sample)?.offset) &&
                         byteOffset % 16 !== 0
                     ) {
                         fieldBoundaryClass = 'border-l-2 border-white/10';
@@ -85,14 +104,16 @@ function renderHexGridContent(view, start, end, byteMap, allTooltips) {
                     .toString(16)
                     .padStart(2, '0')
                     .toUpperCase();
-                const commonAttrs = `data-byte-offset="${byteOffset}" data-tooltip="${tooltipText}" data-iso="${isoRefText}"`;
-                hexRow += `<span ${commonAttrs} class="hex-byte relative ${bgColor} ${fieldBoundaryClass}" style="${styleAttr}">${hexByte}</span>`;
+                const commonAttrs = `data-byte-offset="${byteOffset}" data-tooltip="${escapeHtml(
+                    tooltipText
+                )}" data-iso="${escapeHtml(isoRefText)}"`;
+                hexRow += `<span ${commonAttrs} class="hex-byte relative ${bgColor} ${fieldBoundaryClass} ${isClearStyle}" style="${styleAttr}">${hexByte}</span>`;
 
                 const asciiChar =
                     byte >= 32 && byte <= 126
                         ? String.fromCharCode(byte).replace('<', '&lt;')
                         : '.';
-                asciiRow += `<span ${commonAttrs} class="ascii-char relative ${bgColor} ${fieldBoundaryClass}" style="${styleAttr}">${asciiChar}</span>`;
+                asciiRow += `<span ${commonAttrs} class="ascii-char relative ${bgColor} ${fieldBoundaryClass} ${isClearStyle}" style="${styleAttr}">${asciiChar}</span>`;
             } else {
                 hexRow += '<span></span>';
                 asciiRow += '<span></span>';
@@ -136,6 +157,15 @@ export const hexViewTemplate = (
             .ascii-char {
                 text-align: center;
                 padding: 0 0.125rem;
+            }
+            .clear-byte-pattern {
+                background-image: repeating-linear-gradient(
+                    45deg,
+                    transparent,
+                    transparent 2px,
+                    rgba(255, 255, 255, 0.1) 2px,
+                    rgba(255, 255, 255, 0.1) 4px
+                );
             }
         </style>
         <div

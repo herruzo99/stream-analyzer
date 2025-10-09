@@ -60,6 +60,7 @@ import { parseTenc, tencTooltip } from './boxes/tenc.js';
 import { parseId32, id32Tooltip } from './boxes/id32.js';
 import { parseEmsg, emsgTooltip } from './boxes/emsg.js';
 import { stppParsers, stppTooltip } from './boxes/stpp.js';
+import { parseUuid, uuidTooltip } from './boxes/uuid.js';
 
 export const boxParsers = {
     ftyp: parseFtypStyp,
@@ -127,6 +128,7 @@ export const boxParsers = {
     ID32: parseId32,
     emsg: parseEmsg,
     ...stppParsers,
+    uuid: parseUuid,
 };
 
 const tooltipData = {
@@ -192,6 +194,7 @@ const tooltipData = {
     ...id32Tooltip,
     ...emsgTooltip,
     ...stppTooltip,
+    ...uuidTooltip,
 };
 
 /**

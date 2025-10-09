@@ -45,12 +45,14 @@ const dashSegmentTableTemplate = (
         </div>`;
     } else {
         content = html`<div class="overflow-x-auto">
-            <table class="w-full text-left text-sm table-auto min-w-[600px]">
+            <table
+                class="w-full text-left text-sm table-fixed min-w-[600px]"
+            >
                 <thead class="sticky top-0 bg-gray-900 z-10">
                     <tr>
                         <th class="px-3 py-2 w-8"></th>
-                        <th class="px-3 py-2">Status / Type</th>
-                        <th class="px-3 py-2">Timing (s)</th>
+                        <th class="px-3 py-2 w-40">Status / Type</th>
+                        <th class="px-3 py-2 w-32">Timing (s)</th>
                         <th class="px-3 py-2">URL & Actions</th>
                     </tr>
                 </thead>

@@ -4,7 +4,7 @@ import { useSegmentCacheStore } from '@/state/segmentCacheStore';
 import { useUiStore, uiActions } from '@/state/uiStore';
 import {
     getInteractiveIsobmffTemplate,
-    findBoxByOffset,
+    findItemByOffset,
 } from './components/isobmff/index.js';
 import {
     getInteractiveTsTemplate,
@@ -31,7 +31,7 @@ let isInitialized = false;
 let pagedByteMap = null;
 let isByteMapLoading = false;
 
-function initializeAllInteractivity(dom, cachedSegment) {
+function initializeAllInteractivity(dom, cachedSegment, byteMap) {
     if (isInitialized) return;
 
     let findFn, parsedDataForLogic, format;
@@ -41,7 +41,7 @@ function initializeAllInteractivity(dom, cachedSegment) {
         format = 'ts';
     } else if (cachedSegment.parsedData?.format === 'isobmff') {
         parsedDataForLogic = cachedSegment.parsedData.data;
-        findFn = findBoxByOffset;
+        findFn = findItemByOffset;
         format = 'isobmff';
     }
 
@@ -49,7 +49,7 @@ function initializeAllInteractivity(dom, cachedSegment) {
         initializeSegmentViewInteractivity(
             dom,
             parsedDataForLogic,
-            pagedByteMap,
+            byteMap,
             findFn,
             format
         );
@@ -143,7 +143,10 @@ export function getInteractiveSegmentTemplate(dom) {
                 Interactive view not supported for this segment format.
             </div>`;
         }
-        setTimeout(() => initializeAllInteractivity(dom, cachedSegment), 0);
+        setTimeout(
+            () => initializeAllInteractivity(dom, cachedSegment, pagedByteMap),
+            0
+        );
     } else {
         contentTemplate = html`<div class="text-center py-12">
             <div

@@ -28,6 +28,7 @@ import { uiActions } from './uiStore.js';
  * @property {() => void} clearAllStreamInputs
  * @property {(data: object[]) => void} setStreamInputs
  * @property {(id: number, field: keyof StreamInput, value: string | File | null) => void} updateStreamInput
+ * @property {(id: number, url: string, name: string) => void} populateStreamInput
  * @property {(url: string) => void} addSegmentToCompare
  * @property {(url: string) => void} removeSegmentFromCompare
  * @property {() => void} clearSegmentsToCompare
@@ -128,6 +129,16 @@ export const useAnalysisStore = createStore((set, get) => ({
         set((state) => ({
             streamInputs: state.streamInputs.map((input) =>
                 input.id === id ? { ...input, [field]: value } : input
+            ),
+        }));
+    },
+
+    populateStreamInput: (id, url, name) => {
+        set((state) => ({
+            streamInputs: state.streamInputs.map((input) =>
+                input.id === id
+                    ? { ...input, url, name, file: null }
+                    : input
             ),
         }));
     },
@@ -233,6 +244,8 @@ export const analysisActions = {
         useAnalysisStore.getState().setStreamInputs(data),
     updateStreamInput: (id, field, value) =>
         useAnalysisStore.getState().updateStreamInput(id, field, value),
+    populateStreamInput: (id, url, name) =>
+        useAnalysisStore.getState().populateStreamInput(id, url, name),
     addSegmentToCompare: (url) =>
         useAnalysisStore.getState().addSegmentToCompare(url),
     removeSegmentFromCompare: (url) =>

@@ -10,6 +10,7 @@ import { boxParsers } from './index.js';
  * @property {Record<string, {value: any, offset: number, length: number}>} details
  * @property {Box[]} children
  * @property {object[]=} samples
+ * @property {any[]=} entries
  * @property {{type: 'error' | 'warn', message: string}[]=} issues
  * @property {boolean=} isChunk - Dynamically added property for view model
  * @property {object=} color - Dynamically added property for view model
