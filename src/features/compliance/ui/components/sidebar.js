@@ -36,9 +36,7 @@ const commentCard = (result) => {
         <div
             class="compliance-comment-card bg-gray-800 p-3 rounded-lg border-l-4 ${statusClasses[
                 result.status
-            ]} ${highlightClass} status-${
-                result.status
-            } cursor-pointer hover:bg-gray-700/50"
+            ]} ${highlightClass} status-${result.status} cursor-pointer hover:bg-gray-700/50"
             data-location-id="${locationId}"
             @mouseover=${() =>
                 eventBus.dispatch('ui:compliance:path-hovered', {

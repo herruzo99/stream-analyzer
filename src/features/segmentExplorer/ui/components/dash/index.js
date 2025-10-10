@@ -1,12 +1,49 @@
 import { html } from 'lit-html';
 import { segmentRowTemplate } from '@/ui/components/segment-row';
+import { isDebugMode } from '@/application/utils/env';
+import '@/ui/components/virtualized-list'; // Import the custom element
 
-const dashSegmentTableTemplate = (
-    stream,
-    period,
-    representation,
-    displayMode
-) => {
+const diagnosticsTemplate = (diagnostics) => {
+    if (!diagnostics || Object.keys(diagnostics).length === 0) {
+        return '';
+    }
+
+    return html`
+        <div
+            class="bg-gray-900 border-2 border-dashed border-yellow-500/50 rounded-lg p-3 my-2 text-xs"
+        >
+            <h5 class="font-bold text-yellow-300 mb-2">
+                Live Segment Calculation Diagnostics
+            </h5>
+            <table class="w-full text-left">
+                <thead>
+                    <tr class="border-b border-gray-700">
+                        <th class="font-semibold text-gray-400 pb-1 w-1/3">
+                            Strategy
+                        </th>
+                        <th class="font-semibold text-gray-400 pb-1">
+                            Calculated Latest Segment #
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${Object.entries(diagnostics).map(
+                        ([name, data]) => html`
+                            <tr>
+                                <td class="py-1 text-gray-300">${name}</td>
+                                <td class="py-1 font-mono text-cyan-300">
+                                    ${data.latestSegmentNum}
+                                </td>
+                            </tr>
+                        `
+                    )}
+                </tbody>
+            </table>
+        </div>
+    `;
+};
+
+const dashSegmentTableTemplate = (stream, period, representation) => {
     const compositeKey = `${period.id}-${representation.id}`;
     const repState = stream.dashRepresentationState.get(compositeKey);
 
@@ -17,13 +54,14 @@ const dashSegmentTableTemplate = (
         </div>`;
     }
 
-    const { segments, freshSegmentUrls } = repState;
+    const { segments, freshSegmentUrls, diagnostics } = repState;
 
-    const SEGMENT_PAGE_SIZE = 10;
-    const segmentsToRender =
-        displayMode === 'first'
-            ? segments.slice(0, SEGMENT_PAGE_SIZE)
-            : segments.slice(-SEGMENT_PAGE_SIZE);
+    const rowRenderer = (seg) => {
+        const isFresh = freshSegmentUrls.has(
+            /** @type {any} */ (seg).resolvedUrl
+        );
+        return segmentRowTemplate(seg, isFresh, stream.manifest.segmentFormat);
+    };
 
     const header = html` <div
         class="flex items-center p-2 bg-gray-900/50 border-b border-gray-700"
@@ -44,46 +82,59 @@ const dashSegmentTableTemplate = (
             No segments found for this representation.
         </div>`;
     } else {
-        content = html`<div class="overflow-x-auto">
-            <table
-                class="w-full text-left text-sm table-fixed min-w-[600px]"
+        const listData = {
+            items: segments,
+            rowTemplate: rowRenderer,
+            rowHeight: 40,
+        };
+        content = html`
+            <div
+                class="segment-grid-container text-sm min-w-[700px] overflow-hidden"
             >
-                <thead class="sticky top-0 bg-gray-900 z-10">
-                    <tr>
-                        <th class="px-3 py-2 w-8"></th>
-                        <th class="px-3 py-2 w-40">Status / Type</th>
-                        <th class="px-3 py-2 w-32">Timing (s)</th>
-                        <th class="px-3 py-2">URL & Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${segmentsToRender.map((seg) => {
-                        const isFresh = freshSegmentUrls.has(
-                            /** @type {any} */ (seg).resolvedUrl
-                        );
-                        return segmentRowTemplate(
-                            seg,
-                            isFresh,
-                            stream.manifest.segmentFormat
-                        );
-                    })}
-                </tbody>
-            </table>
-        </div>`;
+                <div
+                    class="grid-header grid sticky top-0 bg-gray-900 z-10 font-semibold text-gray-400"
+                    style="grid-template-columns: 32px 160px 128px 96px 1fr;"
+                >
+                    <div
+                        class="px-3 py-2 border-b border-r border-gray-700"
+                    ></div>
+                    <div class="px-3 py-2 border-b border-r border-gray-700">
+                        Status / Type
+                    </div>
+                    <div class="px-3 py-2 border-b border-r border-gray-700">
+                        Timing (s)
+                    </div>
+                    <div class="px-3 py-2 border-b border-r border-gray-700">
+                        Flags
+                    </div>
+                    <div class="px-3 py-2 border-b border-gray-700">
+                        URL & Actions
+                    </div>
+                </div>
+                <virtualized-list
+                    id="vl-${compositeKey}"
+                    .tempData=${listData}
+                    style="height: ${Math.min(segments.length * 40, 400)}px;"
+                ></virtualized-list>
+            </div>
+        `;
     }
 
     return html`<div class="bg-gray-800 rounded-lg border border-gray-700 mt-2">
-        ${header} ${content}
+        ${header}
+        ${isDebugMode && stream.manifest.type === 'dynamic'
+            ? diagnosticsTemplate(diagnostics)
+            : ''}
+        <div class="p-2">${content}</div>
     </div>`;
 };
 
 /**
  * Creates the lit-html template for the DASH segment explorer content.
  * @param {import('@/types.ts').Stream} stream
- * @param {string} displayMode - 'first' or 'last'
  * @returns {import('lit-html').TemplateResult}
  */
-export function getDashExplorerTemplate(stream, displayMode) {
+export function getDashExplorerTemplate(stream) {
     if (!stream.manifest || !stream.manifest.periods) {
         return html`<p class="text-gray-400">
             No periods found in the manifest.
@@ -120,8 +171,7 @@ export function getDashExplorerTemplate(stream, displayMode) {
                                                 dashSegmentTableTemplate(
                                                     stream,
                                                     period,
-                                                    rep,
-                                                    displayMode
+                                                    rep
                                                 )
                                             )}
                                         </div>

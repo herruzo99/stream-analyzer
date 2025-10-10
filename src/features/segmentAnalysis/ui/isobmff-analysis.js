@@ -57,7 +57,9 @@ const semanticSummaryTemplate = (boxes) => {
         const elst = findBoxRecursive(boxes, 'elst');
 
         return html`
-            <h3 class="text-xl font-bold mb-4">Initialization Segment Summary</h3>
+            <h3 class="text-xl font-bold mb-4">
+                Initialization Segment Summary
+            </h3>
             <div
                 class="grid gap-4 grid-cols-[repeat(auto-fill,minmax(300px,1fr))] mb-6"
             >
@@ -74,12 +76,18 @@ const semanticSummaryTemplate = (boxes) => {
                 ])}
                 ${semanticCard('Track Extends (trex)', trex, [
                     { key: 'track_ID', label: 'Track ID' },
-                    { key: 'default_sample_duration', label: 'Default Duration' },
+                    {
+                        key: 'default_sample_duration',
+                        label: 'Default Duration',
+                    },
                     { key: 'default_sample_size', label: 'Default Size' },
                 ])}
                 ${semanticCard('Edit List (elst)', elst, [
                     { key: 'entry_count', label: 'Entry Count' },
-                    { key: 'entry_1_media_time', label: 'Media Time (Entry 1)' },
+                    {
+                        key: 'entry_1_media_time',
+                        label: 'Media Time (Entry 1)',
+                    },
                 ])}
             </div>
         `;
@@ -103,7 +111,10 @@ const semanticSummaryTemplate = (boxes) => {
                     { key: 'track_ID', label: 'Track ID' },
                     { key: 'flags', label: 'Flags' },
                     { key: 'base_data_offset', label: 'Base Data Offset' },
-                    { key: 'default_sample_duration', label: 'Default Duration' },
+                    {
+                        key: 'default_sample_duration',
+                        label: 'Default Duration',
+                    },
                 ])}
                 ${semanticCard('Track Fragment Decode Time (tfdt)', tfdt, [
                     {
@@ -136,7 +147,10 @@ const formatEncryptionInfo = (encryption) => {
     const subsampleText =
         encryption.subsamples && encryption.subsamples.length > 0
             ? encryption.subsamples
-                  .map((s) => `[C:${s.BytesOfClearData},P:${s.BytesOfProtectedData}]`)
+                  .map(
+                      (s) =>
+                          `[C:${s.BytesOfClearData},P:${s.BytesOfProtectedData}]`
+                  )
                   .join(' ')
             : 'None';
     return html`IV: ${iv}<br />Subsamples: ${subsampleText}`;
@@ -281,16 +295,15 @@ export const isobmffAnalysisTemplate = (parsedData) => {
 
     return html`
         <div class="space-y-8">
-            <div>
-                ${semanticSummaryTemplate(isobmffData.boxes)}
-            </div>
+            <div>${semanticSummaryTemplate(isobmffData.boxes)}</div>
 
             ${samples && samples.length > 0
-                ? html`
-                    <div>
-                        <h3 class="text-xl font-bold mb-4">Sample-level Analysis</h3>
-                        ${samplesTableTemplate(samples)}
-                    </div>`
+                ? html` <div>
+                      <h3 class="text-xl font-bold mb-4">
+                          Sample-level Analysis
+                      </h3>
+                      ${samplesTableTemplate(samples)}
+                  </div>`
                 : ''}
 
             <div>

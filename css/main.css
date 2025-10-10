@@ -38,14 +38,25 @@
     box-shadow: inset 0 0 0 1000px rgba(59, 130, 246, 0.3);
 }
 
-.is-box-hover-highlighted {
-    /* Lighter blue overlay for the parent box on hover */
-    box-shadow: inset 0 0 0 1000px rgba(59, 131, 246, 0.15);
+.is-box-hover-highlighted::before,
+.is-field-hover-highlighted::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    border-radius: 2px;
 }
 
-.is-field-hover-highlighted {
-    /* A stronger, more opaque overlay for the specific field on hover */
-    box-shadow: inset 0 0 0 1000px rgba(168, 85, 247, 0.4);
+.is-box-hover-highlighted::before {
+    background-color: rgba(59, 131, 246, 0.15);
+    z-index: 10;
+}
+
+.is-field-hover-highlighted::before {
+    background-color: rgba(168, 85, 247, 0.4);
     z-index: 15;
 }
 

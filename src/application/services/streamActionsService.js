@@ -1,8 +1,5 @@
 import { eventBus } from '@/application/event-bus';
-import {
-    analysisActions,
-    useAnalysisStore,
-} from '@/state/analysisStore';
+import { analysisActions, useAnalysisStore } from '@/state/analysisStore';
 
 /**
  * Toggles the polling state for all live streams.

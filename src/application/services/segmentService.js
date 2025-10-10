@@ -11,7 +11,11 @@ async function _fetchAndParseSegment(url, formatHint) {
         const response = await fetch(url, { method: 'GET', cache: 'no-store' });
         const data = response.ok ? await response.arrayBuffer() : null;
 
-        const entryWithData = { status: response.status, data, parsedData: null };
+        const entryWithData = {
+            status: response.status,
+            data,
+            parsedData: null,
+        };
         set(url, entryWithData);
 
         if (data) {

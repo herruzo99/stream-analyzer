@@ -1,8 +1,5 @@
 import { eventBus } from '@/application/event-bus';
-import {
-    useAnalysisStore,
-    analysisActions,
-} from '@/state/analysisStore';
+import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
 
 const pollers = new Map();
 let managerInterval = null;

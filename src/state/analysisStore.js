@@ -33,7 +33,7 @@ import { uiActions } from './uiStore.js';
  * @property {(url: string) => void} removeSegmentFromCompare
  * @property {() => void} clearSegmentsToCompare
  * @property {(streamId: number, updatedStreamData: Partial<Stream>) => void} updateStream
- * @property {(isPolling: boolean) => void} setAllLiveStreamsPolling
+ * @property {(isPolling: boolean, options?: { fromInactivity?: boolean }) => void} setAllLiveStreamsPolling
  * @property {(streamId: number, direction: number) => void} navigateManifestUpdate
  */
 
@@ -72,7 +72,10 @@ export const useAnalysisStore = createStore((set, get) => ({
 
     completeAnalysis: (streams) => {
         set({
-            streams: streams,
+            streams: streams.map((s) => ({
+                ...s,
+                wasStoppedByInactivity: false,
+            })),
             activeStreamId: streams[0]?.id ?? null,
         });
         eventBus.dispatch('state:analysis-complete', { streams });
@@ -136,9 +139,7 @@ export const useAnalysisStore = createStore((set, get) => ({
     populateStreamInput: (id, url, name) => {
         set((state) => ({
             streamInputs: state.streamInputs.map((input) =>
-                input.id === id
-                    ? { ...input, url, name, file: null }
-                    : input
+                input.id === id ? { ...input, url, name, file: null } : input
             ),
         }));
     },
@@ -181,11 +182,20 @@ export const useAnalysisStore = createStore((set, get) => ({
         eventBus.dispatch('state:stream-updated', { streamId });
     },
 
-    setAllLiveStreamsPolling: (isPolling) => {
+    setAllLiveStreamsPolling: (isPolling, options = {}) => {
         set((state) => ({
-            streams: state.streams.map((s) =>
-                s.manifest?.type === 'dynamic' ? { ...s, isPolling } : s
-            ),
+            streams: state.streams.map((s) => {
+                if (s.manifest?.type === 'dynamic') {
+                    const newStream = { ...s, isPolling };
+                    if (options.fromInactivity && !isPolling) {
+                        newStream.wasStoppedByInactivity = true;
+                    } else if (isPolling) {
+                        newStream.wasStoppedByInactivity = false;
+                    }
+                    return newStream;
+                }
+                return s;
+            }),
         }));
         eventBus.dispatch('state:stream-updated');
     },
@@ -254,8 +264,10 @@ export const analysisActions = {
         useAnalysisStore.getState().clearSegmentsToCompare(),
     updateStream: (id, data) =>
         useAnalysisStore.getState().updateStream(id, data),
-    setAllLiveStreamsPolling: (isPolling) =>
-        useAnalysisStore.getState().setAllLiveStreamsPolling(isPolling),
+    setAllLiveStreamsPolling: (isPolling, options) =>
+        useAnalysisStore
+            .getState()
+            .setAllLiveStreamsPolling(isPolling, options),
     navigateManifestUpdate: (id, dir) =>
         useAnalysisStore.getState().navigateManifestUpdate(id, dir),
 };

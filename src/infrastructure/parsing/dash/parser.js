@@ -6,9 +6,10 @@ import { XMLParser } from 'fast-xml-parser';
  * This is the public entry point for the DASH manifest parsing module.
  * @param {string} xmlString The raw MPD XML.
  * @param {string} baseUrl The URL from which the MPD was fetched.
+ * @param {object} [context]
  * @returns {Promise<{manifest: import('@/types.ts').Manifest, serializedManifest: object, baseUrl: string}>}
  */
-export async function parseManifest(xmlString, baseUrl) {
+export async function parseManifest(xmlString, baseUrl, context) {
     const parser = new XMLParser({
         ignoreAttributes: false,
         attributeNamePrefix: '',
@@ -82,7 +83,11 @@ export async function parseManifest(xmlString, baseUrl) {
     }
     const serializedManifest = jsonObj[mpdNodeKey];
 
-    const manifestIR = adaptDashToIr(serializedManifest, baseUrl);
+    const manifestIR = await adaptDashToIr(
+        serializedManifest,
+        baseUrl,
+        context
+    );
 
     return {
         manifest: manifestIR,

@@ -30,7 +30,9 @@ async function handleFetchHlsMediaPlaylist({
         hlsDefinedVariables
     );
 
-    const freshSegmentUrls = (manifest.segments || []).map((s) => s.resolvedUrl);
+    const freshSegmentUrls = (manifest.segments || []).map(
+        (s) => s.resolvedUrl
+    );
 
     return {
         streamId,

@@ -1,8 +1,5 @@
 import { diffWords } from 'diff';
-import {
-    highlightDash,
-    highlightHls,
-} from '@/ui/shared/syntax-highlighter';
+import { highlightDash, highlightHls } from '@/ui/shared/syntax-highlighter';
 
 /**
  * Diffs two pre-formatted manifest strings and returns an HTML string showing the new version,

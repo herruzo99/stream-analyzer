@@ -1,8 +1,5 @@
 import { html, render } from 'lit-html';
-import {
-    useAnalysisStore,
-    analysisActions,
-} from '@/state/analysisStore';
+import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
 import { exampleStreams } from '@/data/example-streams';
 import {
     getHistory,
@@ -202,9 +199,9 @@ const streamInputTemplate = (input, isOnlyStream, history, presets) => {
             true
         );
     const handleFocusOut = (e) => {
-        const groupEl = /** @type {HTMLElement} */ (
-            e.currentTarget
-        ).closest('.stream-input-group');
+        const groupEl = /** @type {HTMLElement} */ (e.currentTarget).closest(
+            '.stream-input-group'
+        );
         hideTimeout = setTimeout(() => toggleDropdown(groupEl, false), 150);
     };
     const handleDropdownFocusIn = () => clearTimeout(hideTimeout);
@@ -223,7 +220,8 @@ const streamInputTemplate = (input, isOnlyStream, history, presets) => {
             ${!isOnlyStream
                 ? html`<button
                       class="remove-stream-btn text-red-400 hover:text-red-600 font-bold text-sm"
-                      @click=${() => analysisActions.removeStreamInput(input.id)}
+                      @click=${() =>
+                          analysisActions.removeStreamInput(input.id)}
                   >
                       &times; Remove
                   </button>`

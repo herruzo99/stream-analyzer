@@ -4,8 +4,9 @@
  * @typedef {import('@/types.ts').SecuritySummary} SecuritySummary
  */
 
-import { findChildrenRecursive } from './recursive-parser.js';
+import { findChildrenRecursive, resolveBaseUrl } from './recursive-parser.js';
 import { formatBitrate } from '@/ui/shared/format';
+import { findInitSegmentUrl } from './segment-parser.js';
 
 const getSegmentingStrategy = (serializedManifest) => {
     if (!serializedManifest) return 'unknown';
@@ -31,22 +32,48 @@ const getSegmentingStrategy = (serializedManifest) => {
     return 'Unknown';
 };
 
+const findBoxRecursive = (boxes, predicateOrType) => {
+    const predicate =
+        typeof predicateOrType === 'function'
+            ? predicateOrType
+            : (box) => box.type === predicateOrType;
+
+    if (!boxes) return null;
+    for (const box of boxes) {
+        if (predicate(box)) return box;
+        if (box.children?.length > 0) {
+            const found = findBoxRecursive(box.children, predicate);
+            if (found) return found;
+        }
+    }
+    return null;
+};
+
 /**
  * Creates a protocol-agnostic summary view-model from a DASH manifest.
  * @param {Manifest} manifestIR - The adapted manifest IR.
  * @param {object} serializedManifest - The serialized manifest DOM object.
- * @returns {import('@/types.ts').ManifestSummary}
+ * @param {{fetchAndParseSegment: Function, manifestUrl: string}} [context] - Context for enrichment.
+ * @returns {Promise<import('@/types.ts').ManifestSummary>}
  */
-export function generateDashSummary(manifestIR, serializedManifest) {
+export async function generateDashSummary(
+    manifestIR,
+    serializedManifest,
+    context
+) {
     const allPssh = new Map();
 
     const periodSummaries = manifestIR.periods.map((period) => {
-        /** @type {import('@/types.ts').AdaptationSet[]} */
-        const videoTracks = [];
-        /** @type {import('@/types.ts').AdaptationSet[]} */
-        const audioTracks = [];
-        /** @type {import('@/types.ts').AdaptationSet[]} */
-        const textTracks = [];
+        const videoTracks = period.adaptationSets.filter(
+            (as) => as.contentType === 'video'
+        );
+        const audioTracks = period.adaptationSets.filter(
+            (as) => as.contentType === 'audio'
+        );
+        const textTracks = period.adaptationSets.filter(
+            (as) =>
+                as.contentType === 'text' || as.contentType === 'application'
+        );
 
         for (const as of period.adaptationSets) {
             for (const cp of as.contentProtection) {
@@ -58,23 +85,9 @@ export function generateDashSummary(manifestIR, serializedManifest) {
                     }
                 }
             }
-
-            switch (as.contentType) {
-                case 'video':
-                    videoTracks.push(as);
-                    break;
-                case 'audio':
-                    audioTracks.push(as);
-                    break;
-                case 'text':
-                case 'application':
-                    textTracks.push(as);
-                    break;
-            }
         }
 
-        /** @type {PeriodSummary} */
-        const periodSummary = {
+        return {
             id: period.id,
             start: period.start,
             duration: period.duration,
@@ -82,7 +95,6 @@ export function generateDashSummary(manifestIR, serializedManifest) {
             audioTracks,
             textTracks,
         };
-        return periodSummary;
     });
 
     const serviceDescription = findChildrenRecursive(
@@ -93,7 +105,66 @@ export function generateDashSummary(manifestIR, serializedManifest) {
         ? findChildrenRecursive(serviceDescription, 'Latency')[0]
         : null;
 
-    // Aggregate flattened summaries for top-level/comparison views
+    for (const period of manifestIR.periods) {
+        for (const as of period.adaptationSets) {
+            if (as.contentType === 'video') {
+                for (const rep of as.representations) {
+                    if (
+                        (!rep.width.value || !rep.height.value) &&
+                        context?.fetchAndParseSegment
+                    ) {
+                        const repBaseUrl = resolveBaseUrl(
+                            context.manifestUrl,
+                            serializedManifest,
+                            period.serializedManifest,
+                            as.serializedManifest,
+                            rep.serializedManifest
+                        );
+                        const initUrl = findInitSegmentUrl(
+                            rep,
+                            as,
+                            period,
+                            repBaseUrl
+                        );
+                        if (initUrl) {
+                            try {
+                                const parsedSegment =
+                                    await context.fetchAndParseSegment(
+                                        initUrl,
+                                        'isobmff'
+                                    );
+                                if (parsedSegment?.data?.boxes) {
+                                    const avc1 = findBoxRecursive(
+                                        parsedSegment.data.boxes,
+                                        (b) => b.type === 'avc1'
+                                    );
+                                    if (
+                                        avc1 &&
+                                        avc1.details.width &&
+                                        avc1.details.height
+                                    ) {
+                                        rep.width = {
+                                            value: avc1.details.width.value,
+                                            source: 'segment',
+                                        };
+                                        rep.height = {
+                                            value: avc1.details.height.value,
+                                            source: 'segment',
+                                        };
+                                    }
+                                }
+                            } catch (e) {
+                                console.warn(
+                                    `[Enrichment] Failed to parse init segment for rep ${rep.id}: ${e.message}`
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     const allVideoTracks = periodSummaries
         .flatMap((p) => p.videoTracks)
         .map((as) => {
@@ -105,20 +176,23 @@ export function generateDashSummary(manifestIR, serializedManifest) {
                 profiles: as.profiles,
                 bitrateRange:
                     bitrates.length > 0
-                        ? `${formatBitrate(
-                              Math.min(...bitrates)
-                          )} - ${formatBitrate(Math.max(...bitrates))}`
+                        ? `${formatBitrate(Math.min(...bitrates))} - ${formatBitrate(Math.max(...bitrates))}`
                         : 'N/A',
                 resolutions: [
                     ...new Set(
-                        as.representations.map((r) => `${r.width}x${r.height}`)
+                        as.representations.map((r) => ({
+                            value: `${r.width.value}x${r.height.value}`,
+                            source: r.width.source,
+                        }))
                     ),
                 ],
                 codecs: [
                     ...new Set(
-                        as.representations.map((r) => r.codecs).filter(Boolean)
+                        as.representations
+                            .map((r) => r.codecs)
+                            .filter((c) => c.value)
                     ),
-                ],
+                ].map((c) => ({ value: c.value, source: c.source })),
                 scanType: as.representations[0]?.scanType || null,
                 videoRange: null,
                 roles: as.roles.map((r) => r.value).filter(Boolean),
@@ -132,9 +206,11 @@ export function generateDashSummary(manifestIR, serializedManifest) {
             lang: as.lang,
             codecs: [
                 ...new Set(
-                    as.representations.map((r) => r.codecs).filter(Boolean)
+                    as.representations
+                        .map((r) => r.codecs)
+                        .filter((c) => c.value)
                 ),
-            ],
+            ].map((c) => ({ value: c.value, source: c.source })),
             channels:
                 [
                     ...new Set(
@@ -157,10 +233,16 @@ export function generateDashSummary(manifestIR, serializedManifest) {
             codecsOrMimeTypes: [
                 ...new Set(
                     as.representations
-                        .map((r) => r.codecs || r.mimeType)
+                        .map((r) => r.codecs?.value || r.mimeType)
                         .filter(Boolean)
                 ),
-            ],
+            ].map(
+                (v) =>
+                    /** @type {import('@/types').SourcedData<string>} */ ({
+                        value: v,
+                        source: 'manifest',
+                    })
+            ),
             isDefault: as.roles.some((r) => r.value === 'main'),
             isForced: as.roles.some((r) => r.value === 'forced'),
             roles: as.roles.map((r) => r.value).filter(Boolean),

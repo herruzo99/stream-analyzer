@@ -276,10 +276,7 @@ ${parserError.textContent}</pre
                   </button>
                   <span
                       >Page ${currentPage} of ${totalPages} (Lines
-                      ${startLine + 1}-${Math.min(
-                          endLine,
-                          totalLines
-                      )})</span
+                      ${startLine + 1}-${Math.min(endLine, totalLines)})</span
                   >
                   <button
                       @click=${() => onPageChange(1, totalPages)}

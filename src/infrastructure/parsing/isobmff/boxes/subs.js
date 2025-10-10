@@ -38,7 +38,8 @@ export function parseSubs(box, view) {
                     } else {
                         subsample_size = p.readUint16('subsample_size');
                     }
-                    const subsample_priority = p.readUint8('subsample_priority');
+                    const subsample_priority =
+                        p.readUint8('subsample_priority');
                     const discardable = p.readUint8('discardable');
 
                     entry.subsamples.push({

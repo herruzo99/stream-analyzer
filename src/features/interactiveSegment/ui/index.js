@@ -36,11 +36,11 @@ function initializeAllInteractivity(dom, cachedSegment, byteMap) {
 
     let findFn, parsedDataForLogic, format;
     if (cachedSegment.parsedData?.format === 'ts') {
-        parsedDataForLogic = cachedSegment.parsedData.data;
+        parsedDataForLogic = cachedSegment.parsedData;
         findFn = findPacketByOffset;
         format = 'ts';
     } else if (cachedSegment.parsedData?.format === 'isobmff') {
-        parsedDataForLogic = cachedSegment.parsedData.data;
+        parsedDataForLogic = cachedSegment.parsedData;
         findFn = findItemByOffset;
         format = 'isobmff';
     }
@@ -60,7 +60,8 @@ function initializeAllInteractivity(dom, cachedSegment, byteMap) {
 
 export function getInteractiveSegmentTemplate(dom) {
     const { activeSegmentUrl } = useAnalysisStore.getState();
-    const { interactiveSegmentCurrentPage: currentPage } = useUiStore.getState();
+    const { interactiveSegmentCurrentPage: currentPage } =
+        useUiStore.getState();
     const { get: getFromCache } = useSegmentCacheStore.getState();
 
     if (activeSegmentUrl !== lastProcessedSegmentUrl) {
@@ -164,10 +165,8 @@ export function getInteractiveSegmentTemplate(dom) {
                 </h3>
                 <button
                     @click=${() =>
-                        (
-                            /** @type {HTMLElement | null} */ (
-                                document.querySelector('[data-tab="explorer"]')
-                            )
+                        /** @type {HTMLElement | null} */ (
+                            document.querySelector('[data-tab="explorer"]')
                         )?.click()}
                     class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md transition duration-300 text-sm"
                 >
