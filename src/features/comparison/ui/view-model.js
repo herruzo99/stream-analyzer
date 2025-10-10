@@ -132,8 +132,8 @@ export function createComparisonViewModel(streams) {
             values: streams.map((s) =>
                 renderList([
                     ...new Set(
-                        s.manifest?.summary.videoTracks.flatMap(
-                            (vt) => vt.resolutions
+                        s.manifest?.summary.videoTracks.flatMap((vt) =>
+                            vt.resolutions.map((r) => r.value)
                         )
                     ),
                 ])
@@ -146,8 +146,8 @@ export function createComparisonViewModel(streams) {
             values: streams.map((s) =>
                 renderList([
                     ...new Set(
-                        s.manifest?.summary.videoTracks.flatMap(
-                            (vt) => vt.codecs
+                        s.manifest?.summary.videoTracks.flatMap((vt) =>
+                            vt.codecs.map((c) => c.value)
                         )
                     ),
                 ])
@@ -186,8 +186,8 @@ export function createComparisonViewModel(streams) {
             values: streams.map((s) =>
                 renderList([
                     ...new Set(
-                        s.manifest?.summary.audioTracks.flatMap(
-                            (at) => at.codecs
+                        s.manifest?.summary.audioTracks.flatMap((at) =>
+                            at.codecs.map((c) => c.value)
                         )
                     ),
                 ])
@@ -226,8 +226,8 @@ export function createComparisonViewModel(streams) {
             values: streams.map((s) =>
                 renderList([
                     ...new Set(
-                        s.manifest?.summary.textTracks.flatMap(
-                            (tt) => tt.codecsOrMimeTypes
+                        s.manifest?.summary.textTracks.flatMap((tt) =>
+                            tt.codecsOrMimeTypes.map((c) => c.value)
                         )
                     ),
                 ])

@@ -47,7 +47,9 @@ export async function startAnalysisUseCase({ inputs }, services) {
             if (input.url) {
                 const response = await fetch(input.url);
                 if (!response.ok) {
-                    throw new Error(`HTTP Error ${response.status} for ${input.url}`);
+                    throw new Error(
+                        `HTTP Error ${response.status} for ${input.url}`
+                    );
                 }
                 manifestString = await response.text();
             } else {

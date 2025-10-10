@@ -55,6 +55,34 @@ const resultRowTemplate = (result) => {
 
 export const cmafValidationSummaryTemplate = (stream) => {
     const results = stream.semanticData?.get('cmafValidation');
+
+    const notCmafResult = results?.find(
+        (r) => r.id === 'CMAF-BRAND' && r.status === 'fail'
+    );
+
+    if (notCmafResult) {
+        return html`
+            <div>
+                <h3 class="text-xl font-bold mb-4">CMAF Conformance</h3>
+                <div class="bg-gray-800 p-4 rounded-lg border border-gray-700">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-sm font-medium text-gray-400"
+                            >Overall Status</span
+                        >
+                        <span class="text-lg font-bold text-gray-500"
+                            >Not Applicable</span
+                        >
+                    </div>
+                    <div
+                        class="text-center text-sm text-gray-400 p-4 bg-gray-900/50 rounded-md"
+                    >
+                        <p>${notCmafResult.details}</p>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
     const overallStatus = getOverallStatus(results);
     const { isCmafSummaryExpanded } = useUiStore.getState();
 

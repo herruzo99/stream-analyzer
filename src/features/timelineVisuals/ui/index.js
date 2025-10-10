@@ -2,6 +2,7 @@ import { html, render } from 'lit-html';
 import { dashTimelineTemplate } from './components/dash/index.js';
 import { hlsTimelineTemplate } from './components/hls/index.js';
 import { createDashTimelineViewModel } from './view-model.js';
+import { useSegmentCacheStore } from '@/state/segmentCacheStore';
 
 /**
  * Renders the timeline view based on the provided state.
@@ -62,8 +63,9 @@ export function initializeTimelineView(container, stream) {
         container
     );
 
-    // 2. Kick off the asynchronous view model creation.
-    createDashTimelineViewModel(stream)
+    // 2. Kick off the asynchronous view model creation, now passing the segment cache.
+    const { cache } = useSegmentCacheStore.getState();
+    createDashTimelineViewModel(stream, cache)
         .then((viewModel) => {
             // 3. Once data is ready, re-render with the complete view model.
             render(

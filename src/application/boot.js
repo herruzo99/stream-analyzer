@@ -24,6 +24,7 @@ import { workerService } from '@/infrastructure/worker/workerService';
 
 // Side-effect driven imports for services that primarily listen to the event bus
 import '@/application/services/streamService';
+import { initializeResolveAdAvailUseCase } from './useCases/resolveAdAvailUseCase.js';
 
 /**
  * The main entry point for the application.
@@ -115,6 +116,7 @@ export async function startApp() {
     initializeSegmentExplorerController();
     initializeStreamInputController();
     initializeSavePresetUseCase();
+    initializeResolveAdAvailUseCase();
 
     app.start();
 

@@ -60,7 +60,7 @@ export async function handleParseLiveUpdate(payload) {
                 oldManifestObjectForDelta,
                 deltaIr.serializedManifest
             );
-            newManifestObject = adaptHlsToIr(resolvedParsedHls);
+            newManifestObject = await adaptHlsToIr(resolvedParsedHls);
             newSerializedObject = newManifestObject.serializedManifest;
             finalManifestString = /** @type {{raw: string}} */ (
                 newSerializedObject
@@ -87,7 +87,9 @@ export async function handleParseLiveUpdate(payload) {
     let formattedNew = finalManifestString;
 
     if (protocol === 'dash') {
-        formattedOld = xmlFormatter(oldRawManifest || '', { indentation: '  ' });
+        formattedOld = xmlFormatter(oldRawManifest || '', {
+            indentation: '  ',
+        });
         formattedNew = xmlFormatter(finalManifestString || '', {
             indentation: '  ',
         });

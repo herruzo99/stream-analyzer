@@ -1,3 +1,8 @@
+export interface SourcedData<T> {
+    value: T;
+    source: 'manifest' | 'segment';
+}
+
 export interface Label {
     id: string;
     lang: string | null;
@@ -30,11 +35,11 @@ export interface SubRepresentation {
     dependencyLevel: string | null;
     bandwidth: number | null;
     contentComponent: string[] | null;
-    codecs: string;
+    codecs: SourcedData<string | null>;
     mimeType: string | null;
     profiles: string | null;
-    width: number | null;
-    height: number | null;
+    width: SourcedData<number | null>;
+    height: SourcedData<number | null>;
     serializedManifest: object;
 }
 
@@ -64,10 +69,10 @@ export interface ExtendedBandwidth {
 
 export interface Representation {
     id: string;
-    codecs: string;
+    codecs: SourcedData<string | null>;
     bandwidth: number;
-    width: number;
-    height: number;
+    width: SourcedData<number | null>;
+    height: SourcedData<number | null>;
     frameRate: string | null;
     sar: string | null;
     mimeType: string | null;
@@ -264,8 +269,8 @@ export interface VideoTrackSummary {
     id: string;
     profiles: string | null;
     bitrateRange: string;
-    resolutions: string[];
-    codecs: string[];
+    resolutions: SourcedData<string>[];
+    codecs: SourcedData<string>[];
     scanType: string | null;
     videoRange: string | null;
     roles: string[];
@@ -274,7 +279,7 @@ export interface VideoTrackSummary {
 export interface AudioTrackSummary {
     id: string;
     lang: string | null;
-    codecs: string[];
+    codecs: SourcedData<string>[];
     channels: string | null;
     isDefault: boolean;
     isForced: boolean;
@@ -284,7 +289,7 @@ export interface AudioTrackSummary {
 export interface TextTrackSummary {
     id: string;
     lang: string | null;
-    codecsOrMimeTypes: string[];
+    codecsOrMimeTypes: SourcedData<string>[];
     isDefault: boolean;
     isForced: boolean;
     roles: string[];
@@ -303,6 +308,7 @@ export interface SecuritySummary {
     isEncrypted: boolean;
     systems: PsshInfo[];
     hlsEncryptionMethod?: 'AES-128' | 'SAMPLE-AES' | null;
+    kids?: string[];
 }
 
 export interface ManifestSummary {
@@ -334,6 +340,7 @@ export interface ManifestSummary {
             hasDiscontinuity: boolean;
             isIFrameOnly: boolean;
         } | null;
+        hlsParsed?: any;
     } | null;
     lowLatency: {
         isLowLatency: boolean;
@@ -430,6 +437,7 @@ export interface HlsVariantState {
 export interface DashRepresentationState {
     segments: object[];
     freshSegmentUrls: Set<string>;
+    diagnostics: object;
 }
 
 export interface ComplianceResult {
@@ -481,6 +489,7 @@ export interface Stream {
     baseUrl: string;
     protocol: 'dash' | 'hls' | 'unknown';
     isPolling: boolean;
+    wasStoppedByInactivity?: boolean;
     manifest: Manifest | null;
     rawManifest: string;
     steeringInfo: object | null;
@@ -494,6 +503,7 @@ export interface Stream {
     hlsDefinedVariables?: Map<string, { value: string; source: string }>;
     semanticData: Map<string, any>;
     coverageReport?: CoverageFinding[];
+    adAvails?: AdAvail[];
 }
 
 export type SerializedStream = Omit<
@@ -524,4 +534,21 @@ export interface CoverageFinding {
     name: string;
     details: string;
     lineNumber?: number;
+}
+
+export interface AdCreative {
+    id: string | null;
+    sequence: number;
+    duration: number;
+    mediaFileUrl: string | null;
+    trackingUrls: Map<string, string[]>;
+}
+
+export interface AdAvail {
+    id: string;
+    startTime: number;
+    duration: number;
+    scte35Signal: object;
+    adManifestUrl: string | null;
+    creatives: AdCreative[];
 }

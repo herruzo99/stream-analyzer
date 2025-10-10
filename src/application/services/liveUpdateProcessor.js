@@ -1,7 +1,4 @@
-import {
-    useAnalysisStore,
-    analysisActions,
-} from '@/state/analysisStore';
+import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
 import { eventBus } from '@/application/event-bus';
 import { generateFeatureAnalysis } from '@/features/featureAnalysis/domain/analyzer';
 import { parseAllSegmentUrls as parseDashSegments } from '@/infrastructure/parsing/dash/segment-parser';
@@ -149,6 +146,8 @@ function processLiveUpdate(updateData) {
     });
 
     let newDashState, newHlsState;
+    let segmentsWereUpdated = false;
+
     if (stream.protocol === 'dash') {
         newDashState = new Map(stream.dashRepresentationState);
         const newSegmentsByCompositeKey = parseDashSegments(
@@ -164,15 +163,21 @@ function processLiveUpdate(updateData) {
                             (s) => /** @type {any} */ (s).resolvedUrl
                         )
                     );
+                    const newlyAddedSegments = [];
                     newSegments.forEach((newSeg) => {
                         if (
                             !existingUrls.has(
                                 /** @type {any} */ (newSeg).resolvedUrl
                             )
                         ) {
-                            repState.segments.push(newSeg);
+                            newlyAddedSegments.push(newSeg);
                         }
                     });
+
+                    if (newlyAddedSegments.length > 0) {
+                        repState.segments.push(...newlyAddedSegments);
+                        segmentsWereUpdated = true;
+                    }
                     repState.freshSegmentUrls = new Set(
                         newSegments.map(
                             (s) => /** @type {any} */ (s).resolvedUrl
@@ -186,7 +191,11 @@ function processLiveUpdate(updateData) {
         if (!newManifestObject.isMaster) {
             const variant = newHlsState.get(stream.originalUrl);
             if (variant) {
+                const oldSegmentCount = variant.segments.length;
                 variant.segments = newManifestObject.segments || [];
+                if (variant.segments.length > oldSegmentCount) {
+                    segmentsWereUpdated = true;
+                }
                 variant.freshSegmentUrls = new Set(
                     variant.segments.map(
                         (s) => /** @type {any} */ (s).resolvedUrl
@@ -212,6 +221,9 @@ function processLiveUpdate(updateData) {
 
     analysisActions.updateStream(streamId, updatePayload);
     eventBus.dispatch('stream:data-updated', { streamId });
+    if (segmentsWereUpdated) {
+        eventBus.dispatch('stream:segments-updated', { streamId });
+    }
 }
 
 /**

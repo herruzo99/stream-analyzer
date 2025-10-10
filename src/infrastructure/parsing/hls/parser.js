@@ -5,6 +5,7 @@ import { adaptHlsToIr } from './adapter.js';
  * @property {number} duration
  * @property {string} title
  * @property {any[]} tags
+ * @property {string[]} flags
  * @property {Record<string, string|number> | null} key
  * @property {object[]} parts
  * @property {number|null} bitrate
@@ -128,6 +129,7 @@ export async function parseManifest(manifestString, baseUrl, parentVariables) {
     let currentBitrate = null;
     let discontinuity = false;
     let isGap = false;
+    let keyChangeNextSegment = false;
 
     for (let i = 1; i < lines.length; i++) {
         const line = lines[i].trim();
@@ -175,6 +177,7 @@ export async function parseManifest(manifestString, baseUrl, parentVariables) {
                         duration,
                         title: title || '',
                         tags: [],
+                        flags: [],
                         key: currentKey,
                         parts: [],
                         bitrate: currentBitrate,
@@ -183,11 +186,21 @@ export async function parseManifest(manifestString, baseUrl, parentVariables) {
                         extinfLineNumber: i,
                         discontinuity,
                     };
+                    if (discontinuity) {
+                        currentSegment.flags.push('discontinuity');
+                    }
+                    if (keyChangeNextSegment) {
+                        currentSegment.flags.push('key-change');
+                        keyChangeNextSegment = false;
+                    }
                     discontinuity = false; // Consume the flag
                     break;
                 }
                 case 'EXT-X-GAP':
                     isGap = true;
+                    break;
+                case 'EXT-X-DISCONTINUITY':
+                    discontinuity = true;
                     break;
                 case 'EXT-X-BITRATE':
                     currentBitrate = parseInt(tagValue, 10);
@@ -198,6 +211,7 @@ export async function parseManifest(manifestString, baseUrl, parentVariables) {
                     if (keyAttributes.METHOD === 'NONE') {
                         currentKey = null;
                     }
+                    keyChangeNextSegment = true;
                     // Fallthrough to add to tags array
                 }
                 // eslint-disable-next-line no-fallthrough
@@ -206,19 +220,22 @@ export async function parseManifest(manifestString, baseUrl, parentVariables) {
                         ...parseAttributeList(tagValue),
                         lineNumber: i,
                     };
-                    // Fallthrough
+                // Fallthrough
                 // eslint-disable-next-line no-fallthrough
                 case 'EXT-X-PROGRAM-DATE-TIME':
-                    if (currentSegment) currentSegment.dateTime = tagValue;
-                    // Fallthrough
+                    if (currentSegment) {
+                        currentSegment.dateTime = tagValue;
+                        currentSegment.flags.push('pdt');
+                    }
+                // Fallthrough
                 // eslint-disable-next-line no-fallthrough
                 case 'EXT-X-TARGETDURATION':
                     parsed.targetDuration = parseInt(tagValue, 10);
-                    // Fallthrough
+                // Fallthrough
                 // eslint-disable-next-line no-fallthrough
                 case 'EXT-X-MEDIA-SEQUENCE':
                     parsed.mediaSequence = parseInt(tagValue, 10);
-                    // Fallthrough
+                // Fallthrough
                 // eslint-disable-next-line no-fallthrough
                 case 'EXT-X-PLAYLIST-TYPE':
                     parsed.playlistType = tagValue;
@@ -227,26 +244,26 @@ export async function parseManifest(manifestString, baseUrl, parentVariables) {
                     } else if (tagValue === 'EVENT') {
                         parsed.isLive = true;
                     }
-                    // Fallthrough
+                // Fallthrough
                 // eslint-disable-next-line no-fallthrough
                 case 'EXT-X-ENDLIST':
                     if (tagName === 'EXT-X-ENDLIST') parsed.isLive = false;
-                    // Fallthrough
+                // Fallthrough
                 // eslint-disable-next-line no-fallthrough
                 case 'EXT-X-VERSION':
                     if (tagName === 'EXT-X-VERSION')
                         parsed.version = parseInt(tagValue, 10);
-                    // Fallthrough
+                // Fallthrough
                 // eslint-disable-next-line no-fallthrough
                 case 'EXT-X-PART-INF':
                     if (tagName === 'EXT-X-PART-INF')
                         parsed.partInf = parseAttributeList(tagValue);
-                    // Fallthrough
+                // Fallthrough
                 // eslint-disable-next-line no-fallthrough
                 case 'EXT-X-SERVER-CONTROL':
                     if (tagName === 'EXT-X-SERVER-CONTROL')
                         parsed.serverControl = parseAttributeList(tagValue);
-                    // Fallthrough
+                // Fallthrough
                 // eslint-disable-next-line no-fallthrough
                 case 'EXT-X-PRELOAD-HINT': {
                     if (tagName === 'EXT-X-PRELOAD-HINT') {
@@ -278,7 +295,7 @@ export async function parseManifest(manifestString, baseUrl, parentVariables) {
                             lineNumber: i,
                         });
                     }
-                    // Fallthrough
+                // Fallthrough
                 // eslint-disable-next-line no-fallthrough
                 default: {
                     let value;
@@ -290,8 +307,7 @@ export async function parseManifest(manifestString, baseUrl, parentVariables) {
                         // Check if it's a number after splitting by comma
                         const parts = tagValue.split(',');
                         value =
-                            parts.length > 1 &&
-                            !isNaN(parseFloat(parts[0]))
+                            parts.length > 1 && !isNaN(parseFloat(parts[0]))
                                 ? tagValue // Keep comma-separated values as string for now
                                 : !isNaN(parseFloat(tagValue))
                                   ? parseFloat(tagValue)
@@ -305,7 +321,11 @@ export async function parseManifest(manifestString, baseUrl, parentVariables) {
                             lineNumber: i,
                         });
                     } else {
-                        parsed.tags.push({ name: tagName, value, lineNumber: i });
+                        parsed.tags.push({
+                            name: tagName,
+                            value,
+                            lineNumber: i,
+                        });
                     }
                     break;
                 }
@@ -317,6 +337,7 @@ export async function parseManifest(manifestString, baseUrl, parentVariables) {
                 currentSegment.uriLineNumber = i;
                 if (isGap) {
                     currentSegment.gap = true;
+                    currentSegment.flags.push('gap');
                     isGap = false; // consume it
                 }
                 parsed.segments.push(currentSegment);
@@ -325,6 +346,6 @@ export async function parseManifest(manifestString, baseUrl, parentVariables) {
         }
     }
 
-    const manifest = adaptHlsToIr(parsed);
+    const manifest = await adaptHlsToIr(parsed);
     return { manifest, definedVariables, baseUrl };
 }

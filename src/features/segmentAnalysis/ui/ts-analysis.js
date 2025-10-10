@@ -87,9 +87,7 @@ const descriptorTableTemplate = (descriptors) => {
         <div
             class="bg-gray-900/50 rounded border border-gray-700/50 overflow-hidden"
         >
-            <table
-                class="w-full text-left text-xs table-auto border-collapse"
-            >
+            <table class="w-full text-left text-xs table-auto border-collapse">
                 <thead class="bg-gray-800/50">
                     <tr>
                         <th class="p-2 font-semibold text-gray-400 w-1/3">
@@ -164,10 +162,7 @@ export const tsAnalysisTemplate = (analysis) => {
     const pmtPid = [...summary.pmtPids][0];
     const program = pmtPid ? summary.programMap[pmtPid] : null;
 
-    if (
-        summary.errors.length > 0 &&
-        summary.errors[0].includes('encrypted')
-    ) {
+    if (summary.errors.length > 0 && summary.errors[0].includes('encrypted')) {
         return html`
             <div
                 class="bg-gray-800 p-4 rounded-lg border border-yellow-700 text-center"
@@ -178,8 +173,8 @@ export const tsAnalysisTemplate = (analysis) => {
                 <p class="text-sm text-yellow-200">
                     This segment appears to be encrypted (e.g., via AES-128).
                     Its internal structure cannot be analyzed without
-                    decryption. You can still inspect the raw encrypted bytes
-                    in the "View Raw" interactive segment explorer.
+                    decryption. You can still inspect the raw encrypted bytes in
+                    the "View Raw" interactive segment explorer.
                 </p>
             </div>
         `;
@@ -196,7 +191,9 @@ export const tsAnalysisTemplate = (analysis) => {
                 >
                     ${dataItem('Total Packets', summary.totalPackets)}
                     ${dataItem('PCR PID', summary.pcrPid || 'N/A')}
-                    ${program ? dataItem('Program #', program.programNumber) : ''}
+                    ${program
+                        ? dataItem('Program #', program.programNumber)
+                        : ''}
                     ${summary.errors.length > 0
                         ? dataItem('Errors', summary.errors.join(', '))
                         : ''}

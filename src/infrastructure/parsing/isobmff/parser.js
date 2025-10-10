@@ -46,9 +46,108 @@ const knownContainerBoxes = new Set([
 ]);
 
 /**
+ * Recursively finds the first occurrence of a box that satisfies a predicate.
+ * @param {Box[]} boxes The list of boxes to search.
+ * @param {(box: Box) => boolean} predicate The predicate function to match a box.
+ * @returns {Box | null} The found box or null.
+ */
+function findBoxRecursive(boxes, predicate) {
+    if (!boxes) return null;
+    for (const box of boxes) {
+        if (predicate(box)) return box;
+        if (box.children?.length > 0) {
+            const found = findBoxRecursive(box.children, predicate);
+            if (found) return found;
+        }
+    }
+    return null;
+}
+
+/**
+ * Calculates raw timing information for a CMAF Chunk from its 'moof' box.
+ * @param {Box} moofBox The parsed 'moof' box of the chunk.
+ * @returns {{baseTime: number, duration: number, sampleCount: number}}
+ */
+function calculateChunkTiming(moofBox) {
+    const timing = { baseTime: 0, duration: 0, sampleCount: 0 };
+    if (!moofBox || moofBox.type !== 'moof') {
+        return timing;
+    }
+
+    const traf = findBoxRecursive(moofBox.children, (b) => b.type === 'traf');
+    if (!traf) return timing;
+
+    const tfdt = findBoxRecursive(traf.children, (b) => b.type === 'tfdt');
+    const trun = findBoxRecursive(traf.children, (b) => b.type === 'trun');
+
+    if (tfdt && tfdt.details.baseMediaDecodeTime) {
+        timing.baseTime = tfdt.details.baseMediaDecodeTime.value || 0;
+    }
+
+    if (trun && trun.samples) {
+        timing.duration = trun.samples.reduce(
+            (acc, s) => acc + (s.duration || 0),
+            0
+        );
+        timing.sampleCount = trun.samples.length;
+    }
+
+    return timing;
+}
+
+/**
+ * Groups a flat list of boxes into logical CMAF Chunks ('moof' + 'mdat').
+ * @param {Box[]} boxes A flat list of parsed ISOBMFF boxes.
+ * @returns {Box[]} A structured list containing Chunk objects and other top-level boxes.
+ */
+function groupAndCalcTimingForChunks(boxes) {
+    if (!boxes) return [];
+    const grouped = [];
+    let i = 0;
+    while (i < boxes.length) {
+        const box = boxes[i];
+        if (box.type === 'moof' && boxes[i + 1]?.type === 'mdat') {
+            const moof = box;
+            const mdat = boxes[i + 1];
+            const timing = calculateChunkTiming(moof);
+
+            grouped.push({
+                isChunk: true,
+                type: 'CMAF Chunk',
+                offset: moof.offset,
+                size: moof.size + mdat.size,
+                headerSize: 0, // Logical chunk has no header
+                contentOffset: moof.offset,
+                children: [moof, mdat],
+                // @ts-ignore - timing is a custom property for our view model
+                timing,
+                details: {
+                    info: {
+                        value: 'A logical grouping of a moof and mdat box, representing a single CMAF chunk.',
+                        offset: moof.offset,
+                        length: 0,
+                    },
+                    size: {
+                        value: `${moof.size + mdat.size} bytes`,
+                        offset: moof.offset,
+                        length: 0,
+                    },
+                },
+                issues: [],
+            });
+            i += 2;
+        } else {
+            grouped.push(box);
+            i += 1;
+        }
+    }
+    return grouped;
+}
+
+/**
  * @param {ArrayBuffer} buffer
  * @param {number} baseOffset
- * @returns {{boxes: Box[], issues: {type: 'error' | 'warn', message: string}[], events: object[]}}
+ * @returns {{format: 'isobmff', data: {boxes: Box[], issues: {type: 'error' | 'warn', message: string}[], events: object[]}}}
  */
 export function parseISOBMFF(buffer, baseOffset = 0) {
     const result = {
@@ -172,23 +271,23 @@ export function parseISOBMFF(buffer, baseOffset = 0) {
                         childrenBuffer,
                         childrenBase
                     );
-                    box.children = childResult.boxes;
-                    if (childResult.events.length > 0) {
-                        result.events.push(...childResult.events);
+                    box.children = childResult.data.boxes;
+                    if (childResult.data.events.length > 0) {
+                        result.events.push(...childResult.data.events);
                     }
-                    if (childResult.issues.length > 0) {
-                        box.issues.push(...childResult.issues);
+                    if (childResult.data.issues.length > 0) {
+                        box.issues.push(...childResult.data.issues);
                     }
                 }
             }
         }
 
-        if (type !== 'emsg') {
-            result.boxes.push(box);
-        }
+        result.boxes.push(box);
         offset += size;
     }
-    return result;
+
+    result.boxes = groupAndCalcTimingForChunks(result.boxes);
+    return { format: 'isobmff', data: result };
 }
 
 /**

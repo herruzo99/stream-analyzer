@@ -21,11 +21,20 @@ function determineSegmentFormat(hlsParsed) {
     }
 
     // For Master playlists, inspect the CODECS attribute of variants.
-    if (hlsParsed.isMaster && hlsParsed.variants && hlsParsed.variants.length > 0) {
-        const hasIsobmffCodecs = hlsParsed.variants.some(variant => {
+    if (
+        hlsParsed.isMaster &&
+        hlsParsed.variants &&
+        hlsParsed.variants.length > 0
+    ) {
+        const hasIsobmffCodecs = hlsParsed.variants.some((variant) => {
             const codecs = variant.attributes?.CODECS;
             if (typeof codecs === 'string') {
-                return codecs.includes('avc1') || codecs.includes('hvc1') || codecs.includes('hev1') || codecs.includes('mp4a');
+                return (
+                    codecs.includes('avc1') ||
+                    codecs.includes('hvc1') ||
+                    codecs.includes('hev1') ||
+                    codecs.includes('mp4a')
+                );
             }
             return false;
         });
@@ -54,13 +63,12 @@ function getMimeType(contentType, segmentFormat) {
     return `${contentType}/mp2t`;
 }
 
-
 /**
  * Transforms a parsed HLS manifest object into a protocol-agnostic Intermediate Representation (IR).
  * @param {object} hlsParsed - The parsed HLS manifest data from the parser.
- * @returns {Manifest} The manifest IR object.
+ * @returns {Promise<Manifest>} The manifest IR object.
  */
-export function adaptHlsToIr(hlsParsed) {
+export async function adaptHlsToIr(hlsParsed) {
     const segmentFormat = determineSegmentFormat(hlsParsed);
 
     /** @type {Manifest} */
@@ -206,8 +214,10 @@ export function adaptHlsToIr(hlsParsed) {
             Object.entries(groups).forEach(
                 ([groupId, renditions], groupIndex) => {
                     renditions.forEach((media, mediaIndex) => {
-                        const contentType =
-                            type === 'subtitles' ? 'text' : type;
+                        /** @type {'video' | 'audio' | 'text'} */
+                        const contentType = /** @type {any} */ (
+                            type === 'subtitles' ? 'text' : type
+                        );
                         /** @type {AdaptationSet} */
                         const as = {
                             id:
@@ -264,14 +274,23 @@ export function adaptHlsToIr(hlsParsed) {
                 id:
                     variant.attributes['STABLE-VARIANT-ID'] ||
                     `variant-${index}-rep-0`,
-                codecs: variant.attributes.CODECS || '',
+                codecs: {
+                    value: variant.attributes.CODECS || null,
+                    source: 'manifest',
+                },
                 bandwidth: variant.attributes.BANDWIDTH,
-                width: resolution
-                    ? parseInt(String(resolution).split('x')[0], 10)
-                    : null,
-                height: resolution
-                    ? parseInt(String(resolution).split('x')[1], 10)
-                    : null,
+                width: {
+                    value: resolution
+                        ? parseInt(String(resolution).split('x')[0], 10)
+                        : null,
+                    source: 'manifest',
+                },
+                height: {
+                    value: resolution
+                        ? parseInt(String(resolution).split('x')[1], 10)
+                        : null,
+                    source: 'manifest',
+                },
                 frameRate: variant.attributes['FRAME-RATE'] || null,
                 videoRange: variant.attributes['VIDEO-RANGE'] || null,
                 supplementalCodecs:
@@ -321,8 +340,8 @@ export function adaptHlsToIr(hlsParsed) {
                 lang: null,
                 mimeType: getMimeType('video', segmentFormat),
                 segmentAlignment: false,
-                width: rep.width,
-                height: rep.height,
+                width: rep.width.value,
+                height: rep.height.value,
                 representations: [rep],
                 contentProtection: contentProtectionIRs,
                 roles: [],
@@ -366,10 +385,10 @@ export function adaptHlsToIr(hlsParsed) {
             representations: [
                 {
                     id: 'media-0-rep-0',
-                    codecs: null,
+                    codecs: { value: null, source: 'manifest' },
                     bandwidth: 0,
-                    width: null,
-                    height: null,
+                    width: { value: null, source: 'manifest' },
+                    height: { value: null, source: 'manifest' },
                     mimeType: null,
                     profiles: null,
                     qualityRanking: null,
@@ -440,7 +459,9 @@ export function adaptHlsToIr(hlsParsed) {
     }
 
     manifestIR.periods.push(periodIR);
-    manifestIR.summary = generateHlsSummary(manifestIR);
+    manifestIR.summary = await generateHlsSummary(manifestIR, {
+        baseUrl: hlsParsed.baseUrl,
+    });
 
     return manifestIR;
 }

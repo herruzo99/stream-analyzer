@@ -223,7 +223,6 @@ export function getDashSummaryTemplate(stream) {
             <div>
                 <div class="flex justify-between items-center mb-4">
                     <h3 class="text-xl font-bold">General Properties</h3>
-                   
                 </div>
                 <dl
                     class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(280px,1fr))]"

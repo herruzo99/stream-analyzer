@@ -93,6 +93,8 @@ const dashXmlSchema = {
             'BaseURL',
             'SupplementalProperty',
             'Label',
+            'ProducerReferenceTime',
+            'InbandEventStream',
         ],
     },
     Representation: {
@@ -112,6 +114,7 @@ const dashXmlSchema = {
             'sar',
             'audioSamplingRate',
             'scanType',
+            'startWithSAP',
         ],
         children: [
             'BaseURL',
@@ -124,7 +127,36 @@ const dashXmlSchema = {
             'SupplementalProperty',
             'InbandEventStream',
             'AudioChannelConfiguration',
+            'ProducerReferenceTime',
         ],
+    },
+    ServiceDescription: {
+        attrs: ['id'],
+        children: ['Latency', 'PlaybackRate'],
+    },
+    Latency: {
+        attrs: ['min', 'max', 'target', 'referenceId'],
+        children: [],
+    },
+    PlaybackRate: {
+        attrs: ['min', 'max'],
+        children: [],
+    },
+    ProducerReferenceTime: {
+        attrs: ['id', 'type', 'wallClockTime', 'presentationTime'],
+        children: ['UTCTiming'],
+    },
+    SegmentTemplate: {
+        attrs: [
+            'media',
+            'initialization',
+            'duration',
+            'startNumber',
+            'timescale',
+            'availabilityTimeOffset',
+            'availabilityTimeComplete',
+        ],
+        children: [],
     },
     // Add other elements as needed...
 };

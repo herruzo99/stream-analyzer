@@ -7,7 +7,11 @@ import {
     startLiveSegmentHighlighter,
     stopLiveSegmentHighlighter,
 } from './components/hls/index.js';
-import { useUiStore } from '@/state/uiStore';
+import { segmentRowTemplate } from '@/ui/components/segment-row';
+
+let currentContainer = null;
+let currentStream = null;
+let subscriptions = [];
 
 function updateCompareButton() {
     const { segmentsForCompare } = useAnalysisStore.getState();
@@ -21,79 +25,37 @@ function updateCompareButton() {
     }
 }
 
-function getSegmentExplorerTemplate(stream) {
-    const { segmentExplorerDashMode } = useUiStore.getState();
-    const isDynamic = stream.manifest?.type === 'dynamic';
-
-    const controlsTemplate = html`
-        <div
-            id="segment-explorer-controls"
-            class="flex items-center flex-wrap gap-4"
-        >
-            ${stream.protocol === 'dash'
-                ? html`
-                      <button
-                          @click=${() =>
-                              eventBus.dispatch(
-                                  'ui:segment-explorer:dash-mode-changed',
-                                  { mode: 'first' }
-                              )}
-                          class="text-sm font-bold py-2 px-3 rounded-md transition-colors ${segmentExplorerDashMode ===
-                          'first'
-                              ? 'bg-blue-600 text-white'
-                              : 'bg-gray-600 hover:bg-gray-700 text-white'}"
-                      >
-                          First 10
-                      </button>
-                      ${isDynamic
-                          ? html`<button
-                                @click=${() =>
-                                    eventBus.dispatch(
-                                        'ui:segment-explorer:dash-mode-changed',
-                                        { mode: 'last' }
-                                    )}
-                                class="text-sm font-bold py-2 px-3 rounded-md transition-colors ${segmentExplorerDashMode ===
-                                'last'
-                                    ? 'bg-blue-600 text-white'
-                                    : 'bg-gray-600 hover:bg-gray-700 text-white'}"
-                            >
-                                Last 10
-                            </button>`
-                          : ''}
-                  `
-                : ''}
-            <button
-                id="segment-compare-btn"
-                @click=${() =>
-                    eventBus.dispatch('ui:request-segment-comparison', {
-                        urlA:
-                            useAnalysisStore.getState().segmentsForCompare[0],
-                        urlB:
-                            useAnalysisStore.getState().segmentsForCompare[1],
-                    })}
-                class="bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-                Compare Selected (0/2)
-            </button>
-        </div>
-    `;
+function renderExplorer() {
+    if (!currentContainer || !currentStream) return;
 
     let contentTemplate;
-    if (stream.protocol === 'dash') {
-        contentTemplate = getDashExplorerTemplate(
-            stream,
-            segmentExplorerDashMode
-        );
+    if (currentStream.protocol === 'dash') {
+        contentTemplate = getDashExplorerTemplate(currentStream);
     } else {
-        contentTemplate = getHlsExplorerTemplate(stream);
+        contentTemplate = getHlsExplorerTemplate(currentStream);
     }
 
-    setTimeout(updateCompareButton, 0);
-
-    return html`
+    const template = html`
         <div class="flex flex-wrap justify-between items-center mb-4 gap-4">
             <h3 class="text-xl font-bold">Segment Explorer</h3>
-            ${controlsTemplate}
+            <div
+                id="segment-explorer-controls"
+                class="flex items-center flex-wrap gap-4"
+            >
+                <button
+                    id="segment-compare-btn"
+                    @click=${() =>
+                        eventBus.dispatch('ui:request-segment-comparison', {
+                            urlA: useAnalysisStore.getState()
+                                .segmentsForCompare[0],
+                            urlB: useAnalysisStore.getState()
+                                .segmentsForCompare[1],
+                        })}
+                    class="bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    Compare Selected (0/2)
+                </button>
+            </div>
         </div>
         <div
             id="segment-explorer-content"
@@ -102,14 +64,65 @@ function getSegmentExplorerTemplate(stream) {
             ${contentTemplate}
         </div>
     `;
+
+    render(template, currentContainer);
+
+    // This timeout ensures that lit-html has finished rendering the DOM.
+    setTimeout(() => {
+        updateCompareButton();
+
+        // This is the key reactivity fix: After rendering, find all virtualized lists
+        // and imperatively command them to update their data.
+        const virtualLists =
+            currentContainer.querySelectorAll('virtualized-list');
+        virtualLists.forEach((list) => {
+            const listElement = /** @type {any} */ (list);
+            // The data is temporarily stored on the element by the component template.
+            const { items, rowTemplate, rowHeight } =
+                listElement.tempData || {};
+            if (items && rowTemplate && rowHeight) {
+                listElement.updateData(items, rowTemplate, rowHeight);
+            }
+        });
+
+        // Re-initialize any live-specific UI logic after the render is complete
+        if (
+            currentStream.manifest.type === 'dynamic' &&
+            currentStream.protocol === 'hls'
+        ) {
+            startLiveSegmentHighlighter(currentContainer, currentStream);
+        }
+    }, 0);
+}
+
+function cleanupSubscriptions() {
+    subscriptions.forEach((unsubscribe) => unsubscribe());
+    subscriptions = [];
 }
 
 export function initializeSegmentExplorer(container, stream) {
+    currentContainer = container;
+    currentStream = stream;
+
+    cleanupSubscriptions();
     stopLiveSegmentHighlighter();
 
-    if (stream.manifest.type === 'dynamic' && stream.protocol === 'hls') {
-        startLiveSegmentHighlighter(container, stream);
-    }
+    subscriptions.push(
+        eventBus.subscribe('state:compare-list-changed', updateCompareButton)
+    );
 
-    render(getSegmentExplorerTemplate(stream), container);
+    subscriptions.push(
+        eventBus.subscribe('stream:segments-updated', ({ streamId }) => {
+            if (streamId === currentStream.id) {
+                // Update the local stream reference before re-rendering
+                currentStream = useAnalysisStore
+                    .getState()
+                    .streams.find((s) => s.id === streamId);
+                renderExplorer();
+            }
+        })
+    );
+
+    // Initial render
+    renderExplorer();
 }

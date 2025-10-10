@@ -9,9 +9,11 @@ import { formatBitrate } from '@/ui/shared/format';
 /**
  * Creates a protocol-agnostic summary view-model from an HLS manifest.
  * @param {Manifest} manifestIR - The adapted manifest IR.
- * @returns {import('@/types.ts').ManifestSummary}
+ * @param {object} [context] - Context for enrichment.
+ * @param {string} [context.baseUrl] - The base URL for resolving relative segment paths.
+ * @returns {Promise<import('@/types.ts').ManifestSummary>}
  */
-export function generateHlsSummary(manifestIR) {
+export async function generateHlsSummary(manifestIR, context) {
     const { serializedManifest: rawElement } = manifestIR;
     const isMaster = manifestIR.isMaster;
 
@@ -26,8 +28,17 @@ export function generateHlsSummary(manifestIR) {
                 id: rep.stableVariantId || rep.id,
                 profiles: null,
                 bitrateRange: formatBitrate(rep.bandwidth),
-                resolutions: rep.width ? [`${rep.width}x${rep.height}`] : [],
-                codecs: rep.codecs ? [rep.codecs] : [],
+                resolutions: rep.width.value
+                    ? [
+                          {
+                              value: `${rep.width.value}x${rep.height.value}`,
+                              source: rep.width.source,
+                          },
+                      ]
+                    : [],
+                codecs: rep.codecs.value
+                    ? [{ value: rep.codecs.value, source: rep.codecs.source }]
+                    : [],
                 scanType: null,
                 videoRange: rep.videoRange || null,
                 roles: [],

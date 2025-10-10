@@ -329,6 +329,10 @@ export const dashTooltipData = {
         text: 'The scan type of the source video, either "progressive" or "interlaced".',
         isoRef: 'Clause 5.3.7.2, Table 14',
     },
+    'Representation@startWithSAP': {
+        text: 'Specifies that media segments start with a Stream Access Point (SAP) of a certain type. A value of 1 or 2 is typical, enabling easier stream switching and seeking.',
+        isoRef: 'Clause 5.3.7.2, Table 14',
+    },
     SubRepresentation: {
         text: 'Describes a subset of a Representation that can be extracted, such as a lower frame-rate track for trick modes or a specific audio channel.',
         isoRef: 'Clause 5.3.6',
@@ -399,6 +403,14 @@ export const dashTooltipData = {
         text: 'The number of the last Media Segment in this Representation for the Period.',
         isoRef: 'Clause 5.3.9.2.2, Table 17',
     },
+    'SegmentTemplate@availabilityTimeOffset': {
+        text: 'An offset in seconds applied to the segment availability time. For low-latency, this allows segments (or chunks) to be advertised before they are fully available.',
+        isoRef: 'Clause 5.3.9.2.2, Table 16',
+    },
+    'SegmentTemplate@availabilityTimeComplete': {
+        text: 'If false, indicates that a segment might not be fully available at its announced availability time, a key signal for low-latency chunked transfer mode.',
+        isoRef: 'Clause 5.3.9.2.2, Table 16',
+    },
     SegmentTimeline: {
         text: 'Provides an explicit, ordered list of segments with potentially variable durations. It is an alternative to using the @duration attribute on SegmentTemplate.',
         isoRef: 'Clause 5.3.9.6',
@@ -436,6 +448,10 @@ export const dashTooltipData = {
     InbandEventStream: {
         text: 'Signals the presence of an event stream multiplexed within the media segments of a Representation.',
         isoRef: 'Clause 5.10.3.2',
+    },
+    'InbandEventStream@schemeIdUri': {
+        text: 'A URI that identifies the scheme of the inband event stream. This allows the client to identify and handle different types of events (e.g., SCTE-35, ID3).',
+        isoRef: 'Clause 5.10.2.2, Table 38',
     },
     Event: {
         text: 'A single timed event within an EventStream.',
@@ -511,6 +527,22 @@ export const dashTooltipData = {
         text: 'Provides a mapping between media presentation time and a wall-clock time at the point of production (capture or encoding), useful for live latency calculations.',
         isoRef: 'Clause 5.12',
     },
+    'ProducerReferenceTime@id': {
+        text: 'An identifier for this ProducerReferenceTime element. Used by other elements (e.g., Latency) to refer to this time source.',
+        isoRef: 'Clause 5.12.2, Table 45',
+    },
+    'ProducerReferenceTime@type': {
+        text: 'Specifies the point in the content lifecycle that this time refers to (e.g., "encoder" or "captured").',
+        isoRef: 'Clause 5.12.2, Table 45',
+    },
+    'ProducerReferenceTime@wallClockTime': {
+        text: 'The wall-clock time (e.g., UTC) corresponding to the given presentationTime.',
+        isoRef: 'Clause 5.12.2, Table 45',
+    },
+    'ProducerReferenceTime@presentationTime': {
+        text: "The presentation time, in the Representation's timescale, that corresponds to the given wallClockTime.",
+        isoRef: 'Clause 5.12.2, Table 45',
+    },
     SupplementalProperty: {
         text: 'Specifies supplemental information that is not essential for playback but may be used by the client for optimization or enhanced functionality.',
         isoRef: 'Clause 5.8.4.9',
@@ -565,6 +597,10 @@ export const dashTooltipData = {
         text: 'Provides guidance to the client on how the service provider expects the service to be consumed, particularly regarding latency and playback rate.',
         isoRef: 'Annex K.4',
     },
+    'ServiceDescription@id': {
+        text: 'A unique identifier for this ServiceDescription element.',
+        isoRef: 'Annex K.4.2.1, Table K.5',
+    },
     Scope: {
         text: 'Defines the scope to which a ServiceDescription applies, allowing different rules for different clients or environments.',
         isoRef: 'Annex K.4.2.1, Table K.5',
@@ -583,6 +619,10 @@ export const dashTooltipData = {
     },
     'Latency@max': {
         text: 'The maximum allowed presentation latency in milliseconds.',
+        isoRef: 'Annex K.4.2.2, Table K.6',
+    },
+    'Latency@referenceId': {
+        text: 'The ID of the ProducerReferenceTime that this latency target is measured against.',
         isoRef: 'Annex K.4.2.2, Table K.6',
     },
     PlaybackRate: {

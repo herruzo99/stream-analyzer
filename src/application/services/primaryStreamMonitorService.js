@@ -1,10 +1,12 @@
 import { eventBus } from '@/application/event-bus';
-import { useAnalysisStore } from '@/state/analysisStore';
+import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
 import { workerService } from '@/infrastructure/worker/workerService';
 
 const pollers = new Map();
 const oneTimePollers = new Map();
 let managerInterval = null;
+let inactivityTimer = null;
+const INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
 async function monitorStream(streamId) {
     const stream = useAnalysisStore
@@ -60,28 +62,32 @@ async function monitorStream(streamId) {
     }
 }
 
+function calculatePollInterval(stream) {
+    const updatePeriodSeconds =
+        stream.manifest.minimumUpdatePeriod ||
+        stream.manifest.targetDuration || // HLS
+        stream.manifest.minBufferTime || // DASH fallback
+        2;
+    return Math.max(updatePeriodSeconds * 1000, 2000);
+}
+
 function startMonitoring(stream) {
     if (pollers.has(stream.id)) {
         return;
     }
     if (stream.manifest?.type === 'dynamic' && stream.originalUrl) {
-        const updatePeriodSeconds =
-            stream.manifest.minimumUpdatePeriod ||
-            stream.manifest.minBufferTime ||
-            2;
-        const pollInterval = Math.max(updatePeriodSeconds * 1000, 2000);
-
+        const pollInterval = calculatePollInterval(stream);
         const pollerId = setInterval(
             () => monitorStream(stream.id),
             pollInterval
         );
-        pollers.set(stream.id, pollerId);
+        pollers.set(stream.id, { pollerId, pollInterval });
     }
 }
 
 function stopMonitoring(streamId) {
     if (pollers.has(streamId)) {
-        clearInterval(pollers.get(streamId));
+        clearInterval(pollers.get(streamId).pollerId);
         pollers.delete(streamId);
     }
     if (oneTimePollers.has(streamId)) {
@@ -96,9 +102,18 @@ export function managePollers() {
         .streams.filter((s) => s.manifest?.type === 'dynamic');
 
     dynamicStreams.forEach((stream) => {
-        const isCurrentlyPolling = pollers.has(stream.id);
-        if (stream.isPolling && !isCurrentlyPolling) {
-            startMonitoring(stream);
+        const poller = pollers.get(stream.id);
+        const isCurrentlyPolling = !!poller;
+        const newPollInterval = calculatePollInterval(stream);
+
+        if (stream.isPolling) {
+            if (!isCurrentlyPolling) {
+                startMonitoring(stream);
+            } else if (poller.pollInterval !== newPollInterval) {
+                // Interval has changed, restart the poller
+                stopMonitoring(stream.id);
+                startMonitoring(stream);
+            }
         } else if (!stream.isPolling && isCurrentlyPolling) {
             stopMonitoring(stream.id);
         }
@@ -131,6 +146,22 @@ function scheduleOneTimePoll({ streamId, pollTime, reason }) {
     oneTimePollers.set(streamId, timerId);
 }
 
+function handleVisibilityChange() {
+    if (document.hidden) {
+        if (inactivityTimer) clearTimeout(inactivityTimer);
+        inactivityTimer = setTimeout(() => {
+            analysisActions.setAllLiveStreamsPolling(false, {
+                fromInactivity: true,
+            });
+        }, INACTIVITY_TIMEOUT_MS);
+    } else {
+        if (inactivityTimer) {
+            clearTimeout(inactivityTimer);
+            inactivityTimer = null;
+        }
+    }
+}
+
 export function initializeLiveStreamMonitor() {
     if (managerInterval) {
         clearInterval(managerInterval);
@@ -142,6 +173,9 @@ export function initializeLiveStreamMonitor() {
         monitorStream(streamId)
     );
     eventBus.subscribe('monitor:schedule-one-time-poll', scheduleOneTimePoll);
+
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 }
 
 export function stopAllMonitoring() {
@@ -149,12 +183,17 @@ export function stopAllMonitoring() {
         clearInterval(managerInterval);
         managerInterval = null;
     }
-    for (const pollerId of pollers.values()) {
-        clearInterval(pollerId);
+    for (const poller of pollers.values()) {
+        clearInterval(poller.pollerId);
     }
     pollers.clear();
     for (const timerId of oneTimePollers.values()) {
         clearTimeout(timerId);
     }
     oneTimePollers.clear();
+    if (inactivityTimer) {
+        clearTimeout(inactivityTimer);
+        inactivityTimer = null;
+    }
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
 }
