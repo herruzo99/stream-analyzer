@@ -7,35 +7,6 @@ import { getInspectorState } from '../interaction-logic.js';
 
 const allIsoTooltipData = getAllIsoTooltipData();
 
-const boxColors = [
-    { bg: 'bg-red-800', border: 'border-red-700' },
-    { bg: 'bg-yellow-800', border: 'border-yellow-700' },
-    { bg: 'bg-green-800', border: 'border-green-700' },
-    { bg: 'bg-blue-800', border: 'border-blue-700' },
-    { bg: 'bg-indigo-800', border: 'border-indigo-700' },
-    { bg: 'bg-purple-800', border: 'border-purple-700' },
-    { bg: 'bg-pink-800', border: 'border-pink-700' },
-    { bg: 'bg-teal-800', border: 'border-teal-700' },
-];
-const chunkColor = { bg: 'bg-slate-700', border: 'border-slate-600' };
-
-function assignBoxColors(boxes) {
-    const colorState = { index: 0 };
-    const traverse = (boxList, state) => {
-        for (const box of boxList) {
-            if (box.isChunk) {
-                box.color = chunkColor;
-                if (box.children?.length > 0) traverse(box.children, state);
-            } else {
-                box.color = boxColors[state.index % boxColors.length];
-                state.index++;
-                if (box.children?.length > 0) traverse(box.children, state);
-            }
-        }
-    };
-    if (boxes) traverse(boxes, colorState);
-}
-
 /**
  * Recursively finds the first occurrence of a box that satisfies the predicate.
  * @param {import('@/infrastructure/parsing/isobmff/parser.js').Box[]} boxes
@@ -83,7 +54,7 @@ export function findItemByOffset(parsedData, offset) {
         }
         return null;
     };
-    const grouped = groupboxesIntoChunks(parsedData.data.boxes || []);
+    const grouped = parsedData.data.boxes || [];
     return findInGrouped(grouped, offset);
 }
 
@@ -93,42 +64,6 @@ const getTimescaleForBox = (box, rootData) => {
     if (mdhd) return mdhd.details?.timescale?.value;
     return null;
 };
-
-function groupboxesIntoChunks(boxes) {
-    const grouped = [];
-    let i = 0;
-    while (i < boxes.length) {
-        const box = boxes[i];
-        if (box.type === 'moof' && boxes[i + 1]?.type === 'mdat') {
-            const mdat = boxes[i + 1];
-            grouped.push({
-                isChunk: true,
-                type: 'CMAF Chunk',
-                offset: box.offset,
-                size: box.size + mdat.size,
-                children: [box, mdat],
-                details: {
-                    info: {
-                        value: 'A logical grouping of a moof and mdat box, representing a single CMAF chunk.',
-                        offset: box.offset,
-                        length: 0,
-                    },
-                    size: {
-                        value: `${box.size + mdat.size} bytes`,
-                        offset: box.offset,
-                        length: 0,
-                    },
-                },
-                issues: [],
-            });
-            i += 2;
-        } else {
-            grouped.push(box);
-            i += 1;
-        }
-    }
-    return grouped;
-}
 
 const summaryTemplate = (parsedSegmentData) => {
     if (!parsedSegmentData) return '';
@@ -207,7 +142,7 @@ const renderBoxNode = (box) => {
     return html`
         <details class="box-node" ?open=${isChunk || box.children.length > 0}>
             <summary
-                class="p-1 rounded cursor-pointer ${selectionClass} border-l-4 ${colorClass}"
+                class="relative p-1 rounded cursor-pointer ${selectionClass} border-l-4 ${colorClass}"
                 data-box-offset=${box.offset}
                 data-group-start-offset=${isChunk ? box.offset : null}
             >
@@ -258,7 +193,9 @@ const sampleInspectorTemplate = (sample) => {
             <table class="w-full table-fixed text-xs">
                 <tbody>
                     <tr>
-                        <td class="p-1 pr-2 text-gray-400">Depends On Others</td>
+                        <td class="p-1 pr-2 text-gray-400">
+                            Depends On Others
+                        </td>
                         <td class="p-1 font-mono text-white">
                             ${dependsOnMap[sample.dependsOn] || 'N/A'}
                         </td>
@@ -386,17 +323,16 @@ export function getInteractiveIsobmffTemplate(
         </div>`;
     }
 
-    const groupedBoxes = groupboxesIntoChunks(parsedSegmentData.data.boxes || []);
-    assignBoxColors(groupedBoxes);
+    const groupedBoxes = parsedSegmentData.data.boxes || [];
 
     return html`
         <div
             class="grid grid-cols-1 lg:grid-cols-[minmax(300px,25%)_1fr] gap-4"
         >
-            <div class="sticky top-4 h-max">
+            <div class="sticky top-4">
                 <div class="flex flex-col gap-4">
                     <div
-                        class="segment-inspector-panel rounded-md bg-gray-900/90 border border-gray-700 transition-opacity duration-200 h-96 lg:h-[24rem] overflow-hidden flex flex-col"
+                        class="segment-inspector-panel rounded-md bg-gray-900/90 border border-gray-700 transition-opacity duration-200 h-96 lg:h-[24rem] flex flex-col overflow-y-auto"
                     ></div>
                     ${summaryTemplate(parsedSegmentData.data)}
                     ${issuesTemplate(parsedSegmentData.data.issues)}

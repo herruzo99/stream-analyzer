@@ -1,5 +1,6 @@
 import { html } from 'lit-html';
 import { eventBus } from '@/application/event-bus';
+import { renderAdAvails } from '../shared/ad-renderer.js';
 
 const renderRandomAccessPoints = (
     points,
@@ -21,9 +22,23 @@ MOOF Offset: ${point.moofOffset}"
     });
 };
 
-const renderEvents = (events, totalDuration, timelineStart = 0) => {
+const renderEvents = (
+    events,
+    totalDuration,
+    timelineStart = 0,
+    adAvails = []
+) => {
     if (!events || events.length === 0) return '';
-    return events.map((event) => {
+
+    // Filter out SCTE-35 events that are already visualized as part of a resolved AdAvail
+    const adAvailIds = new Set((adAvails || []).map((a) => a.id));
+    const filteredEvents = events.filter(
+        (e) =>
+            !e.scte35 ||
+            !adAvailIds.has(e.scte35.descriptors?.[0]?.segmentation_event_id)
+    );
+
+    return filteredEvents.map((event) => {
         const startTime = event.startTime;
         const duration = event.duration;
 
@@ -47,7 +62,9 @@ const renderEvents = (events, totalDuration, timelineStart = 0) => {
                     cmd.break_duration.duration / 90000
                 ).toFixed(3)}s`;
             } else if (cmd.type === 'Time Signal' && desc) {
-                details = `Type: ${desc.segmentation_type_id}\nUPID: ${desc.segmentation_upid || 'N/A'}`;
+                details = `Type: ${
+                    desc.segmentation_type_id
+                }\nUPID: ${desc.segmentation_upid || 'N/A'}`;
             }
 
             tooltipContent = `SCTE-35: ${cmd.type}\nTime: ${startTime.toFixed(
@@ -131,7 +148,17 @@ const timelineGridTemplate = (switchingSet) => {
         <div class="mt-8">
             <h4 class="text-lg font-bold">Switching Set: ${switchingSet.id}</h4>
             <div class="bg-gray-900 rounded-lg p-4 mt-2 relative">
-                ${renderEvents(allEvents, presentationDuration)}
+                ${renderAdAvails(
+                    switchingSet.adAvails,
+                    presentationDuration,
+                    mediaTimelineOffset
+                )}
+                ${renderEvents(
+                    allEvents,
+                    presentationDuration,
+                    0,
+                    switchingSet.adAvails
+                )}
                 ${representations.map(
                     (rep) => html`
                         <div class="flex items-center mb-1 relative">
@@ -150,30 +177,40 @@ const timelineGridTemplate = (switchingSet) => {
                                     mediaTimelineOffset
                                 )}
                                 ${rep.fragments
-                                    ? rep.fragments.map(
-                                          (frag) => html`
+                                    ? rep.fragments.map((frag) => {
+                                          const hasChunks =
+                                              frag.chunks &&
+                                              frag.chunks.length > 0;
+                                          return html`
                                               <div
-                                                  class="h-full bg-gray-600 border-r border-gray-800"
+                                                  class="h-full bg-gray-600 border-r border-gray-800 relative flex"
                                                   style="width: ${(frag.duration /
                                                       presentationDuration) *
                                                   100}%;"
                                                   data-tooltip="Segment #${frag.number}
-Presentation Time: ${frag.presentationStartTime.toFixed(
-                                                      2
-                                                  )}s - ${(
+Presentation Time: ${frag.presentationStartTime.toFixed(2)}s - ${(
                                                       frag.presentationStartTime +
                                                       frag.duration
                                                   ).toFixed(2)}s
 Media Time: ${frag.mediaStartTime.toFixed(2)}s
-Duration: ${frag.duration.toFixed(2)}s
-${frag.startTimeUTC
-                                                      ? `Available (UTC): ${new Date(
-                                                            frag.startTimeUTC
-                                                        ).toLocaleTimeString()}`
-                                                      : ''}"
-                                              ></div>
-                                          `
-                                      )
+Duration: ${frag.duration.toFixed(2)}s"
+                                              >
+                                                  ${hasChunks
+                                                      ? frag.chunks.map(
+                                                            (chunk) => html`
+                                                                <div
+                                                                    class="h-full bg-blue-500/40 border-r border-blue-900/50"
+                                                                    style="width: ${(chunk.duration /
+                                                                        frag.duration) *
+                                                                    100}%"
+                                                                    data-tooltip="${chunk.tooltip}"
+                                                                ></div>
+                                                            `
+                                                        )
+                                                      : ''}
+                                              </div>
+                                          `;
+                                      })
                                     : html`<div
                                           class="w-full h-full bg-red-900/50 text-red-300 text-xs flex items-center justify-center p-2"
                                       >
@@ -195,14 +232,12 @@ ${frag.startTimeUTC
                 ? html`<div
                       class="text-xs text-gray-500 mt-1 flex justify-between"
                   >
-                      <span
-                          >${mediaTimelineOffset.toFixed(2)}s</span
-                      >
+                      <span>${mediaTimelineOffset.toFixed(2)}s</span>
                       <span>Media Time</span>
                       <span
-                          >${(
-                              mediaTimelineOffset + mediaDuration
-                          ).toFixed(2)}s</span
+                          >${(mediaTimelineOffset + mediaDuration).toFixed(
+                              2
+                          )}s</span
                       >
                   </div>`
                 : ''}

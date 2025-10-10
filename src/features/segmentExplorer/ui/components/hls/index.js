@@ -1,6 +1,7 @@
 import { html } from 'lit-html';
 import { segmentRowTemplate } from '@/ui/components/segment-row';
 import { eventBus } from '@/application/event-bus';
+import '@/ui/components/virtualized-list'; // Import the custom element
 
 let liveSegmentHighlighterInterval = null;
 
@@ -57,7 +58,6 @@ const renderVariant = (stream, variant, variantUri) => {
         error,
         isLoading,
         isExpanded,
-        displayMode,
         freshSegmentUrls,
     } = variantState;
 
@@ -91,13 +91,11 @@ const renderVariant = (stream, variant, variantUri) => {
                 gap: /** @type {any} */ (seg).gap || false,
                 startTimeUTC: startTimeUTC || 0,
                 endTimeUTC: endTimeUTC || 0,
+                flags: /** @type {any} */ (seg).flags || [],
             };
             return transformedSeg;
         }
     );
-
-    const segmentsToDisplay =
-        displayMode === 'last10' ? allSegments.slice(-10) : allSegments;
 
     const onToggleExpand = (e) => {
         e.preventDefault();
@@ -107,13 +105,11 @@ const renderVariant = (stream, variant, variantUri) => {
         });
     };
 
-    const onSetDisplayMode = (e) => {
-        e.stopPropagation();
-        eventBus.dispatch('hls-explorer:set-display-mode', {
-            streamId: stream.id,
-            variantUri,
-            mode: displayMode === 'all' ? 'last10' : 'all',
-        });
+    const rowRenderer = (seg) => {
+        const isFresh = freshSegmentUrls.has(
+            /** @type {any} */ (seg).resolvedUrl
+        );
+        return segmentRowTemplate(seg, isFresh, stream.manifest.segmentFormat);
     };
 
     let content;
@@ -129,29 +125,26 @@ const renderVariant = (stream, variant, variantUri) => {
         </div>`;
     } else if (isExpanded) {
         content = html`<div class="overflow-x-auto relative">
-            <table
-                class="w-full text-left text-sm table-fixed min-w-[600px]"
-            >
+            <table class="w-full text-left text-sm table-fixed min-w-[700px]">
                 <thead class="sticky top-0 bg-gray-900 z-10">
                     <tr>
                         <th class="px-3 py-2 w-8"></th>
                         <th class="px-3 py-2 w-40">Status / Type</th>
                         <th class="px-3 py-2 w-32">Timing (s)</th>
+                        <th class="px-3 py-2 w-24">Flags</th>
                         <th class="px-3 py-2">URL & Actions</th>
                     </tr>
                 </thead>
-                <tbody>
-                    ${segmentsToDisplay.map((seg) =>
-                        segmentRowTemplate(
-                            seg,
-                            freshSegmentUrls.has(
-                                /** @type {any} */ (seg).resolvedUrl
-                            ),
-                            stream.manifest.segmentFormat
-                        )
-                    )}
-                </tbody>
             </table>
+            <virtualized-list
+                .items=${allSegments}
+                .rowTemplate=${rowRenderer}
+                .rowHeight=${40}
+                style="height: ${Math.min(
+                    allSegments.length * 40,
+                    400
+                )}px; min-height: 80px;"
+            ></virtualized-list>
         </div>`;
     }
 
@@ -192,20 +185,9 @@ const renderVariant = (stream, variant, variantUri) => {
                 </svg>
             </summary>
             ${isExpanded
-                ? html`
-                      <div class="p-2 border-t border-gray-700">
-                          <div class="flex items-center gap-4 p-2">
-                              <button
-                                  @click=${onSetDisplayMode}
-                                  class="text-xs px-3 py-1 rounded bg-gray-600 hover:bg-gray-700"
-                              >
-                                  Show
-                                  ${displayMode === 'all' ? 'Last 10' : 'All'}
-                              </button>
-                          </div>
-                          ${content}
-                      </div>
-                  `
+                ? html` <div class="p-2 border-t border-gray-700">
+                      ${content}
+                  </div>`
                 : ''}
         </details>
     `;
@@ -218,7 +200,6 @@ const renderVariant = (stream, variant, variantUri) => {
  */
 export function getHlsExplorerTemplate(stream) {
     if (stream.manifest.isMaster) {
-        // Group all playlists by their type (video, audio, subtitles)
         const groupedPlaylists = {
             VIDEO: [],
             AUDIO: [],
@@ -226,24 +207,16 @@ export function getHlsExplorerTemplate(stream) {
         };
 
         for (const uri of stream.hlsVariantState.keys()) {
-            // Find the original parsed tag (either variant or media) to get its metadata
             const variant = (stream.manifest.variants || []).find(
                 (v) => v.resolvedUri === uri
             );
-
             const serialized = /** @type {any} */ (
                 stream.manifest.serializedManifest
             );
             const media =
-                serialized &&
-                'media' in serialized &&
-                Array.isArray(serialized.media)
-                    ? serialized.media.find(
-                          (m) =>
-                              m.URI &&
-                              new URL(m.URI, stream.baseUrl).href === uri
-                      )
-                    : null;
+                serialized?.media?.find(
+                    (m) => m.URI && new URL(m.URI, stream.baseUrl).href === uri
+                ) || null;
 
             if (variant) {
                 groupedPlaylists.VIDEO.push({
@@ -293,7 +266,6 @@ export function getHlsExplorerTemplate(stream) {
             </div>
         `;
     } else {
-        // This is a simple Media Playlist
         const mediaVariant = {
             title: 'Media Playlist Segments',
             uri: stream.originalUrl,

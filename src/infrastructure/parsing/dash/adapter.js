@@ -163,15 +163,21 @@ function parseSubRepresentation(subRepEl, parentMergedEl) {
             ? parseInt(getAttr(subRepEl, 'bandwidth'), 10)
             : null,
         contentComponent: getAttr(subRepEl, 'contentComponent')?.split(' '),
-        codecs: getAttr(mergedEl, 'codecs'),
+        codecs: { value: getAttr(mergedEl, 'codecs'), source: 'manifest' },
         mimeType: getAttr(mergedEl, 'mimeType'),
         profiles: getAttr(mergedEl, 'profiles'),
-        width: getAttr(mergedEl, 'width')
-            ? parseInt(getAttr(mergedEl, 'width'), 10)
-            : null,
-        height: getAttr(mergedEl, 'height')
-            ? parseInt(getAttr(mergedEl, 'height'), 10)
-            : null,
+        width: {
+            value: getAttr(mergedEl, 'width')
+                ? parseInt(getAttr(mergedEl, 'width'), 10)
+                : null,
+            source: 'manifest',
+        },
+        height: {
+            value: getAttr(mergedEl, 'height')
+                ? parseInt(getAttr(mergedEl, 'height'), 10)
+                : null,
+            source: 'manifest',
+        },
         serializedManifest: subRepEl,
     };
 
@@ -198,15 +204,21 @@ function parseRepresentation(repEl, parentMergedEl) {
         dependencyId: getAttr(repEl, 'dependencyId'),
         associationId: getAttr(repEl, 'associationId'),
         associationType: getAttr(repEl, 'associationType'),
-        codecs: getAttr(mergedRepEl, 'codecs'),
+        codecs: { value: getAttr(mergedRepEl, 'codecs'), source: 'manifest' },
         mimeType: getAttr(mergedRepEl, 'mimeType'),
         profiles: getAttr(mergedRepEl, 'profiles'),
-        width: getAttr(mergedRepEl, 'width')
-            ? parseInt(getAttr(mergedRepEl, 'width'), 10)
-            : null,
-        height: getAttr(mergedRepEl, 'height')
-            ? parseInt(getAttr(mergedRepEl, 'height'), 10)
-            : null,
+        width: {
+            value: getAttr(mergedRepEl, 'width')
+                ? parseInt(getAttr(mergedRepEl, 'width'), 10)
+                : null,
+            source: 'manifest',
+        },
+        height: {
+            value: getAttr(mergedRepEl, 'height')
+                ? parseInt(getAttr(mergedRepEl, 'height'), 10)
+                : null,
+            source: 'manifest',
+        },
         frameRate: getAttr(mergedRepEl, 'frameRate'),
         sar: getAttr(mergedRepEl, 'sar'),
         scanType: getAttr(mergedRepEl, 'scanType'),
@@ -365,30 +377,29 @@ function parseAdaptationSet(asEl, parentMergedEl) {
         representations: findChildren(asEl, 'Representation').map((repEl) =>
             parseRepresentation(repEl, mergedAsEl)
         ),
-        contentProtection: findChildren(
-            mergedAsEl,
-            'ContentProtection'
-        ).map((cpEl) => {
-            const psshNode = findChild(cpEl, 'pssh');
-            const psshData = psshNode ? getText(psshNode) : null;
-            return {
-                schemeIdUri: getAttr(cpEl, 'schemeIdUri'),
-                system: getDrmSystemName(getAttr(cpEl, 'schemeIdUri')),
-                defaultKid: getAttr(cpEl, 'default_KID'),
-                robustness: getAttr(cpEl, 'robustness'),
-                pssh: psshData
-                    ? [
-                          {
-                              systemId: getDrmSystemName(
-                                  getAttr(cpEl, 'schemeIdUri')
-                              ),
-                              kids: [],
-                              data: psshData,
-                          },
-                      ]
-                    : [],
-            };
-        }),
+        contentProtection: findChildren(mergedAsEl, 'ContentProtection').map(
+            (cpEl) => {
+                const psshNode = findChild(cpEl, 'pssh');
+                const psshData = psshNode ? getText(psshNode) : null;
+                return {
+                    schemeIdUri: getAttr(cpEl, 'schemeIdUri'),
+                    system: getDrmSystemName(getAttr(cpEl, 'schemeIdUri')),
+                    defaultKid: getAttr(cpEl, 'default_KID'),
+                    robustness: getAttr(cpEl, 'robustness'),
+                    pssh: psshData
+                        ? [
+                              {
+                                  systemId: getDrmSystemName(
+                                      getAttr(cpEl, 'schemeIdUri')
+                                  ),
+                                  kids: [],
+                                  data: psshData,
+                              },
+                          ]
+                        : [],
+                };
+            }
+        ),
         framePackings: findChildren(mergedAsEl, 'FramePacking').map(
             parseGenericDescriptor
         ),
@@ -571,9 +582,10 @@ function parsePeriod(periodEl, parentMergedEl) {
  * Transforms a serialized DASH manifest object into a protocol-agnostic IR.
  * @param {object} manifestElement The root MPD element, serialized.
  * @param {string} baseUrl The base URL for the manifest.
- * @returns {Manifest} The manifest IR object.
+ * @param {object} [context]
+ * @returns {Promise<Manifest>} The manifest IR object.
  */
-export function adaptDashToIr(manifestElement, baseUrl) {
+export async function adaptDashToIr(manifestElement, baseUrl, context) {
     const manifestCopy = deepClone(manifestElement);
 
     const adaptationSets = findChildrenRecursive(manifestCopy, 'AdaptationSet');
@@ -661,7 +673,10 @@ export function adaptDashToIr(manifestElement, baseUrl) {
     };
 
     manifestIR.events = manifestIR.periods.flatMap((p) => p.events);
-    manifestIR.summary = generateDashSummary(manifestIR, manifestCopy);
+    manifestIR.summary = await generateDashSummary(manifestIR, manifestCopy, {
+        ...context,
+        manifestUrl: baseUrl,
+    });
 
     return manifestIR;
 }

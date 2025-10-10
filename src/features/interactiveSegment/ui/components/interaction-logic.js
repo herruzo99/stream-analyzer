@@ -10,6 +10,20 @@ let inspectorContainer = null;
 let currentFormat = null;
 let rootParsedData = null;
 
+// --- UTILITY ---
+function scrollIntoViewIfNeeded(element, container) {
+    if (!element || !container) return;
+
+    const containerRect = container.getBoundingClientRect();
+    const elementRect = element.getBoundingClientRect();
+
+    if (elementRect.top < containerRect.top) {
+        container.scrollTop += elementRect.top - containerRect.top;
+    } else if (elementRect.bottom > containerRect.bottom) {
+        container.scrollTop += elementRect.bottom - containerRect.bottom;
+    }
+}
+
 // --- LOCAL MODULE STATE for the inspector panel ---
 let selectedItem = null;
 let highlightedItem = null;
@@ -46,6 +60,10 @@ function applyHighlights(item, fieldName) {
         if (structureNode) {
             structureNode.classList.add('is-box-hover-highlighted');
             currentlyHighlightedElements.push(structureNode);
+            const treeContainer = container.querySelector(
+                '.box-tree-area .overflow-y-auto'
+            );
+            scrollIntoViewIfNeeded(structureNode, treeContainer);
         }
     }
 
@@ -64,12 +82,11 @@ function applyHighlights(item, fieldName) {
     }
 
     // --- Apply highlights to hex view ---
-    const visibleByteElements = container.querySelectorAll(
-        '[data-byte-offset]'
-    );
+    const visibleByteElements =
+        container.querySelectorAll('[data-byte-offset]');
     visibleByteElements.forEach((el) => {
         const byteOffset = parseInt(
-            (/** @type {HTMLElement} */ (el)).dataset.byteOffset,
+            /** @type {HTMLElement} */ (el).dataset.byteOffset,
             10
         );
 
@@ -154,7 +171,21 @@ export function initializeSegmentViewInteractivity(
         highlightedField = field;
         clearHighlights();
         applyHighlights(item, field);
-        renderInspectorPanel(); // This will apply inspector-specific highlights
+        renderInspectorPanel();
+
+        setTimeout(() => {
+            const inspector = document.querySelector(
+                '.segment-inspector-panel'
+            );
+            if (inspector && field) {
+                const fieldRow = inspector.querySelector(
+                    `[data-field-name="${field}"]`
+                );
+                if (fieldRow) {
+                    scrollIntoViewIfNeeded(fieldRow, inspector);
+                }
+            }
+        }, 0);
     };
 
     const handleSelection = (targetOffset) => {
@@ -185,7 +216,10 @@ export function initializeSegmentViewInteractivity(
             if (mapEntry.sample) {
                 handleHover(mapEntry.sample, 'Sample Data');
             } else if (mapEntry.box || mapEntry.packet) {
-                handleHover(mapEntry.box || mapEntry.packet, mapEntry.fieldName);
+                handleHover(
+                    mapEntry.box || mapEntry.packet,
+                    mapEntry.fieldName
+                );
             }
         }
     };
@@ -206,13 +240,9 @@ export function initializeSegmentViewInteractivity(
         highlightedField = fieldName;
 
         fieldRow.classList.add('is-inspector-field-highlighted');
-        fieldRow.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
         currentlyHighlightedElements.push(fieldRow);
 
-        const dataOffset = parseInt(
-            fieldRow.dataset.inspectorOffset,
-            10
-        );
+        const dataOffset = parseInt(fieldRow.dataset.inspectorOffset, 10);
         if (isNaN(dataOffset)) return;
 
         const item = findDataByOffset(parsedSegmentData, dataOffset);

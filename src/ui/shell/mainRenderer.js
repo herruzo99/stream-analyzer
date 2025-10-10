@@ -156,10 +156,7 @@ export function renderApp() {
         '[data-testid="copy-debug-btn"]'
     );
     if (copyDebugBtn)
-        copyDebugBtn.classList.toggle(
-            'hidden',
-            !isResultsView || !isDebugMode
-        );
+        copyDebugBtn.classList.toggle('hidden', !isResultsView || !isDebugMode);
 
     const globalControlsContainer = document.getElementById(
         'global-stream-controls'

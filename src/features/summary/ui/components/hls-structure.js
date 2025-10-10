@@ -13,8 +13,12 @@ export const hlsStructureTemplate = (summary) => {
                   .map((t) => ({
                       id: 'I-Frame',
                       bitrateRange: t.value.BANDWIDTH,
-                      resolutions: [t.value.RESOLUTION],
-                      codecs: [t.value.CODECS],
+                      resolutions: t.value.RESOLUTION
+                          ? [{ value: t.value.RESOLUTION, source: 'manifest' }]
+                          : [],
+                      codecs: t.value.CODECS
+                          ? [{ value: t.value.CODECS, source: 'manifest' }]
+                          : [],
                       roles: [],
                   }))
             : [];

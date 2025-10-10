@@ -1,9 +1,24 @@
 import { html } from 'lit-html';
 import { eventBus } from '@/application/event-bus';
+import { renderAdAvails } from '../shared/ad-renderer.js';
 
-const renderEvents = (events, totalDuration) => {
+const renderEvents = (
+    events,
+    totalDuration,
+    timelineStart = 0,
+    adAvails = []
+) => {
     if (!events || events.length === 0) return '';
-    return events.map((event) => {
+
+    // Filter out SCTE-35 events that are already visualized as part of a resolved AdAvail
+    const adAvailIds = new Set((adAvails || []).map((a) => a.id));
+    const filteredEvents = events.filter(
+        (e) =>
+            !e.scte35 ||
+            !adAvailIds.has(e.scte35.descriptors?.[0]?.segmentation_event_id)
+    );
+
+    return filteredEvents.map((event) => {
         const left = (event.startTime / totalDuration) * 100;
         const width = (event.duration / totalDuration) * 100;
         const isInterstitial = event.message
@@ -29,7 +44,9 @@ const renderEvents = (events, totalDuration) => {
                     cmd.break_duration.duration / 90000
                 ).toFixed(3)}s`;
             } else if (cmd.type === 'Time Signal' && desc) {
-                details = `Type: ${desc.segmentation_type_id}\nUPID: ${desc.segmentation_upid || 'N/A'}`;
+                details = `Type: ${
+                    desc.segmentation_type_id
+                }\nUPID: ${desc.segmentation_upid || 'N/A'}`;
             }
 
             tooltipContent = `SCTE-35: ${cmd.type}\nStart: ${event.startTime.toFixed(
@@ -179,7 +196,13 @@ const vodTimelineTemplate = (manifest) => {
             >
                 ${timelineSegments}
             </div>
-            ${renderEvents(manifest.events, totalDuration)}
+            ${renderAdAvails(manifest.adAvails, totalDuration)}
+            ${renderEvents(
+                manifest.events,
+                totalDuration,
+                0,
+                manifest.adAvails
+            )}
         </div>
         <div class="text-xs text-gray-400 mt-2 text-right">
             Total Duration: ${totalDuration.toFixed(2)}s
@@ -255,7 +278,13 @@ Independent: ${part.INDEPENDENT === 'YES' ? 'Yes' : 'No'}"
                             </div>`
                     )}
                 </div>
-                ${renderEvents(manifest.events, windowDuration)}
+                ${renderAdAvails(manifest.adAvails, windowDuration)}
+                ${renderEvents(
+                    manifest.events,
+                    windowDuration,
+                    0,
+                    manifest.adAvails
+                )}
                 ${preloadHint
                     ? html`
                           <div

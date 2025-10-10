@@ -19,19 +19,19 @@ export const aboutModalTemplate = () => html`
         <h4 class="text-lg font-bold text-white pt-2">Core Principles</h4>
         <ul class="list-disc pl-5 space-y-2">
             <li>
-                <strong class="text-gray-200">Performance:</strong
-                >
-                All heavy parsing and analysis is offloaded to a Web Worker to ensure the UI remains fast and responsive at all times.
+                <strong class="text-gray-200">Performance:</strong>
+                All heavy parsing and analysis is offloaded to a Web Worker to
+                ensure the UI remains fast and responsive at all times.
             </li>
             <li>
-                <strong class="text-gray-200">Maintainability:</strong
-                >
-                Code is organized according to Clean Architecture principles, separating domain logic from application and UI concerns.
+                <strong class="text-gray-200">Maintainability:</strong>
+                Code is organized according to Clean Architecture principles,
+                separating domain logic from application and UI concerns.
             </li>
             <li>
-                <strong class="text-gray-200">Reproducibility:</strong
-                >
-                The entire development and build environment is managed by Nix Flakes, guaranteeing consistency across all machines.
+                <strong class="text-gray-200">Reproducibility:</strong>
+                The entire development and build environment is managed by Nix
+                Flakes, guaranteeing consistency across all machines.
             </li>
         </ul>
         <p class="pt-4 text-sm text-gray-400">

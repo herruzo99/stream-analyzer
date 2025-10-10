@@ -9,24 +9,33 @@ import {
 import { generateFeatureAnalysis } from '@/features/featureAnalysis/domain/analyzer';
 import { parseAllSegmentUrls as parseDashSegments } from '@/infrastructure/parsing/dash/segment-parser';
 import { diffManifest } from '@/ui/shared/diff';
+import { parseSegment } from './segmentParsingHandler.js';
 import xmlFormatter from 'xml-formatter';
+
+async function fetchAndParseSegment(url, formatHint) {
+    // This internal fetcher does not need to handle caching or UI updates.
+    const response = await fetch(url);
+    if (!response.ok) {
+        throw new Error(`HTTP error ${response.status} for segment ${url}`);
+    }
+    const data = await response.arrayBuffer();
+    // Re-use the core parsing logic now exported from the segment handler
+    return parseSegment({ data, formatHint, url });
+}
 
 async function preProcessInput(input) {
     const trimmedManifest = input.manifestString.trim();
     let protocol;
 
-    // Content-first detection, now with a more robust regex for DASH.
     if (trimmedManifest.startsWith('#EXTM3U')) {
         protocol = 'hls';
     } else if (/<MPD/i.test(trimmedManifest)) {
         protocol = 'dash';
-    }
-    // Fallback to URL extension only if content is truly ambiguous.
-    else if (input.url || input.file?.name) {
+    } else if (input.url || input.file?.name) {
         const name = (input.url || input.file.name).toLowerCase();
         protocol = name.includes('.m3u8') ? 'hls' : 'dash';
     } else {
-        protocol = 'dash'; // Default assumption
+        protocol = 'dash';
     }
 
     return { ...input, protocol };
@@ -59,7 +68,9 @@ async function parse(input) {
         }
     } else {
         const { manifest, serializedManifest, baseUrl } =
-            await parseDashManifest(input.manifestString, input.url);
+            await parseDashManifest(input.manifestString, input.url, {
+                fetchAndParseSegment,
+            });
         manifestIR = manifest;
         serializedManifestObject = serializedManifest;
         finalBaseUrl = baseUrl;
@@ -73,6 +84,7 @@ async function runAllAnalyses({
     serializedManifestObject,
     finalBaseUrl,
 }) {
+    // ... Analysis logic is unchanged ...
     const rawInitialAnalysis = generateFeatureAnalysis(
         manifestIR,
         input.protocol,
@@ -159,58 +171,60 @@ async function buildStreamObject(
         coverageReport,
     };
 
-    if (input.protocol === 'hls' && manifestIR.isMaster) {
-        (manifestIR.variants || []).forEach((v, index) => {
-            streamObject.hlsVariantState.set(v.resolvedUri, {
-                segments: [],
-                freshSegmentUrls: new Set(),
-                isLoading: false,
-                isPolling: manifestIR.type === 'dynamic',
-                isExpanded: index === 0,
-                displayMode: 'last10',
-                error: null,
+    if (input.protocol === 'hls') {
+        if (manifestIR.isMaster) {
+            streamObject.mediaPlaylists.set('master', {
+                manifest: manifestIR,
+                rawManifest: streamObject.rawManifest,
+                lastFetched: new Date(),
             });
-        });
-        (serializedManifestObject.media || []).forEach((media) => {
-            if (media.URI) {
-                const resolvedUri = new URL(media.URI, finalBaseUrl).href;
-                streamObject.hlsVariantState.set(resolvedUri, {
+            (manifestIR.variants || []).forEach((variant) => {
+                streamObject.hlsVariantState.set(variant.resolvedUri, {
                     segments: [],
                     freshSegmentUrls: new Set(),
                     isLoading: false,
-                    isPolling: manifestIR.type === 'dynamic',
+                    isPolling: false,
                     isExpanded: false,
-                    displayMode: 'last10',
+                    displayMode: 'all',
                     error: null,
                 });
-            }
-        });
-    } else if (input.protocol === 'hls' && !manifestIR.isMaster) {
-        // Handle standalone Media Playlists
-        const segments = manifestIR.segments || [];
-        streamObject.hlsVariantState.set(streamObject.originalUrl, {
-            segments: segments,
-            freshSegmentUrls: new Set(segments.map((s) => s.resolvedUrl)),
-            isLoading: false,
-            isPolling: manifestIR.type === 'dynamic',
-            isExpanded: true, // Always expand a single media playlist
-            displayMode: 'all',
-            error: null,
-        });
+            });
+        } else {
+            streamObject.hlsVariantState.set(streamObject.originalUrl, {
+                segments: manifestIR.segments || [],
+                freshSegmentUrls: new Set(
+                    (manifestIR.segments || []).map((s) => s.resolvedUrl)
+                ),
+                isLoading: false,
+                isPolling: manifestIR.type === 'dynamic',
+                isExpanded: true, // If it's the only playlist, expand it
+                displayMode: 'all',
+                error: null,
+            });
+        }
     } else if (input.protocol === 'dash') {
-        const segmentsByCompositeKey = parseDashSegments(
+        const segmentsByCompositeKey = await parseDashSegments(
             serializedManifestObject,
             streamObject.baseUrl
         );
-        Object.entries(segmentsByCompositeKey).forEach(([key, segments]) => {
+
+        for (const [key, data] of Object.entries(segmentsByCompositeKey)) {
+            const mediaSegments = data.segments || [];
+
+            const allSegments = [data.initSegment, ...mediaSegments].filter(
+                Boolean
+            );
+
             streamObject.dashRepresentationState.set(key, {
-                segments,
-                freshSegmentUrls: new Set(segments.map((s) => s.resolvedUrl)),
+                segments: allSegments,
+                freshSegmentUrls: new Set(
+                    allSegments.map((s) => s.resolvedUrl)
+                ),
+                diagnostics: data.diagnostics,
             });
-        });
+        }
     }
 
-    // --- Generate initial diff here in the worker ---
     let formattedInitial = streamObject.rawManifest;
     if (streamObject.protocol === 'dash') {
         formattedInitial = xmlFormatter(formattedInitial, {
@@ -222,7 +236,7 @@ async function buildStreamObject(
 
     streamObject.manifestUpdates.push({
         timestamp: new Date().toLocaleTimeString(),
-        diffHtml, // Add the generated diff
+        diffHtml,
         rawManifest: streamObject.rawManifest,
         complianceResults,
         hasNewIssues: false,
@@ -240,16 +254,21 @@ function serializeStreamForTransport(streamObject) {
     serialized.dashRepresentationState = Array.from(
         streamObject.dashRepresentationState.entries()
     );
-    serialized.featureAnalysis.results = Array.from(
-        streamObject.featureAnalysis.results.entries()
-    );
+    if (serialized.featureAnalysis) {
+        serialized.featureAnalysis.results = Array.from(
+            streamObject.featureAnalysis.results.entries()
+        );
+    }
     serialized.semanticData = Array.from(streamObject.semanticData.entries());
     serialized.mediaPlaylists = Array.from(
         streamObject.mediaPlaylists.entries()
     );
-    streamObject.manifest.serializedManifest = JSON.parse(
-        JSON.stringify(streamObject.manifest.serializedManifest)
-    );
+    // Ensure nested Maps are also serialized if they exist
+    if (streamObject.manifest?.hlsDefinedVariables) {
+        serialized.manifest.hlsDefinedVariables = Array.from(
+            streamObject.manifest.hlsDefinedVariables.entries()
+        );
+    }
 
     return serialized;
 }
@@ -263,5 +282,19 @@ async function processSingleStream(input) {
 }
 
 export async function handleStartAnalysis({ inputs }) {
-    return Promise.all(inputs.map(processSingleStream));
+    const results = await Promise.all(inputs.map(processSingleStream));
+    // The error was happening during hydration on the main thread.
+    // Let's re-verify the structure before sending.
+    results.forEach((stream) => {
+        if (
+            !stream ||
+            stream.hlsVariantState === undefined ||
+            stream.dashRepresentationState === undefined
+        ) {
+            throw new Error(
+                'Worker produced a malformed stream object before transport.'
+            );
+        }
+    });
+    return results;
 }

@@ -88,10 +88,12 @@ function renderHexGridContent(view, start, end, byteMap, allTooltips) {
                     if (
                         prevMapEntry &&
                         mapEntry.fieldName !== prevMapEntry.fieldName &&
-                        (item?.offset ===
-                            (prevMapEntry.box ||
+                        item?.offset ===
+                            (
+                                prevMapEntry.box ||
                                 prevMapEntry.packet ||
-                                prevMapEntry.sample)?.offset) &&
+                                prevMapEntry.sample
+                            )?.offset &&
                         byteOffset % 16 !== 0
                     ) {
                         fieldBoundaryClass = 'border-l-2 border-white/10';

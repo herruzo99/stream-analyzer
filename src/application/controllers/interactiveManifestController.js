@@ -14,12 +14,9 @@ export function initializeInteractiveManifestController() {
         }
     );
 
-    eventBus.subscribe(
-        'ui:interactive-manifest:toggle-substitution',
-        () => {
-            uiActions.toggleInteractiveManifestSubstitution();
-            // This action directly affects the view, so we trigger a re-render.
-            renderApp();
-        }
-    );
+    eventBus.subscribe('ui:interactive-manifest:toggle-substitution', () => {
+        uiActions.toggleInteractiveManifestSubstitution();
+        // This action directly affects the view, so we trigger a re-render.
+        renderApp();
+    });
 }
