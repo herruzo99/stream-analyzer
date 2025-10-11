@@ -95,9 +95,9 @@
         >
             <header
                 id="main-header"
-                class="flex flex-col md:flex-row justify-center items-center mb-6 md:mb-8 flex-shrink-0 gap-4 md:gap-8 flex-wrap"
+                class="flex flex-col md:flex-row justify-between items-center mb-6 md:mb-8 flex-shrink-0 gap-4 md:gap-8 flex-wrap"
             >
-                <div id="header-title-group" class="text-center">
+                <div id="header-title-group" class="text-center md:text-left flex-shrink min-w-0">
                     <h1 class="text-3xl sm:text-4xl font-bold text-white">
                         Stream Analyzer
                     </h1>
@@ -114,36 +114,15 @@
                     <!-- URLs injected by JS -->
                 </div>
 
-                <div
-                    class="flex items-center space-x-2 flex-shrink-0 flex-wrap justify-center gap-2"
-                >
-                    <div
-                        id="global-stream-controls"
-                        class="flex items-center gap-2"
-                    >
-                        <!-- Polling and Reload buttons will be injected here -->
+                <div id="header-controls" class="flex items-center gap-4 flex-wrap justify-center md:justify-end flex-shrink-0">
+                    <div id="context-switcher-wrapper" class="hidden items-center gap-4 flex-wrap justify-end">
+                        <div id="switcher-container" class="flex items-center gap-4 flex-wrap justify-end">
+                             <!-- Content is now rendered by context-switcher.js -->
+                        </div>
                     </div>
-                    <button
-                        id="share-analysis-btn"
-                        data-testid="share-analysis-btn"
-                        class="hidden bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md transition duration-300"
-                    >
-                        Share
-                    </button>
-                    <button
-                        id="copy-debug-btn"
-                        data-testid="copy-debug-btn"
-                        class="hidden bg-yellow-600 hover:bg-yellow-700 text-black font-bold py-2 px-4 rounded-md transition duration-300"
-                    >
-                        Copy Debug Info
-                    </button>
-                    <button
-                        id="new-analysis-btn"
-                        data-testid="new-analysis-btn"
-                        class="hidden bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition duration-300"
-                    >
-                        Analyze New Streams
-                    </button>
+                     <div id="global-stream-controls" class="flex items-center gap-4">
+                        <!-- Content is now fully rendered by mainRenderer.js -->
+                     </div>
                 </div>
             </header>
 
@@ -183,144 +162,19 @@
             <div id="results" class="hidden flex flex-col flex-grow min-h-0">
                 <div class="mb-4 border-b border-gray-700 flex-shrink-0">
                     <nav
-                        class="flex flex-wrap items-center"
+                        class="flex flex-wrap items-center -mb-px"
                         id="tabs"
                         role="tablist"
                         aria-label="Analysis Sections"
                     >
-                        <div class="flex -mb-px flex-wrap flex-grow">
-                            <button
-                                id="tab-btn-comparison"
-                                role="tab"
-                                aria-selected="false"
-                                aria-controls="tab-comparison"
-                                class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
-                                data-tab="comparison"
-                            >
-                                Comparison
-                            </button>
-                            <button
-                                id="tab-btn-summary"
-                                role="tab"
-                                aria-selected="false"
-                                aria-controls="tab-summary"
-                                class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
-                                data-tab="summary"
-                            >
-                                Global Summary
-                            </button>
-                            <button
-                                id="tab-btn-integrators-report"
-                                role="tab"
-                                aria-selected="false"
-                                aria-controls="tab-integrators-report"
-                                class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
-                                data-tab="integrators-report"
-                            >
-                                Integrator's Report
-                            </button>
-                            <button
-                                id="tab-btn-timeline-visuals"
-                                role="tab"
-                                aria-selected="false"
-                                aria-controls="tab-timeline-visuals"
-                                class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
-                                data-tab="timeline-visuals"
-                            >
-                                Timeline &amp; Visuals
-                            </button>
-                            <button
-                                id="tab-btn-features"
-                                role="tab"
-                                aria-selected="false"
-                                aria-controls="tab-features"
-                                class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
-                                data-tab="features"
-                            >
-                                Features
-                            </button>
-                            <button
-                                id="tab-btn-compliance"
-                                role="tab"
-                                aria-selected="false"
-                                aria-controls="tab-compliance"
-                                class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
-                                data-tab="compliance"
-                            >
-                                Compliance Report
-                            </button>
-                            <button
-                                id="tab-btn-explorer"
-                                role="tab"
-                                aria-selected="false"
-                                aria-controls="tab-explorer"
-                                class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
-                                data-tab="explorer"
-                            >
-                                Segment Explorer
-                            </button>
-                            <button
-                                id="tab-btn-interactive-segment"
-                                role="tab"
-                                aria-selected="false"
-                                aria-controls="tab-interactive-segment"
-                                class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent hidden"
-                                data-tab="interactive-segment"
-                            >
-                                Interactive Segment
-                            </button>
-                            <button
-                                id="tab-btn-interactive-manifest"
-                                role="tab"
-                                aria-selected="false"
-                                aria-controls="tab-interactive-manifest"
-                                class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
-                                data-tab="interactive-manifest"
-                            >
-                                Interactive Manifest
-                            </button>
-                            <button
-                                id="tab-btn-updates"
-                                role="tab"
-                                aria-selected="false"
-                                aria-controls="tab-updates"
-                                class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent"
-                                data-tab="updates"
-                            >
-                                Manifest Updates
-                            </button>
-                            <button
-                                id="tab-btn-parser-coverage"
-                                role="tab"
-                                aria-selected="false"
-                                aria-controls="tab-parser-coverage"
-                                class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 border-transparent hidden"
-                                data-tab="parser-coverage"
-                            >
-                                Parser Coverage
-                            </button>
-                        </div>
-
-                        <div
-                            id="context-switcher-wrapper"
-                            class="hidden flex-shrink-0"
-                        >
-                            <label
-                                for="context-switcher"
-                                class="text-sm font-medium text-gray-400 mr-2"
-                                >Viewing Details For:</label
-                            >
-                            <select
-                                id="context-switcher"
-                                data-testid="context-switcher"
-                                class="bg-gray-700 text-white rounded-md border-gray-600 p-2"
-                            ></select>
-                        </div>
+                        <!-- Tab buttons are now rendered dynamically by mainRenderer.js -->
                     </nav>
                 </div>
+
                 <div
                     class="bg-gray-800 p-2 sm:p-4 rounded-lg shadow-lg flex-grow min-h-0 overflow-y-auto"
                 >
+                    <!-- Tab Content Panels -->
                     <div
                         id="tab-comparison"
                         role="tabpanel"

@@ -75,6 +75,20 @@ export const useAnalysisStore = createStore((set, get) => ({
             streams: streams.map((s) => ({
                 ...s,
                 wasStoppedByInactivity: false,
+                activeMediaPlaylistUrl: null,
+                mediaPlaylists:
+                    s.protocol === 'hls' && s.manifest?.isMaster
+                        ? new Map([
+                              [
+                                  'master',
+                                  {
+                                      manifest: s.manifest,
+                                      rawManifest: s.rawManifest,
+                                      lastFetched: new Date(),
+                                  },
+                              ],
+                          ])
+                        : new Map(),
             })),
             activeStreamId: streams[0]?.id ?? null,
         });

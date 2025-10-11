@@ -46,7 +46,8 @@ const getTagHTML = (tagName) => {
             tagInfo.text
         )}" data-iso="${escapeHtml(tagInfo.isoRef)}"`;
     } else {
-        dynamicClasses = 'cursor-help bg-red-900/50 missing-tooltip-trigger';
+        dynamicClasses =
+            'cursor-help bg-red-900/50 border-b border-dotted !border-red-400/70';
         tooltipAttrs = `data-tooltip="No definition for &lt;${cleanTagName}&gt;"`;
     }
 
@@ -74,7 +75,8 @@ const getAttributeHTML = (tagName, attr) => {
             attrInfo.text
         )}" data-iso="${escapeHtml(attrInfo.isoRef)}"`;
     } else if (!isIgnoredAttr) {
-        dynamicClasses = 'cursor-help bg-red-900/50 missing-tooltip-trigger';
+        dynamicClasses =
+            'cursor-help bg-red-900/50 border-b border-dotted !border-red-400/70';
         tooltipAttrs = `data-tooltip="Tooltip definition missing for '${attr.name}' on &lt;${tagName}&gt;"`;
     }
 

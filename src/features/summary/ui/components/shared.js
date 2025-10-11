@@ -18,6 +18,40 @@ const renderSourcedValue = (sourcedData) => {
     return sourcedData;
 };
 
+const renderCodecInfo = (codecInfo) => {
+    const supportedIcon = codecInfo.supported
+        ? html`<svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-4 w-4 text-green-400 inline-block ml-2 flex-shrink-0"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              title="Parser support available"
+          >
+              <path
+                  fill-rule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                  clip-rule="evenodd"
+              />
+          </svg>`
+        : html`<svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-4 w-4 text-red-400 inline-block ml-2 flex-shrink-0"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              title="Parser support not implemented"
+          >
+              <path
+                  fill-rule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                  clip-rule="evenodd"
+              />
+          </svg>`;
+
+    return html`<div class="flex items-center">
+        ${renderSourcedValue(codecInfo)}${supportedIcon}
+    </div>`;
+};
+
 export const statCardTemplate = (
     label,
     value,
@@ -92,29 +126,22 @@ export const trackTableTemplate = (tracks, type) => {
 
     if (type === 'video') {
         headers = [
-            'ID',
-            'Bitrate',
-            'Resolution',
-            'Codecs',
-            'Roles',
-            'Dependencies',
+            { text: 'ID' },
+            { text: 'Bitrate' },
+            { text: 'Resolution' },
+            { text: 'Codecs' },
+            {
+                text: 'Roles',
+                tooltip:
+                    'Describes the purpose of a track (e.g., "main", "alternate", "commentary"). Often not specified if only one main track exists.',
+            },
+            {
+                text: 'Dependencies',
+                tooltip:
+                    'For Scalable or Multi-view Video Coding (SVC/MVC). This is an advanced feature and is not commonly used.',
+            },
         ];
         rows = tracks.map((track) => {
-            const codecs = Array.isArray(track.codecs)
-                ? track.codecs
-                : track.codecs?.value
-                  ? [track.codecs]
-                  : [];
-            const resolutions = Array.isArray(track.resolutions)
-                ? track.resolutions
-                : track.width?.value
-                  ? [
-                        {
-                            value: `${track.width.value}x${track.height.value}`,
-                            source: track.width.source,
-                        },
-                    ]
-                  : [];
             return html`
                 <tr>
                     <td class="p-2 font-mono">${track.id}</td>
@@ -122,8 +149,8 @@ export const trackTableTemplate = (tracks, type) => {
                         ${track.bitrateRange || formatBitrate(track.bandwidth)}
                     </td>
                     <td class="p-2 font-mono">
-                        ${resolutions.length > 0
-                            ? resolutions.map(
+                        ${track.resolutions.length > 0
+                            ? track.resolutions.map(
                                   (res, i) =>
                                       html`${i > 0
                                           ? ', '
@@ -132,45 +159,38 @@ export const trackTableTemplate = (tracks, type) => {
                             : 'N/A'}
                     </td>
                     <td class="p-2 font-mono">
-                        ${codecs.map(
-                            (codec, i) =>
-                                html`${i > 0 ? ', ' : ''}${renderSourcedValue(
-                                    codec
-                                )}`
-                        ) || 'N/A'}
+                        ${track.codecs.map((codec) => renderCodecInfo(codec)) ||
+                        'N/A'}
                     </td>
                     <td class="p-2 font-mono">
                         ${track.roles?.join(', ') || 'N/A'}
                     </td>
-                    <td
-                        class="p-2 font-mono ${tooltipTriggerClasses}"
-                        data-tooltip="A list of other Representation IDs that this Representation depends on for decoding (e.g., for Scalable Video Coding)."
-                        data-iso="DASH: 5.3.5.2"
-                    >
+                    <td class="p-2 font-mono">
                         ${track.dependencyId || 'N/A'}
                     </td>
                 </tr>
             `;
         });
     } else if (type === 'audio') {
-        headers = ['ID', 'Language', 'Codecs', 'Channels', 'Roles'];
+        headers = [
+            { text: 'ID' },
+            { text: 'Language' },
+            { text: 'Codecs' },
+            { text: 'Channels' },
+            {
+                text: 'Roles',
+                tooltip:
+                    'Describes the purpose of a track (e.g., "main", "alternate", "commentary").',
+            },
+        ];
         rows = tracks.map((track) => {
-            const codecs = Array.isArray(track.codecs)
-                ? track.codecs
-                : track.codecs?.value
-                  ? [track.codecs]
-                  : [];
             return html`
                 <tr>
                     <td class="p-2 font-mono">${track.id}</td>
                     <td class="p-2 font-mono">${track.lang || 'N/A'}</td>
                     <td class="p-2 font-mono">
-                        ${codecs.map(
-                            (codec, i) =>
-                                html`${i > 0 ? ', ' : ''}${renderSourcedValue(
-                                    codec
-                                )}`
-                        ) || 'N/A'}
+                        ${track.codecs.map((codec) => renderCodecInfo(codec)) ||
+                        'N/A'}
                     </td>
                     <td class="p-2 font-mono">${track.channels || 'N/A'}</td>
                     <td class="p-2 font-mono">
@@ -181,28 +201,24 @@ export const trackTableTemplate = (tracks, type) => {
         });
     } else {
         // text
-        headers = ['ID', 'Language', 'Format', 'Roles'];
+        headers = [
+            { text: 'ID' },
+            { text: 'Language' },
+            { text: 'Format' },
+            {
+                text: 'Roles',
+                tooltip:
+                    'Describes the purpose of a track (e.g., "caption", "subtitle", "forced").',
+            },
+        ];
         rows = tracks.map((track) => {
-            const codecsOrMimeTypes = Array.isArray(track.codecsOrMimeTypes)
-                ? track.codecsOrMimeTypes
-                : track.codecs?.value || track.mimeType
-                  ? [
-                        track.codecs || {
-                            value: track.mimeType,
-                            source: 'manifest',
-                        },
-                    ]
-                  : [];
             return html`
                 <tr>
                     <td class="p-2 font-mono">${track.id}</td>
                     <td class="p-2 font-mono">${track.lang || 'N/A'}</td>
                     <td class="p-2 font-mono">
-                        ${codecsOrMimeTypes.map(
-                            (item, i) =>
-                                html`${i > 0 ? ', ' : ''}${renderSourcedValue(
-                                    item
-                                )}`
+                        ${track.codecsOrMimeTypes.map((item) =>
+                            renderCodecInfo(item)
                         ) || 'N/A'}
                     </td>
                     <td class="p-2 font-mono">
@@ -223,9 +239,12 @@ export const trackTableTemplate = (tracks, type) => {
                         ${headers.map(
                             (h) =>
                                 html`<th
-                                    class="p-2 font-semibold text-gray-400"
+                                    class="p-2 font-semibold text-gray-400 ${h.tooltip
+                                        ? tooltipTriggerClasses
+                                        : ''}"
+                                    data-tooltip="${h.tooltip || ''}"
                                 >
-                                    ${h}
+                                    ${h.text}
                                 </th>`
                         )}
                     </tr>

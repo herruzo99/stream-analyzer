@@ -216,6 +216,7 @@ const contentProtectionTemplate = (security) => {
 export function getDashSummaryTemplate(stream) {
     const summary = stream.manifest.summary;
     const { activeStreamId } = useAnalysisStore.getState();
+    const isLive = stream.manifest.type === 'dynamic';
 
     return html`
         <div class="space-y-8">
@@ -244,14 +245,48 @@ export function getDashSummaryTemplate(stream) {
                         'The container format for media segments.',
                         'DASH: 5.3.7'
                     )}
+                    ${!isLive
+                        ? statCardTemplate(
+                              'Media Duration',
+                              summary.general.duration
+                                  ? `${summary.general.duration.toFixed(2)}s`
+                                  : 'N/A',
+                              'The total duration of the content.',
+                              'DASH: 5.3.1.2'
+                          )
+                        : ''}
                     ${statCardTemplate(
-                        'Media Duration',
-                        summary.general.duration
-                            ? `${summary.general.duration.toFixed(2)}s`
+                        'Max Segment Duration',
+                        summary.dash.maxSegmentDuration
+                            ? `${summary.dash.maxSegmentDuration.toFixed(2)}s`
                             : 'N/A',
-                        'The total duration of the content.',
+                        'The maximum duration of any segment in the presentation.',
                         'DASH: 5.3.1.2'
                     )}
+                    ${isLive
+                        ? statCardTemplate(
+                              'DVR Window',
+                              summary.dash.timeShiftBufferDepth
+                                  ? `${summary.dash.timeShiftBufferDepth.toFixed(
+                                        2
+                                    )}s`
+                                  : 'N/A',
+                              'The duration of the time-shifting buffer (DVR window).',
+                              'DASH: 5.3.1.2'
+                          )
+                        : ''}
+                    ${isLive
+                        ? statCardTemplate(
+                              'Min Update Period',
+                              summary.dash.minimumUpdatePeriod
+                                  ? `${summary.dash.minimumUpdatePeriod.toFixed(
+                                        2
+                                    )}s`
+                                  : 'N/A',
+                              'Minimum time a client should wait before requesting an updated MPD.',
+                              'DASH: 5.3.1.2'
+                          )
+                        : ''}
                 </dl>
                 <div class="mt-4">${profilesCardTemplate(stream)}</div>
             </div>

@@ -94,7 +94,12 @@ function applyVariableSubstitution(
     return { substitutedLines, definedVariables: variables };
 }
 
-export async function parseManifest(manifestString, baseUrl, parentVariables) {
+export async function parseManifest(
+    manifestString,
+    baseUrl,
+    parentVariables,
+    context
+) {
     let linesForParsing = manifestString.split(/\r?\n/);
 
     if (!manifestString.trim().startsWith('#EXTM3U')) {
@@ -346,6 +351,6 @@ export async function parseManifest(manifestString, baseUrl, parentVariables) {
         }
     }
 
-    const manifest = await adaptHlsToIr(parsed);
+    const manifest = await adaptHlsToIr(parsed, context);
     return { manifest, definedVariables, baseUrl };
 }

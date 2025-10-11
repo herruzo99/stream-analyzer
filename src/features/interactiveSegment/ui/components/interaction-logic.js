@@ -42,7 +42,7 @@ function clearHighlights() {
         el.classList.remove(
             'is-box-hover-highlighted',
             'is-field-hover-highlighted',
-            'is-inspector-field-highlighted'
+            'bg-purple-500/20'
         );
     });
     currentlyHighlightedElements = [];
@@ -239,7 +239,7 @@ export function initializeSegmentViewInteractivity(
         const fieldName = fieldRow.dataset.fieldName;
         highlightedField = fieldName;
 
-        fieldRow.classList.add('is-inspector-field-highlighted');
+        fieldRow.classList.add('bg-purple-500/20');
         currentlyHighlightedElements.push(fieldRow);
 
         const dataOffset = parseInt(fieldRow.dataset.inspectorOffset, 10);
