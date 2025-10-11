@@ -3,6 +3,12 @@ export interface SourcedData<T> {
     source: 'manifest' | 'segment';
 }
 
+export interface CodecInfo {
+    value: string;
+    source: 'manifest' | 'segment';
+    supported: boolean;
+}
+
 export interface Label {
     id: string;
     lang: string | null;
@@ -270,7 +276,7 @@ export interface VideoTrackSummary {
     profiles: string | null;
     bitrateRange: string;
     resolutions: SourcedData<string>[];
-    codecs: SourcedData<string>[];
+    codecs: CodecInfo[];
     scanType: string | null;
     videoRange: string | null;
     roles: string[];
@@ -279,7 +285,7 @@ export interface VideoTrackSummary {
 export interface AudioTrackSummary {
     id: string;
     lang: string | null;
-    codecs: SourcedData<string>[];
+    codecs: CodecInfo[];
     channels: string | null;
     isDefault: boolean;
     isForced: boolean;
@@ -289,7 +295,7 @@ export interface AudioTrackSummary {
 export interface TextTrackSummary {
     id: string;
     lang: string | null;
-    codecsOrMimeTypes: SourcedData<string>[];
+    codecsOrMimeTypes: CodecInfo[];
     isDefault: boolean;
     isForced: boolean;
     roles: string[];
@@ -340,6 +346,7 @@ export interface ManifestSummary {
             hasDiscontinuity: boolean;
             isIFrameOnly: boolean;
         } | null;
+        dvrWindow: number | null;
         hlsParsed?: any;
     } | null;
     lowLatency: {

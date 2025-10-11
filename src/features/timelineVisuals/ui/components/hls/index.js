@@ -93,10 +93,10 @@ const hlsAbrLadderTemplate = (manifest) => {
         const bw = rep.bandwidth;
         const widthPercentage = (bw / maxBw) * 100;
         const resolutionText =
-            rep.width && rep.height
-                ? `${rep.width}x${rep.height}`
+            rep.width?.value && rep.height?.value
+                ? `${rep.width.value}x${rep.height.value}`
                 : 'Audio Only';
-        const codecs = rep.codecs || 'N/A';
+        const codecs = rep.codecs?.value || 'N/A';
 
         return html`
             <div class="flex items-center" title="Codecs: ${codecs}">

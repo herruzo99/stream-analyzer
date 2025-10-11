@@ -14,36 +14,34 @@ export function getComplianceReportTemplate(stream) {
         complianceActiveFilter: activeFilter,
         complianceStandardVersion: activeStandardVersion,
     } = useUiStore.getState();
-    const { manifestUpdates, activeManifestUpdateIndex, protocol } = stream;
-    const currentUpdate = manifestUpdates[activeManifestUpdateIndex];
+    const { protocol, activeMediaPlaylistUrl, mediaPlaylists, manifest } =
+        stream;
 
-    if (!currentUpdate) {
-        return html`<p class="text-gray-400 p-4">
-            Awaiting first manifest update...
-        </p>`;
+    // Determine the active manifest for compliance checks and rendering
+    const activeManifest =
+        protocol === 'hls' && activeMediaPlaylistUrl
+            ? mediaPlaylists.get(activeMediaPlaylistUrl)?.manifest || manifest
+            : manifest;
+
+    const currentUpdate = {
+        rawManifest:
+            protocol === 'hls' && activeMediaPlaylistUrl
+                ? mediaPlaylists.get(activeMediaPlaylistUrl)?.rawManifest || ''
+                : stream.rawManifest,
+        serializedManifest: activeManifest.serializedManifest,
+    };
+
+    if (!currentUpdate.rawManifest) {
+        return html`<p class="text-gray-400 p-4">Awaiting manifest...</p>`;
     }
 
-    let manifestObjectForChecks;
-    let complianceCheckContext = {};
-
-    if (protocol === 'hls') {
-        manifestObjectForChecks = stream.manifest;
-        complianceCheckContext.standardVersion = activeStandardVersion;
-    } else if (protocol === 'dash') {
-        manifestObjectForChecks = currentUpdate.serializedManifest;
-    } else {
-        return html`<p class="text-yellow-400 p-4">
-            Compliance report not available for unknown protocol.
-        </p>`;
-    }
-
+    const complianceCheckContext =
+        protocol === 'hls' ? { standardVersion: activeStandardVersion } : {};
     const complianceResults = runChecks(
-        manifestObjectForChecks,
+        activeManifest,
         protocol,
         complianceCheckContext
     );
-
-    const { rawManifest, serializedManifest } = currentUpdate;
 
     const selector =
         protocol === 'hls'
@@ -57,6 +55,12 @@ export function getComplianceReportTemplate(stream) {
               })
             : '';
 
+    // Navigation is only for master playlist live updates for now
+    const navTpl =
+        protocol === 'dash' || (protocol === 'hls' && !activeMediaPlaylistUrl)
+            ? navigationTemplate(stream)
+            : '';
+
     return html`
         <div
             class="flex flex-col sm:flex-row justify-between items-center mb-4 flex-shrink-0 gap-4"
@@ -67,7 +71,7 @@ export function getComplianceReportTemplate(stream) {
             <div
                 class="flex items-center flex-wrap justify-center sm:justify-end gap-4"
             >
-                ${selector} ${navigationTemplate(stream)}
+                ${selector} ${navTpl}
             </div>
         </div>
 
@@ -76,10 +80,10 @@ export function getComplianceReportTemplate(stream) {
                 class="compliance-manifest-view bg-slate-800 rounded-lg p-2 sm:p-4 font-mono text-sm leading-relaxed overflow-auto mb-6 lg:mb-0 h-full"
             >
                 ${manifestViewTemplate(
-                    rawManifest,
+                    currentUpdate.rawManifest,
                     stream.protocol,
                     complianceResults,
-                    serializedManifest,
+                    currentUpdate.serializedManifest,
                     activeFilter
                 )}
             </div>

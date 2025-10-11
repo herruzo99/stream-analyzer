@@ -43,11 +43,14 @@ async function preProcessInput(input) {
 
 async function parse(input) {
     let manifestIR, serializedManifestObject, finalBaseUrl;
+    const context = { fetchAndParseSegment, manifestUrl: input.url };
 
     if (input.protocol === 'hls') {
         const { manifest, definedVariables, baseUrl } = await parseHlsManifest(
             input.manifestString,
-            input.url
+            input.url,
+            undefined, // parentVariables
+            context
         );
         manifestIR = manifest;
         serializedManifestObject = manifest.serializedManifest;
@@ -68,9 +71,7 @@ async function parse(input) {
         }
     } else {
         const { manifest, serializedManifest, baseUrl } =
-            await parseDashManifest(input.manifestString, input.url, {
-                fetchAndParseSegment,
-            });
+            await parseDashManifest(input.manifestString, input.url, context);
         manifestIR = manifest;
         serializedManifestObject = serializedManifest;
         finalBaseUrl = baseUrl;

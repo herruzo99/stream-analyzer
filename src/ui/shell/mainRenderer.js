@@ -17,6 +17,8 @@ import { getStreamInputsTemplate } from '@/ui/components/stream-inputs';
 import { debugLog } from '@/application/utils/debug';
 import { isDebugMode } from '@/application/utils/env';
 import { useSegmentCacheStore } from '@/state/segmentCacheStore';
+import { renderContextSwitcher } from './components/context-switcher.js';
+import { renderTabButtons } from './components/tab-renderer.js';
 
 let dom;
 
@@ -31,26 +33,6 @@ export function initializeRenderer(domContext) {
     useAnalysisStore.subscribe(renderApp);
     useUiStore.subscribe(renderApp);
     useSegmentCacheStore.subscribe(renderApp);
-}
-
-/**
- * Populates the context switcher dropdown when multiple streams are present.
- */
-function renderContextSwitcher() {
-    const { streams, activeStreamId } = useAnalysisStore.getState();
-    if (streams.length > 1) {
-        dom.contextSwitcherWrapper.classList.remove('hidden');
-        const optionsTemplate = streams.map(
-            (s) =>
-                html`<option value="${s.id}">
-                    ${s.name} (${s.protocol.toUpperCase()})
-                </option>`
-        );
-        render(optionsTemplate, dom.contextSwitcher);
-        dom.contextSwitcher.value = String(activeStreamId);
-    } else {
-        dom.contextSwitcherWrapper.classList.add('hidden');
-    }
 }
 
 /**
@@ -74,36 +56,51 @@ function renderActiveTabContent() {
         `Rendering active tab: ${activeTab}. Stream available: ${!!activeStream}`
     );
 
+    let activeManifest = activeStream?.manifest;
+    if (
+        activeStream?.protocol === 'hls' &&
+        activeStream.activeMediaPlaylistUrl &&
+        activeStream.mediaPlaylists.has(activeStream.activeMediaPlaylistUrl)
+    ) {
+        activeManifest =
+            activeStream.mediaPlaylists.get(
+                activeStream.activeMediaPlaylistUrl
+            )?.manifest || activeStream.manifest;
+    }
+
     /** @type {import('lit-html').TemplateResult} */
     let template = html``;
     if (activeTab === 'comparison' && streams.length > 1) {
         template = getComparisonTemplate(streams);
     } else if (activeStream) {
+        // Create a temporary stream-like object with the active manifest context
+        const contextStream = { ...activeStream, manifest: activeManifest };
+
         switch (activeTab) {
             case 'summary':
-                template = getGlobalSummaryTemplate(activeStream);
+                template = getGlobalSummaryTemplate(contextStream);
                 break;
             case 'integrators-report':
-                template = getIntegratorsReportTemplate(activeStream);
+                template = getIntegratorsReportTemplate(contextStream);
                 break;
             case 'compliance':
-                template = getComplianceReportTemplate(activeStream);
+                template = getComplianceReportTemplate(contextStream);
                 break;
             case 'features':
-                template = getFeaturesAnalysisTemplate(activeStream);
+                template = getFeaturesAnalysisTemplate(contextStream);
                 break;
             case 'interactive-manifest':
-                template = getInteractiveManifestTemplate(activeStream);
+                template = getInteractiveManifestTemplate(contextStream);
                 break;
             case 'interactive-segment':
                 template = getInteractiveSegmentTemplate(dom);
                 break;
             case 'updates':
-                template = manifestUpdatesTemplate(activeStream);
+                template = manifestUpdatesTemplate(activeStream); // This view specifically handles master vs media
                 break;
             case 'parser-coverage':
                 if (isDebugMode) {
-                    template = getParserCoverageTemplate(activeStream);
+                    template = getParserCoverageTemplate(contextStream);
                 }
                 break;
         }
@@ -129,7 +126,7 @@ export function renderApp() {
     if (!dom) return;
 
     const { streams, streamInputs } = useAnalysisStore.getState();
-    const { viewState, _activeTab } = useUiStore.getState();
+    const { viewState } = useUiStore.getState();
     const activeStream = streams.find(
         (s) => s.id === useAnalysisStore.getState().activeStreamId
     );
@@ -139,37 +136,6 @@ export function renderApp() {
     // --- Top-Level View State Management ---
     dom.inputSection.classList.toggle('hidden', isResultsView);
     dom.results.classList.toggle('hidden', !isResultsView);
-
-    const newAnalysisBtn = document.querySelector(
-        '[data-testid="new-analysis-btn"]'
-    );
-    if (newAnalysisBtn)
-        newAnalysisBtn.classList.toggle('hidden', !isResultsView);
-
-    const shareAnalysisBtn = document.querySelector(
-        '[data-testid="share-analysis-btn"]'
-    );
-    if (shareAnalysisBtn)
-        shareAnalysisBtn.classList.toggle('hidden', !isResultsView);
-
-    const copyDebugBtn = document.querySelector(
-        '[data-testid="copy-debug-btn"]'
-    );
-    if (copyDebugBtn)
-        copyDebugBtn.classList.toggle('hidden', !isResultsView || !isDebugMode);
-
-    const globalControlsContainer = document.getElementById(
-        'global-stream-controls'
-    );
-    if (globalControlsContainer) {
-        globalControlsContainer.classList.toggle('hidden', !isResultsView);
-    }
-
-    // Responsive header alignment
-    dom.mainHeader.classList.toggle('md:justify-center', !isResultsView);
-    dom.mainHeader.classList.toggle('md:justify-between', isResultsView);
-    dom.headerTitleGroup.classList.toggle('text-center', !isResultsView);
-    dom.headerTitleGroup.classList.toggle('md:text-left', isResultsView);
     dom.headerUrlDisplay.classList.toggle('hidden', !isResultsView);
 
     if (isResultsView && activeStream) {
@@ -182,23 +148,9 @@ export function renderApp() {
             .join('');
         dom.headerUrlDisplay.innerHTML = `<span class="font-bold text-gray-300 block mb-1">Analyzed Stream(s):</span>${urlHtml}`;
 
-        render(globalControlsTemplate(streams), globalControlsContainer);
-        renderContextSwitcher();
-
-        // --- Conditional Tab Visibility ---
-        document
-            .getElementById('tab-btn-comparison')
-            .classList.toggle('hidden', streams.length <= 1);
-        document
-            .getElementById('tab-btn-interactive-segment')
-            .classList.toggle(
-                'hidden',
-                !useAnalysisStore.getState().activeSegmentUrl
-            );
-        document
-            .getElementById('tab-btn-parser-coverage')
-            .classList.toggle('hidden', !isDebugMode);
-
+        render(globalControlsTemplate(streams), dom.mainHeader.querySelector('#global-stream-controls'));
+        renderContextSwitcher(dom);
+        render(renderTabButtons(), dom.tabs);
         renderActiveTabContent();
     } else {
         // --- RENDER INPUT VIEW ---

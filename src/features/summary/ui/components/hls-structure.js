@@ -7,8 +7,8 @@ export const hlsStructureTemplate = (summary) => {
     const hasText = summary.textTracks.length > 0;
 
     const iFramePlaylists =
-        summary.hls.iFramePlaylists > 0
-            ? summary.hlsParsed.tags
+        summary.hls.iFramePlaylists > 0 && summary.hls.hlsParsed?.tags
+            ? summary.hls.hlsParsed.tags
                   .filter((t) => t.name === 'EXT-X-I-FRAME-STREAM-INF')
                   .map((t) => ({
                       id: 'I-Frame',

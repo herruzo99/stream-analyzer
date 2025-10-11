@@ -7,6 +7,7 @@
 import { findChildrenRecursive, resolveBaseUrl } from './recursive-parser.js';
 import { formatBitrate } from '@/ui/shared/format';
 import { findInitSegmentUrl } from './segment-parser.js';
+import { isCodecSupported } from '../utils/codec-support.js';
 
 const getSegmentingStrategy = (serializedManifest) => {
     if (!serializedManifest) return 'unknown';
@@ -171,6 +172,13 @@ export async function generateDashSummary(
             const bitrates = as.representations
                 .map((r) => r.bandwidth)
                 .filter(Boolean);
+            const codecs = [
+                ...new Set(
+                    as.representations
+                        .map((r) => r.codecs)
+                        .filter((c) => c.value)
+                ),
+            ];
             return {
                 id: as.id || 'N/A',
                 profiles: as.profiles,
@@ -186,13 +194,11 @@ export async function generateDashSummary(
                         }))
                     ),
                 ],
-                codecs: [
-                    ...new Set(
-                        as.representations
-                            .map((r) => r.codecs)
-                            .filter((c) => c.value)
-                    ),
-                ].map((c) => ({ value: c.value, source: c.source })),
+                codecs: codecs.map((c) => ({
+                    value: c.value,
+                    source: c.source,
+                    supported: isCodecSupported(c.value),
+                })),
                 scanType: as.representations[0]?.scanType || null,
                 videoRange: null,
                 roles: as.roles.map((r) => r.value).filter(Boolean),
@@ -201,52 +207,63 @@ export async function generateDashSummary(
 
     const allAudioTracks = periodSummaries
         .flatMap((p) => p.audioTracks)
-        .map((as) => ({
-            id: as.id || 'N/A',
-            lang: as.lang,
-            codecs: [
+        .map((as) => {
+            const codecs = [
                 ...new Set(
                     as.representations
                         .map((r) => r.codecs)
                         .filter((c) => c.value)
                 ),
-            ].map((c) => ({ value: c.value, source: c.source })),
-            channels:
-                [
-                    ...new Set(
-                        as.representations
-                            .flatMap((r) => r.audioChannelConfigurations)
-                            .map((c) => c.value)
-                            .filter(Boolean)
-                    ),
-                ].join(', ') || null,
-            isDefault: as.roles.some((r) => r.value === 'main'),
-            isForced: false,
-            roles: as.roles.map((r) => r.value).filter(Boolean),
-        }));
+            ];
+            return {
+                id: as.id || 'N/A',
+                lang: as.lang,
+                codecs: codecs.map((c) => ({
+                    value: c.value,
+                    source: c.source,
+                    supported: isCodecSupported(c.value),
+                })),
+                channels:
+                    [
+                        ...new Set(
+                            as.representations
+                                .flatMap((r) => r.audioChannelConfigurations)
+                                .map((c) => c.value)
+                                .filter(Boolean)
+                        ),
+                    ].join(', ') || null,
+                isDefault: as.roles.some((r) => r.value === 'main'),
+                isForced: false,
+                roles: as.roles.map((r) => r.value).filter(Boolean),
+            };
+        });
 
     const allTextTracks = periodSummaries
         .flatMap((p) => p.textTracks)
-        .map((as) => ({
-            id: as.id || 'N/A',
-            lang: as.lang,
-            codecsOrMimeTypes: [
+        .map((as) => {
+            const mimeTypes = [
                 ...new Set(
                     as.representations
                         .map((r) => r.codecs?.value || r.mimeType)
                         .filter(Boolean)
                 ),
-            ].map(
-                (v) =>
-                    /** @type {import('@/types').SourcedData<string>} */ ({
-                        value: v,
-                        source: 'manifest',
-                    })
-            ),
-            isDefault: as.roles.some((r) => r.value === 'main'),
-            isForced: as.roles.some((r) => r.value === 'forced'),
-            roles: as.roles.map((r) => r.value).filter(Boolean),
-        }));
+            ];
+            return {
+                id: as.id || 'N/A',
+                lang: as.lang,
+                codecsOrMimeTypes: mimeTypes.map(
+                    (v) =>
+                        /** @type {import('@/types').CodecInfo} */ ({
+                            value: v,
+                            source: 'manifest',
+                            supported: isCodecSupported(v),
+                        })
+                ),
+                isDefault: as.roles.some((r) => r.value === 'main'),
+                isForced: as.roles.some((r) => r.value === 'forced'),
+                roles: as.roles.map((r) => r.value).filter(Boolean),
+            };
+        });
 
     /** @type {SecuritySummary} */
     const security = {

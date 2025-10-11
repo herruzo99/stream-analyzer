@@ -236,7 +236,7 @@ export async function createDashTimelineViewModel(stream, segmentCache) {
                             return {
                                 id: rep.id,
                                 bandwidth: rep.bandwidth,
-                                resolution: `${rep.width}x${rep.height}`,
+                                resolution: `${rep.width.value}x${rep.height.value}`,
                                 fragments,
                                 events: [],
                                 randomAccessPoints,
