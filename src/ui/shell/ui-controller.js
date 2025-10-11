@@ -11,14 +11,20 @@ import { container } from '@/application/container';
 import { openModalWithContent } from '@/ui/services/modalService';
 import { tooltipTriggerClasses } from '../shared/constants';
 
+function handleNewAnalysis() {
+    stopAllMonitoring();
+    useSegmentCacheStore.getState().clear();
+    analysisActions.startAnalysis();
+}
+
 /**
- * Renders the global controls for live streams (toggle polling, reload).
+ * Renders the global controls for the results view.
  * @param {import('@/types.ts').Stream[]} streams
  * @returns {import('lit-html').TemplateResult}
  */
 export const globalControlsTemplate = (streams) => {
     const liveStreams = streams.filter((s) => s.manifest?.type === 'dynamic');
-    if (liveStreams.length === 0) return html``;
+    if (streams.length === 0) return html``;
 
     const isAnyPolling = liveStreams.some((s) => s.isPolling);
     const wasStoppedByInactivity = liveStreams.some(
@@ -51,12 +57,35 @@ export const globalControlsTemplate = (streams) => {
             : '';
 
     return html`
+        ${liveStreams.length > 0
+            ? html`<button
+                  @click=${toggleAllLiveStreamsPolling}
+                  class="${pollingButtonClass} text-white font-bold py-2 px-4 rounded-md transition duration-300 flex items-center"
+                  title="Toggle polling for all live streams"
+              >
+                  ${isAnyPolling ? 'Pause All' : 'Resume All'} ${inactivityIcon}
+              </button>`
+            : ''}
         <button
-            @click=${toggleAllLiveStreamsPolling}
-            class="${pollingButtonClass} text-white font-bold py-2 px-4 rounded-md transition duration-300 flex items-center"
-            title="Toggle polling for all live streams"
+            @click=${copyShareUrlToClipboard}
+            data-testid="share-analysis-btn"
+            class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md transition duration-300"
         >
-            ${isAnyPolling ? 'Pause All' : 'Resume All'} ${inactivityIcon}
+            Share
+        </button>
+        <button
+            @click=${copyDebugInfoToClipboard}
+            data-testid="copy-debug-btn"
+            class="bg-yellow-600 hover:bg-yellow-700 text-black font-bold py-2 px-4 rounded-md transition duration-300"
+        >
+            Copy Debug Info
+        </button>
+        <button
+            @click=${handleNewAnalysis}
+            data-testid="new-analysis-btn"
+            class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition duration-300"
+        >
+            Analyze New Streams
         </button>
     `;
 };
@@ -76,16 +105,6 @@ export class UiController {
             addStreamBtn: this.root.querySelector(UI_SELECTORS.AddStreamBtn),
             analyzeBtn: this.root.querySelector(UI_SELECTORS.AnalyzeBtn),
             clearAllBtn: this.root.querySelector(UI_SELECTORS.ClearAllBtn),
-            newAnalysisBtn: this.root.querySelector(
-                UI_SELECTORS.NewAnalysisBtn
-            ),
-            shareAnalysisBtn: this.root.querySelector(
-                UI_SELECTORS.ShareAnalysisBtn
-            ),
-            copyDebugBtn: this.root.querySelector(UI_SELECTORS.CopyDebugBtn),
-            contextSwitcher: this.root.querySelector(
-                UI_SELECTORS.ContextSwitcher
-            ),
         };
     }
 
@@ -98,29 +117,42 @@ export class UiController {
             this._handleAnalysis();
         });
 
-        this.dom.newAnalysisBtn.addEventListener('click', () => {
-            stopAllMonitoring();
-            useSegmentCacheStore.getState().clear();
-            analysisActions.startAnalysis();
-        });
-
         this.dom.clearAllBtn.addEventListener('click', () => {
             analysisActions.clearAllStreamInputs();
         });
 
-        this.dom.contextSwitcher.addEventListener('change', (e) => {
-            const target = /** @type {HTMLSelectElement} */ (e.target);
-            analysisActions.setActiveStreamId(parseInt(target.value, 10));
-        });
+        // Global listener to close custom dropdowns when clicking outside
+        document.addEventListener('click', (e) => {
+            const target = /** @type {HTMLElement} */ (e.target);
 
-        this.dom.shareAnalysisBtn.addEventListener(
-            'click',
-            copyShareUrlToClipboard
-        );
-        this.dom.copyDebugBtn.addEventListener(
-            'click',
-            copyDebugInfoToClipboard
-        );
+            // Close HLS context switcher if click is outside
+            if (!target.closest('[data-hls-switcher-container]')) {
+                document
+                    .querySelectorAll('[data-hls-dropdown-panel]')
+                    .forEach((panel) =>
+                        panel.classList.add(
+                            'opacity-0',
+                            'scale-95',
+                            '-translate-y-2.5',
+                            'pointer-events-none'
+                        )
+                    );
+            }
+
+            // Close main stream switcher if click is outside
+            if (!target.closest('[data-stream-switcher-container]')) {
+                document
+                    .querySelectorAll('[data-stream-dropdown-panel]')
+                    .forEach((panel) =>
+                        panel.classList.add(
+                            'opacity-0',
+                            'scale-95',
+                            '-translate-y-2.5',
+                            'pointer-events-none'
+                        )
+                    );
+            }
+        });
     }
 
     _handleAnalysis() {

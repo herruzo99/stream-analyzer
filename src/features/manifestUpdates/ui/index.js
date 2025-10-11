@@ -12,6 +12,36 @@ export const manifestUpdatesTemplate = (stream) => {
     if (!stream) {
         return html`<p class="warn">No active stream to monitor.</p>`;
     }
+
+    // If an HLS media playlist is active, show its initial state and a message.
+    if (stream.protocol === 'hls' && stream.activeMediaPlaylistUrl) {
+        const mediaPlaylist = stream.mediaPlaylists.get(
+            stream.activeMediaPlaylistUrl
+        );
+        if (!mediaPlaylist) {
+            return html`<p class="info">Loading media playlist...</p>`;
+        }
+        return html`
+            <div
+                class="bg-yellow-900/30 border border-yellow-700 text-yellow-200 text-sm p-4 rounded-lg mb-4"
+            >
+                <p class="font-bold">Displaying Initial Media Playlist</p>
+                <p>
+                    Live manifest updates are currently displayed for the Master
+                    Playlist only. Select "Master Playlist" from the HLS View
+                    dropdown to see live updates.
+                </p>
+            </div>
+            <div
+                class="bg-slate-800 rounded-lg p-4 font-mono text-sm leading-relaxed overflow-x-auto"
+            >
+                ${mediaPlaylist.rawManifest
+                    .split('\n')
+                    .map((line) => html`<div>${line}</div>`)}
+            </div>
+        `;
+    }
+
     if (stream.manifest.type !== 'dynamic') {
         return html`<p class="info">
             This is a VOD/static manifest. No updates are expected.

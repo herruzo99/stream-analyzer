@@ -6,7 +6,10 @@ import { hlsMediaPlaylistTemplate } from './components/hls-media-playlist.js';
 import { statCardTemplate, listCardTemplate } from './components/shared.js';
 
 export function getHlsSummaryTemplate(stream) {
+    // The stream object passed here now has its `manifest` property pointing
+    // to the currently active context (master or media playlist).
     const summary = stream.manifest.summary;
+    const isLive = stream.manifest.type === 'dynamic';
 
     return html`
         <div class="space-y-8">
@@ -39,6 +42,16 @@ export function getHlsSummaryTemplate(stream) {
                         'The container format for media segments.',
                         'HLS: 4.3.2.5'
                     )}
+                    ${!isLive
+                        ? statCardTemplate(
+                              'Media Duration',
+                              summary.general.duration
+                                  ? `${summary.general.duration.toFixed(2)}s`
+                                  : 'N/A',
+                              'The total duration of the content.',
+                              'HLS: 4.3.3.5'
+                          )
+                        : ''}
                     ${statCardTemplate(
                         'Target Duration',
                         summary.hls.targetDuration
@@ -47,6 +60,14 @@ export function getHlsSummaryTemplate(stream) {
                         'The maximum Media Segment duration.',
                         'HLS: 4.3.3.1'
                     )}
+                    ${isLive && summary.hls.dvrWindow
+                        ? statCardTemplate(
+                              'DVR Window',
+                              `${summary.hls.dvrWindow.toFixed(2)}s`,
+                              'The available duration for seeking backward in the live stream, estimated from segment durations.',
+                              'HLS: 6.3.3'
+                          )
+                        : ''}
                 </dl>
             </div>
 

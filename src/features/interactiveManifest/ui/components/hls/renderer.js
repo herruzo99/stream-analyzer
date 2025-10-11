@@ -76,101 +76,6 @@ const variableTableTemplate = (definedVariables) => {
     `;
 };
 
-const hlsSubNavTemplate = (stream) => {
-    if (!stream.manifest?.isMaster) return html``;
-
-    const handleNavClick = (e) => {
-        const button = /** @type {HTMLElement} */ (e.target).closest('button');
-        if (!button) return;
-        const url = button.dataset.url;
-        eventBus.dispatch('hls:media-playlist-activate', {
-            streamId: stream.id,
-            url,
-        });
-    };
-
-    const navItem = (label, url, isActive) => html`
-        <button
-            class="px-3 py-1.5 text-sm rounded-md transition-colors ${isActive
-                ? 'bg-blue-600 text-white font-semibold'
-                : 'bg-gray-900 hover:bg-gray-700'}"
-            data-url="${url}"
-        >
-            ${label}
-        </button>
-    `;
-
-    // Group all available playlists from the state by their type
-    const groupedPlaylists = {
-        MASTER: [
-            {
-                label: 'View',
-                url: 'master',
-                isActive: !stream.activeMediaPlaylistUrl,
-            },
-        ],
-        VIDEO: [],
-        AUDIO: [],
-        SUBTITLES: [],
-    };
-
-    for (const uri of stream.hlsVariantState.keys()) {
-        const variant = (stream.manifest.variants || []).find(
-            (v) => v.resolvedUri === uri
-        );
-        const media = /** @type {any} */ (
-            stream.manifest.serializedManifest.media || []
-        ).find((m) => m.URI && new URL(m.URI, stream.baseUrl).href === uri);
-
-        if (variant) {
-            groupedPlaylists.VIDEO.push({
-                label: `Variant (BW: ${(
-                    variant.attributes.BANDWIDTH / 1000
-                ).toFixed(0)}k)`,
-                url: uri,
-                isActive: stream.activeMediaPlaylistUrl === uri,
-            });
-        } else if (media) {
-            const type = media.TYPE || 'UNKNOWN';
-            if (!groupedPlaylists[type]) groupedPlaylists[type] = [];
-            groupedPlaylists[type].push({
-                label: `${media.NAME || media.LANGUAGE || 'Rendition'}`,
-                url: uri,
-                isActive: stream.activeMediaPlaylistUrl === uri,
-            });
-        }
-    }
-
-    const navGroupTemplate = (title, items) => {
-        if (!items || items.length === 0) return '';
-        return html`
-            <div class="flex flex-wrap items-center gap-2">
-                <strong class="text-xs text-gray-400 uppercase mr-2"
-                    >${title}:</strong
-                >
-                ${items.map((item) =>
-                    navItem(item.label, item.url, item.isActive)
-                )}
-            </div>
-        `;
-    };
-
-    return html`
-        <div
-            class="mb-4 p-2 bg-gray-900/50 rounded-lg flex flex-col gap-2"
-            @click=${handleNavClick}
-        >
-            ${navGroupTemplate('Master Playlist', groupedPlaylists.MASTER)}
-            ${navGroupTemplate('Variant Streams', groupedPlaylists.VIDEO)}
-            ${navGroupTemplate('Audio Renditions', groupedPlaylists.AUDIO)}
-            ${navGroupTemplate(
-                'Subtitle Renditions',
-                groupedPlaylists.SUBTITLES
-            )}
-        </div>
-    `;
-};
-
 const getHlsLineHTML = (line) => {
     line = line.trim();
     if (!line.startsWith('#EXT')) {
@@ -234,7 +139,7 @@ const getHlsLineHTML = (line) => {
                 )}" data-iso="${escapeHtml(attrInfo.ref)}"`;
             } else {
                 dynamicClasses =
-                    'cursor-help bg-red-900/50 missing-tooltip-trigger';
+                    'cursor-help bg-red-900/50 border-b border-dotted !border-red-400/70';
                 attrTooltipAttrs = `data-tooltip="Tooltip definition missing for '${attr}' on tag #${tagName}"`;
             }
 
@@ -289,35 +194,36 @@ const structuredTagTemplate = (tag) => {
 export const hlsManifestTemplate = (stream, currentPage) => {
     debugLog('HlsRenderer', 'hlsManifestTemplate called.', 'Stream:', stream);
 
-    const { activeMediaPlaylistUrl } = stream;
-    let manifestObjectForView;
-    let rawManifestString; // Keep the original raw string for the toggle
+    let activeManifest;
+    let rawManifestStringForToggle;
 
-    if (activeMediaPlaylistUrl) {
-        const mediaPlaylist = stream.mediaPlaylists.get(activeMediaPlaylistUrl);
+    if (stream.activeMediaPlaylistUrl) {
+        const mediaPlaylist = stream.mediaPlaylists.get(
+            stream.activeMediaPlaylistUrl
+        );
         if (!mediaPlaylist) {
             return html`<div class="text-yellow-400 p-4">
                 Loading rendition playlist...
             </div>`;
         }
-        rawManifestString = mediaPlaylist.rawManifest;
-        manifestObjectForView = mediaPlaylist.manifest;
+        rawManifestStringForToggle = mediaPlaylist.rawManifest;
+        activeManifest = mediaPlaylist.manifest;
     } else {
-        rawManifestString = stream.rawManifest;
-        manifestObjectForView = stream.manifest;
+        rawManifestStringForToggle = stream.rawManifest;
+        activeManifest = stream.manifest;
     }
 
     const manifestStringToDisplay = showSubstituted
-        ? manifestObjectForView.serializedManifest.raw
-        : rawManifestString;
+        ? activeManifest.serializedManifest.raw
+        : rawManifestStringForToggle;
 
-    if (!manifestStringToDisplay || !manifestObjectForView) {
+    if (!manifestStringToDisplay || !activeManifest) {
         return html`<div class="text-yellow-400 p-4">
             Awaiting manifest content...
         </div>`;
     }
 
-    const { renditionReports, preloadHints } = manifestObjectForView;
+    const { renditionReports, preloadHints } = activeManifest;
     const allLines = manifestStringToDisplay.split(/\r?\n/);
 
     const totalPages = Math.ceil(allLines.length / linesPerPage);
@@ -401,7 +307,6 @@ export const hlsManifestTemplate = (stream, currentPage) => {
             : '';
 
     return html`
-        ${hlsSubNavTemplate(stream)}
         ${variableTableTemplate(stream.hlsDefinedVariables)} ${variableControls}
         <div
             class="bg-slate-800 rounded-lg p-4 font-mono text-sm leading-relaxed overflow-x-auto"

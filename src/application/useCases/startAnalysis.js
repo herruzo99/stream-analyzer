@@ -35,8 +35,8 @@ export async function startAnalysisUseCase({ inputs }, services) {
         .map((i) => ({ url: i.url, name: i.name }));
     storage.saveLastUsedStreams(streamsToSave);
 
-    const workerInputs = [];
-    for (const input of validInputs) {
+    // --- Parallel Manifest Fetching ---
+    const workerInputPromises = validInputs.map(async (input) => {
         try {
             eventBus.dispatch('ui:show-status', {
                 message: `Fetching ${input.url || input.file.name}...`,
@@ -55,18 +55,36 @@ export async function startAnalysisUseCase({ inputs }, services) {
             } else {
                 manifestString = await input.file.text();
             }
-            workerInputs.push({
+            return {
                 ...input,
                 manifestString,
                 isDebug: isDebugMode,
-            });
+            };
         } catch (e) {
+            // Re-throw to be caught by Promise.allSettled
+            throw new Error(
+                `Failed to fetch or read '${
+                    input.url || input.file.name
+                }': ${e.message}`
+            );
+        }
+    });
+
+    const results = await Promise.allSettled(workerInputPromises);
+    const workerInputs = [];
+    let hasFailures = false;
+
+    results.forEach((result) => {
+        if (result.status === 'fulfilled') {
+            workerInputs.push(result.value);
+        } else {
+            hasFailures = true;
             eventBus.dispatch('analysis:error', {
-                message: `Failed to fetch or read input: ${e.message}`,
-                error: e,
+                message: result.reason.message,
+                error: result.reason,
             });
         }
-    }
+    });
 
     if (workerInputs.length > 0) {
         debugLog(
@@ -74,12 +92,15 @@ export async function startAnalysisUseCase({ inputs }, services) {
             `Pre-processing complete. Dispatching ${workerInputs.length} stream(s) to worker.`
         );
         try {
-            const results = await workerService.postTask('start-analysis', {
-                inputs: workerInputs,
-            });
+            const workerResults = await workerService.postTask(
+                'start-analysis',
+                {
+                    inputs: workerInputs,
+                }
+            );
 
             // Reconstruct Map objects from the serialized arrays
-            results.forEach((stream) => {
+            workerResults.forEach((stream) => {
                 stream.hlsVariantState = new Map(stream.hlsVariantState || []);
                 stream.dashRepresentationState = new Map(
                     stream.dashRepresentationState || []
@@ -93,11 +114,12 @@ export async function startAnalysisUseCase({ inputs }, services) {
                 stream.mediaPlaylists = new Map(stream.mediaPlaylists || []);
             });
 
-            analysisActions.completeAnalysis(results);
+            // This now completes the *initial* analysis. The enrichment service will take over.
+            analysisActions.completeAnalysis(workerResults);
             const tEndTotal = performance.now();
             debugLog(
                 'startAnalysisUseCase',
-                `Total Analysis Pipeline (success): ${(
+                `Initial Analysis Pipeline (success): ${(
                     tEndTotal - analysisStartTime
                 ).toFixed(2)}ms`
             );
@@ -108,7 +130,8 @@ export async function startAnalysisUseCase({ inputs }, services) {
             });
             eventBus.dispatch('analysis:failed');
         }
-    } else {
+    } else if (hasFailures) {
+        // All inputs failed to fetch
         eventBus.dispatch('analysis:failed');
     }
 }

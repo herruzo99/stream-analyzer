@@ -8,6 +8,7 @@
 import { generateHlsSummary } from './summary-generator.js';
 import { parseScte35 } from '@/infrastructure/parsing/scte35/parser';
 import { getDrmSystemName } from '../utils/drm.js';
+import { inferMediaInfoFromExtension } from '../utils/media-types.js';
 
 /**
  * Determines the segment format for an HLS manifest.
@@ -66,9 +67,10 @@ function getMimeType(contentType, segmentFormat) {
 /**
  * Transforms a parsed HLS manifest object into a protocol-agnostic Intermediate Representation (IR).
  * @param {object} hlsParsed - The parsed HLS manifest data from the parser.
+ * @param {object} [context] - Context for enrichment.
  * @returns {Promise<Manifest>} The manifest IR object.
  */
-export async function adaptHlsToIr(hlsParsed) {
+export async function adaptHlsToIr(hlsParsed, context) {
     const segmentFormat = determineSegmentFormat(hlsParsed);
 
     /** @type {Manifest} */
@@ -268,6 +270,17 @@ export async function adaptHlsToIr(hlsParsed) {
         // Process all variant streams from EXT-X-STREAM-INF tags.
         hlsParsed.variants.forEach((variant, index) => {
             const resolution = variant.attributes.RESOLUTION;
+            const codecs = (variant.attributes.CODECS || '').toLowerCase();
+            const hasVideoCodec =
+                codecs.includes('avc1') ||
+                codecs.includes('hvc1') ||
+                codecs.includes('hev1');
+            const hasAudioCodec = codecs.includes('mp4a');
+
+            let contentType = 'video'; // Default for muxed or video-only
+            if (!hasVideoCodec && hasAudioCodec) {
+                contentType = 'audio';
+            }
 
             /** @type {Representation} */
             const rep = {
@@ -331,14 +344,19 @@ export async function adaptHlsToIr(hlsParsed) {
                 extendedBandwidth: null,
                 dependencyId: null,
                 serializedManifest: variant,
+                // @ts-ignore - internal property for enrichment
+                __variantUri: variant.resolvedUri,
             };
 
             /** @type {AdaptationSet} */
             const asIR = {
                 id: `variant-${index}`,
-                contentType: 'video', // Assume video if resolution/video codec is present
+                contentType: /** @type {'video' | 'audio'} */ (contentType),
                 lang: null,
-                mimeType: getMimeType('video', segmentFormat),
+                mimeType: getMimeType(
+                    /** @type {'video' | 'audio'} */ (contentType),
+                    segmentFormat
+                ),
                 segmentAlignment: false,
                 width: rep.width.value,
                 height: rep.height.value,
@@ -373,19 +391,28 @@ export async function adaptHlsToIr(hlsParsed) {
         });
     } else {
         // Handle a simple Media Playlist
+        const firstSegmentUri = (hlsParsed.segments[0]?.uri || '').toLowerCase();
+        let { contentType, codec } =
+            inferMediaInfoFromExtension(firstSegmentUri);
+        
+        // If inference returns 'unknown', default to 'video' for getMimeType compatibility.
+        if (contentType === 'unknown') {
+            contentType = 'video';
+        }
+
         /** @type {AdaptationSet} */
         const asIR = {
             id: 'media-0',
-            contentType: 'video', // Assume video/muxed if not master
+            contentType: contentType,
             lang: null,
-            mimeType: getMimeType('video', segmentFormat),
+            mimeType: getMimeType(contentType, segmentFormat),
             segmentAlignment: false,
             width: null,
             height: null,
             representations: [
                 {
                     id: 'media-0-rep-0',
-                    codecs: { value: null, source: 'manifest' },
+                    codecs: { value: codec, source: 'manifest' }, // Inferred codec
                     bandwidth: 0,
                     width: { value: null, source: 'manifest' },
                     height: { value: null, source: 'manifest' },
@@ -459,9 +486,7 @@ export async function adaptHlsToIr(hlsParsed) {
     }
 
     manifestIR.periods.push(periodIR);
-    manifestIR.summary = await generateHlsSummary(manifestIR, {
-        baseUrl: hlsParsed.baseUrl,
-    });
+    manifestIR.summary = await generateHlsSummary(manifestIR, context);
 
     return manifestIR;
 }

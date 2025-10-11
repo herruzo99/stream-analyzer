@@ -9,30 +9,7 @@ export function initializeTabs(domContext) {
     dom = domContext;
     dom.tabs.addEventListener('click', handleTabClick);
 
-    // Subscribe to activeTab changes in the store to update button styling
-    useUiStore.subscribe((state, prevState) => {
-        if (state.activeTab !== prevState.activeTab) {
-            updateTabButtonStyling(state.activeTab);
-        }
-    });
-
-    // Initial styling on load
-    updateTabButtonStyling(useUiStore.getState().activeTab);
-}
-
-function updateTabButtonStyling(activeTabName) {
-    const activeClasses = ['border-blue-600', 'text-gray-100', 'bg-gray-700'];
-    const inactiveClasses = ['border-transparent'];
-
-    dom.tabs.querySelectorAll('[data-tab]').forEach((t) => {
-        if (t.dataset.tab === activeTabName) {
-            t.classList.add(...activeClasses);
-            t.classList.remove(...inactiveClasses);
-        } else {
-            t.classList.remove(...activeClasses);
-            t.classList.add(...inactiveClasses);
-        }
-    });
+    // Subscriptions to update styling are now handled declaratively in mainRenderer.
 }
 
 function handleTabClick(e) {
@@ -46,9 +23,6 @@ function handleTabClick(e) {
 
     showLoader('Loading view...');
 
-    // Defer the state change and subsequent render to the next event loop tick.
-    // This gives the browser a chance to paint the loader before the main thread
-    // gets blocked by the potentially heavy rendering work of the new tab.
     setTimeout(() => {
         if (keyboardNavigationListener) {
             document.removeEventListener('keydown', keyboardNavigationListener);
@@ -59,9 +33,7 @@ function handleTabClick(e) {
         const activeTabName = targetTab.dataset.tab;
         uiActions.setActiveTab(activeTabName);
 
-        // Special handling for keyboard navigation in the 'updates' tab
         if (activeTabName === 'updates') {
-            // Lazily import to avoid circular dependencies or premature loading
             import('@/features/manifestUpdates/ui/index').then(
                 ({ navigateManifestUpdates }) => {
                     keyboardNavigationListener = (event) => {

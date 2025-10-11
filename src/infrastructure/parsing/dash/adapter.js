@@ -26,6 +26,7 @@ import {
     mergeElements,
 } from './recursive-parser.js';
 import { parseScte35 } from '@/infrastructure/parsing/scte35/parser';
+import { inferMediaInfoFromExtension } from '../utils/media-types.js';
 
 const getText = (el) => el?.['#text'] || null;
 
@@ -403,7 +404,9 @@ function parseAdaptationSet(asEl, parentMergedEl) {
         framePackings: findChildren(mergedAsEl, 'FramePacking').map(
             parseGenericDescriptor
         ),
-        ratings: findChildren(mergedAsEl, 'Rating').map(parseGenericDescriptor),
+        ratings: findChildren(mergedAsEl, 'Rating').map(
+            parseGenericDescriptor
+        ),
         viewpoints: findChildren(mergedAsEl, 'Viewpoint').map(
             parseGenericDescriptor
         ),
@@ -593,15 +596,28 @@ export async function adaptDashToIr(manifestElement, baseUrl, context) {
         (as) => getAttr(as, 'mimeType') === 'video/mp2t'
     );
 
-    let segmentFormat = 'unknown';
+    let segmentFormat = 'isobmff'; // Default to ISOBMFF
     if (hasTsMimeType) {
         segmentFormat = 'ts';
-    } else if (
-        findChildrenRecursive(manifestCopy, 'SegmentTimeline').length > 0 ||
-        findChildrenRecursive(manifestCopy, 'SegmentTemplate').length > 0 ||
-        findChildrenRecursive(manifestCopy, 'SegmentList').length > 0
-    ) {
-        segmentFormat = 'isobmff';
+    } else {
+        const template = findChildrenRecursive(
+            manifestCopy,
+            'SegmentTemplate'
+        )[0];
+        if (template) {
+            const mediaUrl = getAttr(template, 'media');
+            const { contentType } = inferMediaInfoFromExtension(mediaUrl);
+            if (contentType === 'video') {
+                // Heuristic: if media attribute exists, check its extension
+                const extensionBasedFormat =
+                    inferMediaInfoFromExtension(mediaUrl).contentType === 'video'
+                        ? 'isobmff'
+                        : 'ts';
+                if (extensionBasedFormat === 'ts') {
+                    segmentFormat = 'ts';
+                }
+            }
+        }
     }
 
     /** @type {Manifest} */

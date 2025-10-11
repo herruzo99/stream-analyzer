@@ -3,6 +3,7 @@ import { compareBoxes } from './utils.js';
 import { validateCmafProfiles } from './profile-validator.js';
 
 // Configuration for CMAF Switching Set validation based on ISO/IEC 23000-19:2020(E), Table 11.
+// The `stsd` check now ignores child sample entries like `avc1` because fields like resolution are allowed to differ.
 const SWITCHING_SET_BOX_CHECKS = [
     { box: 'ftyp', ignore: [] },
     { box: 'mvhd', ignore: ['creation_time', 'modification_time'] },
@@ -19,7 +20,7 @@ const SWITCHING_SET_BOX_CHECKS = [
     { box: 'smhd', ignore: [] },
     { box: 'sthd', ignore: [] },
     { box: 'dref', ignore: [] },
-    { box: 'stsd', ignore: ['codingname'], childBoxesToIgnore: ['avcC'] },
+    { box: 'stsd', ignore: ['size'], childBoxesToIgnore: ['avc1', 'hvc1', 'hev1'] },
     { box: 'pssh', ignore: [] },
     { box: 'sinf', ignore: [] },
     { box: 'tenc', ignore: [] },
@@ -92,9 +93,13 @@ export async function validateCmafSwitchingSets(
     const results = [];
     const manifestElement = stream.manifest.serializedManifest;
 
-    for (const period of stream.manifest.periods) {
-        for (const as of period.adaptationSets) {
-            const setId = as.id || `${as.contentType}-${period.id}`;
+    for (const [periodIndex, period] of stream.manifest.periods.entries()) {
+        for (const [asIndex, as] of period.adaptationSets.entries()) {
+            const setId =
+                as.id ||
+                `${as.contentType || `type_${asIndex}`}-${
+                    period.id || `period_${periodIndex}`
+                }`;
             if (as.representations.length <= 1) {
                 results.push({
                     id: `SS-VALID-${setId}`,

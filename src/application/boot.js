@@ -21,6 +21,7 @@ import { initializeSegmentExplorerController } from './controllers/segmentExplor
 import { initializeStreamInputController } from './controllers/streamInputController.js';
 import { initializeSavePresetUseCase } from './useCases/savePresetUseCase.js';
 import { workerService } from '@/infrastructure/worker/workerService';
+import { streamInitializationService } from './services/streamInitializationService.js';
 
 // Side-effect driven imports for services that primarily listen to the event bus
 import '@/application/services/streamService';
@@ -33,13 +34,13 @@ import { initializeResolveAdAvailUseCase } from './useCases/resolveAdAvailUseCas
 export async function startApp() {
     // --- Collect minimal DOM roots ---
     const rootElement = document.body;
+    const resultsContainer = rootElement.querySelector('#results');
+    const mainHeader = rootElement.querySelector('#main-header');
+
     const dom = {
-        tabs: rootElement.querySelector('#tabs'),
+        tabs: resultsContainer.querySelector('#tabs'),
         contextSwitcherWrapper: rootElement.querySelector(
             '#context-switcher-wrapper'
-        ),
-        contextSwitcher: rootElement.querySelector(
-            '[data-testid="context-switcher"]'
         ),
         toastContainer: rootElement.querySelector('#toast-container'),
         globalLoader: rootElement.querySelector('#global-loader'),
@@ -56,34 +57,34 @@ export async function startApp() {
         closeModalBtn: rootElement.querySelector(
             '[data-testid="close-modal-btn"]'
         ),
-        mainHeader: rootElement.querySelector('#main-header'),
-        headerTitleGroup: rootElement.querySelector('#header-title-group'),
-        headerUrlDisplay: rootElement.querySelector('#header-url-display'),
+        mainHeader: mainHeader,
+        headerTitleGroup: mainHeader.querySelector('#header-title-group'),
+        headerUrlDisplay: mainHeader.querySelector('#header-url-display'),
         inputSection: rootElement.querySelector(
             '[data-testid="input-section"]'
         ),
-        results: rootElement.querySelector('#results'),
+        results: resultsContainer,
         streamInputs: rootElement.querySelector('#stream-inputs'),
         tabContents: {
-            comparison: rootElement.querySelector('#tab-comparison'),
-            summary: rootElement.querySelector('#tab-summary'),
-            'integrators-report': rootElement.querySelector(
+            comparison: resultsContainer.querySelector('#tab-comparison'),
+            summary: resultsContainer.querySelector('#tab-summary'),
+            'integrators-report': resultsContainer.querySelector(
                 '#tab-integrators-report'
             ),
-            'timeline-visuals': rootElement.querySelector(
+            'timeline-visuals': resultsContainer.querySelector(
                 '#tab-timeline-visuals'
             ),
-            features: rootElement.querySelector('#tab-features'),
-            compliance: rootElement.querySelector('#tab-compliance'),
-            explorer: rootElement.querySelector('#tab-explorer'),
-            'interactive-segment': rootElement.querySelector(
+            features: resultsContainer.querySelector('#tab-features'),
+            compliance: resultsContainer.querySelector('#tab-compliance'),
+            explorer: resultsContainer.querySelector('#tab-explorer'),
+            'interactive-segment': resultsContainer.querySelector(
                 '#tab-interactive-segment'
             ),
-            'interactive-manifest': rootElement.querySelector(
+            'interactive-manifest': resultsContainer.querySelector(
                 '#tab-interactive-manifest'
             ),
-            updates: rootElement.querySelector('#tab-updates'),
-            'parser-coverage': rootElement.querySelector(
+            updates: resultsContainer.querySelector('#tab-updates'),
+            'parser-coverage': resultsContainer.querySelector(
                 '#tab-parser-coverage'
             ),
         },
@@ -110,6 +111,7 @@ export async function startApp() {
     initializeCmafService();
     initializeSegmentService();
     initializeUiOrchestration();
+    streamInitializationService.initialize(); // Initialize the new service
     initializeComplianceController();
     initializeFeatureAnalysisController();
     initializeInteractiveManifestController();
