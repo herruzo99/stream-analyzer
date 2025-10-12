@@ -105,189 +105,188 @@ export async function parseAllSegmentUrls(manifestElement, manifestUrl) {
     const serverTime = await getUtcTime(manifestElement);
     const now = Date.now();
 
-    const allRepsWithContext = findElementsByTagNameRecursive(
-        manifestElement,
-        'Representation'
-    );
+    const periods = findChildren(manifestElement, 'Period');
 
-    for (const { element: rep, context } of allRepsWithContext) {
-        const repId = getAttr(rep, 'id');
-        if (!repId) continue;
-
-        const { period, adaptationSet } = context;
-        if (!period || !adaptationSet) continue;
-
+    for (const [periodIndex, period] of periods.entries()) {
         const periodId = getAttr(period, 'id');
-        if (!periodId) continue;
+        const adaptationSets = findChildren(period, 'AdaptationSet');
 
-        const compositeKey = `${periodId}-${repId}`;
-        segmentsByRep[compositeKey] = {
-            initSegment: null,
-            segments: [],
-            segmentsByStrategy: new Map(),
-            diagnostics: {},
-        };
+        for (const adaptationSet of adaptationSets) {
+            const representations = findChildren(adaptationSet, 'Representation');
+            for (const rep of representations) {
+                const repId = getAttr(rep, 'id');
+                if (!repId) continue;
 
-        const hierarchy = [rep, adaptationSet, period];
-        const baseUrl = resolveBaseUrl(
-            manifestUrl,
-            manifestElement,
-            period,
-            adaptationSet,
-            rep
-        );
+                const compositeKey = `${periodId || periodIndex}-${repId}`;
+                segmentsByRep[compositeKey] = {
+                    initSegment: null,
+                    segments: [],
+                    segmentsByStrategy: new Map(),
+                    diagnostics: {},
+                };
 
-        const template = getInheritedElement('SegmentTemplate', hierarchy);
-        const segmentList = getInheritedElement('SegmentList', hierarchy);
-        const segmentBase = getInheritedElement('SegmentBase', hierarchy);
+                const hierarchy = [rep, adaptationSet, period];
+                const baseUrl = resolveBaseUrl(
+                    manifestUrl,
+                    manifestElement,
+                    period,
+                    adaptationSet,
+                    rep
+                );
 
-        // --- INIT SEGMENT ---
-        let initTemplate = getAttr(template, 'initialization');
-        if (!initTemplate) {
-            const initContainer = segmentList || segmentBase;
-            const initializationEl = initContainer
-                ? findChild(initContainer, 'Initialization')
-                : null;
-            if (initializationEl) {
-                initTemplate = getAttr(initializationEl, 'sourceURL');
-            }
-        }
-        if (initTemplate) {
-            const initUrl = initTemplate.replace(
-                /\$RepresentationID\$/g,
-                repId
-            );
-            segmentsByRep[compositeKey].initSegment = {
-                repId,
-                type: 'Init',
-                number: 0,
-                resolvedUrl: new URL(initUrl, baseUrl).href,
-                template: initUrl,
-            };
-        }
+                const template = getInheritedElement('SegmentTemplate', hierarchy);
+                const segmentList = getInheritedElement('SegmentList', hierarchy);
+                const segmentBase = getInheritedElement('SegmentBase', hierarchy);
 
-        // --- MEDIA SEGMENTS ---
-        if (template) {
-            const timescale = parseInt(getAttr(template, 'timescale') || '1');
-            const mediaTemplate = getAttr(template, 'media');
-            const timeline = findChild(template, 'SegmentTimeline');
-            const startNumber = parseInt(
-                getAttr(template, 'startNumber') || '1'
-            );
-            const periodStart = parseDuration(getAttr(period, 'start')) || 0;
-            const availabilityTimeOffset =
-                parseFloat(getAttr(template, 'availabilityTimeOffset')) || 0;
-
-            if (mediaTemplate && timeline) {
-                const segments = [];
-                // ... (logic for timeline parsing remains the same, pushes to `segments` array)
-                segmentsByRep[compositeKey].segments = segments;
-            } else if (mediaTemplate && getAttr(template, 'duration')) {
-                const segmentDuration = parseInt(getAttr(template, 'duration'));
-                if (isDynamic) {
-                    const timeShiftBufferDepth = parseDuration(
-                        getAttr(manifestElement, 'timeShiftBufferDepth')
-                    );
-                    const bufferSegments = timeShiftBufferDepth
-                        ? Math.ceil(
-                              timeShiftBufferDepth /
-                                  (segmentDuration / timescale)
-                          )
-                        : 30;
-
-                    // A: Wall-Clock
-                    const liveEdgeTimeA =
-                        (now - availabilityStartTime) / 1000 - periodStart;
-                    const lastSegA =
-                        Math.floor(
-                            liveEdgeTimeA / (segmentDuration / timescale)
-                        ) + startNumber;
-                    segmentsByRep[compositeKey].diagnostics[
-                        'Strategy A (Wall-Clock)'
-                    ] = { latestSegmentNum: lastSegA };
-                    const segmentsA = generateSegments(
-                        repId,
-                        baseUrl,
-                        mediaTemplate,
-                        startNumber,
-                        Math.max(startNumber, lastSegA - bufferSegments + 1),
-                        bufferSegments,
-                        segmentDuration,
-                        timescale,
-                        periodStart,
-                        availabilityStartTime,
-                        availabilityTimeOffset
-                    );
-                    segmentsByRep[compositeKey].segmentsByStrategy.set(
-                        'Strategy A (Wall-Clock)',
-                        segmentsA
-                    );
-
-                    // C: UTCTiming Source
-                    if (serverTime) {
-                        const liveEdgeTimeC =
-                            (serverTime - availabilityStartTime) / 1000 -
-                            periodStart;
-                        const lastSegC =
-                            Math.floor(
-                                liveEdgeTimeC / (segmentDuration / timescale)
-                            ) + startNumber;
-                        segmentsByRep[compositeKey].diagnostics[
-                            'Strategy C (UTCTiming Source)'
-                        ] = { latestSegmentNum: lastSegC };
-                        const segmentsC = generateSegments(
-                            repId,
-                            baseUrl,
-                            mediaTemplate,
-                            startNumber,
-                            Math.max(
-                                startNumber,
-                                lastSegC - bufferSegments + 1
-                            ),
-                            bufferSegments,
-                            segmentDuration,
-                            timescale,
-                            periodStart,
-                            availabilityStartTime,
-                            availabilityTimeOffset
-                        );
-                        segmentsByRep[compositeKey].segmentsByStrategy.set(
-                            'Strategy C (UTCTiming Source)',
-                            segmentsC
-                        );
+                // --- INIT SEGMENT ---
+                let initTemplate = getAttr(template, 'initialization');
+                if (!initTemplate) {
+                    const initContainer = segmentList || segmentBase;
+                    const initializationEl = initContainer
+                        ? findChild(initContainer, 'Initialization')
+                        : null;
+                    if (initializationEl) {
+                        initTemplate = getAttr(initializationEl, 'sourceURL');
                     }
-
-                    // Set the definitive segments list, preferring UTCTiming
-                    segmentsByRep[compositeKey].segments =
-                        segmentsByRep[compositeKey].segmentsByStrategy.get(
-                            'Strategy C (UTCTiming Source)'
-                        ) || segmentsA;
-                } else {
-                    // VOD logic
-                    const segments = generateSegments(
+                }
+                if (initTemplate) {
+                    const initUrl = initTemplate.replace(
+                        /\$RepresentationID\$/g,
+                        repId
+                    );
+                    segmentsByRep[compositeKey].initSegment = {
                         repId,
-                        baseUrl,
-                        mediaTemplate,
-                        startNumber,
-                        startNumber,
-                        10,
-                        segmentDuration,
-                        timescale,
-                        periodStart,
-                        availabilityStartTime,
-                        availabilityTimeOffset
-                    ); // Simplified for VOD
+                        type: 'Init',
+                        number: 0,
+                        resolvedUrl: new URL(initUrl, baseUrl).href,
+                        template: initUrl,
+                    };
+                }
+
+                // --- MEDIA SEGMENTS ---
+                if (template) {
+                    const timescale = parseInt(getAttr(template, 'timescale') || '1');
+                    const mediaTemplate = getAttr(template, 'media');
+                    const timeline = findChild(template, 'SegmentTimeline');
+                    const startNumber = parseInt(
+                        getAttr(template, 'startNumber') || '1'
+                    );
+                    const periodStart = parseDuration(getAttr(period, 'start')) || 0;
+                    const availabilityTimeOffset =
+                        parseFloat(getAttr(template, 'availabilityTimeOffset')) || 0;
+
+                    if (mediaTemplate && timeline) {
+                        const segments = [];
+                        // ... (logic for timeline parsing remains the same, pushes to `segments` array)
+                        segmentsByRep[compositeKey].segments = segments;
+                    } else if (mediaTemplate && getAttr(template, 'duration')) {
+                        const segmentDuration = parseInt(getAttr(template, 'duration'));
+                        if (isDynamic) {
+                            const timeShiftBufferDepth = parseDuration(
+                                getAttr(manifestElement, 'timeShiftBufferDepth')
+                            );
+                            const bufferSegments = timeShiftBufferDepth
+                                ? Math.ceil(
+                                      timeShiftBufferDepth /
+                                          (segmentDuration / timescale)
+                                  )
+                                : 30;
+
+                            // A: Wall-Clock
+                            const liveEdgeTimeA =
+                                (now - availabilityStartTime) / 1000 - periodStart;
+                            const lastSegA =
+                                Math.floor(
+                                    liveEdgeTimeA / (segmentDuration / timescale)
+                                ) + startNumber;
+                            segmentsByRep[compositeKey].diagnostics[
+                                'Strategy A (Wall-Clock)'
+                            ] = { latestSegmentNum: lastSegA };
+                            const segmentsA = generateSegments(
+                                repId,
+                                baseUrl,
+                                mediaTemplate,
+                                startNumber,
+                                Math.max(startNumber, lastSegA - bufferSegments + 1),
+                                bufferSegments,
+                                segmentDuration,
+                                timescale,
+                                periodStart,
+                                availabilityStartTime,
+                                availabilityTimeOffset
+                            );
+                            segmentsByRep[compositeKey].segmentsByStrategy.set(
+                                'Strategy A (Wall-Clock)',
+                                segmentsA
+                            );
+
+                            // C: UTCTiming Source
+                            if (serverTime) {
+                                const liveEdgeTimeC =
+                                    (serverTime - availabilityStartTime) / 1000 -
+                                    periodStart;
+                                const lastSegC =
+                                    Math.floor(
+                                        liveEdgeTimeC / (segmentDuration / timescale)
+                                    ) + startNumber;
+                                segmentsByRep[compositeKey].diagnostics[
+                                    'Strategy C (UTCTiming Source)'
+                                ] = { latestSegmentNum: lastSegC };
+                                const segmentsC = generateSegments(
+                                    repId,
+                                    baseUrl,
+                                    mediaTemplate,
+                                    startNumber,
+                                    Math.max(
+                                        startNumber,
+                                        lastSegC - bufferSegments + 1
+                                    ),
+                                    bufferSegments,
+                                    segmentDuration,
+                                    timescale,
+                                    periodStart,
+                                    availabilityStartTime,
+                                    availabilityTimeOffset
+                                );
+                                segmentsByRep[compositeKey].segmentsByStrategy.set(
+                                    'Strategy C (UTCTiming Source)',
+                                    segmentsC
+                                );
+                            }
+
+                            // Set the definitive segments list, preferring UTCTiming
+                            segmentsByRep[compositeKey].segments =
+                                segmentsByRep[compositeKey].segmentsByStrategy.get(
+                                    'Strategy C (UTCTiming Source)'
+                                ) || segmentsA;
+                        } else {
+                            // VOD logic
+                            const segments = generateSegments(
+                                repId,
+                                baseUrl,
+                                mediaTemplate,
+                                startNumber,
+                                startNumber,
+                                10,
+                                segmentDuration,
+                                timescale,
+                                periodStart,
+                                availabilityStartTime,
+                                availabilityTimeOffset
+                            ); // Simplified for VOD
+                            segmentsByRep[compositeKey].segments = segments;
+                        }
+                    }
+                } else if (segmentList) {
+                    const segments = [];
+                    // ... logic for SegmentList remains the same, pushes to `segments` array
+                    segmentsByRep[compositeKey].segments = segments;
+                } else if (segmentBase || findChild(rep, 'BaseURL')) {
+                    const segments = [];
+                    // ... logic for SegmentBase remains the same, pushes to `segments` array
                     segmentsByRep[compositeKey].segments = segments;
                 }
             }
-        } else if (segmentList) {
-            const segments = [];
-            // ... logic for SegmentList remains the same, pushes to `segments` array
-            segmentsByRep[compositeKey].segments = segments;
-        } else if (segmentBase || findChild(rep, 'BaseURL')) {
-            const segments = [];
-            // ... logic for SegmentBase remains the same, pushes to `segments` array
-            segmentsByRep[compositeKey].segments = segments;
         }
     }
     return segmentsByRep;

@@ -1,11 +1,13 @@
 import { html, render } from 'lit-html';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { useSegmentCacheStore } from '@/state/segmentCacheStore';
+import { useUiStore, uiActions } from '@/state/uiStore';
 import { hexViewTemplate } from '@/ui/components/hex-view';
 import { getInspectorState } from '../interaction-logic.js';
 
 let packetCurrentPage = 1;
 const PACKETS_PER_PAGE = 50;
+const HEX_BYTES_PER_PAGE = 1024;
 
 export function findPacketByOffset(parsedData, offset) {
     if (!parsedData?.packets) return null;
@@ -217,15 +219,11 @@ const packetListTemplate = (packets, onPageChange) => {
     `;
 };
 
-export function getInteractiveTsTemplate(
-    currentPage,
-    bytesPerPage,
-    onHexPageChange,
-    allTooltips,
-    pagedByteMap
-) {
+export function getInteractiveTsTemplate(renderHexView = false) {
     const { activeSegmentUrl } = useAnalysisStore.getState();
     const { get: getFromCache } = useSegmentCacheStore.getState();
+    const { interactiveSegmentCurrentPage, pagedByteMap } = useUiStore.getState();
+    
     const cachedSegment = getFromCache(activeSegmentUrl);
     const tsAnalysisData =
         cachedSegment?.parsedData && cachedSegment.parsedData.format === 'ts'
@@ -238,6 +236,26 @@ export function getInteractiveTsTemplate(
         </div>`;
     }
 
+    if (renderHexView) {
+        const onHexPageChange = (offset) => {
+            const totalPages = Math.ceil(
+                cachedSegment.data.byteLength / HEX_BYTES_PER_PAGE
+            );
+            const newPage = interactiveSegmentCurrentPage + offset;
+            if (newPage >= 1 && newPage <= totalPages) {
+                uiActions.setInteractiveSegmentPage(newPage);
+            }
+        };
+        return hexViewTemplate(
+            cachedSegment.data,
+            pagedByteMap,
+            interactiveSegmentCurrentPage,
+            HEX_BYTES_PER_PAGE,
+            onHexPageChange,
+            {} // No tooltips for TS hex view yet
+        );
+    }
+    
     const onPacketPageChange = (offset) => {
         const totalPages = Math.ceil(
             tsAnalysisData.data.packets.length / PACKETS_PER_PAGE
@@ -245,48 +263,22 @@ export function getInteractiveTsTemplate(
         const newPage = packetCurrentPage + offset;
         if (newPage >= 1 && newPage <= totalPages) {
             packetCurrentPage = newPage;
-            const container = document.getElementById(
-                'tab-interactive-segment'
-            );
+            // Re-render this specific part
+            const container = document.querySelector('.ts-inspector-view');
             if (container) {
-                render(
-                    getInteractiveTsTemplate(
-                        currentPage,
-                        bytesPerPage,
-                        onHexPageChange,
-                        allTooltips,
-                        pagedByteMap
-                    ),
-                    container
-                );
+                render(getInteractiveTsTemplate(), container);
             }
         }
     };
 
     return html`
-        <div
-            class="grid grid-cols-1 lg:grid-cols-[minmax(400px,35%)_1fr] gap-6"
-        >
-            <div class="sticky top-4 h-max flex flex-col gap-4">
-                <div
-                    class="segment-inspector-panel rounded-md bg-gray-900/90 border border-gray-700 transition-opacity duration-200 h-96 lg:h-[24rem] overflow-hidden flex flex-col"
-                ></div>
-                ${summaryTemplate(tsAnalysisData.data.summary)}
-                ${packetListTemplate(
-                    tsAnalysisData.data.packets,
-                    onPacketPageChange
-                )}
-            </div>
-            <div>
-                ${hexViewTemplate(
-                    cachedSegment.data,
-                    pagedByteMap,
-                    currentPage,
-                    bytesPerPage,
-                    onHexPageChange,
-                    allTooltips
-                )}
-            </div>
+        <div class="ts-inspector-view flex flex-col gap-4">
+            <div class="segment-inspector-panel rounded-md bg-gray-900/90 border border-gray-700 transition-opacity duration-200 h-96 lg:h-[24rem] overflow-hidden flex flex-col"></div>
+            ${summaryTemplate(tsAnalysisData.data.summary)}
+            ${packetListTemplate(
+                tsAnalysisData.data.packets,
+                onPacketPageChange
+            )}
         </div>
     `;
 }

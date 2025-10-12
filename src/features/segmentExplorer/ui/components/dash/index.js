@@ -43,14 +43,14 @@ const diagnosticsTemplate = (diagnostics) => {
     `;
 };
 
-const dashSegmentTableTemplate = (stream, period, representation) => {
-    const compositeKey = `${period.id}-${representation.id}`;
+const dashSegmentTableTemplate = (stream, period, representation, periodIndex) => {
+    const compositeKey = `${period.id || periodIndex}-${representation.id}`;
     const repState = stream.dashRepresentationState.get(compositeKey);
 
     if (!repState) {
         return html`<div class="text-red-400 p-2">
             State not found for Representation ${representation.id} in Period
-            ${period.id}.
+            ${period.id || `(index ${periodIndex})`}.
         </div>`;
     }
 
@@ -82,39 +82,22 @@ const dashSegmentTableTemplate = (stream, period, representation) => {
             No segments found for this representation.
         </div>`;
     } else {
-        const listData = {
-            items: segments,
-            rowTemplate: rowRenderer,
-            rowHeight: 40,
-        };
         content = html`
-            <div
-                class="segment-grid-container text-sm min-w-[700px] overflow-hidden"
-            >
-                <div
-                    class="grid-header grid sticky top-0 bg-gray-900 z-10 font-semibold text-gray-400"
-                    style="grid-template-columns: 32px 160px 128px 96px 1fr;"
-                >
-                    <div
-                        class="px-3 py-2 border-b border-r border-gray-700"
-                    ></div>
-                    <div class="px-3 py-2 border-b border-r border-gray-700">
-                        Status / Type
-                    </div>
-                    <div class="px-3 py-2 border-b border-r border-gray-700">
-                        Timing (s)
-                    </div>
-                    <div class="px-3 py-2 border-b border-r border-gray-700">
-                        Flags
-                    </div>
-                    <div class="px-3 py-2 border-b border-gray-700">
-                        URL & Actions
-                    </div>
+            <div class="overflow-x-auto text-sm">
+                <div class="sticky top-0 bg-gray-900 z-10 hidden md:grid md:grid-cols-[32px_minmax(160px,1fr)_128px_96px_minmax(200px,2fr)] font-semibold text-gray-400 text-xs">
+                    <div class="px-3 py-2 border-b border-r border-gray-700"></div>
+                    <div class="px-3 py-2 border-b border-r border-gray-700">Status / Type</div>
+                    <div class="px-3 py-2 border-b border-r border-gray-700">Timing (s)</div>
+                    <div class="px-3 py-2 border-b border-r border-gray-700">Flags</div>
+                    <div class="px-3 py-2 border-b border-gray-700">URL & Actions</div>
                 </div>
                 <virtualized-list
                     id="vl-${compositeKey}"
-                    .tempData=${listData}
-                    style="height: ${Math.min(segments.length * 40, 400)}px;"
+                    .items=${segments}
+                    .rowTemplate=${rowRenderer}
+                    .rowHeight=${96}
+                    class="md:h-auto"
+                    style="height: ${Math.min(segments.length * 96, 400)}px;"
                 ></virtualized-list>
             </div>
         `;
@@ -125,7 +108,7 @@ const dashSegmentTableTemplate = (stream, period, representation) => {
         ${isDebugMode && stream.manifest.type === 'dynamic'
             ? diagnosticsTemplate(diagnostics)
             : ''}
-        <div class="p-2">${content}</div>
+        <div class="p-0 md:p-2">${content}</div>
     </div>`;
 };
 
@@ -171,7 +154,8 @@ export function getDashExplorerTemplate(stream) {
                                                 dashSegmentTableTemplate(
                                                     stream,
                                                     period,
-                                                    rep
+                                                    rep,
+                                                    index
                                                 )
                                             )}
                                         </div>

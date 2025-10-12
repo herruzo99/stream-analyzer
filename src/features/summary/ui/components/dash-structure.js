@@ -99,7 +99,7 @@ const subsetTemplate = (period) => {
 };
 
 const periodTemplate = (period, index) => html`
-    <details class="bg-gray-800 rounded-lg border border-gray-700" open>
+    <details class="bg-gray-800 rounded-lg border border-gray-700 details-animated" open>
         <summary
             class="font-bold text-lg p-3 cursor-pointer hover:bg-gray-700/50"
         >

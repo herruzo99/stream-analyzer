@@ -19,28 +19,13 @@ async function fetchHlsMediaPlaylist({ streamId, variantUri }) {
         );
 
         if (result.streamId === streamId) {
-            const newVariantState = new Map(stream.hlsVariantState);
-            const currentState = newVariantState.get(result.variantUri);
-            if (currentState) {
-                newVariantState.set(result.variantUri, {
-                    ...currentState,
-                    segments: result.segments,
-                    freshSegmentUrls: new Set(result.freshSegmentUrls),
-                    isLoading: false,
-                    error: null,
-                });
-            }
-
-            const newMediaPlaylists = new Map(stream.mediaPlaylists);
-            newMediaPlaylists.set(result.variantUri, {
+            analysisActions.updateHlsMediaPlaylist({
+                streamId,
+                variantUri: result.variantUri,
                 manifest: result.manifest,
-                rawManifest: result.manifestString,
-                lastFetched: new Date(),
-            });
-
-            analysisActions.updateStream(streamId, {
-                hlsVariantState: newVariantState,
-                mediaPlaylists: newMediaPlaylists,
+                manifestString: result.manifestString,
+                segments: result.segments,
+                freshSegmentUrls: result.freshSegmentUrls,
             });
 
             eventBus.dispatch('hls-media-playlist-fetched', {

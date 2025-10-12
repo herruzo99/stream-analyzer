@@ -2,6 +2,7 @@ import { render } from 'lit-html';
 import { inspectorPanelTemplate as isobmffInspector } from './isobmff/index.js';
 import { inspectorPanelTemplate as tsInspector } from './ts/index.js';
 import { html } from 'lit-html';
+import { uiActions } from '@/state/uiStore';
 
 let keydownListener = null;
 let containerListeners = new Map();
@@ -61,9 +62,11 @@ function applyHighlights(item, fieldName) {
             structureNode.classList.add('is-box-hover-highlighted');
             currentlyHighlightedElements.push(structureNode);
             const treeContainer = container.querySelector(
-                '.box-tree-area .overflow-y-auto'
+                '.box-tree-area .overflow-y-auto, .packet-list-area .overflow-y-auto'
             );
-            scrollIntoViewIfNeeded(structureNode, treeContainer);
+            if(treeContainer) {
+                scrollIntoViewIfNeeded(structureNode, treeContainer);
+            }
         }
     }
 
@@ -139,10 +142,10 @@ function cleanupEventListeners(container) {
 }
 
 export function cleanupSegmentViewInteractivity(dom) {
-    const container = dom.tabContents['interactive-segment'];
-    if (container) {
-        cleanupEventListeners(container);
-    }
+    const container = dom.mainContent;
+    if (!container) return;
+
+    cleanupEventListeners(container);
     selectedItem = null;
     highlightedItem = null;
     highlightedField = null;
@@ -158,7 +161,7 @@ export function initializeSegmentViewInteractivity(
     findDataByOffset,
     format
 ) {
-    const container = dom.tabContents['interactive-segment'];
+    const container = dom.mainContent;
     if (!container || !parsedSegmentData) return;
 
     cleanupEventListeners(container);
@@ -201,6 +204,11 @@ export function initializeSegmentViewInteractivity(
             applyHighlights(selectedItem, null);
         }
         renderInspectorPanel();
+        
+        // On mobile, switch to hex view to show the selection
+        if (window.innerWidth < 1024 && selectedItem) {
+            uiActions.setInteractiveSegmentActiveTab('hex');
+        }
     };
 
     const handleHexHover = (e) => {
@@ -253,11 +261,11 @@ export function initializeSegmentViewInteractivity(
 
     const handleStructureHover = (e) => {
         const node = /** @type {HTMLElement | null} */ (
-            e.target.closest('[data-box-offset], [data-group-start-offset]')
+            e.target.closest('[data-box-offset], [data-group-start-offset], [data-packet-offset]')
         );
         if (!node) return;
         const dataOffset = parseInt(
-            node.dataset.boxOffset || node.dataset.groupStartOffset,
+            node.dataset.boxOffset || node.dataset.groupStartOffset || node.dataset.packetOffset,
             10
         );
         if (isNaN(dataOffset)) return;
@@ -297,8 +305,8 @@ export function initializeSegmentViewInteractivity(
         );
         if (treeNode) {
             const offset =
-                parseInt(treeNode.dataset.boxOffset, 10) ??
-                parseInt(treeNode.dataset.packetOffset, 10) ??
+                parseInt(treeNode.dataset.boxOffset, 10) ||
+                parseInt(treeNode.dataset.packetOffset, 10) ||
                 parseInt(treeNode.dataset.groupStartOffset, 10);
             if (!isNaN(offset)) {
                 handleSelection(offset);

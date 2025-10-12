@@ -1,6 +1,7 @@
 import { parseISOBMFF } from '@/infrastructure/parsing/isobmff/parser';
 import { parse as parseTsSegment } from '@/infrastructure/parsing/ts/index';
 import { parseVTT } from '@/infrastructure/parsing/vtt/parser';
+import { debugLog } from '@/application/utils/debug';
 
 // Map of simple names to the RGB values from Tailwind's 900-level colors
 const TAILWIND_COLORS_RGB = {
@@ -53,61 +54,58 @@ function assignBoxColors(boxes) {
  * @returns {Promise<object>}
  */
 export async function parseSegment({ data, formatHint, url }) {
+    debugLog('parseSegment', `Parsing segment. URL: ${url}, Format Hint: ${formatHint}`);
+    
     const dataView = new DataView(data);
     const decoder = new TextDecoder();
 
     // 1. Prioritize the explicit format hint from the UI.
-    if (
-        formatHint === 'isobmff' ||
-        formatHint === 'ts' ||
-        formatHint === 'vtt'
-    ) {
-        if (formatHint === 'isobmff') {
-            return parseISOBMFF(data);
-        }
-        if (formatHint === 'ts') {
-            return parseTsSegment(data);
-        }
-        if (formatHint === 'vtt') {
-            return { format: 'vtt', data: parseVTT(decoder.decode(data)) };
-        }
+    if (formatHint) {
+        debugLog('parseSegment', `Using explicit hint: '${formatHint}'`);
+        if (formatHint === 'isobmff') return parseISOBMFF(data);
+        if (formatHint === 'ts') return parseTsSegment(data);
+        if (formatHint === 'vtt') return { format: 'vtt', data: parseVTT(decoder.decode(data)) };
     }
 
     // 2. Check file extension from URL if no hint is provided.
     if (url) {
         try {
             const path = new URL(url).pathname.toLowerCase();
-            if (
-                path.endsWith('.m4s') ||
-                path.endsWith('.mp4') ||
-                path.endsWith('.cmfv') ||
-                path.endsWith('.cmfa') ||
-                path.endsWith('.cmfm') ||
-                path.endsWith('.m4a') ||
-                path.endsWith('.m4v')
-            ) {
+            if (path.endsWith('.m4s') || path.endsWith('.mp4') || path.endsWith('.cmfv') || path.endsWith('.cmfa') || path.endsWith('.cmfm') || path.endsWith('.m4a') || path.endsWith('.m4v')) {
+                debugLog('parseSegment', "Detected ISOBMFF via file extension.");
                 return parseISOBMFF(data);
             }
-            if (
-                path.endsWith('.ts') ||
-                path.endsWith('.aac') ||
-                path.endsWith('.ac3')
-            ) {
+            if (path.endsWith('.ts') || path.endsWith('.aac') || path.endsWith('.ac3')) {
+                debugLog('parseSegment', "Detected TS via file extension.");
                 return parseTsSegment(data);
             }
             if (path.endsWith('.vtt')) {
-                return {
-                    format: 'vtt',
-                    data: parseVTT(decoder.decode(data)),
-                };
+                debugLog('parseSegment', "Detected VTT via file extension.");
+                return { format: 'vtt', data: parseVTT(decoder.decode(data)) };
             }
         } catch (e) {
-            // Can fail if URL is not absolute, proceed to sniffing.
+            debugLog('parseSegment', "Could not parse URL for extension check, proceeding to byte-sniffing.");
         }
     }
 
     // 3. Fallback to byte-sniffing if hint/extension are inconclusive.
-    // ISOBMFF sniffing: check for a valid box signature at the start.
+    debugLog('parseSegment', "No hint or definitive extension. Falling back to byte-sniffing.");
+
+    // VTT sniffing (most specific)
+    try {
+        if (decoder.decode(data.slice(0, 10)).startsWith('WEBVTT')) {
+            debugLog('parseSegment', "Detected VTT via byte-sniffing.");
+            return { format: 'vtt', data: parseVTT(decoder.decode(data)) };
+        }
+    } catch {}
+
+    // TS sniffing (very reliable signature)
+    if (data.byteLength > 188 && dataView.getUint8(0) === 0x47 && dataView.getUint8(188) === 0x47) {
+        debugLog('parseSegment', "Detected TS via byte-sniffing (sync bytes).");
+        return parseTsSegment(data);
+    }
+    
+    // ISOBMFF sniffing (less specific, checked after TS)
     if (data.byteLength >= 8) {
         const size = dataView.getUint32(0);
         const typeCode1 = dataView.getUint8(4);
@@ -116,37 +114,17 @@ export async function parseSegment({ data, formatHint, url }) {
         const typeCode4 = dataView.getUint8(7);
         const isPrintable = (code) => code >= 32 && code <= 126;
 
-        if (
-            (size >= 8 || size === 1) &&
-            size <= data.byteLength &&
-            isPrintable(typeCode1) &&
-            isPrintable(typeCode2) &&
-            isPrintable(typeCode3) &&
-            isPrintable(typeCode4)
-        ) {
+        if ((size >= 8 || size === 1) && size <= data.byteLength && isPrintable(typeCode1) && isPrintable(typeCode2) && isPrintable(typeCode3) && isPrintable(typeCode4)) {
+            debugLog('parseSegment', "Detected ISOBMFF via byte-sniffing (box signature).");
             return parseISOBMFF(data);
         }
     }
 
-    // VTT sniffing
-    try {
-        if (decoder.decode(data.slice(0, 10)).startsWith('WEBVTT'))
-            return { format: 'vtt', data: parseVTT(decoder.decode(data)) };
-        // eslint-disable-next-line no-empty
-    } catch {}
-
-    // TS sniffing
-    if (
-        data.byteLength > 188 &&
-        dataView.getUint8(0) === 0x47 &&
-        dataView.getUint8(188) === 0x47
-    ) {
-        return parseTsSegment(data);
-    }
-
     // 4. Default fallback is ISOBMFF.
+    debugLog('parseSegment', "All detection methods failed. Falling back to default ISOBMFF parser.");
     return parseISOBMFF(data);
 }
+
 
 // Internal utility functions, now co-located and not exported.
 const findBoxRecursive = (boxes, predicate) => {

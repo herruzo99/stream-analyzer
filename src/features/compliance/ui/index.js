@@ -8,40 +8,56 @@ import { runChecks } from '@/features/compliance/domain/engine';
 import { eventBus } from '@/application/event-bus';
 
 export function getComplianceReportTemplate(stream) {
-    if (!stream || !stream.manifest) return html``;
+    if (!stream || !stream.manifest) return { main: html``, contextual: null };
 
     const {
         complianceActiveFilter: activeFilter,
         complianceStandardVersion: activeStandardVersion,
     } = useUiStore.getState();
-    const { protocol, activeMediaPlaylistUrl, mediaPlaylists, manifest } =
-        stream;
+    const {
+        protocol,
+        activeMediaPlaylistUrl,
+        mediaPlaylists,
+        manifest,
+        manifestUpdates,
+        activeManifestUpdateIndex,
+    } = stream;
 
-    // Determine the active manifest for compliance checks and rendering
-    const activeManifest =
-        protocol === 'hls' && activeMediaPlaylistUrl
+    let complianceResults;
+    let currentUpdate;
+
+    if (protocol === 'hls') {
+        const activeManifest = activeMediaPlaylistUrl
             ? mediaPlaylists.get(activeMediaPlaylistUrl)?.manifest || manifest
             : manifest;
 
-    const currentUpdate = {
-        rawManifest:
-            protocol === 'hls' && activeMediaPlaylistUrl
-                ? mediaPlaylists.get(activeMediaPlaylistUrl)?.rawManifest || ''
-                : stream.rawManifest,
-        serializedManifest: activeManifest.serializedManifest,
-    };
+        const rawManifest = activeMediaPlaylistUrl
+            ? mediaPlaylists.get(activeMediaPlaylistUrl)?.rawManifest ||
+              stream.rawManifest
+            : stream.rawManifest;
 
-    if (!currentUpdate.rawManifest) {
-        return html`<p class="text-gray-400 p-4">Awaiting manifest...</p>`;
+        currentUpdate = {
+            rawManifest: rawManifest,
+            serializedManifest: activeManifest.serializedManifest,
+        };
+
+        // For HLS, we re-run checks on the client to allow for interactive version switching.
+        complianceResults = runChecks(activeManifest, protocol, {
+            standardVersion: activeStandardVersion,
+        });
+    } else {
+        // DASH
+        // For DASH, we use the pre-computed results from the worker, as there's no interactive element.
+        currentUpdate = manifestUpdates[activeManifestUpdateIndex];
+        complianceResults = currentUpdate?.complianceResults || [];
     }
 
-    const complianceCheckContext =
-        protocol === 'hls' ? { standardVersion: activeStandardVersion } : {};
-    const complianceResults = runChecks(
-        activeManifest,
-        protocol,
-        complianceCheckContext
-    );
+    if (!currentUpdate || !currentUpdate.rawManifest) {
+        return {
+            main: html`<p class="text-gray-400 p-4">Awaiting manifest...</p>`,
+            contextual: null,
+        };
+    }
 
     const selector =
         protocol === 'hls'
@@ -55,13 +71,12 @@ export function getComplianceReportTemplate(stream) {
               })
             : '';
 
-    // Navigation is only for master playlist live updates for now
     const navTpl =
         protocol === 'dash' || (protocol === 'hls' && !activeMediaPlaylistUrl)
             ? navigationTemplate(stream)
             : '';
 
-    return html`
+    const mainTemplate = html`
         <div
             class="flex flex-col sm:flex-row justify-between items-center mb-4 flex-shrink-0 gap-4"
         >
@@ -74,31 +89,31 @@ export function getComplianceReportTemplate(stream) {
                 ${selector} ${navTpl}
             </div>
         </div>
-
-        <div class="lg:grid lg:grid-cols-[1fr_450px] lg:gap-6 relative h-full">
-            <div
-                class="compliance-manifest-view bg-slate-800 rounded-lg p-2 sm:p-4 font-mono text-sm leading-relaxed overflow-auto mb-6 lg:mb-0 h-full"
-            >
-                ${manifestViewTemplate(
-                    currentUpdate.rawManifest,
-                    stream.protocol,
-                    complianceResults,
-                    currentUpdate.serializedManifest,
-                    activeFilter
-                )}
-            </div>
-            <div class="lg:sticky lg:top-4 h-fit">
-                <div class="flex flex-col h-96 lg:max-h-[calc(100vh-12rem)]">
-                    ${sidebarTemplate(
-                        complianceResults,
-                        activeFilter,
-                        (filter) =>
-                            eventBus.dispatch('ui:compliance:filter-changed', {
-                                filter,
-                            })
-                    )}
-                </div>
-            </div>
+        <div
+            class="bg-slate-800 rounded-lg p-2 sm:p-4 font-mono text-sm leading-relaxed overflow-auto h-full"
+        >
+            ${manifestViewTemplate(
+                currentUpdate.rawManifest,
+                stream.protocol,
+                complianceResults,
+                currentUpdate.serializedManifest,
+                activeFilter
+            )}
         </div>
     `;
+
+    const contextualTemplate = html`
+        <div class="flex flex-col p-4 h-full">
+            ${sidebarTemplate(
+                complianceResults,
+                activeFilter,
+                (filter) =>
+                    eventBus.dispatch('ui:compliance:filter-changed', {
+                        filter,
+                    })
+            )}
+        </div>
+    `;
+
+    return { main: mainTemplate, contextual: contextualTemplate };
 }

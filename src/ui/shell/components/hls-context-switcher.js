@@ -1,5 +1,6 @@
 import { html } from 'lit-html';
 import { eventBus } from '@/application/event-bus';
+import { toggleDropdown, closeDropdown } from '@/ui/services/dropdownService';
 
 const getBadge = (text, colorClasses) => html`
     <span
@@ -89,40 +90,6 @@ export const hlsContextSwitcherTemplate = (stream) => {
         return html``;
     }
 
-    const toggleDropdown = (e) => {
-        const switcher = e.currentTarget.closest(
-            '[data-hls-switcher-container]'
-        );
-        const panel = switcher.querySelector('[data-hls-dropdown-panel]');
-        
-        const isHidden = panel.classList.contains('pointer-events-none');
-
-        if (isHidden) {
-            // Temporarily remove transform to get accurate width, but keep it invisible
-            panel.classList.remove('scale-95');
-            const panelWidth = panel.offsetWidth;
-            const parentRect = switcher.getBoundingClientRect();
-            panel.classList.add('scale-95'); // Restore for animation
-
-            // Reset alignment classes before making a decision
-            panel.classList.remove('left-0', 'right-0', 'origin-top-left', 'origin-top-right');
-            
-            // Decide on alignment: if right-aligning it would push the left edge off-screen, then left-align instead.
-            if (parentRect.right - panelWidth < 0) {
-                panel.classList.add('left-0', 'origin-top-left');
-            } else {
-                // Default to right alignment.
-                panel.classList.add('right-0', 'origin-top-right');
-            }
-            
-            // Animate into view
-            panel.classList.remove('opacity-0', 'scale-95', '-translate-y-2.5', 'pointer-events-none');
-        } else {
-            // Hide it
-            panel.classList.add('opacity-0', 'scale-95', '-translate-y-2.5', 'pointer-events-none');
-        }
-    };
-
     const handleSelect = (e) => {
         const item = e.target.closest('[data-url]');
         if (!item) return;
@@ -132,14 +99,12 @@ export const hlsContextSwitcherTemplate = (stream) => {
             streamId: stream.id,
             url,
         });
-
-        const panel = e.currentTarget.closest('[data-hls-dropdown-panel]');
-        panel.classList.add('opacity-0', 'scale-95', '-translate-y-2.5', 'pointer-events-none');
+        closeDropdown();
     };
 
     const variants = (stream.manifest.variants || []).map((v) => ({
         url: v.resolvedUri,
-        label: `Variant Stream`, // Removed from card, kept for potential future use
+        label: `Variant Stream`,
         badges: [
             {
                 text: `${(v.attributes.BANDWIDTH / 1000).toFixed(0)}k`,
@@ -223,12 +188,36 @@ export const hlsContextSwitcherTemplate = (stream) => {
     };
 
     const activeUrl = stream.activeMediaPlaylistUrl || 'master';
+    
+    const panelTemplate = html`
+        <div
+            class="dropdown-panel bg-gray-800 border border-gray-700 rounded-lg shadow-xl max-h-[60vh] w-full min-w-[40rem] max-w-5xl overflow-y-auto"
+            @click=${handleSelect}
+        >
+            ${renderHlsContextGroup('Master', [masterItem], activeUrl)}
+            ${renderHlsContextGroup(
+                'Variant Streams',
+                variants,
+                activeUrl
+            )}
+            ${renderHlsContextGroup(
+                'Audio Renditions',
+                audioRenditions,
+                activeUrl
+            )}
+            ${renderHlsContextGroup(
+                'Subtitle Renditions',
+                subtitleRenditions,
+                activeUrl
+            )}
+        </div>
+    `;
 
     return html`
-        <div class="relative w-full" data-hls-switcher-container>
+        <div class="relative w-full sm:w-auto">
             <button
-                @click=${toggleDropdown}
-                class="bg-gray-700 text-white rounded-md border-gray-600 p-2 w-full text-left flex items-center justify-between"
+                @click=${(e) => toggleDropdown(e.currentTarget, panelTemplate)}
+                class="bg-gray-800/50 hover:bg-gray-700/50 text-white rounded-md border border-gray-600/50 p-2 w-full min-w-[200px] text-left flex items-center justify-between transition-colors"
             >
                 <span class="truncate"
                     >${getActiveHlsContextLabel(stream)}</span
@@ -246,28 +235,6 @@ export const hlsContextSwitcherTemplate = (stream) => {
                     />
                 </svg>
             </button>
-            <div
-                class="transition-all ease-out duration-200 absolute top-full mt-2 z-30 bg-gray-800 border border-gray-700 rounded-lg shadow-xl max-h-[60vh] w-full min-w-[40rem] max-w-5xl overflow-y-auto opacity-0 scale-95 -translate-y-2.5 pointer-events-none"
-                data-hls-dropdown-panel
-                @click=${handleSelect}
-            >
-                ${renderHlsContextGroup('Master', [masterItem], activeUrl)}
-                ${renderHlsContextGroup(
-                    'Variant Streams',
-                    variants,
-                    activeUrl
-                )}
-                ${renderHlsContextGroup(
-                    'Audio Renditions',
-                    audioRenditions,
-                    activeUrl
-                )}
-                ${renderHlsContextGroup(
-                    'Subtitle Renditions',
-                    subtitleRenditions,
-                    activeUrl
-                )}
-            </div>
         </div>
     `;
 };

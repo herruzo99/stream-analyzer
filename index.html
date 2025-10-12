@@ -65,7 +65,7 @@
                             (c[a].q = c[a].q || []).push(arguments);
                         };
                     t = l.createElement(r);
-                    t.async = 1;
+t.async = 1;
                     t.src = 'https://www.clarity.ms/tag/' + i;
                     y = l.getElementsByTagName(r)[0];
                     y.parentNode.insertBefore(t, y);
@@ -86,224 +86,44 @@
             rel="stylesheet"
         />
     </head>
-
-    <body
-        class="bg-gray-900 text-gray-200 min-h-screen font-sans flex flex-col"
-    >
+    <body class="bg-gray-900 text-gray-200 min-h-screen font-sans">
+        <!-- The initial view shown on page load -->
         <div
-            class="w-full max-w-8xl mx-auto flex flex-col flex-grow p-4 sm:p-6"
+            id="input-section"
+            class="fixed inset-0 bg-gray-900/80 z-50 flex items-center justify-center p-4"
         >
-            <header
-                id="main-header"
-                class="flex flex-col md:flex-row justify-between items-center mb-6 md:mb-8 flex-shrink-0 gap-4 md:gap-8 flex-wrap"
-            >
-                <div id="header-title-group" class="text-center md:text-left flex-shrink min-w-0">
-                    <h1 class="text-3xl sm:text-4xl font-bold text-white">
-                        Stream Analyzer
-                    </h1>
-                    <p class="text-gray-400 mt-2 text-sm sm:text-base">
-                        Analyze and compare DASH & HLS streams against industry
-                        standards.
-                    </p>
-                </div>
-
-                <div
-                    id="header-url-display"
-                    class="hidden text-center text-xs font-mono text-gray-400 px-4 md:px-8"
-                >
-                    <!-- URLs injected by JS -->
-                </div>
-
-                <div id="header-controls" class="flex items-center gap-4 flex-wrap justify-center md:justify-end flex-shrink-0">
-                    <div id="context-switcher-wrapper" class="hidden items-center gap-4 flex-wrap justify-end">
-                        <div id="switcher-container" class="flex items-center gap-4 flex-wrap justify-end">
-                             <!-- Content is now rendered by context-switcher.js -->
-                        </div>
-                    </div>
-                     <div id="global-stream-controls" class="flex items-center gap-4">
-                        <!-- Content is now fully rendered by mainRenderer.js -->
-                     </div>
-                </div>
-            </header>
-
-            <div
-                id="input-section"
-                data-testid="input-section"
-                class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-lg mb-8 flex-shrink-0"
-            >
-                <div id="stream-inputs" class="space-y-6">
-                    <!-- Stream inputs will be dynamically added here -->
-                </div>
-                <div class="flex flex-col sm:flex-row gap-4 mt-6">
-                    <button
-                        id="clear-all-btn"
-                        data-testid="clear-all-btn"
-                        class="w-full sm:w-auto flex-grow bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-md transition duration-300"
-                    >
-                        Clear All
-                    </button>
-                    <button
-                        id="add-stream-btn"
-                        data-testid="add-stream-btn"
-                        class="w-full sm:w-auto flex-grow bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md transition duration-300"
-                    >
-                        Add Another Stream
-                    </button>
-                    <button
-                        id="analyze-btn"
-                        data-testid="analyze-btn"
-                        class="w-full sm:w-auto flex-grow bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition duration-300"
-                    >
-                        Analyze & Compare
-                    </button>
-                </div>
-            </div>
-
-            <div id="results" class="hidden flex flex-col flex-grow min-h-0">
-                <div class="mb-4 border-b border-gray-700 flex-shrink-0">
-                    <nav
-                        class="flex flex-wrap items-center -mb-px"
-                        id="tabs"
-                        role="tablist"
-                        aria-label="Analysis Sections"
-                    >
-                        <!-- Tab buttons are now rendered dynamically by mainRenderer.js -->
-                    </nav>
-                </div>
-
-                <div
-                    class="bg-gray-800 p-2 sm:p-4 rounded-lg shadow-lg flex-grow min-h-0 overflow-y-auto"
-                >
-                    <!-- Tab Content Panels -->
-                    <div
-                        id="tab-comparison"
-                        role="tabpanel"
-                        aria-labelledby="tab-btn-comparison"
-                        data-testid="tab-comparison"
-                        class="hidden"
-                    ></div>
-                    <div
-                        id="tab-summary"
-                        role="tabpanel"
-                        aria-labelledby="tab-btn-summary"
-                        data-testid="tab-summary"
-                        class="hidden"
-                    ></div>
-                    <div
-                        id="tab-integrators-report"
-                        role="tabpanel"
-                        aria-labelledby="tab-btn-integrators-report"
-                        class="hidden"
-                    ></div>
-                    <div
-                        id="tab-timeline-visuals"
-                        role="tabpanel"
-                        aria-labelledby="tab-btn-timeline-visuals"
-                        class="hidden"
-                    ></div>
-                    <div
-                        id="tab-features"
-                        role="tabpanel"
-                        aria-labelledby="tab-btn-features"
-                        class="hidden"
-                    ></div>
-                    <div
-                        id="tab-compliance"
-                        role="tabpanel"
-                        aria-labelledby="tab-btn-compliance"
-                        class="hidden h-full"
-                    ></div>
-                    <div
-                        id="tab-explorer"
-                        role="tabpanel"
-                        aria-labelledby="tab-btn-explorer"
-                        class="hidden"
-                    ></div>
-                    <div
-                        id="tab-interactive-segment"
-                        role="tabpanel"
-                        aria-labelledby="tab-btn-interactive-segment"
-                        class="hidden h-full"
-                    ></div>
-                    <div
-                        id="tab-interactive-manifest"
-                        role="tabpanel"
-                        aria-labelledby="tab-btn-interactive-manifest"
-                        class="hidden"
-                    ></div>
-                    <div
-                        id="tab-updates"
-                        role="tabpanel"
-                        aria-labelledby="tab-btn-updates"
-                        class="hidden"
-                    >
-                        <div id="mpd-updates-content"></div>
-                    </div>
-                    <div
-                        id="tab-parser-coverage"
-                        role="tabpanel"
-                        aria-labelledby="tab-btn-parser-coverage"
-                        class="hidden h-full"
-                    ></div>
-                </div>
-            </div>
+            <!-- This container will be populated by the input-view renderer -->
         </div>
 
-        <div
-            id="segment-modal"
-            data-testid="segment-modal"
-            class="fixed inset-0 bg-gray-900/80 flex items-center justify-center opacity-0 invisible transition-all duration-300 z-50"
-        >
-            <div
-                class="bg-gray-800 p-6 rounded-lg transform scale-95 transition-all duration-300 max-h-[90vh] overflow-y-auto w-11/12 max-w-4xl"
-            >
-                <div class="flex justify-between items-center mb-4">
-                    <h3 id="modal-title" class="text-xl font-bold">
-                        Segment Analysis
-                    </h3>
-                    <button
-                        id="close-modal-btn"
-                        data-testid="close-modal-btn"
-                        class="text-2xl text-gray-400 hover:text-white"
-                    >
-                        &times;
-                    </button>
-                </div>
-                <p
-                    id="modal-segment-url"
-                    data-testid="modal-segment-url"
-                    class="font-mono text-xs bg-gray-900 p-2 rounded break-all mb-4"
-                ></p>
-                <div
-                    id="modal-content-area"
-                    class="font-mono text-xs max-h-[60vh] overflow-y-auto bg-gray-900 p-3 rounded"
-                ></div>
-            </div>
-        </div>
+        <!-- The root element for the main application results view -->
+        <div id="app-root"></div>
 
-        <div
-            id="global-tooltip"
-            class="fixed z-[100] p-2.5 rounded-md bg-gray-900 text-white text-left text-xs leading-relaxed border border-gray-700 min-w-[200px] max-w-sm pointer-events-none invisible opacity-0 transition-opacity"
-        ></div>
-
-        <div
-            id="toast-container"
-            class="fixed top-5 right-5 z-[100] space-y-2"
-        ></div>
-
-        <div
-            id="global-loader"
-            class="hidden fixed inset-0 bg-gray-900/70 flex-col items-center justify-center z-[200] space-y-4"
-        >
+        <!-- Global UI overlays that must exist at boot -->
+        <div id="toast-container" class="fixed top-5 right-5 z-[100] space-y-2"></div>
+        <div id="global-loader" class="hidden fixed inset-0 bg-gray-900/70 flex-col items-center justify-center z-[200] space-y-4">
             <div class="loader-animation flex items-end justify-center h-12">
-                <span></span>
-                <span></span>
-                <span></span>
-                <span></span>
-                <span></span>
+                <span></span><span></span><span></span><span></span><span></span>
             </div>
             <p id="loader-message" class="text-lg text-gray-300"></p>
         </div>
+        
+        <!-- Global Modal -->
+        <div id="segment-modal" class="fixed inset-0 bg-gray-900/80 hidden items-center justify-center z-[60]">
+            <div class="bg-gray-800 p-6 rounded-lg max-h-[90vh] overflow-y-auto w-11/12 max-w-4xl border border-gray-700">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 id="modal-title" class="text-xl font-bold"></h3>
+                    <button id="close-modal-btn" class="text-2xl text-gray-400 hover:text-white">&times;</button>
+                </div>
+                <p id="modal-segment-url" class="font-mono text-xs bg-gray-900 p-2 rounded break-all mb-4"></p>
+                <div id="modal-content-area" class="text-xs max-h-[60vh] overflow-y-auto"></div>
+            </div>
+        </div>
+        
+        <!-- Global Tooltip -->
+        <div id="global-tooltip" class="fixed z-[100] p-2.5 rounded-md bg-gray-900 text-white text-left text-xs leading-relaxed border border-gray-700 min-w-[200px] max-w-sm pointer-events-none invisible opacity-0 transition-opacity"></div>
+        
+        <!-- Global Dropdown Container -->
+        <div id="dropdown-container" class="fixed inset-0 z-40 pointer-events-none"></div>
 
         <script
             nonce="__CSP_NONCE__"

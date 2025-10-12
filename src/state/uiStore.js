@@ -12,11 +12,15 @@ import { createStore } from 'zustand/vanilla';
  * @typedef {object} UiState
  * @property {'input' | 'results'} viewState
  * @property {string} activeTab
+ * @property {'primary' | 'contextual' | null} activeSidebar
  * @property {ModalState} modalState
  * @property {boolean} isCmafSummaryExpanded
  * @property {number} interactiveManifestCurrentPage
  * @property {boolean} interactiveManifestShowSubstituted
  * @property {number} interactiveSegmentCurrentPage
+ * @property {'inspector' | 'hex'} interactiveSegmentActiveTab
+ * @property {Map<number, object> | null} pagedByteMap
+ * @property {boolean} isByteMapLoading
  * @property {'all' | 'fail' | 'warn'} complianceActiveFilter
  * @property {number} complianceStandardVersion
  * @property {number} featureAnalysisStandardVersion
@@ -28,11 +32,15 @@ import { createStore } from 'zustand/vanilla';
  * @typedef {object} UiActions
  * @property {(view: 'input' | 'results') => void} setViewState
  * @property {(tabName: string) => void} setActiveTab
+ * @property {(sidebar: 'primary' | 'contextual' | null) => void} setActiveSidebar
  * @property {(modalState: Partial<ModalState>) => void} setModalState
  * @property {() => void} toggleCmafSummary
  * @property {(page: number) => void} setInteractiveManifestPage
  * @property {() => void} toggleInteractiveManifestSubstitution
  * @property {(page: number) => void} setInteractiveSegmentPage
+ * @property {(tab: 'inspector' | 'hex') => void} setInteractiveSegmentActiveTab
+ * @property {(mapArray: [number, object][] | null) => void} setPagedByteMap
+ * @property {(isLoading: boolean) => void} setIsByteMapLoading
  * @property {(filter: 'all' | 'fail' | 'warn') => void} setComplianceFilter
  * @property {(version: number) => void} setComplianceStandardVersion
  * @property {(version: number) => void} setFeatureAnalysisStandardVersion
@@ -44,6 +52,7 @@ import { createStore } from 'zustand/vanilla';
 const createInitialUiState = () => ({
     viewState: 'input',
     activeTab: 'summary',
+    activeSidebar: null,
     modalState: {
         isModalOpen: false,
         modalTitle: '',
@@ -54,6 +63,9 @@ const createInitialUiState = () => ({
     interactiveManifestCurrentPage: 1,
     interactiveManifestShowSubstituted: true,
     interactiveSegmentCurrentPage: 1,
+    interactiveSegmentActiveTab: 'inspector',
+    pagedByteMap: null,
+    isByteMapLoading: false,
     complianceActiveFilter: 'all',
     complianceStandardVersion: 13,
     featureAnalysisStandardVersion: 13,
@@ -66,6 +78,7 @@ export const useUiStore = createStore((set) => ({
 
     setViewState: (view) => set({ viewState: view }),
     setActiveTab: (tabName) => set({ activeTab: tabName }),
+    setActiveSidebar: (sidebar) => set({ activeSidebar: sidebar }),
     setModalState: (newModalState) => {
         set((state) => ({
             modalState: { ...state.modalState, ...newModalState },
@@ -83,7 +96,16 @@ export const useUiStore = createStore((set) => ({
                 !state.interactiveManifestShowSubstituted,
         })),
     setInteractiveSegmentPage: (page) =>
-        set({ interactiveSegmentCurrentPage: page }),
+        set({
+            interactiveSegmentCurrentPage: page,
+            pagedByteMap: null,
+            isByteMapLoading: false,
+        }),
+    setInteractiveSegmentActiveTab: (tab) =>
+        set({ interactiveSegmentActiveTab: tab }),
+    setPagedByteMap: (mapArray) =>
+        set({ pagedByteMap: mapArray ? new Map(mapArray) : null }),
+    setIsByteMapLoading: (isLoading) => set({ isByteMapLoading: isLoading }),
     setComplianceFilter: (filter) => set({ complianceActiveFilter: filter }),
     setComplianceStandardVersion: (version) =>
         set({ complianceStandardVersion: version }),
@@ -99,6 +121,8 @@ export const useUiStore = createStore((set) => ({
 export const uiActions = {
     setViewState: (view) => useUiStore.getState().setViewState(view),
     setActiveTab: (tabName) => useUiStore.getState().setActiveTab(tabName),
+    setActiveSidebar: (sidebar) =>
+        useUiStore.getState().setActiveSidebar(sidebar),
     setModalState: (state) => useUiStore.getState().setModalState(state),
     toggleCmafSummary: () => useUiStore.getState().toggleCmafSummary(),
     setInteractiveManifestPage: (page) =>
@@ -107,6 +131,12 @@ export const uiActions = {
         useUiStore.getState().toggleInteractiveManifestSubstitution(),
     setInteractiveSegmentPage: (page) =>
         useUiStore.getState().setInteractiveSegmentPage(page),
+    setInteractiveSegmentActiveTab: (tab) =>
+        useUiStore.getState().setInteractiveSegmentActiveTab(tab),
+    setPagedByteMap: (mapArray) =>
+        useUiStore.getState().setPagedByteMap(mapArray),
+    setIsByteMapLoading: (isLoading) =>
+        useUiStore.getState().setIsByteMapLoading(isLoading),
     setComplianceFilter: (filter) =>
         useUiStore.getState().setComplianceFilter(filter),
     setComplianceStandardVersion: (version) =>
