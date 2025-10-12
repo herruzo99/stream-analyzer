@@ -1,4 +1,5 @@
-import { html, render } from 'lit-html';
+import { html } from 'lit-html';
+import { classMap } from 'lit-html/directives/class-map.js';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { useSegmentCacheStore } from '@/state/segmentCacheStore';
 import { useUiStore, uiActions } from '@/state/uiStore';
@@ -20,20 +21,13 @@ import { getTooltipData as getIsobmffTooltipData } from '@/infrastructure/parsin
 import { getTooltipData as getTsTooltipData } from '@/infrastructure/parsing/ts/index';
 import { workerService } from '@/infrastructure/worker/workerService';
 
-let lastProcessedSegmentUrl = null;
 const HEX_BYTES_PER_PAGE = 1024;
 const ALL_TOOLTIPS_DATA = {
     ...getIsobmffTooltipData(),
     ...getTsTooltipData(),
 };
 
-let isInitialized = false;
-let pagedByteMap = null;
-let isByteMapLoading = false;
-
 function initializeAllInteractivity(dom, cachedSegment, byteMap) {
-    if (isInitialized) return;
-
     let findFn, parsedDataForLogic, format;
     if (cachedSegment.parsedData?.format === 'ts') {
         parsedDataForLogic = cachedSegment.parsedData;
@@ -54,22 +48,33 @@ function initializeAllInteractivity(dom, cachedSegment, byteMap) {
             format
         );
         renderInspectorPanel(); // Render initial placeholder
-        isInitialized = true;
     }
 }
 
+const tabButton = (label, tabKey) => {
+    const { interactiveSegmentActiveTab } = useUiStore.getState();
+    const isActive = interactiveSegmentActiveTab === tabKey;
+    return html`
+        <button
+            @click=${() => uiActions.setInteractiveSegmentActiveTab(tabKey)}
+            class="py-2 px-4 font-semibold text-sm rounded-t-lg transition-colors ${isActive
+                ? 'bg-slate-800 text-white'
+                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}"
+        >
+            ${label}
+        </button>
+    `;
+};
+
 export function getInteractiveSegmentTemplate(dom) {
     const { activeSegmentUrl } = useAnalysisStore.getState();
-    const { interactiveSegmentCurrentPage: currentPage } =
-        useUiStore.getState();
+    const {
+        interactiveSegmentCurrentPage: currentPage,
+        interactiveSegmentActiveTab,
+        pagedByteMap,
+        isByteMapLoading,
+    } = useUiStore.getState();
     const { get: getFromCache } = useSegmentCacheStore.getState();
-
-    if (activeSegmentUrl !== lastProcessedSegmentUrl) {
-        cleanupSegmentViewInteractivity(dom);
-        isInitialized = false;
-        pagedByteMap = null;
-        lastProcessedSegmentUrl = activeSegmentUrl;
-    }
 
     if (!activeSegmentUrl) {
         return html`<!-- placeholder -->`;
@@ -89,7 +94,7 @@ export function getInteractiveSegmentTemplate(dom) {
     }
 
     if (!pagedByteMap && !isByteMapLoading) {
-        isByteMapLoading = true;
+        uiActions.setIsByteMapLoading(true);
         workerService
             .postTask('generate-paged-byte-map', {
                 parsedData: cachedSegment.parsedData,
@@ -97,12 +102,10 @@ export function getInteractiveSegmentTemplate(dom) {
                 bytesPerPage: HEX_BYTES_PER_PAGE,
             })
             .then((mapArray) => {
-                pagedByteMap = new Map(mapArray);
-                isByteMapLoading = false;
-                render(
-                    getInteractiveSegmentTemplate(dom),
-                    dom.tabContents['interactive-segment']
-                );
+                uiActions.setPagedByteMap(mapArray);
+            })
+            .finally(() => {
+                uiActions.setIsByteMapLoading(false);
             });
     }
 
@@ -112,50 +115,48 @@ export function getInteractiveSegmentTemplate(dom) {
         );
         const newPage = currentPage + offset;
         if (newPage >= 1 && newPage <= totalPages) {
-            isInitialized = false;
-            pagedByteMap = null; // Invalidate current map
             uiActions.setInteractiveSegmentPage(newPage);
         }
     };
 
-    let contentTemplate;
+    let inspectorContent, hexContent;
+    const isLoading = isByteMapLoading || (!pagedByteMap && cachedSegment.parsedData?.format !== 'vtt');
 
-    if (pagedByteMap || cachedSegment.parsedData?.format === 'vtt') {
-        if (cachedSegment.parsedData?.format === 'vtt') {
-            contentTemplate = getInteractiveVttTemplate(cachedSegment.data);
-        } else if (cachedSegment.parsedData?.format === 'ts') {
-            contentTemplate = getInteractiveTsTemplate(
-                currentPage,
-                HEX_BYTES_PER_PAGE,
-                onPageChange,
-                ALL_TOOLTIPS_DATA,
-                pagedByteMap
-            );
-        } else if (cachedSegment.parsedData?.format === 'isobmff') {
-            contentTemplate = getInteractiveIsobmffTemplate(
-                currentPage,
-                HEX_BYTES_PER_PAGE,
-                onPageChange,
-                ALL_TOOLTIPS_DATA,
-                pagedByteMap
-            );
-        } else {
-            contentTemplate = html`<div class="text-yellow-400 p-4">
-                Interactive view not supported for this segment format.
-            </div>`;
-        }
-        setTimeout(
-            () => initializeAllInteractivity(dom, cachedSegment, pagedByteMap),
-            0
-        );
-    } else {
-        contentTemplate = html`<div class="text-center py-12">
+    if (isLoading) {
+        const loadingTemplate = html`<div class="text-center py-12">
             <div
                 class="animate-spin inline-block w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mb-4"
             ></div>
             <p class="text-gray-400">Generating paged view...</p>
         </div>`;
+        inspectorContent = loadingTemplate;
+        hexContent = loadingTemplate;
+    } else {
+        if (cachedSegment.parsedData?.format === 'vtt') {
+            const vttTemplate = getInteractiveVttTemplate(cachedSegment.data);
+            inspectorContent = vttTemplate;
+            hexContent = vttTemplate; // Show same content for both tabs for VTT
+        } else if (cachedSegment.parsedData?.format === 'ts') {
+            inspectorContent = getInteractiveTsTemplate();
+            hexContent = getInteractiveTsTemplate(true);
+        } else if (cachedSegment.parsedData?.format === 'isobmff') {
+            inspectorContent = getInteractiveIsobmffTemplate();
+            hexContent = getInteractiveIsobmffTemplate(true);
+        } else {
+            const unsupportedTemplate = html`<div class="text-yellow-400 p-4">
+                Interactive view not supported for this segment format.
+            </div>`;
+            inspectorContent = unsupportedTemplate;
+            hexContent = unsupportedTemplate;
+        }
+        setTimeout(
+            () => initializeAllInteractivity(dom, cachedSegment, pagedByteMap),
+            0
+        );
     }
+    
+    const inspectorClasses = { hidden: interactiveSegmentActiveTab !== 'inspector', 'lg:block': true };
+    const hexClasses = { hidden: interactiveSegmentActiveTab !== 'hex', 'lg:block': true };
 
     return html`
         <div class="mb-6">
@@ -173,12 +174,25 @@ export function getInteractiveSegmentTemplate(dom) {
                     &larr; Back to Segment Explorer
                 </button>
             </div>
-            <p
-                class="text-sm text-gray-400 mb-4 font-mono break-all bg-gray-800 p-2 rounded"
-            >
+            <p class="text-sm text-gray-400 mb-4 font-mono break-all bg-gray-800 p-2 rounded">
                 ${activeSegmentUrl}
             </p>
         </div>
-        ${contentTemplate}
+        
+        <!-- Mobile Tab Navigation -->
+        <div class="lg:hidden border-b border-gray-700 mb-4">
+            ${tabButton('Inspector', 'inspector')}
+            ${tabButton('Hex View', 'hex')}
+        </div>
+        
+        <!-- Responsive Content Grid -->
+        <div class="lg:grid lg:grid-cols-[minmax(300px,25%)_1fr] lg:gap-4">
+            <div class=${classMap(inspectorClasses)}>
+                ${inspectorContent}
+            </div>
+            <div class=${classMap(hexClasses)}>
+                ${hexContent}
+            </div>
+        </div>
     `;
 }

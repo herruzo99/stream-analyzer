@@ -35,6 +35,7 @@ import { uiActions } from './uiStore.js';
  * @property {(streamId: number, updatedStreamData: Partial<Stream>) => void} updateStream
  * @property {(isPolling: boolean, options?: { fromInactivity?: boolean }) => void} setAllLiveStreamsPolling
  * @property {(streamId: number, direction: number) => void} navigateManifestUpdate
+ * @property {(payload: {streamId: number, variantUri: string, manifest: object, manifestString: string, segments: object[], freshSegmentUrls: string[]}) => void} updateHlsMediaPlaylist
  */
 
 // --- Main Analysis Store Definition ---
@@ -247,6 +248,40 @@ export const useAnalysisStore = createStore((set, get) => ({
             return { streams: newStreams };
         });
     },
+
+    updateHlsMediaPlaylist: ({ streamId, variantUri, manifest, manifestString, segments, freshSegmentUrls }) => {
+        set(state => {
+            const stream = state.streams.find(s => s.id === streamId);
+            if (!stream) return {};
+
+            const newVariantState = new Map(stream.hlsVariantState);
+            const currentState = newVariantState.get(variantUri);
+            if (currentState) {
+                newVariantState.set(variantUri, {
+                    ...currentState,
+                    segments: segments,
+                    freshSegmentUrls: new Set(freshSegmentUrls),
+                    isLoading: false,
+                    error: null,
+                });
+            }
+
+            const newMediaPlaylists = new Map(stream.mediaPlaylists);
+            newMediaPlaylists.set(variantUri, {
+                manifest,
+                rawManifest: manifestString,
+                lastFetched: new Date(),
+            });
+
+            return {
+                streams: state.streams.map(s => 
+                    s.id === streamId 
+                        ? { ...s, hlsVariantState: newVariantState, mediaPlaylists: newMediaPlaylists } 
+                        : s
+                ),
+            };
+        });
+    },
 }));
 
 // --- Exporting Store and Actions ---
@@ -284,4 +319,5 @@ export const analysisActions = {
             .setAllLiveStreamsPolling(isPolling, options),
     navigateManifestUpdate: (id, dir) =>
         useAnalysisStore.getState().navigateManifestUpdate(id, dir),
+    updateHlsMediaPlaylist: (payload) => useAnalysisStore.getState().updateHlsMediaPlaylist(payload),
 };

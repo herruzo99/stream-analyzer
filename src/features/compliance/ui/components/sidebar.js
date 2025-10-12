@@ -1,5 +1,5 @@
 import { html } from 'lit-html';
-import { useUiStore } from '@/state/uiStore';
+import { useUiStore, uiActions } from '@/state/uiStore';
 import { eventBus } from '@/application/event-bus';
 
 // The logic for highlighting is now moved to the main renderer/controller
@@ -12,6 +12,8 @@ export function handleCommentClick(e) {
     const target = document.getElementById(locationId);
     if (target) {
         target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Close the sidebar to reveal the focused content, especially on mobile.
+        uiActions.setActiveSidebar(null);
     }
 }
 

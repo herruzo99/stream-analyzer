@@ -11,42 +11,38 @@ import { getDrmSystemName } from '../utils/drm.js';
 import { inferMediaInfoFromExtension } from '../utils/media-types.js';
 
 /**
- * Determines the segment format for an HLS manifest.
+ * Determines the segment format for an HLS manifest using reliable heuristics.
  * @param {object} hlsParsed - The parsed HLS manifest data from the parser.
  * @returns {'isobmff' | 'ts'}
  */
 function determineSegmentFormat(hlsParsed) {
-    // If EXT-X-MAP is present, it's definitively fMP4 (ISOBMFF).
+    // 1. Definitive check: If EXT-X-MAP is present, it's fMP4 (ISOBMFF).
     if (hlsParsed.map) {
         return 'isobmff';
     }
 
-    // For Master playlists, inspect the CODECS attribute of variants.
-    if (
-        hlsParsed.isMaster &&
-        hlsParsed.variants &&
-        hlsParsed.variants.length > 0
-    ) {
-        const hasIsobmffCodecs = hlsParsed.variants.some((variant) => {
-            const codecs = variant.attributes?.CODECS;
-            if (typeof codecs === 'string') {
-                return (
-                    codecs.includes('avc1') ||
-                    codecs.includes('hvc1') ||
-                    codecs.includes('hev1') ||
-                    codecs.includes('mp4a')
-                );
-            }
-            return false;
-        });
-        if (hasIsobmffCodecs) {
+    // 2. Heuristic for Media Playlists: Check the extension of the first segment.
+    const firstSegmentUri = hlsParsed.segments?.[0]?.uri;
+    if (firstSegmentUri) {
+        const lowerUri = firstSegmentUri.toLowerCase();
+        if (lowerUri.endsWith('.ts')) {
+            return 'ts';
+        }
+        if (
+            lowerUri.endsWith('.m4s') ||
+            lowerUri.endsWith('.mp4') ||
+            lowerUri.includes('cmf')
+        ) {
             return 'isobmff';
         }
     }
-
-    // Default to 'ts' if no other indicators are found.
+    
+    // 3. Fallback: If it's a master playlist with no clear indicators, or a media
+    //    playlist with ambiguous segment names, default to 'ts' as it was the
+    //    original and is still the most common HLS container format.
     return 'ts';
 }
+
 
 /**
  * Returns the correct MIME type based on content and segment format.

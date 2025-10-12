@@ -1,4 +1,6 @@
-const urlParams = new URLSearchParams(window.location.search);
+const urlParams = typeof window !== 'undefined' && window.location 
+    ? new URLSearchParams(window.location.search) 
+    : new URLSearchParams('');
 
 /**
  * A flag indicating if the application is in debug mode.

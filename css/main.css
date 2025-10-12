@@ -2,60 +2,85 @@
 @tailwind components;
 @tailwind utilities;
 
+/* --- Keyframe Animations (Cannot be replaced by Tailwind) --- */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes fadeOut {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+
+@keyframes scaleIn {
+    from { transform: scale(0.95); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+@keyframes scaleOut {
+    from { transform: scale(1); opacity: 1; }
+    to { transform: scale(0.95); opacity: 0; }
+}
+
+@keyframes slideInRight {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+/* --- Animation Utilities (Complex selectors or effects) --- */
+
+#input-section:not(.hidden), #app-root:not(.hidden) > div {
+    animation: fadeIn 0.3s ease-out forwards;
+}
+
+.modal-enter { display: flex; animation: fadeIn 0.2s ease-out forwards; }
+.modal-enter > div { animation: scaleIn 0.2s ease-out forwards; }
+.modal-leave { animation: fadeOut 0.2s ease-in forwards; pointer-events: none; }
+.modal-leave > div { animation: scaleOut 0.2s ease-in forwards; }
+.dropdown-panel { transform-origin: top right; animation: scaleIn 0.15s ease-out forwards; }
+details.details-animated[open] > *:not(summary) { animation: fadeIn 0.3s ease-out; }
+
+/* --- Loader Styles (Uses custom animation properties) --- */
 .loader-animation span {
     @apply w-2 h-3 mx-0.5 bg-blue-400 origin-bottom;
     animation: streaming-bars 1.2s ease-in-out infinite;
 }
-
-.loader-animation span:nth-child(1) {
-    animation-delay: 0s;
-}
-.loader-animation span:nth-child(2) {
-    animation-delay: 0.1s;
-}
-.loader-animation span:nth-child(3) {
-    animation-delay: 0.2s;
-}
-.loader-animation span:nth-child(4) {
-    animation-delay: 0.3s;
-}
-.loader-animation span:nth-child(5) {
-    animation-delay: 0.4s;
-}
+.loader-animation span:nth-child(1) { animation-delay: 0s; }
+.loader-animation span:nth-child(2) { animation-delay: 0.1s; }
+.loader-animation span:nth-child(3) { animation-delay: 0.2s; }
+.loader-animation span:nth-child(4) { animation-delay: 0.3s; }
+.loader-animation span:nth-child(5) { animation-delay: 0.4s; }
 
 @keyframes streaming-bars {
-    0%,
-    100% {
-        transform: scaleY(0.2);
-    }
-    50% {
-        transform: scaleY(1);
-    }
+    0%, 100% { transform: scaleY(0.2); }
+    50% { transform: scaleY(1); }
 }
 
-.is-highlighted {
-    /* Blue overlay for selection, preserves underlying field colors */
-    box-shadow: inset 0 0 0 1000px rgba(59, 130, 246, 0.3);
-}
+/* --- Custom Effects (Pseudo-elements and complex shadows) --- */
+.is-highlighted { box-shadow: inset 0 0 0 1000px rgba(59, 130, 246, 0.3); }
 
 .is-box-hover-highlighted::before,
 .is-field-hover-highlighted::before {
     content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    pointer-events: none;
-    border-radius: 2px;
+    @apply absolute inset-0 pointer-events-none rounded-sm;
+}
+.is-box-hover-highlighted::before { background-color: rgba(59, 131, 246, 0.15); z-index: 10; }
+.is-field-hover-highlighted::before { background-color: rgba(168, 85, 247, 0.4); z-index: 15; }
+
+/* --- Sidebar State Management --- */
+body.primary-sidebar-open #sidebar-overlay,
+body.contextual-sidebar-open #sidebar-overlay {
+    @apply block;
+    animation: fadeIn 0.3s ease;
 }
 
-.is-box-hover-highlighted::before {
-    background-color: rgba(59, 131, 246, 0.15);
-    z-index: 10;
+/* Primary (Left) Sidebar - Mobile */
+body.primary-sidebar-open #sidebar-container {
+    @apply translate-x-0;
 }
 
-.is-field-hover-highlighted::before {
-    background-color: rgba(168, 85, 247, 0.4);
-    z-index: 15;
+/* Contextual (Right) Sidebar - All sizes */
+body.contextual-sidebar-open #contextual-sidebar {
+    @apply translate-x-0;
 }

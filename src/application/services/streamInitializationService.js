@@ -29,30 +29,49 @@ class StreamInitializationService {
     /**
      * @param {{ streams: import('@/types').Stream[] }} payload
      */
-    handleAnalysisComplete({ streams }) {
-        streams.forEach((stream) => {
+    async handleAnalysisComplete({ streams }) {
+        const enrichmentPromises = streams.map(stream => {
             if (stream.protocol === 'dash') {
-                this.fetchAllDashInitSegments(stream);
+                return this.fetchAllDashInitSegments(stream);
             } else if (stream.protocol === 'hls' && stream.manifest?.isMaster) {
-                this.fetchAllHlsMediaPlaylists(stream);
+                return this.fetchAllHlsMediaPlaylists(stream);
             }
+            return Promise.resolve();
         });
+
+        await Promise.all(enrichmentPromises);
     }
 
     /**
      * @param {import('@/types').Stream} stream
      */
-    fetchAllHlsMediaPlaylists(stream) {
+    async fetchAllHlsMediaPlaylists(stream) {
         if (!stream.manifest?.variants) return;
 
-        // Trigger fetches for all media playlists in parallel. The existing
-        // streamService will handle dispatching these to the worker.
-        stream.manifest.variants.forEach((variant) => {
-            eventBus.dispatch('hls:media-playlist-fetch-request', {
+        const playlistPromises = stream.manifest.variants.map(variant => 
+            workerService.postTask('fetch-hls-media-playlist', {
                 streamId: stream.id,
                 variantUri: variant.resolvedUri,
-                isBackground: true, // This is a background enrichment task
-            });
+                hlsDefinedVariables: stream.hlsDefinedVariables,
+            })
+        );
+        
+        const results = await Promise.allSettled(playlistPromises);
+
+        results.forEach(result => {
+            if (result.status === 'fulfilled') {
+                const data = result.value;
+                analysisActions.updateHlsMediaPlaylist({
+                    streamId: data.streamId,
+                    variantUri: data.variantUri,
+                    manifest: data.manifest,
+                    manifestString: data.manifestString,
+                    segments: data.segments,
+                    freshSegmentUrls: data.freshSegmentUrls,
+                });
+            } else {
+                console.error('[StreamInitializationService] Failed to fetch HLS media playlist:', result.reason);
+            }
         });
     }
 

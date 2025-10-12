@@ -1,15 +1,9 @@
-import { setupGlobalTooltipListener } from '@/ui/components/tooltip';
-import { initializeTabs } from '@/ui/shell/tabs';
-import { initializeModalComponent } from '@/ui/components/modal';
 import { initializeLiveStreamMonitor } from '@/application/services/primaryStreamMonitorService';
-import { UiController } from '@/ui/shell/ui-controller';
 import { initializeViewManager } from '@/ui/shell/view-manager';
-import { initializeToastManager } from '@/ui/components/toast';
 import { initializeLiveUpdateProcessor } from '@/application/services/liveUpdateProcessor';
 import { initializeHlsVariantPoller } from '@/application/services/hlsVariantPollerService';
 import { initializeCmafService } from '@/application/services/cmafService';
-import { initializeRenderer, renderApp } from '@/ui/shell/mainRenderer';
-import { initializeLoader } from '@/ui/components/loader';
+import { initializeRenderer } from '@/ui/shell/mainRenderer';
 import { initializeConsentManager } from './consent-manager.js';
 import { initializeSegmentService } from '@/application/services/segmentService';
 import { container } from './container.js';
@@ -22,6 +16,11 @@ import { initializeStreamInputController } from './controllers/streamInputContro
 import { initializeSavePresetUseCase } from './useCases/savePresetUseCase.js';
 import { workerService } from '@/infrastructure/worker/workerService';
 import { streamInitializationService } from './services/streamInitializationService.js';
+import { initializeToastManager } from '@/ui/components/toast';
+import { initializeLoader } from '@/ui/components/loader';
+import { initializeModalComponent } from '@/ui/components/modal';
+import { setupGlobalTooltipListener } from '@/ui/components/tooltip';
+import { initializeDropdownService } from '@/ui/services/dropdownService';
 
 // Side-effect driven imports for services that primarily listen to the event bus
 import '@/application/services/streamService';
@@ -32,86 +31,64 @@ import { initializeResolveAdAvailUseCase } from './useCases/resolveAdAvailUseCas
  * This function orchestrates the setup and startup of all application components.
  */
 export async function startApp() {
-    // --- Collect minimal DOM roots ---
     const rootElement = document.body;
-    const resultsContainer = rootElement.querySelector('#results');
-    const mainHeader = rootElement.querySelector('#main-header');
-
+    
     const dom = {
-        tabs: resultsContainer.querySelector('#tabs'),
-        contextSwitcherWrapper: rootElement.querySelector(
-            '#context-switcher-wrapper'
-        ),
+        root: rootElement,
+        inputSection: rootElement.querySelector('#input-section'),
+        appRoot: rootElement.querySelector('#app-root'),
         toastContainer: rootElement.querySelector('#toast-container'),
         globalLoader: rootElement.querySelector('#global-loader'),
         loaderMessage: rootElement.querySelector('#loader-message'),
-        globalTooltip: rootElement.querySelector('#global-tooltip'),
-        segmentModal: rootElement.querySelector(
-            '[data-testid="segment-modal"]'
-        ),
+        segmentModal: rootElement.querySelector('#segment-modal'),
         modalTitle: rootElement.querySelector('#modal-title'),
-        modalSegmentUrl: rootElement.querySelector(
-            '[data-testid="modal-segment-url"]'
-        ),
+        modalSegmentUrl: rootElement.querySelector('#modal-segment-url'),
         modalContentArea: rootElement.querySelector('#modal-content-area'),
-        closeModalBtn: rootElement.querySelector(
-            '[data-testid="close-modal-btn"]'
-        ),
-        mainHeader: mainHeader,
-        headerTitleGroup: mainHeader.querySelector('#header-title-group'),
-        headerUrlDisplay: mainHeader.querySelector('#header-url-display'),
-        inputSection: rootElement.querySelector(
-            '[data-testid="input-section"]'
-        ),
-        results: resultsContainer,
-        streamInputs: rootElement.querySelector('#stream-inputs'),
-        tabContents: {
-            comparison: resultsContainer.querySelector('#tab-comparison'),
-            summary: resultsContainer.querySelector('#tab-summary'),
-            'integrators-report': resultsContainer.querySelector(
-                '#tab-integrators-report'
-            ),
-            'timeline-visuals': resultsContainer.querySelector(
-                '#tab-timeline-visuals'
-            ),
-            features: resultsContainer.querySelector('#tab-features'),
-            compliance: resultsContainer.querySelector('#tab-compliance'),
-            explorer: resultsContainer.querySelector('#tab-explorer'),
-            'interactive-segment': resultsContainer.querySelector(
-                '#tab-interactive-segment'
-            ),
-            'interactive-manifest': resultsContainer.querySelector(
-                '#tab-interactive-manifest'
-            ),
-            updates: resultsContainer.querySelector('#tab-updates'),
-            'parser-coverage': resultsContainer.querySelector(
-                '#tab-parser-coverage'
-            ),
-        },
+        closeModalBtn: rootElement.querySelector('#close-modal-btn'),
+        globalTooltip: rootElement.querySelector('#global-tooltip'),
+        dropdownContainer: rootElement.querySelector('#dropdown-container'),
     };
+
+    // --- Enhanced Diagnostic Logging ---
+    console.log('[Boot] Verifying DOM context initialization...');
+    const domVerification = Object.entries(dom).reduce((acc, [key, value]) => {
+        if (!value) {
+            console.error(`[Boot] DOM element query failed for key: '${key}'. The selector may be incorrect or the element may not exist at boot time.`);
+            acc[key] = '🔴 MISSING';
+        } else {
+            acc[key] = '🟢 Found';
+        }
+        return acc;
+    }, {});
+    console.table(domVerification);
+    // --- End Diagnostic Logging ---
 
     // --- INITIALIZATION SEQUENCE ---
     const { app } = container;
 
-    new UiController(rootElement);
-
-    // Services & Controllers
+    // --- Layer 1: Core Worker & Consent ---
     workerService.initialize();
     initializeConsentManager();
-    initializeRenderer(dom);
+    initializeRenderer(dom); 
+
+    // --- Layer 2: Low-Level UI Components & Global Services ---
     initializeToastManager(dom);
     initializeLoader(dom);
     initializeViewManager();
-    initializeLiveUpdateProcessor();
-    initializeTabs(dom);
     initializeModalComponent(dom);
     setupGlobalTooltipListener(dom);
+    initializeDropdownService(dom);
+
+    // --- Layer 3: Core Application Services ---
+    initializeLiveUpdateProcessor();
     initializeLiveStreamMonitor();
     initializeHlsVariantPoller();
     initializeCmafService();
     initializeSegmentService();
+    streamInitializationService.initialize();
+    
+    // --- Layer 4: UI Orchestration, Controllers & Use Cases ---
     initializeUiOrchestration();
-    streamInitializationService.initialize(); // Initialize the new service
     initializeComplianceController();
     initializeFeatureAnalysisController();
     initializeInteractiveManifestController();
@@ -120,10 +97,6 @@ export async function startApp() {
     initializeSavePresetUseCase();
     initializeResolveAdAvailUseCase();
 
+    // --- Layer 5: Start Application Core ---
     app.start();
-
-    // --- INITIAL RENDER ---
-    // The global render loop is removed. We trigger a single initial render.
-    // Subsequent renders are handled by the renderer's own subscriptions.
-    renderApp();
 }
