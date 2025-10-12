@@ -1,4 +1,4 @@
-import { uiActions } from '@/state/uiStore';
+import { uiActions, useUiStore } from '@/state/uiStore';
 
 /**
  * Opens the global modal with specific content.
@@ -17,13 +17,25 @@ export function openModalWithContent({ title, url, content }) {
 }
 
 /**
- * Closes the global modal and resets its state.
+ * Closes the global modal with an animation.
  */
 export function closeModal() {
-    uiActions.setModalState({
-        isModalOpen: false,
-        modalTitle: '',
-        modalUrl: '',
-        modalContent: null,
-    });
+    const { modalState } = useUiStore.getState();
+    if (!modalState.isModalOpen) return;
+
+    const modalEl = document.getElementById('segment-modal');
+    if (modalEl) {
+        modalEl.classList.remove('modal-enter');
+        modalEl.classList.add('modal-leave');
+    }
+
+    // Update the store after the animation completes
+    setTimeout(() => {
+        uiActions.setModalState({
+            isModalOpen: false,
+            modalTitle: '',
+            modalUrl: '',
+            modalContent: null,
+        });
+    }, 200); // Must match animation duration in CSS
 }

@@ -149,8 +149,10 @@ const getActions = (cacheEntry, seg, isFresh, segmentFormat) => {
     }
 
     const analyzeHandler = (e) => {
-        const url = /** @type {HTMLElement} */ (e.currentTarget).dataset.url;
-        eventBus.dispatch('ui:request-segment-analysis', { url });
+        const button = /** @type {HTMLElement} */ (e.currentTarget);
+        const url = button.dataset.url;
+        const format = button.dataset.format;
+        eventBus.dispatch('ui:request-segment-analysis', { url, format });
     };
     const viewRawHandler = (e) => {
         const url = /** @type {HTMLElement} */ (e.currentTarget).dataset.url;
@@ -207,6 +209,7 @@ const getActions = (cacheEntry, seg, isFresh, segmentFormat) => {
         <button
             class="text-xs bg-purple-600 hover:bg-purple-700 px-2 py-1 rounded"
             data-url="${seg.resolvedUrl}"
+            data-format="${segmentFormat}"
             @click=${analyzeHandler}
         >
             Analyze
@@ -214,13 +217,8 @@ const getActions = (cacheEntry, seg, isFresh, segmentFormat) => {
     `;
 };
 
-/**
- * Renders a single row in a segment explorer table.
- * @param {object} seg - The segment data object.
- * @param {boolean | null} isFresh - Whether the segment is in the latest playlist (HLS only).
- * @param {'isobmff' | 'ts' | 'unknown'} segmentFormat
- * @returns {import('lit-html').TemplateResult}
- */
+const cellLabel = (label) => html`<div class="md:hidden font-semibold text-gray-400 text-xs">${label}</div>`;
+
 export const segmentRowTemplate = (seg, isFresh, segmentFormat) => {
     const { segmentsForCompare } = useAnalysisStore.getState();
     const { get: getFromCache } = useSegmentCacheStore.getState();
@@ -230,23 +228,13 @@ export const segmentRowTemplate = (seg, isFresh, segmentFormat) => {
 
     const rowClasses = {
         'segment-row': true,
-        'hover:bg-gray-700/50': true,
-        'transition-colors': true,
-        'duration-200': true,
+        'grid grid-cols-2 md:grid-cols-[32px_minmax(160px,1fr)_128px_96px_minmax(200px,2fr)] items-center gap-x-4 gap-y-2 p-2 md:p-0 border-b border-gray-700': true,
+        'hover:bg-gray-700/50 transition-colors duration-200': true,
         'bg-gray-800/50 text-gray-600 italic': seg.gap,
         'is-fresh': isFresh,
     };
 
-    const timingContent =
-        seg.type === 'Media' && !seg.gap
-            ? html`${(seg.time / seg.timescale).toFixed(2)}s
-              (+${(seg.duration / seg.timescale).toFixed(2)}s)`
-            : 'N/A';
-
-    const startTimeAttr = seg.startTimeUTC
-        ? `data-start-time=${seg.startTimeUTC}`
-        : '';
-    const endTimeAttr = seg.endTimeUTC ? `data-end-time=${seg.endTimeUTC}` : '';
+    const timingContent = seg.type === 'Media' && !seg.gap ? html`${(seg.time / seg.timescale).toFixed(2)}s (+${(seg.duration / seg.timescale).toFixed(2)}s)` : 'N/A';
 
     const handleCopyUrl = (e) => {
         const url = /** @type {HTMLElement} */ (e.currentTarget).dataset.url;
@@ -255,91 +243,38 @@ export const segmentRowTemplate = (seg, isFresh, segmentFormat) => {
 
     return html`
         <style>
-            @keyframes fadeIn {
-                from {
-                    background-color: rgba(22, 163, 74, 0.4);
-                }
-                to {
-                    background-color: transparent;
-                }
-            }
-            .is-fresh {
-                animation: fadeIn 1.5s ease-out;
-            }
+            @keyframes fadeIn { from { background-color: rgba(22, 163, 74, 0.4); } to { background-color: transparent; } }
+            .is-fresh { animation: fadeIn 1.5s ease-out; }
         </style>
-        <div
-            class=${classMap(rowClasses)}
-            style="display: grid; grid-template-columns: 32px 160px 128px 96px 1fr; border-bottom: 1px solid #374151; height: 40px; font-size: 0.875rem; line-height: 1.25rem;"
-            data-url="${seg.resolvedUrl}"
-            ${startTimeAttr}
-            ${endTimeAttr}
-        >
-            <div class="px-3 py-1.5 flex items-center">
-                <input
-                    type="checkbox"
-                    class="bg-gray-700 border-gray-500 rounded focus:ring-blue-500 disabled:opacity-50"
-                    .value=${seg.resolvedUrl}
-                    ?checked=${isChecked}
-                    ?disabled=${seg.gap}
-                    @change=${handleSegmentCheck}
-                />
+        <div class=${classMap(rowClasses)} data-url="${seg.resolvedUrl}" data-start-time=${seg.startTimeUTC || ''} data-end-time=${seg.endTimeUTC || ''}>
+            <div class="col-span-2 md:col-span-1 md:px-3 md:py-1.5 flex items-center md:border-r md:border-gray-700">
+                <input type="checkbox" class="bg-gray-700 border-gray-500 rounded focus:ring-blue-500 disabled:opacity-50" .value=${seg.resolvedUrl} ?checked=${isChecked} ?disabled=${seg.gap} @change=${handleSegmentCheck}/>
             </div>
-            <div class="px-3 py-1.5 flex items-center">
-                <div class="flex items-center space-x-2">
-                    ${seg.gap ? '' : getLoadStatusIcon(cacheEntry)}
-                    ${getFreshnessIcon(isFresh)}
-                    <div>
-                        <span>${seg.type === 'Init' ? 'Init' : 'Media'}</span
-                        ><span class="block text-xs text-gray-500"
-                            >#${seg.number}</span
-                        >
-                    </div>
+
+            ${cellLabel('Status / Type')}
+            <div class="flex items-center space-x-2 md:px-3 md:py-1.5 md:border-r md:border-gray-700">
+                ${seg.gap ? '' : getLoadStatusIcon(cacheEntry)}
+                ${getFreshnessIcon(isFresh)}
+                <div>
+                    <span>${seg.type === 'Init' ? 'Init' : 'Media'}</span>
+                    <span class="block text-xs text-gray-500">#${seg.number}</span>
                 </div>
             </div>
-            <div class="px-3 py-1.5 flex items-center">
-                <span class="text-xs font-mono">${timingContent}</span>
-            </div>
-            <div class="px-3 py-1.5 flex items-center">
-                ${flagsTemplate(seg, cacheEntry)}
-            </div>
-            <div class="px-3 py-1.5 flex items-center">
-                <div class="flex justify-between items-center w-full">
-                    <div class="flex items-center min-w-0">
-                        <span
-                            class="font-mono ${seg.gap
-                                ? ''
-                                : 'text-cyan-400'} truncate"
-                            title="${seg.resolvedUrl}"
-                        >
-                            ${seg.template || 'GAP'}
-                        </span>
-                        ${!seg.gap
-                            ? html`<button
-                                  @click=${handleCopyUrl}
-                                  data-url="${seg.resolvedUrl}"
-                                  title="Copy segment URL"
-                                  class="ml-2 flex-shrink-0 text-gray-400 hover:text-white"
-                              >
-                                  <svg
-                                      xmlns="http://www.w3.org/2000/svg"
-                                      class="h-4 w-4"
-                                      fill="none"
-                                      viewBox="0 0 24 24"
-                                      stroke="currentColor"
-                                      stroke-width="2"
-                                  >
-                                      <path
-                                          stroke-linecap="round"
-                                          stroke-linejoin="round"
-                                          d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                                      />
-                                  </svg>
-                              </button>`
-                            : ''}
-                    </div>
-                    <div class="flex items-center space-x-2 flex-shrink-0 ml-4">
-                        ${getActions(cacheEntry, seg, isFresh, segmentFormat)}
-                    </div>
+
+            ${cellLabel('Timing (s)')}
+            <div class="text-xs font-mono md:px-3 md:py-1.5 md:border-r md:border-gray-700">${timingContent}</div>
+
+            ${cellLabel('Flags')}
+            <div class="md:px-3 md:py-1.5 md:border-r md:border-gray-700">${flagsTemplate(seg, cacheEntry)}</div>
+            
+            ${cellLabel('URL & Actions')}
+            <div class="col-span-2 md:col-span-1 md:px-3 md:py-1.5 flex justify-between items-center w-full">
+                <div class="flex items-center min-w-0">
+                    <span class="font-mono ${seg.gap ? '' : 'text-cyan-400'} truncate" title="${seg.resolvedUrl}">${seg.template || 'GAP'}</span>
+                    ${!seg.gap ? html`<button @click=${handleCopyUrl} data-url="${seg.resolvedUrl}" title="Copy segment URL" class="ml-2 flex-shrink-0 text-gray-400 hover:text-white"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg></button>` : ''}
+                </div>
+                <div class="flex items-center space-x-2 flex-shrink-0 ml-4">
+                    ${getActions(cacheEntry, seg, isFresh, segmentFormat)}
                 </div>
             </div>
         </div>

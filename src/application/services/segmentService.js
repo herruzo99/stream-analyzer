@@ -67,7 +67,7 @@ async function _fetchAndParseSegment(url, formatHint) {
     }
 }
 
-export function getParsedSegment(url) {
+export function getParsedSegment(url, formatHint = null) {
     const { get } = useSegmentCacheStore.getState();
     const cachedEntry = get(url);
 
@@ -97,9 +97,7 @@ export function getParsedSegment(url) {
         );
 
         if (!cachedEntry || cachedEntry.status !== -1) {
-            // This case should not happen for user-initiated loads which now pass a format hint,
-            // but it's kept for internal callers that might not have context.
-            _fetchAndParseSegment(url, null);
+            _fetchAndParseSegment(url, formatHint);
         }
     });
 }

@@ -3,20 +3,60 @@ import { html, render } from 'lit-html';
 class VirtualizedList extends HTMLElement {
     constructor() {
         super();
-        this.items = [];
-        /** @type {(item: any) => import('lit-html').TemplateResult} */
-        this.rowTemplate = (item) => html``;
-        this.rowHeight = 40; // Default row height in pixels
+        this._items = [];
+        this._rowTemplate = (item) => html``;
+        this._rowHeight = 40;
+        
         this.visibleStartIndex = 0;
         this.visibleEndIndex = 0;
         this.paddingTop = 0;
         this.paddingBottom = 0;
-        this.isScrolledToBottom = true; // Start assuming we're at the bottom
+        this.isScrolledToBottom = true;
         this._onScroll = this._onScroll.bind(this);
     }
 
+    // --- Property Setters for Reactivity ---
+    set items(newItems) {
+        if (this._items === newItems) return;
+        const hadItems = this._items.length > 0;
+        const newCount = newItems.length;
+        const oldCount = this._items.length;
+        
+        this._items = newItems;
+        this._updateVisibleItems();
+
+        if (hadItems && newCount > oldCount && this.isScrolledToBottom) {
+            setTimeout(() => {
+                this.scrollTop = this.scrollHeight;
+            }, 0);
+        }
+    }
+
+    get items() {
+        return this._items;
+    }
+
+    set rowTemplate(newTemplate) {
+        if (this._rowTemplate === newTemplate) return;
+        this._rowTemplate = newTemplate;
+        this._updateVisibleItems();
+    }
+
+    get rowTemplate() {
+        return this._rowTemplate;
+    }
+    
+    set rowHeight(newHeight) {
+        if (this._rowHeight === newHeight) return;
+        this._rowHeight = newHeight;
+        this._updateVisibleItems();
+    }
+
+    get rowHeight() {
+        return this._rowHeight;
+    }
+
     connectedCallback() {
-        // Render directly into the Light DOM, not a Shadow DOM.
         this.classList.add('block', 'overflow-y-auto', 'relative');
 
         this.container = document.createElement('div');
@@ -29,6 +69,8 @@ class VirtualizedList extends HTMLElement {
             this._updateVisibleItems()
         );
         this.resizeObserver.observe(this);
+        
+        this._updateVisibleItems();
     }
 
     disconnectedCallback() {
@@ -44,61 +86,40 @@ class VirtualizedList extends HTMLElement {
     }
 
     _updateVisibleItems() {
-        const totalHeight = this.items.length * this.rowHeight;
-        this.visibleStartIndex = Math.floor(this.scrollTop / this.rowHeight);
+        if (!this._items || !this._rowHeight) return;
+
+        const totalHeight = this._items.length * this._rowHeight;
+        this.visibleStartIndex = Math.floor(this.scrollTop / this._rowHeight);
         this.visibleEndIndex = Math.min(
-            this.items.length - 1,
-            Math.ceil((this.scrollTop + this.clientHeight) / this.rowHeight)
+            this._items.length - 1,
+            Math.ceil((this.scrollTop + this.clientHeight) / this._rowHeight)
         );
 
-        this.paddingTop = this.visibleStartIndex * this.rowHeight;
+        this.paddingTop = this.visibleStartIndex * this._rowHeight;
         this.paddingBottom =
-            totalHeight - (this.visibleEndIndex + 1) * this.rowHeight;
+            totalHeight - (this.visibleEndIndex + 1) * this._rowHeight;
 
         this._render();
     }
 
     _render() {
-        const visibleItems = this.items.slice(
+        if (!this.container) return;
+
+        const visibleItems = this._items.slice(
             this.visibleStartIndex,
             this.visibleEndIndex + 1
         );
 
-        // Apply padding directly to the container
         this.container.style.paddingTop = `${this.paddingTop}px`;
         this.container.style.paddingBottom = `${this.paddingBottom}px`;
 
         const template = html`
-            ${visibleItems.map((item) => this.rowTemplate(item))}
+            ${visibleItems.map((item) => this._rowTemplate(item))}
         `;
         render(template, this.container);
     }
-
-    /**
-     * @param {any[]} newItems
-     * @param {(item: any) => import('lit-html').TemplateResult} newRowTemplate
-     * @param {number} newRowHeight
-     */
-    updateData(newItems, newRowTemplate, newRowHeight) {
-        const hadItems = this.items.length > 0;
-        const newCount = newItems.length;
-        const oldCount = this.items.length;
-
-        this.items = newItems;
-        this.rowTemplate = newRowTemplate;
-        this.rowHeight = newRowHeight;
-
-        this._updateVisibleItems();
-
-        if (hadItems && newCount > oldCount && this.isScrolledToBottom) {
-            setTimeout(() => {
-                this.scrollTop = this.scrollHeight;
-            }, 0);
-        }
-    }
 }
 
-// Avoid re-defining the custom element if it already exists
 if (!customElements.get('virtualized-list')) {
     customElements.define('virtualized-list', VirtualizedList);
 }

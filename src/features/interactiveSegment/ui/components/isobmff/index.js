@@ -1,6 +1,7 @@
 import { html } from 'lit-html';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { useSegmentCacheStore } from '@/state/segmentCacheStore';
+import { useUiStore, uiActions } from '@/state/uiStore';
 import { getTooltipData as getAllIsoTooltipData } from '@/infrastructure/parsing/isobmff/index';
 import { hexViewTemplate } from '@/ui/components/hex-view';
 import { getInspectorState } from '../interaction-logic.js';
@@ -301,15 +302,10 @@ export const inspectorPanelTemplate = (rootData) => {
     `;
 };
 
-export function getInteractiveIsobmffTemplate(
-    currentPage,
-    bytesPerPage,
-    onPageChange,
-    allTooltips,
-    pagedByteMap
-) {
+export function getInteractiveIsobmffTemplate(renderHexView = false) {
     const { activeSegmentUrl } = useAnalysisStore.getState();
     const { get: getFromCache } = useSegmentCacheStore.getState();
+    const { interactiveSegmentCurrentPage, pagedByteMap } = useUiStore.getState();
     const cachedSegment = getFromCache(activeSegmentUrl);
     const parsedSegmentData =
         cachedSegment?.parsedData &&
@@ -323,32 +319,36 @@ export function getInteractiveIsobmffTemplate(
         </div>`;
     }
 
+    if (renderHexView) {
+        const onPageChange = (offset) => {
+            const totalPages = Math.ceil(
+                cachedSegment.data.byteLength / 1024
+            );
+            const newPage = interactiveSegmentCurrentPage + offset;
+            if (newPage >= 1 && newPage <= totalPages) {
+                uiActions.setInteractiveSegmentPage(newPage);
+            }
+        };
+        return hexViewTemplate(
+            cachedSegment.data,
+            pagedByteMap,
+            interactiveSegmentCurrentPage,
+            1024,
+            onPageChange,
+            allIsoTooltipData
+        );
+    }
+    
     const groupedBoxes = parsedSegmentData.data.boxes || [];
 
     return html`
-        <div
-            class="grid grid-cols-1 lg:grid-cols-[minmax(300px,25%)_1fr] gap-4"
-        >
-            <div class="sticky top-4">
-                <div class="flex flex-col gap-4">
-                    <div
-                        class="segment-inspector-panel rounded-md bg-gray-900/90 border border-gray-700 transition-opacity duration-200 h-96 lg:h-[24rem] flex flex-col overflow-y-auto"
-                    ></div>
-                    ${summaryTemplate(parsedSegmentData.data)}
-                    ${issuesTemplate(parsedSegmentData.data.issues)}
-                    ${treeViewTemplate(groupedBoxes)}
-                </div>
-            </div>
-            <div>
-                ${hexViewTemplate(
-                    cachedSegment.data,
-                    pagedByteMap,
-                    currentPage,
-                    bytesPerPage,
-                    onPageChange,
-                    allTooltips
-                )}
-            </div>
+        <div class="flex flex-col gap-4">
+            <div
+                class="segment-inspector-panel rounded-md bg-gray-900/90 border border-gray-700 transition-opacity duration-200 h-96 lg:h-[24rem] flex flex-col overflow-y-auto"
+            ></div>
+            ${summaryTemplate(parsedSegmentData.data)}
+            ${issuesTemplate(parsedSegmentData.data.issues)}
+            ${treeViewTemplate(groupedBoxes)}
         </div>
     `;
 }

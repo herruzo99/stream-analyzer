@@ -1,5 +1,7 @@
 import { html } from 'lit-html';
 import { tooltipTriggerClasses } from '@/ui/shared/constants';
+import { isCodecSupported } from '@/infrastructure/parsing/utils/codec-support';
+import { formatBitrate } from '@/ui/shared/format';
 
 const renderSourcedValue = (sourcedData) => {
     if (
@@ -117,13 +119,6 @@ export const trackTableTemplate = (tracks, type) => {
     let headers;
     let rows;
 
-    const formatBitrate = (bps) => {
-        if (typeof bps === 'string' && bps.includes('bps')) return bps;
-        if (!bps || isNaN(bps)) return 'N/A';
-        if (bps >= 1000000) return `${(bps / 1000000).toFixed(2)} Mbps`;
-        return `${(bps / 1000).toFixed(0)} kbps`;
-    };
-
     if (type === 'video') {
         headers = [
             { text: 'ID' },
@@ -142,6 +137,37 @@ export const trackTableTemplate = (tracks, type) => {
             },
         ];
         rows = tracks.map((track) => {
+            // Defensive normalization to handle both summary objects and raw Representation IR
+            let resolutions = track.resolutions;
+            if (!resolutions && track.width && track.height) {
+                resolutions =
+                    track.width.value && track.height.value
+                        ? [
+                              {
+                                  value: `${track.width.value}x${track.height.value}`,
+                                  source: track.width.source,
+                              },
+                          ]
+                        : [];
+            } else if (!resolutions) {
+                resolutions = [];
+            }
+
+            let codecs = track.codecs;
+            if (codecs && !Array.isArray(codecs)) {
+                codecs = codecs.value
+                    ? [
+                          {
+                              value: codecs.value,
+                              source: codecs.source,
+                              supported: isCodecSupported(codecs.value),
+                          },
+                      ]
+                    : [];
+            } else if (!codecs) {
+                codecs = [];
+            }
+
             return html`
                 <tr>
                     <td class="p-2 font-mono">${track.id}</td>
@@ -149,18 +175,17 @@ export const trackTableTemplate = (tracks, type) => {
                         ${track.bitrateRange || formatBitrate(track.bandwidth)}
                     </td>
                     <td class="p-2 font-mono">
-                        ${track.resolutions.length > 0
-                            ? track.resolutions.map(
+                        ${resolutions.length > 0
+                            ? resolutions.map(
                                   (res, i) =>
-                                      html`${i > 0
-                                          ? ', '
-                                          : ''}${renderSourcedValue(res)}`
+                                      html`${i > 0 ? ', ' : ''}${renderSourcedValue(
+                                          res
+                                      )}`
                               )
                             : 'N/A'}
                     </td>
                     <td class="p-2 font-mono">
-                        ${track.codecs.map((codec) => renderCodecInfo(codec)) ||
-                        'N/A'}
+                        ${codecs.map((codec) => renderCodecInfo(codec)) || 'N/A'}
                     </td>
                     <td class="p-2 font-mono">
                         ${track.roles?.join(', ') || 'N/A'}
@@ -184,12 +209,28 @@ export const trackTableTemplate = (tracks, type) => {
             },
         ];
         rows = tracks.map((track) => {
+            // Defensive normalization
+            let codecs = track.codecs;
+            if (codecs && !Array.isArray(codecs)) {
+                codecs = codecs.value
+                    ? [
+                          {
+                              value: codecs.value,
+                              source: codecs.source,
+                              supported: isCodecSupported(codecs.value),
+                          },
+                      ]
+                    : [];
+            } else if (!codecs) {
+                codecs = [];
+            }
+
             return html`
                 <tr>
                     <td class="p-2 font-mono">${track.id}</td>
                     <td class="p-2 font-mono">${track.lang || 'N/A'}</td>
                     <td class="p-2 font-mono">
-                        ${track.codecs.map((codec) => renderCodecInfo(codec)) ||
+                        ${codecs.map((codec) => renderCodecInfo(codec)) ||
                         'N/A'}
                     </td>
                     <td class="p-2 font-mono">${track.channels || 'N/A'}</td>
@@ -212,12 +253,27 @@ export const trackTableTemplate = (tracks, type) => {
             },
         ];
         rows = tracks.map((track) => {
+            // Defensive normalization
+            let codecsOrMimeTypes = track.codecsOrMimeTypes;
+            if (codecsOrMimeTypes === undefined) {
+                const value = track.codecs?.value || track.mimeType;
+                codecsOrMimeTypes = value
+                    ? [
+                          {
+                              value: value,
+                              source: 'manifest',
+                              supported: isCodecSupported(value),
+                          },
+                      ]
+                    : [];
+            }
+
             return html`
                 <tr>
                     <td class="p-2 font-mono">${track.id}</td>
                     <td class="p-2 font-mono">${track.lang || 'N/A'}</td>
                     <td class="p-2 font-mono">
-                        ${track.codecsOrMimeTypes.map((item) =>
+                        ${codecsOrMimeTypes.map((item) =>
                             renderCodecInfo(item)
                         ) || 'N/A'}
                     </td>
