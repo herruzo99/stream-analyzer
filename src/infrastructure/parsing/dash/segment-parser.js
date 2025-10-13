@@ -261,19 +261,32 @@ export async function parseAllSegmentUrls(manifestElement, manifestUrl) {
                                 ) || segmentsA;
                         } else {
                             // VOD logic
+                            const periodDuration = parseDuration(getAttr(period, 'duration'));
+                            let numSegments = 0;
+                            const segmentDurationSeconds = segmentDuration / timescale;
+
+                            if (periodDuration && segmentDurationSeconds > 0) {
+                                numSegments = Math.ceil(periodDuration / segmentDurationSeconds);
+                            } else {
+                                const mpdDuration = parseDuration(getAttr(manifestElement, 'mediaPresentationDuration'));
+                                if (mpdDuration && segmentDurationSeconds > 0) {
+                                    numSegments = Math.ceil(mpdDuration / segmentDurationSeconds);
+                                }
+                            }
+
                             const segments = generateSegments(
                                 repId,
                                 baseUrl,
                                 mediaTemplate,
                                 startNumber,
                                 startNumber,
-                                10,
+                                numSegments,
                                 segmentDuration,
                                 timescale,
                                 periodStart,
                                 availabilityStartTime,
                                 availabilityTimeOffset
-                            ); // Simplified for VOD
+                            );
                             segmentsByRep[compositeKey].segments = segments;
                         }
                     }

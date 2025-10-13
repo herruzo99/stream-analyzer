@@ -25,16 +25,20 @@ let dom;
 let keyboardNavigationListener = null;
 
 const NAV_ITEMS = [
+    // Overviews
     { key: 'summary', label: 'Summary' },
     { key: 'comparison', label: 'Comparison' },
     { key: 'integrators-report', label: "Integrator's Report" },
+    // Analysis
     { key: 'timeline-visuals', label: 'Timeline' },
     { key: 'features', label: 'Features' },
     { key: 'compliance', label: 'Compliance' },
-    { key: 'explorer', label: 'Explorer' },
-    { key: 'interactive-segment', label: 'Segment Inspector' },
+    // Exploration
     { key: 'interactive-manifest', label: 'Manifest' },
     { key: 'updates', label: 'Updates' },
+    { key: 'explorer', label: 'Explorer' },
+    { key: 'interactive-segment', label: 'Segment Inspector' },
+    // Debug
     { key: 'parser-coverage', label: 'Coverage', debug: true },
 ];
 

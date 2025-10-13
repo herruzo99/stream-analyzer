@@ -52,38 +52,33 @@ function renderHexGridContent(view, start, end, byteMap, allTooltips) {
                     const item =
                         mapEntry.box || mapEntry.packet || mapEntry.sample;
                     const fieldName = mapEntry.fieldName;
+                    const itemType = item?.type;
 
                     if (mapEntry.isClear) {
                         isClearStyle = 'clear-byte-pattern';
                     }
 
-                    const boxType = item?.type;
-                    let primaryTooltip = fieldName;
-                    let primaryIsoRef = '';
+                    // Prioritize field-specific tooltip, fall back to box-level
+                    const fieldTooltipKey = itemType
+                        ? `${itemType}@${fieldName}`
+                        : fieldName;
+                    const fieldInfo = allTooltips[fieldTooltipKey];
+                    const boxInfo = allTooltips[itemType];
 
-                    if (boxType && allTooltips) {
-                        const boxInfo = allTooltips[boxType];
-                        const fieldInfo =
-                            allTooltips[`${boxType}@${fieldName}`];
-
-                        if (fieldInfo && fieldInfo.text) {
-                            primaryTooltip = fieldInfo.text;
-                            primaryIsoRef = fieldInfo.ref || '';
-                        } else if (
-                            boxInfo &&
-                            boxInfo.text &&
-                            (fieldName === 'Box Header' ||
-                                fieldName === 'TS Header')
-                        ) {
-                            primaryTooltip = boxInfo.text;
-                            primaryIsoRef = boxInfo.ref || '';
-                        }
+                    if (fieldInfo) {
+                        tooltipText = fieldInfo.text;
+                        isoRefText = fieldInfo.ref || '';
+                    } else if (boxInfo) {
+                        tooltipText = `${fieldName} in ${itemType}`;
+                        isoRefText = boxInfo.ref || '';
                     } else if (item?.isSample) {
-                        primaryTooltip = `Sample ${item.index}`;
+                        tooltipText = `Sample ${item.index}`;
+                    } else if (fieldName) {
+                        tooltipText = fieldName;
+                    } else {
+                        tooltipText = 'Unknown Data';
                     }
 
-                    tooltipText = primaryTooltip;
-                    isoRefText = primaryIsoRef;
 
                     if (
                         prevMapEntry &&
@@ -100,8 +95,7 @@ function renderHexGridContent(view, start, end, byteMap, allTooltips) {
                     }
                 }
 
-                const bgColor = mapEntry?.color?.bg || '';
-                const styleAttr = mapEntry?.color?.style || '';
+                const bgClass = mapEntry?.color?.bgClass || '';
                 const hexByte = byte
                     .toString(16)
                     .padStart(2, '0')
@@ -109,13 +103,13 @@ function renderHexGridContent(view, start, end, byteMap, allTooltips) {
                 const commonAttrs = `data-byte-offset="${byteOffset}" data-tooltip="${escapeHtml(
                     tooltipText
                 )}" data-iso="${escapeHtml(isoRefText)}"`;
-                hexRow += `<span ${commonAttrs} class="hex-byte relative ${bgColor} ${fieldBoundaryClass} ${isClearStyle}" style="${styleAttr}">${hexByte}</span>`;
+                hexRow += `<span ${commonAttrs} class="hex-byte relative ${bgClass} ${fieldBoundaryClass} ${isClearStyle}">${hexByte}</span>`;
 
                 const asciiChar =
                     byte >= 32 && byte <= 126
                         ? String.fromCharCode(byte).replace('<', '&lt;')
                         : '.';
-                asciiRow += `<span ${commonAttrs} class="ascii-char relative ${bgColor} ${fieldBoundaryClass} ${isClearStyle}" style="${styleAttr}">${asciiChar}</span>`;
+                asciiRow += `<span ${commonAttrs} class="ascii-char relative ${bgClass} ${fieldBoundaryClass} ${isClearStyle}">${asciiChar}</span>`;
             } else {
                 hexRow += '<span></span>';
                 asciiRow += '<span></span>';
