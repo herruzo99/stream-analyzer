@@ -21,28 +21,43 @@ function determineSegmentFormat(hlsParsed) {
         return 'isobmff';
     }
 
-    // 2. Heuristic for Media Playlists: Check the extension of the first segment.
-    const firstSegmentUri = hlsParsed.segments?.[0]?.uri;
-    if (firstSegmentUri) {
-        const lowerUri = firstSegmentUri.toLowerCase();
-        if (lowerUri.endsWith('.ts')) {
-            return 'ts';
-        }
-        if (
-            lowerUri.endsWith('.m4s') ||
-            lowerUri.endsWith('.mp4') ||
-            lowerUri.includes('cmf')
-        ) {
-            return 'isobmff';
+    // 2. Media Playlist Check: Check segment extensions directly. This is highly reliable.
+    if (hlsParsed.segments && hlsParsed.segments.length > 0) {
+        for (const segment of hlsParsed.segments) {
+            const lowerUri = (segment.uri || '').toLowerCase();
+            if (
+                lowerUri.endsWith('.m4s') ||
+                lowerUri.endsWith('.mp4') ||
+                lowerUri.includes('.cmf')
+            ) {
+                return 'isobmff';
+            }
+            if (lowerUri.endsWith('.ts')) {
+                return 'ts';
+            }
         }
     }
-    
-    // 3. Fallback: If it's a master playlist with no clear indicators, or a media
-    //    playlist with ambiguous segment names, default to 'ts' as it was the
-    //    original and is still the most common HLS container format.
+
+    // 3. Master Playlist Heuristic: Check extensions of variant stream URIs.
+    if (
+        hlsParsed.isMaster &&
+        hlsParsed.variants &&
+        hlsParsed.variants.length > 0
+    ) {
+        for (const variant of hlsParsed.variants) {
+            const lowerUri = (variant.uri || '').toLowerCase();
+            if (lowerUri.includes('.m4s') || lowerUri.includes('.mp4')) {
+                return 'isobmff';
+            }
+            if (lowerUri.includes('.ts')) {
+                return 'ts';
+            }
+        }
+    }
+
+    // 4. Final Fallback: If no other clues are found, default to 'ts' as it's the original HLS container format.
     return 'ts';
 }
-
 
 /**
  * Returns the correct MIME type based on content and segment format.
@@ -390,7 +405,7 @@ export async function adaptHlsToIr(hlsParsed, context) {
         const firstSegmentUri = (hlsParsed.segments[0]?.uri || '').toLowerCase();
         let { contentType, codec } =
             inferMediaInfoFromExtension(firstSegmentUri);
-        
+
         // If inference returns 'unknown', default to 'video' for getMimeType compatibility.
         if (contentType === 'unknown') {
             contentType = 'video';

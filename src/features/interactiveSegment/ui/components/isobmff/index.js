@@ -1,12 +1,20 @@
 import { html } from 'lit-html';
-import { useAnalysisStore } from '@/state/analysisStore';
-import { useSegmentCacheStore } from '@/state/segmentCacheStore';
-import { useUiStore, uiActions } from '@/state/uiStore';
 import { getTooltipData as getAllIsoTooltipData } from '@/infrastructure/parsing/isobmff/index';
-import { hexViewTemplate } from '@/ui/components/hex-view';
 import { getInspectorState } from '../interaction-logic.js';
 
 const allIsoTooltipData = getAllIsoTooltipData();
+
+const BOX_BG_COLORS = {
+    red: 'bg-red-900/20',
+    yellow: 'bg-yellow-900/20',
+    green: 'bg-green-900/20',
+    blue: 'bg-blue-900/20',
+    indigo: 'bg-indigo-900/20',
+    purple: 'bg-purple-900/20',
+    pink: 'bg-pink-900/20',
+    teal: 'bg-teal-900/20',
+    slate: 'bg-slate-800/20',
+};
 
 /**
  * Recursively finds the first occurrence of a box that satisfies the predicate.
@@ -66,40 +74,6 @@ const getTimescaleForBox = (box, rootData) => {
     return null;
 };
 
-const summaryTemplate = (parsedSegmentData) => {
-    if (!parsedSegmentData) return '';
-    const isInit = !!findBoxRecursive(parsedSegmentData.boxes, 'moov');
-    const isMedia = !!findBoxRecursive(parsedSegmentData.boxes, 'moof');
-    let summaryText = 'Unknown Segment Type';
-    if (isInit) summaryText = 'Initialization Segment';
-    if (isMedia) summaryText = 'Media Segment';
-
-    const ftyp = findBoxRecursive(parsedSegmentData.boxes, 'ftyp');
-    const brands = ftyp?.details?.compatibleBrands?.value || 'N/A';
-
-    return html`
-        <div
-            class="rounded-md bg-gray-900/90 border border-gray-700"
-            data-testid="isobmff-summary-panel"
-        >
-            <h3 class="font-bold text-base p-2 border-b border-gray-700">
-                ISOBMFF Summary
-            </h3>
-            <div class="p-2 text-xs space-y-2">
-                <div>Type: ${summaryText}</div>
-                <div>
-                    Compatible Brands: <span class="font-mono">${brands}</span>
-                </div>
-                ${parsedSegmentData.issues.length > 0
-                    ? html`<div class="text-red-400">
-                          Parsing Issues: ${parsedSegmentData.issues.length}
-                      </div>`
-                    : ''}
-            </div>
-        </div>
-    `;
-};
-
 const placeholderTemplate = () => html`
     <div class="p-3 text-sm text-gray-500">
         Hover over an item in the tree view or hex view to see details.
@@ -128,64 +102,9 @@ const issuesTemplate = (issues) => {
     `;
 };
 
-const renderBoxNode = (box) => {
-    const { itemForDisplay } = getInspectorState();
-    const isSelected =
-        itemForDisplay &&
-        itemForDisplay.offset === box.offset &&
-        !itemForDisplay.isSample;
-    const isChunk = box.isChunk;
-    const selectionClass = isSelected
-        ? 'bg-blue-900/50 ring-1 ring-blue-500'
-        : '';
-    const colorClass = box.color?.border || 'border-transparent';
-
-    return html`
-        <details class="box-node" ?open=${isChunk || box.children.length > 0}>
-            <summary
-                class="relative p-1 rounded cursor-pointer ${selectionClass} border-l-4 ${colorClass}"
-                data-box-offset=${box.offset}
-                data-group-start-offset=${isChunk ? box.offset : null}
-            >
-                <span class="font-mono text-sm text-white ml-2"
-                    >${box.type}</span
-                >
-                <span class="text-xs text-gray-500 ml-2"
-                    >(${box.size} bytes)</span
-                >
-            </summary>
-            ${box.children.length > 0
-                ? html`<ul class="pl-4 border-l border-gray-700 list-none ml-2">
-                      ${box.children.map(
-                          (child) => html`<li>${renderBoxNode(child)}</li>`
-                      )}
-                  </ul>`
-                : ''}
-        </details>
-    `;
-};
-
-const treeViewTemplate = (boxes) => {
-    if (!boxes || boxes.length === 0) return '';
-    return html`
-        <div
-            class="box-tree-area rounded-md bg-gray-900/90 border border-gray-700"
-        >
-            <h3 class="font-bold text-base p-2 border-b border-gray-700">
-                Box Structure
-            </h3>
-            <div class="p-2 overflow-y-auto max-h-96">
-                <ul class="list-none p-0">
-                    ${boxes.map((box) => html`<li>${renderBoxNode(box)}</li>`)}
-                </ul>
-            </div>
-        </div>
-    `;
-};
-
 const sampleInspectorTemplate = (sample) => {
     const dependsOnMap = { 2: 'No (I-Frame)', 1: 'Yes', 0: 'Unknown' };
-    return html`
+    return html` <>
         <div class="p-3 border-b border-gray-700">
             <div class="font-bold text-base mb-1">Sample ${sample.index}</div>
             <div class="text-xs text-gray-400">${sample.size} bytes</div>
@@ -222,6 +141,59 @@ const sampleInspectorTemplate = (sample) => {
                 </tbody>
             </table>
         </div>
+    </>`;
+};
+
+const entriesTableTemplate = (box) => {
+    const entries = box.samples || box.entries;
+    if (!entries || entries.length === 0) {
+        return '';
+    }
+
+    const headers = Object.keys(entries[0] || {});
+    if (headers.length === 0) return '';
+
+    return html`
+        <div class="p-3 border-t border-gray-700">
+            <h4 class="font-bold text-sm mb-2 text-gray-300">
+                Entries / Samples (${entries.length})
+            </h4>
+            <div class="max-h-60 overflow-y-auto">
+                <table class="w-full text-left text-xs">
+                    <thead class="sticky top-0 bg-gray-800">
+                        <tr>
+                            ${headers.map(
+                                (h) =>
+                                    html`<th class="p-1 font-semibold">
+                                        ${h}
+                                    </th>`
+                            )}
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-700">
+                        ${entries.slice(0, 100).map(
+                            (entry) => html`
+                                <tr>
+                                    ${headers.map(
+                                        (h) =>
+                                            html`<td
+                                                class="p-1 font-mono truncate"
+                                            >
+                                                ${entry[h]}
+                                            </td>`
+                                    )}
+                                </tr>
+                            `
+                        )}
+                    </tbody>
+                </table>
+                ${entries.length > 100
+                    ? html`<div class="text-center text-xs text-gray-500 pt-2">
+                          ... and ${entries.length - 100} more entries.
+                      </div>`
+                    : ''}
+            </div>
+        </div>
     `;
 };
 
@@ -230,10 +202,7 @@ export const inspectorPanelTemplate = (rootData) => {
     const item = itemForDisplay;
 
     if (!item) return placeholderTemplate();
-
-    if (item.isSample) {
-        return sampleInspectorTemplate(item);
-    }
+    if (item.isSample) return sampleInspectorTemplate(item);
 
     const box = item;
     const boxInfo = allIsoTooltipData[box.type] || {};
@@ -241,7 +210,9 @@ export const inspectorPanelTemplate = (rootData) => {
     const fields = Object.entries(box.details).map(([key, field]) => {
         const fieldInfo = allIsoTooltipData[`${box.type}@${key}`];
         const highlightClass =
-            fieldForDisplay === key ? 'is-inspector-field-highlighted' : '';
+            fieldForDisplay === key && itemForDisplay.offset === box.offset
+                ? 'is-inspector-field-highlighted'
+                : '';
         let interpretedValue = html``;
 
         if (key === 'baseMediaDecodeTime' && box.type === 'tfdt') {
@@ -274,7 +245,7 @@ export const inspectorPanelTemplate = (rootData) => {
         `;
     });
 
-    return html`
+    return html` <>
         <div class="p-3 border-b border-gray-700">
             <div class="font-bold text-base mb-1">
                 ${box.type}
@@ -299,56 +270,86 @@ export const inspectorPanelTemplate = (rootData) => {
                 </tbody>
             </table>
         </div>
+        ${entriesTableTemplate(box)}
+    </>`;
+};
+
+const renderBoxNode = (box) => {
+    const { itemForDisplay } = getInspectorState();
+    const isSelected =
+        itemForDisplay &&
+        itemForDisplay.offset === box.offset &&
+        !itemForDisplay.isSample;
+    const isChunk = box.isChunk;
+    const selectionClass = isSelected
+        ? 'bg-blue-900/50 ring-1 ring-blue-500'
+        : '';
+    const borderColorClass = box.color?.border || 'border-transparent';
+    const bgColorClass = box.color?.name ? BOX_BG_COLORS[box.color.name] : '';
+
+    return html`
+        <details class="box-node" ?open=${isChunk || box.children.length > 0}>
+            <summary
+                class="relative p-1 rounded cursor-pointer ${selectionClass} ${bgColorClass} border-l-4 ${borderColorClass}"
+                data-box-offset=${box.offset}
+                data-group-start-offset=${isChunk ? box.offset : null}
+            >
+                <span class="font-mono text-sm text-white ml-2"
+                    >${box.type}</span
+                >
+                <span class="text-xs text-gray-500 ml-2"
+                    >(${box.size} bytes)</span
+                >
+            </summary>
+            ${box.children.length > 0
+                ? html`<ul class="pl-4 border-l border-gray-700 list-none ml-2">
+                      ${box.children.map(
+                          (child) => html`<li>${renderBoxNode(child)}</li>`
+                      )}
+                  </ul>`
+                : ''}
+        </details>
     `;
 };
 
-export function getInteractiveIsobmffTemplate(renderHexView = false) {
-    const { activeSegmentUrl } = useAnalysisStore.getState();
-    const { get: getFromCache } = useSegmentCacheStore.getState();
-    const { interactiveSegmentCurrentPage, pagedByteMap } = useUiStore.getState();
-    const cachedSegment = getFromCache(activeSegmentUrl);
-    const parsedSegmentData =
-        cachedSegment?.parsedData &&
-        cachedSegment.parsedData.format === 'isobmff'
-            ? cachedSegment.parsedData
-            : null;
+export const structureContentTemplate = (parsedSegmentData) => {
+    if (!parsedSegmentData) return html``;
 
-    if (!parsedSegmentData) {
-        return html`<div class="text-yellow-400 p-4">
-            Could not parse ISOBMFF data for this segment.
-        </div>`;
-    }
+    const { boxes, issues } = parsedSegmentData;
+    const isInit = !!findBoxRecursive(boxes, 'moov');
+    const isMedia = !!findBoxRecursive(boxes, 'moof');
+    let summaryText = 'Unknown Segment Type';
+    if (isInit) summaryText = 'Initialization Segment';
+    if (isMedia) summaryText = 'Media Segment';
 
-    if (renderHexView) {
-        const onPageChange = (offset) => {
-            const totalPages = Math.ceil(
-                cachedSegment.data.byteLength / 1024
-            );
-            const newPage = interactiveSegmentCurrentPage + offset;
-            if (newPage >= 1 && newPage <= totalPages) {
-                uiActions.setInteractiveSegmentPage(newPage);
-            }
-        };
-        return hexViewTemplate(
-            cachedSegment.data,
-            pagedByteMap,
-            interactiveSegmentCurrentPage,
-            1024,
-            onPageChange,
-            allIsoTooltipData
-        );
-    }
-    
-    const groupedBoxes = parsedSegmentData.data.boxes || [];
+    const ftyp = findBoxRecursive(boxes, 'ftyp');
+    const brands = ftyp?.details?.compatibleBrands?.value || 'N/A';
 
     return html`
-        <div class="flex flex-col gap-4">
+        <div
+            class="structure-content-area rounded-md bg-gray-900/90 border border-gray-700 h-full flex flex-col"
+        >
+            <h3 class="font-bold text-base p-2 border-b border-gray-700">
+                Box Structure
+            </h3>
+            <div class="p-2 overflow-y-auto flex-grow">
+                <ul class="list-none p-0">
+                    ${boxes.map((box) => html`<li>${renderBoxNode(box)}</li>`)}
+                </ul>
+            </div>
             <div
-                class="segment-inspector-panel rounded-md bg-gray-900/90 border border-gray-700 transition-opacity duration-200 h-96 lg:h-[24rem] flex flex-col overflow-y-auto"
-            ></div>
-            ${summaryTemplate(parsedSegmentData.data)}
-            ${issuesTemplate(parsedSegmentData.data.issues)}
-            ${treeViewTemplate(groupedBoxes)}
+                class="p-2 text-xs space-y-2 border-t border-gray-700 flex-shrink-0"
+            >
+                <div>Type: ${summaryText}</div>
+                <div>
+                    Compatible Brands: <span class="font-mono">${brands}</span>
+                </div>
+                ${issues.length > 0
+                    ? html`<div class="text-red-400">
+                          Parsing Issues: ${issues.length}
+                      </div>`
+                    : ''}
+            </div>
         </div>
     `;
-}
+};

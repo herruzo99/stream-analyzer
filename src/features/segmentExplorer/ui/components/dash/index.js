@@ -1,7 +1,7 @@
 import { html } from 'lit-html';
-import { segmentRowTemplate } from '@/ui/components/segment-row';
+import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { isDebugMode } from '@/application/utils/env';
-import '@/ui/components/virtualized-list'; // Import the custom element
+import { segmentTableTemplate } from '@/ui/components/segment-table';
 
 const diagnosticsTemplate = (diagnostics) => {
     if (!diagnostics || Object.keys(diagnostics).length === 0) {
@@ -43,75 +43,6 @@ const diagnosticsTemplate = (diagnostics) => {
     `;
 };
 
-const dashSegmentTableTemplate = (stream, period, representation, periodIndex) => {
-    const compositeKey = `${period.id || periodIndex}-${representation.id}`;
-    const repState = stream.dashRepresentationState.get(compositeKey);
-
-    if (!repState) {
-        return html`<div class="text-red-400 p-2">
-            State not found for Representation ${representation.id} in Period
-            ${period.id || `(index ${periodIndex})`}.
-        </div>`;
-    }
-
-    const { segments, freshSegmentUrls, diagnostics } = repState;
-
-    const rowRenderer = (seg) => {
-        const isFresh = freshSegmentUrls.has(
-            /** @type {any} */ (seg).resolvedUrl
-        );
-        return segmentRowTemplate(seg, isFresh, stream.manifest.segmentFormat);
-    };
-
-    const header = html` <div
-        class="flex items-center p-2 bg-gray-900/50 border-b border-gray-700"
-    >
-        <div class="flex-grow flex items-center">
-            <span class="font-semibold text-gray-200"
-                >Representation: ${representation.id}</span
-            >
-            <span class="ml-3 text-xs text-gray-400 font-mono"
-                >(${(representation.bandwidth / 1000).toFixed(0)} kbps)</span
-            >
-        </div>
-    </div>`;
-
-    let content;
-    if (segments.length === 0) {
-        content = html`<div class="p-4 text-center text-gray-400 text-sm">
-            No segments found for this representation.
-        </div>`;
-    } else {
-        content = html`
-            <div class="overflow-x-auto text-sm">
-                <div class="sticky top-0 bg-gray-900 z-10 hidden md:grid md:grid-cols-[32px_minmax(160px,1fr)_128px_96px_minmax(200px,2fr)] font-semibold text-gray-400 text-xs">
-                    <div class="px-3 py-2 border-b border-r border-gray-700"></div>
-                    <div class="px-3 py-2 border-b border-r border-gray-700">Status / Type</div>
-                    <div class="px-3 py-2 border-b border-r border-gray-700">Timing (s)</div>
-                    <div class="px-3 py-2 border-b border-r border-gray-700">Flags</div>
-                    <div class="px-3 py-2 border-b border-gray-700">URL & Actions</div>
-                </div>
-                <virtualized-list
-                    id="vl-${compositeKey}"
-                    .items=${segments}
-                    .rowTemplate=${rowRenderer}
-                    .rowHeight=${96}
-                    class="md:h-auto"
-                    style="height: ${Math.min(segments.length * 96, 400)}px;"
-                ></virtualized-list>
-            </div>
-        `;
-    }
-
-    return html`<div class="bg-gray-800 rounded-lg border border-gray-700 mt-2">
-        ${header}
-        ${isDebugMode && stream.manifest.type === 'dynamic'
-            ? diagnosticsTemplate(diagnostics)
-            : ''}
-        <div class="p-0 md:p-2">${content}</div>
-    </div>`;
-};
-
 /**
  * Creates the lit-html template for the DASH segment explorer content.
  * @param {import('@/types.ts').Stream} stream
@@ -150,14 +81,55 @@ export function getDashExplorerTemplate(stream) {
                                                 ${as.id ? `(ID: ${as.id})` : ''}
                                                 (${as.contentType || 'N/A'})
                                             </h4>
-                                            ${as.representations.map((rep) =>
-                                                dashSegmentTableTemplate(
-                                                    stream,
-                                                    period,
-                                                    rep,
-                                                    index
-                                                )
-                                            )}
+                                            ${as.representations.map((rep) => {
+                                                const compositeKey = `${
+                                                    period.id || index
+                                                }-${rep.id}`;
+                                                const repState =
+                                                    stream.dashRepresentationState.get(
+                                                        compositeKey
+                                                    );
+
+                                                if (!repState) {
+                                                    return html`<div
+                                                        class="text-red-400 p-2"
+                                                    >
+                                                        State not found for
+                                                        Representation ${rep.id}.
+                                                    </div>`;
+                                                }
+
+                                                const {
+                                                    segments,
+                                                    freshSegmentUrls,
+                                                    diagnostics,
+                                                } = repState;
+                                                const title = `Representation: ${
+                                                    rep.id
+                                                } <span class="ml-3 text-xs text-gray-400 font-mono">(${(
+                                                    rep.bandwidth / 1000
+                                                ).toFixed(0)} kbps)</span>`;
+
+                                                return html`
+                                                    ${isDebugMode &&
+                                                    stream.manifest.type ===
+                                                        'dynamic'
+                                                        ? diagnosticsTemplate(
+                                                              diagnostics
+                                                          )
+                                                        : ''}
+                                                    ${segmentTableTemplate({
+                                                        id: compositeKey,
+                                                        title: title,
+                                                        segments: segments,
+                                                        freshSegmentUrls:
+                                                            freshSegmentUrls,
+                                                        segmentFormat:
+                                                            stream.manifest
+                                                                .segmentFormat,
+                                                    })}
+                                                `;
+                                            })}
                                         </div>
                                     `
                                 )}

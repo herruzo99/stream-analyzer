@@ -1,4 +1,5 @@
 import { getDrmSystemName } from '@/infrastructure/parsing/utils/drm';
+import { getInheritedElement, getAttr } from '@/infrastructure/parsing/dash/recursive-parser';
 
 /**
  * @typedef {import('@/types.ts').Stream} Stream
@@ -63,14 +64,80 @@ function getNetworkInfo(stream) {
         console.error('Error extracting network info:', e);
     }
 
-    // Note: Avg segment rate/size is omitted as it requires a representative sample, not all segments.
+    let totalDurationSeconds = 0;
+    let totalSizeBytes = 0;
+    let segmentInfoCount = 0;
+
+    if (stream.protocol === 'dash' && stream.manifest.periods) {
+        for (const period of stream.manifest.periods) {
+            for (const as of period.adaptationSets) {
+                for (const rep of as.representations) {
+                    const hierarchy = [
+                        rep.serializedManifest,
+                        as.serializedManifest,
+                        period.serializedManifest,
+                    ];
+                    const template = getInheritedElement(
+                        'SegmentTemplate',
+                        hierarchy
+                    );
+
+                    if (
+                        template &&
+                        getAttr(template, 'duration') &&
+                        getAttr(template, 'timescale')
+                    ) {
+                        const duration = parseInt(
+                            getAttr(template, 'duration'),
+                            10
+                        );
+                        const timescale = parseInt(
+                            getAttr(template, 'timescale'),
+                            10
+                        );
+                        const bandwidth = rep.bandwidth;
+
+                        if (duration > 0 && timescale > 0 && bandwidth > 0) {
+                            const durationSec = duration / timescale;
+                            totalDurationSeconds += durationSec;
+                            totalSizeBytes += (bandwidth / 8) * durationSec;
+                            segmentInfoCount++;
+                        }
+                    }
+                }
+            }
+        }
+    } else if (stream.protocol === 'hls' && stream.manifest) {
+        const targetDuration = stream.manifest.summary?.hls?.targetDuration;
+        if (targetDuration) {
+            for (const period of stream.manifest.periods) {
+                for (const as of period.adaptationSets) {
+                    for (const rep of as.representations) {
+                        const bandwidth = rep.bandwidth;
+                        if (bandwidth > 0) {
+                            totalDurationSeconds += targetDuration;
+                            totalSizeBytes += (bandwidth / 8) * targetDuration;
+                            segmentInfoCount++;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    const avgSegmentDuration =
+        segmentInfoCount > 0
+            ? totalDurationSeconds / segmentInfoCount
+            : null;
+    const avgSegmentSize =
+        segmentInfoCount > 0 ? totalSizeBytes / segmentInfoCount : null;
 
     return {
         manifestHostnames: Array.from(hostnames.manifest),
         mediaSegmentHostnames: Array.from(hostnames.media),
         keyLicenseHostnames: Array.from(hostnames.key),
-        avgSegmentRequestRate: null,
-        avgSegmentSize: null,
+        avgSegmentRequestRate: avgSegmentDuration,
+        avgSegmentSize: avgSegmentSize,
         contentSteering: stream.steeringInfo
             ? {
                   serverUri: /** @type {any} */ (stream.steeringInfo).value[

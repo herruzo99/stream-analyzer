@@ -44,5 +44,5 @@ export function inferMediaInfoFromExtension(filename) {
         }
     }
 
-    return { contentType: 'video', codec: null }; // Default to video for unknown types
+    return { contentType: 'unknown', codec: null };
 }

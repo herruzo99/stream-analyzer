@@ -13,12 +13,10 @@ export async function pollHlsVariant(streamId, variantUri) {
         return;
     }
 
-    // NOTE: The fetch/parse is now offloaded to the main worker via streamService.
-    // This poller's job is just to trigger the request at intervals.
     eventBus.dispatch('hls:media-playlist-fetch-request', {
         streamId,
         variantUri,
-        isBackground: true, // Signal that this is a background poll
+        isBackground: true,
     });
 }
 
@@ -26,10 +24,8 @@ function startPoller(stream, variantUri) {
     const pollerKey = `${stream.id}-${variantUri}`;
     if (pollers.has(pollerKey)) return;
 
-    // Perform an immediate fetch first
     pollHlsVariant(stream.id, variantUri);
 
-    // Then set up the interval
     const pollInterval = (stream.manifest?.minBufferTime || 2) * 1000;
     const intervalId = setInterval(
         () => pollHlsVariant(stream.id, variantUri),
@@ -56,7 +52,6 @@ export function manageHlsPollers() {
     for (const stream of hlsStreams) {
         for (const [variantUri, state] of stream.hlsVariantState.entries()) {
             const pollerKey = `${stream.id}-${variantUri}`;
-            // Polling now depends on the GLOBAL stream polling state AND the local expanded state.
             const shouldBePolling = stream.isPolling && state.isExpanded;
             const isCurrentlyPolling = pollers.has(pollerKey);
 
@@ -91,33 +86,23 @@ export function initializeHlsVariantPoller() {
 
     // --- State Update Listeners ---
     eventBus.subscribe(
-        'hls-explorer:toggle-variant',
+        'hls-explorer:load-segments',
         ({ streamId, variantUri }) => {
             const stream = useAnalysisStore
                 .getState()
                 .streams.find((s) => s.id === streamId);
             const variantState = stream?.hlsVariantState.get(variantUri);
-            if (variantState) {
-                const isNowExpanded = !variantState.isExpanded;
-                const needsFetch =
-                    isNowExpanded &&
-                    variantState.segments.length === 0 &&
-                    !variantState.error;
 
-                // Atomically update both `isExpanded` and `isLoading`
+            if (variantState && !variantState.isLoading) {
                 updateVariantState(streamId, variantUri, {
-                    isExpanded: isNowExpanded,
-                    isLoading: needsFetch, // Set loading state here
+                    isLoading: true,
+                    isExpanded: true,
                 });
-
-                // Then, if needed, trigger the fetch. The state is already updated.
-                if (needsFetch) {
-                    eventBus.dispatch('hls:media-playlist-fetch-request', {
-                        streamId,
-                        variantUri,
-                        isBackground: false, // This is a user action
-                    });
-                }
+                eventBus.dispatch('hls:media-playlist-fetch-request', {
+                    streamId,
+                    variantUri,
+                    isBackground: false,
+                });
             }
         }
     );
@@ -131,7 +116,6 @@ export function initializeHlsVariantPoller() {
 
     // --- Post-Analysis Initialization Logic ---
     eventBus.subscribe('state:analysis-complete', ({ streams }) => {
-        // After analysis, if there's an HLS master playlist, pre-fetch the segments for the first variant.
         const firstHlsStream = streams.find(
             (s) => s.protocol === 'hls' && s.manifest?.isMaster
         );
@@ -142,11 +126,12 @@ export function initializeHlsVariantPoller() {
             if (firstVariantUri) {
                 updateVariantState(firstHlsStream.id, firstVariantUri, {
                     isLoading: true,
+                    isExpanded: true,
                 });
                 eventBus.dispatch('hls:media-playlist-fetch-request', {
                     streamId: firstHlsStream.id,
                     variantUri: firstVariantUri,
-                    isBackground: false, // Initial load is a foreground action
+                    isBackground: false,
                 });
             }
         }

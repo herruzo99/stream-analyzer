@@ -316,6 +316,16 @@ function parseAdaptationSet(asEl, parentMergedEl) {
     const mergedAsEl = mergeElements(parentMergedEl, asEl);
     const contentComponentEls = findChildren(asEl, 'ContentComponent');
 
+    let contentType =
+        getAttr(asEl, 'contentType') ||
+        getAttr(asEl, 'mimeType')?.split('/')[0];
+    if (!contentType) {
+        const firstRep = findChild(asEl, 'Representation');
+        if (firstRep) {
+            contentType = getAttr(firstRep, 'mimeType')?.split('/')[0];
+        }
+    }
+
     let contentComponents;
     if (contentComponentEls.length > 0) {
         contentComponents = contentComponentEls.map((ccEl) =>
@@ -327,9 +337,7 @@ function parseAdaptationSet(asEl, parentMergedEl) {
             {
                 id: null,
                 lang: getAttr(asEl, 'lang'),
-                contentType:
-                    getAttr(asEl, 'contentType') ||
-                    getAttr(asEl, 'mimeType')?.split('/')[0],
+                contentType: contentType,
                 par: getAttr(asEl, 'par'),
                 tag: getAttr(asEl, 'tag'),
                 accessibility: findChildren(asEl, 'Accessibility').map(
@@ -354,9 +362,7 @@ function parseAdaptationSet(asEl, parentMergedEl) {
             ? parseInt(getAttr(asEl, 'group'), 10)
             : null,
         lang: getAttr(asEl, 'lang'),
-        contentType:
-            getAttr(asEl, 'contentType') ||
-            getAttr(asEl, 'mimeType')?.split('/')[0],
+        contentType: contentType,
         bitstreamSwitching:
             getAttr(asEl, 'bitstreamSwitching') === 'true' ? true : null,
         segmentAlignment: getAttr(mergedAsEl, 'segmentAlignment') === 'true',
@@ -483,12 +489,20 @@ const parseServiceDescription = (sdEl) => ({
     serializedManifest: sdEl,
 });
 
-function parsePeriod(periodEl, parentMergedEl) {
+function parsePeriod(periodEl, parentMergedEl, previousPeriod = null) {
     const mergedPeriodEl = mergeElements(parentMergedEl, periodEl);
     const assetIdentifierEl = findChild(periodEl, 'AssetIdentifier');
     const subsets = findChildren(periodEl, 'Subset');
     const eventStreams = findChildren(periodEl, 'EventStream');
-    const periodStart = parseDuration(getAttr(periodEl, 'start')) || 0;
+
+    let periodStart = parseDuration(getAttr(periodEl, 'start'));
+    if (periodStart === null) {
+        if (previousPeriod && previousPeriod.duration !== null) {
+            periodStart = previousPeriod.start + previousPeriod.duration;
+        } else {
+            periodStart = 0;
+        }
+    }
 
     const allEvents = [];
     const eventStreamIRs = eventStreams.map((esEl) => {
@@ -675,9 +689,7 @@ export async function adaptDashToIr(manifestElement, baseUrl, context) {
                 serializedManifest: el,
             })
         ),
-        periods: findChildren(manifestCopy, 'Period').map((p) =>
-            parsePeriod(p, manifestCopy)
-        ),
+        periods: [], // Populated below
         segmentFormat: /** @type {'isobmff' | 'ts' | 'unknown'} */ (
             segmentFormat
         ),
@@ -687,6 +699,13 @@ export async function adaptDashToIr(manifestElement, baseUrl, context) {
         summary: null,
         serverControl: null,
     };
+
+    let previousPeriod = null;
+    manifestIR.periods = findChildren(manifestCopy, 'Period').map((p) => {
+        const periodIR = parsePeriod(p, manifestCopy, previousPeriod);
+        previousPeriod = periodIR;
+        return periodIR;
+    });
 
     manifestIR.events = manifestIR.periods.flatMap((p) => p.events);
     manifestIR.summary = await generateDashSummary(manifestIR, manifestCopy, {
