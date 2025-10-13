@@ -4,6 +4,7 @@ import { inspectorPanelTemplate as tsInspector } from './ts/index.js';
 import { html } from 'lit-html';
 import { uiActions } from '@/state/uiStore';
 
+let mainContainer = null;
 let keydownListener = null;
 let containerListeners = new Map();
 let currentlyHighlightedElements = [];
@@ -43,16 +44,15 @@ function clearHighlights() {
         el.classList.remove(
             'is-box-hover-highlighted',
             'is-field-hover-highlighted',
-            'bg-purple-500/20'
+            'is-inspector-field-highlighted'
         );
     });
     currentlyHighlightedElements = [];
 }
 
 function applyHighlights(item, fieldName) {
-    if (!item) return;
-    const container = document.getElementById('tab-interactive-segment');
-    if (!container) return;
+    if (!item || !mainContainer) return;
+    const container = mainContainer;
 
     // --- Highlight structure tree node ---
     if (!item.isSample) {
@@ -62,9 +62,9 @@ function applyHighlights(item, fieldName) {
             structureNode.classList.add('is-box-hover-highlighted');
             currentlyHighlightedElements.push(structureNode);
             const treeContainer = container.querySelector(
-                '.box-tree-area .overflow-y-auto, .packet-list-area .overflow-y-auto'
+                '.structure-content-area'
             );
-            if(treeContainer) {
+            if (treeContainer) {
                 scrollIntoViewIfNeeded(structureNode, treeContainer);
             }
         }
@@ -85,28 +85,32 @@ function applyHighlights(item, fieldName) {
     }
 
     // --- Apply highlights to hex view ---
+    const hexContentGrid = mainContainer.querySelector('#hex-grid-content');
+    if (!hexContentGrid) return;
+
     const visibleByteElements =
-        container.querySelectorAll('[data-byte-offset]');
+        hexContentGrid.querySelectorAll('[data-byte-offset]');
+
     visibleByteElements.forEach((el) => {
         const byteOffset = parseInt(
             /** @type {HTMLElement} */ (el).dataset.byteOffset,
             10
         );
 
+        // Apply box highlight first.
         if (byteOffset >= boxStart && byteOffset < boxEnd) {
             el.classList.add('is-box-hover-highlighted');
             currentlyHighlightedElements.push(el);
         }
 
+        // Apply field highlight on top if applicable. CSS will ensure it's visually dominant.
         if (
             fieldStart !== -1 &&
             byteOffset >= fieldStart &&
             byteOffset < fieldEnd
         ) {
             el.classList.add('is-field-hover-highlighted');
-            if (!currentlyHighlightedElements.includes(el)) {
-                currentlyHighlightedElements.push(el);
-            }
+            currentlyHighlightedElements.push(el);
         }
     });
 }
@@ -131,10 +135,7 @@ function cleanupEventListeners(container) {
     }
     const listeners = containerListeners.get(container);
     if (listeners) {
-        container.removeEventListener(
-            'mouseover',
-            listeners.delegatedMouseOver
-        );
+        container.removeEventListener('mouseover', listeners.delegatedMouseOver);
         container.removeEventListener('mouseout', listeners.delegatedMouseOut);
         container.removeEventListener('click', listeners.handleClick);
         containerListeners.delete(container);
@@ -152,6 +153,7 @@ export function cleanupSegmentViewInteractivity(dom) {
     inspectorContainer = null;
     currentFormat = null;
     rootParsedData = null;
+    mainContainer = null;
 }
 
 export function initializeSegmentViewInteractivity(
@@ -161,7 +163,8 @@ export function initializeSegmentViewInteractivity(
     findDataByOffset,
     format
 ) {
-    const container = dom.mainContent;
+    mainContainer = dom.mainContent;
+    const container = mainContainer;
     if (!container || !parsedSegmentData) return;
 
     cleanupEventListeners(container);
@@ -172,20 +175,23 @@ export function initializeSegmentViewInteractivity(
     const handleHover = (item, field) => {
         highlightedItem = item;
         highlightedField = field;
+
+        // Clear previous highlights from hex/tree
         clearHighlights();
+        // Apply new highlights to hex/tree
         applyHighlights(item, field);
+
+        // Re-render the inspector panel, which will now apply its own highlights declaratively
         renderInspectorPanel();
 
+        // Scroll inspector field into view after render
         setTimeout(() => {
-            const inspector = document.querySelector(
-                '.segment-inspector-panel'
-            );
-            if (inspector && field) {
-                const fieldRow = inspector.querySelector(
-                    `[data-field-name="${field}"]`
+            if (inspectorContainer && field && item) {
+                const fieldRow = inspectorContainer.querySelector(
+                    `[data-inspector-offset="${item.offset}"][data-field-name="${field}"]`
                 );
                 if (fieldRow) {
-                    scrollIntoViewIfNeeded(fieldRow, inspector);
+                    scrollIntoViewIfNeeded(fieldRow, inspectorContainer);
                 }
             }
         }, 0);
@@ -204,7 +210,7 @@ export function initializeSegmentViewInteractivity(
             applyHighlights(selectedItem, null);
         }
         renderInspectorPanel();
-        
+
         // On mobile, switch to hex view to show the selection
         if (window.innerWidth < 1024 && selectedItem) {
             uiActions.setInteractiveSegmentActiveTab('hex');
@@ -220,14 +226,10 @@ export function initializeSegmentViewInteractivity(
         const mapEntry = byteMap.get(byteOffset);
 
         if (mapEntry) {
-            // **BUG FIX**: Prioritize the most specific item (sample).
             if (mapEntry.sample) {
                 handleHover(mapEntry.sample, 'Sample Data');
             } else if (mapEntry.box || mapEntry.packet) {
-                handleHover(
-                    mapEntry.box || mapEntry.packet,
-                    mapEntry.fieldName
-                );
+                handleHover(mapEntry.box || mapEntry.packet, mapEntry.fieldName);
             }
         }
     };
@@ -236,48 +238,41 @@ export function initializeSegmentViewInteractivity(
         const fieldRow = /** @type {HTMLElement | null} */ (
             e.target.closest('[data-field-name]')
         );
-        clearHighlights(); // Clear all previous highlights first
-
-        if (!fieldRow) {
-            highlightedField = null;
-            renderInspectorPanel();
-            return;
-        }
+        if (!fieldRow) return;
 
         const fieldName = fieldRow.dataset.fieldName;
-        highlightedField = fieldName;
-
-        fieldRow.classList.add('bg-purple-500/20');
-        currentlyHighlightedElements.push(fieldRow);
-
         const dataOffset = parseInt(fieldRow.dataset.inspectorOffset, 10);
         if (isNaN(dataOffset)) return;
 
         const item = findDataByOffset(parsedSegmentData, dataOffset);
-        if (item && item.details && item.details[fieldName]) {
-            applyHighlights(item, fieldName);
+        if (item) {
+            handleHover(item, fieldName);
         }
     };
 
     const handleStructureHover = (e) => {
         const node = /** @type {HTMLElement | null} */ (
-            e.target.closest('[data-box-offset], [data-group-start-offset], [data-packet-offset]')
+            e.target.closest(
+                '[data-box-offset], [data-group-start-offset], [data-packet-offset]'
+            )
         );
         if (!node) return;
         const dataOffset = parseInt(
-            node.dataset.boxOffset || node.dataset.groupStartOffset || node.dataset.packetOffset,
+            node.dataset.boxOffset ||
+                node.dataset.groupStartOffset ||
+                node.dataset.packetOffset,
             10
         );
         if (isNaN(dataOffset)) return;
         const item = findDataByOffset(parsedSegmentData, dataOffset);
-        const fieldName = 'Box Header'; // Always highlight header on tree hover
+        const fieldName = 'Box Header'; // Generic for structure hover
         if (item) handleHover(item, fieldName);
     };
 
     const delegatedMouseOver = (e) => {
         if (e.target.closest('.segment-inspector-panel'))
             handleInspectorHover(e);
-        else if (e.target.closest('.box-tree-area, .packet-list-area'))
+        else if (e.target.closest('.structure-content-area'))
             handleStructureHover(e);
         else if (e.target.closest('#hex-grid-content')) handleHexHover(e);
     };
@@ -286,12 +281,17 @@ export function initializeSegmentViewInteractivity(
         const relatedTarget = /** @type {Node | null} */ (e.relatedTarget);
         const currentTarget = /** @type {Node} */ (e.currentTarget);
         if (relatedTarget && currentTarget.contains(relatedTarget)) {
-            return;
+            const isStillOnInteractive =
+                /** @type {HTMLElement} */ (
+                    relatedTarget
+                ).closest(
+                    '.segment-inspector-panel, .structure-content-area, #hex-grid-content'
+                );
+            if (isStillOnInteractive) {
+                return;
+            }
         }
-        highlightedItem = null;
-        highlightedField = null;
-        clearHighlights();
-        renderInspectorPanel();
+        handleHover(null, null);
     };
 
     const handleClick = (e) => {

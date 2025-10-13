@@ -228,10 +228,10 @@ export const segmentRowTemplate = (seg, isFresh, segmentFormat) => {
 
     const rowClasses = {
         'segment-row': true,
-        'grid grid-cols-2 md:grid-cols-[32px_minmax(160px,1fr)_128px_96px_minmax(200px,2fr)] items-center gap-x-4 gap-y-2 p-2 md:p-0 border-b border-gray-700': true,
+        'h-16': true,
+        'grid grid-cols-2 md:grid-cols-[32px_160px_128px_96px_minmax(400px,auto)] items-center gap-y-2 p-2 md:p-0 border-b border-gray-700': true,
         'hover:bg-gray-700/50 transition-colors duration-200': true,
         'bg-gray-800/50 text-gray-600 italic': seg.gap,
-        'is-fresh': isFresh,
     };
 
     const timingContent = seg.type === 'Media' && !seg.gap ? html`${(seg.time / seg.timescale).toFixed(2)}s (+${(seg.duration / seg.timescale).toFixed(2)}s)` : 'N/A';
@@ -242,10 +242,6 @@ export const segmentRowTemplate = (seg, isFresh, segmentFormat) => {
     };
 
     return html`
-        <style>
-            @keyframes fadeIn { from { background-color: rgba(22, 163, 74, 0.4); } to { background-color: transparent; } }
-            .is-fresh { animation: fadeIn 1.5s ease-out; }
-        </style>
         <div class=${classMap(rowClasses)} data-url="${seg.resolvedUrl}" data-start-time=${seg.startTimeUTC || ''} data-end-time=${seg.endTimeUTC || ''}>
             <div class="col-span-2 md:col-span-1 md:px-3 md:py-1.5 flex items-center md:border-r md:border-gray-700">
                 <input type="checkbox" class="bg-gray-700 border-gray-500 rounded focus:ring-blue-500 disabled:opacity-50" .value=${seg.resolvedUrl} ?checked=${isChecked} ?disabled=${seg.gap} @change=${handleSegmentCheck}/>

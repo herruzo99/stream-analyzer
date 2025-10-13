@@ -1,15 +1,16 @@
 import { html } from 'lit-html';
-import { classMap } from 'lit-html/directives/class-map.js';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { useSegmentCacheStore } from '@/state/segmentCacheStore';
 import { useUiStore, uiActions } from '@/state/uiStore';
 import {
-    getInteractiveIsobmffTemplate,
-    findItemByOffset,
+    inspectorPanelTemplate as isobmffInspector,
+    structureContentTemplate as isobmffStructure,
+    findItemByOffset as findItemIsobmff,
 } from './components/isobmff/index.js';
 import {
-    getInteractiveTsTemplate,
-    findPacketByOffset,
+    inspectorPanelTemplate as tsInspector,
+    structureContentTemplate as tsStructure,
+    findPacketByOffset as findItemTs,
 } from './components/ts/index.js';
 import {
     cleanupSegmentViewInteractivity,
@@ -17,6 +18,8 @@ import {
     renderInspectorPanel,
 } from './components/interaction-logic.js';
 import { getInteractiveVttTemplate } from './components/vtt/index.js';
+import { inspectorLayoutTemplate } from './components/shared/inspector-layout.js';
+import { hexViewTemplate } from '@/ui/components/hex-view';
 import { getTooltipData as getIsobmffTooltipData } from '@/infrastructure/parsing/isobmff/index';
 import { getTooltipData as getTsTooltipData } from '@/infrastructure/parsing/ts/index';
 import { workerService } from '@/infrastructure/worker/workerService';
@@ -31,11 +34,11 @@ function initializeAllInteractivity(dom, cachedSegment, byteMap) {
     let findFn, parsedDataForLogic, format;
     if (cachedSegment.parsedData?.format === 'ts') {
         parsedDataForLogic = cachedSegment.parsedData;
-        findFn = findPacketByOffset;
+        findFn = findItemTs;
         format = 'ts';
     } else if (cachedSegment.parsedData?.format === 'isobmff') {
         parsedDataForLogic = cachedSegment.parsedData;
-        findFn = findItemByOffset;
+        findFn = findItemIsobmff;
         format = 'isobmff';
     }
 
@@ -51,33 +54,24 @@ function initializeAllInteractivity(dom, cachedSegment, byteMap) {
     }
 }
 
-const tabButton = (label, tabKey) => {
-    const { interactiveSegmentActiveTab } = useUiStore.getState();
-    const isActive = interactiveSegmentActiveTab === tabKey;
-    return html`
-        <button
-            @click=${() => uiActions.setInteractiveSegmentActiveTab(tabKey)}
-            class="py-2 px-4 font-semibold text-sm rounded-t-lg transition-colors ${isActive
-                ? 'bg-slate-800 text-white'
-                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}"
-        >
-            ${label}
-        </button>
-    `;
-};
+const loadingTemplate = (message) => html`<div class="text-center py-12">
+    <div
+        class="animate-spin inline-block w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mb-4"
+    ></div>
+    <p class="text-gray-400">${message}</p>
+</div>`;
 
 export function getInteractiveSegmentTemplate(dom) {
     const { activeSegmentUrl } = useAnalysisStore.getState();
     const {
         interactiveSegmentCurrentPage: currentPage,
-        interactiveSegmentActiveTab,
         pagedByteMap,
         isByteMapLoading,
     } = useUiStore.getState();
     const { get: getFromCache } = useSegmentCacheStore.getState();
 
     if (!activeSegmentUrl) {
-        return html`<!-- placeholder -->`;
+        return html``;
     }
 
     const cachedSegment = getFromCache(activeSegmentUrl);
@@ -87,13 +81,18 @@ export function getInteractiveSegmentTemplate(dom) {
         cachedSegment.status === -1 ||
         !cachedSegment.parsedData
     ) {
-        return html`<!-- loading -->`;
+        return loadingTemplate('Loading and parsing segment...');
     }
     if (cachedSegment.status !== 200 || !cachedSegment.data) {
-        return html`<!-- error -->`;
+        return html`<div class="text-red-400 p-4">
+            Error loading segment: HTTP ${cachedSegment.status}
+        </div>`;
     }
 
-    if (!pagedByteMap && !isByteMapLoading) {
+    const format = cachedSegment.parsedData?.format;
+    const isBinaryFormat = format === 'isobmff' || format === 'ts';
+
+    if (isBinaryFormat && !pagedByteMap && !isByteMapLoading) {
         uiActions.setIsByteMapLoading(true);
         workerService
             .postTask('generate-paged-byte-map', {
@@ -109,54 +108,62 @@ export function getInteractiveSegmentTemplate(dom) {
             });
     }
 
-    const onPageChange = (offset) => {
-        const totalPages = Math.ceil(
-            cachedSegment.data.byteLength / HEX_BYTES_PER_PAGE
-        );
-        const newPage = currentPage + offset;
-        if (newPage >= 1 && newPage <= totalPages) {
-            uiActions.setInteractiveSegmentPage(newPage);
-        }
-    };
+    let inspectorContent, structureContent, hexContent;
 
-    let inspectorContent, hexContent;
-    const isLoading = isByteMapLoading || (!pagedByteMap && cachedSegment.parsedData?.format !== 'vtt');
+    const isLoading = isByteMapLoading || (!pagedByteMap && isBinaryFormat);
 
     if (isLoading) {
-        const loadingTemplate = html`<div class="text-center py-12">
-            <div
-                class="animate-spin inline-block w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mb-4"
-            ></div>
-            <p class="text-gray-400">Generating paged view...</p>
-        </div>`;
-        inspectorContent = loadingTemplate;
-        hexContent = loadingTemplate;
+        const loadingSpinner = loadingTemplate('Generating paged view...');
+        inspectorContent = loadingSpinner;
+        structureContent = loadingSpinner;
+        hexContent = loadingSpinner;
     } else {
-        if (cachedSegment.parsedData?.format === 'vtt') {
-            const vttTemplate = getInteractiveVttTemplate(cachedSegment.data);
-            inspectorContent = vttTemplate;
-            hexContent = vttTemplate; // Show same content for both tabs for VTT
-        } else if (cachedSegment.parsedData?.format === 'ts') {
-            inspectorContent = getInteractiveTsTemplate();
-            hexContent = getInteractiveTsTemplate(true);
-        } else if (cachedSegment.parsedData?.format === 'isobmff') {
-            inspectorContent = getInteractiveIsobmffTemplate();
-            hexContent = getInteractiveIsobmffTemplate(true);
-        } else {
-            const unsupportedTemplate = html`<div class="text-yellow-400 p-4">
-                Interactive view not supported for this segment format.
-            </div>`;
-            inspectorContent = unsupportedTemplate;
-            hexContent = unsupportedTemplate;
-        }
         setTimeout(
-            () => initializeAllInteractivity(dom, cachedSegment, pagedByteMap),
+            () =>
+                initializeAllInteractivity(
+                    dom,
+                    cachedSegment,
+                    pagedByteMap || new Map()
+                ),
             0
         );
+
+        if (format === 'vtt') {
+            const vttTemplate = getInteractiveVttTemplate(cachedSegment.data);
+            return vttTemplate; // VTT has a simple, single-pane layout for now
+        } else if (format === 'ts') {
+            inspectorContent = tsInspector(cachedSegment.parsedData);
+            structureContent = tsStructure(cachedSegment.parsedData);
+        } else if (format === 'isobmff') {
+            inspectorContent = isobmffInspector(cachedSegment.parsedData.data);
+            structureContent = isobmffStructure(cachedSegment.parsedData.data);
+        } else {
+            const unsupported = html`<div class="text-yellow-400 p-4">
+                Interactive view not supported for this segment format.
+            </div>`;
+            inspectorContent = unsupported;
+            structureContent = html``;
+            hexContent = unsupported;
+        }
+
+        const onHexPageChange = (offset) => {
+            const totalPages = Math.ceil(
+                cachedSegment.data.byteLength / HEX_BYTES_PER_PAGE
+            );
+            const newPage = currentPage + offset;
+            if (newPage >= 1 && newPage <= totalPages) {
+                uiActions.setInteractiveSegmentPage(newPage);
+            }
+        };
+        hexContent = hexViewTemplate(
+            cachedSegment.data,
+            pagedByteMap,
+            currentPage,
+            HEX_BYTES_PER_PAGE,
+            onHexPageChange,
+            ALL_TOOLTIPS_DATA
+        );
     }
-    
-    const inspectorClasses = { hidden: interactiveSegmentActiveTab !== 'inspector', 'lg:block': true };
-    const hexClasses = { hidden: interactiveSegmentActiveTab !== 'hex', 'lg:block': true };
 
     return html`
         <div class="mb-6">
@@ -174,25 +181,18 @@ export function getInteractiveSegmentTemplate(dom) {
                     &larr; Back to Segment Explorer
                 </button>
             </div>
-            <p class="text-sm text-gray-400 mb-4 font-mono break-all bg-gray-800 p-2 rounded">
+            <p
+                class="text-sm text-gray-400 mb-4 font-mono break-all bg-gray-800 p-2 rounded"
+            >
                 ${activeSegmentUrl}
             </p>
         </div>
-        
-        <!-- Mobile Tab Navigation -->
-        <div class="lg:hidden border-b border-gray-700 mb-4">
-            ${tabButton('Inspector', 'inspector')}
-            ${tabButton('Hex View', 'hex')}
-        </div>
-        
-        <!-- Responsive Content Grid -->
-        <div class="lg:grid lg:grid-cols-[minmax(300px,25%)_1fr] lg:gap-4">
-            <div class=${classMap(inspectorClasses)}>
-                ${inspectorContent}
-            </div>
-            <div class=${classMap(hexClasses)}>
-                ${hexContent}
-            </div>
+        <div class="h-[calc(100vh-12rem)]">
+            ${inspectorLayoutTemplate({
+                inspectorContent,
+                structureContent,
+                hexContent,
+            })}
         </div>
     `;
 }

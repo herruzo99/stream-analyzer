@@ -231,6 +231,11 @@ export async function createDashTimelineViewModel(stream, segmentCache) {
                                             ].value,
                                     })
                                 );
+                            } else if (rep.startWithSAP) {
+                                randomAccessPoints = fragments.map((f) => ({
+                                    time: f.presentationStartTime,
+                                    moofOffset: 0,
+                                }));
                             }
 
                             return {

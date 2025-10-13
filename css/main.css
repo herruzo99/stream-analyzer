@@ -57,16 +57,11 @@ details.details-animated[open] > *:not(summary) { animation: fadeIn 0.3s ease-ou
     50% { transform: scaleY(1); }
 }
 
-/* --- Custom Effects (Pseudo-elements and complex shadows) --- */
-.is-highlighted { box-shadow: inset 0 0 0 1000px rgba(59, 130, 246, 0.3); }
+/* --- Custom Effects (Hover highlights) --- */
+.is-box-hover-highlighted { @apply bg-blue-500/20; }
+.is-field-hover-highlighted { @apply bg-purple-500/40; }
+.is-inspector-field-highlighted { @apply bg-purple-500/20; }
 
-.is-box-hover-highlighted::before,
-.is-field-hover-highlighted::before {
-    content: '';
-    @apply absolute inset-0 pointer-events-none rounded-sm;
-}
-.is-box-hover-highlighted::before { background-color: rgba(59, 131, 246, 0.15); z-index: 10; }
-.is-field-hover-highlighted::before { background-color: rgba(168, 85, 247, 0.4); z-index: 15; }
 
 /* --- Sidebar State Management --- */
 body.primary-sidebar-open #sidebar-overlay,
