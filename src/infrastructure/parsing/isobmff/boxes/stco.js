@@ -37,20 +37,20 @@ export function parseStco(box, view) {
 
 export const stcoTooltip = {
     stco: {
-        name: 'Chunk Offset',
-        text: 'Specifies the offset of each chunk into the file.',
+        name: 'Chunk Offset Box',
+        text: 'Chunk Offset Box (`stco`). A compact table that specifies the absolute file offset for the start of each chunk of media data in a track. It is a fundamental part of locating sample data. A 64-bit version, `co64`, exists for very large files.',
         ref: 'ISO/IEC 14496-12, 8.7.5',
     },
     'stco@version': {
-        text: 'Version of this box, always 0.',
-        ref: 'ISO/IEC 14496-12, 8.7.5.3',
+        text: 'Version of this box, which must be 0.',
+        ref: 'ISO/IEC 14496-12, 8.7.5.2',
     },
     'stco@entry_count': {
-        text: 'The number of entries in the chunk offset table.',
-        ref: 'ISO/IEC 14496-12, 8.7.5.3',
+        text: 'The total number of entries in the chunk offset table, which corresponds to the total number of chunks in the track.',
+        ref: 'ISO/IEC 14496-12, 8.7.5.2',
     },
     'stco@chunk_offset_1': {
-        text: 'The file offset of the first chunk.',
+        text: 'The absolute file offset (from the beginning of the file) to the start of the first chunk of media data.',
         ref: 'ISO/IEC 14496-12, 8.7.5.3',
     },
 };

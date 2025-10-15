@@ -42,28 +42,28 @@ export const stppParsers = {
 export const stppTooltip = {
     stpp: {
         name: 'XML Subtitle Sample Entry',
-        text: 'Defines the coding for an XML-based subtitle track, such as TTML/IMSC1.',
-        ref: 'ISO/IEC 14496-12, 12.4.3',
+        text: 'XML Subtitle Sample Entry (`stpp`). A sample entry for subtitle tracks that are based on XML, such as TTML (e.g., IMSC1). It defines the XML namespace and schema location.',
+        ref: 'ISO/IEC 14496-12, 12.6.3',
     },
     'stpp@namespace': {
-        text: 'A URI defining the namespace of the XML schema for the subtitle format.',
-        ref: 'ISO/IEC 14496-12, 12.4.3.2',
+        text: 'A URI that defines the namespace of the XML schema for the subtitle format (e.g., "http://www.w3.org/ns/ttml").',
+        ref: 'ISO/IEC 14496-12, 12.6.3.2',
     },
     'stpp@schema_location': {
-        text: 'The location of the schema for the namespace.',
-        ref: 'ISO/IEC 14496-12, 12.4.3.2',
+        text: 'An optional URI pointing to the location of the schema definition (XSD) for the namespace.',
+        ref: 'ISO/IEC 14496-12, 12.6.3.2',
     },
     'stpp@auxiliary_mime_types': {
-        text: 'A list of MIME types for auxiliary data (e.g., images) referenced by the XML.',
-        ref: 'ISO/IEC 14496-12, 12.4.3.2',
+        text: 'A space-separated list of MIME types for any auxiliary data (e.g., images, fonts) that may be referenced by the XML documents.',
+        ref: 'ISO/IEC 14496-12, 12.6.3.2',
     },
     mime: {
         name: 'MIME Type Box',
-        text: 'Stores the MIME type of the subtitle document, including any codecs parameters.',
+        text: 'MIME Type Box (`mime`). A child of `stpp`, this box stores the specific MIME type of the subtitle document, which can include the `codecs` parameter (e.g., "application/ttml+xml;codecs=im1t").',
         ref: 'ISO/IEC 14496-30',
     },
     'mime@content_type': {
-        text: 'The MIME type string, e.g., "application/ttml+xml;codecs=im1t".',
+        text: 'The MIME type string that precisely identifies the subtitle format and profile.',
         ref: 'ISO/IEC 14496-30',
     },
 };

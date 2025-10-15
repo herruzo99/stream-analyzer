@@ -10,8 +10,8 @@ export function parseSinf(box, view) {
 
 export const sinfTooltip = {
     sinf: {
-        name: 'Protection Scheme Information',
-        text: 'A container for all information required to understand the encryption transform applied.',
+        name: 'Protection Scheme Information Box',
+        text: 'Protection Scheme Information Box (`sinf`). A container for all information required to understand and handle an encrypted stream. It is a child of an encrypted sample entry (e.g., `encv`, `enca`) and typically contains an `frma`, `schm`, and `schi` box.',
         ref: 'ISO/IEC 14496-12, 8.12.1',
     },
 };

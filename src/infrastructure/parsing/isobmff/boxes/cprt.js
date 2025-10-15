@@ -31,15 +31,15 @@ export function parseCprt(box, view) {
 export const cprtTooltip = {
     cprt: {
         name: 'Copyright Box',
-        text: 'Contains a copyright declaration for the track or presentation.',
+        text: 'Copyright Box (`cprt`). Contains a copyright declaration which applies to the entire presentation (if in `moov`) or a specific track (if in `trak`). Multiple boxes can exist for different languages.',
         ref: 'ISO/IEC 14496-12, 8.10.2',
     },
     'cprt@language': {
-        text: 'The ISO-639-2/T language code for the notice text.',
+        text: 'An ISO-639-2/T 3-character language code specifying the language of the copyright notice text.',
         ref: 'ISO/IEC 14496-12, 8.10.2.3',
     },
     'cprt@notice': {
-        text: 'The copyright notice text.',
+        text: 'A null-terminated string in UTF-8 or UTF-16 containing the human-readable copyright statement.',
         ref: 'ISO/IEC 14496-12, 8.10.2.3',
     },
 };

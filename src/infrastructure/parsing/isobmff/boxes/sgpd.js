@@ -75,20 +75,28 @@ export function parseSgpd(box, view) {
 
 export const sgpdTooltip = {
     sgpd: {
-        name: 'Sample Group Description',
-        text: 'Contains a sample group entry for each sample group, describing its properties.',
+        name: 'Sample Group Description Box',
+        text: 'Sample Group Description Box (`sgpd`). Provides the description for each sample group defined in a `sbgp` box. The format of the description depends on the `grouping_type`.',
         ref: 'ISO/IEC 14496-12, 8.9.3',
     },
     'sgpd@grouping_type': {
-        text: 'The type of grouping that these descriptions apply to. Must match the type in the `sbgp` box.',
+        text: 'A four-character code that links this description box to a `sbgp` box with the same type.',
         ref: 'ISO/IEC 14496-12, 8.9.3.3',
+    },
+    'sgpd@default_length': {
+        text: '(Version 1+) Specifies the default length of each group description entry. If 0, each entry has its own `description_length` field.',
+        ref: 'ISO/IEC 14496-12, 8.9.3.2',
+    },
+    'sgpd@default_sample_description_index': {
+        text: '(Version 2+) The index of the sample group description entry that applies to all samples not explicitly mapped in the `sbgp` box.',
+        ref: 'ISO/IEC 14496-12, 8.9.3.2',
     },
     'sgpd@entry_count': {
         text: 'The number of sample group description entries that follow.',
         ref: 'ISO/IEC 14496-12, 8.9.3.3',
     },
     'sgpd@entry_1_roll_distance': {
-        text: 'For "roll" groups, a signed integer indicating the number of samples (before or after) needed for a clean random access point.',
+        text: 'For a "roll" group, this is a signed integer indicating the number of samples required for gradual decoding refresh. A negative value indicates pre-roll, and a positive value indicates post-roll.',
         ref: 'ISO/IEC 14496-12, 10.1.1.3',
     },
 };

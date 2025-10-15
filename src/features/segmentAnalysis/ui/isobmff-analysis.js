@@ -2,9 +2,6 @@ import { html } from 'lit-html';
 import { isoBoxTreeTemplate } from '@/ui/shared/isobmff-renderer';
 
 const findBoxRecursive = (boxes, predicateOrType) => {
-    // This is the definitive fix. We check the type of the argument.
-    // If it's a function, we use it as the predicate.
-    // If it's a string, we create a new predicate to compare the box type.
     const predicate =
         typeof predicateOrType === 'function'
             ? predicateOrType
@@ -21,8 +18,16 @@ const findBoxRecursive = (boxes, predicateOrType) => {
     return null;
 };
 
-const semanticCard = (title, box, fields) => {
+const semanticCard = (title, box, fields, flags) => {
     if (!box) return '';
+
+    const activeFlags = flags
+        ? Object.entries(flags)
+              .filter(([, value]) => value === true)
+              .map(([key]) => key)
+              .join(', ')
+        : null;
+
     return html`
         <div class="bg-gray-900/50 border border-gray-700 rounded-lg">
             <h4
@@ -40,20 +45,26 @@ const semanticCard = (title, box, fields) => {
                           `
                         : '';
                 })}
+                ${activeFlags
+                    ? html`
+                          <dt class="text-gray-400 col-span-2 pt-1 mt-1 border-t border-gray-700">Active Flags:</dt>
+                          <dd class="text-white break-all col-span-2 text-green-400">${activeFlags}</dd>
+                      `
+                    : ''}
             </dl>
         </div>
     `;
 };
 
 const semanticSummaryTemplate = (boxes) => {
-    const isInitSegment = !!findBoxRecursive(boxes, 'moov');
-    const isMediaSegment = !!findBoxRecursive(boxes, 'moof');
+    const isInitSegment = !!findBoxRecursive(boxes, (b) => b.type === 'moov');
+    const isMediaSegment = !!findBoxRecursive(boxes, (b) => b.type === 'moof');
 
     if (isInitSegment) {
-        const tkhd = findBoxRecursive(boxes, 'tkhd');
-        const mdhd = findBoxRecursive(boxes, 'mdhd');
-        const trex = findBoxRecursive(boxes, 'trex');
-        const elst = findBoxRecursive(boxes, 'elst');
+        const tkhd = findBoxRecursive(boxes, (b) => b.type === 'tkhd');
+        const mdhd = findBoxRecursive(boxes, (b) => b.type === 'mdhd');
+        const trex = findBoxRecursive(boxes, (b) => b.type === 'trex');
+        const elst = findBoxRecursive(boxes, (b) => b.type === 'elst');
 
         return html`
             <h3 class="text-xl font-bold mb-4">
@@ -62,12 +73,17 @@ const semanticSummaryTemplate = (boxes) => {
             <div
                 class="grid gap-4 grid-cols-[repeat(auto-fill,minmax(300px,1fr))] mb-6"
             >
-                ${semanticCard('Track Header (tkhd)', tkhd, [
-                    { key: 'track_ID', label: 'Track ID' },
-                    { key: 'duration', label: 'Duration' },
-                    { key: 'width', label: 'Width' },
-                    { key: 'height', label: 'Height' },
-                ])}
+                ${semanticCard(
+                    'Track Header (tkhd)',
+                    tkhd,
+                    [
+                        { key: 'track_ID', label: 'Track ID' },
+                        { key: 'duration', label: 'Duration' },
+                        { key: 'width', label: 'Width' },
+                        { key: 'height', label: 'Height' },
+                    ],
+                    tkhd?.details.flags?.value
+                )}
                 ${semanticCard('Media Header (mdhd)', mdhd, [
                     { key: 'timescale', label: 'Timescale' },
                     { key: 'duration', label: 'Duration' },
@@ -93,10 +109,10 @@ const semanticSummaryTemplate = (boxes) => {
     }
 
     if (isMediaSegment) {
-        const mfhd = findBoxRecursive(boxes, 'mfhd');
-        const tfhd = findBoxRecursive(boxes, 'tfhd');
-        const tfdt = findBoxRecursive(boxes, 'tfdt');
-        const trun = findBoxRecursive(boxes, 'trun');
+        const mfhd = findBoxRecursive(boxes, (b) => b.type === 'mfhd');
+        const tfhd = findBoxRecursive(boxes, (b) => b.type === 'tfhd');
+        const tfdt = findBoxRecursive(boxes, (b) => b.type === 'tfdt');
+        const trun = findBoxRecursive(boxes, (b) => b.type === 'trun');
 
         return html`
             <h3 class="text-xl font-bold mb-4">Media Segment Summary</h3>
@@ -106,26 +122,34 @@ const semanticSummaryTemplate = (boxes) => {
                 ${semanticCard('Movie Fragment Header (mfhd)', mfhd, [
                     { key: 'sequence_number', label: 'Sequence Number' },
                 ])}
-                ${semanticCard('Track Fragment Header (tfhd)', tfhd, [
-                    { key: 'track_ID', label: 'Track ID' },
-                    { key: 'flags', label: 'Flags' },
-                    { key: 'base_data_offset', label: 'Base Data Offset' },
-                    {
-                        key: 'default_sample_duration',
-                        label: 'Default Duration',
-                    },
-                ])}
+                ${semanticCard(
+                    'Track Fragment Header (tfhd)',
+                    tfhd,
+                    [
+                        { key: 'track_ID', label: 'Track ID' },
+                        { key: 'base_data_offset', label: 'Base Data Offset' },
+                        {
+                            key: 'default_sample_duration',
+                            label: 'Default Duration',
+                        },
+                    ],
+                    tfhd?.details.flags?.value
+                )}
                 ${semanticCard('Track Fragment Decode Time (tfdt)', tfdt, [
                     {
                         key: 'baseMediaDecodeTime',
                         label: 'Base Media Decode Time',
                     },
                 ])}
-                ${semanticCard('Track Run (trun)', trun, [
-                    { key: 'sample_count', label: 'Sample Count' },
-                    { key: 'data_offset', label: 'Data Offset' },
-                    { key: 'flags', label: 'Flags' },
-                ])}
+                ${semanticCard(
+                    'Track Run (trun)',
+                    trun,
+                    [
+                        { key: 'sample_count', label: 'Sample Count' },
+                        { key: 'data_offset', label: 'Data Offset' },
+                    ],
+                    trun?.details.flags?.value
+                )}
             </div>
         `;
     }
@@ -157,7 +181,17 @@ const formatEncryptionInfo = (encryption) => {
 
 const samplesTableTemplate = (samples) => {
     if (!samples || samples.length === 0) return '';
-    const dependsOnMap = { 2: 'No (I-Frame)', 1: 'Yes', 0: 'Unknown' };
+
+    const renderDependsOn = (value) => {
+        switch (value) {
+            case 'Does not depend on others (I-frame)':
+                return html`<span class="text-green-400">${value}</span>`;
+            case 'Depends on others':
+                return html`<span class="text-yellow-400">${value}</span>`;
+            default:
+                return value;
+        }
+    };
 
     return html`
         <div
@@ -183,7 +217,7 @@ const samplesTableTemplate = (samples) => {
                                 <td class="p-2 font-mono">${sample.offset}</td>
                                 <td class="p-2 font-mono">${sample.size}</td>
                                 <td class="p-2 font-mono">
-                                    ${dependsOnMap[sample.dependsOn] || 'N/A'}
+                                    ${renderDependsOn(sample.dependsOn)}
                                 </td>
                                 <td class="p-2 font-mono">
                                     ${sample.degradationPriority ?? 'N/A'}

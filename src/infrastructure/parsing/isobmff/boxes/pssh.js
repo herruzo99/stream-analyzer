@@ -61,24 +61,28 @@ export function parsePssh(box, view) {
 
 export const psshTooltip = {
     pssh: {
-        name: 'Protection System Specific Header',
-        text: 'Contains DRM initialization data.',
-        ref: 'ISO/IEC 23001-7',
-    },
-    'pssh@System ID': {
-        text: 'A 16-byte UUID that uniquely identifies the DRM system (e.g., Widevine, PlayReady).',
-        ref: 'ISO/IEC 23001-7, 5.1.2',
-    },
-    'pssh@Data Size': {
-        text: 'The size of the system-specific initialization data that follows.',
-        ref: 'ISO/IEC 23001-7, 5.1.2',
+        name: 'Protection System Specific Header Box',
+        text: 'Protection System Specific Header (`pssh`). Contains initialization data that is opaque to the player but essential for a specific Content Protection system (DRM). The player passes this data to the browser\'s EME APIs to initiate a license request.',
+        ref: 'ISO/IEC 23001-7, 5.1',
     },
     'pssh@version': {
-        text: 'Version of this box (0 or 1). Version 1 includes key IDs.',
+        text: 'Version of this box. Version > 0 includes an explicit list of Key IDs (KIDs) that this PSSH data applies to.',
+        ref: 'ISO/IEC 23001-7, 5.1.2',
+    },
+    'pssh@System ID': {
+        text: 'A 128-bit UUID that uniquely identifies the Content Protection system (e.g., Widevine, PlayReady, FairPlay).',
         ref: 'ISO/IEC 23001-7, 5.1.2',
     },
     'pssh@Key ID Count': {
-        text: 'The number of key IDs present in the box (only for version 1).',
+        text: 'The number of Key IDs (KIDs) listed in this box (only present if version > 0).',
+        ref: 'ISO/IEC 23001-7, 5.1.2',
+    },
+    'pssh@Data Size': {
+        text: 'The size in bytes of the opaque, system-specific initialization data that follows.',
+        ref: 'ISO/IEC 23001-7, 5.1.2',
+    },
+    'pssh@Data': {
+        text: 'The opaque, system-specific initialization data payload. This is passed directly to the DRM system.',
         ref: 'ISO/IEC 23001-7, 5.1.2',
     },
 };

@@ -14,12 +14,12 @@ export function parseFree(box, view) {
 export const freeTooltip = {
     free: {
         name: 'Free Space Box',
-        text: 'The contents of this box are irrelevant and may be ignored. It is used to reserve space.',
+        text: 'Free Space Box (`free`). A placeholder box whose contents are irrelevant and can be ignored. It is often used to reserve space for future metadata edits without rewriting the entire file.',
         ref: 'ISO/IEC 14496-12, 8.1.2',
     },
     skip: {
         name: 'Skip Box',
-        text: 'An alternative type for a free space box. The contents are irrelevant.',
+        text: 'Skip Box (`skip`). Functionally identical to the `free` box. Its contents are irrelevant and can be ignored.',
         ref: 'ISO/IEC 14496-12, 8.1.2',
     },
 };

@@ -58,25 +58,26 @@ function renderHexGridContent(view, start, end, byteMap, allTooltips) {
                         isClearStyle = 'clear-byte-pattern';
                     }
 
-                    // Prioritize field-specific tooltip, fall back to box-level
-                    const fieldTooltipKey = itemType
-                        ? `${itemType}@${fieldName}`
-                        : fieldName;
-                    const fieldInfo = allTooltips[fieldTooltipKey];
-                    const boxInfo = allTooltips[itemType];
-
-                    if (fieldInfo) {
-                        tooltipText = fieldInfo.text;
-                        isoRefText = fieldInfo.ref || '';
-                    } else if (boxInfo) {
-                        tooltipText = `${fieldName} in ${itemType}`;
-                        isoRefText = boxInfo.ref || '';
-                    } else if (item?.isSample) {
+                    if (item?.isSample) {
                         tooltipText = `Sample ${item.index}`;
-                    } else if (fieldName) {
-                        tooltipText = fieldName;
                     } else {
-                        tooltipText = 'Unknown Data';
+                        const fieldTooltipKey = itemType
+                            ? `${itemType}@${fieldName}`
+                            : fieldName;
+                        const fieldInfo = allTooltips[fieldTooltipKey];
+                        const boxInfo = allTooltips[itemType];
+
+                        if (fieldInfo) {
+                            tooltipText = fieldInfo.text;
+                            isoRefText = fieldInfo.ref || '';
+                        } else if (boxInfo) {
+                            tooltipText = `${fieldName} in ${itemType}`;
+                            isoRefText = boxInfo.ref || '';
+                        } else if (fieldName) {
+                            tooltipText = fieldName;
+                        } else {
+                            tooltipText = 'Unknown Data';
+                        }
                     }
 
                     if (

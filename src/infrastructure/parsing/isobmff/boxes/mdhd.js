@@ -49,24 +49,32 @@ export function parseMdhd(box, view) {
 
 export const mdhdTooltip = {
     mdhd: {
-        name: 'Media Header',
-        text: 'Declares media information (timescale, language).',
+        name: 'Media Header Box',
+        text: 'Media Header Box (`mdhd`). Declares media-independent information for a track, primarily its timescale and duration. This timescale is the fundamental unit for all timing information within this specific track.',
         ref: 'ISO/IEC 14496-12, 8.4.2',
     },
     'mdhd@version': {
-        text: 'Version of this box (0 or 1). Affects the size of time and duration fields.',
+        text: 'Version of this box (0 or 1). Version 1 uses 64-bit fields for time and duration values, necessary for very long tracks.',
+        ref: 'ISO/IEC 14496-12, 8.4.2.2',
+    },
+    'mdhd@creation_time': {
+        text: 'The creation time of the media in this track, in seconds since midnight, Jan. 1, 1904, in UTC.',
+        ref: 'ISO/IEC 14496-12, 8.4.2.3',
+    },
+    'mdhd@modification_time': {
+        text: 'The most recent time the media in this track was modified.',
         ref: 'ISO/IEC 14496-12, 8.4.2.3',
     },
     'mdhd@timescale': {
-        text: "The number of time units that pass in one second for this track's media.",
+        text: "The number of time units that pass in one second for this track's media. For example, for video this might be 90000; for audio it's typically the sample rate (e.g., 48000).",
         ref: 'ISO/IEC 14496-12, 8.4.2.3',
     },
     'mdhd@duration': {
-        text: "The duration of this track's media in units of its own timescale.",
+        text: "The duration of this track's media in the media's own timescale units. This represents the raw, unedited duration.",
         ref: 'ISO/IEC 14496-12, 8.4.2.3',
     },
     'mdhd@language': {
-        text: 'The ISO-639-2/T language code for this media.',
+        text: 'An ISO-639-2/T 3-character code that declares the primary language of the media in this track.',
         ref: 'ISO/IEC 14496-12, 8.4.2.3',
     },
 };

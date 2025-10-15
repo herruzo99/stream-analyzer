@@ -81,27 +81,31 @@ export function parseSenc(box, view) {
 export const sencTooltip = {
     senc: {
         name: 'Sample Encryption Box',
-        text: 'Contains sample-specific encryption information, such as Initialization Vectors (IVs) and sub-sample encryption data for Common Encryption (CENC).',
+        text: 'Sample Encryption Box (`senc`). Contains sample-specific encryption information, such as Initialization Vectors (IVs) and subsample encryption patterns. This box is central to the Common Encryption (CENC) scheme.',
+        ref: 'ISO/IEC 23001-7, 7.1',
+    },
+    'senc@flags': {
+        text: 'A bitfield where bit 1 (0x02) indicates that subsample encryption information is present for each sample.',
         ref: 'ISO/IEC 23001-7, 7.1',
     },
     'senc@sample_count': {
-        text: 'The number of samples described in this box.',
+        text: 'The number of samples for which encryption information is provided in this box.',
         ref: 'ISO/IEC 23001-7, 7.1',
     },
     'senc@sample_1_iv': {
-        text: "The Initialization Vector for the first sample. Its size is defined in the 'tenc' box (typically 8 or 16 bytes).",
+        text: "The Initialization Vector for the first sample. Its size is defined in the 'tenc' box (typically 8 or 16 bytes). The IV is required for the decryption process.",
         ref: 'ISO/IEC 23001-7, 7.2',
     },
     'senc@sample_1_subsample_count': {
-        text: 'The number of subsamples (clear/encrypted pairs) in the first sample.',
+        text: 'The number of subsamples (contiguous clear and encrypted regions) within the first sample. This is used for pattern encryption where only parts of the sample are encrypted.',
         ref: 'ISO/IEC 23001-7, 7.1',
     },
     'senc@sample_1_subsample_1_clear_bytes': {
-        text: 'The number of unencrypted bytes in the first subsample.',
+        text: 'The number of unencrypted bytes in the first subsample of the first sample.',
         ref: 'ISO/IEC 23001-7, 7.1',
     },
     'senc@sample_1_subsample_1_encrypted_bytes': {
-        text: 'The number of encrypted bytes in the first subsample.',
+        text: 'The number of encrypted bytes in the first subsample of the first sample.',
         ref: 'ISO/IEC 23001-7, 7.1',
     },
 };

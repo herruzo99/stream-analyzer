@@ -14,7 +14,7 @@ export function parseMeta(box, view) {
 export const metaTooltip = {
     meta: {
         name: 'Metadata Box',
-        text: 'A container for descriptive or annotative metadata.',
+        text: 'Metadata Box (`meta`). A container for descriptive or annotative metadata. It is required to contain a Handler Reference (`hdlr`) box that declares the format of its contents. It can be found at the file, movie, or track level.',
         ref: 'ISO/IEC 14496-12, 8.11.1',
     },
 };

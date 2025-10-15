@@ -16,16 +16,16 @@ export function parseHdlr(box, view) {
 
 export const hdlrTooltip = {
     hdlr: {
-        name: 'Handler Reference',
-        text: "Declares the media type of the track (e.g., 'vide', 'soun').",
+        name: 'Handler Reference Box',
+        text: 'Handler Reference Box (`hdlr`). Declares the media type of the track and thus the process by which the media data should be presented. It specifies whether the track contains video (`vide`), audio (`soun`), subtitles (`subt`), or other media types.',
         ref: 'ISO/IEC 14496-12, 8.4.3',
     },
     'hdlr@handler_type': {
-        text: "A four-character code identifying the media type (e.g., 'vide', 'soun', 'hint').",
-        ref: 'ISO/IEC 14496-12, 8.4.3.3',
+        text: 'A four-character code that identifies the media type. Common values include `vide` (video), `soun` (sound), `hint` (hint track for streaming), `subt` (subtitles), and `meta` (metadata).',
+        ref: 'ISO/IEC 14496-12, 8.4.3.3 & 12',
     },
     'hdlr@name': {
-        text: 'A human-readable name for the track type (for debugging and inspection purposes).',
+        text: 'A human-readable, null-terminated string in UTF-8 that gives a name for the track type (e.g., "VideoHandler"). This is primarily for inspection and debugging.',
         ref: 'ISO/IEC 14496-12, 8.4.3.3',
     },
 };

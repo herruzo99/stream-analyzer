@@ -39,43 +39,43 @@ export function parseEmsg(box, view) {
 export const emsgTooltip = {
     emsg: {
         name: 'Event Message Box',
-        text: 'Contains an event message for in-band signaling, such as SCTE-35 ad markers.',
-        ref: 'ISO/IEC 23009-1, Clause 5.10.3.3',
+        text: 'Event Message Box (`emsg`). Carries timed metadata ("events") multiplexed within the media stream. It is a primary mechanism for in-band signaling, such as SCTE-35 ad markers or ID3 tags.',
+        ref: 'ISO/IEC 23009-1 (DASH), Clause 5.10.3.3',
     },
     'emsg@version': {
-        text: 'Version of this box (0 or 1). Version 1 uses a 64-bit absolute presentation_time.',
-        ref: 'ISO/IEC 23009-1, Clause 5.10.3.3.2',
+        text: 'Version of this box (0 or 1). Version 1 supports 64-bit timestamps and an absolute `presentation_time`, while version 0 uses a 32-bit delta relative to the segment start.',
+        ref: 'ISO/IEC 23009-1, 5.10.3.3.2',
     },
     'emsg@presentation_time': {
-        text: '(Version 1) The absolute presentation time of the event on the media timeline, in timescale units.',
-        ref: 'ISO/IEC 23009-1, Clause 5.10.3.3.2',
+        text: '(Version 1) The absolute presentation time of the event on the media timeline, in the specified `timescale` units. This allows for precise, segment-independent timing.',
+        ref: 'ISO/IEC 23009-1, 5.10.3.3.2',
     },
     'emsg@presentation_time_delta': {
-        text: '(Version 0) The presentation time delta of the event relative to the earliest presentation time in the segment.',
-        ref: 'ISO/IEC 23009-1, Clause 5.10.3.3.2',
+        text: '(Version 0) The presentation time of the event as a delta from the earliest presentation time in the containing segment.',
+        ref: 'ISO/IEC 23009-1, 5.10.3.3.2',
     },
     'emsg@timescale': {
-        text: 'The timescale for this event, in ticks per second.',
-        ref: 'ISO/IEC 23009-1, Clause 5.10.3.3.2',
+        text: 'The number of time units that pass in one second for the time and duration fields within this box. This allows the event to have a different timescale from the media.',
+        ref: 'ISO/IEC 23009-1, 5.10.3.3.2',
     },
     'emsg@event_duration': {
-        text: 'The duration of the event in timescale units.',
-        ref: 'ISO/IEC 23009-1, Clause 5.10.3.3.2',
+        text: 'The duration of the event in `timescale` units. A value of 0 indicates a point event.',
+        ref: 'ISO/IEC 23009-1, 5.10.3.3.2',
     },
     'emsg@id': {
-        text: 'A unique identifier for this event instance.',
-        ref: 'ISO/IEC 23009-1, Clause 5.10.3.3.2',
+        text: 'A unique identifier for this event instance within its scheme. It allows for correlation and cancellation of events.',
+        ref: 'ISO/IEC 23009-1, 5.10.3.3.2',
     },
     'emsg@scheme_id_uri': {
-        text: 'A URI identifying the scheme of the event message (e.g., "urn:scte:scte35:2014:xml+bin").',
-        ref: 'ISO/IEC 23009-1, Clause 5.10.3.3.2',
+        text: 'A URI that identifies the scheme of the event message (e.g., "urn:scte:scte35:2014:xml+bin" for SCTE-35). This tells the client how to interpret the `message_data`.',
+        ref: 'ISO/IEC 23009-1, 5.10.3.3.2',
     },
     'emsg@value': {
-        text: 'A value that distinguishes this event stream from others with the same scheme.',
-        ref: 'ISO/IEC 23009-1, Clause 5.10.3.3.2',
+        text: 'A value that distinguishes this event stream from other event streams with the same `scheme_id_uri`.',
+        ref: 'ISO/IEC 23009-1, 5.10.3.3.2',
     },
     'emsg@message_data': {
-        text: 'The payload of the event message, with syntax defined by the scheme.',
-        ref: 'ISO/IEC 23009-1, Clause 5.10.3.3.2',
+        text: 'The payload of the event message. The syntax and semantics of this data are defined by the scheme identified in `scheme_id_uri`. For SCTE-35, this would contain the binary splice_info_section.',
+        ref: 'ISO/IEC 23009-1, 5.10.3.3.2',
     },
 };

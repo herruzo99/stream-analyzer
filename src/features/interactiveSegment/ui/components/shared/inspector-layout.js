@@ -51,7 +51,7 @@ export const inspectorLayoutTemplate = ({
 
         <!-- Responsive Content Grid -->
         <div
-            class="lg:grid lg:grid-cols-[minmax(300px,25%)_1fr] lg:gap-4 h-svh"
+            class="lg:grid lg:grid-cols-[minmax(500px,33%)_1fr] lg:gap-4 h-svh"
         >
             <div class=${classMap(inspectorClasses)}>
                 <div class="flex flex-col gap-4 h-svh">
