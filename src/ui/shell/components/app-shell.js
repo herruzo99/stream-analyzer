@@ -17,7 +17,10 @@ import { getInteractiveSegmentTemplate } from '@/features/interactiveSegment/ui/
 import { getInteractiveManifestTemplate } from '@/features/interactiveManifest/ui/index';
 import { manifestUpdatesTemplate } from '@/features/manifestUpdates/ui/index';
 import { getParserCoverageTemplate } from '@/features/parserCoverage/ui/index';
-import { stopLiveSegmentHighlighter, startLiveSegmentHighlighter } from '@/features/segmentExplorer/ui/components/hls/index';
+import {
+    stopLiveSegmentHighlighter,
+    startLiveSegmentHighlighter,
+} from '@/features/segmentExplorer/ui/components/hls/index';
 import { isDebugMode } from '@/application/utils/env';
 import { cleanupSegmentViewInteractivity } from '@/features/interactiveSegment/ui/components/interaction-logic';
 
@@ -47,7 +50,9 @@ const renderMainContent = (activeStream, activeTab) => {
     let contextualContentTemplate = null;
 
     if (!activeStream) {
-        mainContentTemplate = html`<p class="text-gray-500">No active stream selected.</p>`;
+        mainContentTemplate = html`<p class="text-gray-500">
+            No active stream selected.
+        </p>`;
         return { mainContentTemplate, contextualContentTemplate };
     }
 
@@ -60,19 +65,22 @@ const renderMainContent = (activeStream, activeTab) => {
                 mainContentTemplate = getGlobalSummaryTemplate(activeStream);
                 break;
             case 'integrators-report':
-                mainContentTemplate = getIntegratorsReportTemplate(activeStream);
+                mainContentTemplate =
+                    getIntegratorsReportTemplate(activeStream);
                 break;
             case 'features':
                 mainContentTemplate = getFeaturesAnalysisTemplate(activeStream);
                 break;
             case 'compliance': {
-                const { main, contextual } = getComplianceReportTemplate(activeStream);
+                const { main, contextual } =
+                    getComplianceReportTemplate(activeStream);
                 mainContentTemplate = main;
                 contextualContentTemplate = contextual;
                 break;
             }
             case 'interactive-manifest':
-                mainContentTemplate = getInteractiveManifestTemplate(activeStream);
+                mainContentTemplate =
+                    getInteractiveManifestTemplate(activeStream);
                 break;
             case 'updates':
                 mainContentTemplate = manifestUpdatesTemplate(activeStream);
@@ -87,12 +95,21 @@ const renderMainContent = (activeStream, activeTab) => {
                 mainContentTemplate = getInteractiveSegmentTemplate(dom);
                 break;
             case 'timeline-visuals': {
-                const loadingTemplate = html`<div class="text-center py-8 text-gray-400">Loading timeline data...</div>`;
-                mainContentTemplate = until(getTimelineAndVisualsTemplate(activeStream), loadingTemplate);
+                const loadingTemplate = html`<div
+                    class="text-center py-8 text-gray-400"
+                >
+                    Loading timeline data...
+                </div>`;
+                mainContentTemplate = until(
+                    getTimelineAndVisualsTemplate(activeStream),
+                    loadingTemplate
+                );
                 break;
             }
             default:
-                 mainContentTemplate = html`<p class="text-gray-500">Select a view from the sidebar.</p>`;
+                mainContentTemplate = html`<p class="text-gray-500">
+                    Select a view from the sidebar.
+                </p>`;
         }
     }
 
@@ -103,12 +120,12 @@ const handleTabClick = (e) => {
     const target = /** @type {HTMLElement} */ (e.target);
     const targetTab = /** @type {HTMLElement} */ (target.closest('[data-tab]'));
     if (!targetTab) return;
-    
+
     e.preventDefault();
     const tabKey = targetTab.dataset.tab;
     const { activeTab } = useUiStore.getState();
     const previousTab = activeTab;
-    
+
     if (activeTab === tabKey) {
         uiActions.setActiveSidebar(null);
         return;
@@ -134,11 +151,14 @@ const handleTabClick = (e) => {
                     if (event.key === 'ArrowRight') navigateManifestUpdates(1);
                     if (event.key === 'ArrowLeft') navigateManifestUpdates(-1);
                 };
-                document.addEventListener('keydown', keyboardNavigationListener);
+                document.addEventListener(
+                    'keydown',
+                    keyboardNavigationListener
+                );
             }
         );
     }
-}
+};
 
 export function renderAppShell(domContext) {
     dom = domContext;
@@ -151,37 +171,58 @@ export function renderAppShell(domContext) {
         dom.sidebarNav.dataset.listenerAttached = 'true';
     }
 
-    if (dom.sidebarToggleBtn && !dom.sidebarToggleBtn.dataset.listenerAttached) {
-        dom.sidebarToggleBtn.addEventListener('click', () => uiActions.setActiveSidebar('primary'));
-        dom.sidebarOverlay.addEventListener('click', () => uiActions.setActiveSidebar(null));
+    if (
+        dom.sidebarToggleBtn &&
+        !dom.sidebarToggleBtn.dataset.listenerAttached
+    ) {
+        dom.sidebarToggleBtn.addEventListener('click', () =>
+            uiActions.setActiveSidebar('primary')
+        );
+        dom.sidebarOverlay.addEventListener('click', () =>
+            uiActions.setActiveSidebar(null)
+        );
         dom.sidebarToggleBtn.dataset.listenerAttached = 'true';
     }
 
-    if(dom.mobilePageTitle) {
-        const currentTab = NAV_ITEMS.find(item => item.key === activeTab);
+    if (dom.mobilePageTitle) {
+        const currentTab = NAV_ITEMS.find((item) => item.key === activeTab);
         dom.mobilePageTitle.textContent = currentTab ? currentTab.label : '';
         dom.mobileHeader.classList.toggle('hidden', !activeStream);
     }
 
-    document.body.classList.toggle('primary-sidebar-open', activeSidebar === 'primary');
-    document.body.classList.toggle('contextual-sidebar-open', activeSidebar === 'contextual');
+    document.body.classList.toggle(
+        'primary-sidebar-open',
+        activeSidebar === 'primary'
+    );
+    document.body.classList.toggle(
+        'contextual-sidebar-open',
+        activeSidebar === 'contextual'
+    );
 
     render(sidebarNavTemplate(), dom.sidebarNav);
     render(globalControlsTemplate(), dom.sidebarFooter);
     render(renderContextSwitcher(), dom.sidebarContextSwitchers);
     render(mainContentControlsTemplate(), dom.contextHeader);
-    
-    const { mainContentTemplate, contextualContentTemplate } = renderMainContent(activeStream, activeTab);
-    
+
+    const { mainContentTemplate, contextualContentTemplate } =
+        renderMainContent(activeStream, activeTab);
+
     if (mainContentTemplate) {
         render(mainContentTemplate, dom.mainContent);
     }
-    
+
     render(contextualContentTemplate || html``, dom.contextualSidebar);
-    dom.contextualSidebar.classList.toggle('hidden', !contextualContentTemplate);
+    dom.contextualSidebar.classList.toggle(
+        'hidden',
+        !contextualContentTemplate
+    );
 
-
-    if (activeStream && activeStream.manifest.type === 'dynamic' && activeStream.protocol === 'hls' && activeTab === 'explorer') {
+    if (
+        activeStream &&
+        activeStream.manifest.type === 'dynamic' &&
+        activeStream.protocol === 'hls' &&
+        activeTab === 'explorer'
+    ) {
         startLiveSegmentHighlighter(dom.mainContent, activeStream);
     }
 }

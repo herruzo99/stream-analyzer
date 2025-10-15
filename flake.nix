@@ -34,7 +34,7 @@
           '';
 
           # Ensure node_modules/.bin is in the PATH for the build script
-          nativeBuildInputs = [ pkgs.nodejs ];
+          nativeBuildInputs = [ pkgs.nodejs_24 ];
         };
         
         # Separate package for development/testing that includes all dependencies
@@ -60,11 +60,11 @@
       devShells = forAllSystems ({ pkgs }: {
         default = pkgs.mkShell {
           packages = [ 
-            pkgs.nodejs
-            pkgs.playwright-driver
+            pkgs.nodejs_24
             # Add postcss and tailwindcss CLIs for the build script to work
             pkgs.nodePackages.postcss
-            pkgs.nodePackages.tailwindcss
+            pkgs.tailwindcss_4
+            pkgs.watchman
           ];
           
           # Set up Playwright to use Nix-provided browsers

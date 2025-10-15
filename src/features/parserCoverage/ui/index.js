@@ -74,13 +74,13 @@ const sidebarTemplate = (coverageReport) => {
     }
     return html`
         <div
-            class="flex-shrink-0 p-2 bg-gray-900/50 rounded-md border-b border-gray-700"
+            class="shrink-0 p-2 bg-gray-900/50 rounded-md border-b border-gray-700"
         >
             <h4 class="font-bold text-gray-300">
                 Coverage Issues (${coverageReport.length})
             </h4>
         </div>
-        <div class="space-y-2 flex-grow min-h-0 overflow-y-auto p-1">
+        <div class="space-y-2 grow min-h-0 overflow-y-auto p-1">
             ${coverageReport.map(findingCard)}
         </div>
     `;
@@ -141,10 +141,10 @@ const renderDashNodeCoverage = (
     templates.push(
         html`<div class="flex">
             <span
-                class="text-right text-gray-500 pr-4 select-none flex-shrink-0 w-12"
+                class="text-right text-gray-500 pr-4 select-none shrink-0 w-12"
                 >${lineCounter.count++}</span
             >
-            <span class="flex-grow whitespace-pre-wrap break-all"
+            <span class="grow whitespace-pre-wrap break-all"
                 >${unsafeHTML(indent)}${unsafeHTML(openingTagString)}</span
             >
         </div>`
@@ -157,7 +157,7 @@ const renderDashNodeCoverage = (
                     <span class="text-right text-gray-500 pr-4 select-none w-12"
                         >${lineCounter.count++}</span
                     >
-                    <span class="flex-grow whitespace-pre-wrap break-all"
+                    <span class="grow whitespace-pre-wrap break-all"
                         >${unsafeHTML(indent + '  ')}<span class="text-gray-200"
                             >${textContent}</span
                         ></span
@@ -190,10 +190,10 @@ const renderDashNodeCoverage = (
         templates.push(
             html`<div class="flex">
                 <span
-                    class="text-right text-gray-500 pr-4 select-none flex-shrink-0 w-12"
+                    class="text-right text-gray-500 pr-4 select-none shrink-0 w-12"
                     >${lineCounter.count++}</span
                 >
-                <span class="flex-grow whitespace-pre-wrap break-all"
+                <span class="grow whitespace-pre-wrap break-all"
                     >${unsafeHTML(indent)}${unsafeHTML(closingTagHtml)}</span
                 >
             </div>`
@@ -237,7 +237,7 @@ const manifestViewTemplate = (stream, coverageReport) => {
                 >
                 <span
                     id=${locationId}
-                    class="coverage-highlight flex-grow whitespace-pre-wrap break-all ${highlightClass}"
+                    class="coverage-highlight grow whitespace-pre-wrap break-all ${highlightClass}"
                     >${unsafeHTML(highlightHls(line))}</span
                 >
             </div>`;
@@ -288,7 +288,7 @@ export function getParserCoverageTemplate(stream) {
     };
 
     return html`
-        <div class="mb-4 flex-shrink-0 flex justify-between items-center">
+        <div class="mb-4 shrink-0 flex justify-between items-center">
             <div>
                 <h3 class="text-xl font-bold">Parser Coverage Analysis</h3>
                 <p class="text-sm text-gray-400 mt-1">
@@ -299,7 +299,7 @@ export function getParserCoverageTemplate(stream) {
             </div>
             <button
                 @click=${handleDebugCopy}
-                class="bg-yellow-600 hover:bg-yellow-700 text-black font-bold py-2 px-3 rounded-md transition-colors flex-shrink-0"
+                class="bg-yellow-600 hover:bg-yellow-700 text-black font-bold py-2 px-3 rounded-md transition-colors shrink-0"
             >
                 Copy Debug Report
             </button>

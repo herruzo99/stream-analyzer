@@ -1,7 +1,7 @@
 import {
-    findChild,
     getInheritedElement,
     getAttr,
+    findChildren,
 } from '../recursive-parser.js';
 
 /** @typedef {import('./index.js').Rule} Rule */
@@ -18,9 +18,9 @@ export const segmentRules = [
         category: 'Segment & Timing Info',
         check: (rep) => {
             const elements = [
-                findChild(rep, 'SegmentBase'),
-                findChild(rep, 'SegmentList'),
-                findChild(rep, 'SegmentTemplate'),
+                findChildren(rep, 'SegmentBase')[0],
+                findChildren(rep, 'SegmentList')[0],
+                findChildren(rep, 'SegmentTemplate')[0],
             ];
             return elements.filter(Boolean).length <= 1;
         },
@@ -48,7 +48,7 @@ export const segmentRules = [
             const duration = getAttr(template, 'duration');
             return (
                 duration !== undefined ||
-                !!findChild(template, 'SegmentTimeline')
+                !!findChildren(template, 'SegmentTimeline')[0]
             );
         },
         passDetails: 'OK',
@@ -70,7 +70,7 @@ export const segmentRules = [
             if (!template || !getAttr(template, 'media')?.includes('$Time$')) {
                 return 'skip';
             }
-            return !!findChild(template, 'SegmentTimeline');
+            return !!findChildren(template, 'SegmentTimeline')[0];
         },
         passDetails: 'OK',
         failDetails:

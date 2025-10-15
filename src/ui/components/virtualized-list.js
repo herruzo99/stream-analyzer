@@ -6,7 +6,7 @@ class VirtualizedList extends HTMLElement {
         this._items = [];
         this._rowTemplate = (item) => html``;
         this._rowHeight = 40;
-        
+
         this.visibleStartIndex = 0;
         this.visibleEndIndex = 0;
         this.paddingTop = 0;
@@ -21,7 +21,7 @@ class VirtualizedList extends HTMLElement {
         const hadItems = this._items.length > 0;
         const newCount = newItems.length;
         const oldCount = this._items.length;
-        
+
         this._items = newItems;
         this._updateVisibleItems();
 
@@ -45,7 +45,7 @@ class VirtualizedList extends HTMLElement {
     get rowTemplate() {
         return this._rowTemplate;
     }
-    
+
     set rowHeight(newHeight) {
         if (this._rowHeight === newHeight) return;
         this._rowHeight = newHeight;
@@ -69,7 +69,7 @@ class VirtualizedList extends HTMLElement {
             this._updateVisibleItems()
         );
         this.resizeObserver.observe(this);
-        
+
         this._updateVisibleItems();
     }
 

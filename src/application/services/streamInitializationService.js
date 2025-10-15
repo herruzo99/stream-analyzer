@@ -1,11 +1,7 @@
 import { eventBus } from '@/application/event-bus';
 import { analysisActions } from '@/state/analysisStore';
-import {
-    findInitSegmentUrl,
-} from '@/infrastructure/parsing/dash/segment-parser';
-import {
-    resolveBaseUrl,
-} from '@/infrastructure/parsing/dash/recursive-parser';
+import { findInitSegmentUrl } from '@/infrastructure/parsing/dash/segment-parser';
+import { resolveBaseUrl } from '@/infrastructure/parsing/dash/recursive-parser';
 import { workerService } from '@/infrastructure/worker/workerService';
 
 /**
@@ -30,7 +26,7 @@ class StreamInitializationService {
      * @param {{ streams: import('@/types').Stream[] }} payload
      */
     async handleAnalysisComplete({ streams }) {
-        const enrichmentPromises = streams.map(stream => {
+        const enrichmentPromises = streams.map((stream) => {
             if (stream.protocol === 'dash') {
                 return this.fetchAllDashInitSegments(stream);
             } else if (stream.protocol === 'hls' && stream.manifest?.isMaster) {
@@ -48,17 +44,17 @@ class StreamInitializationService {
     async fetchAllHlsMediaPlaylists(stream) {
         if (!stream.manifest?.variants) return;
 
-        const playlistPromises = stream.manifest.variants.map(variant => 
+        const playlistPromises = stream.manifest.variants.map((variant) =>
             workerService.postTask('fetch-hls-media-playlist', {
                 streamId: stream.id,
                 variantUri: variant.resolvedUri,
                 hlsDefinedVariables: stream.hlsDefinedVariables,
             })
         );
-        
+
         const results = await Promise.allSettled(playlistPromises);
 
-        results.forEach(result => {
+        results.forEach((result) => {
             if (result.status === 'fulfilled') {
                 const data = result.value;
                 analysisActions.updateHlsMediaPlaylist({
@@ -70,7 +66,10 @@ class StreamInitializationService {
                     freshSegmentUrls: data.freshSegmentUrls,
                 });
             } else {
-                console.error('[StreamInitializationService] Failed to fetch HLS media playlist:', result.reason);
+                console.error(
+                    '[StreamInitializationService] Failed to fetch HLS media playlist:',
+                    result.reason
+                );
             }
         });
     }
@@ -92,7 +91,12 @@ class StreamInitializationService {
                         as.serializedManifest,
                         rep.serializedManifest
                     );
-                    const initUrl = findInitSegmentUrl(rep, as, period, baseUrl);
+                    const initUrl = findInitSegmentUrl(
+                        rep,
+                        as,
+                        period,
+                        baseUrl
+                    );
                     if (initUrl && !initUrlMap.has(initUrl)) {
                         initUrlMap.set(initUrl, { repId: rep.id });
                     }

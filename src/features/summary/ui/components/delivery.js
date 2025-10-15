@@ -29,7 +29,7 @@ const steeringValidationResultTemplate = (result) => {
     return html`<div class="flex items-start gap-2">
         <svg
             xmlns="http://www.w3.org/2000/svg"
-            class="h-4 w-4 text-red-400 flex-shrink-0 mt-0.5"
+            class="h-4 w-4 text-red-400 shrink-0 mt-0.5"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"

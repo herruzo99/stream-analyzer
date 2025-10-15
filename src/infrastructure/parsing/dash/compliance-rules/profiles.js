@@ -1,4 +1,4 @@
-import { findChild, getAttr } from '../recursive-parser.js';
+import { getAttr, findChildren } from '../recursive-parser.js';
 
 /** @typedef {import('./index.js').Rule} Rule */
 
@@ -27,9 +27,9 @@ export const profileRules = [
         category: 'Profile Conformance',
         check: (rep, { adaptationSet, period }) =>
             !!(
-                findChild(rep, 'SegmentTemplate') ||
-                findChild(adaptationSet, 'SegmentTemplate') ||
-                findChild(period, 'SegmentTemplate')
+                findChildren(rep, 'SegmentTemplate')[0] ||
+                findChildren(adaptationSet, 'SegmentTemplate')[0] ||
+                findChildren(period, 'SegmentTemplate')[0]
             ),
         passDetails: 'OK',
         failDetails: 'SegmentTemplate must be used in this profile.',

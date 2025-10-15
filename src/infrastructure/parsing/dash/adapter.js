@@ -20,7 +20,6 @@ import { parseDuration } from '@/utils/time';
 import { generateDashSummary } from './summary-generator.js';
 import {
     getAttr,
-    findChild,
     findChildren,
     findChildrenRecursive,
     mergeElements,
@@ -98,7 +97,7 @@ const parseResync = (el) => ({
  * @returns {OutputProtection | null}
  */
 const parseOutputProtection = (el) => {
-    const opEl = findChild(el, 'OutputProtection');
+    const opEl = findChildren(el, 'OutputProtection')[0];
     if (!opEl) return null;
     return {
         schemeIdUri: getAttr(opEl, 'schemeIdUri'),
@@ -113,7 +112,7 @@ const parseOutputProtection = (el) => {
  * @returns {ExtendedBandwidth | null}
  */
 const parseExtendedBandwidth = (el) => {
-    const ebEl = findChild(el, 'ExtendedBandwidth');
+    const ebEl = findChildren(el, 'ExtendedBandwidth')[0];
     if (!ebEl) return null;
     return {
         vbr: getAttr(ebEl, 'vbr') === 'true',
@@ -130,10 +129,10 @@ const parseExtendedBandwidth = (el) => {
  * @returns {FailoverContent | null}
  */
 function parseFailoverContent(mergedEl) {
-    const segmentBaseEl = findChild(mergedEl, 'SegmentBase');
+    const segmentBaseEl = findChildren(mergedEl, 'SegmentBase')[0];
     if (!segmentBaseEl) return null;
 
-    const failoverEl = findChild(segmentBaseEl, 'FailoverContent');
+    const failoverEl = findChildren(segmentBaseEl, 'FailoverContent')[0];
     if (!failoverEl) return null;
 
     return {
@@ -255,6 +254,29 @@ function parseRepresentation(repEl, parentMergedEl) {
             schemeIdUri: getAttr(el, 'schemeIdUri'),
             value: getAttr(el, 'value'),
         })),
+        contentProtection: findChildren(mergedRepEl, 'ContentProtection').map(
+            (cpEl) => {
+                const psshNode = findChildren(cpEl, 'pssh')[0];
+                const psshData = psshNode ? getText(psshNode) : null;
+                return {
+                    schemeIdUri: getAttr(cpEl, 'schemeIdUri'),
+                    system: getDrmSystemName(getAttr(cpEl, 'schemeIdUri')),
+                    defaultKid: getAttr(cpEl, 'default_KID'),
+                    robustness: getAttr(cpEl, 'robustness'),
+                    pssh: psshData
+                        ? [
+                              {
+                                  systemId: getDrmSystemName(
+                                      getAttr(cpEl, 'schemeIdUri')
+                                  ),
+                                  kids: [],
+                                  data: psshData,
+                              },
+                          ]
+                        : [],
+                };
+            }
+        ),
         framePackings: findChildren(mergedRepEl, 'FramePacking').map(
             parseGenericDescriptor
         ),
@@ -320,7 +342,7 @@ function parseAdaptationSet(asEl, parentMergedEl) {
         getAttr(asEl, 'contentType') ||
         getAttr(asEl, 'mimeType')?.split('/')[0];
     if (!contentType) {
-        const firstRep = findChild(asEl, 'Representation');
+        const firstRep = findChildren(asEl, 'Representation')[0];
         if (firstRep) {
             contentType = getAttr(firstRep, 'mimeType')?.split('/')[0];
         }
@@ -386,7 +408,7 @@ function parseAdaptationSet(asEl, parentMergedEl) {
         ),
         contentProtection: findChildren(mergedAsEl, 'ContentProtection').map(
             (cpEl) => {
-                const psshNode = findChild(cpEl, 'pssh');
+                const psshNode = findChildren(cpEl, 'pssh')[0];
                 const psshData = psshNode ? getText(psshNode) : null;
                 return {
                     schemeIdUri: getAttr(cpEl, 'schemeIdUri'),
@@ -410,9 +432,7 @@ function parseAdaptationSet(asEl, parentMergedEl) {
         framePackings: findChildren(mergedAsEl, 'FramePacking').map(
             parseGenericDescriptor
         ),
-        ratings: findChildren(mergedAsEl, 'Rating').map(
-            parseGenericDescriptor
-        ),
+        ratings: findChildren(mergedAsEl, 'Rating').map(parseGenericDescriptor),
         viewpoints: findChildren(mergedAsEl, 'Viewpoint').map(
             parseGenericDescriptor
         ),
@@ -491,7 +511,7 @@ const parseServiceDescription = (sdEl) => ({
 
 function parsePeriod(periodEl, parentMergedEl, previousPeriod = null) {
     const mergedPeriodEl = mergeElements(parentMergedEl, periodEl);
-    const assetIdentifierEl = findChild(periodEl, 'AssetIdentifier');
+    const assetIdentifierEl = findChildren(periodEl, 'AssetIdentifier')[0];
     const subsets = findChildren(periodEl, 'Subset');
     const eventStreams = findChildren(periodEl, 'EventStream');
 
@@ -624,7 +644,8 @@ export async function adaptDashToIr(manifestElement, baseUrl, context) {
             if (contentType === 'video') {
                 // Heuristic: if media attribute exists, check its extension
                 const extensionBasedFormat =
-                    inferMediaInfoFromExtension(mediaUrl).contentType === 'video'
+                    inferMediaInfoFromExtension(mediaUrl).contentType ===
+                    'video'
                         ? 'isobmff'
                         : 'ts';
                 if (extensionBasedFormat === 'ts') {
@@ -665,9 +686,9 @@ export async function adaptDashToIr(manifestElement, baseUrl, context) {
             manifestCopy,
             'ProgramInformation'
         ).map((el) => ({
-            title: getText(findChild(el, 'Title')),
-            source: getText(findChild(el, 'Source')),
-            copyright: getText(findChild(el, 'Copyright')),
+            title: getText(findChildren(el, 'Title')[0]),
+            source: getText(findChildren(el, 'Source')[0]),
+            copyright: getText(findChildren(el, 'Copyright')[0]),
             lang: getAttr(el, 'lang'),
             moreInformationURL: getAttr(el, 'moreInformationURL'),
         })),

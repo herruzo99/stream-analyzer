@@ -47,7 +47,7 @@ const getTagHTML = (tagName) => {
         )}" data-iso="${escapeHtml(tagInfo.isoRef)}"`;
     } else {
         dynamicClasses =
-            'cursor-help bg-red-900/50 border-b border-dotted !border-red-400/70';
+            'cursor-help bg-red-900/50 border-b border-dotted border-red-400/70!';
         tooltipAttrs = `data-tooltip="No definition for &lt;${cleanTagName}&gt;"`;
     }
 
@@ -76,7 +76,7 @@ const getAttributeHTML = (tagName, attr) => {
         )}" data-iso="${escapeHtml(attrInfo.isoRef)}"`;
     } else if (!isIgnoredAttr) {
         dynamicClasses =
-            'cursor-help bg-red-900/50 border-b border-dotted !border-red-400/70';
+            'cursor-help bg-red-900/50 border-b border-dotted border-red-400/70!';
         tooltipAttrs = `data-tooltip="Tooltip definition missing for '${attr.name}' on &lt;${tagName}&gt;"`;
     }
 
@@ -298,10 +298,10 @@ ${parserError.textContent}</pre
                 (line, i) => html`
                     <div class="flex">
                         <span
-                            class="text-right text-gray-500 pr-4 select-none flex-shrink-0 w-12"
+                            class="text-right text-gray-500 pr-4 select-none shrink-0 w-12"
                             >${startLine + i + 1}</span
                         >
-                        <span class="flex-grow whitespace-pre-wrap break-all"
+                        <span class="grow whitespace-pre-wrap break-all"
                             >${unsafeHTML(line)}</span
                         >
                     </div>

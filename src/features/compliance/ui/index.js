@@ -78,7 +78,7 @@ export function getComplianceReportTemplate(stream) {
 
     const mainTemplate = html`
         <div
-            class="flex flex-col sm:flex-row justify-between items-center mb-4 flex-shrink-0 gap-4"
+            class="flex flex-col sm:flex-row justify-between items-center mb-4 shrink-0 gap-4"
         >
             <h3 class="text-xl font-bold text-center sm:text-left">
                 Interactive Compliance Report
@@ -104,13 +104,10 @@ export function getComplianceReportTemplate(stream) {
 
     const contextualTemplate = html`
         <div class="flex flex-col p-4 h-full">
-            ${sidebarTemplate(
-                complianceResults,
-                activeFilter,
-                (filter) =>
-                    eventBus.dispatch('ui:compliance:filter-changed', {
-                        filter,
-                    })
+            ${sidebarTemplate(complianceResults, activeFilter, (filter) =>
+                eventBus.dispatch('ui:compliance:filter-changed', {
+                    filter,
+                })
             )}
         </div>
     `;

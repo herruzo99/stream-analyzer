@@ -1,37 +1,11 @@
 import { parseDuration } from '@/utils/time';
 import {
     getAttr,
-    findChild,
     findChildren,
     getInheritedElement,
     resolveBaseUrl,
 } from './recursive-parser.js';
-import { findElementsByTagNameRecursive } from './recursive-parser.js';
-
-/**
- * Fetches the server time from the UTCTiming element, if available.
- * @param {object} manifestElement The root MPD element.
- * @returns {Promise<number | null>} A promise that resolves to the server time in milliseconds, or null.
- */
-async function getUtcTime(manifestElement) {
-    const utcTiming = findChild(manifestElement, 'UTCTiming');
-    if (
-        utcTiming &&
-        getAttr(utcTiming, 'schemeIdUri') ===
-            'urn:mpeg:dash:utc:http-xsdate:2014'
-    ) {
-        try {
-            const response = await fetch(getAttr(utcTiming, 'value'));
-            if (response.ok) {
-                const text = await response.text();
-                return new Date(text).getTime();
-            }
-        } catch (e) {
-            console.error('Failed to fetch UTCTiming source:', e);
-        }
-    }
-    return null;
-}
+import { getDrmSystemName } from '../utils/drm.js';
 
 /**
  * Generates a list of Media Segment objects based on a starting number and count.
@@ -48,7 +22,8 @@ function generateSegments(
     timescale,
     periodStart,
     availabilityStartTime,
-    availabilityTimeOffset
+    availabilityTimeOffset,
+    encryptionInfo
 ) {
     const segments = [];
     for (let i = 0; i < numSegments; i++) {
@@ -84,9 +59,35 @@ function generateSegments(
             endTimeUTC: segAvailabilityStartTime
                 ? segAvailabilityStartTime + segmentDurationSeconds * 1000
                 : null,
+            encryptionInfo,
         });
     }
     return segments;
+}
+
+/**
+ * Fetches the server time from the UTCTiming element, if available.
+ * @param {object} manifestElement The root MPD element.
+ * @returns {Promise<number | null>} A promise that resolves to the server time in milliseconds, or null.
+ */
+async function getUtcTime(manifestElement) {
+    const utcTiming = findChildren(manifestElement, 'UTCTiming')[0];
+    if (
+        utcTiming &&
+        getAttr(utcTiming, 'schemeIdUri') ===
+            'urn:mpeg:dash:utc:http-xsdate:2014'
+    ) {
+        try {
+            const response = await fetch(getAttr(utcTiming, 'value'));
+            if (response.ok) {
+                const text = await response.text();
+                return new Date(text).getTime();
+            }
+        } catch (e) {
+            console.error('Failed to fetch UTCTiming source:', e);
+        }
+    }
+    return null;
 }
 
 /**
@@ -112,7 +113,10 @@ export async function parseAllSegmentUrls(manifestElement, manifestUrl) {
         const adaptationSets = findChildren(period, 'AdaptationSet');
 
         for (const adaptationSet of adaptationSets) {
-            const representations = findChildren(adaptationSet, 'Representation');
+            const representations = findChildren(
+                adaptationSet,
+                'Representation'
+            );
             for (const rep of representations) {
                 const repId = getAttr(rep, 'id');
                 if (!repId) continue;
@@ -134,16 +138,46 @@ export async function parseAllSegmentUrls(manifestElement, manifestUrl) {
                     rep
                 );
 
-                const template = getInheritedElement('SegmentTemplate', hierarchy);
-                const segmentList = getInheritedElement('SegmentList', hierarchy);
-                const segmentBase = getInheritedElement('SegmentBase', hierarchy);
+                const allCpElements = findChildren(
+                    adaptationSet,
+                    'ContentProtection'
+                ).concat(findChildren(rep, 'ContentProtection'));
+                const uniqueSystems = new Set();
+                if (allCpElements.length > 0) {
+                    allCpElements.forEach((cpEl) => {
+                        const schemeId = getAttr(cpEl, 'schemeIdUri');
+                        if (schemeId) {
+                            uniqueSystems.add(getDrmSystemName(schemeId));
+                        }
+                    });
+                }
+                const encryptionInfo =
+                    uniqueSystems.size > 0
+                        ? {
+                              method: 'CENC',
+                              systems: Array.from(uniqueSystems),
+                          }
+                        : null;
+
+                const template = getInheritedElement(
+                    'SegmentTemplate',
+                    hierarchy
+                );
+                const segmentList = getInheritedElement(
+                    'SegmentList',
+                    hierarchy
+                );
+                const segmentBase = getInheritedElement(
+                    'SegmentBase',
+                    hierarchy
+                );
 
                 // --- INIT SEGMENT ---
                 let initTemplate = getAttr(template, 'initialization');
                 if (!initTemplate) {
                     const initContainer = segmentList || segmentBase;
                     const initializationEl = initContainer
-                        ? findChild(initContainer, 'Initialization')
+                        ? findChildren(initContainer, 'Initialization')[0]
                         : null;
                     if (initializationEl) {
                         initTemplate = getAttr(initializationEl, 'sourceURL');
@@ -160,27 +194,38 @@ export async function parseAllSegmentUrls(manifestElement, manifestUrl) {
                         number: 0,
                         resolvedUrl: new URL(initUrl, baseUrl).href,
                         template: initUrl,
+                        encryptionInfo,
                     };
                 }
 
                 // --- MEDIA SEGMENTS ---
                 if (template) {
-                    const timescale = parseInt(getAttr(template, 'timescale') || '1');
+                    const timescale = parseInt(
+                        getAttr(template, 'timescale') || '1'
+                    );
                     const mediaTemplate = getAttr(template, 'media');
-                    const timeline = findChild(template, 'SegmentTimeline');
+                    const timeline = findChildren(
+                        template,
+                        'SegmentTimeline'
+                    )[0];
                     const startNumber = parseInt(
                         getAttr(template, 'startNumber') || '1'
                     );
-                    const periodStart = parseDuration(getAttr(period, 'start')) || 0;
+                    const periodStart =
+                        parseDuration(getAttr(period, 'start')) || 0;
                     const availabilityTimeOffset =
-                        parseFloat(getAttr(template, 'availabilityTimeOffset')) || 0;
+                        parseFloat(
+                            getAttr(template, 'availabilityTimeOffset')
+                        ) || 0;
 
                     if (mediaTemplate && timeline) {
                         const segments = [];
                         // ... (logic for timeline parsing remains the same, pushes to `segments` array)
                         segmentsByRep[compositeKey].segments = segments;
                     } else if (mediaTemplate && getAttr(template, 'duration')) {
-                        const segmentDuration = parseInt(getAttr(template, 'duration'));
+                        const segmentDuration = parseInt(
+                            getAttr(template, 'duration')
+                        );
                         if (isDynamic) {
                             const timeShiftBufferDepth = parseDuration(
                                 getAttr(manifestElement, 'timeShiftBufferDepth')
@@ -192,12 +237,13 @@ export async function parseAllSegmentUrls(manifestElement, manifestUrl) {
                                   )
                                 : 30;
 
-                            // A: Wall-Clock
                             const liveEdgeTimeA =
-                                (now - availabilityStartTime) / 1000 - periodStart;
+                                (now - availabilityStartTime) / 1000 -
+                                periodStart;
                             const lastSegA =
                                 Math.floor(
-                                    liveEdgeTimeA / (segmentDuration / timescale)
+                                    liveEdgeTimeA /
+                                        (segmentDuration / timescale)
                                 ) + startNumber;
                             segmentsByRep[compositeKey].diagnostics[
                                 'Strategy A (Wall-Clock)'
@@ -207,27 +253,32 @@ export async function parseAllSegmentUrls(manifestElement, manifestUrl) {
                                 baseUrl,
                                 mediaTemplate,
                                 startNumber,
-                                Math.max(startNumber, lastSegA - bufferSegments + 1),
+                                Math.max(
+                                    startNumber,
+                                    lastSegA - bufferSegments + 1
+                                ),
                                 bufferSegments,
                                 segmentDuration,
                                 timescale,
                                 periodStart,
                                 availabilityStartTime,
-                                availabilityTimeOffset
+                                availabilityTimeOffset,
+                                encryptionInfo
                             );
                             segmentsByRep[compositeKey].segmentsByStrategy.set(
                                 'Strategy A (Wall-Clock)',
                                 segmentsA
                             );
 
-                            // C: UTCTiming Source
                             if (serverTime) {
                                 const liveEdgeTimeC =
-                                    (serverTime - availabilityStartTime) / 1000 -
+                                    (serverTime - availabilityStartTime) /
+                                        1000 -
                                     periodStart;
                                 const lastSegC =
                                     Math.floor(
-                                        liveEdgeTimeC / (segmentDuration / timescale)
+                                        liveEdgeTimeC /
+                                            (segmentDuration / timescale)
                                     ) + startNumber;
                                 segmentsByRep[compositeKey].diagnostics[
                                     'Strategy C (UTCTiming Source)'
@@ -246,31 +297,46 @@ export async function parseAllSegmentUrls(manifestElement, manifestUrl) {
                                     timescale,
                                     periodStart,
                                     availabilityStartTime,
-                                    availabilityTimeOffset
+                                    availabilityTimeOffset,
+                                    encryptionInfo
                                 );
-                                segmentsByRep[compositeKey].segmentsByStrategy.set(
+                                segmentsByRep[
+                                    compositeKey
+                                ].segmentsByStrategy.set(
                                     'Strategy C (UTCTiming Source)',
                                     segmentsC
                                 );
                             }
 
-                            // Set the definitive segments list, preferring UTCTiming
                             segmentsByRep[compositeKey].segments =
-                                segmentsByRep[compositeKey].segmentsByStrategy.get(
+                                segmentsByRep[
+                                    compositeKey
+                                ].segmentsByStrategy.get(
                                     'Strategy C (UTCTiming Source)'
                                 ) || segmentsA;
                         } else {
-                            // VOD logic
-                            const periodDuration = parseDuration(getAttr(period, 'duration'));
+                            const periodDuration = parseDuration(
+                                getAttr(period, 'duration')
+                            );
                             let numSegments = 0;
-                            const segmentDurationSeconds = segmentDuration / timescale;
+                            const segmentDurationSeconds =
+                                segmentDuration / timescale;
 
                             if (periodDuration && segmentDurationSeconds > 0) {
-                                numSegments = Math.ceil(periodDuration / segmentDurationSeconds);
+                                numSegments = Math.ceil(
+                                    periodDuration / segmentDurationSeconds
+                                );
                             } else {
-                                const mpdDuration = parseDuration(getAttr(manifestElement, 'mediaPresentationDuration'));
+                                const mpdDuration = parseDuration(
+                                    getAttr(
+                                        manifestElement,
+                                        'mediaPresentationDuration'
+                                    )
+                                );
                                 if (mpdDuration && segmentDurationSeconds > 0) {
-                                    numSegments = Math.ceil(mpdDuration / segmentDurationSeconds);
+                                    numSegments = Math.ceil(
+                                        mpdDuration / segmentDurationSeconds
+                                    );
                                 }
                             }
 
@@ -285,19 +351,12 @@ export async function parseAllSegmentUrls(manifestElement, manifestUrl) {
                                 timescale,
                                 periodStart,
                                 availabilityStartTime,
-                                availabilityTimeOffset
+                                availabilityTimeOffset,
+                                encryptionInfo
                             );
                             segmentsByRep[compositeKey].segments = segments;
                         }
                     }
-                } else if (segmentList) {
-                    const segments = [];
-                    // ... logic for SegmentList remains the same, pushes to `segments` array
-                    segmentsByRep[compositeKey].segments = segments;
-                } else if (segmentBase || findChild(rep, 'BaseURL')) {
-                    const segments = [];
-                    // ... logic for SegmentBase remains the same, pushes to `segments` array
-                    segmentsByRep[compositeKey].segments = segments;
                 }
             }
         }
@@ -337,7 +396,7 @@ export function findInitSegmentUrl(
 
     const initContainer = list || base;
     const initialization = initContainer
-        ? findChild(initContainer, 'Initialization')
+        ? findChildren(initContainer, 'Initialization')[0]
         : null;
 
     if (initialization && getAttr(initialization, 'sourceURL')) {

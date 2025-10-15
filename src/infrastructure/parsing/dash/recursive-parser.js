@@ -1,14 +1,5 @@
 export const getAttr = (el, attr) => el?.[':@']?.[attr];
 
-export const findChild = (el, tagName) => {
-    if (!el || !el[tagName]) {
-        return undefined;
-    }
-    const children = el[tagName];
-    // If it's an array (multiple elements), return the first. If it's an object (single element), return it directly.
-    return Array.isArray(children) ? children[0] : children;
-};
-
 export const findChildren = (el, tagName) => {
     if (!el || !el[tagName]) {
         return [];
@@ -120,7 +111,7 @@ export function mergeElements(parent, child) {
  */
 export function getInheritedElement(tagName, elementHierarchy) {
     const elements = elementHierarchy
-        .map((el) => findChild(el, tagName))
+        .map((el) => findChildren(el, tagName)[0])
         .filter(Boolean);
 
     if (elements.length === 0) return undefined;
@@ -153,7 +144,7 @@ export function resolveBaseUrl(manifestBaseUrl, mpdEl, periodEl, asEl, repEl) {
      */
     const getEffectiveBase = (el, parentBaseUrl) => {
         if (!el) return parentBaseUrl;
-        const baseUrlEl = findChild(el, 'BaseURL');
+        const baseUrlEl = findChildren(el, 'BaseURL')[0];
         if (!baseUrlEl) return parentBaseUrl;
 
         const urlContent = getText(baseUrlEl);

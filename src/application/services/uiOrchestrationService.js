@@ -31,32 +31,29 @@ export function initializeUiOrchestration() {
             });
     });
 
-    eventBus.subscribe(
-        'ui:request-segment-comparison',
-        ({ urlA, urlB }) => {
-            showLoader('Analyzing segments for comparison...');
-            Promise.all([getParsedSegment(urlA), getParsedSegment(urlB)])
-                .then(([parsedDataA, parsedDataB]) => {
-                    hideLoader();
-                    openModalWithContent({
-                        title: 'Segment Comparison',
-                        url: 'Comparing two segments',
-                        content: {
-                            type: 'segmentAnalysis',
-                            data: {
-                                parsedData: parsedDataA,
-                                parsedDataB: parsedDataB,
-                            },
+    eventBus.subscribe('ui:request-segment-comparison', ({ urlA, urlB }) => {
+        showLoader('Analyzing segments for comparison...');
+        Promise.all([getParsedSegment(urlA), getParsedSegment(urlB)])
+            .then(([parsedDataA, parsedDataB]) => {
+                hideLoader();
+                openModalWithContent({
+                    title: 'Segment Comparison',
+                    url: 'Comparing two segments',
+                    content: {
+                        type: 'segmentAnalysis',
+                        data: {
+                            parsedData: parsedDataA,
+                            parsedDataB: parsedDataB,
                         },
-                    });
-                })
-                .catch((error) => {
-                    hideLoader();
-                    showToast({
-                        message: `Failed to compare segments: ${error.message}`,
-                        type: 'fail',
-                    });
+                    },
                 });
-        }
-    );
+            })
+            .catch((error) => {
+                hideLoader();
+                showToast({
+                    message: `Failed to compare segments: ${error.message}`,
+                    type: 'fail',
+                });
+            });
+    });
 }

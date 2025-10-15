@@ -116,6 +116,7 @@ export interface Representation {
     pathwayId: string | null;
     supplementalCodecs: string | null;
     reqVideoLayout: string | null;
+    contentProtection: ContentProtection[];
     serializedManifest: object;
 }
 
@@ -381,6 +382,33 @@ export interface InitializationSet {
     serializedManifest: object;
 }
 
+export interface EncryptionInfo {
+    method: 'AES-128' | 'SAMPLE-AES' | 'CENC' | 'NONE';
+    uri?: string; // HLS Key URI
+    iv?: string | null;
+    keyFormat?: string;
+    keyFormatVersions?: string;
+    systems?: string[]; // DASH DRM Systems
+}
+
+export interface HlsSegment {
+    duration: number;
+    title: string;
+    tags: any[];
+    flags: string[];
+    parts: any[];
+    bitrate: number | null;
+    gap: boolean;
+    type: string;
+    extinfLineNumber: number;
+    uri?: string;
+    resolvedUrl?: string;
+    discontinuity?: boolean;
+    dateTime?: string;
+    uriLineNumber?: number;
+    encryptionInfo?: EncryptionInfo;
+}
+
 export interface Manifest {
     id: string | null;
     type: 'static' | 'dynamic';
@@ -409,10 +437,11 @@ export interface Manifest {
     tags?: any[];
     isMaster?: boolean;
     variants?: any[];
-    segments?: any[];
+    segments?: HlsSegment[];
     preloadHints?: any[];
     renditionReports?: any[];
     partInf?: any;
+    mediaSequence?: number;
 }
 
 export type MediaPlaylist = {

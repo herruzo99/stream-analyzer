@@ -17,10 +17,10 @@ export function getInteractiveVttTemplate(buffer) {
         (line, index) =>
             html`<div class="flex">
                 <span
-                    class="text-right text-gray-500 pr-4 select-none flex-shrink-0 w-10"
+                    class="text-right text-gray-500 pr-4 select-none shrink-0 w-10"
                     >${index + 1}</span
                 >
-                <span class="flex-grow whitespace-pre-wrap break-all"
+                <span class="grow whitespace-pre-wrap break-all"
                     >${unsafeHTML(highlightHls(line))}</span
                 >
             </div>`

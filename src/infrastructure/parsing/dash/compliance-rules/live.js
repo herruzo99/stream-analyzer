@@ -1,4 +1,4 @@
-import { findChild, findChildren, getAttr } from '../recursive-parser.js';
+import { findChildren, getAttr } from '../recursive-parser.js';
 
 /** @typedef {import('./index.js').Rule} Rule */
 
@@ -13,7 +13,7 @@ export const liveRules = [
         profiles: ['isoff-live:2011', 'cmaf:2019'],
         category: 'Live Stream Properties',
         check: (mpd) => {
-            if (!findChild(mpd, 'PatchLocation')) return 'skip';
+            if (!findChildren(mpd, 'PatchLocation')[0]) return 'skip';
             return (
                 getAttr(mpd, 'id') !== undefined &&
                 getAttr(mpd, 'publishTime') !== undefined
@@ -105,9 +105,12 @@ export const liveRules = [
         profiles: ['isoff-live:2011', 'cmaf:2019'],
         category: 'Live Stream Properties',
         check: (as) => {
-            const serviceDescription = findChild(as, 'ServiceDescription');
+            const serviceDescription = findChildren(
+                as,
+                'ServiceDescription'
+            )[0];
             if (!serviceDescription) return 'skip';
-            const latency = findChild(serviceDescription, 'Latency');
+            const latency = findChildren(serviceDescription, 'Latency')[0];
             if (!latency) return 'skip';
             return getAttr(latency, 'target') !== undefined;
         },
@@ -127,7 +130,7 @@ export const liveRules = [
             if (serviceDescriptions.length === 0) return 'skip';
 
             for (const sd of serviceDescriptions) {
-                const latency = findChild(sd, 'Latency');
+                const latency = findChildren(sd, 'Latency')[0];
                 if (latency) {
                     const min = getAttr(latency, 'min');
                     const max = getAttr(latency, 'max');

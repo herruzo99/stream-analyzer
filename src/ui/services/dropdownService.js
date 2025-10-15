@@ -36,18 +36,20 @@ export function toggleDropdown(triggerElement, contentTemplate) {
     activeTrigger = triggerElement;
 
     if (!dropdownContainer) {
-        console.error('[DropdownService] Service not initialized with a container.');
+        console.error(
+            '[DropdownService] Service not initialized with a container.'
+        );
         return;
     }
 
     const content = html`
-        <div @click=${(e) => e.stopPropagation()}>
-            ${contentTemplate}
-        </div>
+        <div @click=${(e) => e.stopPropagation()}>${contentTemplate}</div>
     `;
 
     render(content, dropdownContainer);
-    const panel = /** @type {HTMLElement} */ (dropdownContainer.firstElementChild);
+    const panel = /** @type {HTMLElement} */ (
+        dropdownContainer.firstElementChild
+    );
     if (!panel) return;
 
     const triggerRect = triggerElement.getBoundingClientRect();
@@ -55,13 +57,12 @@ export function toggleDropdown(triggerElement, contentTemplate) {
     panel.style.pointerEvents = 'auto';
     panel.style.top = `${triggerRect.bottom + 4}px`;
     panel.style.right = `${window.innerWidth - triggerRect.right}px`;
-    
+
     const panelRect = panel.getBoundingClientRect();
-    if(panelRect.left < 10) {
+    if (panelRect.left < 10) {
         panel.style.left = '10px';
         panel.style.right = 'auto';
     }
-
 
     const handleOutsideClick = (e) => {
         if (!triggerElement.contains(/** @type {Node} */ (e.target))) {

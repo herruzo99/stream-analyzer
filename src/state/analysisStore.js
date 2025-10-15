@@ -249,9 +249,16 @@ export const useAnalysisStore = createStore((set, get) => ({
         });
     },
 
-    updateHlsMediaPlaylist: ({ streamId, variantUri, manifest, manifestString, segments, freshSegmentUrls }) => {
-        set(state => {
-            const stream = state.streams.find(s => s.id === streamId);
+    updateHlsMediaPlaylist: ({
+        streamId,
+        variantUri,
+        manifest,
+        manifestString,
+        segments,
+        freshSegmentUrls,
+    }) => {
+        set((state) => {
+            const stream = state.streams.find((s) => s.id === streamId);
             if (!stream) return {};
 
             const newVariantState = new Map(stream.hlsVariantState);
@@ -274,9 +281,13 @@ export const useAnalysisStore = createStore((set, get) => ({
             });
 
             return {
-                streams: state.streams.map(s => 
-                    s.id === streamId 
-                        ? { ...s, hlsVariantState: newVariantState, mediaPlaylists: newMediaPlaylists } 
+                streams: state.streams.map((s) =>
+                    s.id === streamId
+                        ? {
+                              ...s,
+                              hlsVariantState: newVariantState,
+                              mediaPlaylists: newMediaPlaylists,
+                          }
                         : s
                 ),
             };
@@ -319,5 +330,6 @@ export const analysisActions = {
             .setAllLiveStreamsPolling(isPolling, options),
     navigateManifestUpdate: (id, dir) =>
         useAnalysisStore.getState().navigateManifestUpdate(id, dir),
-    updateHlsMediaPlaylist: (payload) => useAnalysisStore.getState().updateHlsMediaPlaylist(payload),
+    updateHlsMediaPlaylist: (payload) =>
+        useAnalysisStore.getState().updateHlsMediaPlaylist(payload),
 };

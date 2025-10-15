@@ -29,9 +29,7 @@ const contextualSidebarToggle = () => {
 
 export const mainContentControlsTemplate = () => {
     return html`
-        <div class="flex-grow"></div>
-        <div class="flex items-center gap-4">
-            ${contextualSidebarToggle()}
-        </div>
+        <div class="grow"></div>
+        <div class="flex items-center gap-4">${contextualSidebarToggle()}</div>
     `;
 };

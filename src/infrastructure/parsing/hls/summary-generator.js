@@ -155,7 +155,8 @@ export async function generateHlsSummary(manifestIR, context) {
                 })),
                 channels: as.channels,
                 isDefault:
-                    /** @type {any} */ (as.serializedManifest).DEFAULT === 'YES',
+                    /** @type {any} */ (as.serializedManifest).DEFAULT ===
+                    'YES',
                 isForced: as.forced,
                 roles: [],
             };
@@ -166,18 +167,20 @@ export async function generateHlsSummary(manifestIR, context) {
             (as) => as.contentType === 'text' || as.contentType === 'subtitles'
         )
         .map((as) => {
-            const mimeTypes = as.representations[0]?.codecs?.value ||
+            const mimeTypes =
+                as.representations[0]?.codecs?.value ||
                 as.representations[0]?.mimeType
-                ? [
-                      {
-                          value:
-                              as.representations[0].codecs?.value ||
-                              as.representations[0].mimeType,
-                          source:
-                              as.representations[0].codecs?.value ? 'manifest' : 'mimeType',
-                      },
-                  ]
-                : [];
+                    ? [
+                          {
+                              value:
+                                  as.representations[0].codecs?.value ||
+                                  as.representations[0].mimeType,
+                              source: as.representations[0].codecs?.value
+                                  ? 'manifest'
+                                  : 'mimeType',
+                          },
+                      ]
+                    : [];
             return {
                 id: as.stableRenditionId || as.id,
                 lang: as.lang,
@@ -190,7 +193,8 @@ export async function generateHlsSummary(manifestIR, context) {
                         })
                 ),
                 isDefault:
-                    /** @type {any} */ (as.serializedManifest).DEFAULT === 'YES',
+                    /** @type {any} */ (as.serializedManifest).DEFAULT ===
+                    'YES',
                 isForced: as.forced,
                 roles: [],
             };
@@ -270,7 +274,8 @@ export async function generateHlsSummary(manifestIR, context) {
             targetDuration: /** @type {any} */ (rawElement).targetDuration,
             iFramePlaylists: iFramePlaylists,
             mediaPlaylistDetails,
-            dvrWindow: manifestIR.type === 'dynamic' ? manifestIR.duration : null,
+            dvrWindow:
+                manifestIR.type === 'dynamic' ? manifestIR.duration : null,
             hlsParsed: rawElement,
         },
         lowLatency: {

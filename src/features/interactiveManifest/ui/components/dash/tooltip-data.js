@@ -508,12 +508,16 @@ export const dashTooltipData = {
         isoRef: 'Clause 5.8.4.1.4, Table 33',
     },
     'cenc:pssh': {
-        text: 'Base64-encoded Protection System Specific Header. This opaque blob contains initialization data required by a specific DRM system to generate a license request.',
+        text: 'Base64-encoded Protection System Specific Header (PSSH). This opaque blob contains initialization data required by a specific DRM system (identified by the `cenc` namespace) to generate a license request.',
         isoRef: 'ISO/IEC 23001-7 & Clause 5.8.5.2.2',
     },
     pssh: {
-        text: 'Base64-encoded Protection System Specific Header. This opaque blob contains initialization data required by a specific DRM system to generate a license request.',
+        text: 'Base64-encoded Protection System Specific Header (PSSH). This opaque blob contains initialization data required by a specific DRM system to generate a license request.',
         isoRef: 'ISO/IEC 23001-7 & Clause 5.8.5.2.2',
+    },
+    pro: {
+        text: 'Microsoft PlayReady Protection Header. Contains the Base64-encoded PlayReady Header Object (PRO) required for PlayReady license acquisition.',
+        isoRef: 'Microsoft PlayReady-DASH Spec',
     },
     EssentialProperty: {
         text: 'Specifies a property that is essential for processing the parent element. If a client does not understand an EssentialProperty, it MUST ignore the parent element.',

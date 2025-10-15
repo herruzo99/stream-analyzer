@@ -20,7 +20,11 @@ const SWITCHING_SET_BOX_CHECKS = [
     { box: 'smhd', ignore: [] },
     { box: 'sthd', ignore: [] },
     { box: 'dref', ignore: [] },
-    { box: 'stsd', ignore: ['size'], childBoxesToIgnore: ['avc1', 'hvc1', 'hev1'] },
+    {
+        box: 'stsd',
+        ignore: ['size'],
+        childBoxesToIgnore: ['avc1', 'hvc1', 'hev1'],
+    },
     { box: 'pssh', ignore: [] },
     { box: 'sinf', ignore: [] },
     { box: 'tenc', ignore: [] },

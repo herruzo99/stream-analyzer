@@ -95,7 +95,8 @@ export function getDashExplorerTemplate(stream) {
                                                         class="text-red-400 p-2"
                                                     >
                                                         State not found for
-                                                        Representation ${rep.id}.
+                                                        Representation
+                                                        ${rep.id}.
                                                     </div>`;
                                                 }
 
