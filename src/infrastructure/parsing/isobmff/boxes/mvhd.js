@@ -58,11 +58,11 @@ export const mvhdTooltip = {
         ref: 'ISO/IEC 14496-12, 8.2.2.3',
     },
     'mvhd@timescale': {
-        text: 'The number of time units that pass in one second for the presentation\'s overall timeline. Individual tracks may have their own timescales.',
+        text: "The number of time units that pass in one second for the presentation's overall timeline. Individual tracks may have their own timescales.",
         ref: 'ISO/IEC 14496-12, 8.2.2.3',
     },
     'mvhd@duration': {
-        text: 'The duration of the presentation in the movie\'s timescale units. This value is derived from the duration of the longest track.',
+        text: "The duration of the presentation in the movie's timescale units. This value is derived from the duration of the longest track.",
         ref: 'ISO/IEC 14496-12, 8.2.2.3',
     },
     'mvhd@rate': {

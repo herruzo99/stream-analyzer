@@ -54,7 +54,7 @@ export const dashTooltipData = {
         isoRef: 'Clause 5.3.1.2, Table 3',
     },
     'MPD@maxSegmentDuration': {
-        text: 'The maximum duration of any Segment in the Media Presentation. This provides an upper bound for a client\'s planning, especially for buffer allocation and request timing.',
+        text: "The maximum duration of any Segment in the Media Presentation. This provides an upper bound for a client's planning, especially for buffer allocation and request timing.",
         isoRef: 'Clause 5.3.1.2, Table 3',
     },
     'MPD@maxSubsegmentDuration': {
@@ -154,7 +154,7 @@ export const dashTooltipData = {
         isoRef: 'Clause 5.5',
     },
     AssetIdentifier: {
-        text: 'Specifies a unique asset identifier for the Period\'s content. Periods with the same AssetIdentifier belong to the same logical asset, helping clients maintain context across interruptions like ad breaks.',
+        text: "Specifies a unique asset identifier for the Period's content. Periods with the same AssetIdentifier belong to the same logical asset, helping clients maintain context across interruptions like ad breaks.",
         isoRef: 'Clause 5.8.4.10',
     },
 
@@ -224,7 +224,7 @@ export const dashTooltipData = {
         isoRef: 'Clause 5.3.3.2, Table 5',
     },
     'AdaptationSet@selectionPriority': {
-        text: 'A priority for this AdaptationSet relative to others of the same media type. Higher numbers are preferred. Can guide a client\'s initial track selection logic.',
+        text: "A priority for this AdaptationSet relative to others of the same media type. Higher numbers are preferred. Can guide a client's initial track selection logic.",
         isoRef: 'Clause 5.3.7.2, Table 14',
     },
     'AdaptationSet@segmentAlignment': {
@@ -502,7 +502,7 @@ export const dashTooltipData = {
         isoRef: 'Annex K.4.2.2, Table K.6',
     },
     'Latency@target': {
-        text: 'The service provider’s preferred presentation latency in milliseconds, measured against a specified ProducerReferenceTime. This guides a low-latency client\'s target buffer level.',
+        text: "The service provider’s preferred presentation latency in milliseconds, measured against a specified ProducerReferenceTime. This guides a low-latency client's target buffer level.",
         isoRef: 'Annex K.4.2.2, Table K.6',
     },
     PlaybackRate: {

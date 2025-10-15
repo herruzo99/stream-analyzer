@@ -66,7 +66,7 @@ export const elstTooltip = {
         ref: 'ISO/IEC 14496-12, 8.6.6.2',
     },
     'elst@entry_1_segment_duration': {
-        text: 'The duration of this edit segment on the presentation timeline, in the movie\'s timescale units.',
+        text: "The duration of this edit segment on the presentation timeline, in the movie's timescale units.",
         ref: 'ISO/IEC 14496-12, 8.6.6.3',
     },
     'elst@entry_1_media_time': {

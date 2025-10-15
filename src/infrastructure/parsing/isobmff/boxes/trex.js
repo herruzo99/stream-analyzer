@@ -35,19 +35,19 @@ export const trexTooltip = {
         ref: 'ISO/IEC 14496-12, 8.8.3.3',
     },
     'trex@default_sample_description_index': {
-        text: 'The default 1-based index into the `stsd` box for all samples in this track\'s fragments. This is overridden by a value in `tfhd`.',
+        text: "The default 1-based index into the `stsd` box for all samples in this track's fragments. This is overridden by a value in `tfhd`.",
         ref: 'ISO/IEC 14496-12, 8.8.3.3',
     },
     'trex@default_sample_duration': {
-        text: 'The default duration for each sample in this track\'s fragments, in the media\'s timescale.',
+        text: "The default duration for each sample in this track's fragments, in the media's timescale.",
         ref: 'ISO/IEC 14496-12, 8.8.3.3',
     },
     'trex@default_sample_size': {
-        text: 'The default size in bytes for each sample in this track\'s fragments.',
+        text: "The default size in bytes for each sample in this track's fragments.",
         ref: 'ISO/IEC 14496-12, 8.8.3.3',
     },
     'trex@default_sample_flags': {
-        text: 'The default flags for each sample in this track\'s fragments, encoding information like dependency and sync sample status.',
+        text: "The default flags for each sample in this track's fragments, encoding information like dependency and sync sample status.",
         ref: 'ISO/IEC 14496-12, 8.8.3.3',
     },
 };
