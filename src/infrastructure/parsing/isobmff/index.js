@@ -16,7 +16,6 @@ import { parseStsz, stszTooltip } from './boxes/stsz.js';
 import { parseStco, stcoTooltip } from './boxes/stco.js';
 import { parseElst, elstTooltip } from './boxes/elst.js';
 import { parseTrex, trexTooltip } from './boxes/trex.js';
-import { groupTooltipData } from './boxes/default.js';
 import { parseAvcc, avccTooltip } from './boxes/avcc.js';
 import { parseEsds, esdsTooltip } from './boxes/esds.js';
 import { parseSmhd, smhdTooltip } from './boxes/smhd.js';
@@ -36,14 +35,12 @@ import { parseStss, stssTooltip } from './boxes/stss.js';
 import { parseSgpd, sgpdTooltip } from './boxes/sgpd.js';
 import { parseMehd, mehdTooltip } from './boxes/mehd.js';
 import { parseSdtp, sdtpTooltip } from './boxes/sdtp.js';
-import { parseMfra, mfraTooltip } from './boxes/mfra.js';
-import { parseTfra, tfraTooltip } from './boxes/tfra.js';
 import { parseMfro, mfroTooltip } from './boxes/mfro.js';
 import { parsePdin, pdinTooltip } from './boxes/pdin.js';
 import { parseCprt, cprtTooltip } from './boxes/cprt.js';
 import { parseCslg, cslgTooltip } from './boxes/cslg.js';
 import { parseStdp, stdpTooltip } from './boxes/stdp.js';
-import { parseUrl, parseUrn, drefTooltip } from './boxes/dref.js';
+import { parseDref, parseUrl, parseUrn, drefTooltip } from './boxes/dref.js';
 import { parseAvc1, avc1Tooltip } from './boxes/avc1.js';
 import { parseMp4a, mp4aTooltip } from './boxes/mp4a.js';
 import { parseBtrt, btrtTooltip } from './boxes/btrt.js';
@@ -60,7 +57,23 @@ import { parseTenc, tencTooltip } from './boxes/tenc.js';
 import { parseId32, id32Tooltip } from './boxes/id32.js';
 import { parseEmsg, emsgTooltip } from './boxes/emsg.js';
 import { stppParsers, stppTooltip } from './boxes/stpp.js';
+import { parseTfra, tfraTooltip } from './boxes/tfra.js';
 import { parseUuid, uuidTooltip } from './boxes/uuid.js';
+import {
+    parseMoov,
+    parseTrak,
+    parseEdts,
+    parseMvex,
+    parseMfra,
+    parseUdta,
+    parseMdia,
+    parseMinf,
+    parseStbl,
+    parseMoof,
+    parseTraf,
+    parseDinf,
+    groupTooltipData,
+} from './boxes/container.js';
 
 export const boxParsers = {
     ftyp: parseFtypStyp,
@@ -105,13 +118,13 @@ export const boxParsers = {
     sgpd: parseSgpd,
     mehd: parseMehd,
     sdtp: parseSdtp,
-    mfra: parseMfra,
     tfra: parseTfra,
     mfro: parseMfro,
     pdin: parsePdin,
     cprt: parseCprt,
     cslg: parseCslg,
     stdp: parseStdp,
+    dref: parseDref,
     'url ': parseUrl,
     'urn ': parseUrn,
     free: parseFree,
@@ -129,6 +142,20 @@ export const boxParsers = {
     emsg: parseEmsg,
     ...stppParsers,
     uuid: parseUuid,
+
+    // Mapped Container Boxes
+    moov: parseMoov,
+    trak: parseTrak,
+    edts: parseEdts,
+    mvex: parseMvex,
+    mfra: parseMfra,
+    udta: parseUdta,
+    mdia: parseMdia,
+    minf: parseMinf,
+    stbl: parseStbl,
+    moof: parseMoof,
+    traf: parseTraf,
+    dinf: parseDinf, // dinf is a simple container for dref
 };
 
 const tooltipData = {
@@ -173,7 +200,6 @@ const tooltipData = {
     ...schmTooltip,
     ...schiTooltip,
     ...sdtpTooltip,
-    ...mfraTooltip,
     ...tfraTooltip,
     ...mfroTooltip,
     ...pdinTooltip,

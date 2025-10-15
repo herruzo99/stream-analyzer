@@ -117,14 +117,14 @@ const renderDashNode = (
     templates.push(
         html`<div class="flex">
             <span
-                class="text-right text-gray-500 pr-4 select-none flex-shrink-0 w-12"
+                class="text-right text-gray-500 pr-4 select-none shrink-0 w-12"
                 >${lineCounter.count++}</span
             >
             <span
                 id=${elementId}
                 data-status=${highestSeverityResult?.status}
                 data-tooltip-html-b64=${b64TooltipHtml}
-                class="compliance-highlight flex-grow whitespace-pre-wrap break-all ${highlightClass}"
+                class="compliance-highlight grow whitespace-pre-wrap break-all ${highlightClass}"
                 >${unsafeHTML(indent)}${unsafeHTML(highlightedOpeningTag)}</span
             >
         </div>`
@@ -137,7 +137,7 @@ const renderDashNode = (
                     <span class="text-right text-gray-500 pr-4 select-none w-12"
                         >${lineCounter.count++}</span
                     >
-                    <span class="flex-grow whitespace-pre-wrap break-all"
+                    <span class="grow whitespace-pre-wrap break-all"
                         >${unsafeHTML(indent + '  ')}<span class="text-gray-200"
                             >${textContent}</span
                         ></span
@@ -181,10 +181,10 @@ const renderDashNode = (
         templates.push(
             html`<div class="flex">
                 <span
-                    class="text-right text-gray-500 pr-4 select-none flex-shrink-0 w-12"
+                    class="text-right text-gray-500 pr-4 select-none shrink-0 w-12"
                     >${lineCounter.count++}</span
                 >
-                <span class="flex-grow whitespace-pre-wrap break-all"
+                <span class="grow whitespace-pre-wrap break-all"
                     >${unsafeHTML(indent)}${unsafeHTML(closingTagHtml)}</span
                 >
             </div>`
@@ -248,7 +248,7 @@ export const manifestViewTemplate = (
                     id=${locationId}
                     data-status=${highestSeverityResult?.status}
                     data-tooltip-html-b64=${b64TooltipHtml}
-                    class="compliance-highlight flex-grow whitespace-pre-wrap break-all ${highlightClass}"
+                    class="compliance-highlight grow whitespace-pre-wrap break-all ${highlightClass}"
                     >${unsafeHTML(highlightHls(line))}</span
                 >
             </div>`;
@@ -281,7 +281,7 @@ export const manifestViewTemplate = (
                   <span class="text-right text-gray-500 pr-4 select-none w-12"
                       >${lineCounter.count++}</span
                   >
-                  <span class="flex-grow whitespace-pre-wrap break-all"
+                  <span class="grow whitespace-pre-wrap break-all"
                       >${unsafeHTML(highlightDash(xmlDeclaration[0]))}</span
                   >
               </div>`

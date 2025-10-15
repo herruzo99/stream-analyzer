@@ -21,6 +21,7 @@ import { initializeLoader } from '@/ui/components/loader';
 import { initializeModalComponent } from '@/ui/components/modal';
 import { setupGlobalTooltipListener } from '@/ui/components/tooltip';
 import { initializeDropdownService } from '@/ui/services/dropdownService';
+import { keyManagerService } from './services/keyManagerService.js';
 
 // Side-effect driven imports for services that primarily listen to the event bus
 import '@/application/services/streamService';
@@ -32,7 +33,7 @@ import { initializeResolveAdAvailUseCase } from './useCases/resolveAdAvailUseCas
  */
 export async function startApp() {
     const rootElement = document.body;
-    
+
     const dom = {
         root: rootElement,
         inputSection: rootElement.querySelector('#input-section'),
@@ -53,7 +54,9 @@ export async function startApp() {
     console.log('[Boot] Verifying DOM context initialization...');
     const domVerification = Object.entries(dom).reduce((acc, [key, value]) => {
         if (!value) {
-            console.error(`[Boot] DOM element query failed for key: '${key}'. The selector may be incorrect or the element may not exist at boot time.`);
+            console.error(
+                `[Boot] DOM element query failed for key: '${key}'. The selector may be incorrect or the element may not exist at boot time.`
+            );
             acc[key] = '🔴 MISSING';
         } else {
             acc[key] = '🟢 Found';
@@ -69,7 +72,7 @@ export async function startApp() {
     // --- Layer 1: Core Worker & Consent ---
     workerService.initialize();
     initializeConsentManager();
-    initializeRenderer(dom); 
+    initializeRenderer(dom);
 
     // --- Layer 2: Low-Level UI Components & Global Services ---
     initializeToastManager(dom);
@@ -86,7 +89,8 @@ export async function startApp() {
     initializeCmafService();
     initializeSegmentService();
     streamInitializationService.initialize();
-    
+    keyManagerService.initialize();
+
     // --- Layer 4: UI Orchestration, Controllers & Use Cases ---
     initializeUiOrchestration();
     initializeComplianceController();

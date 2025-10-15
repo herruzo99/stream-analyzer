@@ -88,7 +88,7 @@ const renderStreamListItem = (stream, isPreset, presets, rerenderCallback) => {
                 >${stream.url}</span
             >
         </div>
-        <div class="flex-shrink-0 flex items-center gap-2 ml-4">
+        <div class="shrink-0 flex items-center gap-2 ml-4">
             ${protocolBadge} ${typeBadge}
             <button
                 @click=${handleDelete}
@@ -196,14 +196,16 @@ const streamInputTemplate = (input, isOnlyStream, rerenderCallback) => {
     >
         <div class="flex items-center justify-between mb-3">
             <h3 class="text-lg font-semibold text-gray-300">
-                Stream ${useAnalysisStore
+                Stream
+                ${useAnalysisStore
                     .getState()
                     .streamInputs.findIndex((i) => i.id === input.id) + 1}
             </h3>
             ${!isOnlyStream
                 ? html`<button
                       class="remove-stream-btn text-red-400 hover:text-red-600 font-bold text-sm"
-                      @click=${() => analysisActions.removeStreamInput(input.id)}
+                      @click=${() =>
+                          analysisActions.removeStreamInput(input.id)}
                   >
                       &times; Remove
                   </button>`
@@ -231,7 +233,7 @@ const streamInputTemplate = (input, isOnlyStream, rerenderCallback) => {
                     />
                     <label
                         for="file-${input.id}"
-                        class="block w-full md:w-auto cursor-pointer bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md text-center flex-shrink-0"
+                        class="block w-full md:w-auto cursor-pointer bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md text-center shrink-0"
                         >Upload File</label
                     >
                     <input
@@ -326,7 +328,7 @@ const streamInputTemplate = (input, isOnlyStream, rerenderCallback) => {
                         )}
                 />
                 <button
-                    class="save-preset-btn w-full sm:w-auto flex-shrink-0 bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-4 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    class="save-preset-btn w-full sm:w-auto shrink-0 bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-4 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     @click=${handleSavePreset}
                     ?disabled=${presetUrls.has(input.url) || !input.url}
                 >
@@ -402,7 +404,7 @@ export const inputViewTemplate = (rerenderCallback) => {
             <button
                 id="clear-all-btn"
                 data-testid="clear-all-btn"
-                class="w-full sm:w-auto flex-grow bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-md transition duration-300"
+                class="w-full sm:w-auto grow bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-md transition duration-300"
                 @click=${() => analysisActions.clearAllStreamInputs()}
             >
                 Clear All
@@ -410,7 +412,7 @@ export const inputViewTemplate = (rerenderCallback) => {
             <button
                 id="add-stream-btn"
                 data-testid="add-stream-btn"
-                class="w-full sm:w-auto flex-grow bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md transition duration-300"
+                class="w-full sm:w-auto grow bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md transition duration-300"
                 @click=${() => analysisActions.addStreamInput()}
             >
                 Add Another Stream
@@ -418,12 +420,10 @@ export const inputViewTemplate = (rerenderCallback) => {
             <button
                 id="analyze-btn"
                 data-testid="analyze-btn"
-                class="w-full sm:w-auto flex-grow bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition duration-300"
+                class="w-full sm:w-auto grow bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition duration-300"
                 @click=${handleAnalysis}
             >
-                ${streamInputs.length > 1
-                    ? 'Analyze & Compare'
-                    : 'Analyze'}
+                ${streamInputs.length > 1 ? 'Analyze & Compare' : 'Analyze'}
             </button>
         </div>
     </div>`;

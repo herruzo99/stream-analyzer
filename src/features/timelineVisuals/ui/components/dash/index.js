@@ -104,7 +104,7 @@ const dashAbrLadderTemplate = (representations) => {
                         ((rep.bandwidth || 0) / maxBw) * 100;
                     return html` <div class="flex items-center">
                         <div
-                            class="w-28 text-xs text-gray-400 font-mono flex-shrink-0"
+                            class="w-28 text-xs text-gray-400 font-mono shrink-0"
                             title="Resolution: ${rep.resolution}"
                         >
                             ID: ${rep.id}
@@ -163,7 +163,7 @@ const timelineGridTemplate = (switchingSet) => {
                     (rep) => html`
                         <div class="flex items-center mb-1 relative">
                             <div
-                                class="w-32 text-xs text-gray-400 font-mono flex-shrink-0 pr-2 text-right"
+                                class="w-32 text-xs text-gray-400 font-mono shrink-0 pr-2 text-right"
                                 title="Resolution: ${rep.resolution}"
                             >
                                 Rep ID: ${rep.id}

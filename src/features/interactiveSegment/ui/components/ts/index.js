@@ -131,7 +131,7 @@ export const inspectorPanelTemplate = (tsAnalysisData) => {
         `;
     };
 
-    return html` <>
+    return html`
         <div class="p-3 border-b border-gray-700">
             <div class="font-bold text-base mb-1">
                 Packet @${packet.offset} (PID: ${packet.pid})
@@ -151,7 +151,7 @@ export const inspectorPanelTemplate = (tsAnalysisData) => {
                 </tbody>
             </table>
         </div>
-    </>`;
+    `;
 };
 
 export const structureContentTemplate = (tsAnalysisData) => {
@@ -195,7 +195,7 @@ export const structureContentTemplate = (tsAnalysisData) => {
             <h3 class="font-bold text-base p-2 border-b border-gray-700">
                 Packet List
             </h3>
-            <div class="overflow-y-auto text-xs flex-grow">
+            <div class="overflow-y-auto text-xs grow">
                 ${Object.entries(groupPackets(visiblePackets)).map(
                     ([type, pkts]) => html`
                         <details open>
@@ -227,7 +227,7 @@ export const structureContentTemplate = (tsAnalysisData) => {
             </div>
             ${totalPages > 1
                 ? html`<div
-                      class="text-center p-1 border-t border-gray-700 flex-shrink-0"
+                      class="text-center p-1 border-t border-gray-700 shrink-0"
                   >
                       <button
                           @click=${() => onPacketPageChange(-1)}

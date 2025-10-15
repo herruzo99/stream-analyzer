@@ -48,7 +48,7 @@ export const renderTabButtons = () => {
         (tab) => html`
             <button
                 role="tab"
-                class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-none border-b-2 font-medium transition-colors duration-200 ${tab.key ===
+                class="py-4 px-1 sm:px-6 block hover:text-blue-400 focus:outline-hidden border-b-2 font-medium transition-colors duration-200 ${tab.key ===
                 activeTab
                     ? activeClasses
                     : inactiveClasses} ${!tab.visible ? 'hidden' : ''}"

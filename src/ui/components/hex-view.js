@@ -79,7 +79,6 @@ function renderHexGridContent(view, start, end, byteMap, allTooltips) {
                         tooltipText = 'Unknown Data';
                     }
 
-
                     if (
                         prevMapEntry &&
                         mapEntry.fieldName !== prevMapEntry.fieldName &&
@@ -165,9 +164,9 @@ export const hexViewTemplate = (
             }
         </style>
         <div
-            class="bg-slate-800 rounded-lg font-mono text-sm leading-relaxed flex flex-col h-full"
+            class="bg-slate-800 rounded-lg font-mono text-sm leading-relaxed flex flex-col"
         >
-            <div class="flex-grow overflow-y-auto p-4">
+            <div class="grow overflow-y-auto p-4">
                 <div
                     class="grid grid-cols-[auto_1fr_auto] gap-x-4 sticky top-0 bg-slate-800 pb-2 mb-2 border-b border-gray-600 z-20"
                 >
@@ -198,7 +197,7 @@ export const hexViewTemplate = (
             ${totalPages > 1
                 ? html`
                       <div
-                          class="flex-shrink-0 text-center text-sm text-gray-500 py-2 border-t border-gray-700"
+                          class="shrink-0 text-center text-sm text-gray-500 py-2 border-t border-gray-700"
                       >
                           Showing bytes ${startOffset} -
                           ${Math.min(
@@ -207,21 +206,23 @@ export const hexViewTemplate = (
                           )}
                           of ${buffer.byteLength}
                           (${(buffer.byteLength / 1024).toFixed(2)} KB)
-                          <button
-                              @click=${() => onPageChange(-1)}
-                              ?disabled=${currentPage === 1}
-                              class="px-2 py-1 rounded bg-gray-600 hover:bg-gray-500 disabled:opacity-50 mx-1"
-                          >
-                              &lt;
-                          </button>
-                          Page ${currentPage} of ${totalPages}
-                          <button
-                              @click=${() => onPageChange(1)}
-                              ?disabled=${currentPage === totalPages}
-                              class="px-2 py-1 rounded bg-gray-600 hover:bg-gray-500 disabled:opacity-50 mx-1"
-                          >
-                              &gt;
-                          </button>
+                          <div>
+                              <button
+                                  @click=${() => onPageChange(-1)}
+                                  ?disabled=${currentPage === 1}
+                                  class="px-2 py-1 rounded bg-gray-600 hover:bg-gray-500 disabled:opacity-50 mx-1"
+                              >
+                                  &lt;
+                              </button>
+                              Page ${currentPage} of ${totalPages}
+                              <button
+                                  @click=${() => onPageChange(1)}
+                                  ?disabled=${currentPage === totalPages}
+                                  class="px-2 py-1 rounded bg-gray-600 hover:bg-gray-500 disabled:opacity-50 mx-1"
+                              >
+                                  &gt;
+                              </button>
+                          </div>
                       </div>
                   `
                 : ''}

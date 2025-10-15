@@ -118,6 +118,7 @@ export async function adaptHlsToIr(hlsParsed, context) {
         preloadHints: hlsParsed.preloadHints || [],
         renditionReports: hlsParsed.renditionReports || [],
         partInf: hlsParsed.partInf || null,
+        mediaSequence: hlsParsed.mediaSequence,
     };
 
     // Parse Date Ranges into standard Event objects
@@ -343,6 +344,7 @@ export async function adaptHlsToIr(hlsParsed, context) {
                 representationIndex: null,
                 failoverContent: null,
                 audioChannelConfigurations: [],
+                contentProtection: [],
                 framePackings: [],
                 ratings: [],
                 viewpoints: [],
@@ -402,7 +404,9 @@ export async function adaptHlsToIr(hlsParsed, context) {
         });
     } else {
         // Handle a simple Media Playlist
-        const firstSegmentUri = (hlsParsed.segments[0]?.uri || '').toLowerCase();
+        const firstSegmentUri = (
+            hlsParsed.segments[0]?.uri || ''
+        ).toLowerCase();
         let { contentType, codec } =
             inferMediaInfoFromExtension(firstSegmentUri);
 
@@ -446,6 +450,7 @@ export async function adaptHlsToIr(hlsParsed, context) {
                     representationIndex: null,
                     failoverContent: null,
                     audioChannelConfigurations: [],
+                    contentProtection: contentProtectionIRs,
                     framePackings: [],
                     ratings: [],
                     viewpoints: [],

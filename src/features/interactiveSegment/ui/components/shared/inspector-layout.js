@@ -35,12 +35,11 @@ export const inspectorLayoutTemplate = ({
     const inspectorClasses = {
         hidden: interactiveSegmentActiveTab !== 'inspector',
         'lg:block': true,
-        'h-full': true,
+        'h-svh': true,
     };
     const hexClasses = {
         hidden: interactiveSegmentActiveTab !== 'hex',
         'lg:block': true,
-        'h-full': true,
     };
 
     return html`
@@ -51,15 +50,17 @@ export const inspectorLayoutTemplate = ({
         </div>
 
         <!-- Responsive Content Grid -->
-        <div class="lg:grid lg:grid-cols-[minmax(300px,25%)_1fr] lg:gap-4 h-full">
+        <div
+            class="lg:grid lg:grid-cols-[minmax(300px,25%)_1fr] lg:gap-4 h-svh"
+        >
             <div class=${classMap(inspectorClasses)}>
-                <div class="flex flex-col gap-4 h-full">
+                <div class="flex flex-col gap-4 h-svh">
                     <div
-                        class="segment-inspector-panel rounded-md bg-gray-900/90 border border-gray-700 transition-opacity duration-200 h-96 lg:h-[24rem] flex flex-col overflow-y-auto"
+                        class="segment-inspector-panel rounded-md bg-gray-900/90 border border-gray-700 transition-opacity duration-200 basis-2/5 min-h-0 flex flex-col overflow-y-auto"
                     >
                         ${inspectorContent}
                     </div>
-                    <div class="flex-grow min-h-0">${structureContent}</div>
+                    <div class="basis-2/5 min-h-0">${structureContent}</div>
                 </div>
             </div>
             <div class=${classMap(hexClasses)}>${hexContent}</div>

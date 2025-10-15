@@ -36,7 +36,9 @@ async function getAsyncTimelineTemplate(stream) {
  */
 export function getTimelineAndVisualsTemplate(stream) {
     if (!stream || !stream.manifest) {
-        return Promise.resolve(html`<p class="text-gray-400">No manifest loaded.</p>`);
+        return Promise.resolve(
+            html`<p class="text-gray-400">No manifest loaded.</p>`
+        );
     }
     return getAsyncTimelineTemplate(stream);
 }

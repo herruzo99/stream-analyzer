@@ -1,67 +1,136 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+@reference "tailwindcss";
+
+/* --- Tailwind CSS Safelist --- */
+/* By using @source inline, we instruct the Tailwind compiler to generate and include all of these utility classes
+   in the final CSS file, even if they aren't statically present in the source code. This is essential for
+   our dynamically generated color-coding system for ISOBMFF boxes and TS packets. */
+@source inline('bg-{red,orange,amber,yellow,lime,green,emerald,teal,cyan,sky,blue,indigo,violet,purple,fuchsia,pink,rose,slate}-{400,500,600,700,800,900}');
+@source inline('bg-{red,orange,amber,yellow,lime,green,emerald,teal,cyan,sky,blue,indigo,violet,purple,fuchsia,pink,rose,slate}-{400,500,600,700,800,900}/{20,30,40,50,60,70,80,90}');
+@source inline('border-{red,orange,amber,yellow,lime,green,emerald,teal,cyan,sky,blue,indigo,violet,purple,fuchsia,pink,rose,slate}-{400,500,600,700,800,900}');
+@source inline('border-{red,orange,amber,yellow,lime,green,emerald,teal,cyan,sky,blue,indigo,violet,purple,fuchsia,pink,rose,slate}-{400,500,600,700,800,900}/{80}');
 
 /* --- Keyframe Animations (Cannot be replaced by Tailwind) --- */
 @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
 }
 
 @keyframes fadeOut {
-    from { opacity: 1; }
-    to { opacity: 0; }
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+    }
 }
 
 @keyframes scaleIn {
-    from { transform: scale(0.95); opacity: 0; }
-    to { transform: scale(1); opacity: 1; }
+    from {
+        transform: scale(0.95);
+        opacity: 0;
+    }
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
 }
 
 @keyframes scaleOut {
-    from { transform: scale(1); opacity: 1; }
-    to { transform: scale(0.95); opacity: 0; }
+    from {
+        transform: scale(1);
+        opacity: 1;
+    }
+    to {
+        transform: scale(0.95);
+        opacity: 0;
+    }
 }
 
 @keyframes slideInRight {
-    from { transform: translateX(100%); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
 }
 
 /* --- Animation Utilities (Complex selectors or effects) --- */
 
-#input-section:not(.hidden), #app-root:not(.hidden) > div {
+#input-section:not(.hidden),
+#app-root:not(.hidden) > div {
     animation: fadeIn 0.3s ease-out forwards;
 }
 
-.modal-enter { display: flex; animation: fadeIn 0.2s ease-out forwards; }
-.modal-enter > div { animation: scaleIn 0.2s ease-out forwards; }
-.modal-leave { animation: fadeOut 0.2s ease-in forwards; pointer-events: none; }
-.modal-leave > div { animation: scaleOut 0.2s ease-in forwards; }
-.dropdown-panel { transform-origin: top right; animation: scaleIn 0.15s ease-out forwards; }
-details.details-animated[open] > *:not(summary) { animation: fadeIn 0.3s ease-out; }
+.modal-enter {
+    display: flex;
+    animation: fadeIn 0.2s ease-out forwards;
+}
+.modal-enter > div {
+    animation: scaleIn 0.2s ease-out forwards;
+}
+.modal-leave {
+    animation: fadeOut 0.2s ease-in forwards;
+    pointer-events: none;
+}
+.modal-leave > div {
+    animation: scaleOut 0.2s ease-in forwards;
+}
+.dropdown-panel {
+    transform-origin: top right;
+    animation: scaleIn 0.15s ease-out forwards;
+}
+details.details-animated[open] > *:not(summary) {
+    animation: fadeIn 0.3s ease-out;
+}
 
 /* --- Loader Styles (Uses custom animation properties) --- */
 .loader-animation span {
-    @apply w-2 h-3 mx-0.5 bg-blue-400 origin-bottom;
     animation: streaming-bars 1.2s ease-in-out infinite;
 }
-.loader-animation span:nth-child(1) { animation-delay: 0s; }
-.loader-animation span:nth-child(2) { animation-delay: 0.1s; }
-.loader-animation span:nth-child(3) { animation-delay: 0.2s; }
-.loader-animation span:nth-child(4) { animation-delay: 0.3s; }
-.loader-animation span:nth-child(5) { animation-delay: 0.4s; }
+.loader-animation span:nth-child(1) {
+    animation-delay: 0s;
+}
+.loader-animation span:nth-child(2) {
+    animation-delay: 0.1s;
+}
+.loader-animation span:nth-child(3) {
+    animation-delay: 0.2s;
+}
+.loader-animation span:nth-child(4) {
+    animation-delay: 0.3s;
+}
+.loader-animation span:nth-child(5) {
+    animation-delay: 0.4s;
+}
 
 @keyframes streaming-bars {
-    0%, 100% { transform: scaleY(0.2); }
-    50% { transform: scaleY(1); }
+    0%,
+    100% {
+        transform: scaleY(0.2);
+    }
+    50% {
+        transform: scaleY(1);
+    }
 }
 
 /* --- Custom Effects (Hover highlights) --- */
-.is-box-hover-highlighted { @apply bg-blue-500/20; }
-.is-field-hover-highlighted { @apply bg-purple-500/40; }
-.is-inspector-field-highlighted { @apply bg-purple-500/20; }
-
+.is-box-hover-highlighted {
+    @apply bg-blue-500/20;
+}
+.is-field-hover-highlighted {
+    @apply bg-purple-500/40;
+}
+.is-inspector-field-highlighted {
+    @apply bg-purple-500/20;
+}
 
 /* --- Sidebar State Management --- */
 body.primary-sidebar-open #sidebar-overlay,

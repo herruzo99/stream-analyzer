@@ -15,7 +15,6 @@ import {
 import {
     cleanupSegmentViewInteractivity,
     initializeSegmentViewInteractivity,
-    renderInspectorPanel,
 } from './components/interaction-logic.js';
 import { getInteractiveVttTemplate } from './components/vtt/index.js';
 import { inspectorLayoutTemplate } from './components/shared/inspector-layout.js';
@@ -24,7 +23,7 @@ import { getTooltipData as getIsobmffTooltipData } from '@/infrastructure/parsin
 import { getTooltipData as getTsTooltipData } from '@/infrastructure/parsing/ts/index';
 import { workerService } from '@/infrastructure/worker/workerService';
 
-const HEX_BYTES_PER_PAGE = 1024;
+const HEX_BYTES_PER_PAGE = 512;
 const ALL_TOOLTIPS_DATA = {
     ...getIsobmffTooltipData(),
     ...getTsTooltipData(),
@@ -50,16 +49,19 @@ function initializeAllInteractivity(dom, cachedSegment, byteMap) {
             findFn,
             format
         );
-        renderInspectorPanel(); // Render initial placeholder
+        // The initial render is handled declaratively by the main template.
+        // This function only needs to set up the event listeners for subsequent interactions.
+        // The redundant call to renderInspectorPanel() is removed from here.
     }
 }
 
-const loadingTemplate = (message) => html`<div class="text-center py-12">
-    <div
-        class="animate-spin inline-block w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mb-4"
-    ></div>
-    <p class="text-gray-400">${message}</p>
-</div>`;
+const loadingTemplate = (message) =>
+    html`<div class="text-center py-12">
+        <div
+            class="animate-spin inline-block w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mb-4"
+        ></div>
+        <p class="text-gray-400">${message}</p>
+    </div>`;
 
 export function getInteractiveSegmentTemplate(dom) {
     const { activeSegmentUrl } = useAnalysisStore.getState();
@@ -166,7 +168,7 @@ export function getInteractiveSegmentTemplate(dom) {
     }
 
     return html`
-        <div class="mb-6">
+        <div class="mb-6 shrink-0">
             <div class="flex justify-between items-center mb-2">
                 <h3 class="text-xl font-bold text-white">
                     🔍 Interactive Segment View
@@ -187,7 +189,7 @@ export function getInteractiveSegmentTemplate(dom) {
                 ${activeSegmentUrl}
             </p>
         </div>
-        <div class="h-[calc(100vh-12rem)]">
+        <div class="grow min-h-0">
             ${inspectorLayoutTemplate({
                 inspectorContent,
                 structureContent,

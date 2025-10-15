@@ -139,7 +139,7 @@ const getHlsLineHTML = (line) => {
                 )}" data-iso="${escapeHtml(attrInfo.ref)}"`;
             } else {
                 dynamicClasses =
-                    'cursor-help bg-red-900/50 border-b border-dotted !border-red-400/70';
+                    'cursor-help bg-red-900/50 border-b border-dotted border-red-400/70!';
                 attrTooltipAttrs = `data-tooltip="Tooltip definition missing for '${attr}' on tag #${tagName}"`;
             }
 
@@ -164,7 +164,7 @@ const getHlsLineHTML = (line) => {
 const structuredTagTemplate = (tag) => {
     const tagInfo = hlsTooltipData[tag.name] || {};
     return html` <div
-        class="flex-grow whitespace-pre-wrap break-all bg-gray-900/50 p-2 rounded border-l-2 border-cyan-500"
+        class="grow whitespace-pre-wrap break-all bg-gray-900/50 p-2 rounded border-l-2 border-cyan-500"
     >
         <div
             class="font-semibold text-cyan-300 mb-1 ${tooltipTriggerClasses}"
@@ -315,10 +315,10 @@ export const hlsManifestTemplate = (stream, currentPage) => {
                 (template, i) => html`
                     <div class="flex">
                         <span
-                            class="text-right text-gray-500 pr-4 select-none flex-shrink-0 w-10"
+                            class="text-right text-gray-500 pr-4 select-none shrink-0 w-10"
                             >${startLineIndex + i + 1}</span
                         >
-                        <span class="flex-grow whitespace-pre-wrap break-all"
+                        <span class="grow whitespace-pre-wrap break-all"
                             >${template}</span
                         >
                     </div>

@@ -32,7 +32,7 @@ export const segmentTableTemplate = ({
         <div
             class="flex items-center p-2 bg-gray-900/50 border-b border-gray-700"
         >
-            <div class="flex-grow flex items-center">
+            <div class="grow flex items-center">
                 <span class="font-semibold text-gray-200"
                     >${unsafeHTML(title)}</span
                 >
@@ -79,7 +79,7 @@ export const segmentTableTemplate = ({
             <div class="overflow-x-auto text-sm">
                 <div class="inline-block min-w-full align-middle">
                     <div
-                        class="sticky top-0 bg-gray-900 z-10 hidden md:grid md:grid-cols-[32px_160px_128px_96px_minmax(400px,auto)] font-semibold text-gray-400 text-xs"
+                        class="sticky top-0 bg-gray-900 z-10 hidden md:grid md:grid-cols-[32px_160px_128px_96px_112px_minmax(400px,auto)] font-semibold text-gray-400 text-xs"
                         style="padding-right: ${scrollbarWidth}px"
                     >
                         <div
@@ -99,6 +99,11 @@ export const segmentTableTemplate = ({
                             class="px-3 py-2 border-b border-r border-gray-700"
                         >
                             Flags
+                        </div>
+                        <div
+                            class="px-3 py-2 border-b border-r border-gray-700"
+                        >
+                            Encryption
                         </div>
                         <div class="px-3 py-2 border-b border-gray-700">
                             URL & Actions

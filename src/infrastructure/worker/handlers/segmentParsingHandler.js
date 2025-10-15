@@ -2,101 +2,166 @@ import { parseISOBMFF } from '@/infrastructure/parsing/isobmff/parser';
 import { parse as parseTsSegment } from '@/infrastructure/parsing/ts/index';
 import { parseVTT } from '@/infrastructure/parsing/vtt/parser';
 import { debugLog } from '@/application/utils/debug';
+import { boxParsers } from '@/infrastructure/parsing/isobmff/index';
 
-// Map of simple names to the base Tailwind color class
-const TAILWIND_COLORS = {
-    red: 'bg-red-900',
-    yellow: 'bg-yellow-900',
-    green: 'bg-green-900',
-    blue: 'bg-blue-900',
-    indigo: 'bg-indigo-900',
-    purple: 'bg-purple-900',
-    pink: 'bg-pink-900',
-    teal: 'bg-teal-900',
-    slate: 'bg-slate-700', // Adjusted for default
+// --- Programmatic Color Generation ---
+
+// 1. Define the master list of color names to cycle through.
+const COLOR_NAMES = [
+    'red',
+    'orange',
+    'amber',
+    'yellow',
+    'lime',
+    'green',
+    'emerald',
+    'teal',
+    'cyan',
+    'sky',
+    'blue',
+    'indigo',
+    'violet',
+    'purple',
+    'fuchsia',
+    'pink',
+    'rose',
+];
+
+// 2. Generate the TAILWIND_COLORS object programmatically with higher-contrast shades.
+const generateColorFamilies = (names) => {
+    const families = {};
+    for (const name of names) {
+        families[name] = [
+            { bg: `bg-${name}-800`, border: `border-${name}-600` },
+            { bg: `bg-${name}-700`, border: `border-${name}-500` },
+            { bg: `bg-${name}-600`, border: `border-${name}-400` },
+        ];
+    }
+    // Add neutral colors separately for specific use cases.
+    families['slate'] = [
+        { bg: 'bg-slate-800', border: 'border-slate-600' },
+        { bg: 'bg-slate-700', border: 'border-slate-500' },
+        { bg: 'bg-slate-800/70', border: 'border-slate-600/80' },
+    ];
+    return families;
 };
 
-// --- ARCHITECTURAL REFACTOR: Deterministic Color Mapping ---
-// Assigns a specific, consistent color to each important box type.
-const BOX_TYPE_COLOR_MAP = {
-    // File/Segment Type
-    ftyp: { name: 'red', border: 'border-red-700' },
-    styp: { name: 'red', border: 'border-red-700' },
+const TAILWIND_COLORS = generateColorFamilies(COLOR_NAMES);
 
-    // Core Metadata Containers
-    moov: { name: 'blue', border: 'border-blue-700' },
-    trak: { name: 'indigo', border: 'border-indigo-700' },
+// 3. Generate the BOX_TYPE_COLOR_MAP by cycling through the color names.
+const generateBoxColorMap = () => {
+    const map = {};
+    let colorIndex = 0;
+    const knownBoxTypes = Object.keys(boxParsers);
 
-    // Fragment Metadata Containers
-    moof: { name: 'green', border: 'border-green-700' },
-    traf: { name: 'purple', border: 'border-purple-700' },
+    for (const boxType of knownBoxTypes) {
+        map[boxType] = COLOR_NAMES[colorIndex];
+        colorIndex = (colorIndex + 1) % COLOR_NAMES.length;
+    }
 
-    // Indexing and Timing
-    sidx: { name: 'yellow', border: 'border-yellow-700' },
-    tfdt: { name: 'pink', border: 'border-pink-700' },
-    trun: { name: 'teal', border: 'border-teal-700' },
-    tfhd: { name: 'purple', border: 'border-purple-600' },
-    mfhd: { name: 'green', border: 'border-green-600' },
+    // 4. Override specific boxes with neutral colors.
+    map['mdat'] = 'slate';
+    map['free'] = 'slate';
+    map['skip'] = 'slate';
+    map['default'] = 'slate';
 
-    // Media Data
-    mdat: { name: 'slate', border: 'border-slate-600' },
-
-    // Default for unknown/other boxes
-    default: { name: 'slate', border: 'border-slate-700' },
+    return map;
 };
 
-const TS_PAYLOAD_TYPE_COLOR_MAP = {
-    // PSI
-    'PSI (PAT)': { name: 'blue', border: 'border-blue-700' },
-    'PSI (PMT)': { name: 'indigo', border: 'border-indigo-700' },
-    'PSI (CAT)': { name: 'purple', border: 'border-purple-700' },
-    'PSI (TSDT)': { name: 'purple', border: 'border-purple-600' },
-    'PSI (Private Section)': { name: 'slate', border: 'border-slate-600' },
+const BOX_TYPE_COLOR_MAP = generateBoxColorMap();
+// --- End Programmatic Color Generation ---
 
-    // PES
-    PES: { name: 'green', border: 'border-green-700' },
-    'PES (DSM-CC)': { name: 'pink', border: 'border-pink-700' },
-
-    // Data (use stream_type)
-    '0x02': { name: 'teal', border: 'border-teal-700' }, // MPEG-2 Video
-    '0x1b': { name: 'teal', border: 'border-teal-600' }, // H.264
-    '0x24': { name: 'teal', border: 'border-teal-500' }, // H.265
-    '0x04': { name: 'yellow', border: 'border-yellow-700' }, // MPEG-2 Audio
-    '0x0f': { name: 'yellow', border: 'border-yellow-600' }, // AAC
-    '0x11': { name: 'yellow', border: 'border-yellow-500' }, // MP4 Audio (latm)
-
-    // Other
-    'Null Packet': { name: 'slate', border: 'border-transparent' },
-    Data: { name: 'slate', border: 'border-slate-700' },
-    default: { name: 'slate', border: 'border-slate-700' },
+const TS_PACKET_COLOR_MAP = {
+    'PSI (PAT)': 'red',
+    'PSI (PMT)': 'yellow',
+    'PSI (CAT)': 'pink',
+    'PSI (TSDT)': 'teal',
+    'PSI (Private Section)': 'purple',
+    PES: 'blue',
+    'PES (DSM-CC)': 'indigo',
+    Data: 'green',
+    'Null Packet': 'slate',
+    default: 'slate',
 };
 
-// --- END REFACTOR ---
-
+/**
+ * Assigns a deterministic, context-aware color to each box based on its type and siblings.
+ * @param {import('@/infrastructure/parsing/isobmff/parser').Box[]} boxes
+ */
 function assignBoxColors(boxes) {
+    if (!boxes) return;
+
     const traverse = (boxList) => {
+        let lastColorFamilyName = null;
+        let lastColorIndex = 0;
+
         for (const box of boxList) {
-            if (box.isChunk) {
-                box.color = BOX_TYPE_COLOR_MAP.default; // Chunks are neutral containers
+            const colorFamilyName =
+                (box.isChunk ? 'slate' : BOX_TYPE_COLOR_MAP[box.type]) ||
+                'slate';
+            const colorFamily = TAILWIND_COLORS[colorFamilyName];
+
+            let colorIndex;
+            if (colorFamilyName === lastColorFamilyName) {
+                // If the same color family is used for an adjacent sibling, cycle to the next shade.
+                colorIndex = (lastColorIndex + 1) % colorFamily.length;
             } else {
-                box.color =
-                    BOX_TYPE_COLOR_MAP[box.type] || BOX_TYPE_COLOR_MAP.default;
+                // If it's a new color family, start with the first shade.
+                colorIndex = 0;
             }
+
+            const selectedShade = colorFamily[colorIndex];
+            box.color = {
+                name: colorFamilyName,
+                bgClass: selectedShade.bg,
+                border: selectedShade.border,
+            };
+
+            lastColorFamilyName = colorFamilyName;
+            lastColorIndex = colorIndex;
+
             if (box.children?.length > 0) {
+                // The traversal for children is a new context; they will start their own color cycle.
                 traverse(box.children);
             }
         }
     };
-    if (boxes) traverse(boxes);
+
+    traverse(boxes);
 }
 
-function assignPacketColors(packets) {
+/**
+ * Assigns a deterministic, context-aware color to each TS packet based on its payload type.
+ * @param {object[]} packets
+ */
+function assignTsPacketColors(packets) {
     if (!packets) return;
+
+    let lastColorFamilyName = null;
+    let lastColorIndex = 0;
+
     for (const packet of packets) {
-        // payloadType can be a stream_type like '0x02' or a descriptive string.
-        packet.color =
-            TS_PAYLOAD_TYPE_COLOR_MAP[packet.payloadType] ||
-            TS_PAYLOAD_TYPE_COLOR_MAP['default'];
+        const colorFamilyName =
+            TS_PACKET_COLOR_MAP[packet.payloadType] ||
+            TS_PACKET_COLOR_MAP.default;
+        const colorFamily = TAILWIND_COLORS[colorFamilyName];
+
+        let colorIndex;
+        if (colorFamilyName === lastColorFamilyName) {
+            colorIndex = (lastColorIndex + 1) % colorFamily.length;
+        } else {
+            colorIndex = 0;
+        }
+
+        const selectedShade = colorFamily[colorIndex];
+        packet.color = {
+            name: colorFamilyName,
+            bgClass: selectedShade.bg,
+            border: selectedShade.border,
+        };
+
+        lastColorFamilyName = colorFamilyName;
+        lastColorIndex = colorIndex;
     }
 }
 
@@ -139,7 +204,10 @@ export async function parseSegment({ data, formatHint, url }) {
                 path.endsWith('.m4a') ||
                 path.endsWith('.m4v')
             ) {
-                debugLog('parseSegment', 'Detected ISOBMFF via file extension.');
+                debugLog(
+                    'parseSegment',
+                    'Detected ISOBMFF via file extension.'
+                );
                 return parseISOBMFF(data);
             }
             if (
@@ -346,7 +414,7 @@ export async function handleParseSegmentStructure({ url, data, formatHint }) {
         decorateSamples(samples, parsedData);
         parsedData.samples = samples;
     } else if (parsedData.format === 'ts' && parsedData.data.packets) {
-        assignPacketColors(parsedData.data.packets);
+        assignTsPacketColors(parsedData.data.packets);
     }
     return parsedData;
 }
@@ -354,21 +422,18 @@ export async function handleParseSegmentStructure({ url, data, formatHint }) {
 function walkAndMapBytes(byteMap, boxes, page, bytesPerPage) {
     const startOffset = (page - 1) * bytesPerPage;
     const endOffset = startOffset + bytesPerPage;
-    const opacities = ['/90', '/30', '/70', '/40', '/80', '/20', '/60'];
+    const opacities = ['/80', '/60', '/70', '/50', '/90', '/40'];
 
     for (const box of boxes) {
         if (box.offset + box.size < startOffset || box.offset > endOffset) {
             continue;
         }
 
-        const baseClass = box.color ? TAILWIND_COLORS[box.color.name] : null;
+        const baseClass = box.color?.bgClass;
 
-        for (let i = box.offset; i < box.offset + box.size; i++) {
-            if (i >= startOffset && i < endOffset) {
-                const color = baseClass ? { bgClass: `${baseClass}/50` } : {};
-                byteMap.set(i, { box, color, fieldName: 'Box Data' });
-            }
-        }
+        // **REMOVED** the loop that colored the entire box range.
+
+        // Highlight only the header
         for (let i = box.offset; i < box.offset + box.headerSize; i++) {
             if (i >= startOffset && i < endOffset) {
                 const color = baseClass ? { bgClass: `${baseClass}` } : {};
@@ -376,6 +441,7 @@ function walkAndMapBytes(byteMap, boxes, page, bytesPerPage) {
             }
         }
 
+        // Highlight specific fields
         let fieldIndex = 0;
         for (const [key, field] of Object.entries(box.details)) {
             const opacityClass = opacities[fieldIndex % opacities.length];
@@ -393,56 +459,6 @@ function walkAndMapBytes(byteMap, boxes, page, bytesPerPage) {
 
         if (box.children && box.children.length > 0) {
             walkAndMapBytes(byteMap, box.children, page, bytesPerPage);
-        }
-    }
-}
-
-function walkAndMapBytesTs(byteMap, packets, page, bytesPerPage) {
-    const startOffset = (page - 1) * bytesPerPage;
-    const endOffset = startOffset + bytesPerPage;
-    const opacities = ['/80', '/60', '/40'];
-
-    for (const packet of packets) {
-        if (
-            packet.offset + 188 < startOffset ||
-            packet.offset > endOffset
-        ) {
-            continue;
-        }
-
-        const baseClass = packet.color ? TAILWIND_COLORS[packet.color.name] : null;
-
-        // Color the whole packet first
-        for (let i = packet.offset; i < packet.offset + 188; i++) {
-            if (i >= startOffset && i < endOffset) {
-                const color = baseClass ? { bgClass: `${baseClass}/20` } : {};
-                byteMap.set(i, { packet, color, fieldName: 'Packet Data' });
-            }
-        }
-
-        // --- Overlay specific fields ---
-        const fieldGroups = {
-            header: { data: packet.header, intensity: 0 },
-            adaptationField: { data: packet.adaptationField, intensity: 1 },
-            pesHeader: { data: packet.pes, intensity: 2 },
-            psiHeader: { data: packet.psi?.header, intensity: 2 }
-        };
-
-        for (const [groupName, group] of Object.entries(fieldGroups)) {
-            if (!group.data) continue;
-            
-            const opacityClass = opacities[group.intensity % opacities.length];
-            const fieldColor = baseClass ? { bgClass: `${baseClass}${opacityClass}` } : {};
-
-            for (const [fieldName, field] of Object.entries(group.data)) {
-                 if (typeof field === 'object' && field !== null && field.offset !== undefined && field.length !== undefined) {
-                    for (let i = field.offset; i < field.offset + Math.ceil(field.length); i++) {
-                        if (i >= startOffset && i < endOffset) {
-                            byteMap.set(i, { packet, color: fieldColor, fieldName: `${groupName}.${fieldName}` });
-                        }
-                    }
-                }
-            }
         }
     }
 }
@@ -485,8 +501,76 @@ export async function handleGeneratePagedByteMap({
             });
         }
     } else if (parsedData.format === 'ts') {
-        walkAndMapBytesTs(byteMap, parsedData.data.packets, page, bytesPerPage);
+        parsedData.data.packets.forEach((packet) => {
+            if (
+                packet.offset + 188 < startOffset ||
+                packet.offset > endOffset
+            ) {
+                return;
+            }
+            const baseClass = packet.color?.bgClass;
+            for (let i = packet.offset; i < packet.offset + 188; i++) {
+                if (i >= startOffset && i < endOffset) {
+                    const color = baseClass ? { bgClass: baseClass } : {};
+                    byteMap.set(i, { packet, color, fieldName: 'Packet Data' });
+                }
+            }
+        });
     }
 
     return Array.from(byteMap.entries());
+}
+
+export async function handleFetchKey({ uri }) {
+    if (uri.startsWith('data:')) {
+        const base64Data = uri.split(',')[1];
+        const binaryString = atob(base64Data);
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+        }
+        return bytes.buffer;
+    }
+
+    const response = await fetch(uri);
+    if (!response.ok) {
+        throw new Error(`HTTP error ${response.status} fetching key`);
+    }
+    return response.arrayBuffer();
+}
+
+export async function handleDecryptAndParseSegment({
+    url,
+    key,
+    iv,
+    formatHint,
+}) {
+    const response = await fetch(url);
+    if (!response.ok) {
+        throw new Error(`HTTP error ${response.status} fetching segment`);
+    }
+    const encryptedData = await response.arrayBuffer();
+
+    const cryptoKey = await self.crypto.subtle.importKey(
+        'raw',
+        key,
+        { name: 'AES-CBC' },
+        false,
+        ['decrypt']
+    );
+
+    const decryptedData = await self.crypto.subtle.decrypt(
+        { name: 'AES-CBC', iv: iv },
+        cryptoKey,
+        encryptedData
+    );
+
+    const parsedData = await handleParseSegmentStructure({
+        data: decryptedData,
+        formatHint,
+        url,
+    });
+
+    return { parsedData, decryptedData };
 }

@@ -131,10 +131,10 @@ const preformattedDash = (
                 .join('');
 
             const openingTagStart = `<div class="flex ${highlightClass}" id="${locationId}">
-                <span class="text-right text-gray-500 pr-4 select-none flex-shrink-0 w-12">${
+                <span class="text-right text-gray-500 pr-4 select-none shrink-0 w-12">${
                     '' /*Line number placeholder*/
                 }</span>
-                <span class="flex-grow whitespace-pre-wrap break-all">`;
+                <span class="grow whitespace-pre-wrap break-all">`;
 
             if (childNodes.length > 0) {
                 const openingTag = `${openingTagStart}${indent}${getTagHTML(
@@ -179,14 +179,14 @@ const preformattedDash = (
         }
         case Node.TEXT_NODE: {
             return [
-                `<div class="flex"><span class="text-right text-gray-500 pr-4 select-none flex-shrink-0 w-12"></span><span class="flex-grow whitespace-pre-wrap break-all">${indent}<span class="text-gray-200">${escapeHtml(
+                `<div class="flex"><span class="text-right text-gray-500 pr-4 select-none shrink-0 w-12"></span><span class="grow whitespace-pre-wrap break-all">${indent}<span class="text-gray-200">${escapeHtml(
                     node.textContent.trim()
                 )}</span></span></div>`,
             ];
         }
         case Node.COMMENT_NODE: {
             return [
-                `<div class="flex"><span class="text-right text-gray-500 pr-4 select-none flex-shrink-0 w-12"></span><span class="flex-grow whitespace-pre-wrap break-all">${indent}<span class="text-gray-500 italic">&lt;!--${escapeHtml(
+                `<div class="flex"><span class="text-right text-gray-500 pr-4 select-none shrink-0 w-12"></span><span class="grow whitespace-pre-wrap break-all">${indent}<span class="text-gray-500 italic">&lt;!--${escapeHtml(
                     node.textContent
                 )}--&gt;</span></span></div>`,
             ];
@@ -227,7 +227,7 @@ ${parserError.textContent}</pre
         .map((line, index) => {
             return line.replace(
                 /<span class="text-right.*?w-12">.*?<\/span>/,
-                `<span class="text-right text-gray-500 pr-4 select-none flex-shrink-0 w-12">${
+                `<span class="text-right text-gray-500 pr-4 select-none shrink-0 w-12">${
                     index + 1
                 }</span>`
             );

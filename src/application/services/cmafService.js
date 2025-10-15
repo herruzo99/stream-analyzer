@@ -54,7 +54,7 @@ async function runCmafValidation(stream) {
                 firstPeriod,
                 resolvedBaseUrl
             );
-            
+
             const compositeKey = `${firstPeriod.id || 0}-${firstRep.id}`;
             const mediaSegment = stream.dashRepresentationState
                 .get(compositeKey)

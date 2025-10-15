@@ -88,7 +88,7 @@ export function getFeaturesAnalysisTemplate(stream) {
                     class="bg-gray-800 border border-gray-700 rounded-lg p-4 flex items-center gap-4 mb-6"
                 >
                     <div
-                        class="w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center flex-shrink-0"
+                        class="w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center shrink-0"
                     >
                         <svg
                             xmlns="http://www.w3.org/2000/svg"
@@ -128,7 +128,7 @@ export function getFeaturesAnalysisTemplate(stream) {
                 class="bg-gray-800 border border-gray-700 rounded-lg p-4 flex items-center gap-4 mb-6"
             >
                 <div
-                    class="w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center flex-shrink-0 relative"
+                    class="w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center shrink-0 relative"
                 >
                     ${isPolling
                         ? html`<div
@@ -159,7 +159,7 @@ export function getFeaturesAnalysisTemplate(stream) {
                         />
                     </svg>
                 </div>
-                <div class="flex-grow">
+                <div class="grow">
                     <p class="font-semibold text-gray-200">
                         Live Analysis:
                         <span class="font-bold ${statusColor}"
@@ -171,7 +171,7 @@ export function getFeaturesAnalysisTemplate(stream) {
                         manifest updates.
                     </p>
                 </div>
-                <div class="text-right flex-shrink-0">
+                <div class="text-right shrink-0">
                     <div
                         class="text-xs text-gray-400 uppercase font-semibold tracking-wider"
                     >
