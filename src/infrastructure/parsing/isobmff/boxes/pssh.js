@@ -62,7 +62,7 @@ export function parsePssh(box, view) {
 export const psshTooltip = {
     pssh: {
         name: 'Protection System Specific Header Box',
-        text: 'Protection System Specific Header (`pssh`). Contains initialization data that is opaque to the player but essential for a specific Content Protection system (DRM). The player passes this data to the browser\'s EME APIs to initiate a license request.',
+        text: "Protection System Specific Header (`pssh`). Contains initialization data that is opaque to the player but essential for a specific Content Protection system (DRM). The player passes this data to the browser's EME APIs to initiate a license request.",
         ref: 'ISO/IEC 23001-7, 5.1',
     },
     'pssh@version': {

@@ -466,9 +466,7 @@ function walkAndMapBytes(byteMap, boxes, page, bytesPerPage) {
         // Highlight table entry data blocks
         const hasEntries = box.entries || box.samples;
         if (hasEntries && entriesEndOffset < box.offset + box.size) {
-            const tableColor = baseClass
-                ? { bgClass: `${baseClass}/30` }
-                : {};
+            const tableColor = baseClass ? { bgClass: `${baseClass}/30` } : {};
             for (let i = entriesEndOffset; i < box.offset + box.size; i++) {
                 if (i >= startOffset && i < endOffset) {
                     byteMap.set(i, {

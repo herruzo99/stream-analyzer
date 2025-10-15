@@ -32,7 +32,7 @@ export const tfdtTooltip = {
         ref: 'ISO/IEC 14496-12, 8.8.12.2',
     },
     'tfdt@baseMediaDecodeTime': {
-        text: 'The absolute decode time of the first sample in this fragment, expressed in the media\'s timescale (from `mdhd`). This value is the sum of the durations of all samples in all preceding fragments and the initial movie.',
+        text: "The absolute decode time of the first sample in this fragment, expressed in the media's timescale (from `mdhd`). This value is the sum of the durations of all samples in all preceding fragments and the initial movie.",
         ref: 'ISO/IEC 14496-12, 8.8.12.3',
     },
 };

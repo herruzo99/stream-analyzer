@@ -279,6 +279,8 @@ const irSchema = {
         'supplementalCodecs',
         'reqVideoLayout',
         'serializedManifest',
+        'contentProtection',
+        '__variantUri',
     ],
     AdaptationSet: [
         'id',
@@ -361,6 +363,7 @@ const irSchema = {
         'preloadHints',
         'renditionReports',
         'partInf',
+        'mediaSequence',
     ],
 };
 

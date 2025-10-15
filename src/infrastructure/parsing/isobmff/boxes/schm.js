@@ -44,7 +44,7 @@ export const schmTooltip = {
         ref: 'ISO/IEC 14496-12, 8.12.5',
     },
     'schm@flags': {
-        text: 'A bitfield where the `scheme_uri_present` flag indicates if a URL pointing to the scheme\'s specification is included.',
+        text: "A bitfield where the `scheme_uri_present` flag indicates if a URL pointing to the scheme's specification is included.",
         ref: 'ISO/IEC 14496-12, 8.12.5.2',
     },
     'schm@scheme_type': {
