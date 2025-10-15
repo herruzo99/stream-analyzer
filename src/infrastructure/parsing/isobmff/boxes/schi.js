@@ -11,7 +11,7 @@ export function parseSchi(box, view) {
 export const schiTooltip = {
     schi: {
         name: 'Scheme Information Box',
-        text: 'A container for boxes with scheme-specific data needed by the protection system.',
+        text: 'Scheme Information Box (`schi`). A container for scheme-specific data required by a protection system. Its content is opaque to a generic player but is interpreted by the specific DRM system identified in the `schm` box (e.g., it might contain a `tenc` box for CENC).',
         ref: 'ISO/IEC 14496-12, 8.12.6',
     },
 };

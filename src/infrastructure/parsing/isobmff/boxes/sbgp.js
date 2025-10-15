@@ -45,20 +45,20 @@ export function parseSbgp(box, view) {
 
 export const sbgpTooltip = {
     sbgp: {
-        name: 'Sample to Group',
-        text: 'Assigns samples to a specific group, described in the Sample Group Description Box (sgpd).',
+        name: 'Sample to Group Box',
+        text: 'Sample to Group Box (`sbgp`). Maps each sample in a track to a group. The characteristics of each group are defined in a corresponding Sample Group Description Box (`sgpd`). This is a generic mechanism used for features like random access points (`rap `) or temporal levels (`tele`).',
         ref: 'ISO/IEC 14496-12, 8.9.2',
     },
     'sbgp@grouping_type': {
-        text: 'A code indicating the criterion used to group the samples (e.g., "rap " for random access points).',
+        text: 'A four-character code indicating the criterion used to group the samples (e.g., "rap " for random access points, "roll" for gradual decoding refresh). This links the `sbgp` to its corresponding `sgpd`.',
         ref: 'ISO/IEC 14496-12, 8.9.2.3',
     },
     'sbgp@grouping_type_parameter': {
-        text: 'A parameter providing additional information for the grouping (only in version 1).',
-        ref: 'ISO/IEC 14496-12, 8.9.2.3',
+        text: 'An optional parameter that provides additional information for the grouping (only present if box version is 1).',
+        ref: 'ISO/IEC 14496-12, 8.9.2.2',
     },
     'sbgp@entry_count': {
-        text: 'The number of entries mapping sample runs to group descriptions.',
-        ref: 'ISO/IEC 14496-12, 8.9.2.3',
+        text: 'The number of entries in the run-length encoded table that maps runs of samples to group descriptions.',
+        ref: 'ISO/IEC 14496-12, 8.9.2.2',
     },
 };

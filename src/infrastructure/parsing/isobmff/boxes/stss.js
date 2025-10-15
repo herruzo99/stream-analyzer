@@ -48,15 +48,15 @@ export function parseStss(box, view) {
 export const stssTooltip = {
     stss: {
         name: 'Sync Sample Box',
-        text: 'Provides a compact list of the sync samples (keyframes/random access points) in the track.',
+        text: 'Sync Sample Box (`stss`). Provides a compact list of all the sync samples (e.g., I-frames in video) in the track. Sync samples are random access points from which decoding can begin. If this box is not present, all samples are considered sync samples.',
         ref: 'ISO/IEC 14496-12, 8.6.2',
     },
     'stss@entry_count': {
-        text: 'The number of sync samples in this track.',
-        ref: 'ISO/IEC 14496-12, 8.6.2.3',
+        text: 'The number of sync samples listed in this table. If zero, there are no sync samples in the track.',
+        ref: 'ISO/IEC 14496-12, 8.6.2.2',
     },
     'stss@sample_numbers': {
-        text: 'The sample numbers of the sync samples, in increasing order.',
-        ref: 'ISO/IEC 14496-12, 8.6.2.3',
+        text: 'A table of 1-based sample numbers for each sync sample, listed in strictly increasing order.',
+        ref: 'ISO/IEC 14496-12, 8.6.2.2',
     },
 };

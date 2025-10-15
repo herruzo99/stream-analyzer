@@ -97,27 +97,27 @@ export function parseTenc(box, view) {
 export const tencTooltip = {
     tenc: {
         name: 'Track Encryption Box',
-        text: 'Contains default encryption parameters for samples in a track, as defined by the Common Encryption (CENC) specification.',
+        text: 'Track Encryption Box (`tenc`). Contains default encryption parameters for a track, as defined by the Common Encryption (CENC) specification. It specifies the default Key ID (KID) and Initialization Vector (IV) size.',
         ref: 'ISO/IEC 23001-7, 8.1',
     },
     'tenc@default_isProtected': {
-        text: 'Indicates if samples are encrypted by default (1) or not (0).',
+        text: 'Indicates the default protection state. A value of 1 means samples are encrypted by default. A value of 0 means they are not, unless overridden by a sample group.',
         ref: 'ISO/IEC 23001-7, 8.1',
     },
     'tenc@default_Per_Sample_IV_Size': {
-        text: 'The size in bytes of the Initialization Vector (IV) for each sample. If 0, a constant IV is used.',
+        text: 'The size in bytes of the Initialization Vector (IV) for each sample. Common values are 8 or 16. A value of 0 indicates that a constant IV is used.',
         ref: 'ISO/IEC 23001-7, 8.1',
     },
     'tenc@default_KID': {
-        text: 'The default Key ID for the samples in this track.',
+        text: 'The default Key Identifier (KID) for the samples in this track. This UUID identifies the decryption key that should be requested from the license server.',
         ref: 'ISO/IEC 23001-7, 8.1',
     },
     'tenc@default_crypt_byte_block': {
-        text: '(Version 1) The number of encrypted blocks in a pattern.',
+        text: '(Legacy CENC v1) The number of encrypted blocks in a pattern for pattern encryption (e.g., "1:9" encryption).',
         ref: 'ISO/IEC 23001-7 (First Edition)',
     },
     'tenc@default_skip_byte_block': {
-        text: '(Version 1) The number of clear blocks in a pattern.',
+        text: '(Legacy CENC v1) The number of clear (skipped) blocks in a pattern for pattern encryption.',
         ref: 'ISO/IEC 23001-7 (First Edition)',
     },
 };

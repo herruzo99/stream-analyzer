@@ -39,28 +39,28 @@ export function parseStsc(box, view) {
 
 export const stscTooltip = {
     stsc: {
-        name: 'Sample To Chunk',
-        text: 'Maps samples to chunks.',
+        name: 'Sample To Chunk Box',
+        text: 'Sample To Chunk Box (`stsc`). A run-length encoded table that maps samples to their containing chunks. This allows for chunks to have a variable number of samples, providing flexibility in media layout.',
         ref: 'ISO/IEC 14496-12, 8.7.4',
     },
     'stsc@version': {
-        text: 'Version of this box, always 0.',
-        ref: 'ISO/IEC 14496-12, 8.7.4.3',
+        text: 'Version of this box, which must be 0.',
+        ref: 'ISO/IEC 14496-12, 8.7.4.2',
     },
     'stsc@entry_count': {
         text: 'The number of entries in the sample-to-chunk table.',
-        ref: 'ISO/IEC 14496-12, 8.7.4.3',
+        ref: 'ISO/IEC 14496-12, 8.7.4.2',
     },
     'stsc@entry_1_first_chunk': {
-        text: 'The index of the first chunk in a run of chunks with the same properties.',
+        text: 'The index of the first chunk in a run of chunks that share the same properties (samples per chunk and sample description). The first chunk in a track is always index 1.',
         ref: 'ISO/IEC 14496-12, 8.7.4.3',
     },
     'stsc@entry_1_samples_per_chunk': {
-        text: 'The number of samples in each of these chunks.',
+        text: 'The number of samples contained in each chunk within this run.',
         ref: 'ISO/IEC 14496-12, 8.7.4.3',
     },
     'stsc@entry_1_sample_description_index': {
-        text: 'The index of the sample description for the samples in this run.',
+        text: 'The 1-based index into the Sample Description Box (`stsd`) that describes the samples in this run of chunks.',
         ref: 'ISO/IEC 14496-12, 8.7.4.3',
     },
 };

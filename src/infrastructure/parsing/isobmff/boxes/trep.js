@@ -14,12 +14,12 @@ export function parseTrep(box, view) {
 
 export const trepTooltip = {
     trep: {
-        name: 'Track Extension Properties',
-        text: 'A container box that documents characteristics of the track in subsequent movie fragments.',
+        name: 'Track Extension Properties Box',
+        text: 'Track Extension Properties Box (`trep`). A container box within `mvex` that can be used to document or summarize characteristics of a specific track across all subsequent movie fragments (e.g., providing a `cslg` box to summarize composition times for all fragments).',
         ref: 'ISO/IEC 14496-12, 8.8.15',
     },
     'trep@track_id': {
-        text: 'The ID of the track for which these extension properties are provided.',
+        text: 'The ID of the track for which the extension properties contained within this box are provided.',
         ref: 'ISO/IEC 14496-12, 8.8.15.3',
     },
 };

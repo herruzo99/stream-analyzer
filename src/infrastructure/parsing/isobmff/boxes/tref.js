@@ -51,22 +51,22 @@ export const trefTypeParsers = {
 
 export const trefTooltip = {
     tref: {
-        name: 'Track Reference',
-        text: 'A container box that defines references from this track to other tracks in the presentation.',
+        name: 'Track Reference Box',
+        text: 'Track Reference Box (`tref`). A container that defines typed references from this track to other tracks. This is the primary mechanism for establishing dependencies or relationships between tracks.',
         ref: 'ISO/IEC 14496-12, 8.3.3',
     },
     hint: {
         name: 'Hint Track Reference',
-        text: 'Indicates that the referenced track(s) contain the original media for this hint track.',
+        text: 'A track reference of type `hint`. It indicates that the referenced track(s) contain the original media data that this hint track provides streaming instructions for.',
         ref: 'ISO/IEC 14496-12, 8.3.3.3',
     },
     cdsc: {
         name: 'Content Description Reference',
-        text: 'Indicates that this track describes the referenced track (e.g., a timed metadata track).',
+        text: 'A track reference of type `cdsc`. It indicates that this track (e.g., a timed metadata track) provides a description of the referenced content track.',
         ref: 'ISO/IEC 14496-12, 8.3.3.3',
     },
     'hint@track_IDs': {
-        text: 'A list of track IDs that this track references.',
+        text: 'A list of track IDs that this track references for this specific reference type.',
         ref: 'ISO/IEC 14496-12, 8.3.3.2',
     },
 };

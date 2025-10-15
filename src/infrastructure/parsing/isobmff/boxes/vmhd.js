@@ -29,24 +29,24 @@ export function parseVmhd(box, view) {
 
 export const vmhdTooltip = {
     vmhd: {
-        name: 'Video Media Header',
-        text: 'Contains header information specific to video media.',
-        ref: 'ISO/IEC 14496-12, 8.4.5.2',
+        name: 'Video Media Header Box',
+        text: 'Video Media Header Box (`vmhd`). Contains general presentation information for a video track, independent of the specific codec.',
+        ref: 'ISO/IEC 14496-12, 12.1.2',
     },
     'vmhd@version': {
-        text: 'Version of this box, always 0.',
-        ref: 'ISO/IEC 14496-12, 8.4.5.2.2',
+        text: 'Version of this box, always 0 in this specification.',
+        ref: 'ISO/IEC 14496-12, 12.1.2.2',
     },
     'vmhd@flags': {
-        text: 'A bitmask of flags, should have the low bit set to 1.',
-        ref: 'ISO/IEC 14496-12, 8.4.5.2',
+        text: 'A bitmask of flags. The least significant bit must be set to 1, indicating a "no lean ahead" hint for older QuickTime compatibility.',
+        ref: 'ISO/IEC 14496-12, 12.1.2.1',
     },
     'vmhd@graphicsmode': {
-        text: 'Specifies a composition mode for this video track.',
-        ref: 'ISO/IEC 14496-12, 8.4.5.2.2',
+        text: 'Specifies a composition mode for this video track, defining how it should be blended with other tracks. A value of 0 means "copy" (replace the underlying pixels).',
+        ref: 'ISO/IEC 14496-12, 12.1.2.3',
     },
     'vmhd@opcolor': {
-        text: 'A set of RGB color values available for use by graphics modes.',
-        ref: 'ISO/IEC 14496-12, 8.4.5.2.2',
+        text: 'A set of three 16-bit RGB color values (red, green, blue) available for use by some graphics modes.',
+        ref: 'ISO/IEC 14496-12, 12.1.2.3',
     },
 };

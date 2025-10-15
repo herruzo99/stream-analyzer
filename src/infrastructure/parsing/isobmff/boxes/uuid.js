@@ -30,15 +30,15 @@ export function parseUuid(box, view) {
 export const uuidTooltip = {
     uuid: {
         name: 'User-defined Extension Box',
-        text: 'A generic box containing user-defined or proprietary data. The specific meaning is identified by the `usertype` UUID.',
-        ref: 'ISO/IEC 14496-12, 8.1.1',
+        text: 'User-defined Extension Box (`uuid`). A generic container for proprietary or non-standard data. The meaning of the data is defined by the `usertype` UUID, which identifies the specific extension.',
+        ref: 'ISO/IEC 14496-12, 4.2',
     },
     'uuid@usertype': {
-        text: 'A 16-byte UUID that uniquely identifies the format of the user data. This is often used for DRM-specific information like the PlayReady PSSH.',
-        ref: 'ISO/IEC 14496-12, 8.1.1',
+        text: 'A 128-bit UUID that uniquely identifies the format of the `user_data`. This is frequently used for DRM-specific information, such as a PlayReady PSSH box (`uuid` with PlayReady System ID) or other custom metadata.',
+        ref: 'ISO/IEC 14496-12, 4.2',
     },
     'uuid@user_data': {
-        text: 'The proprietary data payload for this extension.',
-        ref: 'ISO/IEC 14496-12, 8.1.1',
+        text: 'The proprietary data payload for this extension. Its structure and meaning are defined by the specification associated with the `usertype` UUID.',
+        ref: 'ISO/IEC 14496-12, 4.2',
     },
 };
