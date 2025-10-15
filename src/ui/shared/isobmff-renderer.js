@@ -28,6 +28,29 @@ const getTimescaleForBox = (box, rootData) => {
     return null;
 };
 
+const renderObjectValue = (obj) => {
+    if (obj === null || typeof obj !== 'object') {
+        return obj;
+    }
+    return html`
+        <div class="mt-1 ml-2 border-l border-gray-600 pl-2 space-y-1">
+            ${Object.entries(obj).map(
+                ([key, value]) => html`
+                    <div class="flex">
+                        <span class="text-gray-400 mr-2">${key}:</span>
+                        <span
+                            class="${value
+                                ? 'text-green-400'
+                                : 'text-red-400'}"
+                            >${String(value)}</span
+                        >
+                    </div>
+                `
+            )}
+        </div>
+    `;
+};
+
 const renderCellContent = (value) => {
     if (value instanceof Uint8Array) {
         return Array.from(value)
@@ -48,6 +71,9 @@ const renderCellContent = (value) => {
                 .join(' ');
         }
         return value.join(', ');
+    }
+    if (typeof value === 'object' && value !== null) {
+        return renderObjectValue(value);
     }
     return value;
 };
@@ -148,8 +174,7 @@ export const inspectorDetailsTemplate = (
                     ${key}
                 </td>
                 <td class="p-1 text-xs font-mono text-white break-all">
-                    ${field.value !== undefined ? String(field.value) : 'N/A'}
-                    ${interpretedValue}
+                    ${renderCellContent(field.value)} ${interpretedValue}
                 </td>
             </tr>
         `;
@@ -246,7 +271,7 @@ export const isoBoxTreeTemplate = (box) => {
                                   <td
                                       class="border border-gray-700 p-2 text-gray-200 font-mono break-all"
                                   >
-                                      ${field.value}
+                                      ${renderCellContent(field.value)}
                                   </td>
                               </tr>`;
                           })}

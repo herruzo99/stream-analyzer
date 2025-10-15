@@ -41,44 +41,44 @@ export function parseMvhd(box, view) {
 
 export const mvhdTooltip = {
     mvhd: {
-        name: 'Movie Header',
-        text: 'Contains global information for the presentation (timescale, duration).',
+        name: 'Movie Header Box',
+        text: 'Movie Header Box (`mvhd`). Contains global, media-independent information for the entire presentation, such as its creation time, primary timescale, and overall duration.',
         ref: 'ISO/IEC 14496-12, 8.2.2',
     },
     'mvhd@version': {
-        text: 'Version of this box (0 or 1). Affects the size of time and duration fields.',
-        ref: 'ISO/IEC 14496-12, 8.2.2.3',
+        text: 'Version of this box (0 or 1). Version 1 uses 64-bit fields for time and duration values, necessary for presentations longer than ~136 years at a 1kHz timescale.',
+        ref: 'ISO/IEC 14496-12, 8.2.2.2',
     },
     'mvhd@creation_time': {
-        text: 'The creation time of the presentation (in seconds since midnight, Jan. 1, 1904, UTC).',
+        text: 'The creation time of the presentation, expressed in seconds since midnight, Jan. 1, 1904, in UTC.',
         ref: 'ISO/IEC 14496-12, 8.2.2.3',
     },
     'mvhd@modification_time': {
-        text: 'The most recent time the presentation was modified.',
+        text: 'The most recent time the presentation was modified, in the same format as creation_time.',
         ref: 'ISO/IEC 14496-12, 8.2.2.3',
     },
     'mvhd@timescale': {
-        text: 'The number of time units that pass in one second for the presentation.',
+        text: 'The number of time units that pass in one second for the presentation\'s overall timeline. Individual tracks may have their own timescales.',
         ref: 'ISO/IEC 14496-12, 8.2.2.3',
     },
     'mvhd@duration': {
-        text: 'The duration of the presentation in units of the timescale.',
+        text: 'The duration of the presentation in the movie\'s timescale units. This value is derived from the duration of the longest track.',
         ref: 'ISO/IEC 14496-12, 8.2.2.3',
     },
     'mvhd@rate': {
-        text: 'A fixed-point 16.16 number that specifies the preferred playback rate (1.0 is normal speed).',
+        text: 'A 16.16 fixed-point number that specifies the preferred playback rate. A value of 0x00010000 (1.0) represents normal forward playback.',
         ref: 'ISO/IEC 14496-12, 8.2.2.3',
     },
     'mvhd@volume': {
-        text: 'A fixed-point 8.8 number that specifies the preferred playback volume (1.0 is full volume).',
+        text: 'An 8.8 fixed-point number that specifies the preferred playback volume. A value of 0x0100 (1.0) represents full volume.',
         ref: 'ISO/IEC 14496-12, 8.2.2.3',
     },
     'mvhd@matrix': {
-        text: 'A transformation matrix for the video, mapping points from video coordinates to display coordinates.',
-        ref: 'ISO/IEC 14496-12, 8.2.2.3',
+        text: 'A 3x3 transformation matrix for the video, used for operations like scaling, rotation, and translation of the final composed image.',
+        ref: 'ISO/IEC 14496-12, 8.2.2.3 & 6.2.2',
     },
     'mvhd@next_track_ID': {
-        text: 'A non-zero integer indicating a value for the track ID of the next track to be added to this presentation.',
+        text: 'A non-zero integer indicating a value to use for the track ID of the next track to be added to this presentation. It must be larger than the largest track ID already in use.',
         ref: 'ISO/IEC 14496-12, 8.2.2.3',
     },
 };

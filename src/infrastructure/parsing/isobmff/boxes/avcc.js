@@ -104,17 +104,61 @@ export function parseAvcc(box, view) {
 
 export const avccTooltip = {
     avcC: {
-        name: 'AVC Configuration',
-        text: 'Contains the decoder configuration information for an H.264/AVC video track, including SPS and PPS.',
+        name: 'AVC Decoder Configuration Record',
+        text: 'AVC Configuration Box (`avcC`). Contains the essential Sequence Parameter Sets (SPS) and Picture Parameter Sets (PPS) required by an H.264/AVC decoder to initialize and decode the video stream.',
+        ref: 'ISO/IEC 14496-15, 5.3.3.1.2',
+    },
+    'avcC@configurationVersion': {
+        text: 'The version of the avcC record. Must be 1.',
         ref: 'ISO/IEC 14496-15, 5.3.3.1.2',
     },
     'avcC@AVCProfileIndication': {
-        text: 'Specifies the profile to which the stream conforms (e.g., 66=Baseline, 77=Main, 100=High).',
+        text: 'Specifies the AVC profile the stream conforms to (e.g., 66 for Baseline, 77 for Main, 100 for High). This determines the set of coding features used.',
         ref: 'ISO/IEC 14496-10',
     },
+    'avcC@profile_compatibility': {
+        text: 'A bitfield indicating compatibility with a set of profiles, used by the decoder to ensure it can handle all coding tools present in the stream.',
+        ref: 'ISO/IEC 14496-15, 5.3.3.1.2',
+    },
     'avcC@AVCLevelIndication': {
-        text: 'Specifies the level to which the stream conforms.',
+        text: 'Specifies the AVC level, which defines constraints on parameters like resolution, frame rate, and bitrate.',
         ref: 'ISO/IEC 14496-10',
+    },
+    'avcC@lengthSizeMinusOne': {
+        text: 'Defines the number of bytes used to specify the length of each NAL unit in the samples (e.g., a value of 3 means 4 bytes). Critical for parsing the sample data.',
+        ref: 'ISO/IEC 14496-15, 5.3.3.1.2',
+    },
+    'avcC@numOfSequenceParameterSets': {
+        text: 'The number of Sequence Parameter Set (SPS) NAL units that follow. Typically 1.',
+        ref: 'ISO/IEC 14496-15, 5.3.3.1.2',
+    },
+    'avcC@sps_1_length': {
+        text: 'The length in bytes of the first SPS NAL unit.',
+        ref: 'ISO/IEC 14496-15, 5.3.3.1.2',
+    },
+    'avcC@sps_1_nal_unit': {
+        text: 'The raw bytes of the first Sequence Parameter Set (SPS) NAL unit. Contains high-level encoding parameters like profile, level, and resolution.',
+        ref: 'ISO/IEC 14496-10, 7.3.2.1',
+    },
+    'avcC@numOfPictureParameterSets': {
+        text: 'The number of Picture Parameter Set (PPS) NAL units that follow. Typically 1.',
+        ref: 'ISO/IEC 14496-15, 5.3.3.1.2',
+    },
+    'avcC@pps_1_length': {
+        text: 'The length in bytes of the first PPS NAL unit.',
+        ref: 'ISO/IEC 14496-15, 5.3.3.1.2',
+    },
+    'avcC@pps_1_nal_unit': {
+        text: 'The raw bytes of the first Picture Parameter Set (PPS) NAL unit. Contains parameters that apply to a sequence of pictures, like entropy coding mode.',
+        ref: 'ISO/IEC 14496-10, 7.3.2.2',
+    },
+    'avcC@sps_1_decoded_profile': {
+        text: 'The profile_idc decoded from the SPS NAL unit. This should match AVCProfileIndication.',
+        ref: 'ISO/IEC 14496-10, 7.3.2.1.1',
+    },
+    'avcC@sps_1_decoded_level': {
+        text: 'The level_idc decoded from the SPS NAL unit. This should match AVCLevelIndication.',
+        ref: 'ISO/IEC 14496-10, 7.3.2.1.1',
     },
     'avcC@sps_1_decoded_resolution': {
         text: 'The video resolution (width x height) decoded from the Sequence Parameter Set.',

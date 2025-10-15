@@ -23,16 +23,16 @@ export function parseTfdt(box, view) {
 
 export const tfdtTooltip = {
     tfdt: {
-        name: 'Track Fragment Decode Time',
-        text: 'Provides the absolute decode time for the first sample.',
+        name: 'Track Fragment Decode Time Box',
+        text: 'Track Fragment Decode Time Box (`tfdt`). Provides the absolute base media decode time for the first sample in a track fragment. This is a critical architectural element for seeking in fragmented streams, as it provides an absolute time anchor without needing to parse all previous fragments.',
         ref: 'ISO/IEC 14496-12, 8.8.12',
     },
     'tfdt@version': {
-        text: 'Version of this box (0 or 1). Affects the size of the decode time field.',
-        ref: 'ISO/IEC 14496-12, 8.8.12.3',
+        text: 'Version of this box (0 or 1). Version 1 uses a 64-bit `baseMediaDecodeTime` field to support very long presentations.',
+        ref: 'ISO/IEC 14496-12, 8.8.12.2',
     },
     'tfdt@baseMediaDecodeTime': {
-        text: 'The absolute decode time, in media timescale units, for the first sample in this fragment.',
+        text: 'The absolute decode time of the first sample in this fragment, expressed in the media\'s timescale (from `mdhd`). This value is the sum of the durations of all samples in all preceding fragments and the initial movie.',
         ref: 'ISO/IEC 14496-12, 8.8.12.3',
     },
 };

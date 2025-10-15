@@ -67,39 +67,39 @@ export function parseAvc1(box, view) {
 export const avc1Tooltip = {
     avc1: {
         name: 'AVC Sample Entry',
-        text: 'Defines the coding type and initialization information for an H.264/AVC video track.',
-        ref: 'ISO/IEC 14496-12, 12.1.3',
+        text: 'AVC Sample Entry (`avc1`). A type of `VisualSampleEntry` specific to H.264/AVC video. It contains the video\'s dimensions, resolution, and is the parent to the `avcC` box which holds critical decoder configuration data.',
+        ref: 'ISO/IEC 14496-15, 5.2.4.1.1',
     },
     'avc1@data_reference_index': {
-        text: 'Index to the Data Reference Box, indicating where the media data is stored.',
+        text: 'An index into the Data Reference Box (`dref`) that identifies the file or resource containing the media data for this track.',
         ref: 'ISO/IEC 14496-12, 8.5.2.2',
     },
     'avc1@width': {
-        text: 'The width of the video in pixels.',
+        text: 'The maximum width of the video frames in this track, in pixels. This value, along with height, helps determine the buffer size needed for decoding.',
         ref: 'ISO/IEC 14496-12, 12.1.3.2',
     },
     'avc1@height': {
-        text: 'The height of the video in pixels.',
+        text: 'The maximum height of the video frames in this track, in pixels.',
         ref: 'ISO/IEC 14496-12, 12.1.3.2',
     },
     'avc1@horizresolution': {
-        text: 'Horizontal resolution of the image in pixels-per-inch (16.16 fixed point). Default is 72 dpi.',
+        text: 'Horizontal resolution of the image in pixels per inch, expressed as a 16.16 fixed-point number. Default is 72 dpi.',
         ref: 'ISO/IEC 14496-12, 12.1.3.2',
     },
     'avc1@vertresolution': {
-        text: 'Vertical resolution of the image in pixels-per-inch (16.16 fixed point). Default is 72 dpi.',
+        text: 'Vertical resolution of the image in pixels per inch, expressed as a 16.16 fixed-point number. Default is 72 dpi.',
         ref: 'ISO/IEC 14496-12, 12.1.3.2',
     },
     'avc1@frame_count': {
-        text: 'The number of frames of compressed video stored in each sample. Typically 1.',
+        text: 'The number of frames of compressed video stored in each sample. For AVC, this value must be 1.',
         ref: 'ISO/IEC 14496-12, 12.1.3.2',
     },
     'avc1@compressorname': {
-        text: 'An informative name for the compressor used. A Pascal-style string within a 32-byte field.',
+        text: 'An informative, human-readable name for the compressor used to create the content. Stored as a Pascal-style string in a 32-byte field.',
         ref: 'ISO/IEC 14496-12, 12.1.3.2',
     },
     'avc1@depth': {
-        text: 'The color depth of the video. 0x0018 (24) is typical for color with no alpha.',
+        text: 'The color depth of the video frames. A value of 0x0018 (24) indicates standard 24-bit color.',
         ref: 'ISO/IEC 14496-12, 12.1.3.2',
     },
 };

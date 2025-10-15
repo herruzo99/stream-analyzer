@@ -48,24 +48,40 @@ export function parseTfra(box, view) {
 
 export const tfraTooltip = {
     tfra: {
-        name: 'Track Fragment Random Access',
-        text: 'Contains a table mapping sync sample times to their `moof` box locations for a single track.',
+        name: 'Track Fragment Random Access Box',
+        text: 'Track Fragment Random Access Box (`tfra`). Contains a table that provides a direct mapping from the presentation time of sync samples to their location within the file. This is an index that allows for efficient seeking in fragmented MP4 files without parsing all `moof` boxes.',
         ref: 'ISO/IEC 14496-12, 8.8.10',
     },
     'tfra@track_ID': {
-        text: 'The ID of the track this table refers to.',
+        text: 'The ID of the track that this random access table refers to.',
+        ref: 'ISO/IEC 14496-12, 8.8.10.3',
+    },
+    'tfra@length_sizes': {
+        text: 'Defines the size in bytes of the `traf_number`, `trun_number`, and `sample_number` fields in each entry, allowing for compact representation.',
         ref: 'ISO/IEC 14496-12, 8.8.10.3',
     },
     'tfra@number_of_entries': {
-        text: 'The number of random access entries in the table.',
+        text: 'The number of random access point entries in the table that follows.',
         ref: 'ISO/IEC 14496-12, 8.8.10.3',
     },
     'tfra@entry_1_time': {
-        text: 'The presentation time of the sync sample in the first entry.',
+        text: 'For the first entry, this is the presentation time of the sync sample in the media\'s timescale.',
         ref: 'ISO/IEC 14496-12, 8.8.10.3',
     },
     'tfra@entry_1_moof_offset': {
-        text: 'The file offset of the `moof` box containing the sync sample for the first entry.',
+        text: 'For the first entry, this is the absolute file offset of the beginning of the `moof` box that contains the sync sample.',
+        ref: 'ISO/IEC 14496-12, 8.8.10.3',
+    },
+    'tfra@entry_1_traf_number': {
+        text: 'For the first entry, this is the 1-based index of the `traf` box within the `moof` that contains the sync sample.',
+        ref: 'ISO/IEC 14496-12, 8.8.10.3',
+    },
+    'tfra@entry_1_trun_number': {
+        text: 'For the first entry, this is the 1-based index of the `trun` box within the `traf` that contains the sync sample.',
+        ref: 'ISO/IEC 14496-12, 8.8.10.3',
+    },
+    'tfra@entry_1_sample_number': {
+        text: 'For the first entry, this is the 1-based index of the sync sample within the `trun`.',
         ref: 'ISO/IEC 14496-12, 8.8.10.3',
     },
 };

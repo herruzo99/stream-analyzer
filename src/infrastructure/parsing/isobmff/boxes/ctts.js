@@ -49,23 +49,23 @@ export function parseCtts(box, view) {
 export const cttsTooltip = {
     ctts: {
         name: 'Composition Time to Sample',
-        text: 'Provides the offset between decoding time and composition time for each sample. Essential for B-frames.',
+        text: 'Composition Time to Sample Box (`ctts`). Provides the offset between decoding time (DTS) and composition time (CTS) for each sample. This is essential for streams with B-frames, where the presentation order of frames differs from their decoding order.',
         ref: 'ISO/IEC 14496-12, 8.6.1.3',
     },
     'ctts@version': {
-        text: 'Version of this box (0 or 1). Version 1 allows for signed sample offsets.',
-        ref: 'ISO/IEC 14496-12, 8.6.1.3.3',
+        text: 'Version of this box. Version 0 uses unsigned offsets (CTS >= DTS), while version 1 allows signed offsets, which is necessary for open GOP structures where composition can precede decoding time for leading pictures.',
+        ref: 'ISO/IEC 14496-12, 8.6.1.3.2',
     },
     'ctts@entry_count': {
-        text: 'The number of entries in the composition time-to-sample table.',
+        text: 'The number of entries in the run-length encoded composition time-to-sample table.',
         ref: 'ISO/IEC 14496-12, 8.6.1.3.3',
     },
     'ctts@entry_1_sample_count': {
-        text: 'The number of consecutive samples with the same composition offset.',
+        text: 'For the first entry, this is the number of consecutive samples that have the same composition offset.',
         ref: 'ISO/IEC 14496-12, 8.6.1.3.3',
     },
     'ctts@entry_1_sample_offset': {
-        text: 'The composition time offset for this run of samples (CT = DT + offset).',
+        text: 'For the first entry, this is the composition time offset, such that CompositionTime(n) = DecodingTime(n) + CompositionOffset(n).',
         ref: 'ISO/IEC 14496-12, 8.6.1.3.3',
     },
 };

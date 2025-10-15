@@ -18,7 +18,15 @@ export function parseId32(box, view) {
 export const id32Tooltip = {
     ID32: {
         name: 'ID3v2 Metadata Box',
-        text: 'A box containing ID3 version 2 metadata tags. This is a common but non-standard box often found in files created by tools like FFmpeg, typically within a `udta` or `meta` box.',
+        text: 'ID3v2 Box (`ID32` or `id32`). A box containing ID3 version 2 metadata tags, commonly used for carrying timed metadata in MP4 files, especially for HLS streams. This is a common but non-standard box often found within a `meta` box inside a sample entry.',
+        ref: 'ID3v2 Specification',
+    },
+    'ID32@language': {
+        text: 'The language of the ID3 tag content, packed into the flags field.',
         ref: 'User-defined',
+    },
+    'ID32@id3v2_data': {
+        text: 'The raw binary payload of the ID3v2 tag, which contains one or more ID3 frames (e.g., TIT2 for title, TXXX for custom text).',
+        ref: 'ID3v2 Specification',
     },
 };

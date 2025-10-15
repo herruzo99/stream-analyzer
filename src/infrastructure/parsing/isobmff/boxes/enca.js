@@ -34,7 +34,23 @@ export function parseEnca(box, view) {
 export const encaTooltip = {
     enca: {
         name: 'Encrypted Audio Sample Entry',
-        text: 'A sample entry wrapper indicating that the audio stream is encrypted. It contains a Protection Scheme Information (`sinf`) box.',
+        text: 'Encrypted Audio Sample Entry (`enca`). A sample entry that acts as a wrapper for an audio stream that has been encrypted. It contains a Protection Scheme Information (`sinf`) box which details the encryption scheme and original format.',
         ref: 'ISO/IEC 14496-12, 8.12',
+    },
+    'enca@data_reference_index': {
+        text: 'Index into the Data Reference Box (`dref`), specifying the location of the media data.',
+        ref: 'ISO/IEC 14496-12, 8.5.2.2',
+    },
+    'enca@channelcount': {
+        text: 'The number of audio channels (e.g., 2 for stereo). This should match the original, unencrypted audio format.',
+        ref: 'ISO/IEC 14496-12, 12.2.3.2',
+    },
+    'enca@samplesize': {
+        text: 'The bit depth of each audio sample (e.g., 16 for 16-bit audio).',
+        ref: 'ISO/IEC 14496-12, 12.2.3.2',
+    },
+    'enca@samplerate': {
+        text: 'The sampling rate of the audio in samples per second (Hz). This is the integer part of a 16.16 fixed-point number.',
+        ref: 'ISO/IEC 14496-12, 12.2.3.2',
     },
 };

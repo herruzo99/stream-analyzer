@@ -71,44 +71,48 @@ export function parseSidx(box, view) {
 
 export const sidxTooltip = {
     sidx: {
-        name: 'Segment Index',
-        text: 'Provides a compact index of media stream chunks within a segment.',
+        name: 'Segment Index Box',
+        text: 'Segment Index Box (`sidx`). Provides a compact index for a media segment. It allows a client to locate subsegments (e.g., individual `moof`/`mdat` pairs) in time and by byte offset without having to download the entire segment.',
         ref: 'ISO/IEC 14496-12, 8.16.3',
     },
     'sidx@version': {
-        text: 'Version of this box (0 or 1). Affects the size of time and offset fields.',
+        text: 'Version of this box (0 or 1). Affects the size of time and offset fields, with version 1 using 64-bit values.',
         ref: 'ISO/IEC 14496-12, 8.16.3.2',
     },
     'sidx@reference_ID': {
-        text: 'The stream ID for the reference stream (typically the track ID).',
+        text: 'The stream ID for the reference stream to which this index applies. In DASH, this is the track ID.',
         ref: 'ISO/IEC 14496-12, 8.16.3.3',
     },
     'sidx@timescale': {
-        text: 'The timescale for time and duration fields in this box, in ticks per second.',
+        text: 'The timescale for all time and duration fields within this box, in ticks per second. This should match the media timescale.',
         ref: 'ISO/IEC 14496-12, 8.16.3.3',
     },
     'sidx@earliest_presentation_time': {
-        text: 'The earliest presentation time of any access unit in the first subsegment.',
+        text: 'The earliest presentation time of any content in the first subsegment referenced by this index, in the specified `timescale`.',
         ref: 'ISO/IEC 14496-12, 8.16.3.3',
     },
     'sidx@first_offset': {
-        text: 'The byte offset from the end of this box to the first byte of the indexed material.',
+        text: 'The byte offset from the end of this `sidx` box to the start of the first referenced item. This is the base offset for all subsegment locations.',
         ref: 'ISO/IEC 14496-12, 8.16.3.3',
     },
     'sidx@reference_count': {
-        text: 'The number of subsegment references that follow.',
+        text: 'The number of subsegment references that follow in the table.',
         ref: 'ISO/IEC 14496-12, 8.16.3.3',
     },
     'sidx@reference_1_type': {
-        text: 'The type of the first reference (0 = media, 1 = sidx box).',
+        text: 'For the first reference, this bit indicates the type of item being referenced. 0 means it references media data (e.g., a `moof` box), and 1 means it references another `sidx` box (for hierarchical indexing).',
         ref: 'ISO/IEC 14496-12, 8.16.3.3',
     },
     'sidx@reference_1_size': {
-        text: 'The size in bytes of the referenced item.',
+        text: 'The size in bytes of the first referenced item.',
         ref: 'ISO/IEC 14496-12, 8.16.3.3',
     },
     'sidx@reference_1_duration': {
-        text: 'The duration of the referenced subsegment in the timescale.',
+        text: 'The duration of the first referenced subsegment in `timescale` units.',
+        ref: 'ISO/IEC 14496-12, 8.16.3.3',
+    },
+    'sidx@reference_1_sap_info': {
+        text: 'A bitfield containing information about Stream Access Points (SAPs) within the first referenced subsegment.',
         ref: 'ISO/IEC 14496-12, 8.16.3.3',
     },
 };

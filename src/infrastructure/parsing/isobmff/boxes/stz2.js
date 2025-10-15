@@ -34,20 +34,20 @@ export function parseStz2(box, view) {
 
 export const stz2Tooltip = {
     stz2: {
-        name: 'Compact Sample Size',
-        text: 'A compact version of the Sample Size Box for smaller, varying sample sizes.',
+        name: 'Compact Sample Size Box',
+        text: 'Compact Sample Size Box (`stz2`). A space-efficient alternative to `stsz` for tracks where sample sizes vary but are small. It allows sample sizes to be stored as 4, 8, or 16-bit integers instead of a full 32 bits.',
         ref: 'ISO/IEC 14496-12, 8.7.3.3',
     },
     'stz2@field_size': {
-        text: 'The size in bits of each entry in the sample size table (4, 8, or 16).',
+        text: 'The size in bits of each entry in the sample size table. Must be 4, 8, or 16. This determines the maximum sample size that can be represented.',
         ref: 'ISO/IEC 14496-12, 8.7.3.3.2',
     },
     'stz2@sample_count': {
-        text: 'The total number of samples in the track.',
+        text: 'The total number of samples in the track. The table of entry sizes that follows will have this many entries.',
         ref: 'ISO/IEC 14496-12, 8.7.3.3.2',
     },
     'stz2@entry_size_1': {
-        text: 'The size of the first sample, with the size determined by field_size.',
+        text: 'The size of the first sample, represented with the bit-depth specified by `field_size`.',
         ref: 'ISO/IEC 14496-12, 8.7.3.3.2',
     },
 };

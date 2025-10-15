@@ -220,10 +220,34 @@ export class BoxParser {
     }
 
     /**
+     * Parses a 24-bit flags field based on a provided schema.
+     * @param {Record<number, string>} schema - A map of bitmasks to flag names.
+     * @returns {number | null} The raw flags integer.
+     */
+    readFlags(schema) {
+        if (!this.checkBounds(3)) return null;
+        const flags = this.view.getUint32(this.offset - 1) & 0x00ffffff; // Re-read the full 32-bit word and mask
+
+        const flagsObject = {};
+        for (const [mask, name] of Object.entries(schema)) {
+            flagsObject[name] = (flags & parseInt(mask, 10)) !== 0;
+        }
+
+        this.box.details['flags'] = {
+            value: flagsObject,
+            offset: this.box.offset + this.offset,
+            length: 3,
+        };
+        return flags;
+    }
+
+    /**
      * Reads version (1 byte) and flags (3 bytes) from a full box header.
+     * If a schema is provided, it decodes the flags into a structured object.
+     * @param {Record<number, string> | null} flagSchema - A map of bitmasks to flag names.
      * @returns {{version: number | null, flags: number | null}}
      */
-    readVersionAndFlags() {
+    readVersionAndFlags(flagSchema = null) {
         if (!this.checkBounds(4)) return { version: null, flags: null };
         const versionAndFlags = this.view.getUint32(this.offset);
         const version = versionAndFlags >> 24;
@@ -234,11 +258,17 @@ export class BoxParser {
             offset: this.box.offset + this.offset,
             length: 1,
         };
-        this.box.details['flags'] = {
-            value: `0x${flags.toString(16).padStart(6, '0')}`,
-            offset: this.box.offset + this.offset,
-            length: 4, // Visually it's one field
-        };
+
+        if (flagSchema) {
+            this.readFlags(flagSchema);
+        } else {
+            this.box.details['flags'] = {
+                value: `0x${flags.toString(16).padStart(6, '0')}`,
+                offset: this.box.offset + this.offset + 1,
+                length: 3,
+            };
+        }
+
         this.offset += 4;
 
         return { version, flags };

@@ -30,7 +30,19 @@ export function parseEncv(box, view) {
 export const encvTooltip = {
     encv: {
         name: 'Encrypted Video Sample Entry',
-        text: 'A sample entry wrapper indicating that the video stream is encrypted. It contains a Protection Scheme Information (`sinf`) box.',
+        text: 'Encrypted Video Sample Entry (`encv`). A sample entry that acts as a wrapper for a video stream that has been encrypted. It contains a Protection Scheme Information (`sinf`) box which details the encryption scheme and original format.',
         ref: 'ISO/IEC 14496-12, 8.12',
+    },
+    'encv@data_reference_index': {
+        text: 'Index into the Data Reference Box (`dref`), specifying the location of the media data.',
+        ref: 'ISO/IEC 14496-12, 8.5.2.2',
+    },
+    'encv@width': {
+        text: 'The width of the video in pixels. This should match the original, unencrypted video format.',
+        ref: 'ISO/IEC 14496-12, 12.1.3.2',
+    },
+    'encv@height': {
+        text: 'The height of the video in pixels.',
+        ref: 'ISO/IEC 14496-12, 12.1.3.2',
     },
 };

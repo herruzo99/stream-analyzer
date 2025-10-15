@@ -33,23 +33,23 @@ export function parseMp4a(box, view) {
 export const mp4aTooltip = {
     mp4a: {
         name: 'MP4 Audio Sample Entry',
-        text: 'Defines the coding type and initialization information for an MPEG-4 audio track, typically AAC.',
-        ref: 'ISO/IEC 14496-12, 12.2.3',
+        text: 'MP4 Audio Sample Entry (`mp4a`). Defines the coding type and initialization information for an MPEG-4 audio track, most commonly Advanced Audio Coding (AAC). It contains the default audio parameters and is parent to the `esds` box for detailed configuration.',
+        ref: 'ISO/IEC 14496-12, 12.2.3 & ISO/IEC 14496-14',
     },
     'mp4a@data_reference_index': {
-        text: 'Index to the Data Reference Box, indicating where the media data is stored.',
+        text: 'Index to the Data Reference Box (`dref`), indicating where the media data is stored.',
         ref: 'ISO/IEC 14496-12, 8.5.2.2',
     },
     'mp4a@channelcount': {
-        text: 'The number of audio channels (e.g., 2 for stereo).',
+        text: 'The number of audio channels. Common values are 1 (mono) and 2 (stereo). This should be considered a default and can be overridden by more specific information in the `esds` box.',
         ref: 'ISO/IEC 14496-12, 12.2.3.2',
     },
     'mp4a@samplesize': {
-        text: 'The size of each audio sample in bits. Typically 16.',
+        text: 'The bit depth of each audio sample (e.g., 16 for 16-bit audio). Defaults to 16.',
         ref: 'ISO/IEC 14496-12, 12.2.3.2',
     },
     'mp4a@samplerate': {
-        text: 'The sampling rate of the audio in samples per second (the integer part of a 16.16 fixed-point number).',
+        text: 'The sampling rate of the audio in samples per second (Hz). This value is the integer part of a 16.16 fixed-point number, so it represents the rate shifted left by 16 bits.',
         ref: 'ISO/IEC 14496-12, 12.2.3.2',
     },
 };

@@ -30,12 +30,16 @@ export function parseStdp(box, view) {
 
 export const stdpTooltip = {
     stdp: {
-        name: 'Independent and Disposable Samples',
-        text: 'Contains the degradation priority for each sample in the track.',
+        name: 'Sample Degradation Priority Box',
+        text: 'Sample Degradation Priority Box (`stdp`). Provides a priority value for each sample in the track. This can be used by a streaming server or player to decide which samples to drop or degrade first under constrained conditions (e.g., low bandwidth).',
         ref: 'ISO/IEC 14496-12, 8.5.3',
     },
-    'stdp@priority_1': {
-        text: 'The priority for the first sample. Lower values are typically more important.',
+    'stdp@sample_count': {
+        text: 'The total number of samples for which priority is specified.',
+        ref: 'ISO/IEC 14496-12, 8.5.3.2',
+    },
+    'stdp@priority': {
+        text: 'An integer specifying the degradation priority for each sample. Lower values are typically more important and should be preserved.',
         ref: 'ISO/IEC 14496-12, 8.5.3.3',
     },
 };

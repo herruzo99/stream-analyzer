@@ -73,16 +73,32 @@ export function parseIods(box, view) {
 
 export const iodsTooltip = {
     iods: {
-        name: 'Initial Object Descriptor',
-        text: 'Contains the Initial Object Descriptor as defined in MPEG-4 Systems (ISO/IEC 14496-1). This descriptor is a container for the elementary stream descriptors and other information.',
+        name: 'Initial Object Descriptor Box',
+        text: 'Initial Object Descriptor Box (`iods`). Part of the MPEG-4 Systems framework, this box serves as the root for describing the elementary streams in a presentation. It contains profile and level indications for different media types.',
         ref: 'ISO/IEC 14496-14, 5.5',
     },
     'iods@objectDescriptorID': {
-        text: 'A 10-bit ID for this Object Descriptor. The top 6 bits are flags.',
+        text: 'A 10-bit ID for this Object Descriptor. The top 6 bits are flags that define properties of the Object Descriptor stream itself.',
         ref: 'ISO/IEC 14496-1, 8.2.2',
     },
     'iods@ODProfileLevelIndication': {
-        text: 'Indicates the profile and level of the Object Descriptor stream.',
+        text: 'Indicates the profile and level of the Object Descriptor stream, which defines the complexity and features of the scene description.',
+        ref: 'ISO/IEC 14496-1, 8.2.2',
+    },
+    'iods@sceneProfileLevelIndication': {
+        text: 'Indicates the profile and level required for any scene description (e.g., BIFS) in the presentation.',
+        ref: 'ISO/IEC 14496-1, 8.2.2',
+    },
+    'iods@audioProfileLevelIndication': {
+        text: 'Indicates the highest MPEG-4 audio profile and level required to play back the audio content in the presentation.',
+        ref: 'ISO/IEC 14496-1, 8.2.2',
+    },
+    'iods@visualProfileLevelIndication': {
+        text: 'Indicates the highest MPEG-4 Visual profile and level required to play back the visual content.',
+        ref: 'ISO/IEC 14496-1, 8.2.2',
+    },
+    'iods@graphicsProfileLevelIndication': {
+        text: 'Indicates the profile and level required for any 2D graphics content in the presentation.',
         ref: 'ISO/IEC 14496-1, 8.2.2',
     },
 };

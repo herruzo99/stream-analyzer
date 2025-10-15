@@ -431,8 +431,6 @@ function walkAndMapBytes(byteMap, boxes, page, bytesPerPage) {
 
         const baseClass = box.color?.bgClass;
 
-        // **REMOVED** the loop that colored the entire box range.
-
         // Highlight only the header
         for (let i = box.offset; i < box.offset + box.headerSize; i++) {
             if (i >= startOffset && i < endOffset) {
@@ -443,6 +441,9 @@ function walkAndMapBytes(byteMap, boxes, page, bytesPerPage) {
 
         // Highlight specific fields
         let fieldIndex = 0;
+        let entriesStartOffset = Infinity;
+        let entriesEndOffset = 0;
+
         for (const [key, field] of Object.entries(box.details)) {
             const opacityClass = opacities[fieldIndex % opacities.length];
             const fieldColor = baseClass
@@ -455,6 +456,28 @@ function walkAndMapBytes(byteMap, boxes, page, bytesPerPage) {
                 }
             }
             fieldIndex++;
+            entriesStartOffset = Math.min(entriesStartOffset, field.offset);
+            entriesEndOffset = Math.max(
+                entriesEndOffset,
+                field.offset + field.length
+            );
+        }
+
+        // Highlight table entry data blocks
+        const hasEntries = box.entries || box.samples;
+        if (hasEntries && entriesEndOffset < box.offset + box.size) {
+            const tableColor = baseClass
+                ? { bgClass: `${baseClass}/30` }
+                : {};
+            for (let i = entriesEndOffset; i < box.offset + box.size; i++) {
+                if (i >= startOffset && i < endOffset) {
+                    byteMap.set(i, {
+                        box,
+                        color: tableColor,
+                        fieldName: 'Table Entries',
+                    });
+                }
+            }
         }
 
         if (box.children && box.children.length > 0) {
@@ -482,20 +505,21 @@ export async function handleGeneratePagedByteMap({
                 ) {
                     return;
                 }
+                const sampleColor = { bgClass: 'bg-gray-700/20' };
                 for (
                     let i = sample.offset;
                     i < sample.offset + sample.size;
                     i++
                 ) {
                     if (i >= startOffset && i < endOffset) {
-                        const sampleColor = {
-                            bgClass: 'bg-gray-700/20',
-                        };
-                        byteMap.set(i, {
-                            sample,
-                            color: sampleColor,
-                            fieldName: 'Sample Data',
-                        });
+                        // Avoid overwriting more specific field highlights within a sample's range (e.g., senc)
+                        if (!byteMap.has(i)) {
+                            byteMap.set(i, {
+                                sample,
+                                color: sampleColor,
+                                fieldName: 'Sample Data',
+                            });
+                        }
                     }
                 }
             });

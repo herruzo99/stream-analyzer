@@ -14,12 +14,12 @@ export function parseMfro(box, view) {
 
 export const mfroTooltip = {
     mfro: {
-        name: 'Movie Fragment Random Access Offset',
-        text: 'Contains the size of the enclosing `mfra` box to aid in locating it by scanning from the end of the file.',
+        name: 'Movie Fragment Random Access Offset Box',
+        text: 'Movie Fragment Random Access Offset Box (`mfro`). This box is placed at the very end of a Movie Fragment Random Access Box (`mfra`) and contains the size of the `mfra` box itself. This architectural design allows a player to find the `mfra` by reading the last few bytes of a file, enabling efficient seeking in fragmented streams.',
         ref: 'ISO/IEC 14496-12, 8.8.11',
     },
     'mfro@size': {
-        text: 'The size of the `mfra` box in bytes.',
+        text: 'The size in bytes of the enclosing Movie Fragment Random Access (`mfra`) box. This value must be accurate for the seeking mechanism to work correctly.',
         ref: 'ISO/IEC 14496-12, 8.8.11.3',
     },
 };

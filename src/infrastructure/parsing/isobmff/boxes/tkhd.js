@@ -1,5 +1,11 @@
 import { BoxParser } from '../utils.js';
 
+const TKHD_FLAGS_SCHEMA = {
+    0x000001: 'track_enabled',
+    0x000002: 'track_in_movie',
+    0x000004: 'track_in_preview',
+};
+
 /**
  * @param {import('../parser.js').Box} box
  * @param {DataView} view
@@ -7,27 +13,7 @@ import { BoxParser } from '../utils.js';
 export function parseTkhd(box, view) {
     const p = new BoxParser(box, view);
 
-    const { version, flags } = p.readVersionAndFlags();
-
-    if (flags !== null) {
-        delete box.details['flags'];
-        const flagsOffset = box.details['version'].offset + 1;
-        box.details['track_enabled'] = {
-            value: (flags & 0x1) === 0x1,
-            offset: flagsOffset,
-            length: 3,
-        };
-        box.details['track_in_movie'] = {
-            value: (flags & 0x2) === 0x2,
-            offset: flagsOffset,
-            length: 3,
-        };
-        box.details['track_in_preview'] = {
-            value: (flags & 0x4) === 0x4,
-            offset: flagsOffset,
-            length: 3,
-        };
-    }
+    const { version } = p.readVersionAndFlags(TKHD_FLAGS_SCHEMA);
 
     if (version === 1) {
         p.readBigUint64('creation_time');
@@ -100,28 +86,20 @@ export function parseTkhd(box, view) {
 
 export const tkhdTooltip = {
     tkhd: {
-        name: 'Track Header',
-        text: 'Specifies characteristics of a single track.',
+        name: 'Track Header Box',
+        text: 'Track Header Box (`tkhd`). Specifies the characteristics of a single track, such as its duration, identifier, and spatial properties. It is a mandatory box within a `trak` box.',
         ref: 'ISO/IEC 14496-12, 8.3.2',
     },
-    'tkhd@track_enabled': {
-        text: 'A flag indicating that the track is enabled. A disabled track is treated as if it were not present.',
-        ref: 'ISO/IEC 14496-12, 8.3.2.3',
-    },
-    'tkhd@track_in_movie': {
-        text: 'A flag indicating that the track is used in the presentation.',
-        ref: 'ISO/IEC 14496-12, 8.3.2.3',
-    },
-    'tkhd@track_in_preview': {
-        text: 'A flag indicating that the track is used when previewing the presentation.',
-        ref: 'ISO/IEC 14496-12, 8.3.2.3',
+    'tkhd@flags': {
+        text: 'A bitfield indicating track properties: enabled, used in movie, and used in preview.',
+        ref: 'ISO/IEC 14496-12, 8.3.2.2',
     },
     'tkhd@version': {
-        text: 'Version of this box (0 or 1). Affects the size of time and duration fields.',
-        ref: 'ISO/IEC 14496-12, 8.3.2.3',
+        text: 'Version of this box (0 or 1). Affects the size of time and duration fields, with version 1 using 64-bit values for longer content.',
+        ref: 'ISO/IEC 14496-12, 8.3.2.2',
     },
     'tkhd@creation_time': {
-        text: 'The creation time of this track (in seconds since midnight, Jan. 1, 1904, UTC).',
+        text: 'The creation time of this track, in seconds since midnight, Jan. 1, 1904, in UTC.',
         ref: 'ISO/IEC 14496-12, 8.3.2.3',
     },
     'tkhd@modification_time': {
@@ -129,35 +107,35 @@ export const tkhdTooltip = {
         ref: 'ISO/IEC 14496-12, 8.3.2.3',
     },
     'tkhd@track_ID': {
-        text: 'A unique integer that identifies this track.',
+        text: 'A unique, non-zero integer that identifies this track over the entire lifetime of the presentation.',
         ref: 'ISO/IEC 14496-12, 8.3.2.3',
     },
     'tkhd@duration': {
-        text: "The duration of this track in the movie's timescale.",
+        text: "The duration of this track expressed in the movie's timescale (from the `mvhd` box). This is the post-edit duration.",
         ref: 'ISO/IEC 14496-12, 8.3.2.3',
     },
     'tkhd@layer': {
-        text: 'Specifies the front-to-back ordering of video tracks; tracks with lower numbers are closer to the viewer.',
+        text: 'Specifies the front-to-back ordering of video tracks for composition. Tracks with lower layer numbers are displayed in front of tracks with higher layer numbers.',
         ref: 'ISO/IEC 14496-12, 8.3.2.3',
     },
     'tkhd@alternate_group': {
-        text: 'An integer that specifies a group of tracks that are alternatives to each other.',
+        text: 'An integer that groups tracks that are alternatives to each other (e.g., different bitrates or languages). A player should only play one track from a given alternate group at a time.',
         ref: 'ISO/IEC 14496-12, 8.3.2.3',
     },
     'tkhd@volume': {
-        text: "For audio tracks, a fixed-point 8.8 number indicating the track's relative volume.",
+        text: "For audio tracks, a fixed-point 8.8 number indicating the track's relative volume. A value of 1.0 is full volume.",
         ref: 'ISO/IEC 14496-12, 8.3.2.3',
     },
     'tkhd@matrix': {
-        text: 'A transformation matrix for the video in this track.',
-        ref: 'ISO/IEC 14496-12, 8.3.2.3',
+        text: 'A 3x3 transformation matrix for the video in this track, defining its scaling, rotation, and position.',
+        ref: 'ISO/IEC 14496-12, 8.3.2.3 & 6.2.2',
     },
     'tkhd@width': {
-        text: 'The visual presentation width of the track as a fixed-point 16.16 number.',
+        text: 'The visual presentation width of this track, expressed as a fixed-point 16.16 number. This is the final display width after scaling.',
         ref: 'ISO/IEC 14496-12, 8.3.2.3',
     },
     'tkhd@height': {
-        text: 'The visual presentation height of the track as a fixed-point 16.16 number.',
+        text: 'The visual presentation height of this track, expressed as a fixed-point 16.16 number.',
         ref: 'ISO/IEC 14496-12, 8.3.2.3',
     },
 };

@@ -16,17 +16,16 @@ export function parseStsd(box, view) {
 
 export const stsdTooltip = {
     stsd: {
-        name: 'Sample Description',
-        text: 'Stores information for decoding samples (codec type, initialization data). Contains one or more Sample Entry boxes.',
+        name: 'Sample Description Box',
+        text: 'Sample Description Box (`stsd`). A container for one or more sample entries (e.g., `avc1`, `mp4a`). Each sample entry defines the coding format and provides initialization information required by the decoder for a set of samples in the track.',
         ref: 'ISO/IEC 14496-12, 8.5.2',
     },
     'stsd@entry_count': {
-        text: 'The number of sample entries that follow.',
-        ref: 'ISO/IEC 14496-12, 8.5.2.3',
+        text: 'The number of sample description entries that follow. A track can use multiple coding formats, though this is uncommon.',
+        ref: 'ISO/IEC 14496-12, 8.5.2.2',
     },
     'stsd@version': {
-        text: 'Version of this box, always 0.',
+        text: 'Version of this box. Typically 0, but must be 1 if it contains an `AudioSampleEntryV1` for high sample rates.',
         ref: 'ISO/IEC 14496-12, 8.5.2.3',
     },
-    // Tooltips for common sample entries (avc1, mp4a) are handled via their own boxes now.
 };

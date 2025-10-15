@@ -14,11 +14,11 @@ export function parseFrma(box, view) {
 export const frmaTooltip = {
     frma: {
         name: 'Original Format Box',
-        text: 'Stores the original, unencrypted four-character-code of the sample description.',
+        text: 'Original Format Box (`frma`). Specifies the original four-character code (e.g., "avc1", "mp4a") of a sample entry that has been transformed, typically by encryption. It is contained within a `sinf` box.',
         ref: 'ISO/IEC 14496-12, 8.12.2',
     },
     'frma@data_format': {
-        text: 'The original format of the sample entry (e.g., "avc1", "mp4a").',
+        text: 'The four-character code of the original, unencrypted sample entry. This allows a player that can handle the protection scheme to understand the underlying media format.',
         ref: 'ISO/IEC 14496-12, 8.12.2.3',
     },
 };

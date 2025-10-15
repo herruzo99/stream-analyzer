@@ -196,24 +196,36 @@ export function parseEsds(box, view) {
 
 export const esdsTooltip = {
     esds: {
-        name: 'Elementary Stream Descriptor',
-        text: 'Contains information about the elementary stream, such as the audio object type for AAC.',
+        name: 'Elementary Stream Descriptor Box',
+        text: 'Elementary Stream Descriptor (`esds`). Contains configuration information for an MPEG-4 elementary stream, such as audio object type, stream type, and buffer sizes. For AAC audio, it holds the critical `AudioSpecificConfig`.',
         ref: 'ISO/IEC 14496-1, 7.2.6.5',
     },
     'esds@objectTypeIndication': {
-        text: 'Specifies the audio coding profile (e.g., 64 = AAC LC, 5 = SBR). The value 0x40 corresponds to 64.',
+        text: 'An 8-bit integer specifying the type of data in the elementary stream. For audio, common values are 0x40 (MPEG-4 Audio) or 0x6B (MPEG-1 Audio).',
         ref: 'ISO/IEC 14496-1, Table 5',
     },
+    'esds@streamType_and_upStream': {
+        text: 'A bitfield containing the 6-bit `streamType` (e.g., 5 for AudioStream) and a 1-bit `upStream` flag.',
+        ref: 'ISO/IEC 14496-1, 7.2.6.6',
+    },
+    'esds@maxBitrate': {
+        text: 'The maximum bitrate of this elementary stream in bits per second.',
+        ref: 'ISO/IEC 14496-1, 7.2.6.6',
+    },
+    'esds@avgBitrate': {
+        text: 'The average bitrate of this elementary stream in bits per second.',
+        ref: 'ISO/IEC 14496-1, 7.2.6.6',
+    },
     'esds@decoded_audio_object_type': {
-        text: 'The specific type of audio coding, decoded from the DecoderSpecificInfo. This is the definitive audio profile.',
+        text: 'The specific type of audio coding, decoded from the `AudioSpecificConfig`. This is the definitive audio profile (e.g., AAC LC, SBR).',
         ref: 'ISO/IEC 14496-3, 1.5.1.1',
     },
     'esds@decoded_sampling_frequency': {
-        text: 'The audio sampling frequency, decoded from the DecoderSpecificInfo.',
+        text: 'The audio sampling frequency, decoded from the `AudioSpecificConfig`.',
         ref: 'ISO/IEC 14496-3, 1.5.1.1',
     },
     'esds@decoded_channel_configuration': {
-        text: 'The speaker channel layout, decoded from the DecoderSpecificInfo.',
+        text: 'The speaker channel layout (e.g., Mono, Stereo), decoded from the `AudioSpecificConfig`.',
         ref: 'ISO/IEC 14496-3, 1.5.1.1',
     },
     SLConfigDescriptor_tag: {
