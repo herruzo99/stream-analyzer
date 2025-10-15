@@ -67,7 +67,7 @@ export function parseAvc1(box, view) {
 export const avc1Tooltip = {
     avc1: {
         name: 'AVC Sample Entry',
-        text: 'AVC Sample Entry (`avc1`). A type of `VisualSampleEntry` specific to H.264/AVC video. It contains the video\'s dimensions, resolution, and is the parent to the `avcC` box which holds critical decoder configuration data.',
+        text: "AVC Sample Entry (`avc1`). A type of `VisualSampleEntry` specific to H.264/AVC video. It contains the video's dimensions, resolution, and is the parent to the `avcC` box which holds critical decoder configuration data.",
         ref: 'ISO/IEC 14496-15, 5.2.4.1.1',
     },
     'avc1@data_reference_index': {

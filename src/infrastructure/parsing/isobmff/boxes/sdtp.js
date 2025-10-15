@@ -73,12 +73,14 @@ export function parseSdtp(box, view) {
                     length: 0.25,
                 };
                 box.details[`sample_${i + 1}_sample_is_depended_on`] = {
-                    value: SAMPLE_IS_DEPENDED_ON_MAP[isDependedOn] || 'Reserved',
+                    value:
+                        SAMPLE_IS_DEPENDED_ON_MAP[isDependedOn] || 'Reserved',
                     offset: baseOffset,
                     length: 0.25,
                 };
                 box.details[`sample_${i + 1}_sample_has_redundancy`] = {
-                    value: SAMPLE_HAS_REDUNDANCY_MAP[hasRedundancy] || 'Reserved',
+                    value:
+                        SAMPLE_HAS_REDUNDANCY_MAP[hasRedundancy] || 'Reserved',
                     offset: baseOffset,
                     length: 0.25,
                 };

@@ -39,9 +39,7 @@ const renderObjectValue = (obj) => {
                     <div class="flex">
                         <span class="text-gray-400 mr-2">${key}:</span>
                         <span
-                            class="${value
-                                ? 'text-green-400'
-                                : 'text-red-400'}"
+                            class="${value ? 'text-green-400' : 'text-red-400'}"
                             >${String(value)}</span
                         >
                     </div>

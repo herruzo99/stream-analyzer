@@ -86,7 +86,7 @@ export const groupTooltipData = {
     },
     traf: {
         name: 'Track Fragment',
-        text: 'Track Fragment Box (`traf`). Contains metadata for a single track\'s portion of a movie fragment, including timing and location of samples.',
+        text: "Track Fragment Box (`traf`). Contains metadata for a single track's portion of a movie fragment, including timing and location of samples.",
         ref: 'ISO/IEC 14496-12, 8.8.6',
     },
     pssh: {
@@ -96,7 +96,7 @@ export const groupTooltipData = {
     },
     mdat: {
         name: 'Media Data',
-        text: 'Media Data Box (`mdat`). Contains the actual audiovisual sample data (e.g., video frames, audio samples). The file\'s metadata in other boxes points to byte ranges within this box.',
+        text: "Media Data Box (`mdat`). Contains the actual audiovisual sample data (e.g., video frames, audio samples). The file's metadata in other boxes points to byte ranges within this box.",
         ref: 'ISO/IEC 14496-12, 8.1.1',
     },
     meta: {

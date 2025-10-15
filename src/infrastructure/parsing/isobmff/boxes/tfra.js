@@ -65,7 +65,7 @@ export const tfraTooltip = {
         ref: 'ISO/IEC 14496-12, 8.8.10.3',
     },
     'tfra@entry_1_time': {
-        text: 'For the first entry, this is the presentation time of the sync sample in the media\'s timescale.',
+        text: "For the first entry, this is the presentation time of the sync sample in the media's timescale.",
         ref: 'ISO/IEC 14496-12, 8.8.10.3',
     },
     'tfra@entry_1_moof_offset': {

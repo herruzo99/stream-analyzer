@@ -47,8 +47,16 @@ const semanticCard = (title, box, fields, flags) => {
                 })}
                 ${activeFlags
                     ? html`
-                          <dt class="text-gray-400 col-span-2 pt-1 mt-1 border-t border-gray-700">Active Flags:</dt>
-                          <dd class="text-white break-all col-span-2 text-green-400">${activeFlags}</dd>
+                          <dt
+                              class="text-gray-400 col-span-2 pt-1 mt-1 border-t border-gray-700"
+                          >
+                              Active Flags:
+                          </dt>
+                          <dd
+                              class="text-white break-all col-span-2 text-green-400"
+                          >
+                              ${activeFlags}
+                          </dd>
                       `
                     : ''}
             </dl>

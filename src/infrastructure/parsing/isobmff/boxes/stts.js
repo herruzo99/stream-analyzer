@@ -54,7 +54,7 @@ export const sttsTooltip = {
         ref: 'ISO/IEC 14496-12, 8.6.1.2.3',
     },
     'stts@sample_delta_1': {
-        text: 'For the first entry, this is the duration for each sample in this run, expressed in the media\'s timescale units.',
+        text: "For the first entry, this is the duration for each sample in this run, expressed in the media's timescale units.",
         ref: 'ISO/IEC 14496-12, 8.6.1.2.3',
     },
 };
