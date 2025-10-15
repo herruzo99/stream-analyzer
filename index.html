@@ -65,7 +65,7 @@
                             (c[a].q = c[a].q || []).push(arguments);
                         };
                     t = l.createElement(r);
-t.async = 1;
+                    t.async = 1;
                     t.src = 'https://www.clarity.ms/tag/' + i;
                     y = l.getElementsByTagName(r)[0];
                     y.parentNode.insertBefore(t, y);
@@ -99,31 +99,63 @@ t.async = 1;
         <div id="app-root"></div>
 
         <!-- Global UI overlays that must exist at boot -->
-        <div id="toast-container" class="fixed top-5 right-5 z-[100] space-y-2"></div>
-        <div id="global-loader" class="hidden fixed inset-0 bg-gray-900/70 flex-col items-center justify-center z-[200] space-y-4">
+        <div
+            id="toast-container"
+            class="fixed top-5 right-5 z-100 space-y-2"
+        ></div>
+        <div
+            id="global-loader"
+            class="hidden fixed inset-0 bg-gray-900/70 flex-col items-center justify-center z-200 space-y-4"
+        >
             <div class="loader-animation flex items-end justify-center h-12">
-                <span></span><span></span><span></span><span></span><span></span>
+                <span class="w-2 h-3 mx-0.5 bg-blue-400 origin-bottom"></span
+                ><span class="w-2 h-3 mx-0.5 bg-blue-400 origin-bottom"></span
+                ><span class="w-2 h-3 mx-0.5 bg-blue-400 origin-bottom"></span
+                ><span class="w-2 h-3 mx-0.5 bg-blue-400 origin-bottom"></span
+                ><span class="w-2 h-3 mx-0.5 bg-blue-400 origin-bottom"></span>
             </div>
             <p id="loader-message" class="text-lg text-gray-300"></p>
         </div>
-        
+
         <!-- Global Modal -->
-        <div id="segment-modal" class="fixed inset-0 bg-gray-900/80 hidden items-center justify-center z-[60]">
-            <div class="bg-gray-800 p-6 rounded-lg max-h-[90vh] overflow-y-auto w-11/12 max-w-4xl border border-gray-700">
+        <div
+            id="segment-modal"
+            class="fixed inset-0 bg-gray-900/80 hidden items-center justify-center z-60"
+        >
+            <div
+                class="bg-gray-800 p-6 rounded-lg max-h-[90vh] overflow-y-auto w-11/12 max-w-4xl border border-gray-700"
+            >
                 <div class="flex justify-between items-center mb-4">
                     <h3 id="modal-title" class="text-xl font-bold"></h3>
-                    <button id="close-modal-btn" class="text-2xl text-gray-400 hover:text-white">&times;</button>
+                    <button
+                        id="close-modal-btn"
+                        class="text-2xl text-gray-400 hover:text-white"
+                    >
+                        &times;
+                    </button>
                 </div>
-                <p id="modal-segment-url" class="font-mono text-xs bg-gray-900 p-2 rounded break-all mb-4"></p>
-                <div id="modal-content-area" class="text-xs max-h-[60vh] overflow-y-auto"></div>
+                <p
+                    id="modal-segment-url"
+                    class="font-mono text-xs bg-gray-900 p-2 rounded break-all mb-4"
+                ></p>
+                <div
+                    id="modal-content-area"
+                    class="text-xs max-h-[60vh] overflow-y-auto"
+                ></div>
             </div>
         </div>
-        
+
         <!-- Global Tooltip -->
-        <div id="global-tooltip" class="fixed z-[100] p-2.5 rounded-md bg-gray-900 text-white text-left text-xs leading-relaxed border border-gray-700 min-w-[200px] max-w-sm pointer-events-none invisible opacity-0 transition-opacity"></div>
-        
+        <div
+            id="global-tooltip"
+            class="fixed z-100 p-2.5 rounded-md bg-gray-900 text-white text-left text-xs leading-relaxed border border-gray-700 min-w-[200px] max-w-sm pointer-events-none invisible opacity-0 transition-opacity"
+        ></div>
+
         <!-- Global Dropdown Container -->
-        <div id="dropdown-container" class="fixed inset-0 z-40 pointer-events-none"></div>
+        <div
+            id="dropdown-container"
+            class="fixed inset-0 z-40 pointer-events-none"
+        ></div>
 
         <script
             nonce="__CSP_NONCE__"

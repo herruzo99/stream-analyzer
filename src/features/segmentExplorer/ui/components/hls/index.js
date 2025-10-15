@@ -52,8 +52,12 @@ const renderHlsRepresentation = (stream, representationInfo) => {
 
     if (!variantState) return html``;
 
-    const { segments: rawSegments, error, isLoading, freshSegmentUrls } =
-        variantState;
+    const {
+        segments: rawSegments,
+        error,
+        isLoading,
+        freshSegmentUrls,
+    } = variantState;
 
     let pdtAnchorTime = 0;
     let cumulativeDuration = 0;
@@ -83,6 +87,7 @@ const renderHlsRepresentation = (stream, representationInfo) => {
                 startTimeUTC: startTimeUTC || 0,
                 endTimeUTC: endTimeUTC || 0,
                 flags: /** @type {any} */ (seg).flags || [],
+                encryptionInfo: /** @type {any} */ (seg).encryptionInfo,
             };
         }
     );
@@ -115,7 +120,9 @@ export function getHlsExplorerTemplate(stream) {
                     ${title}
                 </h4>
                 <div class="space-y-4">
-                    ${items.map((item) => renderHlsRepresentation(stream, item))}
+                    ${items.map((item) =>
+                        renderHlsRepresentation(stream, item)
+                    )}
                 </div>
             </div>
         `;
@@ -128,8 +135,9 @@ export function getHlsExplorerTemplate(stream) {
             const variant = (stream.manifest.variants || []).find(
                 (v) => v.resolvedUri === uri
             );
-            const serialized =
-                /** @type {any} */ (stream.manifest.serializedManifest);
+            const serialized = /** @type {any} */ (
+                stream.manifest.serializedManifest
+            );
             const media =
                 (serialized?.media || []).find(
                     (m) => m.URI && new URL(m.URI, stream.baseUrl).href === uri

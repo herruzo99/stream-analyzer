@@ -4,6 +4,8 @@ import { handleGetManifestMetadata } from './handlers/metadataHandler.js';
 import {
     handleParseSegmentStructure,
     handleGeneratePagedByteMap,
+    handleFetchKey,
+    handleDecryptAndParseSegment,
 } from './handlers/segmentParsingHandler.js';
 import { parseManifest as parseHlsManifest } from '@/infrastructure/parsing/hls/index';
 
@@ -14,6 +16,8 @@ const handlers = {
     'parse-segment-structure': handleParseSegmentStructure,
     'generate-paged-byte-map': handleGeneratePagedByteMap,
     'fetch-hls-media-playlist': handleFetchHlsMediaPlaylist,
+    'fetch-key': handleFetchKey,
+    'decrypt-and-parse-segment': handleDecryptAndParseSegment,
 };
 
 async function handleFetchHlsMediaPlaylist({

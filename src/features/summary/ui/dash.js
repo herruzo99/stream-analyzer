@@ -104,7 +104,7 @@ const profilesCardTemplate = (stream) => {
                             class="flex items-center gap-2 text-xs p-1 bg-gray-900/50 rounded"
                         >
                             <span
-                                class="flex-shrink-0 ${tooltipTriggerClasses}"
+                                class="shrink-0 ${tooltipTriggerClasses}"
                                 data-tooltip="${item.explanation}"
                             >
                                 <!-- Icons omitted for brevity -->
@@ -179,7 +179,7 @@ const protectionSystemTemplate = (psshInfo) => {
                 </div>
                 <button
                     @click=${handleCopy}
-                    class="text-xs bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded flex-shrink-0"
+                    class="text-xs bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded shrink-0"
                 >
                     Copy PSSH
                 </button>

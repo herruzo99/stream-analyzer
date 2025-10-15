@@ -96,13 +96,13 @@ export const sidebarTemplate = (
 
     return html`
         <div
-            class="compliance-filter-bar flex-shrink-0 flex flex-wrap justify-center sm:justify-start items-center gap-2 mb-4 p-2 bg-gray-900/50 rounded-md sticky top-0 z-20 border-b border-gray-700"
+            class="compliance-filter-bar shrink-0 flex flex-wrap justify-center sm:justify-start items-center gap-2 mb-4 p-2 bg-gray-900/50 rounded-md sticky top-0 z-20 border-b border-gray-700"
         >
             ${filterButton('all', 'All', counts.all)}
             ${filterButton('fail', 'Errors', counts.fail)}
             ${filterButton('warn', 'Warnings', counts.warn)}
         </div>
-        <div class="space-y-2 flex-grow min-h-0 overflow-y-auto">
+        <div class="space-y-2 grow min-h-0 overflow-y-auto">
             ${filteredResults.map(commentCard)}
         </div>
     `;

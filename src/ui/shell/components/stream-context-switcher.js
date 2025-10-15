@@ -3,8 +3,7 @@ import { analysisActions } from '@/state/analysisStore';
 import { toggleDropdown, closeDropdown } from '@/ui/services/dropdownService';
 
 const getBadge = (text, colorClasses) => html`
-    <span
-        class="text-xs font-semibold px-2 py-1 rounded-full ${colorClasses}"
+    <span class="text-xs font-semibold px-2 py-1 rounded-full ${colorClasses}"
         >${text}</span
     >
 `;
@@ -39,7 +38,7 @@ const renderStreamContextCard = (stream, activeStreamId) => {
                 title="${stream.name}"
                 >${stream.name}</span
             >
-            <div class="flex-shrink-0 flex flex-wrap items-center gap-2 mt-2">
+            <div class="shrink-0 flex flex-wrap items-center gap-2 mt-2">
                 ${protocolBadge} ${typeBadge}
             </div>
         </div>
@@ -93,7 +92,7 @@ export const streamContextSwitcherTemplate = (streams, activeStreamId) => {
                     >${getActiveStreamLabel(streams, activeStreamId)}</span
                 >
                 <svg
-                    class="w-5 h-5 ml-2 text-gray-400 flex-shrink-0"
+                    class="w-5 h-5 ml-2 text-gray-400 shrink-0"
                     xmlns="http://www.w3.org/2000/svg"
                     viewBox="0 0 20 20"
                     fill="currentColor"

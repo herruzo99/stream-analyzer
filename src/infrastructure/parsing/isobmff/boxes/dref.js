@@ -1,6 +1,18 @@
 import { BoxParser } from '../utils.js';
 
 /**
+ * Parses the 'dref' (Data Reference) box. It's a container for 'url ' or 'urn ' boxes.
+ * @param {import('../parser.js').Box} box
+ * @param {DataView} view
+ */
+export function parseDref(box, view) {
+    const p = new BoxParser(box, view);
+    p.readVersionAndFlags();
+    p.readUint32('entry_count');
+    // This is a container. Children ('url ', 'urn ') are parsed by the main loop.
+}
+
+/**
  * Parses a 'url ' (Data Entry URL) box.
  * @param {import('../parser.js').Box} box
  * @param {DataView} view
@@ -34,6 +46,10 @@ export const drefTooltip = {
         name: 'Data Reference Box',
         text: 'A container for data references (e.g., URLs) that declare the location of media data.',
         ref: 'ISO/IEC 14496-12, 8.7.2',
+    },
+    'dref@entry_count': {
+        text: 'The number of data entries (e.g., `url ` or `urn ` boxes) that follow.',
+        ref: 'ISO/IEC 14496-12, 8.7.2.1',
     },
     'url ': {
         name: 'Data Entry URL Box',

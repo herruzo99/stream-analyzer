@@ -1,5 +1,8 @@
 import { getDrmSystemName } from '@/infrastructure/parsing/utils/drm';
-import { getInheritedElement, getAttr } from '@/infrastructure/parsing/dash/recursive-parser';
+import {
+    getInheritedElement,
+    getAttr,
+} from '@/infrastructure/parsing/dash/recursive-parser';
 
 /**
  * @typedef {import('@/types.ts').Stream} Stream
@@ -126,9 +129,7 @@ function getNetworkInfo(stream) {
     }
 
     const avgSegmentDuration =
-        segmentInfoCount > 0
-            ? totalDurationSeconds / segmentInfoCount
-            : null;
+        segmentInfoCount > 0 ? totalDurationSeconds / segmentInfoCount : null;
     const avgSegmentSize =
         segmentInfoCount > 0 ? totalSizeBytes / segmentInfoCount : null;
 
@@ -183,7 +184,8 @@ function getTimingInfo(stream) {
         pollingInterval:
             stream.manifest.minimumUpdatePeriod ?? summary.hls?.targetDuration,
         dvrWindow:
-            stream.manifest.timeShiftBufferDepth ?? activeMediaPlaylist?.duration,
+            stream.manifest.timeShiftBufferDepth ??
+            activeMediaPlaylist?.duration,
         lowLatency: lowLatency,
         blockingRequestSupport: summary.lowLatency?.canBlockReload ?? false,
         targetLatency: summary.lowLatency?.targetLatency,
@@ -214,7 +216,9 @@ function getHlsSecurityInfo(stream) {
 
     if (allKeyTags.length > 0) {
         const uniqueKeyFormats = [
-            ...new Set(allKeyTags.map((k) => k.value.KEYFORMAT).filter(Boolean)),
+            ...new Set(
+                allKeyTags.map((k) => k.value.KEYFORMAT).filter(Boolean)
+            ),
         ];
         const uniqueKeyIDs = [
             ...new Set(allKeyTags.map((k) => k.value.KEYID).filter(Boolean)),

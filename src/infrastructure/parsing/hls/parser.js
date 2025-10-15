@@ -1,22 +1,8 @@
 import { adaptHlsToIr } from './adapter.js';
 
 /**
- * @typedef {object} HlsSegment
- * @property {number} duration
- * @property {string} title
- * @property {any[]} tags
- * @property {string[]} flags
- * @property {Record<string, string|number> | null} key
- * @property {object[]} parts
- * @property {number|null} bitrate
- * @property {boolean} gap
- * @property {string} [uri]
- * @property {string} [resolvedUrl]
- * @property {boolean} [discontinuity]
- * @property {string} [dateTime]
- * @property {string} type
- * @property {number} extinfLineNumber
- * @property {number} [uriLineNumber]
+ * @typedef {import('@/types.ts').HlsSegment} HlsSegment
+ * @typedef {import('@/types.ts').EncryptionInfo} EncryptionInfo
  */
 
 function parseAttributeList(attrString) {
@@ -130,11 +116,11 @@ export async function parseManifest(
 
     /** @type {HlsSegment | null} */
     let currentSegment = null;
-    let currentKey = null;
+    /** @type {EncryptionInfo | null} */
+    let currentEncryptionInfo = null;
     let currentBitrate = null;
     let discontinuity = false;
     let isGap = false;
-    let keyChangeNextSegment = false;
 
     for (let i = 1; i < lines.length; i++) {
         const line = lines[i].trim();
@@ -183,20 +169,19 @@ export async function parseManifest(
                         title: title || '',
                         tags: [],
                         flags: [],
-                        key: currentKey,
                         parts: [],
                         bitrate: currentBitrate,
                         gap: false,
                         type: 'Media',
                         extinfLineNumber: i,
                         discontinuity,
+                        encryptionInfo: currentEncryptionInfo,
                     };
                     if (discontinuity) {
                         currentSegment.flags.push('discontinuity');
                     }
-                    if (keyChangeNextSegment) {
+                    if (currentEncryptionInfo) {
                         currentSegment.flags.push('key-change');
-                        keyChangeNextSegment = false;
                     }
                     discontinuity = false; // Consume the flag
                     break;
@@ -212,11 +197,24 @@ export async function parseManifest(
                     break;
                 case 'EXT-X-KEY': {
                     const keyAttributes = parseAttributeList(tagValue);
-                    currentKey = keyAttributes;
                     if (keyAttributes.METHOD === 'NONE') {
-                        currentKey = null;
+                        currentEncryptionInfo = null;
+                    } else {
+                        currentEncryptionInfo = {
+                            method: /** @type {'AES-128'} */ (
+                                keyAttributes.METHOD
+                            ),
+                            uri: new URL(String(keyAttributes.URI), baseUrl)
+                                .href,
+                            iv: String(keyAttributes.IV || null),
+                            keyFormat: String(
+                                keyAttributes.KEYFORMAT || 'identity'
+                            ),
+                            keyFormatVersions: String(
+                                keyAttributes.KEYFORMATVERSIONS || '1'
+                            ),
+                        };
                     }
-                    keyChangeNextSegment = true;
                     // Fallthrough to add to tags array
                 }
                 // eslint-disable-next-line no-fallthrough

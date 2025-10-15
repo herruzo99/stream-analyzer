@@ -24,7 +24,7 @@ const renderCodecInfo = (codecInfo) => {
     const supportedIcon = codecInfo.supported
         ? html`<svg
               xmlns="http://www.w3.org/2000/svg"
-              class="h-4 w-4 text-green-400 inline-block ml-2 flex-shrink-0"
+              class="h-4 w-4 text-green-400 inline-block ml-2 shrink-0"
               viewBox="0 0 20 20"
               fill="currentColor"
               title="Parser support available"
@@ -37,7 +37,7 @@ const renderCodecInfo = (codecInfo) => {
           </svg>`
         : html`<svg
               xmlns="http://www.w3.org/2000/svg"
-              class="h-4 w-4 text-red-400 inline-block ml-2 flex-shrink-0"
+              class="h-4 w-4 text-red-400 inline-block ml-2 shrink-0"
               viewBox="0 0 20 20"
               fill="currentColor"
               title="Parser support not implemented"
@@ -178,14 +178,15 @@ export const trackTableTemplate = (tracks, type) => {
                         ${resolutions.length > 0
                             ? resolutions.map(
                                   (res, i) =>
-                                      html`${i > 0 ? ', ' : ''}${renderSourcedValue(
-                                          res
-                                      )}`
+                                      html`${i > 0
+                                          ? ', '
+                                          : ''}${renderSourcedValue(res)}`
                               )
                             : 'N/A'}
                     </td>
                     <td class="p-2 font-mono">
-                        ${codecs.map((codec) => renderCodecInfo(codec)) || 'N/A'}
+                        ${codecs.map((codec) => renderCodecInfo(codec)) ||
+                        'N/A'}
                     </td>
                     <td class="p-2 font-mono">
                         ${track.roles?.join(', ') || 'N/A'}

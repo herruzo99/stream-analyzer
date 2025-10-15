@@ -1,8 +1,8 @@
-import { render } from 'lit-html';
 import { inspectorPanelTemplate as isobmffInspector } from './isobmff/index.js';
 import { inspectorPanelTemplate as tsInspector } from './ts/index.js';
 import { html } from 'lit-html';
 import { uiActions } from '@/state/uiStore';
+import { renderApp } from '@/ui/shell/mainRenderer';
 
 let mainContainer = null;
 let keydownListener = null;
@@ -115,19 +115,6 @@ function applyHighlights(item, fieldName) {
     });
 }
 
-export function renderInspectorPanel() {
-    if (!inspectorContainer) return;
-    let template;
-    if (currentFormat === 'isobmff') {
-        template = isobmffInspector(rootParsedData.data);
-    } else if (currentFormat === 'ts') {
-        template = tsInspector();
-    } else {
-        template = html``;
-    }
-    render(template, inspectorContainer);
-}
-
 function cleanupEventListeners(container) {
     if (keydownListener) {
         document.removeEventListener('keydown', keydownListener);
@@ -135,7 +122,10 @@ function cleanupEventListeners(container) {
     }
     const listeners = containerListeners.get(container);
     if (listeners) {
-        container.removeEventListener('mouseover', listeners.delegatedMouseOver);
+        container.removeEventListener(
+            'mouseover',
+            listeners.delegatedMouseOver
+        );
         container.removeEventListener('mouseout', listeners.delegatedMouseOut);
         container.removeEventListener('click', listeners.handleClick);
         containerListeners.delete(container);
@@ -176,15 +166,12 @@ export function initializeSegmentViewInteractivity(
         highlightedItem = item;
         highlightedField = field;
 
-        // Clear previous highlights from hex/tree
         clearHighlights();
-        // Apply new highlights to hex/tree
         applyHighlights(item, field);
 
-        // Re-render the inspector panel, which will now apply its own highlights declaratively
-        renderInspectorPanel();
+        // Trigger a full re-render instead of an imperative one.
+        renderApp();
 
-        // Scroll inspector field into view after render
         setTimeout(() => {
             if (inspectorContainer && field && item) {
                 const fieldRow = inspectorContainer.querySelector(
@@ -209,9 +196,10 @@ export function initializeSegmentViewInteractivity(
         if (selectedItem) {
             applyHighlights(selectedItem, null);
         }
-        renderInspectorPanel();
 
-        // On mobile, switch to hex view to show the selection
+        // Trigger a full re-render instead of an imperative one.
+        renderApp();
+
         if (window.innerWidth < 1024 && selectedItem) {
             uiActions.setInteractiveSegmentActiveTab('hex');
         }
@@ -229,7 +217,10 @@ export function initializeSegmentViewInteractivity(
             if (mapEntry.sample) {
                 handleHover(mapEntry.sample, 'Sample Data');
             } else if (mapEntry.box || mapEntry.packet) {
-                handleHover(mapEntry.box || mapEntry.packet, mapEntry.fieldName);
+                handleHover(
+                    mapEntry.box || mapEntry.packet,
+                    mapEntry.fieldName
+                );
             }
         }
     };
@@ -281,12 +272,11 @@ export function initializeSegmentViewInteractivity(
         const relatedTarget = /** @type {Node | null} */ (e.relatedTarget);
         const currentTarget = /** @type {Node} */ (e.currentTarget);
         if (relatedTarget && currentTarget.contains(relatedTarget)) {
-            const isStillOnInteractive =
-                /** @type {HTMLElement} */ (
-                    relatedTarget
-                ).closest(
-                    '.segment-inspector-panel, .structure-content-area, #hex-grid-content'
-                );
+            const isStillOnInteractive = /** @type {HTMLElement} */ (
+                relatedTarget
+            ).closest(
+                '.segment-inspector-panel, .structure-content-area, #hex-grid-content'
+            );
             if (isStillOnInteractive) {
                 return;
             }

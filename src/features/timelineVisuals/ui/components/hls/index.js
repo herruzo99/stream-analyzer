@@ -100,7 +100,7 @@ const hlsAbrLadderTemplate = (manifest) => {
 
         return html`
             <div class="flex items-center" title="Codecs: ${codecs}">
-                <div class="w-28 text-xs text-gray-400 font-mono flex-shrink-0">
+                <div class="w-28 text-xs text-gray-400 font-mono shrink-0">
                     ${resolutionText}
                 </div>
                 <div class="w-full bg-gray-700 rounded-full h-5">

@@ -3,8 +3,7 @@ import { eventBus } from '@/application/event-bus';
 import { toggleDropdown, closeDropdown } from '@/ui/services/dropdownService';
 
 const getBadge = (text, colorClasses) => html`
-    <span
-        class="text-xs font-semibold px-2 py-1 rounded-full ${colorClasses}"
+    <span class="text-xs font-semibold px-2 py-1 rounded-full ${colorClasses}"
         >${text}</span
     >
 `;
@@ -27,7 +26,7 @@ const renderHlsContextCard = (item, activeUrl) => {
             <span class="font-semibold text-gray-200 truncate"
                 >${item.label}</span
             >
-            <div class="flex-shrink-0 flex flex-wrap items-center gap-2 mt-2">
+            <div class="shrink-0 flex flex-wrap items-center gap-2 mt-2">
                 ${item.badges.map((b) => getBadge(b.text, b.classes))}
             </div>
         </div>
@@ -43,7 +42,9 @@ const renderHlsContextGroup = (title, items, activeUrl) => {
             >
                 ${title}
             </h4>
-            <div class="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2">
+            <div
+                class="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2"
+            >
                 ${items.map((item) => renderHlsContextCard(item, activeUrl))}
             </div>
         </section>
@@ -121,9 +122,7 @@ export const hlsContextSwitcherTemplate = (stream) => {
         ],
     }));
 
-    const audioRenditions = (
-        stream.manifest.periods[0]?.adaptationSets || []
-    )
+    const audioRenditions = (stream.manifest.periods[0]?.adaptationSets || [])
         .filter((as) => as.contentType === 'audio')
         .map((r) => ({
             url: r.representations[0]?.serializedManifest.resolvedUri,
@@ -188,18 +187,14 @@ export const hlsContextSwitcherTemplate = (stream) => {
     };
 
     const activeUrl = stream.activeMediaPlaylistUrl || 'master';
-    
+
     const panelTemplate = html`
         <div
             class="dropdown-panel bg-gray-800 border border-gray-700 rounded-lg shadow-xl max-h-[60vh] w-full min-w-[40rem] max-w-5xl overflow-y-auto"
             @click=${handleSelect}
         >
             ${renderHlsContextGroup('Master', [masterItem], activeUrl)}
-            ${renderHlsContextGroup(
-                'Variant Streams',
-                variants,
-                activeUrl
-            )}
+            ${renderHlsContextGroup('Variant Streams', variants, activeUrl)}
             ${renderHlsContextGroup(
                 'Audio Renditions',
                 audioRenditions,
