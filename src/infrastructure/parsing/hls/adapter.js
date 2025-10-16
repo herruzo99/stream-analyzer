@@ -232,6 +232,61 @@ export async function adaptHlsToIr(hlsParsed, context) {
                         const contentType = /** @type {any} */ (
                             type === 'subtitles' ? 'text' : type
                         );
+
+                        /** @type {Representation} */
+                        const representation = {
+                            id:
+                                media['STABLE-RENDITION-ID'] ||
+                                `${type}-rendition-${groupId}-${mediaIndex}-rep`,
+                            codecs: { value: null, source: 'manifest' },
+                            bandwidth: 0,
+                            width: { value: null, source: 'manifest' },
+                            height: { value: null, source: 'manifest' },
+                            frameRate: null,
+                            sar: null,
+                            mimeType: null,
+                            profiles: null,
+                            qualityRanking: null,
+                            selectionPriority: 0,
+                            codingDependency: null,
+                            scanType: null,
+                            dependencyId: null,
+                            associationId: null,
+                            associationType: null,
+                            segmentProfiles: null,
+                            mediaStreamStructureId: null,
+                            maximumSAPPeriod: null,
+                            startWithSAP: null,
+                            maxPlayoutRate: null,
+                            tag: null,
+                            eptDelta: null,
+                            pdDelta: null,
+                            representationIndex: null,
+                            failoverContent: null,
+                            audioChannelConfigurations: [],
+                            framePackings: [],
+                            ratings: [],
+                            viewpoints: [],
+                            accessibility: [],
+                            labels: [],
+                            groupLabels: [],
+                            subRepresentations: [],
+                            resyncs: [],
+                            outputProtection: null,
+                            extendedBandwidth: null,
+                            stableVariantId: null,
+                            pathwayId: null,
+                            supplementalCodecs: null,
+                            reqVideoLayout: null,
+                            contentProtection: [],
+                            serializedManifest: {
+                                ...media,
+                                resolvedUri: media.URI
+                                    ? new URL(media.URI, hlsParsed.baseUrl).href
+                                    : null,
+                            },
+                        };
+
                         /** @type {AdaptationSet} */
                         const as = {
                             id:
@@ -243,7 +298,7 @@ export async function adaptHlsToIr(hlsParsed, context) {
                             segmentAlignment: false,
                             width: null,
                             height: null,
-                            representations: [],
+                            representations: [representation],
                             contentProtection: contentProtectionIRs,
                             roles: [],
                             profiles: null,

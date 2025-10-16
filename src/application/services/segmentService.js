@@ -7,10 +7,10 @@ import { fetchWithRetry } from '@/application/utils/fetch';
 
 /**
  * Finds the corresponding HLS segment object and its parent playlist from the manifest IR.
- * @param {string} url The URL of the segment.
+ * @param {string} uniqueId The unique ID of the segment.
  * @returns {{playlist: import('@/types.ts').MediaPlaylist | null, segment: import('@/types.ts').HlsSegment | null, segmentIndex: number}}
  */
-function findHlsSegmentAndPlaylist(url) {
+function findHlsSegmentAndPlaylist(uniqueId) {
     const { streams, activeStreamId } = useAnalysisStore.getState();
     const activeStream = streams.find((s) => s.id === activeStreamId);
     if (!activeStream || activeStream.protocol !== 'hls') {
@@ -19,7 +19,7 @@ function findHlsSegmentAndPlaylist(url) {
 
     for (const playlist of activeStream.mediaPlaylists.values()) {
         const segmentIndex = (playlist.manifest.segments || []).findIndex(
-            (s) => s.resolvedUrl === url
+            (s) => s.uniqueId === uniqueId
         );
         if (segmentIndex !== -1) {
             return {
@@ -32,17 +32,19 @@ function findHlsSegmentAndPlaylist(url) {
     return { playlist: null, segment: null, segmentIndex: -1 };
 }
 
-async function _fetchAndParseSegment(url, streamId, formatHint) {
+async function _fetchAndParseSegment(uniqueId, streamId, formatHint) {
     const { set } = useSegmentCacheStore.getState();
+    const url = uniqueId.split('@')[0]; // Extract the raw URL for fetching
+
     try {
-        set(url, { status: -1, data: null, parsedData: null });
-        eventBus.dispatch('segment:pending', { url });
+        set(uniqueId, { status: -1, data: null, parsedData: null });
+        eventBus.dispatch('segment:pending', { uniqueId });
 
         const {
             playlist: mediaPlaylist,
             segment: hlsSegment,
             segmentIndex,
-        } = findHlsSegmentAndPlaylist(url);
+        } = findHlsSegmentAndPlaylist(uniqueId);
         let workerTask = 'parse-segment-structure';
         let workerPayload = { url, data: null, formatHint };
         let finalDataBuffer = null;
@@ -86,8 +88,11 @@ async function _fetchAndParseSegment(url, streamId, formatHint) {
                     data: null,
                     parsedData: { error: `HTTP ${response.status}` },
                 };
-                set(url, errorEntry);
-                eventBus.dispatch('segment:loaded', { url, entry: errorEntry });
+                set(uniqueId, errorEntry);
+                eventBus.dispatch('segment:loaded', {
+                    uniqueId,
+                    entry: errorEntry,
+                });
                 return;
             }
             finalDataBuffer = await response.arrayBuffer();
@@ -119,8 +124,8 @@ async function _fetchAndParseSegment(url, streamId, formatHint) {
         }
         // --- END NEW LOGIC ---
 
-        set(url, finalEntry);
-        eventBus.dispatch('segment:loaded', { url, entry: finalEntry });
+        set(uniqueId, finalEntry);
+        eventBus.dispatch('segment:loaded', { uniqueId, entry: finalEntry });
     } catch (error) {
         console.error(`Failed to fetch or parse segment ${url}:`, error);
         const errorEntry = {
@@ -128,14 +133,14 @@ async function _fetchAndParseSegment(url, streamId, formatHint) {
             data: null,
             parsedData: { error: error.message },
         };
-        set(url, errorEntry);
-        eventBus.dispatch('segment:loaded', { url, entry: errorEntry });
+        set(uniqueId, errorEntry);
+        eventBus.dispatch('segment:loaded', { uniqueId, entry: errorEntry });
     }
 }
 
-export function getParsedSegment(url, streamId = null, formatHint = null) {
+export function getParsedSegment(uniqueId, streamId = null, formatHint = null) {
     const { get } = useSegmentCacheStore.getState();
-    const cachedEntry = get(url);
+    const cachedEntry = get(uniqueId);
     const id = streamId ?? useAnalysisStore.getState().activeStreamId;
 
     if (cachedEntry && cachedEntry.status !== -1 && cachedEntry.parsedData) {
@@ -145,11 +150,11 @@ export function getParsedSegment(url, streamId = null, formatHint = null) {
     }
 
     return new Promise((resolve, reject) => {
-        const onSegmentLoaded = ({ url: loadedUrl, entry }) => {
-            if (loadedUrl === url) {
+        const onSegmentLoaded = ({ uniqueId: loadedId, entry }) => {
+            if (loadedId === uniqueId) {
                 unsubscribe();
                 if (entry.status !== 200) {
-                    reject(new Error(`HTTP ${entry.status} for ${url}`));
+                    reject(new Error(`HTTP ${entry.status} for ${uniqueId}`));
                 } else if (entry.parsedData?.error) {
                     reject(new Error(entry.parsedData.error));
                 } else {
@@ -164,13 +169,13 @@ export function getParsedSegment(url, streamId = null, formatHint = null) {
         );
 
         if (!cachedEntry || cachedEntry.status !== -1) {
-            _fetchAndParseSegment(url, id, formatHint);
+            _fetchAndParseSegment(uniqueId, id, formatHint);
         }
     });
 }
 
 export function initializeSegmentService() {
-    eventBus.subscribe('segment:fetch', ({ url, streamId, format }) =>
-        _fetchAndParseSegment(url, streamId, format)
+    eventBus.subscribe('segment:fetch', ({ uniqueId, streamId, format }) =>
+        _fetchAndParseSegment(uniqueId, streamId, format)
     );
 }

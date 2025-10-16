@@ -8,11 +8,17 @@ import { getDrmSystemName } from '@/infrastructure/parsing/utils/drm';
 import { copyTextToClipboard } from '@/ui/shared/clipboard';
 import { eventBus } from '@/application/event-bus';
 import { useAnalysisStore } from '@/state/analysisStore';
-import { findChildrenRecursive, getAttr } from '@/infrastructure/parsing/dash/recursive-parser';
+import {
+    findChildrenRecursive,
+    getAttr,
+} from '@/infrastructure/parsing/dash/recursive-parser';
 
 const programInfoTemplate = (stream) => {
     const programInfo = stream.manifest.programInformations?.[0];
-    if (!programInfo || (!programInfo.title && !programInfo.source && !programInfo.copyright)) {
+    if (
+        !programInfo ||
+        (!programInfo.title && !programInfo.source && !programInfo.copyright)
+    ) {
         return '';
     }
 
@@ -20,23 +26,32 @@ const programInfoTemplate = (stream) => {
         <div class="mb-8 p-4 bg-gray-800 rounded-lg border border-gray-700">
             <h3 class="text-xl font-bold mb-3">Program Information</h3>
             <dl class="grid gap-x-4 gap-y-2 grid-cols-[auto_1fr] text-sm">
-                ${programInfo.title ? html`
-                    <dt class="text-gray-400 font-semibold">Title:</dt>
-                    <dd class="text-gray-200">${programInfo.title}</dd>
-                ` : ''}
-                ${programInfo.source ? html`
-                    <dt class="text-gray-400 font-semibold">Source:</dt>
-                    <dd class="text-gray-200">${programInfo.source}</dd>
-                ` : ''}
-                ${programInfo.copyright ? html`
-                    <dt class="text-gray-400 font-semibold">Copyright:</dt>
-                    <dd class="text-gray-200">${programInfo.copyright}</dd>
-                ` : ''}
+                ${programInfo.title
+                    ? html`
+                          <dt class="text-gray-400 font-semibold">Title:</dt>
+                          <dd class="text-gray-200">${programInfo.title}</dd>
+                      `
+                    : ''}
+                ${programInfo.source
+                    ? html`
+                          <dt class="text-gray-400 font-semibold">Source:</dt>
+                          <dd class="text-gray-200">${programInfo.source}</dd>
+                      `
+                    : ''}
+                ${programInfo.copyright
+                    ? html`
+                          <dt class="text-gray-400 font-semibold">
+                              Copyright:
+                          </dt>
+                          <dd class="text-gray-200">
+                              ${programInfo.copyright}
+                          </dd>
+                      `
+                    : ''}
             </dl>
         </div>
     `;
 };
-
 
 const profilesCardTemplate = (stream) => {
     const { manifest } = stream;
@@ -227,15 +242,21 @@ const contentProtectionTemplate = (security) => {
     return html`
         <div>
             <h3 class="text-xl font-bold mb-4">Content Protection</h3>
-            <div class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(280px,1fr))]">
-                ${statCardTemplate('Encryption', security?.isEncrypted ?? false, 'Indicates if the stream is encrypted.', 'DASH: 5.8.4.1')}
+            <div
+                class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(280px,1fr))]"
+            >
+                ${statCardTemplate(
+                    'Encryption',
+                    security?.isEncrypted ?? false,
+                    'Indicates if the stream is encrypted.',
+                    'DASH: 5.8.4.1'
+                )}
             </div>
-            ${(security?.isEncrypted && security.systems.length > 0)
+            ${security?.isEncrypted && security.systems.length > 0
                 ? html`<div class="space-y-4 mt-4">
-                           ${security.systems.map(protectionSystemTemplate)}
-                       </div>`
-                : ''
-            }
+                      ${security.systems.map(protectionSystemTemplate)}
+                  </div>`
+                : ''}
         </div>
     `;
 };
@@ -245,8 +266,13 @@ export function getDashSummaryTemplate(stream) {
     const { activeStreamId } = useAnalysisStore.getState();
     const isLive = stream.manifest.type === 'dynamic';
 
-    const utcTimingEl = findChildrenRecursive(stream.manifest.serializedManifest, 'UTCTiming')[0];
-    const utcTimingValue = utcTimingEl ? `${getAttr(utcTimingEl, 'schemeIdUri')?.split(':').pop()} @ ${getAttr(utcTimingEl, 'value')}` : null;
+    const utcTimingEl = findChildrenRecursive(
+        stream.manifest.serializedManifest,
+        'UTCTiming'
+    )[0];
+    const utcTimingValue = utcTimingEl
+        ? `${getAttr(utcTimingEl, 'schemeIdUri')?.split(':').pop()} @ ${getAttr(utcTimingEl, 'value')}`
+        : null;
 
     return html`
         <div class="space-y-8">
@@ -277,12 +303,12 @@ export function getDashSummaryTemplate(stream) {
                         'DASH: 5.3.7'
                     )}
                     ${statCardTemplate(
-                          'Media Duration',
-                          summary.general.duration
-                              ? `${summary.general.duration.toFixed(2)}s`
-                              : null,
-                          'The total duration of the content.',
-                          'DASH: 5.3.1.2'
+                        'Media Duration',
+                        summary.general.duration
+                            ? `${summary.general.duration.toFixed(2)}s`
+                            : null,
+                        'The total duration of the content.',
+                        'DASH: 5.3.1.2'
                     )}
                     ${statCardTemplate(
                         'Max Segment Duration',
@@ -318,11 +344,12 @@ export function getDashSummaryTemplate(stream) {
                         : ''}
                     ${isLive
                         ? statCardTemplate(
-                            'UTC Timing Source',
-                            utcTimingValue,
-                            'Provides a clock synchronization source for clients.',
-                            'DASH: 5.8.4.11'
-                        ) : ''}
+                              'UTC Timing Source',
+                              utcTimingValue,
+                              'Provides a clock synchronization source for clients.',
+                              'DASH: 5.8.4.11'
+                          )
+                        : ''}
                 </dl>
                 <div class="mt-4">${profilesCardTemplate(stream)}</div>
             </div>

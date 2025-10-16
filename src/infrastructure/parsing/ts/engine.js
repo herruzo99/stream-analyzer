@@ -31,15 +31,13 @@ export function parseTsSegment(buffer) {
     };
     const dataView = new DataView(buffer);
 
-    // --- Sanity Check for Encrypted Content ---
+    // --- Sanity Check for TS Format ---
     if (
-        buffer.byteLength >= TS_PACKET_SIZE &&
-        dataView.getUint8(0) !== SYNC_BYTE &&
-        (buffer.byteLength < TS_PACKET_SIZE * 2 ||
-            dataView.getUint8(TS_PACKET_SIZE) !== SYNC_BYTE)
+        buffer.byteLength < TS_PACKET_SIZE ||
+        dataView.getUint8(0) !== SYNC_BYTE
     ) {
         summary.errors.push(
-            'Segment appears to be encrypted (no TS sync bytes found).'
+            'Not a valid MPEG-2 Transport Stream (missing sync byte at start).'
         );
         return { format: 'ts', data: { summary, packets } };
     }

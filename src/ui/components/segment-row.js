@@ -8,6 +8,7 @@ import { eventBus } from '@/application/event-bus';
 import { copyTextToClipboard } from '@/ui/shared/clipboard';
 import { keyManagerService } from '@/application/services/keyManagerService';
 import * as icons from '@/ui/icons';
+import { inferMediaInfoFromExtension } from '@/infrastructure/parsing/utils/media-types';
 
 const FLAG_DEFINITIONS = {
     discontinuity: {
@@ -56,10 +57,7 @@ function getInBandFlags(cacheEntry) {
     const { format, data } = cacheEntry.parsedData;
     if (format === 'isobmff' && data.events) {
         data.events.forEach((event) => {
-            if (
-                event.details?.scheme_id_uri?.value.includes('scte35') ||
-                event.details?.scheme_id_uri?.value.includes('scte-35')
-            ) {
+            if (event.scte35) {
                 flags.add('scte35');
             }
         });
@@ -126,8 +124,12 @@ const encryptionTemplate = (seg) => {
 
     // Handle DASH CENC
     if (encryptionInfo.method === 'CENC' && encryptionInfo.systems) {
-        const tooltip = `Encrypted (CENC). Systems: ${encryptionInfo.systems.join(', ')}.`;
-        const icon = html`<span class="text-gray-400">${icons.lockClosed}</span>`;
+        const tooltip = `Encrypted (CENC). Systems: ${encryptionInfo.systems.join(
+            ', '
+        )}.`;
+        const icon = html`<span class="text-gray-400"
+            >${icons.lockClosed}</span
+        >`;
         return html`<div
             class="flex items-center space-x-1"
             data-tooltip=${tooltip}
@@ -144,56 +146,63 @@ const encryptionTemplate = (seg) => {
 
 function handleSegmentCheck(e) {
     const checkbox = /** @type {HTMLInputElement} */ (e.target);
-    const url = checkbox.value;
+    const uniqueId = checkbox.value;
     if (checkbox.checked) {
         if (useAnalysisStore.getState().segmentsForCompare.length >= 2) {
             checkbox.checked = false;
             return;
         }
-        analysisActions.addSegmentToCompare(url);
+        analysisActions.addSegmentToCompare(uniqueId);
     } else {
-        analysisActions.removeSegmentFromCompare(url);
+        analysisActions.removeSegmentFromCompare(uniqueId);
     }
 }
 
-const getLoadStatusIcon = (cacheEntry) => {
-    if (!cacheEntry)
-        return html`<div
-            class="shrink-0 w-2.5 h-2.5 rounded-sm border border-gray-500 bg-gray-800"
-            title="Status: Not Loaded"
-        ></div>`;
-    if (cacheEntry.status === -1)
-        return html`<div
-            class="shrink-0 w-2.5 h-2.5 rounded-full bg-gray-500 animate-pulse"
-            title="Status: Pending"
-        ></div>`;
-    if (cacheEntry.status !== 200) {
+const getStatusIndicator = (cacheEntry, isFresh, seg) => {
+    let colorClass = 'border-gray-500'; // Default: Not loaded
+    let tooltip = 'Status: Not Loaded';
+    let pulse = false;
+
+    if (seg.gap) {
+        return html`<span
+            class="w-2.5 h-2.5 rounded-full bg-gray-700 border border-gray-600"
+            data-tooltip="Status: GAP Segment"
+        ></span>`;
+    }
+
+    if (cacheEntry?.status === -1) {
+        colorClass = 'bg-blue-500';
+        tooltip = 'Status: Loading';
+        pulse = true;
+    } else if (cacheEntry?.status !== 200 && cacheEntry) {
         const statusText =
             cacheEntry.status === 0
                 ? 'Network Error'
                 : `HTTP ${cacheEntry.status}`;
-        return html`<div
-            class="shrink-0 w-2.5 h-2.5 rounded-full bg-red-500"
-            title="Status: ${statusText}"
-        ></div>`;
+        colorClass = 'bg-red-500';
+        tooltip = `Status: Error (${statusText})`;
+    } else if (cacheEntry?.status === 200) {
+        if (isFresh) {
+            colorClass = 'bg-green-500';
+            tooltip = 'Status: Loaded';
+        } else {
+            colorClass = 'bg-gray-500';
+            tooltip = 'Status: Loaded (Stale)';
+        }
+    } else {
+        // Not loaded
+        if (isFresh === false) {
+            colorClass = 'bg-gray-700 border-gray-600';
+            tooltip = 'Status: Stale';
+        }
     }
-    return html`<div
-        class="shrink-0 w-2.5 h-2.5 rounded-full bg-green-500"
-        title="Status: Loaded OK"
-    ></div>`;
-};
 
-const getFreshnessIcon = (isFresh) => {
-    if (isFresh === null) return ''; // Not applicable for DASH
-    if (isFresh)
-        return html`<div
-            class="shrink-0 w-2.5 h-2.5 rounded-full bg-cyan-400"
-            title="Fresh: Segment is in the latest playlist"
-        ></div>`;
-    return html`<div
-        class="shrink-0 w-2.5 h-2.5 rounded-sm bg-gray-600"
-        title="Stale: Segment is no longer in the latest playlist"
-    ></div>`;
+    return html`<span
+        class="w-2.5 h-2.5 rounded-full ${colorClass} ${pulse
+            ? 'animate-pulse'
+            : ''}"
+        data-tooltip=${tooltip}
+    ></span>`;
 };
 
 const getActions = (cacheEntry, seg, isFresh, segmentFormat) => {
@@ -203,37 +212,62 @@ const getActions = (cacheEntry, seg, isFresh, segmentFormat) => {
         >`;
     }
 
+    const { contentType: inferredContentType } = inferMediaInfoFromExtension(
+        seg.resolvedUrl
+    );
+    // Correctly determine the format hint. Prioritize text, otherwise use stream's format, or null if unknown.
+    const formatHint =
+        inferredContentType === 'text'
+            ? 'vtt'
+            : segmentFormat === 'unknown'
+              ? null
+              : segmentFormat;
+
     const analyzeHandler = (e) => {
         const button = /** @type {HTMLElement} */ (e.currentTarget);
-        const url = button.dataset.url;
-        const format = button.dataset.format;
-        eventBus.dispatch('ui:request-segment-analysis', { url, format });
+        const uniqueId = button.dataset.uniqueId;
+        eventBus.dispatch('ui:request-segment-analysis', {
+            uniqueId,
+            format: formatHint,
+        });
     };
     const viewRawHandler = (e) => {
-        const url = /** @type {HTMLElement} */ (e.currentTarget).dataset.url;
-        analysisActions.setActiveSegmentUrl(url);
+        const uniqueId = /** @type {HTMLElement} */ (e.currentTarget).dataset
+            .uniqueId;
+        analysisActions.setActiveSegmentUrl(uniqueId);
         uiActions.setActiveTab('interactive-segment');
     };
     const loadHandler = (e) => {
-        const url = /** @type {HTMLElement} */ (e.currentTarget).dataset.url;
-        const format = /** @type {HTMLElement} */ (e.currentTarget).dataset
-            .format;
+        const uniqueId = /** @type {HTMLElement} */ (e.currentTarget).dataset
+            .uniqueId;
         if (seg.encryptionInfo) {
             keyManagerService.getKey(seg.encryptionInfo.uri).catch(() => {});
         }
-        eventBus.dispatch('segment:fetch', { url, format });
+        eventBus.dispatch('segment:fetch', {
+            uniqueId,
+            format: formatHint,
+        });
     };
 
+    // Case: Not yet loaded
     if (!cacheEntry) {
+        if (isFresh === false) {
+            // Stale and not loaded
+            return html`<span class="text-xs text-gray-500 italic"
+                >Unavailable</span
+            >`;
+        }
+        // Fresh (or static) and not loaded
         return html`<button
             @click=${loadHandler}
-            data-url="${seg.resolvedUrl}"
-            data-format="${segmentFormat}"
+            data-unique-id="${seg.uniqueId}"
             class="text-xs bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded"
         >
             Load
         </button>`;
     }
+
+    // Case: Currently loading
     if (cacheEntry.status === -1) {
         return html`<button
             disabled
@@ -242,32 +276,37 @@ const getActions = (cacheEntry, seg, isFresh, segmentFormat) => {
             Loading...
         </button>`;
     }
+
+    // Case: Load resulted in an error
     if (cacheEntry.status !== 200) {
-        return isFresh !== false
-            ? html`<button
-                  @click=${loadHandler}
-                  data-url="${seg.resolvedUrl}"
-                  data-format="${segmentFormat}"
-                  class="text-xs bg-yellow-600 hover:bg-yellow-700 px-2 py-1 rounded"
-              >
-                  Reload
-              </button>`
-            : html`<span class="text-xs text-gray-500 italic"
-                  >Stale Error</span
-              >`;
+        if (isFresh === false) {
+            // Stale, and previously had an error
+            return html`<span class="text-xs text-red-500/80 italic"
+                >Stale (Error)</span
+            >`;
+        }
+        // Fresh, but had an error. Allow reload.
+        return html`<button
+            @click=${loadHandler}
+            data-unique-id="${seg.uniqueId}"
+            class="text-xs bg-yellow-600 hover:bg-yellow-700 px-2 py-1 rounded"
+        >
+            Reload
+        </button>`;
     }
+
+    // Case: Loaded successfully
     return html`
         <button
             class="text-xs bg-gray-600 hover:bg-gray-700 px-2 py-1 rounded"
-            data-url="${seg.resolvedUrl}"
+            data-unique-id="${seg.uniqueId}"
             @click=${viewRawHandler}
         >
             View Raw
         </button>
         <button
             class="text-xs bg-purple-600 hover:bg-purple-700 px-2 py-1 rounded"
-            data-url="${seg.resolvedUrl}"
-            data-format="${segmentFormat}"
+            data-unique-id="${seg.uniqueId}"
             @click=${analyzeHandler}
         >
             Analyze
@@ -280,17 +319,23 @@ const cellLabel = (label) =>
         ${label}
     </div>`;
 
-export const segmentRowTemplate = (seg, isFresh, segmentFormat) => {
+export const segmentRowTemplate = (seg, freshSegmentUrls, segmentFormat) => {
     const { segmentsForCompare } = useAnalysisStore.getState();
     const { get: getFromCache } = useSegmentCacheStore.getState();
 
-    const cacheEntry = getFromCache(seg.resolvedUrl);
-    const isChecked = segmentsForCompare.includes(seg.resolvedUrl);
+    const cacheEntry = getFromCache(seg.uniqueId);
+    const isChecked = segmentsForCompare.includes(seg.uniqueId);
+
+    // An Init segment is never stale. Media segments are fresh if in the latest manifest.
+    const isFresh =
+        seg.type === 'Init' || freshSegmentUrls.has(seg.resolvedUrl);
+
+    const statusIndicator = getStatusIndicator(cacheEntry, isFresh, seg);
 
     const rowClasses = {
         'segment-row': true,
         'h-16': true,
-        'grid grid-cols-2 md:grid-cols-[32px_160px_128px_96px_112px_minmax(400px,auto)] items-center gap-y-2 p-2 md:p-0 border-b border-gray-700': true,
+        'grid grid-cols-2 md:grid-cols-[32px_180px_128px_96px_112px_minmax(400px,auto)] items-center gap-y-2 p-2 md:p-0 border-b border-gray-700': true,
         'hover:bg-gray-700/50 transition-colors duration-200': true,
         'bg-gray-800/50 text-gray-600 italic': seg.gap,
     };
@@ -319,7 +364,7 @@ export const segmentRowTemplate = (seg, isFresh, segmentFormat) => {
                 <input
                     type="checkbox"
                     class="bg-gray-700 border-gray-500 rounded focus:ring-blue-500 disabled:opacity-50"
-                    .value=${seg.resolvedUrl}
+                    .value=${seg.uniqueId}
                     ?checked=${isChecked}
                     ?disabled=${seg.gap}
                     @change=${handleSegmentCheck}
@@ -328,12 +373,13 @@ export const segmentRowTemplate = (seg, isFresh, segmentFormat) => {
 
             ${cellLabel('Status / Type')}
             <div
-                class="flex items-center space-x-2 md:px-3 md:py-1.5 md:border-r md:border-gray-700"
+                class="flex items-center space-x-3 md:px-3 md:py-1.5 md:border-r md:border-gray-700"
             >
-                ${seg.gap ? '' : getLoadStatusIcon(cacheEntry)}
-                ${getFreshnessIcon(isFresh)}
+                ${statusIndicator}
                 <div>
-                    <span>${seg.type === 'Init' ? 'Init' : 'Media'}</span>
+                    <span class="font-medium"
+                        >${seg.type === 'Init' ? 'Init' : 'Media'}</span
+                    >
                     <span class="block text-xs text-gray-500"
                         >#${seg.number}</span
                     >

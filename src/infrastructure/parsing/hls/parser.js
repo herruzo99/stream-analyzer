@@ -121,6 +121,8 @@ export async function parseManifest(
     let currentBitrate = null;
     let discontinuity = false;
     let isGap = false;
+    let currentByteRange = null;
+    let lastSeenUri = null;
 
     for (let i = 1; i < lines.length; i++) {
         const line = lines[i].trim();
@@ -138,11 +140,33 @@ export async function parseManifest(
                 tagValue = line.substring(separatorIndex + 1);
             }
 
+            // This is a temporary object to hold the parsed tag before it's pushed
+            let currentTag = {
+                name: tagName,
+                value: null,
+                lineNumber: i,
+            };
+
+            if (tagValue === null) {
+                currentTag.value = null;
+            } else if (tagValue.includes('=')) {
+                currentTag.value = parseAttributeList(tagValue);
+            } else {
+                const parts = tagValue.split(',');
+                currentTag.value =
+                    parts.length > 1 && !isNaN(parseFloat(parts[0]))
+                        ? tagValue
+                        : !isNaN(parseFloat(tagValue))
+                          ? parseFloat(tagValue)
+                          : tagValue;
+            }
+
             switch (tagName) {
-                case 'EXT-X-STREAM-INF': {
+                case 'EXT-X-STREAM-INF':
                     parsed.isMaster = true;
                     const attributes = parseAttributeList(tagValue);
                     const uri = lines[++i].trim();
+                    lastSeenUri = uri;
                     parsed.variants.push({
                         attributes,
                         uri,
@@ -150,7 +174,6 @@ export async function parseManifest(
                         lineNumber: i,
                     });
                     break;
-                }
                 case 'EXT-X-MEDIA':
                     parsed.isMaster = true;
                     parsed.media.push({
@@ -176,6 +199,7 @@ export async function parseManifest(
                         extinfLineNumber: i,
                         discontinuity,
                         encryptionInfo: currentEncryptionInfo,
+                        byteRange: currentByteRange,
                     };
                     if (discontinuity) {
                         currentSegment.flags.push('discontinuity');
@@ -186,6 +210,14 @@ export async function parseManifest(
                     discontinuity = false; // Consume the flag
                     break;
                 }
+                case 'EXT-X-BYTERANGE':
+                    {
+                        const [length, offset] = tagValue
+                            .split('@')
+                            .map((v) => parseInt(v, 10));
+                        currentByteRange = { length, offset: offset || null };
+                    }
+                    break;
                 case 'EXT-X-GAP':
                     isGap = true;
                     break;
@@ -195,51 +227,47 @@ export async function parseManifest(
                 case 'EXT-X-BITRATE':
                     currentBitrate = parseInt(tagValue, 10);
                     break;
-                case 'EXT-X-KEY': {
-                    const keyAttributes = parseAttributeList(tagValue);
-                    if (keyAttributes.METHOD === 'NONE') {
-                        currentEncryptionInfo = null;
-                    } else {
-                        currentEncryptionInfo = {
-                            method: /** @type {'AES-128'} */ (
-                                keyAttributes.METHOD
-                            ),
-                            uri: new URL(String(keyAttributes.URI), baseUrl)
-                                .href,
-                            iv: String(keyAttributes.IV || null),
-                            keyFormat: String(
-                                keyAttributes.KEYFORMAT || 'identity'
-                            ),
-                            keyFormatVersions: String(
-                                keyAttributes.KEYFORMATVERSIONS || '1'
-                            ),
-                        };
+                case 'EXT-X-KEY':
+                    {
+                        const keyAttributes = parseAttributeList(tagValue);
+                        if (keyAttributes.METHOD === 'NONE') {
+                            currentEncryptionInfo = null;
+                        } else {
+                            currentEncryptionInfo = {
+                                method: /** @type {'AES-128'} */ (
+                                    keyAttributes.METHOD
+                                ),
+                                uri: new URL(String(keyAttributes.URI), baseUrl)
+                                    .href,
+                                iv: String(keyAttributes.IV || null),
+                                keyFormat: String(
+                                    keyAttributes.KEYFORMAT || 'identity'
+                                ),
+                                keyFormatVersions: String(
+                                    keyAttributes.KEYFORMATVERSIONS || '1'
+                                ),
+                            };
+                        }
                     }
-                    // Fallthrough to add to tags array
-                }
-                // eslint-disable-next-line no-fallthrough
+                    break;
                 case 'EXT-X-MAP':
                     parsed.map = {
                         ...parseAttributeList(tagValue),
                         lineNumber: i,
                     };
-                // Fallthrough
-                // eslint-disable-next-line no-fallthrough
+                    break;
                 case 'EXT-X-PROGRAM-DATE-TIME':
                     if (currentSegment) {
                         currentSegment.dateTime = tagValue;
                         currentSegment.flags.push('pdt');
                     }
-                // Fallthrough
-                // eslint-disable-next-line no-fallthrough
+                    break;
                 case 'EXT-X-TARGETDURATION':
                     parsed.targetDuration = parseInt(tagValue, 10);
-                // Fallthrough
-                // eslint-disable-next-line no-fallthrough
+                    break;
                 case 'EXT-X-MEDIA-SEQUENCE':
                     parsed.mediaSequence = parseInt(tagValue, 10);
-                // Fallthrough
-                // eslint-disable-next-line no-fallthrough
+                    break;
                 case 'EXT-X-PLAYLIST-TYPE':
                     parsed.playlistType = tagValue;
                     if (tagValue === 'VOD') {
@@ -247,49 +275,33 @@ export async function parseManifest(
                     } else if (tagValue === 'EVENT') {
                         parsed.isLive = true;
                     }
-                // Fallthrough
-                // eslint-disable-next-line no-fallthrough
+                    break;
                 case 'EXT-X-ENDLIST':
-                    if (tagName === 'EXT-X-ENDLIST') parsed.isLive = false;
-                // Fallthrough
-                // eslint-disable-next-line no-fallthrough
+                    parsed.isLive = false;
+                    break;
                 case 'EXT-X-VERSION':
-                    if (tagName === 'EXT-X-VERSION')
-                        parsed.version = parseInt(tagValue, 10);
-                // Fallthrough
-                // eslint-disable-next-line no-fallthrough
+                    parsed.version = parseInt(tagValue, 10);
+                    break;
                 case 'EXT-X-PART-INF':
-                    if (tagName === 'EXT-X-PART-INF')
-                        parsed.partInf = parseAttributeList(tagValue);
-                // Fallthrough
-                // eslint-disable-next-line no-fallthrough
+                    parsed.partInf = parseAttributeList(tagValue);
+                    break;
                 case 'EXT-X-SERVER-CONTROL':
-                    if (tagName === 'EXT-X-SERVER-CONTROL')
-                        parsed.serverControl = parseAttributeList(tagValue);
-                // Fallthrough
-                // eslint-disable-next-line no-fallthrough
-                case 'EXT-X-PRELOAD-HINT': {
-                    if (tagName === 'EXT-X-PRELOAD-HINT') {
-                        parsed.preloadHints.push({
-                            ...parseAttributeList(tagValue),
-                            lineNumber: i,
-                        });
-                    }
-                    // Fallthrough
-                }
-                // eslint-disable-next-line no-fallthrough
-                case 'EXT-X-RENDITION-REPORT': {
-                    if (tagName === 'EXT-X-RENDITION-REPORT') {
-                        parsed.renditionReports.push({
-                            ...parseAttributeList(tagValue),
-                            lineNumber: i,
-                        });
-                    }
-                    // Fallthrough
-                }
-                // eslint-disable-next-line no-fallthrough
+                    parsed.serverControl = parseAttributeList(tagValue);
+                    break;
+                case 'EXT-X-PRELOAD-HINT':
+                    parsed.preloadHints.push({
+                        ...parseAttributeList(tagValue),
+                        lineNumber: i,
+                    });
+                    break;
+                case 'EXT-X-RENDITION-REPORT':
+                    parsed.renditionReports.push({
+                        ...parseAttributeList(tagValue),
+                        lineNumber: i,
+                    });
+                    break;
                 case 'EXT-X-PART':
-                    if (tagName === 'EXT-X-PART' && currentSegment) {
+                    if (currentSegment) {
                         const partAttrs = parseAttributeList(tagValue);
                         currentSegment.parts.push({
                             ...partAttrs,
@@ -298,42 +310,20 @@ export async function parseManifest(
                             lineNumber: i,
                         });
                     }
-                // Fallthrough
-                // eslint-disable-next-line no-fallthrough
-                default: {
-                    let value;
-                    if (tagValue === null) {
-                        value = null;
-                    } else if (tagValue.includes('=')) {
-                        value = parseAttributeList(tagValue);
-                    } else {
-                        // Check if it's a number after splitting by comma
-                        const parts = tagValue.split(',');
-                        value =
-                            parts.length > 1 && !isNaN(parseFloat(parts[0]))
-                                ? tagValue // Keep comma-separated values as string for now
-                                : !isNaN(parseFloat(tagValue))
-                                  ? parseFloat(tagValue)
-                                  : tagValue;
-                    }
-
-                    if (currentSegment) {
-                        currentSegment.tags.push({
-                            name: tagName,
-                            value,
-                            lineNumber: i,
-                        });
-                    } else {
-                        parsed.tags.push({
-                            name: tagName,
-                            value,
-                            lineNumber: i,
-                        });
-                    }
                     break;
-                }
+                default:
+                    // This is where unhandled tags are stored
+                    break;
+            }
+
+            // Always add the raw tag to the tags array for full traceability
+            if (currentSegment) {
+                currentSegment.tags.push(currentTag);
+            } else {
+                parsed.tags.push(currentTag);
             }
         } else if (!line.startsWith('#')) {
+            lastSeenUri = line;
             if (currentSegment) {
                 currentSegment.uri = line;
                 currentSegment.resolvedUrl = new URL(line, baseUrl).href;
@@ -343,8 +333,34 @@ export async function parseManifest(
                     currentSegment.flags.push('gap');
                     isGap = false; // consume it
                 }
+                const rangeStr = currentSegment.byteRange
+                    ? `@${currentSegment.byteRange.offset || 0}-${
+                          currentSegment.byteRange.length
+                      }`
+                    : '';
+                currentSegment.uniqueId = `${currentSegment.resolvedUrl}${rangeStr}`;
                 parsed.segments.push(currentSegment);
                 currentSegment = null;
+                // ByteRange applies only to the next segment
+                if (currentByteRange) {
+                    currentByteRange = null;
+                }
+            }
+        } else if (currentSegment && lastSeenUri) {
+            // This is a byte-range segment without its own URI line
+            currentSegment.uri = lastSeenUri;
+            currentSegment.resolvedUrl = new URL(lastSeenUri, baseUrl).href;
+            currentSegment.uriLineNumber = i; // Best guess
+            const rangeStr = currentSegment.byteRange
+                ? `@${currentSegment.byteRange.offset || 0}-${
+                      currentSegment.byteRange.length
+                  }`
+                : '';
+            currentSegment.uniqueId = `${currentSegment.resolvedUrl}${rangeStr}`;
+            parsed.segments.push(currentSegment);
+            currentSegment = null;
+            if (currentByteRange) {
+                currentByteRange = null;
             }
         }
     }

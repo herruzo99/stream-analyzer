@@ -68,10 +68,7 @@ export function setupGlobalTooltipListener(dom) {
 
         // 3. Clamp horizontal position to stay within viewport "guardrails"
         left = Math.max(MARGIN, left); // Prevent clipping on the left
-        left = Math.min(
-            left,
-            window.innerWidth - tooltipRect.width - MARGIN
-        ); // Prevent clipping on the right
+        left = Math.min(left, window.innerWidth - tooltipRect.width - MARGIN); // Prevent clipping on the right
 
         dom.globalTooltip.style.left = `${left}px`;
         dom.globalTooltip.style.top = `${top}px`;

@@ -23,15 +23,15 @@ import { uiActions } from './uiStore.js';
  * @property {() => void} startAnalysis
  * @property {(streams: Stream[]) => void} completeAnalysis
  * @property {(streamId: number) => void} setActiveStreamId
- * @property {(url: string) => void} setActiveSegmentUrl
+ * @property {(id: string) => void} setActiveSegmentUrl
  * @property {() => void} addStreamInput
  * @property {(id: number) => void} removeStreamInput
  * @property {() => void} clearAllStreamInputs
  * @property {(data: object[]) => void} setStreamInputs
  * @property {(id: number, field: keyof StreamInput, value: string | File | null) => void} updateStreamInput
  * @property {(id: number, url: string, name: string) => void} populateStreamInput
- * @property {(url: string) => void} addSegmentToCompare
- * @property {(url: string) => void} removeSegmentFromCompare
+ * @property {(id: string) => void} addSegmentToCompare
+ * @property {(id: string) => void} removeSegmentFromCompare
  * @property {() => void} clearSegmentsToCompare
  * @property {(streamId: number, updatedStreamData: Partial<Stream>) => void} updateStream
  * @property {(isPolling: boolean, options?: { fromInactivity?: boolean }) => void} setAllLiveStreamsPolling
@@ -80,6 +80,7 @@ export const useAnalysisStore = createStore((set, get) => ({
                 wasStoppedByInactivity: false,
                 activeMediaPlaylistUrl: null,
                 inbandEvents: [],
+                adAvails: [],
                 mediaPlaylists:
                     s.protocol === 'hls' && s.manifest?.isMaster
                         ? new Map([
@@ -96,12 +97,14 @@ export const useAnalysisStore = createStore((set, get) => ({
             })),
             activeStreamId: streams[0]?.id ?? null,
         });
-        eventBus.dispatch('state:analysis-complete', { streams });
+        eventBus.dispatch('state:analysis-complete', {
+            streams: get().streams,
+        });
     },
 
     setActiveStreamId: (streamId) => set({ activeStreamId: streamId }),
-    setActiveSegmentUrl: (url) => {
-        set({ activeSegmentUrl: url });
+    setActiveSegmentUrl: (id) => {
+        set({ activeSegmentUrl: id });
         uiActions.setInteractiveSegmentPage(1);
     },
 
@@ -162,23 +165,20 @@ export const useAnalysisStore = createStore((set, get) => ({
         }));
     },
 
-    addSegmentToCompare: (url) => {
+    addSegmentToCompare: (id) => {
         const { segmentsForCompare } = get();
-        if (
-            segmentsForCompare.length < 2 &&
-            !segmentsForCompare.includes(url)
-        ) {
-            set({ segmentsForCompare: [...segmentsForCompare, url] });
+        if (segmentsForCompare.length < 2 && !segmentsForCompare.includes(id)) {
+            set({ segmentsForCompare: [...segmentsForCompare, id] });
             eventBus.dispatch('state:compare-list-changed', {
                 count: get().segmentsForCompare.length,
             });
         }
     },
 
-    removeSegmentFromCompare: (url) => {
+    removeSegmentFromCompare: (id) => {
         set((state) => ({
             segmentsForCompare: state.segmentsForCompare.filter(
-                (u) => u !== url
+                (i) => i !== id
             ),
         }));
         eventBus.dispatch('state:compare-list-changed', {
@@ -199,20 +199,26 @@ export const useAnalysisStore = createStore((set, get) => ({
         }));
         eventBus.dispatch('state:stream-updated', { streamId });
     },
-    
+
     addInbandEvents: (streamId, events) => {
         if (!events || events.length === 0) return;
         set((state) => {
             const newStreams = state.streams.map((s) => {
                 if (s.id === streamId) {
-                    const newInbandEvents = [...(s.inbandEvents || []), ...events];
+                    const newInbandEvents = [
+                        ...(s.inbandEvents || []),
+                        ...events,
+                    ];
                     return { ...s, inbandEvents: newInbandEvents };
                 }
                 return s;
             });
             return { streams: newStreams };
         });
-        eventBus.dispatch('state:inband-events-added', { streamId, newEvents: events });
+        eventBus.dispatch('state:inband-events-added', {
+            streamId,
+            newEvents: events,
+        });
     },
 
     setAllLiveStreamsPolling: (isPolling, options = {}) => {
@@ -321,8 +327,8 @@ export const analysisActions = {
         useAnalysisStore.getState().completeAnalysis(streams),
     setActiveStreamId: (id) =>
         useAnalysisStore.getState().setActiveStreamId(id),
-    setActiveSegmentUrl: (url) =>
-        useAnalysisStore.getState().setActiveSegmentUrl(url),
+    setActiveSegmentUrl: (id) =>
+        useAnalysisStore.getState().setActiveSegmentUrl(id),
     addStreamInput: () => useAnalysisStore.getState().addStreamInput(),
     removeStreamInput: (id) =>
         useAnalysisStore.getState().removeStreamInput(id),
@@ -334,10 +340,10 @@ export const analysisActions = {
         useAnalysisStore.getState().updateStreamInput(id, field, value),
     populateStreamInput: (id, url, name) =>
         useAnalysisStore.getState().populateStreamInput(id, url, name),
-    addSegmentToCompare: (url) =>
-        useAnalysisStore.getState().addSegmentToCompare(url),
-    removeSegmentFromCompare: (url) =>
-        useAnalysisStore.getState().removeSegmentFromCompare(url),
+    addSegmentToCompare: (id) =>
+        useAnalysisStore.getState().addSegmentToCompare(id),
+    removeSegmentFromCompare: (id) =>
+        useAnalysisStore.getState().removeSegmentFromCompare(id),
     clearSegmentsToCompare: () =>
         useAnalysisStore.getState().clearSegmentsToCompare(),
     updateStream: (id, data) =>

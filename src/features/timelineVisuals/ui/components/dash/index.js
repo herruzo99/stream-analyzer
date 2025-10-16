@@ -35,7 +35,7 @@ const renderEvents = (
     const filteredEvents = events.filter(
         (e) =>
             !e.scte35 ||
-            !adAvailIds.has(e.scte35.descriptors?.[0]?.segmentation_event_id)
+            !adAvailIds.has(String(e.scte35.splice_command.splice_event_id))
     );
 
     return filteredEvents.map((event) => {
