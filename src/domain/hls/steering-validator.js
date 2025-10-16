@@ -1,3 +1,5 @@
+import { fetchWithRetry } from '@/application/utils/fetch';
+
 /**
  * @typedef {object} SteeringValidationResult
  * @property {boolean} isValid - Whether the steering manifest is structurally valid.
@@ -18,7 +20,7 @@ export async function validateSteeringManifest(serverUri) {
     };
 
     try {
-        const response = await fetch(serverUri);
+        const response = await fetchWithRetry(serverUri);
         if (!response.ok) {
             throw new Error(
                 `HTTP ${response.status} fetching steering manifest`

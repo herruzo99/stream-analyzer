@@ -12,6 +12,7 @@ import { getIntegratorsReportTemplate } from '@/features/integratorsReport/ui/in
 import { getTimelineAndVisualsTemplate } from '@/features/timelineVisuals/ui/index';
 import { getFeaturesAnalysisTemplate } from '@/features/featureAnalysis/ui/index';
 import { getComplianceReportTemplate } from '@/features/compliance/ui/index';
+import { getAdvertisingReportTemplate } from '@/features/advertising/ui/index';
 import { getSegmentExplorerTemplate } from '@/features/segmentExplorer/ui/index';
 import { getInteractiveSegmentTemplate } from '@/features/interactiveSegment/ui/index';
 import { getInteractiveManifestTemplate } from '@/features/interactiveManifest/ui/index';
@@ -67,6 +68,9 @@ const renderMainContent = (activeStream, activeTab) => {
             case 'integrators-report':
                 mainContentTemplate =
                     getIntegratorsReportTemplate(activeStream);
+                break;
+            case 'advertising':
+                mainContentTemplate = getAdvertisingReportTemplate(activeStream);
                 break;
             case 'features':
                 mainContentTemplate = getFeaturesAnalysisTemplate(activeStream);

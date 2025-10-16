@@ -8,6 +8,35 @@ import { getDrmSystemName } from '@/infrastructure/parsing/utils/drm';
 import { copyTextToClipboard } from '@/ui/shared/clipboard';
 import { eventBus } from '@/application/event-bus';
 import { useAnalysisStore } from '@/state/analysisStore';
+import { findChildrenRecursive, getAttr } from '@/infrastructure/parsing/dash/recursive-parser';
+
+const programInfoTemplate = (stream) => {
+    const programInfo = stream.manifest.programInformations?.[0];
+    if (!programInfo || (!programInfo.title && !programInfo.source && !programInfo.copyright)) {
+        return '';
+    }
+
+    return html`
+        <div class="mb-8 p-4 bg-gray-800 rounded-lg border border-gray-700">
+            <h3 class="text-xl font-bold mb-3">Program Information</h3>
+            <dl class="grid gap-x-4 gap-y-2 grid-cols-[auto_1fr] text-sm">
+                ${programInfo.title ? html`
+                    <dt class="text-gray-400 font-semibold">Title:</dt>
+                    <dd class="text-gray-200">${programInfo.title}</dd>
+                ` : ''}
+                ${programInfo.source ? html`
+                    <dt class="text-gray-400 font-semibold">Source:</dt>
+                    <dd class="text-gray-200">${programInfo.source}</dd>
+                ` : ''}
+                ${programInfo.copyright ? html`
+                    <dt class="text-gray-400 font-semibold">Copyright:</dt>
+                    <dd class="text-gray-200">${programInfo.copyright}</dd>
+                ` : ''}
+            </dl>
+        </div>
+    `;
+};
+
 
 const profilesCardTemplate = (stream) => {
     const { manifest } = stream;
@@ -135,19 +164,19 @@ const serviceDescriptionTemplate = (stream) => {
             >
                 ${statCardTemplate(
                     'Target Latency',
-                    latency.target ? `${latency.target}ms` : 'N/A',
+                    latency.target ? `${latency.target}ms` : null,
                     'The service provider’s preferred presentation latency.',
                     'DASH: K.3.2'
                 )}
                 ${statCardTemplate(
                     'Min Latency',
-                    latency.min ? `${latency.min}ms` : 'N/A',
+                    latency.min ? `${latency.min}ms` : null,
                     'The service provider’s indicated minimum presentation latency.',
                     'DASH: K.3.2'
                 )}
                 ${statCardTemplate(
                     'Max Latency',
-                    latency.max ? `${latency.max}ms` : 'N/A',
+                    latency.max ? `${latency.max}ms` : null,
                     'The service provider’s indicated maximum presentation latency.',
                     'DASH: K.3.2'
                 )}
@@ -195,20 +224,18 @@ const protectionSystemTemplate = (psshInfo) => {
 };
 
 const contentProtectionTemplate = (security) => {
-    if (!security || !security.isEncrypted) {
-        return statCardTemplate(
-            'Encryption',
-            'No',
-            'No content protection descriptors were found.',
-            'DASH: 5.8.4.1'
-        );
-    }
     return html`
         <div>
             <h3 class="text-xl font-bold mb-4">Content Protection</h3>
-            <div class="space-y-4">
-                ${security.systems.map(protectionSystemTemplate)}
+            <div class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(280px,1fr))]">
+                ${statCardTemplate('Encryption', security?.isEncrypted ?? false, 'Indicates if the stream is encrypted.', 'DASH: 5.8.4.1')}
             </div>
+            ${(security?.isEncrypted && security.systems.length > 0)
+                ? html`<div class="space-y-4 mt-4">
+                           ${security.systems.map(protectionSystemTemplate)}
+                       </div>`
+                : ''
+            }
         </div>
     `;
 };
@@ -218,8 +245,12 @@ export function getDashSummaryTemplate(stream) {
     const { activeStreamId } = useAnalysisStore.getState();
     const isLive = stream.manifest.type === 'dynamic';
 
+    const utcTimingEl = findChildrenRecursive(stream.manifest.serializedManifest, 'UTCTiming')[0];
+    const utcTimingValue = utcTimingEl ? `${getAttr(utcTimingEl, 'schemeIdUri')?.split(':').pop()} @ ${getAttr(utcTimingEl, 'value')}` : null;
+
     return html`
         <div class="space-y-8">
+            ${programInfoTemplate(stream)}
             <!-- General Section -->
             <div>
                 <div class="flex justify-between items-center mb-4">
@@ -245,21 +276,19 @@ export function getDashSummaryTemplate(stream) {
                         'The container format for media segments.',
                         'DASH: 5.3.7'
                     )}
-                    ${!isLive
-                        ? statCardTemplate(
-                              'Media Duration',
-                              summary.general.duration
-                                  ? `${summary.general.duration.toFixed(2)}s`
-                                  : 'N/A',
-                              'The total duration of the content.',
-                              'DASH: 5.3.1.2'
-                          )
-                        : ''}
+                    ${statCardTemplate(
+                          'Media Duration',
+                          summary.general.duration
+                              ? `${summary.general.duration.toFixed(2)}s`
+                              : null,
+                          'The total duration of the content.',
+                          'DASH: 5.3.1.2'
+                    )}
                     ${statCardTemplate(
                         'Max Segment Duration',
                         summary.dash.maxSegmentDuration
                             ? `${summary.dash.maxSegmentDuration.toFixed(2)}s`
-                            : 'N/A',
+                            : null,
                         'The maximum duration of any segment in the presentation.',
                         'DASH: 5.3.1.2'
                     )}
@@ -270,7 +299,7 @@ export function getDashSummaryTemplate(stream) {
                                   ? `${summary.dash.timeShiftBufferDepth.toFixed(
                                         2
                                     )}s`
-                                  : 'N/A',
+                                  : null,
                               'The duration of the time-shifting buffer (DVR window).',
                               'DASH: 5.3.1.2'
                           )
@@ -282,11 +311,18 @@ export function getDashSummaryTemplate(stream) {
                                   ? `${summary.dash.minimumUpdatePeriod.toFixed(
                                         2
                                     )}s`
-                                  : 'N/A',
+                                  : null,
                               'Minimum time a client should wait before requesting an updated MPD.',
                               'DASH: 5.3.1.2'
                           )
                         : ''}
+                    ${isLive
+                        ? statCardTemplate(
+                            'UTC Timing Source',
+                            utcTimingValue,
+                            'Provides a clock synchronization source for clients.',
+                            'DASH: 5.8.4.11'
+                        ) : ''}
                 </dl>
                 <div class="mt-4">${profilesCardTemplate(stream)}</div>
             </div>

@@ -101,8 +101,8 @@ export function createComparisonViewModel(streams) {
             ),
         },
         {
-            label: 'Video Bitrate Range',
-            tooltip: 'Min and Max bandwidth values for video.',
+            label: 'Declared Bitrate Range',
+            tooltip: 'Min and Max bandwidth values for video from the @bandwidth attribute.',
             isoRef: 'DASH: 5.3.5.2 / HLS: 4.3.4.2',
             values: streams.map((s) => {
                 const tracks = s.manifest?.summary.videoTracks;
@@ -123,6 +123,18 @@ export function createComparisonViewModel(streams) {
                     : 'kbps';
 
                 return `${min} - ${max} ${unit}`;
+            }),
+        },
+        {
+            label: 'VBR Model Used',
+            tooltip: 'Indicates if any video representation uses the ExtendedBandwidth model for more accurate VBR reporting.',
+            isoRef: 'DASH: 5.3.5.6',
+            values: streams.map((s) => {
+                const hasVbr = s.manifest?.periods
+                    .flatMap(p => p.adaptationSets)
+                    .flatMap(as => as.representations)
+                    .some(rep => rep.extendedBandwidth);
+                return hasVbr ? 'Yes' : 'No';
             }),
         },
         {
@@ -262,15 +274,15 @@ export function createComparisonViewModel(streams) {
         },
         {
             title: 'Video Details',
-            points: points.slice(7, 11),
+            points: points.slice(7, 12), // Adjusted slice to include new item
         },
         {
             title: 'Audio Details',
-            points: points.slice(11, 14),
+            points: points.slice(12, 15),
         },
         {
             title: 'Accessibility & Metadata',
-            points: points.slice(14, 18),
+            points: points.slice(15, 19),
         },
     ];
 

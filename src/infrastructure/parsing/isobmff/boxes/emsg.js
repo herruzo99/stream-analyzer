@@ -1,4 +1,5 @@
 import { BoxParser } from '../utils.js';
+import { parseScte35 } from '../../scte35/parser.js';
 
 /**
  * Parses the 'emsg' (Event Message) box.
@@ -30,7 +31,22 @@ export function parseEmsg(box, view) {
 
     const remainingBytes = box.size - p.offset;
     if (remainingBytes > 0) {
-        p.skip(remainingBytes, 'message_data');
+        const messageData = new Uint8Array(
+            p.view.buffer,
+            p.view.byteOffset + p.offset,
+            remainingBytes
+        );
+
+        box.details['message_data'] = {
+            value: `${remainingBytes} bytes`,
+            offset: box.offset + p.offset,
+            length: remainingBytes,
+        };
+
+        if (box.details.scheme_id_uri?.value.includes('scte35')) {
+            box.scte35 = parseScte35(messageData);
+        }
+        p.offset += remainingBytes;
     }
 
     p.finalize();

@@ -4,6 +4,7 @@ import { uiActions } from './uiStore.js';
 // --- Type Definitions ---
 /** @typedef {import('@/types.ts').Stream} Stream */
 /** @typedef {import('@/types.ts').DecodedSample} DecodedSample */
+/** @typedef {import('@/types.ts').Event} Event */
 /** @typedef {{id: number, url: string, name: string, file: File | null}} StreamInput */
 
 /**
@@ -36,6 +37,7 @@ import { uiActions } from './uiStore.js';
  * @property {(isPolling: boolean, options?: { fromInactivity?: boolean }) => void} setAllLiveStreamsPolling
  * @property {(streamId: number, direction: number) => void} navigateManifestUpdate
  * @property {(payload: {streamId: number, variantUri: string, manifest: object, manifestString: string, segments: object[], freshSegmentUrls: string[]}) => void} updateHlsMediaPlaylist
+ * @property {(streamId: number, events: Event[]) => void} addInbandEvents
  */
 
 // --- Main Analysis Store Definition ---
@@ -77,6 +79,7 @@ export const useAnalysisStore = createStore((set, get) => ({
                 ...s,
                 wasStoppedByInactivity: false,
                 activeMediaPlaylistUrl: null,
+                inbandEvents: [],
                 mediaPlaylists:
                     s.protocol === 'hls' && s.manifest?.isMaster
                         ? new Map([
@@ -195,6 +198,21 @@ export const useAnalysisStore = createStore((set, get) => ({
             ),
         }));
         eventBus.dispatch('state:stream-updated', { streamId });
+    },
+    
+    addInbandEvents: (streamId, events) => {
+        if (!events || events.length === 0) return;
+        set((state) => {
+            const newStreams = state.streams.map((s) => {
+                if (s.id === streamId) {
+                    const newInbandEvents = [...(s.inbandEvents || []), ...events];
+                    return { ...s, inbandEvents: newInbandEvents };
+                }
+                return s;
+            });
+            return { streams: newStreams };
+        });
+        eventBus.dispatch('state:inband-events-added', { streamId, newEvents: events });
     },
 
     setAllLiveStreamsPolling: (isPolling, options = {}) => {
@@ -332,4 +350,6 @@ export const analysisActions = {
         useAnalysisStore.getState().navigateManifestUpdate(id, dir),
     updateHlsMediaPlaylist: (payload) =>
         useAnalysisStore.getState().updateHlsMediaPlaylist(payload),
+    addInbandEvents: (streamId, events) =>
+        useAnalysisStore.getState().addInbandEvents(streamId, events),
 };

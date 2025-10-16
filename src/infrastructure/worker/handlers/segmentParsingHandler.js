@@ -3,6 +3,7 @@ import { parse as parseTsSegment } from '@/infrastructure/parsing/ts/index';
 import { parseVTT } from '@/infrastructure/parsing/vtt/parser';
 import { debugLog } from '@/application/utils/debug';
 import { boxParsers } from '@/infrastructure/parsing/isobmff/index';
+import { fetchWithRetry } from '@/application/utils/fetch';
 
 // --- Programmatic Color Generation ---
 
@@ -413,6 +414,42 @@ export async function handleParseSegmentStructure({ url, data, formatHint }) {
         const samples = buildCanonicalSampleList(parsedData);
         decorateSamples(samples, parsedData);
         parsedData.samples = samples;
+
+        // --- SCTE-35 Event Transformation ---
+        if (parsedData.data.events && parsedData.data.events.length > 0) {
+            const canonicalEvents = parsedData.data.events
+                .map((emsgBox) => {
+                    if (emsgBox.scte35) {
+                        const timescale = emsgBox.details.timescale.value;
+                        const presentationTime =
+                            emsgBox.details.presentation_time?.value ??
+                            emsgBox.details.presentation_time_delta?.value ??
+                            0;
+                        const eventDuration =
+                            emsgBox.details.event_duration.value;
+
+                        if (timescale === 0) return null; // Avoid division by zero
+
+                        // For DASH, emsg version 1 `presentation_time` is on the MPD timeline.
+                        // We do not need to adjust it with tfdt for this purpose.
+                        return {
+                            startTime: presentationTime / timescale,
+                            duration: eventDuration / timescale,
+                            message: `SCTE-35 Signal (ID: ${emsgBox.details.id.value})`,
+                            type: 'scte35-inband',
+                            scte35: emsgBox.scte35,
+                            messageData: null, // Raw message data is not needed by the use case
+                            cue: null,
+                        };
+                    }
+                    return null;
+                })
+                .filter(Boolean);
+
+            // Overwrite the raw emsg boxes with canonical event objects
+            parsedData.data.events = canonicalEvents;
+        }
+        // --- End SCTE-35 Transformation ---
     } else if (parsedData.format === 'ts' && parsedData.data.packets) {
         assignTsPacketColors(parsedData.data.packets);
     }
@@ -555,7 +592,7 @@ export async function handleFetchKey({ uri }) {
         return bytes.buffer;
     }
 
-    const response = await fetch(uri);
+    const response = await fetchWithRetry(uri);
     if (!response.ok) {
         throw new Error(`HTTP error ${response.status} fetching key`);
     }
@@ -568,7 +605,7 @@ export async function handleDecryptAndParseSegment({
     iv,
     formatHint,
 }) {
-    const response = await fetch(url);
+    const response = await fetchWithRetry(url);
     if (!response.ok) {
         throw new Error(`HTTP error ${response.status} fetching segment`);
     }

@@ -183,6 +183,60 @@ export interface AdaptationSet {
     serializedManifest: object;
 }
 
+// --- SCTE-35 Type Definitions ---
+export interface Scte35SpliceTime {
+    time_specified: boolean;
+    pts_time?: number;
+}
+
+export interface Scte35BreakDuration {
+    auto_return: boolean;
+    duration: number;
+}
+
+export interface Scte35SpliceCommand {
+    type: 'Splice Insert' | 'Time Signal' | 'Splice Null' | 'Splice Schedule' | 'Bandwidth Reservation' | 'Private Command' | 'Unsupported';
+    splice_event_id?: number;
+    splice_event_cancel_indicator?: number;
+    out_of_network_indicator?: number;
+    program_splice_flag?: number;
+    duration_flag?: number;
+    splice_immediate_flag?: number;
+    splice_time?: Scte35SpliceTime;
+    break_duration?: Scte35BreakDuration;
+    unique_program_id?: number;
+    avail_num?: number;
+    avails_expected?: number;
+}
+
+export interface Scte35SegmentationDescriptor {
+    segmentation_event_id: number;
+    segmentation_event_cancel_indicator: number;
+    program_segmentation_flag?: number;
+    segmentation_duration_flag?: number;
+    delivery_not_restricted_flag?: number;
+    segmentation_duration?: number;
+    segmentation_upid_type?: number;
+    segmentation_upid?: string;
+    segmentation_type_id?: string;
+    segment_num?: number;
+    segments_expected?: number;
+}
+
+export interface Scte35SpliceInfoSection {
+    table_id: number;
+    protocol_version: number;
+    pts_adjustment: number;
+    cw_index: number;
+    tier: number;
+    splice_command_type: string;
+    splice_command: Scte35SpliceCommand;
+    descriptors: Scte35SegmentationDescriptor[];
+    crc_32: number;
+    error?: string;
+}
+// --- End SCTE-35 Type Definitions ---
+
 export interface Event {
     startTime: number;
     duration: number;
@@ -190,7 +244,7 @@ export interface Event {
     messageData: string | null;
     type: string;
     cue: string | null;
-    scte35?: object;
+    scte35?: Scte35SpliceInfoSection | { error: string };
 }
 
 export interface EventStream {
@@ -518,6 +572,26 @@ export interface DecodedAacFrame {
 
 export type DecodedSample = DecodedH264Sample | DecodedAacFrame;
 
+// This is the TypeScript interface for the JSDoc @typedef in parser.js
+export interface Box {
+    type: string;
+    size: number;
+    offset: number;
+    contentOffset: number;
+    headerSize: number;
+    details: Record<string, { value: any; offset: number; length: number }>;
+    children: Box[];
+    samples?: object[];
+    entries?: any[];
+    issues?: { type: 'error' | 'warn'; message: string }[];
+    isChunk?: boolean;
+    color?: object;
+    systemId?: string;
+    kids?: string[];
+    data?: string;
+    scte35?: object; // Added to fix the TS error
+}
+
 export interface Stream {
     id: number;
     name: string;
@@ -540,6 +614,7 @@ export interface Stream {
     semanticData: Map<string, any>;
     coverageReport?: CoverageFinding[];
     adAvails?: AdAvail[];
+    inbandEvents?: Event[];
 }
 
 export type SerializedStream = Omit<
@@ -584,7 +659,7 @@ export interface AdAvail {
     id: string;
     startTime: number;
     duration: number;
-    scte35Signal: object;
+    scte35Signal: Scte35SpliceInfoSection | { error: string };
     adManifestUrl: string | null;
     creatives: AdCreative[];
 }

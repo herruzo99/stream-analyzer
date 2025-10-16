@@ -91,7 +91,7 @@ function checkForNewIssues(oldResults, newResults) {
  * The main handler for processing a live manifest update.
  * @param {object} updateData The event data from `livestream:manifest-updated`.
  */
-function processLiveUpdate(updateData) {
+async function processLiveUpdate(updateData) {
     const {
         streamId,
         newManifestString,
@@ -150,42 +150,39 @@ function processLiveUpdate(updateData) {
 
     if (stream.protocol === 'dash') {
         newDashState = new Map(stream.dashRepresentationState);
-        const newSegmentsByCompositeKey = parseDashSegments(
+        const newSegmentsByCompositeKey = await parseDashSegments(
             serializedManifest,
             stream.baseUrl
         );
-        Object.entries(newSegmentsByCompositeKey).forEach(
-            ([compositeKey, newSegments]) => {
-                const repState = newDashState.get(compositeKey);
-                if (repState) {
-                    const existingUrls = new Set(
-                        repState.segments.map(
-                            (s) => /** @type {any} */ (s).resolvedUrl
+        for (const [compositeKey, data] of Object.entries(
+            newSegmentsByCompositeKey
+        )) {
+            const newSegments = data.segments || [];
+            const repState = newDashState.get(compositeKey);
+            if (repState) {
+                const existingUrls = new Set(
+                    repState.segments.map((s) => /** @type {any} */ (s).resolvedUrl)
+                );
+                const newlyAddedSegments = [];
+                for (const newSeg of newSegments) {
+                    if (
+                        !existingUrls.has(
+                            /** @type {any} */ (newSeg).resolvedUrl
                         )
-                    );
-                    const newlyAddedSegments = [];
-                    newSegments.forEach((newSeg) => {
-                        if (
-                            !existingUrls.has(
-                                /** @type {any} */ (newSeg).resolvedUrl
-                            )
-                        ) {
-                            newlyAddedSegments.push(newSeg);
-                        }
-                    });
-
-                    if (newlyAddedSegments.length > 0) {
-                        repState.segments.push(...newlyAddedSegments);
-                        segmentsWereUpdated = true;
+                    ) {
+                        newlyAddedSegments.push(newSeg);
                     }
-                    repState.freshSegmentUrls = new Set(
-                        newSegments.map(
-                            (s) => /** @type {any} */ (s).resolvedUrl
-                        )
-                    );
                 }
+
+                if (newlyAddedSegments.length > 0) {
+                    repState.segments.push(...newlyAddedSegments);
+                    segmentsWereUpdated = true;
+                }
+                repState.freshSegmentUrls = new Set(
+                    newSegments.map((s) => /** @type {any} */ (s).resolvedUrl)
+                );
             }
-        );
+        }
     } else {
         newHlsState = new Map(stream.hlsVariantState);
         if (!newManifestObject.isMaster) {
