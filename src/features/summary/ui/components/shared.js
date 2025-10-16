@@ -18,14 +18,18 @@ const renderSourcedValue = (sourcedData) => {
               >`
             : ''}`;
     }
-    
+
     if (typeof sourcedData === 'boolean') {
         return sourcedData
             ? html`<span class="text-green-400 font-semibold">Yes</span>`
             : html`<span class="text-gray-400">No</span>`;
     }
 
-    if (sourcedData === null || sourcedData === undefined || sourcedData === '') {
+    if (
+        sourcedData === null ||
+        sourcedData === undefined ||
+        sourcedData === ''
+    ) {
         return html`<span class="text-gray-500">N/A</span>`;
     }
 
@@ -34,8 +38,12 @@ const renderSourcedValue = (sourcedData) => {
 
 const renderCodecInfo = (codecInfo) => {
     const supportedIcon = codecInfo.supported
-        ? html`<span class="inline-block ml-2 shrink-0">${icons.checkCircle}</span>`
-        : html`<span class="inline-block ml-2 shrink-0">${icons.xCircle}</span>`;
+        ? html`<span class="inline-block ml-2 shrink-0"
+              >${icons.checkCircle}</span
+          >`
+        : html`<span class="inline-block ml-2 shrink-0"
+              >${icons.xCircle}</span
+          >`;
 
     return html`<div class="flex items-center">
         ${renderSourcedValue(codecInfo)}${supportedIcon}
@@ -50,7 +58,7 @@ export const statCardTemplate = (
     customClasses = ''
 ) => {
     const testId = `stat-card-${label.toLowerCase().replace(/[\s/]+/g, '-')}`;
-    
+
     // The card is now always rendered. The renderSourcedValue function handles the display logic for different value types.
     return html`
         <div
@@ -142,24 +150,51 @@ export const trackTableTemplate = (tracks, type) => {
             } else if (!codecs) {
                 codecs = [];
             }
-            
+
             const extendedBw = track.extendedBandwidth;
             const bandwidthModelCell = extendedBw
-                ? html`
-                    <div class="flex items-center">
-                        <span class="font-semibold text-yellow-300">VBR</span>
-                        <span class="${tooltipTriggerClasses} ml-2 text-cyan-400 cursor-help"
-                              data-tooltip="VBR Model Pairs: ${extendedBw.modelPairs.map(p => `[${p.bufferTime}s: ${formatBitrate(p.bandwidth)}]`).join(', ')}">
-                            &#9432;
-                        </span>
-                    </div>`
+                ? html` <div class="flex items-center">
+                      <span class="font-semibold text-yellow-300">VBR</span>
+                      <span
+                          class="${tooltipTriggerClasses} ml-2 text-cyan-400 cursor-help"
+                          data-tooltip="VBR Model Pairs: ${extendedBw.modelPairs
+                              .map(
+                                  (p) =>
+                                      `[${p.bufferTime}s: ${formatBitrate(p.bandwidth)}]`
+                              )
+                              .join(', ')}"
+                      >
+                          &#9432;
+                      </span>
+                  </div>`
                 : html`<span class="text-gray-400">CBR</span>`;
 
             const relationshipsCell = html`
                 <div class="flex items-center gap-2">
-                    ${track.dependencyId ? html`<span class="bg-red-800 text-red-200 px-2 py-0.5 rounded-full text-xs ${tooltipTriggerClasses}" data-tooltip="Depends on Rep(s): ${track.dependencyId}" data-iso="DASH: 5.3.5.2">Dep</span>` : ''}
-                    ${track.associationId ? html`<span class="bg-purple-800 text-purple-200 px-2 py-0.5 rounded-full text-xs ${tooltipTriggerClasses}" data-tooltip="Associated with Rep(s): ${track.associationId}" data-iso="DASH: 5.3.5.2">Assoc</span>` : ''}
-                    ${track.mediaStreamStructureId ? html`<span class="bg-teal-800 text-teal-200 px-2 py-0.5 rounded-full text-xs ${tooltipTriggerClasses}" data-tooltip="Shares structure with Rep(s): ${track.mediaStreamStructureId}" data-iso="DASH: 5.3.5.2">Struct</span>` : ''}
+                    ${track.dependencyId
+                        ? html`<span
+                              class="bg-red-800 text-red-200 px-2 py-0.5 rounded-full text-xs ${tooltipTriggerClasses}"
+                              data-tooltip="Depends on Rep(s): ${track.dependencyId}"
+                              data-iso="DASH: 5.3.5.2"
+                              >Dep</span
+                          >`
+                        : ''}
+                    ${track.associationId
+                        ? html`<span
+                              class="bg-purple-800 text-purple-200 px-2 py-0.5 rounded-full text-xs ${tooltipTriggerClasses}"
+                              data-tooltip="Associated with Rep(s): ${track.associationId}"
+                              data-iso="DASH: 5.3.5.2"
+                              >Assoc</span
+                          >`
+                        : ''}
+                    ${track.mediaStreamStructureId
+                        ? html`<span
+                              class="bg-teal-800 text-teal-200 px-2 py-0.5 rounded-full text-xs ${tooltipTriggerClasses}"
+                              data-tooltip="Shares structure with Rep(s): ${track.mediaStreamStructureId}"
+                              data-iso="DASH: 5.3.5.2"
+                              >Struct</span
+                          >`
+                        : ''}
                 </div>
             `;
 
@@ -187,9 +222,7 @@ export const trackTableTemplate = (tracks, type) => {
                     <td class="p-2 font-mono">
                         ${track.roles?.join(', ') || 'N/A'}
                     </td>
-                    <td class="p-2 font-mono">
-                        ${relationshipsCell}
-                    </td>
+                    <td class="p-2 font-mono">${relationshipsCell}</td>
                 </tr>
             `;
         });

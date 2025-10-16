@@ -9,29 +9,32 @@ import { useAnalysisStore } from '@/state/analysisStore';
  * Initializes listeners for global UI events that orchestrate application-level responses.
  */
 export function initializeUiOrchestration() {
-    eventBus.subscribe('ui:request-segment-analysis', ({ url, format }) => {
-        const { activeStreamId } = useAnalysisStore.getState();
-        showLoader('Analyzing segment...');
-        getParsedSegment(url, activeStreamId, format)
-            .then((parsedData) => {
-                hideLoader();
-                openModalWithContent({
-                    title: 'Segment Analysis',
-                    url: url,
-                    content: {
-                        type: 'segmentAnalysis',
-                        data: { parsedData: parsedData },
-                    },
+    eventBus.subscribe(
+        'ui:request-segment-analysis',
+        ({ uniqueId, format }) => {
+            const { activeStreamId } = useAnalysisStore.getState();
+            showLoader('Analyzing segment...');
+            getParsedSegment(uniqueId, activeStreamId, format)
+                .then((parsedData) => {
+                    hideLoader();
+                    openModalWithContent({
+                        title: 'Segment Analysis',
+                        url: uniqueId,
+                        content: {
+                            type: 'segmentAnalysis',
+                            data: { parsedData: parsedData },
+                        },
+                    });
+                })
+                .catch((error) => {
+                    hideLoader();
+                    showToast({
+                        message: `Failed to analyze segment: ${error.message}`,
+                        type: 'fail',
+                    });
                 });
-            })
-            .catch((error) => {
-                hideLoader();
-                showToast({
-                    message: `Failed to analyze segment: ${error.message}`,
-                    type: 'fail',
-                });
-            });
-    });
+        }
+    );
 
     eventBus.subscribe('ui:request-segment-comparison', ({ urlA, urlB }) => {
         const { activeStreamId } = useAnalysisStore.getState();

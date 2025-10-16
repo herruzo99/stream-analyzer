@@ -43,12 +43,12 @@ export function getHlsSummaryTemplate(stream) {
                         'HLS: 4.3.2.5'
                     )}
                     ${statCardTemplate(
-                          'Media Duration',
-                          summary.general.duration
-                              ? `${summary.general.duration.toFixed(2)}s`
-                              : null,
-                          'The total duration of the content.',
-                          'HLS: 4.3.3.5'
+                        'Media Duration',
+                        summary.general.duration
+                            ? `${summary.general.duration.toFixed(2)}s`
+                            : null,
+                        'The total duration of the content.',
+                        'HLS: 4.3.3.5'
                     )}
                     ${statCardTemplate(
                         'Target Duration',
@@ -61,7 +61,9 @@ export function getHlsSummaryTemplate(stream) {
                     ${isLive
                         ? statCardTemplate(
                               'DVR Window',
-                              summary.hls.dvrWindow ? `${summary.hls.dvrWindow.toFixed(2)}s` : null,
+                              summary.hls.dvrWindow
+                                  ? `${summary.hls.dvrWindow.toFixed(2)}s`
+                                  : null,
                               'The available duration for seeking backward in the live stream, estimated from segment durations.',
                               'HLS: 6.3.3'
                           )
@@ -119,7 +121,9 @@ export function getHlsSummaryTemplate(stream) {
                 >
                     ${statCardTemplate(
                         'I-Frame Playlists',
-                        summary.hls.iFramePlaylists > 0 ? summary.hls.iFramePlaylists : 0,
+                        summary.hls.iFramePlaylists > 0
+                            ? summary.hls.iFramePlaylists
+                            : 0,
                         'Number of I-Frame only playlists for trick-play modes.',
                         'HLS: 4.3.4.3'
                     )}

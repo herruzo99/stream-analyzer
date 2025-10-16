@@ -161,7 +161,9 @@ async function processLiveUpdate(updateData) {
             const repState = newDashState.get(compositeKey);
             if (repState) {
                 const existingUrls = new Set(
-                    repState.segments.map((s) => /** @type {any} */ (s).resolvedUrl)
+                    repState.segments.map(
+                        (s) => /** @type {any} */ (s).resolvedUrl
+                    )
                 );
                 const newlyAddedSegments = [];
                 for (const newSeg of newSegments) {

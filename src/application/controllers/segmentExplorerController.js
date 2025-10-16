@@ -7,4 +7,9 @@ export function initializeSegmentExplorerController() {
         uiActions.setSegmentExplorerDashMode(mode);
         renderApp();
     });
+
+    eventBus.subscribe('ui:segment-explorer:tab-changed', ({ tab }) => {
+        uiActions.setSegmentExplorerActiveTab(tab);
+        renderApp();
+    });
 }

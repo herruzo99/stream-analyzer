@@ -186,7 +186,7 @@ export function getInteractiveSegmentTemplate(dom) {
             <p
                 class="text-sm text-gray-400 mb-4 font-mono break-all bg-gray-800 p-2 rounded"
             >
-                ${activeSegmentUrl}
+                ${activeSegmentUrl.split('@')[0]}
             </p>
         </div>
         <div class="grow min-h-0">

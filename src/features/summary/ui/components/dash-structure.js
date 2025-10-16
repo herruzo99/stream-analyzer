@@ -10,19 +10,27 @@ const contentComponentsTemplate = (as) => {
 
     return html`
         <div class="mt-2 p-2 bg-gray-900/50 rounded-md">
-            <h6 class="text-xs font-semibold text-gray-400 ${tooltipTriggerClasses}"
+            <h6
+                class="text-xs font-semibold text-gray-400 ${tooltipTriggerClasses}"
                 data-tooltip="This AdaptationSet contains multiple multiplexed media components. All Representations below apply to each of these components."
-                data-iso="DASH: 5.3.4">
+                data-iso="DASH: 5.3.4"
+            >
                 Multiplexed Components (${as.contentComponents.length})
             </h6>
             <div class="mt-1 space-y-1">
-                ${as.contentComponents.map(comp => html`
-                    <div class="text-xs font-mono text-gray-300 bg-gray-800/50 p-1 rounded">
-                        <strong>ID:</strong> ${comp.id || 'N/A'} |
-                        <strong>Lang:</strong> ${comp.lang || 'N/A'} |
-                        <strong>Roles:</strong> ${comp.roles.map(r => r.value).join(', ') || 'N/A'}
-                    </div>
-                `)}
+                ${as.contentComponents.map(
+                    (comp) => html`
+                        <div
+                            class="text-xs font-mono text-gray-300 bg-gray-800/50 p-1 rounded"
+                        >
+                            <strong>ID:</strong> ${comp.id || 'N/A'} |
+                            <strong>Lang:</strong> ${comp.lang || 'N/A'} |
+                            <strong>Roles:</strong> ${comp.roles
+                                .map((r) => r.value)
+                                .join(', ') || 'N/A'}
+                        </div>
+                    `
+                )}
             </div>
         </div>
     `;
@@ -83,7 +91,11 @@ const advancedPropertiesTemplate = (as) => {
 const propertyItemTemplate = ({ isEnabled, icon, label, tooltip, isoRef }) => {
     const stateClasses = isEnabled ? 'text-green-300' : 'text-gray-500';
     return html`
-        <div class="flex items-center gap-1.5 ${tooltipTriggerClasses} ${stateClasses}" data-tooltip="${tooltip}" data-iso="${isoRef}">
+        <div
+            class="flex items-center gap-1.5 ${tooltipTriggerClasses} ${stateClasses}"
+            data-tooltip="${tooltip}"
+            data-iso="${isoRef}"
+        >
             ${icon}
             <span class="font-semibold">${label}</span>
         </div>
@@ -96,41 +108,56 @@ const adaptationSetPropertiesTemplate = (as) => {
             isEnabled: as.segmentAlignment,
             icon: icons.aligned,
             label: 'Aligned',
-            tooltip: 'Segment Alignment: Aligned segments simplify ABR switching.',
-            isoRef: 'DASH: 5.3.3.2'
+            tooltip:
+                'Segment Alignment: Aligned segments simplify ABR switching.',
+            isoRef: 'DASH: 5.3.3.2',
         },
         {
             isEnabled: as.bitstreamSwitching,
             icon: icons.seamless,
             label: 'Seamless',
-            tooltip: 'Bitstream Switching: Allows concatenation of segments from different Representations without decoder re-initialization.',
-            isoRef: 'DASH: 5.3.3.2'
+            tooltip:
+                'Bitstream Switching: Allows concatenation of segments from different Representations without decoder re-initialization.',
+            isoRef: 'DASH: 5.3.3.2',
         },
-        as.outputProtection ? {
-            isEnabled: true,
-            icon: html`<span class="text-red-300">${icons.hdcp}</span>`,
-            label: 'HDCP',
-            tooltip: `Output Protection Required: ${as.outputProtection.value || as.outputProtection.schemeIdUri}`,
-            isoRef: 'DASH: 5.8.4.12'
-        } : null
+        as.outputProtection
+            ? {
+                  isEnabled: true,
+                  icon: html`<span class="text-red-300">${icons.hdcp}</span>`,
+                  label: 'HDCP',
+                  tooltip: `Output Protection Required: ${as.outputProtection.value || as.outputProtection.schemeIdUri}`,
+                  isoRef: 'DASH: 5.8.4.12',
+              }
+            : null,
     ].filter(Boolean);
 
     return html`
-        <div class="flex items-center gap-4 text-xs bg-gray-900/50 border border-gray-700 rounded-md px-3 py-1">
-            ${properties.map(prop => propertyItemTemplate(prop))}
+        <div
+            class="flex items-center gap-4 text-xs bg-gray-900/50 border border-gray-700 rounded-md px-3 py-1"
+        >
+            ${properties.map((prop) => propertyItemTemplate(prop))}
         </div>
     `;
 };
 
-
 const adaptationSetTemplate = (as, type) => {
     return html`
         <div class="space-y-2">
-            <h5 class="font-semibold text-gray-300 flex items-center justify-between flex-wrap gap-y-2">
+            <h5
+                class="font-semibold text-gray-300 flex items-center justify-between flex-wrap gap-y-2"
+            >
                 <div class="flex items-center gap-2">
-                    <span>${type.charAt(0).toUpperCase() + type.slice(1)} AdaptationSet:</span>
+                    <span
+                        >${type.charAt(0).toUpperCase() + type.slice(1)}
+                        AdaptationSet:</span
+                    >
                     <span class="font-mono text-sm">${as.id || 'N/A'}</span>
-                    ${as.group !== null ? html`<span class="text-xs font-mono bg-gray-700 text-gray-300 px-2 py-0.5 rounded-full">Group: ${as.group}</span>` : ''}
+                    ${as.group !== null
+                        ? html`<span
+                              class="text-xs font-mono bg-gray-700 text-gray-300 px-2 py-0.5 rounded-full"
+                              >Group: ${as.group}</span
+                          >`
+                        : ''}
                 </div>
                 <div class="mt-1 sm:mt-0">
                     ${adaptationSetPropertiesTemplate(as)}
@@ -167,22 +194,29 @@ const preselectionsTemplate = (period) => {
     if (!period.preselections || period.preselections.length === 0) return '';
     return html`
         <div class="mt-4">
-            <h5 class="font-semibold text-gray-300 ${tooltipTriggerClasses}"
+            <h5
+                class="font-semibold text-gray-300 ${tooltipTriggerClasses}"
                 data-tooltip="A Preselection defines a curated set of Adaptation Sets that form a specific, complete user experience (e.g., for immersive audio)."
-                data-iso="DASH: 5.3.11">
+                data-iso="DASH: 5.3.11"
+            >
                 Preselections
             </h5>
             <div class="pl-4 space-y-2 mt-1">
                 ${period.preselections.map(
                     (p) => html`
-                        <div class="text-xs font-mono text-gray-400 bg-gray-900/50 p-2 rounded">
+                        <div
+                            class="text-xs font-mono text-gray-400 bg-gray-900/50 p-2 rounded"
+                        >
                             <div class="text-gray-200">
-                                <strong>ID:</strong> ${p.id} | 
+                                <strong>ID:</strong> ${p.id} |
                                 <strong>Lang:</strong> ${p.lang || 'N/A'} |
-                                <strong>Roles:</strong> ${p.roles.map(r => r.value).join(', ') || 'N/A'}
+                                <strong>Roles:</strong> ${p.roles
+                                    .map((r) => r.value)
+                                    .join(', ') || 'N/A'}
                             </div>
                             <div class="mt-1">
-                                <strong>Components:</strong> [${p.preselectionComponents.join(', ')}]
+                                <strong>Components:</strong>
+                                [${p.preselectionComponents.join(', ')}]
                             </div>
                         </div>
                     `
@@ -224,8 +258,7 @@ const periodTemplate = (period, index) => html`
                       adaptationSetTemplate(as, 'text')
                   )
                 : ''}
-            ${subsetTemplate(period)}
-            ${preselectionsTemplate(period)}
+            ${subsetTemplate(period)} ${preselectionsTemplate(period)}
         </div>
     </details>
 `;

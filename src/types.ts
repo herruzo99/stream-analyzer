@@ -195,7 +195,14 @@ export interface Scte35BreakDuration {
 }
 
 export interface Scte35SpliceCommand {
-    type: 'Splice Insert' | 'Time Signal' | 'Splice Null' | 'Splice Schedule' | 'Bandwidth Reservation' | 'Private Command' | 'Unsupported';
+    type:
+        | 'Splice Insert'
+        | 'Time Signal'
+        | 'Splice Null'
+        | 'Splice Schedule'
+        | 'Bandwidth Reservation'
+        | 'Private Command'
+        | 'Unsupported';
     splice_event_id?: number;
     splice_event_cancel_indicator?: number;
     out_of_network_indicator?: number;
@@ -461,6 +468,8 @@ export interface HlsSegment {
     dateTime?: string;
     uriLineNumber?: number;
     encryptionInfo?: EncryptionInfo;
+    byteRange?: { length: number; offset: number | null } | null;
+    uniqueId?: string;
 }
 
 export interface Manifest {

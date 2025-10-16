@@ -43,12 +43,44 @@ const diagnosticsTemplate = (diagnostics) => {
     `;
 };
 
+const getPeriodTimingInfo = (period, manifest) => {
+    let durationInfo = '';
+    if (period.duration) {
+        durationInfo = `, Duration: ${period.duration.toFixed(2)}s`;
+    }
+
+    let relativeTimeInfo = '';
+    if (manifest.type === 'dynamic' && manifest.availabilityStartTime) {
+        const liveEdge =
+            (Date.now() - manifest.availabilityStartTime.getTime()) / 1000;
+        const relativeStart = period.start - liveEdge;
+        const absRelativeStart = Math.abs(relativeStart);
+        const hours = Math.floor(absRelativeStart / 3600);
+        const minutes = Math.floor((absRelativeStart % 3600) / 60);
+        const seconds = Math.floor(absRelativeStart % 60);
+
+        let formattedRelativeTime = '';
+        if (hours > 0) formattedRelativeTime += `${hours}h `;
+        if (minutes > 0) formattedRelativeTime += `${minutes}m `;
+        formattedRelativeTime += `${seconds}s`;
+
+        if (relativeStart > 0) {
+            relativeTimeInfo = `, Starts in: ${formattedRelativeTime}`;
+        } else {
+            relativeTimeInfo = `, Started ${formattedRelativeTime} ago`;
+        }
+    }
+
+    return `${durationInfo}${relativeTimeInfo}`;
+};
+
 /**
- * Creates the lit-html template for the DASH segment explorer content.
+ * Creates the lit-html template for the DASH segment explorer content for a specific content type.
  * @param {import('@/types.ts').Stream} stream
+ * @param {string} contentType - The content type to display ('video', 'audio', 'text').
  * @returns {import('lit-html').TemplateResult}
  */
-export function getDashExplorerTemplate(stream) {
+export function getDashExplorerForType(stream, contentType) {
     if (!stream.manifest || !stream.manifest.periods) {
         return html`<p class="text-gray-400">
             No periods found in the manifest.
@@ -65,12 +97,22 @@ export function getDashExplorerTemplate(stream) {
                         >
                             Period: ${period.id || `(index ${index})`}
                             <span class="text-sm font-mono text-gray-500"
-                                >(Start: ${period.start}s)</span
+                                >(Start:
+                                ${period.start.toFixed(
+                                    2
+                                )}s${getPeriodTimingInfo(
+                                    period,
+                                    stream.manifest
+                                )})</span
                             >
                         </h3>
                         <div class="space-y-4 mt-2">
                             ${period.adaptationSets
-                                .filter((as) => as.representations.length > 0)
+                                .filter(
+                                    (as) =>
+                                        as.contentType === contentType &&
+                                        as.representations.length > 0
+                                )
                                 .map(
                                     (as) => html`
                                         <div class="pl-4">
@@ -79,7 +121,7 @@ export function getDashExplorerTemplate(stream) {
                                             >
                                                 AdaptationSet
                                                 ${as.id ? `(ID: ${as.id})` : ''}
-                                                (${as.contentType || 'N/A'})
+                                                (${as.lang || 'N/A'})
                                             </h4>
                                             ${as.representations.map((rep) => {
                                                 const compositeKey = `${

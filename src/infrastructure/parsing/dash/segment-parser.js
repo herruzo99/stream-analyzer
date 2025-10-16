@@ -23,7 +23,8 @@ function generateSegments(
     periodStart,
     availabilityStartTime,
     availabilityTimeOffset,
-    encryptionInfo
+    encryptionInfo,
+    flags
 ) {
     const segments = [];
     for (let i = 0; i < numSegments; i++) {
@@ -46,11 +47,13 @@ function generateSegments(
                     '0'
                 )
             );
+        const resolvedUrl = new URL(url, baseUrl).href;
         segments.push({
             repId,
             type: 'Media',
             number: segmentNumber,
-            resolvedUrl: new URL(url, baseUrl).href,
+            resolvedUrl: resolvedUrl,
+            uniqueId: resolvedUrl,
             template: url,
             time: time,
             duration: segmentDuration,
@@ -60,6 +63,7 @@ function generateSegments(
                 ? segAvailabilityStartTime + segmentDurationSeconds * 1000
                 : null,
             encryptionInfo,
+            flags,
         });
     }
     return segments;
@@ -159,6 +163,12 @@ export async function parseAllSegmentUrls(manifestElement, manifestUrl) {
                           }
                         : null;
 
+                const flags = [];
+                const sapType = getAttr(rep, 'startWithSAP');
+                if (sapType) {
+                    flags.push(`sap-type-${sapType}`);
+                }
+
                 const template = getInheritedElement(
                     'SegmentTemplate',
                     hierarchy
@@ -195,6 +205,7 @@ export async function parseAllSegmentUrls(manifestElement, manifestUrl) {
                         resolvedUrl: new URL(initUrl, baseUrl).href,
                         template: initUrl,
                         encryptionInfo,
+                        flags: [], // Init segments don't have SAP flags
                     };
                 }
 
@@ -248,6 +259,7 @@ export async function parseAllSegmentUrls(manifestElement, manifestUrl) {
                                         /\$Bandwidth\$/g,
                                         getAttr(rep, 'bandwidth')
                                     );
+                                const resolvedUrl = new URL(url, baseUrl).href;
 
                                 const mpdStartTimeInTimescale =
                                     mediaTime - presentationTimeOffset;
@@ -267,7 +279,8 @@ export async function parseAllSegmentUrls(manifestElement, manifestUrl) {
                                     repId,
                                     type: 'Media',
                                     number: currentNumber,
-                                    resolvedUrl: new URL(url, baseUrl).href,
+                                    resolvedUrl: resolvedUrl,
+                                    uniqueId: resolvedUrl,
                                     template: url,
                                     time: mpdStartTimeInTimescale,
                                     duration: d,
@@ -277,6 +290,7 @@ export async function parseAllSegmentUrls(manifestElement, manifestUrl) {
                                         segAvailabilityStartTime +
                                         segmentDurationSeconds * 1000,
                                     encryptionInfo,
+                                    flags,
                                 });
                                 mediaTime += d;
                                 currentNumber++;
@@ -308,10 +322,7 @@ export async function parseAllSegmentUrls(manifestElement, manifestUrl) {
                             segmentsByRep[compositeKey].segments =
                                 allTimelineSegments;
                         }
-                    } else if (
-                        mediaTemplate &&
-                        getAttr(template, 'duration')
-                    ) {
+                    } else if (mediaTemplate && getAttr(template, 'duration')) {
                         const segmentDuration = Number(
                             getAttr(template, 'duration')
                         );
@@ -353,7 +364,8 @@ export async function parseAllSegmentUrls(manifestElement, manifestUrl) {
                                 periodStart,
                                 availabilityStartTime,
                                 availabilityTimeOffset,
-                                encryptionInfo
+                                encryptionInfo,
+                                flags
                             );
                             segmentsByRep[compositeKey].segments = segments;
                         } else {
@@ -394,7 +406,8 @@ export async function parseAllSegmentUrls(manifestElement, manifestUrl) {
                                 periodStart,
                                 availabilityStartTime,
                                 availabilityTimeOffset,
-                                encryptionInfo
+                                encryptionInfo,
+                                flags
                             );
                             segmentsByRep[compositeKey].segments = segments;
                         }

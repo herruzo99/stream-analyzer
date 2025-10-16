@@ -23,7 +23,7 @@ class StreamInitializationService {
     }
 
     /**
-     * @param {{ streams: import('@/types').Stream[] }} payload
+     * @param {{ streams: import('@/types.ts').Stream[] }} payload
      */
     async handleAnalysisComplete({ streams }) {
         const enrichmentPromises = streams.map((stream) => {
@@ -39,7 +39,7 @@ class StreamInitializationService {
     }
 
     /**
-     * @param {import('@/types').Stream} stream
+     * @param {import('@/types.ts').Stream} stream
      */
     async fetchAllHlsMediaPlaylists(stream) {
         if (!stream.manifest?.variants) return;
@@ -75,7 +75,7 @@ class StreamInitializationService {
     }
 
     /**
-     * @param {import('@/types').Stream} stream
+     * @param {import('@/types.ts').Stream} stream
      */
     async fetchAllDashInitSegments(stream) {
         if (!stream.manifest?.periods) return;

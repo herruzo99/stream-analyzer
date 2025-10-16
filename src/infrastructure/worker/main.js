@@ -10,17 +10,6 @@ import {
 import { parseManifest as parseHlsManifest } from '@/infrastructure/parsing/hls/index';
 import { fetchWithRetry } from '@/application/utils/fetch';
 
-const handlers = {
-    'start-analysis': handleStartAnalysis,
-    'parse-live-update': handleParseLiveUpdate,
-    'get-manifest-metadata': handleGetManifestMetadata,
-    'parse-segment-structure': handleParseSegmentStructure,
-    'generate-paged-byte-map': handleGeneratePagedByteMap,
-    'fetch-hls-media-playlist': handleFetchHlsMediaPlaylist,
-    'fetch-key': handleFetchKey,
-    'decrypt-and-parse-segment': handleDecryptAndParseSegment,
-};
-
 async function handleFetchHlsMediaPlaylist({
     streamId,
     variantUri,
@@ -29,6 +18,7 @@ async function handleFetchHlsMediaPlaylist({
     const response = await fetchWithRetry(variantUri);
     if (!response.ok) throw new Error(`HTTP error ${response.status}`);
     const manifestString = await response.text();
+    // Re-use the main parser to ensure uniqueId is generated correctly.
     const { manifest } = await parseHlsManifest(
         manifestString,
         variantUri,
@@ -44,10 +34,21 @@ async function handleFetchHlsMediaPlaylist({
         variantUri,
         manifest,
         manifestString,
-        segments: manifest.segments,
-        freshSegmentUrls,
+        segments: manifest.segments || [],
+        freshSegmentUrls, // This is an array of strings
     };
 }
+
+const handlers = {
+    'start-analysis': handleStartAnalysis,
+    'parse-live-update': handleParseLiveUpdate,
+    'get-manifest-metadata': handleGetManifestMetadata,
+    'parse-segment-structure': handleParseSegmentStructure,
+    'generate-paged-byte-map': handleGeneratePagedByteMap,
+    'fetch-hls-media-playlist': handleFetchHlsMediaPlaylist,
+    'fetch-key': handleFetchKey,
+    'decrypt-and-parse-segment': handleDecryptAndParseSegment,
+};
 
 self.addEventListener('message', async (event) => {
     const { id, type, payload } = event.data;

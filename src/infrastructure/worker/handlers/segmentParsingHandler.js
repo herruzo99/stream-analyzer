@@ -87,7 +87,7 @@ const TS_PACKET_COLOR_MAP = {
 
 /**
  * Assigns a deterministic, context-aware color to each box based on its type and siblings.
- * @param {import('@/infrastructure/parsing/isobmff/parser').Box[]} boxes
+ * @param {import('@/infrastructure/parsing/isobmff/parser.js').Box[]} boxes
  */
 function assignBoxColors(boxes) {
     if (!boxes) return;
@@ -192,36 +192,20 @@ export async function parseSegment({ data, formatHint, url }) {
             return { format: 'vtt', data: parseVTT(decoder.decode(data)) };
     }
 
-    // 2. Check file extension from URL if no hint is provided.
+    // 2. Check file extension from URL for definitive non-container formats first.
     if (url) {
         try {
             const path = new URL(url).pathname.toLowerCase();
-            if (
-                path.endsWith('.m4s') ||
-                path.endsWith('.mp4') ||
-                path.endsWith('.cmfv') ||
-                path.endsWith('.cmfa') ||
-                path.endsWith('.cmfm') ||
-                path.endsWith('.m4a') ||
-                path.endsWith('.m4v')
-            ) {
-                debugLog(
-                    'parseSegment',
-                    'Detected ISOBMFF via file extension.'
-                );
-                return parseISOBMFF(data);
-            }
-            if (
-                path.endsWith('.ts') ||
-                path.endsWith('.aac') ||
-                path.endsWith('.ac3')
-            ) {
-                debugLog('parseSegment', 'Detected TS via file extension.');
-                return parseTsSegment(data);
-            }
             if (path.endsWith('.vtt')) {
                 debugLog('parseSegment', 'Detected VTT via file extension.');
                 return { format: 'vtt', data: parseVTT(decoder.decode(data)) };
+            }
+            if (path.endsWith('.aac')) {
+                debugLog('parseSegment', 'Detected AAC via file extension.');
+                return {
+                    format: 'aac',
+                    data: { message: 'Raw AAC Audio Segment' },
+                };
             }
         } catch (e) {
             debugLog(
@@ -231,10 +215,10 @@ export async function parseSegment({ data, formatHint, url }) {
         }
     }
 
-    // 3. Fallback to byte-sniffing if hint/extension are inconclusive.
+    // 3. Fallback to byte-sniffing for container formats (ISOBMFF, TS).
     debugLog(
         'parseSegment',
-        'No hint or definitive extension. Falling back to byte-sniffing.'
+        'No definitive non-container extension. Falling back to byte-sniffing.'
     );
 
     // VTT sniffing (most specific)
@@ -280,7 +264,7 @@ export async function parseSegment({ data, formatHint, url }) {
         return parseTsSegment(data);
     }
 
-    // 4. Default fallback is ISOBMFF, as it's more likely for extension-less segments in HLS fMP4.
+    // 4. If all else fails, attempt ISOBMFF parse as a last resort.
     debugLog(
         'parseSegment',
         'All detection methods failed. Falling back to default ISOBMFF parser.'

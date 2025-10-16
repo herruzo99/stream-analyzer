@@ -180,17 +180,32 @@ async function buildStreamObject(
                 rawManifest: streamObject.rawManifest,
                 lastFetched: new Date(),
             });
-            (manifestIR.variants || []).forEach((variant) => {
-                streamObject.hlsVariantState.set(variant.resolvedUri, {
-                    segments: [],
-                    freshSegmentUrls: new Set(),
-                    isLoading: false,
-                    isPolling: false,
-                    isExpanded: false,
-                    displayMode: 'all',
-                    error: null,
-                });
-            });
+
+            // Populate hlsVariantState for ALL available renditions (video, audio, subtitles)
+            const allAdaptationSets = manifestIR.periods.flatMap(
+                (p) => p.adaptationSets
+            );
+
+            for (const as of allAdaptationSets) {
+                const representation = as.representations[0];
+                if (
+                    representation &&
+                    representation.serializedManifest.resolvedUri
+                ) {
+                    const uri = representation.serializedManifest.resolvedUri;
+                    if (!streamObject.hlsVariantState.has(uri)) {
+                        streamObject.hlsVariantState.set(uri, {
+                            segments: [],
+                            freshSegmentUrls: new Set(),
+                            isLoading: false,
+                            isPolling: false,
+                            isExpanded: false,
+                            displayMode: 'all',
+                            error: null,
+                        });
+                    }
+                }
+            }
         } else {
             streamObject.hlsVariantState.set(streamObject.originalUrl, {
                 segments: manifestIR.segments || [],
@@ -250,9 +265,17 @@ async function buildStreamObject(
 
 function serializeStreamForTransport(streamObject) {
     const serialized = { ...streamObject };
-    serialized.hlsVariantState = Array.from(
-        streamObject.hlsVariantState.entries()
-    );
+
+    // Serialize hlsVariantState, including the freshSegmentUrls Set
+    const hlsVariantStateArray = [];
+    for (const [key, value] of streamObject.hlsVariantState.entries()) {
+        hlsVariantStateArray.push([
+            key,
+            { ...value, freshSegmentUrls: Array.from(value.freshSegmentUrls) },
+        ]);
+    }
+    serialized.hlsVariantState = hlsVariantStateArray;
+
     serialized.dashRepresentationState = Array.from(
         streamObject.dashRepresentationState.entries()
     );
