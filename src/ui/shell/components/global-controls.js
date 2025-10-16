@@ -2,16 +2,36 @@ import { html } from 'lit-html';
 import { copyShareUrlToClipboard } from '@/ui/services/shareService';
 import { copyDebugInfoToClipboard } from '@/ui/services/debugService';
 import { stopAllMonitoring } from '@/application/services/primaryStreamMonitorService';
+import { stopAllHlsVariantPolling } from '@/application/services/hlsVariantPollerService';
 import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
 import { useSegmentCacheStore } from '@/state/segmentCacheStore';
-import { toggleAllLiveStreamsPolling } from '@/application/services/streamActionsService';
+import { useDecryptionStore } from '@/state/decryptionStore';
+import { getLastUsedStreams } from '@/infrastructure/persistence/streamStorage';
+import {
+    toggleAllLiveStreamsPolling,
+    reloadStream,
+} from '@/application/services/streamActionsService';
 import { tooltipTriggerClasses } from '@/ui/shared/constants';
 import * as icons from '@/ui/icons';
 
 function handleNewAnalysis() {
+    // --- Full Application State Reset ---
+    // 1. Stop all background timers.
     stopAllMonitoring();
+    stopAllHlsVariantPolling();
+
+    // 2. Clear all state stores.
     useSegmentCacheStore.getState().clear();
+    useDecryptionStore.getState().clearCache();
+
+    // 3. Reset the core analysis and UI state, which also triggers the view change to 'input'.
     analysisActions.startAnalysis();
+
+    // --- Repopulate with Last Used Streams for Convenience ---
+    const lastUsed = getLastUsedStreams();
+    if (lastUsed && lastUsed.length > 0) {
+        analysisActions.setStreamInputs(lastUsed);
+    }
 }
 
 const controlButtonTemplate = (onClick, testId, classes, icon, label) => html`
@@ -24,6 +44,30 @@ const controlButtonTemplate = (onClick, testId, classes, icon, label) => html`
         <span class="inline">${label}</span>
     </button>
 `;
+
+const reloadButtonTemplate = () => {
+    const { streams, activeStreamId } = useAnalysisStore.getState();
+    const activeStream = streams.find((s) => s.id === activeStreamId);
+
+    if (!activeStream) {
+        return html``;
+    }
+
+    const canReload = !!activeStream.originalUrl;
+    const isLive = activeStream.manifest?.type === 'dynamic';
+
+    return html`<button
+        @click=${() => reloadStream(activeStream)}
+        ?disabled=${!canReload}
+        class="w-full flex items-center justify-start gap-3 px-4 py-3 text-sm font-medium rounded-lg transition-colors text-gray-300 bg-gray-700/50 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+        title=${canReload
+            ? 'Manually reload the manifest from its source URL'
+            : 'Cannot reload a manifest loaded from a local file'}
+    >
+        ${icons.updates}
+        <span class="inline">${isLive ? 'Reload Now' : 'Reload Manifest'}</span>
+    </button>`;
+};
 
 const pollingButtonTemplate = () => {
     const { streams } = useAnalysisStore.getState();
@@ -73,7 +117,7 @@ export const globalControlsTemplate = () => {
 
     return html`
         <div class="space-y-2">
-            ${pollingButtonTemplate()}
+            ${pollingButtonTemplate()} ${reloadButtonTemplate()}
             ${controlButtonTemplate(
                 copyShareUrlToClipboard,
                 'share-analysis-btn',

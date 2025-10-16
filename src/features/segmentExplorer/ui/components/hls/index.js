@@ -46,10 +46,34 @@ export function stopLiveSegmentHighlighter() {
     }
 }
 
-const renderHlsRepresentation = (stream, representationInfo) => {
-    const { title, uri } = representationInfo;
-    const variantState = stream.hlsVariantState.get(uri);
+const renderHlsRendition = (stream, renditionInfo) => {
+    const { title, uri, isMuxed } = renditionInfo;
 
+    if (isMuxed) {
+        return html`
+            <div class="bg-gray-800 rounded-lg border border-gray-700 mt-2">
+                <div
+                    class="flex items-center p-2 bg-gray-900/50 border-b border-gray-700"
+                >
+                    <div class="grow flex items-center gap-2">
+                        <span class="font-semibold text-gray-200"
+                            >${unsafeHTML(title)}</span
+                        >
+                        <span
+                            class="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-600 text-gray-300"
+                            >MUXED</span
+                        >
+                    </div>
+                </div>
+                <div class="p-4 text-center text-gray-400 text-sm">
+                    This audio track is muxed with the video streams and does
+                    not have a separate playlist.
+                </div>
+            </div>
+        `;
+    }
+
+    const variantState = stream.hlsVariantState.get(uri);
     if (!variantState) return html``;
 
     const {
@@ -78,6 +102,7 @@ const renderHlsRepresentation = (stream, representationInfo) => {
                 repId: 'hls-media',
                 type: /** @type {any} */ (seg).type || 'Media',
                 number: (stream.manifest.mediaSequence || 0) + index,
+                uniqueId: /** @type {any} */ (seg).uniqueId,
                 resolvedUrl: /** @type {any} */ (seg).resolvedUrl,
                 template: /** @type {any} */ (seg).uri,
                 time: segmentTime * 90000,
@@ -111,75 +136,50 @@ const renderHlsRepresentation = (stream, representationInfo) => {
     });
 };
 
-export function getHlsExplorerTemplate(stream) {
-    const groupTemplate = (title, items) => {
-        if (items.length === 0) return '';
-        return html`
-            <div class="mt-4">
-                <h4 class="text-md font-semibold text-gray-400 mb-2">
-                    ${title}
-                </h4>
-                <div class="space-y-4">
-                    ${items.map((item) =>
-                        renderHlsRepresentation(stream, item)
-                    )}
-                </div>
-            </div>
-        `;
-    };
-
+export function getHlsExplorerForType(stream, contentType) {
     if (stream.manifest.isMaster) {
-        const groupedPlaylists = { VIDEO: [], AUDIO: [], SUBTITLES: [] };
-
-        for (const uri of stream.hlsVariantState.keys()) {
-            const variant = (stream.manifest.variants || []).find(
-                (v) => v.resolvedUri === uri
-            );
-            const serialized = /** @type {any} */ (
-                stream.manifest.serializedManifest
-            );
-            const media =
-                (serialized?.media || []).find(
-                    (m) => m.URI && new URL(m.URI, stream.baseUrl).href === uri
-                ) || null;
-
-            if (variant) {
-                groupedPlaylists.VIDEO.push({
-                    title: `Variant Stream (BW: ${(
-                        variant.attributes.BANDWIDTH / 1000
-                    ).toFixed(0)}k, Res: ${
-                        variant.attributes.RESOLUTION || 'N/A'
-                    })`,
-                    uri,
+        let itemsToRender = [];
+        if (contentType === 'video') {
+            itemsToRender = (stream.manifest.variants || []).map((v) => ({
+                title: `Variant Stream (BW: ${(
+                    v.attributes.BANDWIDTH / 1000
+                ).toFixed(0)}k, Res: ${v.attributes.RESOLUTION || 'N/A'})`,
+                uri: v.resolvedUri,
+                isMuxed: false,
+            }));
+        } else {
+            // Audio or Text
+            itemsToRender = (stream.manifest.periods[0]?.adaptationSets || [])
+                .filter((as) => as.contentType === contentType)
+                .map((r) => {
+                    const resolvedUri =
+                        r.representations[0]?.serializedManifest.resolvedUri;
+                    return {
+                        title: `${contentType.toUpperCase()}: ${
+                            r.lang || r.id
+                        } (${r.representations[0]?.serializedManifest.NAME})`,
+                        uri: resolvedUri,
+                        isMuxed: !resolvedUri,
+                    };
                 });
-            } else if (media) {
-                const type = media.TYPE || 'UNKNOWN';
-                if (!groupedPlaylists[type]) groupedPlaylists[type] = [];
-                groupedPlaylists[type].push({
-                    title: `${media.TYPE}: ${
-                        media.NAME || media.LANGUAGE || 'Rendition'
-                    } (${media.LANGUAGE || 'N/A'})`,
-                    uri,
-                });
-            }
         }
 
-        return html`
-            <div>
-                ${groupTemplate('Variant Streams', groupedPlaylists.VIDEO)}
-                ${groupTemplate('Audio Renditions', groupedPlaylists.AUDIO)}
-                ${groupTemplate(
-                    'Subtitle Renditions',
-                    groupedPlaylists.SUBTITLES
-                )}
-            </div>
-        `;
+        if (itemsToRender.length === 0) {
+            return html`<div class="p-4 text-center text-gray-400 text-sm">
+                No ${contentType} tracks found in the manifest.
+            </div>`;
+        }
+
+        return html` <div class="space-y-4">
+            ${itemsToRender.map((item) => renderHlsRendition(stream, item))}
+        </div>`;
     } else {
         // Media playlist directly
         const mediaVariant = {
             title: 'Media Playlist Segments',
             uri: stream.originalUrl,
+            isMuxed: false,
         };
-        return renderHlsRepresentation(stream, mediaVariant);
+        return renderHlsRendition(stream, mediaVariant);
     }
 }

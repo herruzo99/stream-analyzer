@@ -25,6 +25,7 @@ import { createStore } from 'zustand/vanilla';
  * @property {number} complianceStandardVersion
  * @property {number} featureAnalysisStandardVersion
  * @property {'first' | 'last'} segmentExplorerDashMode
+ * @property {string} segmentExplorerActiveTab
  * @property {string | null} highlightedCompliancePathId
  */
 
@@ -45,6 +46,7 @@ import { createStore } from 'zustand/vanilla';
  * @property {(version: number) => void} setComplianceStandardVersion
  * @property {(version: number) => void} setFeatureAnalysisStandardVersion
  * @property {(mode: 'first' | 'last') => void} setSegmentExplorerDashMode
+ * @property {(tab: string) => void} setSegmentExplorerActiveTab
  * @property {(pathId: string | null) => void} setHighlightedCompliancePathId
  * @property {() => void} reset
  */
@@ -70,6 +72,7 @@ const createInitialUiState = () => ({
     complianceStandardVersion: 13,
     featureAnalysisStandardVersion: 13,
     segmentExplorerDashMode: 'first',
+    segmentExplorerActiveTab: 'video',
     highlightedCompliancePathId: null,
 });
 
@@ -113,6 +116,8 @@ export const useUiStore = createStore((set) => ({
         set({ featureAnalysisStandardVersion: version }),
     setSegmentExplorerDashMode: (mode) =>
         set({ segmentExplorerDashMode: mode }),
+    setSegmentExplorerActiveTab: (tab) =>
+        set({ segmentExplorerActiveTab: tab }),
     setHighlightedCompliancePathId: (pathId) =>
         set({ highlightedCompliancePathId: pathId }),
     reset: () => set(createInitialUiState()),
@@ -145,6 +150,8 @@ export const uiActions = {
         useUiStore.getState().setFeatureAnalysisStandardVersion(version),
     setSegmentExplorerDashMode: (mode) =>
         useUiStore.getState().setSegmentExplorerDashMode(mode),
+    setSegmentExplorerActiveTab: (tab) =>
+        useUiStore.getState().setSegmentExplorerActiveTab(tab),
     setHighlightedCompliancePathId: (pathId) =>
         useUiStore.getState().setHighlightedCompliancePathId(pathId),
     reset: () => useUiStore.getState().reset(),

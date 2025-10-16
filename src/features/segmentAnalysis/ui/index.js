@@ -98,7 +98,10 @@ export function getSegmentAnalysisTemplate(parsedData, parsedDataB = null) {
 
     const format = parsedData.format;
     const isSupported =
-        format === 'isobmff' || format === 'ts' || format === 'vtt';
+        format === 'isobmff' ||
+        format === 'ts' ||
+        format === 'vtt' ||
+        format === 'aac';
 
     const icon = isSupported
         ? html`<svg
@@ -135,6 +138,7 @@ export function getSegmentAnalysisTemplate(parsedData, parsedDataB = null) {
             isobmff: 'ISO Base Media File Format',
             ts: 'MPEG-2 Transport Stream',
             vtt: 'Web Video Text Tracks (WebVTT)',
+            aac: 'Advanced Audio Coding (Raw)',
         }[format] || 'Unknown Format';
 
     let contentTemplate;
@@ -147,6 +151,20 @@ export function getSegmentAnalysisTemplate(parsedData, parsedDataB = null) {
             break;
         case 'vtt':
             contentTemplate = vttAnalysisTemplate(parsedData.data);
+            break;
+        case 'aac':
+            contentTemplate = html`<div
+                class="bg-gray-900 p-4 rounded-lg text-center text-sm"
+            >
+                <p class="text-gray-300">
+                    This segment is a raw AAC elementary stream.
+                </p>
+                <p class="text-gray-400 mt-2">
+                    Deep structural analysis is not available for this format.
+                    Use the "View Raw" button in the Segment Explorer to inspect
+                    the segment's byte-level data.
+                </p>
+            </div>`;
             break;
         default:
             contentTemplate = html`<p class="fail">

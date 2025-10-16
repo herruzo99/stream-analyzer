@@ -15,7 +15,8 @@ function createPartialAdAvail(stream, scte35Event) {
     if (!scte35 || 'error' in scte35) return;
 
     const command = scte35.splice_command;
-    if (command.type !== 'Splice Insert' && command.type !== 'Time Signal') return;
+    if (command.type !== 'Splice Insert' && command.type !== 'Time Signal')
+        return;
 
     const adAvail = new AdAvail({
         id: String(command.splice_event_id || scte35Event.startTime),
@@ -143,9 +144,11 @@ function handleAnalysisComplete({ streams }) {
 }
 
 function handleInbandEventsAdded({ streamId, newEvents }) {
-    const stream = useAnalysisStore.getState().streams.find(s => s.id === streamId);
+    const stream = useAnalysisStore
+        .getState()
+        .streams.find((s) => s.id === streamId);
     if (!stream) return;
-    
+
     for (const event of newEvents) {
         if (event.scte35) {
             // The `startTime` for in-band emsg boxes needs to be calculated based on their presentation time.

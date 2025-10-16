@@ -68,10 +68,7 @@ export const segmentTableTemplate = ({
         }
     } else {
         const rowRenderer = (seg) => {
-            const isFresh = freshSegmentUrls.has(
-                /** @type {any} */ (seg).resolvedUrl
-            );
-            return segmentRowTemplate(seg, isFresh, segmentFormat);
+            return segmentRowTemplate(seg, freshSegmentUrls, segmentFormat);
         };
         const scrollbarWidth = getScrollbarWidth();
 
@@ -79,7 +76,7 @@ export const segmentTableTemplate = ({
             <div class="overflow-x-auto text-sm">
                 <div class="inline-block min-w-full align-middle">
                     <div
-                        class="sticky top-0 bg-gray-900 z-10 hidden md:grid md:grid-cols-[32px_160px_128px_96px_112px_minmax(400px,auto)] font-semibold text-gray-400 text-xs"
+                        class="sticky top-0 bg-gray-900 z-10 hidden md:grid md:grid-cols-[32px_180px_128px_96px_112px_minmax(400px,auto)] font-semibold text-gray-400 text-xs"
                         style="padding-right: ${scrollbarWidth}px"
                     >
                         <div
@@ -114,6 +111,7 @@ export const segmentTableTemplate = ({
                         .items=${segments}
                         .rowTemplate=${rowRenderer}
                         .rowHeight=${64}
+                        .itemId=${(item) => item.uniqueId}
                         class="md:h-auto"
                         style="height: ${Math.min(
                             segments.length * 64,

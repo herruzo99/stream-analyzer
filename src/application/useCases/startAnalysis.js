@@ -112,6 +112,7 @@ export async function startAnalysisUseCase({ inputs }, services) {
                 }
                 stream.semanticData = new Map(stream.semanticData || []);
                 stream.mediaPlaylists = new Map(stream.mediaPlaylists || []);
+                stream.adAvails = []; // Initialize adAvails
             });
 
             // This now completes the *initial* analysis. The enrichment service will take over.

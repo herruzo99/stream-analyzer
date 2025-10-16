@@ -27,6 +27,10 @@ const renderStreamContextCard = (stream, activeStreamId) => {
             ? getBadge('LIVE', 'bg-red-800 text-red-200')
             : getBadge('VOD', 'bg-green-800 text-green-200');
 
+    const path = stream.originalUrl
+        ? new URL(stream.originalUrl).pathname
+        : stream.name;
+
     return html`
         <div
             class="${baseClasses} ${hoverClasses} ${isActive
@@ -35,9 +39,14 @@ const renderStreamContextCard = (stream, activeStreamId) => {
             data-stream-id="${stream.id}"
         >
             <span
-                class="font-semibold text-gray-200 truncate"
+                class="font-semibold text-gray-200 truncate w-full"
                 title="${stream.name}"
                 >${stream.name}</span
+            >
+            <span
+                class="text-xs text-gray-400 font-mono truncate w-full mt-1"
+                title="${path}"
+                >${path}</span
             >
             <div class="shrink-0 flex flex-wrap items-center gap-2 mt-2">
                 ${protocolBadge} ${typeBadge}
@@ -73,7 +82,7 @@ export const streamContextSwitcherTemplate = (streams, activeStreamId) => {
         >
             <div class="p-3">
                 <div
-                    class="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2"
+                    class="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-2"
                 >
                     ${streams.map((stream) =>
                         renderStreamContextCard(stream, activeStreamId)
@@ -84,12 +93,12 @@ export const streamContextSwitcherTemplate = (streams, activeStreamId) => {
     `;
 
     return html`
-        <div class="relative w-full sm:w-auto">
+        <div class="relative w-64 overflow-hidden">
             <button
                 @click=${(e) => toggleDropdown(e.currentTarget, panelTemplate)}
-                class="bg-gray-800/50 hover:bg-gray-700/50 text-white rounded-md border border-gray-600/50 p-2 w-full min-w-[200px] text-left flex items-center justify-between transition-colors"
+                class="bg-gray-800/50 hover:bg-gray-700/50 text-white rounded-md border border-gray-600/50 p-2 w-full text-left flex items-center justify-between transition-colors"
             >
-                <span class="truncate"
+                <span class="truncate min-w-0"
                     >${getActiveStreamLabel(streams, activeStreamId)}</span
                 >
                 <span class="text-gray-400 shrink-0">${icons.chevronDown}</span>

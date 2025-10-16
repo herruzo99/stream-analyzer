@@ -25,6 +25,7 @@ const extensionMap = {
 
     // Text
     '.vtt': { contentType: 'text', codec: 'wvtt' },
+    '.webvtt': { contentType: 'text', codec: 'wvtt' },
     '.cmft': { contentType: 'text', codec: 'wvtt' }, // CMAF Text
 };
 

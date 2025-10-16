@@ -134,13 +134,18 @@ export function parseVTT(vttString) {
     const result = { regions: [], styles: [], cues: [], errors: [] };
     let i = 0;
 
-    if (i >= lines.length || !lines[i].startsWith('WEBVTT')) {
+    if (i >= lines.length || !lines[i].trim().startsWith('WEBVTT')) {
         result.errors.push(
             'Invalid WEBVTT signature. File must start with "WEBVTT".'
         );
         return result;
     }
     i++;
+
+    // Skip over the optional header section (anything between WEBVTT and the first blank line)
+    while (i < lines.length && lines[i].trim() !== '') {
+        i++;
+    }
 
     let currentBlockLines = [];
     let blockStartLine = 0;

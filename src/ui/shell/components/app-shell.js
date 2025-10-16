@@ -70,7 +70,8 @@ const renderMainContent = (activeStream, activeTab) => {
                     getIntegratorsReportTemplate(activeStream);
                 break;
             case 'advertising':
-                mainContentTemplate = getAdvertisingReportTemplate(activeStream);
+                mainContentTemplate =
+                    getAdvertisingReportTemplate(activeStream);
                 break;
             case 'features':
                 mainContentTemplate = getFeaturesAnalysisTemplate(activeStream);

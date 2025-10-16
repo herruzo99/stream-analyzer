@@ -1,7 +1,9 @@
 import { eventBus } from '@/application/event-bus';
-import { useAnalysisStore } from '@/state/analysisStore';
 import { getParsedSegment } from './segmentService';
-import { findChildrenRecursive, getAttr } from '@/infrastructure/parsing/dash/recursive-parser';
+import {
+    findChildrenRecursive,
+    getAttr,
+} from '@/infrastructure/parsing/dash/recursive-parser';
 
 const SCTE35_SCHEME_ID = 'urn:scte:scte35:2013:bin';
 
@@ -17,7 +19,10 @@ async function checkForInbandEvents(stream) {
 
     for (const period of stream.manifest.periods) {
         for (const as of period.adaptationSets) {
-            const inbandEventStreams = findChildrenRecursive(as.serializedManifest, 'InbandEventStream');
+            const inbandEventStreams = findChildrenRecursive(
+                as.serializedManifest,
+                'InbandEventStream'
+            );
             const hasScte35 = inbandEventStreams.some(
                 (ies) => getAttr(ies, 'schemeIdUri') === SCTE35_SCHEME_ID
             );
@@ -25,12 +30,16 @@ async function checkForInbandEvents(stream) {
             if (hasScte35) {
                 // This AdaptationSet is declared to have in-band SCTE-35.
                 // We will now proactively parse ALL of its segments to find 'emsg' boxes.
-                if (!as.representations || as.representations.length === 0) continue;
+                if (!as.representations || as.representations.length === 0)
+                    continue;
 
                 for (const rep of as.representations) {
                     const compositeKey = `${period.id || 0}-${rep.id}`;
-                    const repState = stream.dashRepresentationState.get(compositeKey);
-                    const mediaSegments = repState?.segments.filter(s => /** @type {any} */(s).type === 'Media');
+                    const repState =
+                        stream.dashRepresentationState.get(compositeKey);
+                    const mediaSegments = repState?.segments.filter(
+                        (s) => /** @type {any} */ (s).type === 'Media'
+                    );
 
                     if (!mediaSegments || mediaSegments.length === 0) continue;
 
@@ -38,12 +47,20 @@ async function checkForInbandEvents(stream) {
                     // The segmentService is idempotent and will handle caching, so this is safe and efficient.
                     // The result of `getParsedSegment` is handled by event listeners, so we don't need to await.
                     for (const segment of mediaSegments) {
-                        const segmentUrl = /** @type {any} */(segment).resolvedUrl;
+                        const segmentUrl =
+                            /** @type {any} */
+                            (segment).resolvedUrl;
                         if (segmentUrl) {
                             try {
-                                getParsedSegment(segmentUrl, stream.id, 'isobmff');
+                                getParsedSegment(
+                                    segmentUrl,
+                                    stream.id,
+                                    'isobmff'
+                                );
                             } catch (e) {
-                                console.error(`[InbandEventMonitor] Failed to dispatch segment parse for ${segmentUrl}: ${e.message}`);
+                                console.error(
+                                    `[InbandEventMonitor] Failed to dispatch segment parse for ${segmentUrl}: ${e.message}`
+                                );
                             }
                         }
                     }
@@ -52,7 +69,6 @@ async function checkForInbandEvents(stream) {
         }
     }
 }
-
 
 function handleAnalysisComplete({ streams }) {
     for (const stream of streams) {
