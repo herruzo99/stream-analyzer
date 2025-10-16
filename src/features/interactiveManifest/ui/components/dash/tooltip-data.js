@@ -71,8 +71,8 @@ export const dashTooltipData = {
         text: 'XML Namespace for XML Schema Instance. Enables the use of schema-related attributes like xsi:schemaLocation, which are used for XML validation.',
         isoRef: 'W3C XML Schema Part 1',
     },
-    'MPD@xsi:schemaLocation': {
-        text: 'XML Schema Location. Provides a hint to XML validators, associating the DASH namespace URI with the physical location of its schema definition file (XSD).',
+    'MPD@schemaLocation': {
+        text: 'XML Schema Location. Provides a hint to XML validators, associating the DASH namespace URI with the physical location of its schema definition file (XSD). This is not required for playback but is good practice for manifest validation.',
         isoRef: 'W3C XML Schema Part 1 & Clause 5.2.2',
     },
     'MPD@xmlns:cenc': {
@@ -211,6 +211,10 @@ export const dashTooltipData = {
         text: 'The maximum height in pixels of any video Representation in this set.',
         isoRef: 'Clause 5.3.3.2, Table 5',
     },
+    'AdaptationSet@frameRate': {
+        text: 'The frame rate of the video, expressed as a fraction (e.g., "25/1"). This can be a common property for all video Representations in the set.',
+        isoRef: 'Clause 5.3.7.2, Table 14',
+    },
     'AdaptationSet@minFrameRate': {
         text: 'The minimum frame rate of any video Representation in this set, expressed as a fraction.',
         isoRef: 'Clause 5.3.3.2, Table 5',
@@ -291,6 +295,10 @@ export const dashTooltipData = {
     },
     'Representation@codecs': {
         text: 'A mandatory string identifying the codec(s), profile, and level used in this Representation, as per RFC 6381. This is a primary parameter for a client to check decoding capability.',
+        isoRef: 'Clause 5.3.7.2, Table 14',
+    },
+    'Representation@mimeType': {
+        text: 'The MIME type for this Representation. This must be present if not inherited from the AdaptationSet.',
         isoRef: 'Clause 5.3.7.2, Table 14',
     },
     'Representation@containerProfiles': {
@@ -422,8 +430,12 @@ export const dashTooltipData = {
         isoRef: 'Clause 5.10.2',
     },
     InbandEventStream: {
-        text: 'Signals the presence of an event stream multiplexed within the media segments themselves. The client must parse the segments to extract these events.',
+        text: 'Signals the presence of an event stream multiplexed within the media segments themselves (e.g., as `emsg` boxes). The client must parse the segments to extract these events.',
         isoRef: 'Clause 5.10.3.2',
+    },
+    'InbandEventStream@schemeIdUri': {
+        text: 'A URI identifying the scheme for the in-band events. This tells the client what kind of events to look for (e.g., "urn:scte:scte35:2013:bin" for SCTE-35 ad markers).',
+        isoRef: 'Clause 5.10.4.2',
     },
     UTCTiming: {
         text: 'Provides a method for clients to synchronize their wall-clocks with the server. This is crucial for consistent live stream startup and calculating segment availability accurately.',
@@ -450,6 +462,14 @@ export const dashTooltipData = {
     AudioChannelConfiguration: {
         text: 'Specifies the audio channel layout (e.g., stereo, 5.1 surround sound), allowing a client to select tracks compatible with its output hardware.',
         isoRef: 'Clause 5.8.4.7',
+    },
+    'AudioChannelConfiguration@schemeIdUri': {
+        text: 'A URI that identifies the scheme used to define the audio channel configuration. A common value is "urn:mpeg:dash:23003:3:audio_channel_configuration:2011".',
+        isoRef: 'Clause 5.8.5.3',
+    },
+    'AudioChannelConfiguration@value': {
+        text: 'A value whose meaning is defined by the scheme. For the standard MPEG scheme, this is an integer representing the number of channels (e.g., "2" for stereo).',
+        isoRef: 'Clause 5.8.5.3',
     },
     ContentProtection: {
         text: 'The central element for signaling content protection. It contains information about the DRM system(s) and encryption scheme(s) used, enabling a client to perform license acquisition.',
@@ -490,6 +510,14 @@ export const dashTooltipData = {
     Role: {
         text: 'Describes the role or purpose of an AdaptationSet, helping the client automatically select the appropriate track (e.g., "main", "alternate", "commentary", "subtitle").',
         isoRef: 'Clause 5.8.4.2',
+    },
+    'Role@schemeIdUri': {
+        text: 'A URI that identifies the scheme used to define the role. The default DASH scheme is "urn:mpeg:dash:role:2011".',
+        isoRef: 'Clause 5.8.5.5',
+    },
+    'Role@value': {
+        text: 'A string value whose meaning is defined by the scheme. For the default DASH scheme, common values are "main", "alternate", "supplementary", "commentary", "dub", and "caption".',
+        isoRef: 'Clause 5.8.5.5',
     },
 
     // Service Description Level (Annex K)

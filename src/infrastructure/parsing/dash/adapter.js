@@ -514,6 +514,7 @@ function parsePeriod(periodEl, parentMergedEl, previousPeriod = null) {
     const assetIdentifierEl = findChildren(periodEl, 'AssetIdentifier')[0];
     const subsets = findChildren(periodEl, 'Subset');
     const eventStreams = findChildren(periodEl, 'EventStream');
+    const periodId = getAttr(periodEl, 'id');
 
     let periodStart = parseDuration(getAttr(periodEl, 'start'));
     if (periodStart === null) {
@@ -523,6 +524,7 @@ function parsePeriod(periodEl, parentMergedEl, previousPeriod = null) {
             periodStart = 0;
         }
     }
+    const periodDuration = parseDuration(getAttr(periodEl, 'duration'));
 
     const allEvents = [];
     const eventStreamIRs = eventStreams.map((esEl) => {
@@ -582,11 +584,48 @@ function parsePeriod(periodEl, parentMergedEl, previousPeriod = null) {
         };
     });
 
+    // --- NEW: Heuristic for SSAI ad periods ---
+    const isAdPeriod = periodId?.toUpperCase().startsWith('DAICONNECT');
+    if (isAdPeriod && periodDuration) {
+        /** @type {import('@/types.ts').Scte35SpliceCommand} */
+        const splice_command = {
+            type: 'Splice Insert',
+            splice_event_id: periodId,
+            duration_flag: 1,
+            break_duration: {
+                auto_return: true,
+                duration: periodDuration * 90000, // Convert to 90kHz clock
+            },
+        };
+
+        const syntheticEvent = {
+            startTime: periodStart,
+            duration: periodDuration,
+            message: `SSAI Ad Period: ${periodId}`,
+            messageData: null,
+            type: 'dash-period',
+            cue: null,
+            scte35: {
+                table_id: 0xfc,
+                protocol_version: 0,
+                pts_adjustment: 0,
+                cw_index: 0,
+                tier: 0xfff,
+                splice_command_type: 'Splice Insert',
+                crc_32: 0,
+                splice_command,
+                descriptors: [],
+            },
+        };
+        allEvents.push(syntheticEvent);
+    }
+    // --- END NEW LOGIC ---
+
     /** @type {Period} */
     const periodIR = {
-        id: getAttr(periodEl, 'id'),
+        id: periodId,
         start: periodStart,
-        duration: parseDuration(getAttr(periodEl, 'duration')),
+        duration: periodDuration,
         bitstreamSwitching: getAttr(periodEl, 'bitstreamSwitching') === 'true',
         assetIdentifier: assetIdentifierEl
             ? {

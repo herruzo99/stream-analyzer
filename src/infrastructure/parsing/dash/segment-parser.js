@@ -104,7 +104,7 @@ export async function parseAllSegmentUrls(manifestElement, manifestUrl) {
         getAttr(manifestElement, 'availabilityStartTime') || 0
     ).getTime();
     const serverTime = await getUtcTime(manifestElement);
-    const now = Date.now();
+    const now = serverTime || Date.now();
 
     const periods = findChildren(manifestElement, 'Period');
 
@@ -200,15 +200,18 @@ export async function parseAllSegmentUrls(manifestElement, manifestUrl) {
 
                 // --- MEDIA SEGMENTS ---
                 if (template) {
-                    const timescale = parseInt(
+                    const timescale = Number(
                         getAttr(template, 'timescale') || '1'
+                    );
+                    const presentationTimeOffset = Number(
+                        getAttr(template, 'presentationTimeOffset') || '0'
                     );
                     const mediaTemplate = getAttr(template, 'media');
                     const timeline = findChildren(
                         template,
                         'SegmentTimeline'
                     )[0];
-                    const startNumber = parseInt(
+                    const startNumber = Number(
                         getAttr(template, 'startNumber') || '1'
                     );
                     const periodStart =
@@ -219,11 +222,97 @@ export async function parseAllSegmentUrls(manifestElement, manifestUrl) {
                         ) || 0;
 
                     if (mediaTemplate && timeline) {
-                        const segments = [];
-                        // ... (logic for timeline parsing remains the same, pushes to `segments` array)
-                        segmentsByRep[compositeKey].segments = segments;
-                    } else if (mediaTemplate && getAttr(template, 'duration')) {
-                        const segmentDuration = parseInt(
+                        const allTimelineSegments = [];
+                        let mediaTime = -1;
+                        let currentNumber = startNumber;
+
+                        findChildren(timeline, 'S').forEach((s) => {
+                            const t =
+                                getAttr(s, 't') !== undefined
+                                    ? Number(getAttr(s, 't'))
+                                    : -1;
+                            const d = Number(getAttr(s, 'd'));
+                            const r = Number(getAttr(s, 'r') || '0');
+
+                            if (t >= 0) {
+                                mediaTime = t;
+                            } else if (mediaTime === -1) {
+                                mediaTime = 0;
+                            }
+
+                            for (let i = 0; i <= r; i++) {
+                                const url = mediaTemplate
+                                    .replace(/\$RepresentationID\$/g, repId)
+                                    .replace(/\$Time\$/g, String(mediaTime))
+                                    .replace(
+                                        /\$Bandwidth\$/g,
+                                        getAttr(rep, 'bandwidth')
+                                    );
+
+                                const mpdStartTimeInTimescale =
+                                    mediaTime - presentationTimeOffset;
+                                const absoluteTime =
+                                    periodStart +
+                                    mpdStartTimeInTimescale / timescale;
+                                const segmentDurationSeconds = d / timescale;
+
+                                const segAvailabilityStartTime =
+                                    availabilityStartTime +
+                                    (absoluteTime +
+                                        segmentDurationSeconds -
+                                        availabilityTimeOffset) *
+                                        1000;
+
+                                allTimelineSegments.push({
+                                    repId,
+                                    type: 'Media',
+                                    number: currentNumber,
+                                    resolvedUrl: new URL(url, baseUrl).href,
+                                    template: url,
+                                    time: mpdStartTimeInTimescale,
+                                    duration: d,
+                                    timescale,
+                                    startTimeUTC: segAvailabilityStartTime,
+                                    endTimeUTC:
+                                        segAvailabilityStartTime +
+                                        segmentDurationSeconds * 1000,
+                                    encryptionInfo,
+                                });
+                                mediaTime += d;
+                                currentNumber++;
+                            }
+                        });
+
+                        if (isDynamic) {
+                            const timeShiftBufferDepth =
+                                parseDuration(
+                                    getAttr(
+                                        manifestElement,
+                                        'timeShiftBufferDepth'
+                                    )
+                                ) || 0;
+                            const liveEdge =
+                                (now - availabilityStartTime) / 1000;
+                            const windowStart = liveEdge - timeShiftBufferDepth;
+
+                            segmentsByRep[compositeKey].segments =
+                                allTimelineSegments.filter((seg) => {
+                                    const segAbsoluteTime =
+                                        periodStart + seg.time / seg.timescale;
+                                    return (
+                                        segAbsoluteTime >= windowStart &&
+                                        segAbsoluteTime <= liveEdge
+                                    );
+                                });
+                        } else {
+                            segmentsByRep[compositeKey].segments =
+                                allTimelineSegments;
+                        }
+                    } else if (
+                        mediaTemplate &&
+                        getAttr(template, 'duration')
+                    ) {
+                        const segmentDuration = Number(
                             getAttr(template, 'duration')
                         );
                         if (isDynamic) {
@@ -237,25 +326,26 @@ export async function parseAllSegmentUrls(manifestElement, manifestUrl) {
                                   )
                                 : 30;
 
-                            const liveEdgeTimeA =
+                            const liveEdgeTime =
                                 (now - availabilityStartTime) / 1000 -
                                 periodStart;
-                            const lastSegA =
+                            const lastSegNum =
                                 Math.floor(
-                                    liveEdgeTimeA /
-                                        (segmentDuration / timescale)
+                                    liveEdgeTime / (segmentDuration / timescale)
                                 ) + startNumber;
+
                             segmentsByRep[compositeKey].diagnostics[
-                                'Strategy A (Wall-Clock)'
-                            ] = { latestSegmentNum: lastSegA };
-                            const segmentsA = generateSegments(
+                                'Live Segment Calculation'
+                            ] = { latestSegmentNum: lastSegNum };
+
+                            const segments = generateSegments(
                                 repId,
                                 baseUrl,
                                 mediaTemplate,
                                 startNumber,
                                 Math.max(
                                     startNumber,
-                                    lastSegA - bufferSegments + 1
+                                    lastSegNum - bufferSegments + 1
                                 ),
                                 bufferSegments,
                                 segmentDuration,
@@ -265,55 +355,7 @@ export async function parseAllSegmentUrls(manifestElement, manifestUrl) {
                                 availabilityTimeOffset,
                                 encryptionInfo
                             );
-                            segmentsByRep[compositeKey].segmentsByStrategy.set(
-                                'Strategy A (Wall-Clock)',
-                                segmentsA
-                            );
-
-                            if (serverTime) {
-                                const liveEdgeTimeC =
-                                    (serverTime - availabilityStartTime) /
-                                        1000 -
-                                    periodStart;
-                                const lastSegC =
-                                    Math.floor(
-                                        liveEdgeTimeC /
-                                            (segmentDuration / timescale)
-                                    ) + startNumber;
-                                segmentsByRep[compositeKey].diagnostics[
-                                    'Strategy C (UTCTiming Source)'
-                                ] = { latestSegmentNum: lastSegC };
-                                const segmentsC = generateSegments(
-                                    repId,
-                                    baseUrl,
-                                    mediaTemplate,
-                                    startNumber,
-                                    Math.max(
-                                        startNumber,
-                                        lastSegC - bufferSegments + 1
-                                    ),
-                                    bufferSegments,
-                                    segmentDuration,
-                                    timescale,
-                                    periodStart,
-                                    availabilityStartTime,
-                                    availabilityTimeOffset,
-                                    encryptionInfo
-                                );
-                                segmentsByRep[
-                                    compositeKey
-                                ].segmentsByStrategy.set(
-                                    'Strategy C (UTCTiming Source)',
-                                    segmentsC
-                                );
-                            }
-
-                            segmentsByRep[compositeKey].segments =
-                                segmentsByRep[
-                                    compositeKey
-                                ].segmentsByStrategy.get(
-                                    'Strategy C (UTCTiming Source)'
-                                ) || segmentsA;
+                            segmentsByRep[compositeKey].segments = segments;
                         } else {
                             const periodDuration = parseDuration(
                                 getAttr(period, 'duration')

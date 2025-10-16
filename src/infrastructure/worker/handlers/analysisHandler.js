@@ -10,11 +10,12 @@ import { generateFeatureAnalysis } from '@/features/featureAnalysis/domain/analy
 import { parseAllSegmentUrls as parseDashSegments } from '@/infrastructure/parsing/dash/segment-parser';
 import { diffManifest } from '@/ui/shared/diff';
 import { parseSegment } from './segmentParsingHandler.js';
+import { fetchWithRetry } from '@/application/utils/fetch';
 import xmlFormatter from 'xml-formatter';
 
 async function fetchAndParseSegment(url, formatHint) {
     // This internal fetcher does not need to handle caching or UI updates.
-    const response = await fetch(url);
+    const response = await fetchWithRetry(url);
     if (!response.ok) {
         throw new Error(`HTTP error ${response.status} for segment ${url}`);
     }
@@ -60,7 +61,7 @@ async function parse(input) {
         if (manifestIR.isMaster && manifestIR.variants.length > 0) {
             try {
                 const firstVariantUrl = manifestIR.variants[0].resolvedUri;
-                const response = await fetch(firstVariantUrl);
+                const response = await fetchWithRetry(firstVariantUrl);
                 const mediaPlaylistString = await response.text();
                 manifestIR.type = mediaPlaylistString.includes('#EXT-X-ENDLIST')
                     ? 'static'

@@ -42,28 +42,26 @@ export function getHlsSummaryTemplate(stream) {
                         'The container format for media segments.',
                         'HLS: 4.3.2.5'
                     )}
-                    ${!isLive
-                        ? statCardTemplate(
-                              'Media Duration',
-                              summary.general.duration
-                                  ? `${summary.general.duration.toFixed(2)}s`
-                                  : 'N/A',
-                              'The total duration of the content.',
-                              'HLS: 4.3.3.5'
-                          )
-                        : ''}
+                    ${statCardTemplate(
+                          'Media Duration',
+                          summary.general.duration
+                              ? `${summary.general.duration.toFixed(2)}s`
+                              : null,
+                          'The total duration of the content.',
+                          'HLS: 4.3.3.5'
+                    )}
                     ${statCardTemplate(
                         'Target Duration',
                         summary.hls.targetDuration
                             ? `${summary.hls.targetDuration}s`
-                            : 'N/A',
+                            : null,
                         'The maximum Media Segment duration.',
                         'HLS: 4.3.3.1'
                     )}
-                    ${isLive && summary.hls.dvrWindow
+                    ${isLive
                         ? statCardTemplate(
                               'DVR Window',
-                              `${summary.hls.dvrWindow.toFixed(2)}s`,
+                              summary.hls.dvrWindow ? `${summary.hls.dvrWindow.toFixed(2)}s` : null,
                               'The available duration for seeking backward in the live stream, estimated from segment durations.',
                               'HLS: 6.3.3'
                           )
@@ -78,10 +76,16 @@ export function getHlsSummaryTemplate(stream) {
                     class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(280px,1fr))]"
                 >
                     ${statCardTemplate(
+                        'Low-Latency HLS',
+                        summary.lowLatency.isLowLatency,
+                        'Indicates if Low-Latency HLS features like PARTs and Preload Hints are in use.',
+                        'HLS 2nd Ed: Appx. B'
+                    )}
+                    ${statCardTemplate(
                         'Part Target',
                         summary.lowLatency.partTargetDuration
                             ? `${summary.lowLatency.partTargetDuration}s`
-                            : 'Not Detected',
+                            : null,
                         'Target duration for LL-HLS Partial Segments.',
                         'HLS 2nd Ed: 4.4.3.7'
                     )}
@@ -89,7 +93,7 @@ export function getHlsSummaryTemplate(stream) {
                         'Part Hold Back',
                         summary.lowLatency.partHoldBack
                             ? `${summary.lowLatency.partHoldBack}s`
-                            : 'Not Detected',
+                            : null,
                         'Server-recommended distance from the live edge for LL-HLS.',
                         'HLS 2nd Ed: 4.4.3.8'
                     )}
@@ -97,9 +101,7 @@ export function getHlsSummaryTemplate(stream) {
                         'Can Block Reload',
                         summary.lowLatency.isLowLatency
                             ? summary.lowLatency.canBlockReload
-                                ? 'Yes'
-                                : 'No'
-                            : 'N/A',
+                            : null,
                         'Indicates server support for blocking playlist reload requests for LL-HLS.',
                         'HLS 2nd Ed: 4.4.3.8'
                     )}
@@ -117,7 +119,7 @@ export function getHlsSummaryTemplate(stream) {
                 >
                     ${statCardTemplate(
                         'I-Frame Playlists',
-                        summary.hls.iFramePlaylists,
+                        summary.hls.iFramePlaylists > 0 ? summary.hls.iFramePlaylists : 0,
                         'Number of I-Frame only playlists for trick-play modes.',
                         'HLS: 4.3.4.3'
                     )}
@@ -128,11 +130,9 @@ export function getHlsSummaryTemplate(stream) {
                         'HLS: 4.3.4.2'
                     )}
                     ${statCardTemplate(
-                        'Encryption Systems',
-                        summary.security.isEncrypted
-                            ? summary.security.systems.join(', ')
-                            : 'No',
-                        'Detected encryption methods and DRM systems.',
+                        'Encryption',
+                        summary.security.isEncrypted,
+                        'Indicates if the stream uses encryption.',
                         'HLS: 4.3.2.4'
                     )}
                     ${statCardTemplate(

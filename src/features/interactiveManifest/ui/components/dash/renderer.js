@@ -62,19 +62,30 @@ const getAttributeHTML = (tagName, attr) => {
     const nameClass =
         'text-emerald-300 rounded-sm px-1 -mx-1 transition-colors hover:bg-slate-700';
     const valueClass = 'text-yellow-300';
-    const isIgnoredAttr = ['xmlns', 'xmlns:xsi', 'xsi:schemaLocation'].includes(
-        attr.name
-    );
 
     let dynamicClasses = '';
     let tooltipAttrs = '';
 
     if (attrInfo) {
+        // Specific tooltip found, use it.
         dynamicClasses = tooltipTriggerClasses;
         tooltipAttrs = `data-tooltip="${escapeHtml(
             attrInfo.text
         )}" data-iso="${escapeHtml(attrInfo.isoRef)}"`;
-    } else if (!isIgnoredAttr) {
+    } else if (attr.name.startsWith('xmlns')) {
+        // No specific tooltip, but it's an xmlns attribute, so provide a generic one.
+        const isDefault = attr.name === 'xmlns';
+        const prefix = isDefault
+            ? 'Default'
+            : `Prefixed ('${attr.name.split(':')[1]}')`;
+        const tooltipText = `XML Namespace Declaration (${prefix}). This attribute associates a prefix (or the default) with a unique URI ('${attr.value}') to prevent naming conflicts between elements from different XML vocabularies.`;
+        const isoRef = 'W3C XML Namespaces';
+        dynamicClasses = tooltipTriggerClasses;
+        tooltipAttrs = `data-tooltip="${escapeHtml(
+            tooltipText
+        )}" data-iso="${escapeHtml(isoRef)}"`;
+    } else {
+        // No specific tooltip and not an xmlns attribute, show "missing" warning.
         dynamicClasses =
             'cursor-help bg-red-900/50 border-b border-dotted border-red-400/70';
         tooltipAttrs = `data-tooltip="Tooltip definition missing for '${attr.name}' on &lt;${tagName}&gt;"`;

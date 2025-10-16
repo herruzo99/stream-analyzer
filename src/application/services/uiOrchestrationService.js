@@ -3,14 +3,16 @@ import { openModalWithContent } from '@/ui/services/modalService';
 import { showToast } from '@/ui/components/toast';
 import { showLoader, hideLoader } from '@/ui/components/loader';
 import { getParsedSegment } from '@/application/services/segmentService';
+import { useAnalysisStore } from '@/state/analysisStore';
 
 /**
  * Initializes listeners for global UI events that orchestrate application-level responses.
  */
 export function initializeUiOrchestration() {
     eventBus.subscribe('ui:request-segment-analysis', ({ url, format }) => {
+        const { activeStreamId } = useAnalysisStore.getState();
         showLoader('Analyzing segment...');
-        getParsedSegment(url, format)
+        getParsedSegment(url, activeStreamId, format)
             .then((parsedData) => {
                 hideLoader();
                 openModalWithContent({
@@ -32,8 +34,12 @@ export function initializeUiOrchestration() {
     });
 
     eventBus.subscribe('ui:request-segment-comparison', ({ urlA, urlB }) => {
+        const { activeStreamId } = useAnalysisStore.getState();
         showLoader('Analyzing segments for comparison...');
-        Promise.all([getParsedSegment(urlA), getParsedSegment(urlB)])
+        Promise.all([
+            getParsedSegment(urlA, activeStreamId),
+            getParsedSegment(urlB, activeStreamId),
+        ])
             .then(([parsedDataA, parsedDataB]) => {
                 hideLoader();
                 openModalWithContent({
