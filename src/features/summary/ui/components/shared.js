@@ -2,6 +2,7 @@ import { html } from 'lit-html';
 import { tooltipTriggerClasses } from '@/ui/shared/constants';
 import { isCodecSupported } from '@/infrastructure/parsing/utils/codec-support';
 import { formatBitrate } from '@/ui/shared/format';
+import * as icons from '@/ui/icons';
 
 const renderSourcedValue = (sourcedData) => {
     if (
@@ -17,37 +18,24 @@ const renderSourcedValue = (sourcedData) => {
               >`
             : ''}`;
     }
+    
+    if (typeof sourcedData === 'boolean') {
+        return sourcedData
+            ? html`<span class="text-green-400 font-semibold">Yes</span>`
+            : html`<span class="text-gray-400">No</span>`;
+    }
+
+    if (sourcedData === null || sourcedData === undefined || sourcedData === '') {
+        return html`<span class="text-gray-500">N/A</span>`;
+    }
+
     return sourcedData;
 };
 
 const renderCodecInfo = (codecInfo) => {
     const supportedIcon = codecInfo.supported
-        ? html`<svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-4 w-4 text-green-400 inline-block ml-2 shrink-0"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-              title="Parser support available"
-          >
-              <path
-                  fill-rule="evenodd"
-                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                  clip-rule="evenodd"
-              />
-          </svg>`
-        : html`<svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-4 w-4 text-red-400 inline-block ml-2 shrink-0"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-              title="Parser support not implemented"
-          >
-              <path
-                  fill-rule="evenodd"
-                  d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                  clip-rule="evenodd"
-              />
-          </svg>`;
+        ? html`<span class="inline-block ml-2 shrink-0">${icons.checkCircle}</span>`
+        : html`<span class="inline-block ml-2 shrink-0">${icons.xCircle}</span>`;
 
     return html`<div class="flex items-center">
         ${renderSourcedValue(codecInfo)}${supportedIcon}
@@ -61,15 +49,9 @@ export const statCardTemplate = (
     isoRef,
     customClasses = ''
 ) => {
-    if (
-        value === null ||
-        value === undefined ||
-        (typeof value === 'object' && value.value === null) ||
-        value === '' ||
-        (Array.isArray(value) && value.length === 0)
-    )
-        return '';
     const testId = `stat-card-${label.toLowerCase().replace(/[\s/]+/g, '-')}`;
+    
+    // The card is now always rendered. The renderSourcedValue function handles the display logic for different value types.
     return html`
         <div
             data-testid="${testId}"
@@ -122,19 +104,12 @@ export const trackTableTemplate = (tracks, type) => {
     if (type === 'video') {
         headers = [
             { text: 'ID' },
-            { text: 'Bitrate' },
+            { text: 'Declared Bitrate' },
+            { text: 'Bandwidth Model' },
             { text: 'Resolution' },
             { text: 'Codecs' },
-            {
-                text: 'Roles',
-                tooltip:
-                    'Describes the purpose of a track (e.g., "main", "alternate", "commentary"). Often not specified if only one main track exists.',
-            },
-            {
-                text: 'Dependencies',
-                tooltip:
-                    'For Scalable or Multi-view Video Coding (SVC/MVC). This is an advanced feature and is not commonly used.',
-            },
+            { text: 'Roles' },
+            { text: 'Relationships' },
         ];
         rows = tracks.map((track) => {
             // Defensive normalization to handle both summary objects and raw Representation IR
@@ -167,6 +142,26 @@ export const trackTableTemplate = (tracks, type) => {
             } else if (!codecs) {
                 codecs = [];
             }
+            
+            const extendedBw = track.extendedBandwidth;
+            const bandwidthModelCell = extendedBw
+                ? html`
+                    <div class="flex items-center">
+                        <span class="font-semibold text-yellow-300">VBR</span>
+                        <span class="${tooltipTriggerClasses} ml-2 text-cyan-400 cursor-help"
+                              data-tooltip="VBR Model Pairs: ${extendedBw.modelPairs.map(p => `[${p.bufferTime}s: ${formatBitrate(p.bandwidth)}]`).join(', ')}">
+                            &#9432;
+                        </span>
+                    </div>`
+                : html`<span class="text-gray-400">CBR</span>`;
+
+            const relationshipsCell = html`
+                <div class="flex items-center gap-2">
+                    ${track.dependencyId ? html`<span class="bg-red-800 text-red-200 px-2 py-0.5 rounded-full text-xs ${tooltipTriggerClasses}" data-tooltip="Depends on Rep(s): ${track.dependencyId}" data-iso="DASH: 5.3.5.2">Dep</span>` : ''}
+                    ${track.associationId ? html`<span class="bg-purple-800 text-purple-200 px-2 py-0.5 rounded-full text-xs ${tooltipTriggerClasses}" data-tooltip="Associated with Rep(s): ${track.associationId}" data-iso="DASH: 5.3.5.2">Assoc</span>` : ''}
+                    ${track.mediaStreamStructureId ? html`<span class="bg-teal-800 text-teal-200 px-2 py-0.5 rounded-full text-xs ${tooltipTriggerClasses}" data-tooltip="Shares structure with Rep(s): ${track.mediaStreamStructureId}" data-iso="DASH: 5.3.5.2">Struct</span>` : ''}
+                </div>
+            `;
 
             return html`
                 <tr>
@@ -174,6 +169,7 @@ export const trackTableTemplate = (tracks, type) => {
                     <td class="p-2 font-mono">
                         ${track.bitrateRange || formatBitrate(track.bandwidth)}
                     </td>
+                    <td class="p-2 font-mono">${bandwidthModelCell}</td>
                     <td class="p-2 font-mono">
                         ${resolutions.length > 0
                             ? resolutions.map(
@@ -192,7 +188,7 @@ export const trackTableTemplate = (tracks, type) => {
                         ${track.roles?.join(', ') || 'N/A'}
                     </td>
                     <td class="p-2 font-mono">
-                        ${track.dependencyId || 'N/A'}
+                        ${relationshipsCell}
                     </td>
                 </tr>
             `;

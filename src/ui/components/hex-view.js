@@ -1,5 +1,6 @@
 import { html } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
+import { copyTextToClipboard } from '@/ui/shared/clipboard';
 
 const escapeHtml = (str) => {
     if (!str) return '';
@@ -142,6 +143,22 @@ export const hexViewTemplate = (
         allTooltips
     );
 
+    const handleCopyHex = () => {
+        const hexString = Array.from(view)
+            .map((byte) => byte.toString(16).padStart(2, '0').toUpperCase())
+            .join(' ');
+        copyTextToClipboard(hexString, 'Hex data copied to clipboard!');
+    };
+
+    const handleCopyAscii = () => {
+        const asciiString = Array.from(view)
+            .map((byte) =>
+                byte >= 32 && byte <= 126 ? String.fromCharCode(byte) : '.'
+            )
+            .join('');
+        copyTextToClipboard(asciiString, 'ASCII data copied to clipboard!');
+    };
+
     return html`
         <style>
             .hex-row,
@@ -195,38 +212,54 @@ export const hexViewTemplate = (
                 </div>
             </div>
 
-            ${totalPages > 1
-                ? html`
-                      <div
-                          class="shrink-0 text-center text-sm text-gray-500 py-2 border-t border-gray-700"
-                      >
-                          Showing bytes ${startOffset} -
-                          ${Math.min(
-                              startOffset + bytesPerPage - 1,
-                              buffer.byteLength - 1
-                          )}
-                          of ${buffer.byteLength}
-                          (${(buffer.byteLength / 1024).toFixed(2)} KB)
-                          <div>
-                              <button
-                                  @click=${() => onPageChange(-1)}
-                                  ?disabled=${currentPage === 1}
-                                  class="px-2 py-1 rounded bg-gray-600 hover:bg-gray-500 disabled:opacity-50 mx-1"
-                              >
-                                  &lt;
-                              </button>
-                              Page ${currentPage} of ${totalPages}
-                              <button
-                                  @click=${() => onPageChange(1)}
-                                  ?disabled=${currentPage === totalPages}
-                                  class="px-2 py-1 rounded bg-gray-600 hover:bg-gray-500 disabled:opacity-50 mx-1"
-                              >
-                                  &gt;
-                              </button>
+            <div
+                class="shrink-0 flex items-center justify-between p-2 border-t border-gray-700"
+            >
+                <div class="flex items-center gap-2">
+                    <button
+                        @click=${handleCopyHex}
+                        class="text-xs bg-gray-600 hover:bg-gray-700 px-2 py-1 rounded"
+                    >
+                        Copy Hex
+                    </button>
+                    <button
+                        @click=${handleCopyAscii}
+                        class="text-xs bg-gray-600 hover:bg-gray-700 px-2 py-1 rounded"
+                    >
+                        Copy ASCII
+                    </button>
+                </div>
+                ${totalPages > 1
+                    ? html`
+                          <div class="text-center text-sm text-gray-500">
+                              Showing bytes ${startOffset} -
+                              ${Math.min(
+                                  startOffset + bytesPerPage - 1,
+                                  buffer.byteLength - 1
+                              )}
+                              of ${buffer.byteLength}
+                              (${(buffer.byteLength / 1024).toFixed(2)} KB)
+                              <div>
+                                  <button
+                                      @click=${() => onPageChange(-1)}
+                                      ?disabled=${currentPage === 1}
+                                      class="px-2 py-1 rounded bg-gray-600 hover:bg-gray-500 disabled:opacity-50 mx-1"
+                                  >
+                                      &lt;
+                                  </button>
+                                  Page ${currentPage} of ${totalPages}
+                                  <button
+                                      @click=${() => onPageChange(1)}
+                                      ?disabled=${currentPage === totalPages}
+                                      class="px-2 py-1 rounded bg-gray-600 hover:bg-gray-500 disabled:opacity-50 mx-1"
+                                  >
+                                      &gt;
+                                  </button>
+                              </div>
                           </div>
-                      </div>
-                  `
-                : ''}
+                      `
+                    : ''}
+            </div>
         </div>
     `;
 };

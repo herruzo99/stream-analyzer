@@ -26,7 +26,16 @@ function startPoller(stream, variantUri) {
 
     pollHlsVariant(stream.id, variantUri);
 
-    const pollInterval = (stream.manifest?.minBufferTime || 2) * 1000;
+    const mediaPlaylist = stream.mediaPlaylists.get(variantUri);
+    const playlistTargetDuration = mediaPlaylist?.manifest?.targetDuration;
+    const masterTargetDuration = stream.manifest?.targetDuration;
+
+    // The HLS spec recommends clients not re-request the playlist until at least one target duration has passed.
+    // We will use the specific media playlist's target duration if available, otherwise fall back to the master's.
+    const pollIntervalSeconds =
+        playlistTargetDuration || masterTargetDuration || 2;
+    const pollInterval = Math.max(pollIntervalSeconds * 1000, 2000); // Enforce a minimum of 2 seconds.
+
     const intervalId = setInterval(
         () => pollHlsVariant(stream.id, variantUri),
         pollInterval

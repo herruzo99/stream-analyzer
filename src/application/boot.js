@@ -22,6 +22,7 @@ import { initializeModalComponent } from '@/ui/components/modal';
 import { setupGlobalTooltipListener } from '@/ui/components/tooltip';
 import { initializeDropdownService } from '@/ui/services/dropdownService';
 import { keyManagerService } from './services/keyManagerService.js';
+import { initializeInbandEventMonitor } from './services/inbandEventMonitorService.js';
 
 // Side-effect driven imports for services that primarily listen to the event bus
 import '@/application/services/streamService';
@@ -90,6 +91,7 @@ export async function startApp() {
     initializeSegmentService();
     streamInitializationService.initialize();
     keyManagerService.initialize();
+    initializeInbandEventMonitor();
 
     // --- Layer 4: UI Orchestration, Controllers & Use Cases ---
     initializeUiOrchestration();

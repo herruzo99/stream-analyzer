@@ -1,8 +1,9 @@
 import { useSegmentCacheStore } from '@/state/segmentCacheStore';
 import { eventBus } from '@/application/event-bus';
 import { workerService } from '@/infrastructure/worker/workerService';
-import { useAnalysisStore } from '@/state/analysisStore';
+import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
 import { keyManagerService } from './keyManagerService';
+import { fetchWithRetry } from '@/application/utils/fetch';
 
 /**
  * Finds the corresponding HLS segment object and its parent playlist from the manifest IR.
@@ -31,7 +32,7 @@ function findHlsSegmentAndPlaylist(url) {
     return { playlist: null, segment: null, segmentIndex: -1 };
 }
 
-async function _fetchAndParseSegment(url, formatHint) {
+async function _fetchAndParseSegment(url, streamId, formatHint) {
     const { set } = useSegmentCacheStore.getState();
     try {
         set(url, { status: -1, data: null, parsedData: null });
@@ -75,7 +76,7 @@ async function _fetchAndParseSegment(url, formatHint) {
         }
 
         if (workerTask === 'parse-segment-structure') {
-            const response = await fetch(url, {
+            const response = await fetchWithRetry(url, {
                 method: 'GET',
                 cache: 'no-store',
             });
@@ -112,6 +113,12 @@ async function _fetchAndParseSegment(url, formatHint) {
             parsedData,
         };
 
+        // --- NEW LOGIC: Check for inband events ---
+        if (streamId !== null && parsedData?.data?.events?.length > 0) {
+            analysisActions.addInbandEvents(streamId, parsedData.data.events);
+        }
+        // --- END NEW LOGIC ---
+
         set(url, finalEntry);
         eventBus.dispatch('segment:loaded', { url, entry: finalEntry });
     } catch (error) {
@@ -126,9 +133,10 @@ async function _fetchAndParseSegment(url, formatHint) {
     }
 }
 
-export function getParsedSegment(url, formatHint = null) {
+export function getParsedSegment(url, streamId = null, formatHint = null) {
     const { get } = useSegmentCacheStore.getState();
     const cachedEntry = get(url);
+    const id = streamId ?? useAnalysisStore.getState().activeStreamId;
 
     if (cachedEntry && cachedEntry.status !== -1 && cachedEntry.parsedData) {
         return cachedEntry.parsedData.error
@@ -156,13 +164,13 @@ export function getParsedSegment(url, formatHint = null) {
         );
 
         if (!cachedEntry || cachedEntry.status !== -1) {
-            _fetchAndParseSegment(url, formatHint);
+            _fetchAndParseSegment(url, id, formatHint);
         }
     });
 }
 
 export function initializeSegmentService() {
-    eventBus.subscribe('segment:fetch', ({ url, format }) =>
-        _fetchAndParseSegment(url, format)
+    eventBus.subscribe('segment:fetch', ({ url, streamId, format }) =>
+        _fetchAndParseSegment(url, streamId, format)
     );
 }

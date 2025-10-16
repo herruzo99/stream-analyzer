@@ -7,6 +7,7 @@ import { uiActions } from '@/state/uiStore';
 import { eventBus } from '@/application/event-bus';
 import { copyTextToClipboard } from '@/ui/shared/clipboard';
 import { keyManagerService } from '@/application/services/keyManagerService';
+import * as icons from '@/ui/icons';
 
 const FLAG_DEFINITIONS = {
     discontinuity: {
@@ -102,70 +103,16 @@ const encryptionTemplate = (seg) => {
         let icon, tooltip;
 
         if (!keyStatus) {
-            icon = html`<svg
-                class="h-5 w-5 text-gray-400"
-                fill="currentColor"
-                viewBox="0 0 20 20"
-            >
-                <path
-                    fill-rule="evenodd"
-                    d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z"
-                    clip-rule="evenodd"
-                />
-            </svg>`;
+            icon = html`<span class="text-gray-400">${icons.lockClosed}</span>`;
             tooltip = `Encrypted (AES-128). Key not fetched.`;
         } else if (keyStatus.status === 'pending') {
-            icon = html`<svg
-                class="h-5 w-5 text-blue-400 animate-spin"
-                fill="none"
-                viewBox="0 0 24 24"
-            >
-                <circle
-                    class="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    stroke-width="4"
-                ></circle>
-                <path
-                    class="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                ></path>
-            </svg>`;
+            icon = html`<span class="text-blue-400">${icons.spinner}</span>`;
             tooltip = 'Fetching key...';
         } else if (keyStatus.status === 'error') {
-            icon = html`<svg
-                class="h-5 w-5 text-red-500"
-                fill="currentColor"
-                viewBox="0 0 20 20"
-            >
-                <path
-                    fill-rule="evenodd"
-                    d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z"
-                    clip-rule="evenodd"
-                />
-                <path
-                    fill-rule="evenodd"
-                    d="M13.477 14.879a1 1 0 01-1.414 0L10 12.414l-2.063 2.063a1 1 0 01-1.414-1.414L8.586 11 6.523 8.937a1 1 0 111.414-1.414L10 9.586l2.063-2.063a1 1 0 111.414 1.414L11.414 11l2.063 2.063a1 1 0 010 1.414z"
-                    clip-rule="evenodd"
-                />
-            </svg>`;
+            icon = html`<span>${icons.xCircleRed}</span>`;
             tooltip = `Key Error: ${keyStatus.error}`;
         } else {
-            icon = html`<svg
-                class="h-5 w-5 text-green-400"
-                fill="currentColor"
-                viewBox="0 0 20 20"
-            >
-                <path
-                    d="M10 2a5 5 0 00-5 5v2a2 2 0 00-2 2v5a2 2 0 002 2h10a2 2 0 002-2v-5a2 2 0 00-2-2V7a5 5 0 00-5-5zm0 8h6v5H4v-5h6z"
-                />
-                <path
-                    d="M9 4a3 3 0 016 0v3h-1V7a2 2 0 10-4 0v2H8V7a3 3 0 011-2.236z"
-                />
-            </svg>`;
+            icon = html`<span class="text-green-400">${icons.lockOpen}</span>`;
             tooltip = 'Key ready.';
         }
         return html`<div
@@ -180,17 +127,7 @@ const encryptionTemplate = (seg) => {
     // Handle DASH CENC
     if (encryptionInfo.method === 'CENC' && encryptionInfo.systems) {
         const tooltip = `Encrypted (CENC). Systems: ${encryptionInfo.systems.join(', ')}.`;
-        const icon = html`<svg
-            class="h-5 w-5 text-gray-400"
-            fill="currentColor"
-            viewBox="0 0 20 20"
-        >
-            <path
-                fill-rule="evenodd"
-                d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z"
-                clip-rule="evenodd"
-            />
-        </svg>`;
+        const icon = html`<span class="text-gray-400">${icons.lockClosed}</span>`;
         return html`<div
             class="flex items-center space-x-1"
             data-tooltip=${tooltip}
@@ -439,20 +376,7 @@ export const segmentRowTemplate = (seg, isFresh, segmentFormat) => {
                               title="Copy segment URL"
                               class="ml-2 shrink-0 text-gray-400 hover:text-white"
                           >
-                              <svg
-                                  xmlns="http://www.w3.org/2000/svg"
-                                  class="h-4 w-4"
-                                  fill="none"
-                                  viewBox="0 0 24 24"
-                                  stroke="currentColor"
-                                  stroke-width="2"
-                              >
-                                  <path
-                                      stroke-linecap="round"
-                                      stroke-linejoin="round"
-                                      d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                                  />
-                              </svg>
+                              ${icons.clipboardCopy}
                           </button>`
                         : ''}
                 </div>

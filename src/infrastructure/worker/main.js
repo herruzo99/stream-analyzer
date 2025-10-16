@@ -8,6 +8,7 @@ import {
     handleDecryptAndParseSegment,
 } from './handlers/segmentParsingHandler.js';
 import { parseManifest as parseHlsManifest } from '@/infrastructure/parsing/hls/index';
+import { fetchWithRetry } from '@/application/utils/fetch';
 
 const handlers = {
     'start-analysis': handleStartAnalysis,
@@ -25,7 +26,7 @@ async function handleFetchHlsMediaPlaylist({
     variantUri,
     hlsDefinedVariables,
 }) {
-    const response = await fetch(variantUri);
+    const response = await fetchWithRetry(variantUri);
     if (!response.ok) throw new Error(`HTTP error ${response.status}`);
     const manifestString = await response.text();
     const { manifest } = await parseHlsManifest(

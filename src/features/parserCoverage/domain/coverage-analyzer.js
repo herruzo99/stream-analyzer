@@ -155,7 +155,16 @@ const dashXmlSchema = {
             'timescale',
             'availabilityTimeOffset',
             'availabilityTimeComplete',
+            'presentationTimeOffset',
         ],
+        children: ['SegmentTimeline'],
+    },
+    SegmentTimeline: {
+        attrs: [],
+        children: ['S'],
+    },
+    S: {
+        attrs: ['t', 'n', 'd', 'r', 'k'],
         children: [],
     },
     // Add other elements as needed...

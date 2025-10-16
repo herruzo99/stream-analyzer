@@ -17,6 +17,7 @@ import { boxParsers } from './index.js';
  * @property {string=} systemId - For 'pssh' boxes
  * @property {string[]=} kids - For 'pssh' boxes (version > 0)
  * @property {string=} data - For 'pssh' boxes (base64 encoded)
+ * @property {object=} scte35 - Parsed SCTE-35 data if the emsg box contains it.
  */
 
 const knownContainerBoxes = new Set([
