@@ -1,4 +1,5 @@
 import { html, render } from 'lit-html';
+import { useSegmentCacheStore } from '@/state/segmentCacheStore';
 
 class VirtualizedList extends HTMLElement {
     constructor() {
@@ -6,6 +7,8 @@ class VirtualizedList extends HTMLElement {
         this._items = [];
         this._rowTemplate = (item) => html``;
         this._rowHeight = 40;
+        this._itemId = (item) => item.id;
+        this.unsubscribe = null;
 
         this.visibleStartIndex = 0;
         this.visibleEndIndex = 0;
@@ -55,6 +58,14 @@ class VirtualizedList extends HTMLElement {
     get rowHeight() {
         return this._rowHeight;
     }
+    
+    set itemId(newItemIdFn) {
+        this._itemId = newItemIdFn;
+    }
+    
+    get itemId() {
+        return this._itemId;
+    }
 
     connectedCallback() {
         this.classList.add('block', 'overflow-y-auto', 'relative');
@@ -70,12 +81,18 @@ class VirtualizedList extends HTMLElement {
         );
         this.resizeObserver.observe(this);
 
+        // Subscribe to the segment cache store and trigger a proper re-render calculation
+        this.unsubscribe = useSegmentCacheStore.subscribe(() => this._updateVisibleItems());
+
         this._updateVisibleItems();
     }
 
     disconnectedCallback() {
         this.removeEventListener('scroll', this._onScroll);
         this.resizeObserver.unobserve(this);
+        if (this.unsubscribe) {
+            this.unsubscribe();
+        }
     }
 
     _onScroll() {
@@ -113,8 +130,9 @@ class VirtualizedList extends HTMLElement {
         this.container.style.paddingTop = `${this.paddingTop}px`;
         this.container.style.paddingBottom = `${this.paddingBottom}px`;
 
+        // Render rows directly into the container, removing the extra div wrapper
         const template = html`
-            ${visibleItems.map((item) => this._rowTemplate(item))}
+            ${visibleItems.map(item => this._rowTemplate(item))}
         `;
         render(template, this.container);
     }

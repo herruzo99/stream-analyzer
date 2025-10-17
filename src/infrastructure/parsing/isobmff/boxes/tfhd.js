@@ -16,37 +16,61 @@ const TFHD_FLAGS_SCHEMA = {
  */
 export function parseTfhd(box, view) {
     const p = new BoxParser(box, view);
-    const { flags } = p.readVersionAndFlags(TFHD_FLAGS_SCHEMA);
 
-    if (flags === null) {
+    // Read the raw version and flags integer
+    if (!p.checkBounds(4)) {
         p.finalize();
         return;
     }
+    const versionAndFlags = p.view.getUint32(p.offset);
+    const version = versionAndFlags >> 24;
+    const flagsInt = versionAndFlags & 0x00ffffff;
+
+    const decodedFlags = {};
+    for (const mask in TFHD_FLAGS_SCHEMA) {
+        decodedFlags[TFHD_FLAGS_SCHEMA[mask]] =
+            (flagsInt & parseInt(mask, 16)) !== 0;
+    }
+
+    p.box.details['version'] = {
+        value: version,
+        offset: p.box.offset + p.offset,
+        length: 1,
+    };
+    p.box.details['flags_raw'] = {
+        value: `0x${flagsInt.toString(16).padStart(6, '0')}`,
+        offset: p.box.offset + p.offset + 1,
+        length: 3,
+    };
+    p.box.details['flags'] = {
+        value: decodedFlags,
+        offset: p.box.offset + p.offset + 1,
+        length: 3,
+    };
+    p.offset += 4;
+
+    const flags = decodedFlags;
 
     p.readUint32('track_ID');
 
-    if (flags & 0x000001) {
-        // base_data_offset_present
+    if (flags.base_data_offset_present) {
         p.readBigUint64('base_data_offset');
     }
-    if (flags & 0x000002) {
-        // sample_description_index_present
+    if (flags.sample_description_index_present) {
         p.readUint32('sample_description_index');
     }
-    if (flags & 0x000008) {
-        // default_sample_duration_present
+    if (flags.default_sample_duration_present) {
         p.readUint32('default_sample_duration');
     }
-    if (flags & 0x000010) {
-        // default_sample_size_present
+    if (flags.default_sample_size_present) {
         p.readUint32('default_sample_size');
     }
-    if (flags & 0x000020) {
-        // default_sample_flags_present
-        const defaultSampleFlags = p.readUint32('default_sample_flags_raw');
-        if (defaultSampleFlags !== null) {
+    if (flags.default_sample_flags_present) {
+        const defaultSampleFlagsInt = p.readUint32('default_sample_flags_raw');
+        if (defaultSampleFlagsInt !== null) {
+            // Sample flags have a different structure, so we don't decode them with this schema.
             box.details['default_sample_flags'] = {
-                value: `0x${defaultSampleFlags.toString(16)}`,
+                value: `0x${defaultSampleFlagsInt.toString(16).padStart(8, '0')}`,
                 offset: box.details['default_sample_flags_raw'].offset,
                 length: 4,
             };

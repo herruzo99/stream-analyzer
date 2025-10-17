@@ -11,8 +11,13 @@ import { eventBus } from '@/application/event-bus';
 import { showToast } from '@/ui/components/toast';
 import { openModalWithContent } from '@/ui/services/modalService';
 import { startAnalysisUseCase } from '@/application/useCases/startAnalysis';
+import { startSegmentAnalysisUseCase } from '@/application/useCases/startSegmentAnalysis';
 import { container } from '@/application/container';
 import * as icons from '@/ui/icons';
+
+// --- Local State for this View ---
+let activeTab = 'streams';
+let selectedFiles = [];
 
 const getBadge = (text, colorClasses) => {
     if (!text) return '';
@@ -347,11 +352,85 @@ const getStreamInputsTemplate = (rerenderCallback) => {
     )}`;
 };
 
+const segmentInputTemplate = (rerenderCallback) => {
+    const handleFileChange = (e) => {
+        selectedFiles = Array.from(e.target.files);
+        rerenderCallback();
+    };
+
+    const handleRemoveFile = (fileName) => {
+        selectedFiles = selectedFiles.filter((f) => f.name !== fileName);
+        rerenderCallback();
+    };
+
+    return html`
+        <div class="space-y-4">
+            <p class="text-gray-400 text-sm">
+                Upload one or more individual media segment files (e.g., .m4s,
+                .ts, .vtt) to inspect their structure and compare them.
+            </p>
+            <div
+                class="bg-gray-700/50 border-2 border-dashed border-gray-600 rounded-lg p-6 text-center"
+            >
+                <input
+                    type="file"
+                    id="segment-file-input"
+                    multiple
+                    class="hidden"
+                    @change=${handleFileChange}
+                />
+                <label
+                    for="segment-file-input"
+                    class="cursor-pointer text-blue-400 hover:text-blue-300 font-semibold"
+                >
+                    Choose files
+                </label>
+                <p class="text-xs text-gray-500 mt-1">or drag and drop</p>
+            </div>
+            ${selectedFiles.length > 0
+                ? html`
+                      <div class="space-y-2">
+                          <h4 class="text-md font-semibold text-gray-300">
+                              Selected Files (${selectedFiles.length})
+                          </h4>
+                          <ul
+                              class="max-h-48 overflow-y-auto bg-gray-900/50 rounded-md border border-gray-700 divide-y divide-gray-700"
+                          >
+                              ${selectedFiles.map(
+                                  (file) => html`
+                                      <li
+                                          class="p-2 flex justify-between items-center text-sm"
+                                      >
+                                          <span class="font-mono text-gray-300"
+                                              >${file.name}</span
+                                          >
+                                          <button
+                                              @click=${() =>
+                                                  handleRemoveFile(file.name)}
+                                              class="text-red-400 hover:text-red-300"
+                                          >
+                                              &times;
+                                          </button>
+                                      </li>
+                                  `
+                              )}
+                          </ul>
+                      </div>
+                  `
+                : ''}
+        </div>
+    `;
+};
+
 export const inputViewTemplate = (rerenderCallback) => {
     const { streamInputs } = useAnalysisStore.getState();
 
-    const handleAnalysis = () => {
+    const handleStreamAnalysis = () => {
         startAnalysisUseCase({ inputs: streamInputs }, container.services);
+    };
+
+    const handleSegmentAnalysis = () => {
+        startSegmentAnalysisUseCase({ files: selectedFiles });
     };
 
     const showAboutModal = (e) => {
@@ -363,17 +442,31 @@ export const inputViewTemplate = (rerenderCallback) => {
         });
     };
 
-    return html`<div
-        class="bg-gray-800 p-6 rounded-lg shadow-2xl w-full max-w-3xl"
-    >
-        <div class="flex items-center gap-4 mb-6">
+    const setTab = (tabName) => {
+        activeTab = tabName;
+        rerenderCallback();
+    };
+
+    const tabButton = (tabName, label) => html`
+        <button
+            @click=${() => setTab(tabName)}
+            class="px-4 py-2 text-sm font-semibold rounded-t-lg transition-colors ${activeTab ===
+            tabName
+                ? 'bg-gray-800 text-white'
+                : 'bg-gray-700/50 text-gray-400 hover:bg-gray-700'}"
+        >
+            ${label}
+        </button>
+    `;
+
+    return html` <div class="w-full max-w-3xl">
+        <div class="flex items-center gap-4 mb-4">
             <div>
                 <h1 class="text-3xl sm:text-4xl font-bold text-white">
                     Stream Analyzer
                 </h1>
                 <p class="text-gray-400 mt-2 text-sm sm:text-base">
-                    Analyze and compare DASH & HLS streams against industry
-                    standards.
+                    Analyze manifests or inspect individual media segments.
                 </p>
             </div>
             <button
@@ -385,34 +478,63 @@ export const inputViewTemplate = (rerenderCallback) => {
                 ${icons.informationCircle}
             </button>
         </div>
-        <div id="stream-inputs" class="space-y-6">
-            ${getStreamInputsTemplate(rerenderCallback)}
+
+        <div class="border-b border-gray-700 mb-6">
+            ${tabButton('streams', 'Analyze Streams')}
+            ${tabButton('segments', 'Analyze Segments')}
         </div>
-        <div class="flex flex-col sm:flex-row gap-4 mt-6">
-            <button
-                id="clear-all-btn"
-                data-testid="clear-all-btn"
-                class="w-full sm:w-auto grow bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-md transition duration-300"
-                @click=${() => analysisActions.clearAllStreamInputs()}
-            >
-                Clear All
-            </button>
-            <button
-                id="add-stream-btn"
-                data-testid="add-stream-btn"
-                class="w-full sm:w-auto grow bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md transition duration-300"
-                @click=${() => analysisActions.addStreamInput()}
-            >
-                Add Another Stream
-            </button>
-            <button
-                id="analyze-btn"
-                data-testid="analyze-btn"
-                class="w-full sm:w-auto grow bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition duration-300"
-                @click=${handleAnalysis}
-            >
-                ${streamInputs.length > 1 ? 'Analyze & Compare' : 'Analyze'}
-            </button>
+
+        <div class="bg-gray-800 p-6 rounded-lg shadow-2xl">
+            ${activeTab === 'streams'
+                ? html`
+                      <div id="stream-inputs" class="space-y-6">
+                          ${getStreamInputsTemplate(rerenderCallback)}
+                      </div>
+                      <div class="flex flex-col sm:flex-row gap-4 mt-6">
+                          <button
+                              id="clear-all-btn"
+                              data-testid="clear-all-btn"
+                              class="w-full sm:w-auto grow bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-md transition duration-300"
+                              @click=${() =>
+                                  analysisActions.clearAllStreamInputs()}
+                          >
+                              Clear All
+                          </button>
+                          <button
+                              id="add-stream-btn"
+                              data-testid="add-stream-btn"
+                              class="w-full sm:w-auto grow bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md transition duration-300"
+                              @click=${() => analysisActions.addStreamInput()}
+                          >
+                              Add Another Stream
+                          </button>
+                          <button
+                              id="analyze-btn"
+                              data-testid="analyze-btn"
+                              class="w-full sm:w-auto grow bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition duration-300"
+                              @click=${handleStreamAnalysis}
+                          >
+                              ${streamInputs.length > 1
+                                  ? 'Analyze & Compare'
+                                  : 'Analyze'}
+                          </button>
+                      </div>
+                  `
+                : html`
+                      <div id="segment-inputs">
+                          ${segmentInputTemplate(rerenderCallback)}
+                      </div>
+                      <div class="mt-6">
+                          <button
+                              id="analyze-segments-btn"
+                              class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-md transition duration-300 disabled:opacity-50"
+                              ?disabled=${selectedFiles.length === 0}
+                              @click=${handleSegmentAnalysis}
+                          >
+                              Analyze ${selectedFiles.length} Segment(s)
+                          </button>
+                      </div>
+                  `}
         </div>
     </div>`;
 };

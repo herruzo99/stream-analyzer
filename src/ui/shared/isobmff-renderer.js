@@ -144,6 +144,11 @@ export const inspectorDetailsTemplate = (
     const boxInfo = allIsoTooltipData[box.type] || {};
 
     const fields = Object.entries(box.details).map(([key, field]) => {
+        // Hide the raw flags if a decoded version exists
+        if (key.endsWith('_raw') && box.details[key.replace('_raw', '')]) {
+            return '';
+        }
+
         const fieldInfo = allIsoTooltipData[`${box.type}@${key}`];
         const highlightClass =
             fieldForDisplay === key ? 'is-inspector-field-highlighted' : '';
@@ -254,6 +259,7 @@ export const isoBoxTreeTemplate = (box) => {
                   <table class="text-xs border-collapse w-full table-auto">
                       <tbody>
                           ${Object.entries(box.details).map(([key, field]) => {
+                              if (key.endsWith('_raw')) return ''; // Hide raw values if decoded ones exist
                               const fieldTooltip =
                                   allIsoTooltipData[`${box.type}@${key}`];
                               return html`<tr>

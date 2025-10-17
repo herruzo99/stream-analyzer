@@ -7,6 +7,7 @@ import { renderContextSwitcher } from './context-switcher.js';
 import { globalControlsTemplate } from './global-controls.js';
 import { mainContentControlsTemplate } from './main-content-controls.js';
 import { getComparisonTemplate } from '@/features/comparison/ui/index';
+import { getSegmentComparisonTemplate } from '@/features/segmentComparison/ui/index';
 import { getGlobalSummaryTemplate } from '@/features/summary/ui/index';
 import { getIntegratorsReportTemplate } from '@/features/integratorsReport/ui/index';
 import { getTimelineAndVisualsTemplate } from '@/features/timelineVisuals/ui/index';
@@ -31,12 +32,13 @@ let keyboardNavigationListener = null;
 const NAV_ITEMS = [
     // Overviews
     { key: 'summary', label: 'Summary' },
-    { key: 'comparison', label: 'Comparison' },
+    { key: 'comparison', label: 'Manifest Comparison' },
     { key: 'integrators-report', label: "Integrator's Report" },
     // Analysis
     { key: 'timeline-visuals', label: 'Timeline' },
     { key: 'features', label: 'Features' },
     { key: 'compliance', label: 'Compliance' },
+    { key: 'segment-comparison', label: 'Segment Comparison' },
     // Exploration
     { key: 'interactive-manifest', label: 'Manifest' },
     { key: 'updates', label: 'Updates' },
@@ -95,6 +97,9 @@ const renderMainContent = (activeStream, activeTab) => {
                 break;
             case 'explorer':
                 mainContentTemplate = getSegmentExplorerTemplate(activeStream);
+                break;
+            case 'segment-comparison':
+                mainContentTemplate = getSegmentComparisonTemplate();
                 break;
             case 'interactive-segment':
                 mainContentTemplate = getInteractiveSegmentTemplate(dom);

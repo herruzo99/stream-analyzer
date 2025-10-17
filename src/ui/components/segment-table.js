@@ -8,7 +8,7 @@ import '@/ui/components/virtualized-list'; // Import the custom element
  * A shared component for rendering a table of media segments.
  *
  * @param {object} options
- * @param {string} options.id - A unique ID for the virtualized list.
+ * @param {string} options.id - A unique ID for the virtualized list. This is the composite key for the representation.
  * @param {string} options.title - The title to display in the table header.
  * @param {object[]} options.segments - The array of segment objects to render.
  * @param {Set<string>} options.freshSegmentUrls - A set of URLs for segments that are considered "fresh".
@@ -68,7 +68,8 @@ export const segmentTableTemplate = ({
         }
     } else {
         const rowRenderer = (seg) => {
-            return segmentRowTemplate(seg, freshSegmentUrls, segmentFormat);
+            // Pass the composite key 'id' as 'repId' to the row template
+            return segmentRowTemplate(seg, freshSegmentUrls, segmentFormat, id);
         };
         const scrollbarWidth = getScrollbarWidth();
 

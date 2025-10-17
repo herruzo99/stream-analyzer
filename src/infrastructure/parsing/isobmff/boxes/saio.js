@@ -11,14 +11,39 @@ const SAIO_FLAGS_SCHEMA = {
  */
 export function parseSaio(box, view) {
     const p = new BoxParser(box, view);
-    const { version, flags } = p.readVersionAndFlags(SAIO_FLAGS_SCHEMA);
 
-    if (version === null) {
+    if (!p.checkBounds(4)) {
         p.finalize();
         return;
     }
+    const versionAndFlags = p.view.getUint32(p.offset);
+    const version = versionAndFlags >> 24;
+    const flagsInt = versionAndFlags & 0x00ffffff;
 
-    if (flags & 0x000001) {
+    const decodedFlags = {};
+    for (const mask in SAIO_FLAGS_SCHEMA) {
+        decodedFlags[SAIO_FLAGS_SCHEMA[mask]] =
+            (flagsInt & parseInt(mask, 16)) !== 0;
+    }
+
+    p.box.details['version'] = {
+        value: version,
+        offset: p.box.offset + p.offset,
+        length: 1,
+    };
+    p.box.details['flags_raw'] = {
+        value: `0x${flagsInt.toString(16).padStart(6, '0')}`,
+        offset: p.box.offset + p.offset + 1,
+        length: 3,
+    };
+    p.box.details['flags'] = {
+        value: decodedFlags,
+        offset: p.box.offset + p.offset + 1,
+        length: 3,
+    };
+    p.offset += 4;
+
+    if (decodedFlags.aux_info_type_present) {
         p.readUint32('aux_info_type');
         p.readUint32('aux_info_type_parameter');
     }
@@ -26,10 +51,17 @@ export function parseSaio(box, view) {
     const entryCount = p.readUint32('entry_count');
 
     if (entryCount !== null && entryCount > 0) {
+        // For simplicity in the UI, we only show the first offset.
+        // A full implementation would create an array of entries.
         if (version === 1) {
             p.readBigUint64('offset_1');
         } else {
             p.readUint32('offset_1');
+        }
+        // If there are more entries, skip them to avoid cluttering the details.
+        if (entryCount > 1) {
+            const bytesToSkip = (entryCount - 1) * (version === 1 ? 8 : 4);
+            p.skip(bytesToSkip, `remaining_${entryCount - 1}_offsets`);
         }
     }
     p.finalize();

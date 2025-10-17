@@ -27,6 +27,7 @@ import { createStore } from 'zustand/vanilla';
  * @property {'first' | 'last'} segmentExplorerDashMode
  * @property {string} segmentExplorerActiveTab
  * @property {string | null} highlightedCompliancePathId
+ * @property {boolean} segmentComparisonHideSame
  */
 
 /**
@@ -48,6 +49,7 @@ import { createStore } from 'zustand/vanilla';
  * @property {(mode: 'first' | 'last') => void} setSegmentExplorerDashMode
  * @property {(tab: string) => void} setSegmentExplorerActiveTab
  * @property {(pathId: string | null) => void} setHighlightedCompliancePathId
+ * @property {() => void} toggleSegmentComparisonHideSame
  * @property {() => void} reset
  */
 
@@ -74,6 +76,7 @@ const createInitialUiState = () => ({
     segmentExplorerDashMode: 'first',
     segmentExplorerActiveTab: 'video',
     highlightedCompliancePathId: null,
+    segmentComparisonHideSame: false,
 });
 
 export const useUiStore = createStore((set) => ({
@@ -120,6 +123,10 @@ export const useUiStore = createStore((set) => ({
         set({ segmentExplorerActiveTab: tab }),
     setHighlightedCompliancePathId: (pathId) =>
         set({ highlightedCompliancePathId: pathId }),
+    toggleSegmentComparisonHideSame: () =>
+        set((state) => ({
+            segmentComparisonHideSame: !state.segmentComparisonHideSame,
+        })),
     reset: () => set(createInitialUiState()),
 }));
 
@@ -154,5 +161,7 @@ export const uiActions = {
         useUiStore.getState().setSegmentExplorerActiveTab(tab),
     setHighlightedCompliancePathId: (pathId) =>
         useUiStore.getState().setHighlightedCompliancePathId(pathId),
+    toggleSegmentComparisonHideSame: () =>
+        useUiStore.getState().toggleSegmentComparisonHideSame(),
     reset: () => useUiStore.getState().reset(),
 };

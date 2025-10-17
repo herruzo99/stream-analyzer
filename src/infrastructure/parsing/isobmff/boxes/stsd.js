@@ -8,7 +8,7 @@ import { BoxParser } from '../utils.js';
  */
 export function parseStsd(box, view) {
     const p = new BoxParser(box, view);
-    p.readVersionAndFlags();
+    p.readVersionAndFlags(null); // No flags defined in spec
     p.readUint32('entry_count');
     // This is a container box. The main parsing loop will handle the children (sample entries).
     // We do not call p.finalize() here as that would incorrectly flag the children as "extra data".

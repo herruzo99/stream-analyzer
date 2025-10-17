@@ -54,7 +54,8 @@ const NavGroup = (group, activeTab) => {
 };
 
 export const sidebarNavTemplate = () => {
-    const { streams, activeSegmentUrl } = useAnalysisStore.getState();
+    const { streams, activeSegmentUrl, segmentsForCompare } =
+        useAnalysisStore.getState();
     const { activeTab } = useUiStore.getState();
 
     const navGroups = [
@@ -69,7 +70,7 @@ export const sidebarNavTemplate = () => {
                 },
                 {
                     key: 'comparison',
-                    label: 'Comparison',
+                    label: 'Manifest Comparison',
                     icon: icons.comparison,
                     visible: streams.length > 1,
                 },
@@ -130,6 +131,12 @@ export const sidebarNavTemplate = () => {
                     label: 'Segment Explorer',
                     icon: icons.explorer,
                     visible: true,
+                },
+                {
+                    key: 'segment-comparison',
+                    label: 'Segment Comparison',
+                    icon: icons.comparison,
+                    visible: segmentsForCompare.length > 1,
                 },
                 {
                     key: 'interactive-segment',
