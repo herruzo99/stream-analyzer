@@ -108,7 +108,7 @@ export function initializeRenderer(domContext) {
     initialDomContext = domContext;
     useAnalysisStore.subscribe(renderApp);
     useUiStore.subscribe(renderApp);
-    useSegmentCacheStore.subscribe(renderApp);
+    // The incorrect global subscription is now removed.
 }
 
 /**

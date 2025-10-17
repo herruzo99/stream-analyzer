@@ -146,15 +146,20 @@ const encryptionTemplate = (seg) => {
 
 function handleSegmentCheck(e) {
     const checkbox = /** @type {HTMLInputElement} */ (e.target);
-    const uniqueId = checkbox.value;
+    const { streamId, repId, segmentUniqueId } = checkbox.dataset;
+
     if (checkbox.checked) {
-        if (useAnalysisStore.getState().segmentsForCompare.length >= 2) {
+        if (useAnalysisStore.getState().segmentsForCompare.length >= 10) { // Increased limit
             checkbox.checked = false;
             return;
         }
-        analysisActions.addSegmentToCompare(uniqueId);
+        analysisActions.addSegmentToCompare({
+            streamId: parseInt(streamId, 10),
+            repId,
+            segmentUniqueId
+        });
     } else {
-        analysisActions.removeSegmentFromCompare(uniqueId);
+        analysisActions.removeSegmentFromCompare(segmentUniqueId);
     }
 }
 
@@ -245,6 +250,7 @@ const getActions = (cacheEntry, seg, isFresh, segmentFormat) => {
         }
         eventBus.dispatch('segment:fetch', {
             uniqueId,
+            streamId: useAnalysisStore.getState().activeStreamId,
             format: formatHint,
         });
     };
@@ -319,12 +325,12 @@ const cellLabel = (label) =>
         ${label}
     </div>`;
 
-export const segmentRowTemplate = (seg, freshSegmentUrls, segmentFormat) => {
-    const { segmentsForCompare } = useAnalysisStore.getState();
+export const segmentRowTemplate = (seg, freshSegmentUrls, segmentFormat, repId) => {
+    const { segmentsForCompare, activeStreamId } = useAnalysisStore.getState();
     const { get: getFromCache } = useSegmentCacheStore.getState();
 
     const cacheEntry = getFromCache(seg.uniqueId);
-    const isChecked = segmentsForCompare.includes(seg.uniqueId);
+    const isChecked = segmentsForCompare.some(s => s.segmentUniqueId === seg.uniqueId);
 
     // An Init segment is never stale. Media segments are fresh if in the latest manifest.
     const isFresh =
@@ -364,7 +370,9 @@ export const segmentRowTemplate = (seg, freshSegmentUrls, segmentFormat) => {
                 <input
                     type="checkbox"
                     class="bg-gray-700 border-gray-500 rounded focus:ring-blue-500 disabled:opacity-50"
-                    .value=${seg.uniqueId}
+                    data-stream-id=${activeStreamId}
+                    data-rep-id=${repId}
+                    data-segment-unique-id=${seg.uniqueId}
                     ?checked=${isChecked}
                     ?disabled=${seg.gap}
                     @change=${handleSegmentCheck}

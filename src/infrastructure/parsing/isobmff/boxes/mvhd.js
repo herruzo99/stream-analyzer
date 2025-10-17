@@ -6,7 +6,7 @@ import { BoxParser } from '../utils.js';
  */
 export function parseMvhd(box, view) {
     const p = new BoxParser(box, view);
-    const { version } = p.readVersionAndFlags();
+    const { version } = p.readVersionAndFlags(null); // No flags defined in spec
 
     if (version === 1) {
         p.readBigUint64('creation_time');

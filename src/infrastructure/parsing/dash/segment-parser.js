@@ -198,11 +198,13 @@ export async function parseAllSegmentUrls(manifestElement, manifestUrl) {
                         /\$RepresentationID\$/g,
                         repId
                     );
+                    const resolvedUrl = new URL(initUrl, baseUrl).href;
                     segmentsByRep[compositeKey].initSegment = {
                         repId,
                         type: 'Init',
                         number: 0,
-                        resolvedUrl: new URL(initUrl, baseUrl).href,
+                        resolvedUrl: resolvedUrl,
+                        uniqueId: resolvedUrl,
                         template: initUrl,
                         encryptionInfo,
                         flags: [], // Init segments don't have SAP flags

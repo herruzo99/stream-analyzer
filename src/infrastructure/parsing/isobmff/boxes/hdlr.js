@@ -6,7 +6,7 @@ import { BoxParser } from '../utils.js';
  */
 export function parseHdlr(box, view) {
     const p = new BoxParser(box, view);
-    p.readVersionAndFlags();
+    p.readVersionAndFlags(null); // No flags defined in spec
     p.skip(4, 'pre_defined');
     p.readString(4, 'handler_type');
     p.skip(12, 'reserved');
@@ -17,7 +17,7 @@ export function parseHdlr(box, view) {
 export const hdlrTooltip = {
     hdlr: {
         name: 'Handler Reference Box',
-        text: 'Handler Reference Box (`hdlr`). Declares the media type of the track and thus the process by which the media data should be presented. It specifies whether the track contains video (`vide`), audio (`soun`), subtitles (`subt`), or other media types.',
+        text: 'Handler Reference Box (`hdlr`). Declares the media type of the track and thus the process by which the media-data in the track is presented. It specifies whether the track contains video (`vide`), audio (`soun`), subtitles (`subt`), or other media types.',
         ref: 'ISO/IEC 14496-12, 8.4.3',
     },
     'hdlr@handler_type': {

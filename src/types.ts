@@ -452,24 +452,35 @@ export interface EncryptionInfo {
     systems?: string[]; // DASH DRM Systems
 }
 
-export interface HlsSegment {
+export interface MediaSegment {
+    repId: string;
+    type: 'Media' | 'Init';
+    number: number;
+    uniqueId: string;
+    resolvedUrl: string;
+    template?: string;
+    time: number;
     duration: number;
+    timescale: number;
+    gap: boolean;
+    startTimeUTC?: number;
+    endTimeUTC?: number;
+    flags: string[];
+    encryptionInfo?: EncryptionInfo;
+    parsedData?: any; // For local segment analysis
+}
+
+export interface HlsSegment extends MediaSegment {
     title: string;
     tags: any[];
-    flags: string[];
     parts: any[];
     bitrate: number | null;
-    gap: boolean;
-    type: string;
     extinfLineNumber: number;
     uri?: string;
-    resolvedUrl?: string;
     discontinuity?: boolean;
     dateTime?: string;
     uriLineNumber?: number;
-    encryptionInfo?: EncryptionInfo;
     byteRange?: { length: number; offset: number | null } | null;
-    uniqueId?: string;
 }
 
 export interface Manifest {
@@ -524,7 +535,7 @@ export interface FeatureAnalysisState {
 }
 
 export interface HlsVariantState {
-    segments: object[];
+    segments: HlsSegment[];
     freshSegmentUrls: Set<string>;
     isLoading: boolean;
     isPolling: boolean;
@@ -534,7 +545,7 @@ export interface HlsVariantState {
 }
 
 export interface DashRepresentationState {
-    segments: object[];
+    segments: MediaSegment[];
     freshSegmentUrls: Set<string>;
     diagnostics: object;
 }
@@ -598,7 +609,13 @@ export interface Box {
     systemId?: string;
     kids?: string[];
     data?: string;
-    scte35?: object; // Added to fix the TS error
+    scte35?: object;
+}
+
+export interface SegmentToCompare {
+    streamId: number;
+    repId: string;
+    segmentUniqueId: string;
 }
 
 export interface Stream {
@@ -606,7 +623,7 @@ export interface Stream {
     name: string;
     originalUrl: string;
     baseUrl: string;
-    protocol: 'dash' | 'hls' | 'unknown';
+    protocol: 'dash' | 'hls' | 'local' | 'unknown';
     isPolling: boolean;
     wasStoppedByInactivity?: boolean;
     manifest: Manifest | null;
@@ -624,6 +641,7 @@ export interface Stream {
     coverageReport?: CoverageFinding[];
     adAvails?: AdAvail[];
     inbandEvents?: Event[];
+    segments?: MediaSegment[]; // For 'local' protocol
 }
 
 export type SerializedStream = Omit<
