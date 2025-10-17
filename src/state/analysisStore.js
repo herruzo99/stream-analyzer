@@ -6,6 +6,7 @@ import { uiActions } from './uiStore.js';
 /** @typedef {import('@/types.ts').DecodedSample} DecodedSample */
 /** @typedef {import('@/types.ts').Event} Event */
 /** @typedef {{id: number, url: string, name: string, file: File | null}} StreamInput */
+/** @typedef {{streamId: number, repId: string, segmentUniqueId: string}} SegmentToCompare */
 
 /**
  * @typedef {object} AnalysisState
@@ -14,7 +15,7 @@ import { uiActions } from './uiStore.js';
  * @property {string | null} activeSegmentUrl
  * @property {number} streamIdCounter
  * @property {StreamInput[]} streamInputs
- * @property {string[]} segmentsForCompare
+ * @property {SegmentToCompare[]} segmentsForCompare
  * @property {Map<string, DecodedSample>} decodedSamples
  */
 
@@ -30,8 +31,8 @@ import { uiActions } from './uiStore.js';
  * @property {(data: object[]) => void} setStreamInputs
  * @property {(id: number, field: keyof StreamInput, value: string | File | null) => void} updateStreamInput
  * @property {(id: number, url: string, name: string) => void} populateStreamInput
- * @property {(id: string) => void} addSegmentToCompare
- * @property {(id: string) => void} removeSegmentFromCompare
+ * @property {(item: SegmentToCompare) => void} addSegmentToCompare
+ * @property {(segmentUniqueId: string) => void} removeSegmentFromCompare
  * @property {() => void} clearSegmentsToCompare
  * @property {(streamId: number, updatedStreamData: Partial<Stream>) => void} updateStream
  * @property {(isPolling: boolean, options?: { fromInactivity?: boolean }) => void} setAllLiveStreamsPolling
@@ -165,20 +166,25 @@ export const useAnalysisStore = createStore((set, get) => ({
         }));
     },
 
-    addSegmentToCompare: (id) => {
+    addSegmentToCompare: (item) => {
         const { segmentsForCompare } = get();
-        if (segmentsForCompare.length < 2 && !segmentsForCompare.includes(id)) {
-            set({ segmentsForCompare: [...segmentsForCompare, id] });
+        if (
+            segmentsForCompare.length < 10 &&
+            !segmentsForCompare.some(
+                (s) => s.segmentUniqueId === item.segmentUniqueId
+            )
+        ) {
+            set({ segmentsForCompare: [...segmentsForCompare, item] });
             eventBus.dispatch('state:compare-list-changed', {
                 count: get().segmentsForCompare.length,
             });
         }
     },
 
-    removeSegmentFromCompare: (id) => {
+    removeSegmentFromCompare: (segmentUniqueId) => {
         set((state) => ({
             segmentsForCompare: state.segmentsForCompare.filter(
-                (i) => i !== id
+                (i) => i.segmentUniqueId !== segmentUniqueId
             ),
         }));
         eventBus.dispatch('state:compare-list-changed', {
@@ -340,8 +346,8 @@ export const analysisActions = {
         useAnalysisStore.getState().updateStreamInput(id, field, value),
     populateStreamInput: (id, url, name) =>
         useAnalysisStore.getState().populateStreamInput(id, url, name),
-    addSegmentToCompare: (id) =>
-        useAnalysisStore.getState().addSegmentToCompare(id),
+    addSegmentToCompare: (item) =>
+        useAnalysisStore.getState().addSegmentToCompare(item),
     removeSegmentFromCompare: (id) =>
         useAnalysisStore.getState().removeSegmentFromCompare(id),
     clearSegmentsToCompare: () =>

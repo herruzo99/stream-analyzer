@@ -9,6 +9,7 @@ import {
     getPresets,
 } from '@/infrastructure/persistence/streamStorage';
 import { workerService } from '@/infrastructure/worker/workerService';
+import { startSegmentAnalysisUseCase } from './useCases/startSegmentAnalysis.js';
 
 // --- Core Service Dependencies ---
 const services = {
@@ -22,6 +23,7 @@ const services = {
         getHistory,
         getPresets,
     },
+    startSegmentAnalysisUseCase, // Add the new use case here
 };
 
 // --- Application Core Instantiation ---

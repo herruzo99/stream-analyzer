@@ -3,8 +3,9 @@ import { classMap } from 'lit-html/directives/class-map.js';
 import { eventBus } from '@/application/event-bus';
 import { getDashExplorerForType } from './components/dash/index.js';
 import { getHlsExplorerForType } from './components/hls/index.js';
+import { getLocalExplorerForType } from './components/local/index.js';
 import { useAnalysisStore } from '@/state/analysisStore';
-import { useUiStore } from '@/state/uiStore';
+import { useUiStore, uiActions } from '@/state/uiStore';
 
 const CONTENT_TYPE_ORDER = { video: 1, audio: 2, text: 3, application: 4 };
 
@@ -69,7 +70,7 @@ export function getSegmentExplorerTemplate(stream) {
 
     const { segmentsForCompare } = useAnalysisStore.getState();
     const { segmentExplorerActiveTab } = useUiStore.getState();
-    const compareButtonDisabled = segmentsForCompare.length !== 2;
+    const compareButtonDisabled = segmentsForCompare.length < 2;
 
     const allAdaptationSets =
         stream.manifest?.periods.flatMap((p) => p.adaptationSets) || [];
@@ -87,8 +88,10 @@ export function getSegmentExplorerTemplate(stream) {
     let contentTemplate;
     if (stream.protocol === 'dash') {
         contentTemplate = getDashExplorerForType(stream, activeTab);
-    } else {
+    } else if (stream.protocol === 'hls') {
         contentTemplate = getHlsExplorerForType(stream, activeTab);
+    } else if (stream.protocol === 'local') {
+        contentTemplate = getLocalExplorerForType(stream);
     }
 
     return html`
@@ -100,21 +103,17 @@ export function getSegmentExplorerTemplate(stream) {
             >
                 <button
                     id="segment-compare-btn"
-                    @click=${() =>
-                        eventBus.dispatch('ui:request-segment-comparison', {
-                            urlA: useAnalysisStore.getState()
-                                .segmentsForCompare[0],
-                            urlB: useAnalysisStore.getState()
-                                .segmentsForCompare[1],
-                        })}
+                    @click=${() => uiActions.setActiveTab('segment-comparison')}
                     class="bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     ?disabled=${compareButtonDisabled}
                 >
-                    Compare Selected (${segmentsForCompare.length}/2)
+                    Compare Selected (${segmentsForCompare.length}/10)
                 </button>
             </div>
         </div>
-        ${renderTabs(availableContentTypes, activeTab)}
+        ${stream.protocol !== 'local'
+            ? renderTabs(availableContentTypes, activeTab)
+            : ''}
         <div
             id="segment-explorer-content"
             data-testid="segment-explorer-content"

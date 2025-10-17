@@ -188,6 +188,12 @@ export async function parseManifest(
                         duration = 0;
                     }
                     currentSegment = {
+                        repId: 'hls-media',
+                        number: 0, // Placeholder, will be calculated from mediaSequence
+                        uniqueId: '', // Placeholder, will be set when URI is parsed
+                        resolvedUrl: '', // Placeholder
+                        time: 0, // Placeholder, will be calculated from durations
+                        timescale: 90000,
                         duration,
                         title: title || '',
                         tags: [],

@@ -104,7 +104,9 @@ async function processLiveUpdate(updateData) {
         .getState()
         .streams.find((s) => s.id === streamId);
 
-    if (!stream || stream.protocol === 'unknown') return;
+    if (!stream || (stream.protocol !== 'dash' && stream.protocol !== 'hls')) {
+        return;
+    }
 
     const previousResults = stream.manifestUpdates[0]?.complianceResults;
     const hasNewIssues = checkForNewIssues(previousResults, complianceResults);

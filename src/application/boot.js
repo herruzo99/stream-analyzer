@@ -23,10 +23,13 @@ import { setupGlobalTooltipListener } from '@/ui/components/tooltip';
 import { initializeDropdownService } from '@/ui/services/dropdownService';
 import { keyManagerService } from './services/keyManagerService.js';
 import { initializeInbandEventMonitor } from './services/inbandEventMonitorService.js';
+import { initializeResolveAdAvailUseCase } from './useCases/resolveAdAvailUseCase.js';
+
+// Import the new use case
+import './useCases/startSegmentAnalysis.js';
 
 // Side-effect driven imports for services that primarily listen to the event bus
 import '@/application/services/streamService';
-import { initializeResolveAdAvailUseCase } from './useCases/resolveAdAvailUseCase.js';
 
 /**
  * The main entry point for the application.

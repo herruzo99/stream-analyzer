@@ -44,58 +44,32 @@ export function parseSdtp(box, view) {
         length: 0,
     };
 
+    box.entries = [];
+
     if (sampleCount > 0) {
-        const maxEntriesToShow = 10;
         for (let i = 0; i < sampleCount; i++) {
             if (p.stopped) break;
 
-            if (i < maxEntriesToShow) {
-                const byte = p.readUint8(`sample_${i + 1}_flags_byte`);
-                if (byte === null) break;
+            const byte = p.readUint8(`sample_${i + 1}_flags_byte`);
+            if (byte === null) break;
 
-                delete box.details[`sample_${i + 1}_flags_byte`];
+            const isLeading = (byte >> 6) & 0x03;
+            const dependsOn = (byte >> 4) & 0x03;
+            const isDependedOn = (byte >> 2) & 0x03;
+            const hasRedundancy = byte & 0x03;
 
-                const isLeading = (byte >> 6) & 0x03;
-                const dependsOn = (byte >> 4) & 0x03;
-                const isDependedOn = (byte >> 2) & 0x03;
-                const hasRedundancy = byte & 0x03;
+            box.entries.push({
+                is_leading: IS_LEADING_MAP[isLeading] || 'Reserved',
+                sample_depends_on:
+                    SAMPLE_DEPENDS_ON_MAP[dependsOn] || 'Reserved',
+                sample_is_depended_on:
+                    SAMPLE_IS_DEPENDED_ON_MAP[isDependedOn] || 'Reserved',
+                sample_has_redundancy:
+                    SAMPLE_HAS_REDUNDANCY_MAP[hasRedundancy] || 'Reserved',
+            });
 
-                const baseOffset = box.offset + p.offset - 1;
-
-                box.details[`sample_${i + 1}_is_leading`] = {
-                    value: IS_LEADING_MAP[isLeading] || 'Reserved',
-                    offset: baseOffset,
-                    length: 0.25,
-                };
-                box.details[`sample_${i + 1}_sample_depends_on`] = {
-                    value: SAMPLE_DEPENDS_ON_MAP[dependsOn] || 'Reserved',
-                    offset: baseOffset,
-                    length: 0.25,
-                };
-                box.details[`sample_${i + 1}_sample_is_depended_on`] = {
-                    value:
-                        SAMPLE_IS_DEPENDED_ON_MAP[isDependedOn] || 'Reserved',
-                    offset: baseOffset,
-                    length: 0.25,
-                };
-                box.details[`sample_${i + 1}_sample_has_redundancy`] = {
-                    value:
-                        SAMPLE_HAS_REDUNDANCY_MAP[hasRedundancy] || 'Reserved',
-                    offset: baseOffset,
-                    length: 0.25,
-                };
-            } else {
-                p.offset += 1;
-            }
-        }
-        if (sampleCount > maxEntriesToShow) {
-            box.details['...more_entries'] = {
-                value: `${
-                    sampleCount - maxEntriesToShow
-                } more entries not shown but parsed`,
-                offset: 0,
-                length: 0,
-            };
+            // Delete the raw byte detail to avoid clutter, as the data is now in box.entries
+            delete box.details[`sample_${i + 1}_flags_byte`];
         }
     }
     p.finalize();

@@ -11,12 +11,37 @@ const SCHM_FLAGS_SCHEMA = {
  */
 export function parseSchm(box, view) {
     const p = new BoxParser(box, view);
-    const { flags } = p.readVersionAndFlags(SCHM_FLAGS_SCHEMA);
 
-    if (flags === null) {
+    if (!p.checkBounds(4)) {
         p.finalize();
         return;
     }
+    const versionAndFlags = p.view.getUint32(p.offset);
+    const version = versionAndFlags >> 24;
+    const flagsInt = versionAndFlags & 0x00ffffff;
+
+    const decodedFlags = {};
+    for (const mask in SCHM_FLAGS_SCHEMA) {
+        decodedFlags[SCHM_FLAGS_SCHEMA[mask]] =
+            (flagsInt & parseInt(mask, 16)) !== 0;
+    }
+
+    p.box.details['version'] = {
+        value: version,
+        offset: p.box.offset + p.offset,
+        length: 1,
+    };
+    p.box.details['flags_raw'] = {
+        value: `0x${flagsInt.toString(16).padStart(6, '0')}`,
+        offset: p.box.offset + p.offset + 1,
+        length: 3,
+    };
+    p.box.details['flags'] = {
+        value: decodedFlags,
+        offset: p.box.offset + p.offset + 1,
+        length: 3,
+    };
+    p.offset += 4;
 
     p.readString(4, 'scheme_type');
 
@@ -30,7 +55,7 @@ export function parseSchm(box, view) {
         delete box.details['scheme_version_raw'];
     }
 
-    if (flags & 0x000001) {
+    if (decodedFlags.scheme_uri_present) {
         p.readNullTerminatedString('scheme_uri');
     }
 
