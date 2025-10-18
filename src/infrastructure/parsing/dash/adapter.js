@@ -16,7 +16,7 @@
  */
 
 import { getDrmSystemName } from '@/infrastructure/parsing/utils/drm';
-import { parseDuration } from '@/utils/time';
+import { parseDuration } from '@/shared/utils/time';
 import { generateDashSummary } from './summary-generator.js';
 import {
     getAttr,
@@ -432,7 +432,9 @@ function parseAdaptationSet(asEl, parentMergedEl) {
         framePackings: findChildren(mergedAsEl, 'FramePacking').map(
             parseGenericDescriptor
         ),
-        ratings: findChildren(mergedAsEl, 'Rating').map(parseGenericDescriptor),
+        ratings: findChildren(mergedAsEl, 'Rating').map(
+            parseGenericDescriptor
+        ),
         viewpoints: findChildren(mergedAsEl, 'Viewpoint').map(
             parseGenericDescriptor
         ),

@@ -2,11 +2,11 @@ import { html } from 'lit-html';
 import { useUiStore } from '@/state/uiStore';
 import { dashManifestTemplate } from './components/dash/renderer.js';
 import { hlsManifestTemplate } from './components/hls/renderer.js';
-import { debugLog } from '@/application/utils/debug';
+import { debugLog } from '@/shared/utils/debug';
 import { copyTextToClipboard } from '@/ui/shared/clipboard';
 import { dashTooltipData } from './components/dash/tooltip-data.js';
 import { hlsTooltipData } from './components/hls/tooltip-data.js';
-import { isDebugMode } from '@/application/utils/env';
+import { isDebugMode } from '@/shared/utils/env';
 
 // --- New Functions for Debug Report ---
 
