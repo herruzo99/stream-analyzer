@@ -10,7 +10,7 @@ import { getLastUsedStreams } from '@/infrastructure/persistence/streamStorage';
 import {
     toggleAllLiveStreamsPolling,
     reloadStream,
-} from '@/application/services/streamActionsService';
+} from '@/ui/services/streamActionsService';
 import { tooltipTriggerClasses } from '@/ui/shared/constants';
 import * as icons from '@/ui/icons';
 

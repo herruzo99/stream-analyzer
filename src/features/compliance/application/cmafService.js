@@ -3,10 +3,10 @@ import { analysisActions } from '@/state/analysisStore';
 import {
     validateCmafTrack,
     validateCmafSwitchingSets,
-} from '@/domain/cmaf/validator';
+} from '@/features/compliance/domain/cmaf/validator';
 import { resolveBaseUrl } from '@/infrastructure/parsing/dash/recursive-parser';
 import { findInitSegmentUrl } from '@/infrastructure/parsing/dash/segment-parser';
-import { getParsedSegment } from './segmentService.js';
+import { getParsedSegment } from '@/infrastructure/segments/segmentService';
 
 /**
  * A private, isolated segment fetcher for this service that does not interact

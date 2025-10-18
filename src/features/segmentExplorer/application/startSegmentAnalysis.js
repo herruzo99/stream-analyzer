@@ -2,7 +2,7 @@ import { eventBus } from '@/application/event-bus';
 import { analysisActions } from '@/state/analysisStore';
 import { uiActions } from '@/state/uiStore';
 import { workerService } from '@/infrastructure/worker/workerService';
-import { debugLog } from '@/application/utils/debug';
+import { debugLog } from '@/shared/utils/debug';
 
 /**
  * Orchestrates the business logic of starting a new analysis directly from segment files.

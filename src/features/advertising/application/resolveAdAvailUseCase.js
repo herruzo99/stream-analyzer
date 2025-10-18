@@ -1,9 +1,9 @@
 import { eventBus } from '@/application/event-bus';
 import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
 import { parseVast } from '@/infrastructure/parsing/ads/vast-parser';
-import { AdAvail } from '@/domain/ads/AdAvail';
-import { AdCreative } from '@/domain/ads/AdCreative';
-import { fetchWithRetry } from '@/application/utils/fetch';
+import { AdAvail } from '@/features/advertising/domain/AdAvail';
+import { AdCreative } from '@/features/advertising/domain/AdCreative';
+import { fetchWithRetry } from '@/infrastructure/http/fetch';
 
 /**
  * Creates a partial AdAvail from a splice_insert command when no VAST URL is available.
