@@ -1,7 +1,7 @@
 import { eventBus } from '@/application/event-bus';
 import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
 import { workerService } from '@/infrastructure/worker/workerService';
-import { fetchWithRetry } from '@/application/utils/fetch';
+import { fetchWithRetry } from '@/infrastructure/http/fetch';
 
 const pollers = new Map();
 const oneTimePollers = new Map();

@@ -4,7 +4,7 @@ import { hlsTooltipData } from './tooltip-data.js';
 import { tooltipTriggerClasses } from '@/ui/shared/constants';
 import { eventBus } from '@/application/event-bus';
 import { useUiStore, uiActions } from '@/state/uiStore';
-import { debugLog } from '@/application/utils/debug';
+import { debugLog } from '@/shared/utils/debug';
 import { renderApp } from '@/ui/shell/mainRenderer';
 
 const linesPerPage = 500;

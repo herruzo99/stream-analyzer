@@ -6,6 +6,7 @@ import { applyDeltaUpdate } from '@/infrastructure/parsing/hls/delta-updater';
 import { adaptHlsToIr } from '@/infrastructure/parsing/hls/adapter';
 import { diffManifest } from '@/ui/shared/diff';
 import xmlFormatter from 'xml-formatter';
+import { fetchWithRetry } from '@/infrastructure/http/fetch';
 
 function detectProtocol(manifestString) {
     if (typeof manifestString !== 'string') return 'dash'; // Failsafe
