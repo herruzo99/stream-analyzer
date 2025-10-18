@@ -1,9 +1,9 @@
 import { parseISOBMFF } from '@/infrastructure/parsing/isobmff/parser';
 import { parse as parseTsSegment } from '@/infrastructure/parsing/ts/index';
 import { parseVTT } from '@/infrastructure/parsing/vtt/parser';
-import { debugLog } from '@/application/utils/debug';
+import { debugLog } from '@/shared/utils/debug';
 import { boxParsers } from '@/infrastructure/parsing/isobmff/index';
-import { fetchWithRetry } from '@/application/utils/fetch';
+import { fetchWithRetry } from '@/infrastructure/http/fetch';
 
 // --- Programmatic Color Generation ---
 

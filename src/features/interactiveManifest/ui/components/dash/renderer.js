@@ -3,7 +3,7 @@ import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { dashTooltipData } from './tooltip-data.js';
 import { tooltipTriggerClasses } from '@/ui/shared/constants';
 import { useUiStore, uiActions } from '@/state/uiStore';
-import { debugLog } from '@/application/utils/debug';
+import { debugLog } from '@/shared/utils/debug';
 
 const linesPerPage = 500;
 
