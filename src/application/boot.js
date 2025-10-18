@@ -2,18 +2,9 @@ import { initializeLiveStreamMonitor } from '@/application/services/primaryStrea
 import { initializeViewManager } from '@/ui/shell/view-manager';
 import { initializeLiveUpdateProcessor } from '@/application/services/liveUpdateProcessor';
 import { initializeHlsVariantPoller } from '@/application/services/hlsVariantPollerService';
-import { initializeCmafService } from '@/application/services/cmafService';
 import { initializeRenderer } from '@/ui/shell/mainRenderer';
 import { initializeConsentManager } from './consent-manager.js';
-import { initializeSegmentService } from '@/application/services/segmentService';
 import { container } from './container.js';
-import { initializeUiOrchestration } from './services/uiOrchestrationService.js';
-import { initializeComplianceController } from './controllers/complianceController.js';
-import { initializeFeatureAnalysisController } from './controllers/featureAnalysisController.js';
-import { initializeInteractiveManifestController } from './controllers/interactiveManifestController.js';
-import { initializeSegmentExplorerController } from './controllers/segmentExplorerController.js';
-import { initializeStreamInputController } from './controllers/streamInputController.js';
-import { initializeSavePresetUseCase } from './useCases/savePresetUseCase.js';
 import { workerService } from '@/infrastructure/worker/workerService';
 import { streamInitializationService } from './services/streamInitializationService.js';
 import { initializeToastManager } from '@/ui/components/toast';
@@ -21,12 +12,20 @@ import { initializeLoader } from '@/ui/components/loader';
 import { initializeModalComponent } from '@/ui/components/modal';
 import { setupGlobalTooltipListener } from '@/ui/components/tooltip';
 import { initializeDropdownService } from '@/ui/services/dropdownService';
-import { keyManagerService } from './services/keyManagerService.js';
 import { initializeInbandEventMonitor } from './services/inbandEventMonitorService.js';
-import { initializeResolveAdAvailUseCase } from './useCases/resolveAdAvailUseCase.js';
 
-// Import the new use case
-import './useCases/startSegmentAnalysis.js';
+// Relocated Service Initializers
+import { keyManagerService } from '@/infrastructure/decryption/keyManagerService';
+import { initializeSegmentService } from '@/infrastructure/segments/segmentService';
+import { initializeUiOrchestration } from '@/ui/services/uiOrchestrationService';
+
+// Feature Initializers
+import { initializeAdvertisingFeature } from '@/features/advertising/index';
+import { initializeComplianceFeature } from '@/features/compliance/index';
+import { initializeFeatureAnalysisFeature } from '@/features/featureAnalysis/index';
+import { initializeInteractiveManifestFeature } from '@/features/interactiveManifest/index';
+import { initializeSegmentExplorerFeature } from '@/features/segmentExplorer/index';
+import { initializeStreamInputFeature } from '@/features/streamInput/index';
 
 // Side-effect driven imports for services that primarily listen to the event bus
 import '@/application/services/streamService';
@@ -86,25 +85,23 @@ export async function startApp() {
     setupGlobalTooltipListener(dom);
     initializeDropdownService(dom);
 
-    // --- Layer 3: Core Application Services ---
+    // --- Layer 3: Core Application & Infrastructure Services ---
     initializeLiveUpdateProcessor();
     initializeLiveStreamMonitor();
     initializeHlsVariantPoller();
-    initializeCmafService();
     initializeSegmentService();
     streamInitializationService.initialize();
     keyManagerService.initialize();
     initializeInbandEventMonitor();
 
-    // --- Layer 4: UI Orchestration, Controllers & Use Cases ---
+    // --- Layer 4: Feature Initialization & UI Orchestration ---
     initializeUiOrchestration();
-    initializeComplianceController();
-    initializeFeatureAnalysisController();
-    initializeInteractiveManifestController();
-    initializeSegmentExplorerController();
-    initializeStreamInputController();
-    initializeSavePresetUseCase();
-    initializeResolveAdAvailUseCase();
+    initializeAdvertisingFeature();
+    initializeComplianceFeature();
+    initializeFeatureAnalysisFeature();
+    initializeInteractiveManifestFeature();
+    initializeSegmentExplorerFeature();
+    initializeStreamInputFeature();
 
     // --- Layer 5: Start Application Core ---
     app.start();
