@@ -2,7 +2,7 @@ import { eventBus } from '@/application/event-bus';
 import { openModalWithContent } from '@/ui/services/modalService';
 import { showToast } from '@/ui/components/toast';
 import { showLoader, hideLoader } from '@/ui/components/loader';
-import { getParsedSegment } from '@/application/services/segmentService';
+import { getParsedSegment } from '@/infrastructure/segments/segmentService';
 import { useAnalysisStore } from '@/state/analysisStore';
 
 /**

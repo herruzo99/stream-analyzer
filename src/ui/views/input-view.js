@@ -10,9 +10,6 @@ import {
 import { eventBus } from '@/application/event-bus';
 import { showToast } from '@/ui/components/toast';
 import { openModalWithContent } from '@/ui/services/modalService';
-import { startAnalysisUseCase } from '@/application/useCases/startAnalysis';
-import { startSegmentAnalysisUseCase } from '@/application/useCases/startSegmentAnalysis';
-import { container } from '@/application/container';
 import * as icons from '@/ui/icons';
 
 // --- Local State for this View ---
@@ -426,11 +423,15 @@ export const inputViewTemplate = (rerenderCallback) => {
     const { streamInputs } = useAnalysisStore.getState();
 
     const handleStreamAnalysis = () => {
-        startAnalysisUseCase({ inputs: streamInputs }, container.services);
+        eventBus.dispatch('ui:stream-analysis-requested', {
+            inputs: streamInputs,
+        });
     };
 
     const handleSegmentAnalysis = () => {
-        startSegmentAnalysisUseCase({ files: selectedFiles });
+        eventBus.dispatch('ui:segment-analysis-requested', {
+            files: selectedFiles,
+        });
     };
 
     const showAboutModal = (e) => {

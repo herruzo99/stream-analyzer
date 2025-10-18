@@ -1,5 +1,5 @@
-import { isDebugMode } from '@/application/utils/env';
-import { debugLog } from '@/application/utils/debug';
+import { isDebugMode } from '@/shared/utils/env';
+import { debugLog } from '@/shared/utils/debug';
 
 /**
  * Orchestrates the business logic of starting a new stream analysis.

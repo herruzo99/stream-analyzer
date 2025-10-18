@@ -1,5 +1,5 @@
 import { eventBus } from '@/application/event-bus';
-import { getParsedSegment } from './segmentService';
+import { getParsedSegment } from '@/infrastructure/segments/segmentService';
 import {
     findChildrenRecursive,
     getAttr,

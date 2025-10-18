@@ -2,8 +2,8 @@ import { useSegmentCacheStore } from '@/state/segmentCacheStore';
 import { eventBus } from '@/application/event-bus';
 import { workerService } from '@/infrastructure/worker/workerService';
 import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
-import { keyManagerService } from './keyManagerService';
-import { fetchWithRetry } from '@/application/utils/fetch';
+import { keyManagerService } from '@/infrastructure/decryption/keyManagerService';
+import { fetchWithRetry } from '@/infrastructure/http/fetch';
 
 /**
  * Finds the corresponding HLS segment object and its parent playlist from the manifest IR.
