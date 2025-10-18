@@ -1,4 +1,4 @@
-import { fetchWithRetry } from '@/application/utils/fetch';
+import { fetchWithRetry } from '@/infrastructure/http/fetch';
 
 /**
  * @typedef {object} SteeringValidationResult
