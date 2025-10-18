@@ -1,7 +1,7 @@
 import { html } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
-import { isDebugMode } from '@/application/utils/env';
-import { segmentTableTemplate } from '@/ui/components/segment-table';
+import { isDebugMode } from '@/shared/utils/env';
+import { segmentTableTemplate } from '../../components/segment-table.js';
 
 const diagnosticsTemplate = (diagnostics) => {
     if (!diagnostics || Object.keys(diagnostics).length === 0) {

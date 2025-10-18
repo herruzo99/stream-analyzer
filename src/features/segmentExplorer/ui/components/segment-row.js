@@ -6,7 +6,7 @@ import { useDecryptionStore } from '@/state/decryptionStore';
 import { uiActions } from '@/state/uiStore';
 import { eventBus } from '@/application/event-bus';
 import { copyTextToClipboard } from '@/ui/shared/clipboard';
-import { keyManagerService } from '@/application/services/keyManagerService';
+import { keyManagerService } from '@/infrastructure/decryption/keyManagerService';
 import * as icons from '@/ui/icons';
 import { inferMediaInfoFromExtension } from '@/infrastructure/parsing/utils/media-types';
 

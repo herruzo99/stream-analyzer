@@ -1,7 +1,7 @@
 import { html } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { eventBus } from '@/application/event-bus';
-import { segmentTableTemplate } from '@/ui/components/segment-table';
+import { segmentTableTemplate } from '../../components/segment-table.js';
 
 let liveSegmentHighlighterInterval = null;
 

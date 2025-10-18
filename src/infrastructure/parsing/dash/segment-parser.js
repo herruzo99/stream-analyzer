@@ -1,4 +1,4 @@
-import { parseDuration } from '@/utils/time';
+import { parseDuration } from '@/shared/utils/time';
 import {
     getAttr,
     findChildren,

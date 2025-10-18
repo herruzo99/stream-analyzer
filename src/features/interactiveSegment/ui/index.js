@@ -18,7 +18,7 @@ import {
 } from './components/interaction-logic.js';
 import { getInteractiveVttTemplate } from './components/vtt/index.js';
 import { inspectorLayoutTemplate } from './components/shared/inspector-layout.js';
-import { hexViewTemplate } from '@/ui/components/hex-view';
+import { hexViewTemplate } from './components/hex-view.js';
 import { getTooltipData as getIsobmffTooltipData } from '@/infrastructure/parsing/isobmff/index';
 import { getTooltipData as getTsTooltipData } from '@/infrastructure/parsing/ts/index';
 import { workerService } from '@/infrastructure/worker/workerService';

@@ -1,6 +1,5 @@
 import { saveToHistory } from '@/infrastructure/persistence/streamStorage';
 import { uiActions } from '@/state/uiStore';
-import { startAnalysisUseCase } from './useCases/startAnalysis.js';
 
 export class Application {
     /**
@@ -60,7 +59,8 @@ export class Application {
 
             // Set the inputs in the store so the UI can reflect them if analysis fails
             this.analysisActions.setStreamInputs(inputs);
-            startAnalysisUseCase({ inputs }, this.services);
+            // Dispatch event instead of calling use case directly
+            this.eventBus.dispatch('ui:stream-analysis-requested', { inputs });
         } else {
             this._populateLastUsedStreams();
         }

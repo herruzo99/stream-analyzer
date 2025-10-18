@@ -23,7 +23,7 @@ import {
     stopLiveSegmentHighlighter,
     startLiveSegmentHighlighter,
 } from '@/features/segmentExplorer/ui/components/hls/index';
-import { isDebugMode } from '@/application/utils/env';
+import { isDebugMode } from '@/shared/utils/env';
 import { cleanupSegmentViewInteractivity } from '@/features/interactiveSegment/ui/components/interaction-logic';
 
 let dom;

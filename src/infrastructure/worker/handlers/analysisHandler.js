@@ -1,7 +1,7 @@
 import { parseManifest as parseDashManifest } from '@/infrastructure/parsing/dash/parser';
 import { parseManifest as parseHlsManifest } from '@/infrastructure/parsing/hls/index';
 import { runChecks } from '@/features/compliance/domain/engine';
-import { validateSteeringManifest } from '@/domain/hls/steering-validator';
+import { validateSteeringManifest } from '@/features/compliance/domain/hls/steering-validator';
 import {
     analyzeDashCoverage,
     analyzeParserDrift,
@@ -10,7 +10,7 @@ import { generateFeatureAnalysis } from '@/features/featureAnalysis/domain/analy
 import { parseAllSegmentUrls as parseDashSegments } from '@/infrastructure/parsing/dash/segment-parser';
 import { diffManifest } from '@/ui/shared/diff';
 import { parseSegment } from './segmentParsingHandler.js';
-import { fetchWithRetry } from '@/application/utils/fetch';
+import { fetchWithRetry } from '@/infrastructure/http/fetch';
 import xmlFormatter from 'xml-formatter';
 
 async function fetchAndParseSegment(url, formatHint) {

@@ -1,6 +1,6 @@
 import { html } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
-import { segmentRowTemplate } from '@/ui/components/segment-row';
+import { segmentRowTemplate } from './segment-row.js';
 import { getScrollbarWidth } from '@/ui/shared/dom-utils';
 import '@/ui/components/virtualized-list'; // Import the custom element
 
