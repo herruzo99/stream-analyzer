@@ -1,7 +1,7 @@
 import { html } from 'lit-html';
 import { useUiStore, uiActions } from '@/state/uiStore';
 import { useAnalysisStore } from '@/state/analysisStore';
-import { isDebugMode } from '@/application/utils/env';
+import { isDebugMode } from '@/shared/utils/env';
 import * as icons from '@/ui/icons';
 
 const NavLink = (icon, label, tabKey, activeTab) => {

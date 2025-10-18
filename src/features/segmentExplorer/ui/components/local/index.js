@@ -1,5 +1,5 @@
 import { html } from 'lit-html';
-import { segmentTableTemplate } from '@/ui/components/segment-table';
+import { segmentTableTemplate } from '../../components/segment-table.js';
 
 /**
  * Renders the segment explorer view for locally uploaded files.

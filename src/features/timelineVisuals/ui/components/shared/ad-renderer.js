@@ -3,7 +3,7 @@ import { eventBus } from '@/application/event-bus';
 
 /**
  * Renders a collection of AdAvail objects onto a timeline.
- * @param {import('@/domain/ads/AdAvail').AdAvail[] | undefined} adAvails - The array of ad avail objects to render.
+ * @param {import('@/features/advertising/domain/AdAvail').AdAvail[] | undefined} adAvails - The array of ad avail objects to render.
  * @param {number} totalDuration - The total duration of the timeline in seconds.
  * @param {number} [timelineStart=0] - The start time of the timeline in seconds, for offset calculation.
  * @returns {import('lit-html').TemplateResult | string} The rendered lit-html template.

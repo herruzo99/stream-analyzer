@@ -1,7 +1,7 @@
 import { html } from 'lit-html';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { useUiStore } from '@/state/uiStore';
-import { isDebugMode } from '@/application/utils/env';
+import { isDebugMode } from '@/shared/utils/env';
 
 export const renderTabButtons = () => {
     const { streams, activeSegmentUrl } = useAnalysisStore.getState();
