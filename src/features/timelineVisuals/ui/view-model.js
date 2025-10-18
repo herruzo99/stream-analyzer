@@ -1,4 +1,4 @@
-import { getParsedSegment } from '@/application/services/segmentService';
+import { getParsedSegment } from '@/infrastructure/segments/segmentService';
 import {
     findInitSegmentUrl,
     parseAllSegmentUrls,

@@ -8,7 +8,7 @@ import {
     handleDecryptAndParseSegment,
 } from './handlers/segmentParsingHandler.js';
 import { parseManifest as parseHlsManifest } from '@/infrastructure/parsing/hls/index';
-import { fetchWithRetry } from '@/application/utils/fetch';
+import { fetchWithRetry } from '@/infrastructure/http/fetch';
 
 async function handleFetchHlsMediaPlaylist({
     streamId,
