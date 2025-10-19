@@ -34,6 +34,7 @@ export function getLocalExplorerForType(stream) {
                 id: 'local-segments',
                 title: title,
                 segments: adaptedSegments,
+                stream: stream,
                 freshSegmentUrls: freshSegmentUrls,
                 segmentFormat: stream.manifest.segmentFormat,
             })}

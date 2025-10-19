@@ -9,27 +9,18 @@ export function parseStts(box, view) {
     p.readVersionAndFlags();
 
     const entryCount = p.readUint32('entry_count');
+    box.entries = [];
 
     if (entryCount !== null && entryCount > 0) {
-        const maxEntriesToShow = 10;
         for (let i = 0; i < entryCount; i++) {
             if (p.stopped) break;
-            if (i < maxEntriesToShow) {
-                p.readUint32(`sample_count_${i + 1}`);
-                p.readUint32(`sample_delta_${i + 1}`);
-            } else {
-                p.offset += 8; // Skip 8 bytes for each remaining entry
-            }
-        }
+            if (!p.checkBounds(8)) break;
 
-        if (entryCount > maxEntriesToShow) {
-            box.details['...more_entries'] = {
-                value: `${
-                    entryCount - maxEntriesToShow
-                } more entries not shown but parsed`,
-                offset: 0,
-                length: 0,
-            };
+            const sample_count = p.view.getUint32(p.offset);
+            const sample_delta = p.view.getUint32(p.offset + 4);
+            p.offset += 8;
+
+            box.entries.push({ sample_count, sample_delta });
         }
     }
     p.finalize();

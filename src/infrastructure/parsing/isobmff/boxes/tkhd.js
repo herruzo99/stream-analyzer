@@ -12,37 +12,12 @@ const TKHD_FLAGS_SCHEMA = {
  */
 export function parseTkhd(box, view) {
     const p = new BoxParser(box, view);
+    const { version } = p.readVersionAndFlags(TKHD_FLAGS_SCHEMA);
 
-    if (!p.checkBounds(4)) {
+    if (version === null) {
         p.finalize();
         return;
     }
-    const versionAndFlags = p.view.getUint32(p.offset);
-    const version = versionAndFlags >> 24;
-    const flagsInt = versionAndFlags & 0x00ffffff;
-
-    const decodedFlags = {};
-    for (const mask in TKHD_FLAGS_SCHEMA) {
-        decodedFlags[TKHD_FLAGS_SCHEMA[mask]] =
-            (flagsInt & parseInt(mask, 16)) !== 0;
-    }
-
-    p.box.details['version'] = {
-        value: version,
-        offset: p.box.offset + p.offset,
-        length: 1,
-    };
-    p.box.details['flags_raw'] = {
-        value: `0x${flagsInt.toString(16).padStart(6, '0')}`,
-        offset: p.box.offset + p.offset + 1,
-        length: 3,
-    };
-    p.box.details['flags'] = {
-        value: decodedFlags,
-        offset: p.box.offset + p.offset + 1,
-        length: 3,
-    };
-    p.offset += 4;
 
     if (version === 1) {
         p.readBigUint64('creation_time');

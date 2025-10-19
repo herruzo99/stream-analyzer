@@ -16,40 +16,13 @@ const TFHD_FLAGS_SCHEMA = {
  */
 export function parseTfhd(box, view) {
     const p = new BoxParser(box, view);
+    p.readVersionAndFlags(TFHD_FLAGS_SCHEMA);
+    const flags = box.details.flags.value;
 
-    // Read the raw version and flags integer
-    if (!p.checkBounds(4)) {
+    if (flags === null) {
         p.finalize();
         return;
     }
-    const versionAndFlags = p.view.getUint32(p.offset);
-    const version = versionAndFlags >> 24;
-    const flagsInt = versionAndFlags & 0x00ffffff;
-
-    const decodedFlags = {};
-    for (const mask in TFHD_FLAGS_SCHEMA) {
-        decodedFlags[TFHD_FLAGS_SCHEMA[mask]] =
-            (flagsInt & parseInt(mask, 16)) !== 0;
-    }
-
-    p.box.details['version'] = {
-        value: version,
-        offset: p.box.offset + p.offset,
-        length: 1,
-    };
-    p.box.details['flags_raw'] = {
-        value: `0x${flagsInt.toString(16).padStart(6, '0')}`,
-        offset: p.box.offset + p.offset + 1,
-        length: 3,
-    };
-    p.box.details['flags'] = {
-        value: decodedFlags,
-        offset: p.box.offset + p.offset + 1,
-        length: 3,
-    };
-    p.offset += 4;
-
-    const flags = decodedFlags;
 
     p.readUint32('track_ID');
 
