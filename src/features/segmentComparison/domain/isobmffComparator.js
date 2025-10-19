@@ -316,6 +316,16 @@ const boxComparators = {
             }
         }
     
+        if (flags[0]?.sample_composition_time_offsets_present) {
+            const stats = trunBoxes.map((trun) => calculateStats(trun?.samples, 'compositionTimeOffset'));
+            rows.push(createRow('Min CTS Offset', stats.map(s => s?.min ?? '---')));
+            rows.push(createRow('Max CTS Offset', stats.map(s => s?.max ?? '---')));
+            rows.push(createRow('Avg CTS Offset', stats.map(s => s?.avg ?? '---')));
+            if (segments.length > 1) {
+                rows.push(createRow('First differing CTS Offset', [findFirstDifference(trunBoxes[0]?.samples, trunBoxes[1]?.samples, 'compositionTimeOffset')]));
+            }
+        }
+    
         const tableHeaders = [];
         if (flags[0]?.sample_duration_present) tableHeaders.push({ key: 'duration', label: 'Duration' });
         if (flags[0]?.sample_size_present) tableHeaders.push({ key: 'size', label: 'Size' });

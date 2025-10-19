@@ -2,6 +2,7 @@ import { html } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { eventBus } from '@/application/event-bus';
 import { segmentTableTemplate } from '../../components/segment-table.js';
+import { useUiStore } from '@/state/uiStore';
 
 let liveSegmentHighlighterInterval = null;
 
@@ -48,6 +49,8 @@ export function stopLiveSegmentHighlighter() {
 
 const renderHlsRendition = (stream, renditionInfo) => {
     const { title, uri, isMuxed } = renditionInfo;
+    const { segmentExplorerSortOrder, segmentExplorerTimeFilter } =
+        useUiStore.getState();
 
     if (isMuxed) {
         return html`
@@ -117,6 +120,29 @@ const renderHlsRendition = (stream, renditionInfo) => {
         }
     );
 
+    let processedSegments = [...allSegments];
+
+    if (segmentExplorerTimeFilter.start || segmentExplorerTimeFilter.end) {
+        processedSegments = processedSegments.filter((seg) => {
+            if (!seg.startTimeUTC) return false;
+            const segStartTime = new Date(seg.startTimeUTC);
+            const segEndTime = new Date(seg.endTimeUTC);
+            const filterStart = segmentExplorerTimeFilter.start;
+            const filterEnd = segmentExplorerTimeFilter.end;
+
+            const startsAfterFilterStart =
+                !filterStart || segEndTime >= filterStart;
+            const endsBeforeFilterEnd = !filterEnd || segStartTime <= filterEnd;
+
+            return startsAfterFilterStart && endsBeforeFilterEnd;
+        });
+    }
+
+    processedSegments.sort((a, b) => {
+        const order = segmentExplorerSortOrder === 'asc' ? 1 : -1;
+        return (a.number - b.number) * order;
+    });
+
     const onLoadClick = () => {
         eventBus.dispatch('hls-explorer:load-segments', {
             streamId: stream.id,
@@ -127,7 +153,7 @@ const renderHlsRendition = (stream, renditionInfo) => {
     return segmentTableTemplate({
         id: uri.replace(/[^a-zA-Z0-9]/g, '-'),
         title: title,
-        segments: allSegments,
+        segments: processedSegments,
         stream: stream,
         freshSegmentUrls,
         segmentFormat: stream.manifest.segmentFormat,

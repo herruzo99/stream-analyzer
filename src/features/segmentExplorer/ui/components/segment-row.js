@@ -57,29 +57,26 @@ const FLAG_DEFINITIONS = {
  * @returns {boolean} True if the segment is considered stale.
  */
 function isDashSegmentStale(seg, stream) {
-    if (stream.protocol !== 'dash' || stream.manifest?.type !== 'dynamic' || !seg.endTimeUTC) {
+    if (
+        stream.protocol !== 'dash' ||
+        stream.manifest?.type !== 'dynamic' ||
+        !seg.endTimeUTC
+    ) {
         return false;
     }
 
     const { manifest } = stream;
-    const timeShiftBufferDepthMs = (manifest.timeShiftBufferDepth || 0) * 1000;
-    
-    // The manifest's availabilityStartTime is our epoch (T=0 on the server timeline)
-    const availabilityStartTime = manifest.availabilityStartTime?.getTime() || 0;
-    
-    // The current time on the server's timeline
+    const timeShiftBufferDepthMs =
+        (manifest.timeShiftBufferDepth || 0) * 1000;
+
+    const availabilityStartTime =
+        manifest.availabilityStartTime?.getTime() || 0;
     const nowOnServerTimeline = Date.now() - availabilityStartTime;
-
-    // The start of the DVR window on the server's timeline
     const windowStartTime = nowOnServerTimeline - timeShiftBufferDepthMs;
-
-    // The end time of the segment on the server's timeline
     const segmentEndTime = seg.endTimeUTC - availabilityStartTime;
 
-    // If the segment's end time is before the start of the current live window, it's stale.
     return segmentEndTime < windowStartTime;
 }
-
 
 function getInBandFlags(cacheEntry) {
     const flags = new Set();
@@ -273,7 +270,8 @@ const getActions = (cacheEntry, seg, isFresh, segmentFormat) => {
         const uniqueId = button.dataset.uniqueId;
         const cacheEntry = useSegmentCacheStore.getState().get(uniqueId);
         if (cacheEntry && cacheEntry.data) {
-            const filename = seg.template || seg.resolvedUrl.split('/').pop().split('?')[0];
+            const filename =
+                seg.template || seg.resolvedUrl.split('/').pop().split('?')[0];
             downloadBuffer(cacheEntry.data, filename);
         }
     };
@@ -359,27 +357,49 @@ const cellLabel = (label) =>
         ${label}
     </div>`;
 
-export const segmentRowTemplate = (seg, stream, segmentFormat, repId) => {
+export const segmentRowTemplate = (
+    seg,
+    stream,
+    segmentFormat,
+    repId,
+    freshSegmentUrls
+) => {
     const { segmentsForCompare, activeStreamId } = useAnalysisStore.getState();
     const { get: getFromCache } = useSegmentCacheStore.getState();
 
     const cacheEntry = getFromCache(seg.uniqueId);
-    const isChecked = segmentsForCompare.some(s => s.segmentUniqueId === seg.uniqueId);
+    const isChecked = segmentsForCompare.some(
+        (s) => s.segmentUniqueId === seg.uniqueId
+    );
     const isLoaded = cacheEntry && cacheEntry.status === 200;
-    
-    // An Init segment is never stale. For others, use the new time-aware check for DASH,
-    // or the existing freshSegmentUrls check for HLS.
-    const isFresh = seg.type === 'Init' || !isDashSegmentStale(seg, stream);
-    
+
+    const isFresh =
+        stream.protocol === 'dash'
+            ? seg.type === 'Init' || !isDashSegmentStale(seg, stream)
+            : seg.type === 'Init' || freshSegmentUrls.has(seg.uniqueId);
+
     const isDisabled = seg.gap || !isLoaded;
 
     const statusIndicator = getStatusIndicator(cacheEntry, isFresh, seg);
-    const hasParsingIssues = isDebugMode && (cacheEntry?.parsedData?.data?.issues?.length > 0 || cacheEntry?.parsedData?.error);
-    const issuesTooltip = hasParsingIssues 
-        ? (cacheEntry.parsedData.data?.issues || [{type: 'error', message: cacheEntry.parsedData.error}]).map(i => `[${i.type}] ${i.message}`).join('\n') 
+    const hasParsingIssues =
+        isDebugMode &&
+        (cacheEntry?.parsedData?.data?.issues?.length > 0 ||
+            cacheEntry?.parsedData?.error);
+    const issuesTooltip = hasParsingIssues
+        ? (
+              cacheEntry.parsedData.data?.issues || [
+                  { type: 'error', message: cacheEntry.parsedData.error },
+              ]
+          )
+              .map((i) => `[${i.type}] ${i.message}`)
+              .join('\n')
         : '';
-    const parsingWarningIcon = hasParsingIssues 
-        ? html`<span class="ml-1 text-yellow-400" data-tooltip=${issuesTooltip}>${icons.debug}</span>` 
+    const parsingWarningIcon = hasParsingIssues
+        ? html`<span
+              class="ml-1 text-yellow-400"
+              data-tooltip=${issuesTooltip}
+              >${icons.debug}</span
+          >`
         : '';
 
     const toggleCompare = () => {
@@ -398,17 +418,19 @@ export const segmentRowTemplate = (seg, stream, segmentFormat, repId) => {
     const getTitle = () => {
         if (seg.gap) return 'Cannot compare a GAP segment';
         if (!isLoaded) return 'Segment must be loaded to compare';
-        return isChecked ? 'Remove from comparison' : 'Add to comparison';
+        return isChecked
+            ? 'Remove from comparison'
+            : 'Add to comparison';
     };
 
     const compareButton = html`
-        <button 
-            @click=${toggleCompare} 
+        <button
+            @click=${toggleCompare}
             title=${getTitle()}
             class="w-6 h-6 rounded-full flex items-center justify-center transition-colors
-                ${isChecked 
-                    ? 'text-red-400 hover:bg-red-900/50' 
-                    : 'text-blue-400 hover:bg-blue-900/50'}
+                ${isChecked
+                ? 'text-red-400 hover:bg-red-900/50'
+                : 'text-blue-400 hover:bg-blue-900/50'}
                 ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}"
             ?disabled=${isDisabled}
         >
@@ -419,7 +441,8 @@ export const segmentRowTemplate = (seg, stream, segmentFormat, repId) => {
     const rowClasses = {
         'segment-row': true,
         'h-16': true,
-        'grid grid-cols-2 md:grid-cols-[32px_180px_128px_96px_112px_minmax(400px,auto)] items-center gap-y-2 p-2 md:p-0 border-b border-gray-700': true,
+        'grid grid-cols-2 md:grid-cols-[32px_180px_128px_96px_112px_minmax(400px,auto)] items-center gap-y-2 p-2 md:p-0 border-b border-gray-700':
+            true,
         'hover:bg-gray-700/50 transition-colors duration-200': true,
         'bg-gray-800/50 text-gray-600 italic': seg.gap,
     };

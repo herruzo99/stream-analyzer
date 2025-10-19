@@ -1,5 +1,6 @@
 import { html } from 'lit-html';
 import { segmentTableTemplate } from '../../components/segment-table.js';
+import { useUiStore } from '@/state/uiStore';
 
 /**
  * Renders the segment explorer view for locally uploaded files.
@@ -7,6 +8,7 @@ import { segmentTableTemplate } from '../../components/segment-table.js';
  * @returns {import('lit-html').TemplateResult}
  */
 export function getLocalExplorerForType(stream) {
+    const { segmentExplorerSortOrder } = useUiStore.getState();
     const repState = stream.dashRepresentationState.get('0-local-rep');
 
     if (!repState || !repState.segments || repState.segments.length === 0) {
@@ -26,6 +28,11 @@ export function getLocalExplorerForType(stream) {
             resolvedUrl: typedSegment.template, // Use original filename as URL
             format: typedSegment.parsedData.format,
         };
+    });
+
+    adaptedSegments.sort((a, b) => {
+        const order = segmentExplorerSortOrder === 'asc' ? 1 : -1;
+        return (a.number - b.number) * order;
     });
 
     return html`
