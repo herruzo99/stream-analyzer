@@ -10,36 +10,17 @@ export function parseStss(box, view) {
     p.readVersionAndFlags();
 
     const entryCount = p.readUint32('entry_count');
+    box.entries = [];
 
     if (entryCount !== null && entryCount > 0) {
-        const sampleNumbers = [];
-        const maxEntriesToShow = 10;
         for (let i = 0; i < entryCount; i++) {
             if (p.stopped) break;
+            if (!p.checkBounds(4)) break;
 
-            if (i < maxEntriesToShow) {
-                const sampleNum = p.readUint32(`sample_number_entry_${i + 1}`);
-                if (sampleNum !== null) {
-                    sampleNumbers.push(sampleNum);
-                    delete box.details[`sample_number_entry_${i + 1}`];
-                }
-            } else {
-                p.offset += 4;
-            }
-        }
+            const sample_number = p.view.getUint32(p.offset);
+            p.offset += 4;
 
-        if (entryCount > 0) {
-            box.details['sample_numbers'] = {
-                value:
-                    sampleNumbers.join(', ') +
-                    (entryCount > maxEntriesToShow
-                        ? `... (${
-                              entryCount - maxEntriesToShow
-                          } more entries not shown but parsed)`
-                        : ''),
-                offset: box.offset + p.offset, // This offset isn't quite right but the field is virtual
-                length: entryCount * 4,
-            };
+            box.entries.push({ sample_number });
         }
     }
     p.finalize();

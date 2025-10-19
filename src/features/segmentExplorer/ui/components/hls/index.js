@@ -128,6 +128,7 @@ const renderHlsRendition = (stream, renditionInfo) => {
         id: uri.replace(/[^a-zA-Z0-9]/g, '-'),
         title: title,
         segments: allSegments,
+        stream: stream,
         freshSegmentUrls,
         segmentFormat: stream.manifest.segmentFormat,
         isLoading,

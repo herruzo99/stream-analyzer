@@ -27,44 +27,29 @@ export function parseSidx(box, view) {
     p.skip(2, 'reserved');
 
     const referenceCount = p.readUint16('reference_count');
+    box.entries = [];
+
     if (referenceCount === null) {
         p.finalize();
         return;
     }
 
     for (let i = 0; i < referenceCount; i++) {
-        const refTypeAndSize = p.readUint32(`ref_${i + 1}_type_and_size`);
-        if (refTypeAndSize === null) break;
+        if (p.stopped || !p.checkBounds(12)) break;
 
-        const refType = (refTypeAndSize >> 31) & 1;
-        const refSize = refTypeAndSize & 0x7fffffff;
+        const refTypeAndSize = p.view.getUint32(p.offset);
+        const duration = p.view.getUint32(p.offset + 4);
+        const sapInfo = p.view.getUint32(p.offset + 8);
+        p.offset += 12;
 
-        const baseOffset =
-            box.details[`ref_${i + 1}_type_and_size`]?.offset || 0;
-        delete box.details[`ref_${i + 1}_type_and_size`];
-
-        box.details[`reference_${i + 1}_type`] = {
-            value: refType === 1 ? 'sidx' : 'media',
-            offset: baseOffset,
-            length: 4,
-        };
-        box.details[`reference_${i + 1}_size`] = {
-            value: refSize,
-            offset: baseOffset,
-            length: 4,
-        };
-
-        p.readUint32(`reference_${i + 1}_duration`);
-
-        const sapInfo = p.readUint32(`sap_info_dword_${i + 1}`);
-        if (sapInfo !== null) {
-            delete box.details[`sap_info_dword_${i + 1}`];
-            box.details[`reference_${i + 1}_sap_info`] = {
-                value: `0x${sapInfo.toString(16)}`,
-                offset: baseOffset + 8,
-                length: 4,
-            };
-        }
+        box.entries.push({
+            reference_type: (refTypeAndSize >> 31) & 1 ? 'sidx' : 'media',
+            referenced_size: refTypeAndSize & 0x7fffffff,
+            subsegment_duration: duration,
+            starts_with_SAP: (sapInfo >> 31) & 1,
+            SAP_type: (sapInfo >> 28) & 0x07,
+            SAP_delta_time: sapInfo & 0x0fffffff,
+        });
     }
     p.finalize();
 }

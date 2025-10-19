@@ -1,5 +1,11 @@
 import { BoxParser } from '../utils.js';
 
+// The ID32 box uses a 15-bit packed language code in its flags.
+// There is no standard schema name for this, but we define it for clarity.
+const ID32_FLAGS_SCHEMA = {
+    0x000000: 'language_code', // This isn't a bitmask, but a placeholder for the logic
+};
+
 /**
  * Parses the 'ID32' (ID3v2 Metadata) box.
  * @param {import('../parser.js').Box} box
@@ -7,10 +13,27 @@ import { BoxParser } from '../utils.js';
  */
 export function parseId32(box, view) {
     const p = new BoxParser(box, view);
-    p.readVersionAndFlags();
+    p.readVersionAndFlags(); // Reads version and raw flags
 
-    // The language code is sometimes packed into the flags, but we will treat
-    // the rest of the box as an opaque payload containing the ID3v2 tag data.
+    // Manually decode the 15-bit language code from the raw flags.
+    // The language code is packed into the 24-bit flags field.
+    const flagsInt = parseInt(box.details.flags.value, 16);
+    const langBits = flagsInt & 0x7fff; // Mask the lower 15 bits for the language code
+
+    // The language code is a packed 15-bit value, with each 5 bits representing a character code
+    // offset from 0x60, as per ISO-639-2/T.
+    const char1 = ((langBits >> 10) & 0x1f) + 0x60;
+    const char2 = ((langBits >> 5) & 0x1f) + 0x60;
+    const char3 = (langBits & 0x1f) + 0x60;
+    const langValue = String.fromCharCode(char1, char2, char3);
+
+    box.details['language'] = {
+        value: langValue,
+        offset: box.details.flags.offset,
+        length: 2, // The language code is packed within the 24-bit flags field
+    };
+
+    // The rest of the box is an opaque payload containing the ID3v2 tag data.
     p.readRemainingBytes('id3v2_data');
     p.finalize();
 }
@@ -22,7 +45,7 @@ export const id32Tooltip = {
         ref: 'ID3v2 Specification',
     },
     'ID32@language': {
-        text: 'The language of the ID3 tag content, packed into the flags field.',
+        text: 'The language of the ID3 tag content, packed into the flags field as a 15-bit ISO-639-2/T code.',
         ref: 'User-defined',
     },
     'ID32@id3v2_data': {

@@ -1,6 +1,7 @@
 import { html } from 'lit-html';
 import { getTooltipData as getAllIsoTooltipData } from '@/infrastructure/parsing/isobmff/index';
 import { tooltipTriggerClasses } from '@/ui/shared/constants';
+import { isDebugMode } from '@/shared/utils/env';
 
 const allIsoTooltipData = getAllIsoTooltipData();
 
@@ -171,8 +172,9 @@ export const inspectorDetailsTemplate = (
                 data-inspector-offset="${box.offset}"
             >
                 <td
-                    class="p-1 pr-2 text-xs text-gray-400 align-top"
-                    title="${fieldInfo?.text || ''}"
+                    class="p-1 pr-2 text-xs text-gray-400 align-top ${fieldInfo?.text ? tooltipTriggerClasses : ''}"
+                    data-tooltip="${fieldInfo?.text || ''}"
+                    data-iso="${fieldInfo?.ref || ''}"
                 >
                     ${key}
                 </td>
@@ -219,16 +221,14 @@ export const inspectorDetailsTemplate = (
 export const isoBoxTreeTemplate = (box) => {
     const boxInfo = allIsoTooltipData[box.type] || {};
 
-    const headerTemplate = html`<div
-        class="font-semibold font-mono p-2 bg-gray-900/50 rounded-t-md border-b border-gray-600 flex items-center gap-2"
-    >
-        ${box.issues && box.issues.length > 0
+    const warningIcon =
+        isDebugMode && box.issues && box.issues.length > 0
             ? html`<svg
                   xmlns="http://www.w3.org/2000/svg"
-                  class="h-5 w-5 text-yellow-400 shrink-0"
+                  class="h-5 w-5 text-yellow-400 shrink-0 ${tooltipTriggerClasses}"
                   viewBox="0 0 20 20"
                   fill="currentColor"
-                  title="${box.issues
+                  data-tooltip="${box.issues
                       .map((i) => `[${i.type}] ${i.message}`)
                       .join('\n')}"
               >
@@ -238,7 +238,12 @@ export const isoBoxTreeTemplate = (box) => {
                       clip-rule="evenodd"
                   />
               </svg>`
-            : ''}
+            : '';
+
+    const headerTemplate = html`<div
+        class="font-semibold font-mono p-2 bg-gray-900/50 rounded-t-md border-b border-gray-600 flex items-center gap-2"
+    >
+        ${warningIcon}
         <span
             class="text-emerald-300 ${boxInfo.text
                 ? tooltipTriggerClasses

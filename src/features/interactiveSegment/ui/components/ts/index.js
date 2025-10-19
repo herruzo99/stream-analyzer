@@ -1,8 +1,11 @@
 import { html, render } from 'lit-html';
 import { getInspectorState } from '../interaction-logic.js';
+import { getTooltipData as getTsTooltipData } from '@/infrastructure/parsing/ts/index';
+import { tooltipTriggerClasses } from '@/ui/shared/constants';
 
 let packetCurrentPage = 1;
 const PACKETS_PER_PAGE = 50;
+const allTsTooltipData = getTsTooltipData();
 
 export function findPacketByOffset(parsedData, offset) {
     if (!parsedData?.data?.packets) return null;
@@ -32,6 +35,9 @@ const inspectorDetailRow = (packet, key, value) => {
         fieldForDisplay === key && itemForDisplay?.offset === packet.offset
             ? 'is-inspector-field-highlighted'
             : '';
+    
+    const tooltipKey = key.replace('.', '@');
+    const tooltipInfo = allTsTooltipData[tooltipKey] || {};
 
     const renderValue = (val) => {
         if (typeof val === 'object' && val !== null) {
@@ -55,7 +61,13 @@ const inspectorDetailRow = (packet, key, value) => {
             data-field-name="${key}"
             data-inspector-offset="${packet.offset}"
         >
-            <td class="p-1 pr-2 text-xs text-gray-400 align-top">${key}</td>
+            <td 
+                class="p-1 pr-2 text-xs text-gray-400 align-top ${tooltipInfo.text ? tooltipTriggerClasses : ''}"
+                data-tooltip="${tooltipInfo.text || ''}"
+                data-iso="${tooltipInfo.ref || ''}"
+            >
+                ${key}
+            </td>
             <td class="p-1 text-xs font-mono text-white break-all">
                 ${renderValue(value)}
             </td>
