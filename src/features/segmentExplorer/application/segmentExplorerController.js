@@ -12,4 +12,19 @@ export function initializeSegmentExplorerController() {
         uiActions.setSegmentExplorerActiveTab(tab);
         renderApp();
     });
+
+    eventBus.subscribe('ui:segment-explorer:sort-toggled', () => {
+        uiActions.toggleSegmentExplorerSortOrder();
+    });
+
+    eventBus.subscribe(
+        'ui:segment-explorer:time-filter-applied',
+        ({ start, end }) => {
+            uiActions.setSegmentExplorerTimeFilter({ start, end });
+        }
+    );
+
+    eventBus.subscribe('ui:segment-explorer:time-filter-cleared', () => {
+        uiActions.clearSegmentExplorerTimeFilter();
+    });
 }

@@ -210,7 +210,7 @@ async function buildStreamObject(
             streamObject.hlsVariantState.set(streamObject.originalUrl, {
                 segments: manifestIR.segments || [],
                 freshSegmentUrls: new Set(
-                    (manifestIR.segments || []).map((s) => s.resolvedUrl)
+                    (manifestIR.segments || []).map((s) => s.uniqueId)
                 ),
                 isLoading: false,
                 isPolling: manifestIR.type === 'dynamic',
@@ -234,9 +234,7 @@ async function buildStreamObject(
 
             streamObject.dashRepresentationState.set(key, {
                 segments: allSegments,
-                freshSegmentUrls: new Set(
-                    allSegments.map((s) => s.resolvedUrl)
-                ),
+                freshSegmentUrls: new Set(allSegments.map((s) => s.uniqueId)),
                 diagnostics: data.diagnostics,
             });
         }
@@ -276,9 +274,15 @@ function serializeStreamForTransport(streamObject) {
     }
     serialized.hlsVariantState = hlsVariantStateArray;
 
-    serialized.dashRepresentationState = Array.from(
-        streamObject.dashRepresentationState.entries()
-    );
+    const dashRepStateArray = [];
+    for (const [key, value] of streamObject.dashRepresentationState.entries()) {
+        dashRepStateArray.push([
+            key,
+            { ...value, freshSegmentUrls: Array.from(value.freshSegmentUrls) },
+        ]);
+    }
+    serialized.dashRepresentationState = dashRepStateArray;
+
     if (serialized.featureAnalysis) {
         serialized.featureAnalysis.results = Array.from(
             streamObject.featureAnalysis.results.entries()

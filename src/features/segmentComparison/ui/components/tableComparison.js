@@ -12,16 +12,18 @@ const renderValue = (value) => {
 
     // Specifically handle the trun sample flags object.
     if (typeof value === 'object' && value !== null && 'sample_depends_on' in value) {
-        const parts = [];
-        if (value.sample_is_non_sync_sample) parts.push('Non-Sync');
-        else parts.push('Sync');
+        const isSync = !value.sample_is_non_sync_sample;
+        const syncClass = isSync ? 'text-green-400' : 'text-yellow-400';
         
-        if (value.sample_depends_on === 'Depends on others') parts.push('Dep-On');
-        else if (value.sample_depends_on === 'Does not depend on others (I-frame)') parts.push('No-Dep-On');
-        
-        if (value.sample_is_depended_on === 'No other sample depends on this one (disposable)') parts.push('Disposable');
-        
-        return parts.join(', ');
+        return html`
+        <div class="grid grid-cols-2 gap-x-2 text-left">
+            <div class="${syncClass}" title="Sync Sample">${isSync ? 'Sync' : 'Non-Sync'}</div>
+            <div title="Degradation Priority">Prio: ${value.sample_degradation_priority}</div>
+            <div class="col-span-2 text-gray-400" title="Sample Depends On">${value.sample_depends_on}</div>
+            <div class="col-span-2 text-gray-400" title="Is Depended On">${value.sample_is_depended_on}</div>
+            <div class="col-span-2 text-gray-400" title="Is Leading">${value.is_leading}</div>
+        </div>
+        `;
     }
 
     return String(value);
@@ -68,9 +70,9 @@ export const tableComparisonTemplate = ({ tableData, numSegments, hideSameRows }
             <virtualized-list
                 .items=${itemsToRender}
                 .rowTemplate=${(item, index) => rowRenderer(item, index)}
-                .rowHeight=${32}
+                .rowHeight=${96}
                 .itemId=${(item, index) => index}
-                style="height: ${Math.min(itemsToRender.length * 32, 320)}px;"
+                style="height: ${Math.min(itemsToRender.length * 96, 480)}px;"
             ></virtualized-list>
         </div>
     `;

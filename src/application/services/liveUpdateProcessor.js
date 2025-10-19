@@ -163,17 +163,11 @@ async function processLiveUpdate(updateData) {
             const repState = newDashState.get(compositeKey);
             if (repState) {
                 const existingUrls = new Set(
-                    repState.segments.map(
-                        (s) => /** @type {any} */ (s).resolvedUrl
-                    )
+                    repState.segments.map((s) => s.uniqueId)
                 );
                 const newlyAddedSegments = [];
                 for (const newSeg of newSegments) {
-                    if (
-                        !existingUrls.has(
-                            /** @type {any} */ (newSeg).resolvedUrl
-                        )
-                    ) {
+                    if (!existingUrls.has(newSeg.uniqueId)) {
                         newlyAddedSegments.push(newSeg);
                     }
                 }
@@ -183,7 +177,7 @@ async function processLiveUpdate(updateData) {
                     segmentsWereUpdated = true;
                 }
                 repState.freshSegmentUrls = new Set(
-                    newSegments.map((s) => /** @type {any} */ (s).resolvedUrl)
+                    newSegments.map((s) => s.uniqueId)
                 );
             }
         }
@@ -198,9 +192,7 @@ async function processLiveUpdate(updateData) {
                     segmentsWereUpdated = true;
                 }
                 variant.freshSegmentUrls = new Set(
-                    variant.segments.map(
-                        (s) => /** @type {any} */ (s).resolvedUrl
-                    )
+                    variant.segments.map((s) => s.uniqueId)
                 );
             }
         }

@@ -1,5 +1,4 @@
 import { html, render } from 'lit-html';
-import { useSegmentCacheStore } from '@/state/segmentCacheStore';
 
 class VirtualizedList extends HTMLElement {
     constructor() {
@@ -8,7 +7,6 @@ class VirtualizedList extends HTMLElement {
         this._rowTemplate = (item, index) => html``;
         this._rowHeight = 40;
         this._itemId = (item) => item.id;
-        this.unsubscribe = null;
 
         this.visibleStartIndex = 0;
         this.visibleEndIndex = 0;
@@ -58,11 +56,11 @@ class VirtualizedList extends HTMLElement {
     get rowHeight() {
         return this._rowHeight;
     }
-    
+
     set itemId(newItemIdFn) {
         this._itemId = newItemIdFn;
     }
-    
+
     get itemId() {
         return this._itemId;
     }
@@ -81,18 +79,12 @@ class VirtualizedList extends HTMLElement {
         );
         this.resizeObserver.observe(this);
 
-        // Subscribe to the segment cache store and trigger a proper re-render calculation
-        this.unsubscribe = useSegmentCacheStore.subscribe(() => this._updateVisibleItems());
-
         this._updateVisibleItems();
     }
 
     disconnectedCallback() {
         this.removeEventListener('scroll', this._onScroll);
         this.resizeObserver.unobserve(this);
-        if (this.unsubscribe) {
-            this.unsubscribe();
-        }
     }
 
     _onScroll() {
