@@ -220,28 +220,6 @@ export class BoxParser {
     }
 
     /**
-     * Parses a 24-bit flags field based on a provided schema.
-     * @param {Record<number, string>} schema - A map of bitmasks to flag names.
-     * @returns {number | null} The raw flags integer.
-     */
-    readFlags(schema) {
-        if (!this.checkBounds(3)) return null;
-        const flags = this.view.getUint32(this.offset - 1) & 0x00ffffff; // Re-read the full 32-bit word and mask
-
-        const flagsObject = {};
-        for (const [mask, name] of Object.entries(schema)) {
-            flagsObject[name] = (flags & parseInt(mask, 10)) !== 0;
-        }
-
-        this.box.details['flags'] = {
-            value: flagsObject,
-            offset: this.box.offset + this.offset,
-            length: 3,
-        };
-        return flags;
-    }
-
-    /**
      * Reads version (1 byte) and flags (3 bytes) from a full box header.
      * If a schema is provided, it decodes the flags into a structured object.
      * @param {Record<number, string> | null} flagSchema - A map of bitmasks to flag names.
@@ -260,7 +238,15 @@ export class BoxParser {
         };
 
         if (flagSchema) {
-            this.readFlags(flagSchema);
+            const flagsObject = {};
+            for (const [mask, name] of Object.entries(flagSchema)) {
+                flagsObject[name] = (flags & parseInt(mask, 10)) !== 0;
+            }
+            this.box.details['flags'] = {
+                value: flagsObject,
+                offset: this.box.offset + this.offset + 1, // Start of flags
+                length: 3,
+            };
         } else {
             this.box.details['flags'] = {
                 value: `0x${flags.toString(16).padStart(6, '0')}`,

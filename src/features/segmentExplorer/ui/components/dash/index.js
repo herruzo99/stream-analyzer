@@ -2,6 +2,7 @@ import { html } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { isDebugMode } from '@/shared/utils/env';
 import { segmentTableTemplate } from '../../components/segment-table.js';
+import { useUiStore } from '@/state/uiStore';
 
 const diagnosticsTemplate = (diagnostics) => {
     if (!diagnostics || Object.keys(diagnostics).length === 0) {
@@ -87,6 +88,9 @@ export function getDashExplorerForType(stream, contentType) {
         </p>`;
     }
 
+    const { segmentExplorerSortOrder, segmentExplorerTimeFilter } =
+        useUiStore.getState();
+
     return html`
         <div class="space-y-6">
             ${stream.manifest.periods.map(
@@ -153,6 +157,74 @@ export function getDashExplorerForType(stream, contentType) {
                                                     rep.bandwidth / 1000
                                                 ).toFixed(0)} kbps)</span>`;
 
+                                                let processedSegments = [
+                                                    ...segments,
+                                                ];
+
+                                                if (
+                                                    segmentExplorerTimeFilter.start ||
+                                                    segmentExplorerTimeFilter.end
+                                                ) {
+                                                    processedSegments =
+                                                        processedSegments.filter(
+                                                            (seg) => {
+                                                                if (
+                                                                    !seg.startTimeUTC ||
+                                                                    seg.type ===
+                                                                        'Init'
+                                                                )
+                                                                    return true; // Always include Init segments
+                                                                const segStartTime =
+                                                                    new Date(
+                                                                        seg.startTimeUTC
+                                                                    );
+                                                                const segEndTime =
+                                                                    seg.endTimeUTC
+                                                                        ? new Date(
+                                                                              seg.endTimeUTC
+                                                                          )
+                                                                        : segStartTime;
+                                                                const filterStart =
+                                                                    segmentExplorerTimeFilter.start;
+                                                                const filterEnd =
+                                                                    segmentExplorerTimeFilter.end;
+
+                                                                const startsAfterFilterStart =
+                                                                    !filterStart ||
+                                                                    segEndTime >=
+                                                                        filterStart;
+                                                                const endsBeforeFilterEnd =
+                                                                    !filterEnd ||
+                                                                    segStartTime <=
+                                                                        filterEnd;
+
+                                                                return (
+                                                                    startsAfterFilterStart &&
+                                                                    endsBeforeFilterEnd
+                                                                );
+                                                            }
+                                                        );
+                                                }
+
+                                                processedSegments.sort(
+                                                    (a, b) => {
+                                                        const order =
+                                                            segmentExplorerSortOrder ===
+                                                            'asc'
+                                                                ? 1
+                                                                : -1;
+                                                        if (a.type === 'Init')
+                                                            return -1;
+                                                        if (b.type === 'Init')
+                                                            return 1;
+                                                        return (
+                                                            (a.number -
+                                                                b.number) *
+                                                            order
+                                                        );
+                                                    }
+                                                );
+
                                                 return html`
                                                     ${isDebugMode &&
                                                     stream.manifest.type ===
@@ -164,7 +236,8 @@ export function getDashExplorerForType(stream, contentType) {
                                                     ${segmentTableTemplate({
                                                         id: compositeKey,
                                                         title: title,
-                                                        segments: segments,
+                                                        segments:
+                                                            processedSegments,
                                                         stream: stream,
                                                         freshSegmentUrls:
                                                             freshSegmentUrls,

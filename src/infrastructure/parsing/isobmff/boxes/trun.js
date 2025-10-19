@@ -9,10 +9,17 @@ const TRUN_FLAGS_SCHEMA = {
     0x000800: 'sample_composition_time_offsets_present',
 };
 
+const IS_LEADING_MAP = {
+    0: 'Unknown',
+    1: 'Leading with dependency (not decodable)',
+    2: 'Not a leading sample',
+    3: 'Leading with no dependency (decodable)',
+};
+
 const SAMPLE_DEPENDS_ON_MAP = [
     'Unknown',
-    'Depends on others',
-    'Does not depend on others (I-frame)',
+    'Depends on others (not an I-picture)',
+    'Does not depend on others (I-picture)',
     'Reserved',
 ];
 const SAMPLE_IS_DEPENDED_ON_MAP = [
@@ -34,8 +41,9 @@ const SAMPLE_HAS_REDUNDANCY_MAP = [
  * @returns {object} A structured object with decoded flag properties.
  */
 function decodeSampleFlags(flagsInt) {
+    const isLeadingValue = (flagsInt >> 26) & 0x03;
     return {
-        is_leading: (flagsInt >> 26) & 0x03, // 0: unknown, 1: leading with no dependency, 2: not a leading sample, 3: leading with dependency
+        is_leading: IS_LEADING_MAP[isLeadingValue] || 'Reserved',
         sample_depends_on:
             SAMPLE_DEPENDS_ON_MAP[(flagsInt >> 24) & 0x03] || 'Reserved',
         sample_is_depended_on:

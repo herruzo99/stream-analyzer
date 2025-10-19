@@ -2,6 +2,7 @@ import { html } from 'lit-html';
 import { getTooltipData as getAllIsoTooltipData } from '@/infrastructure/parsing/isobmff/index';
 import { tooltipTriggerClasses } from '@/ui/shared/constants';
 import { isDebugMode } from '@/shared/utils/env';
+import '@/ui/components/virtualized-list'; // Import for side-effect of registration
 
 const allIsoTooltipData = getAllIsoTooltipData();
 
@@ -50,6 +51,25 @@ const renderObjectValue = (obj) => {
     `;
 };
 
+const renderTrunSampleFlags = (flags) => {
+    if (!flags) {
+        return html`<span class="text-gray-500">(inherited)</span>`;
+    }
+    const isSync = !flags.sample_is_non_sync_sample;
+    const syncClass = isSync ? 'text-green-400' : 'text-yellow-400';
+    const dependsOn = flags.sample_depends_on.includes('not') ? 'No' : 'Yes';
+
+    return html`
+        <div
+            class="grid grid-cols-2 gap-x-2 text-left"
+            title="Depends On: ${flags.sample_depends_on} | Is Depended On: ${flags.sample_is_depended_on} | Is Leading: ${flags.is_leading}"
+        >
+            <span class="${syncClass}">${isSync ? 'Sync' : 'Non-Sync'}</span>
+            <span>Dep: ${dependsOn}</span>
+        </div>
+    `;
+};
+
 const renderCellContent = (value) => {
     if (value instanceof Uint8Array) {
         return Array.from(value)
@@ -72,6 +92,12 @@ const renderCellContent = (value) => {
         return value.join(', ');
     }
     if (typeof value === 'object' && value !== null) {
+        if (
+            'sample_depends_on' in value &&
+            'sample_is_non_sync_sample' in value
+        ) {
+            return renderTrunSampleFlags(value);
+        }
         return renderObjectValue(value);
     }
     return value;
@@ -86,45 +112,67 @@ const entriesTableTemplate = (box) => {
     const headers = Object.keys(entries[0] || {});
     if (headers.length === 0) return '';
 
+    const rowHeight = 32; // Use a more compact row height
+
+    const rowRenderer = (entry, index) => {
+        return html`
+            <div
+                class="flex items-center border-b border-gray-700/50 text-xs"
+                style="height: ${rowHeight}px;"
+            >
+                <div
+                    class="p-1 font-mono text-gray-500 w-12 text-right pr-2 border-r border-gray-700/50 self-stretch flex items-center justify-end"
+                >
+                    ${index + 1}
+                </div>
+                ${headers.map(
+                    (header) => html`
+                        <div
+                            class="p-1 font-mono truncate flex-1 border-r border-gray-700/50 last:border-r-0 self-stretch flex items-center"
+                        >
+                            ${renderCellContent(entry[header])}
+                        </div>
+                    `
+                )}
+            </div>
+        `;
+    };
+
     return html`
         <div class="p-3 border-t border-gray-700">
             <h4 class="font-bold text-sm mb-2 text-gray-300">
                 Entries / Samples (${entries.length})
             </h4>
-            <div class="max-h-60 overflow-y-auto">
-                <table class="w-full text-left text-xs">
-                    <thead class="sticky top-0 bg-gray-800">
-                        <tr>
-                            ${headers.map(
-                                (h) =>
-                                    html`<th class="p-1 font-semibold">
-                                        ${h}
-                                    </th>`
-                            )}
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-700">
-                        ${entries.slice(0, 100).map(
-                            (entry) => html`
-                                <tr>
-                                    ${headers.map(
-                                        (h) =>
-                                            html`<td
-                                                class="p-1 font-mono truncate"
-                                            >
-                                                ${renderCellContent(entry[h])}
-                                            </td>`
-                                    )}
-                                </tr>
-                            `
-                        )}
-                    </tbody>
-                </table>
-                ${entries.length > 100
-                    ? html`<div class="text-center text-xs text-gray-500 pt-2">
-                          ... and ${entries.length - 100} more entries.
-                      </div>`
-                    : ''}
+            <div
+                class="bg-gray-900/50 rounded border border-gray-700/50 overflow-hidden"
+            >
+                <div
+                    class="flex bg-gray-800 z-10 font-semibold text-xs text-gray-400"
+                >
+                    <div
+                        class="p-1 w-12 text-right pr-2 border-r border-gray-700/50"
+                    >
+                        #
+                    </div>
+                    ${headers.map(
+                        (h) =>
+                            html`<div
+                                class="p-1 flex-1 border-r border-gray-700/50 last:border-r-0"
+                            >
+                                ${h}
+                            </div>`
+                    )}
+                </div>
+                <virtualized-list
+                    .items=${entries}
+                    .rowTemplate=${rowRenderer}
+                    .rowHeight=${rowHeight}
+                    .itemId=${(item, index) => index}
+                    style="height: ${Math.min(
+                        entries.length * rowHeight,
+                        400
+                    )}px;"
+                ></virtualized-list>
             </div>
         </div>
     `;

@@ -410,6 +410,92 @@ export const sidebar = html`<svg
         d="M11 3a1 1 0 100 2h6a1 1 0 100-2h-6zM11 7a1 1 0 00-1 1v2a1 1 0 102 0V8a1 1 0 00-1-1zM11 13a1 1 0 00-1 1v2a1 1 0 102 0v-2a1 1 0 00-1-1zM4 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1z"
     />
 </svg>`;
+export const sortAscending = html`<svg
+    xmlns="http://www.w3.org/2000/svg"
+    class="h-5 w-5"
+    viewBox="0 0 20 20"
+    fill="currentColor"
+>
+    <path
+        d="M17.414 10.414a1 1 0 01-1.414 0L14 8.414V17a1 1 0 11-2 0V8.414l-2.293 2.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"
+    />
+    <path
+        d="M4 4a1 1 0 00-1 1v1a1 1 0 001 1h2a1 1 0 001-1V5a1 1 0 00-1-1H4zM4 9a1 1 0 00-1 1v1a1 1 0 001 1h5a1 1 0 001-1v-1a1 1 0 00-1-1H4zM4 14a1 1 0 00-1 1v1a1 1 0 001 1h8a1 1 0 001-1v-1a1 1 0 00-1-1H4z"
+    />
+</svg>`;
+export const sortDescending = html`<svg
+    xmlns="http://www.w3.org/2000/svg"
+    class="h-5 w-5"
+    viewBox="0 0 20 20"
+    fill="currentColor"
+>
+    <path
+        d="M17.414 9.586a1 1 0 00-1.414 0L14 11.586V3a1 1 0 10-2 0v8.586l-2.293-2.293a1 1 0 00-1.414 1.414l4 4a1 1 0 001.414 0l4-4a1 1 0 000-1.414z"
+    />
+    <path
+        d="M4 4a1 1 0 00-1 1v1a1 1 0 001 1h8a1 1 0 001-1V5a1 1 0 00-1-1H4zM4 9a1 1 0 00-1 1v1a1 1 0 001 1h5a1 1 0 001-1v-1a1 1 0 00-1-1H4zM4 14a1 1 0 00-1 1v1a1 1 0 001 1h2a1 1 0 001-1v-1a1 1 0 00-1-1H4z"
+    />
+</svg>`;
+export const filter = html`<svg
+    xmlns="http://www.w3.org/2000/svg"
+    class="h-5 w-5"
+    viewBox="0 0 20 20"
+    fill="currentColor"
+>
+    <path
+        fill-rule="evenodd"
+        d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z"
+        clip-rule="evenodd"
+    />
+</svg>`;
+export const calendar = html`<svg
+    xmlns="http://www.w3.org/2000/svg"
+    class="h-5 w-5"
+    viewBox="0 0 20 20"
+    fill="currentColor"
+>
+    <path
+        fill-rule="evenodd"
+        d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z"
+        clip-rule="evenodd"
+    />
+</svg>`;
+export const arrowLeft = html`<svg
+    xmlns="http://www.w3.org/2000/svg"
+    class="h-5 w-5"
+    viewBox="0 0 20 20"
+    fill="currentColor"
+>
+    <path
+        fill-rule="evenodd"
+        d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z"
+        clip-rule="evenodd"
+    />
+</svg>`;
+export const arrowRight = html`<svg
+    xmlns="http://www.w3.org/2000/svg"
+    class="h-5 w-5"
+    viewBox="0 0 20 20"
+    fill="currentColor"
+>
+    <path
+        fill-rule="evenodd"
+        d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
+        clip-rule="evenodd"
+    />
+</svg>`;
+export const viewfinder = html`<svg
+    xmlns="http://www.w3.org/2000/svg"
+    class="h-5 w-5"
+    viewBox="0 0 20 20"
+    fill="currentColor"
+>
+    <path
+        fill-rule="evenodd"
+        d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z"
+        clip-rule="evenodd"
+    />
+</svg>`;
 
 // --- Property Icons ---
 export const aligned = html`<svg

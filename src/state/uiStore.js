@@ -26,6 +26,8 @@ import { createStore } from 'zustand/vanilla';
  * @property {number} featureAnalysisStandardVersion
  * @property {'first' | 'last'} segmentExplorerDashMode
  * @property {string} segmentExplorerActiveTab
+ * @property {'asc' | 'desc'} segmentExplorerSortOrder
+ * @property {{start: Date | null, end: Date | null}} segmentExplorerTimeFilter
  * @property {string | null} highlightedCompliancePathId
  * @property {boolean} segmentComparisonHideSame
  * @property {Set<string>} expandedComparisonTables
@@ -50,6 +52,9 @@ import { createStore } from 'zustand/vanilla';
  * @property {(version: number) => void} setFeatureAnalysisStandardVersion
  * @property {(mode: 'first' | 'last') => void} setSegmentExplorerDashMode
  * @property {(tab: string) => void} setSegmentExplorerActiveTab
+ * @property {() => void} toggleSegmentExplorerSortOrder
+ * @property {(filter: {start: Date | null, end: Date | null}) => void} setSegmentExplorerTimeFilter
+ * @property {() => void} clearSegmentExplorerTimeFilter
  * @property {(pathId: string | null) => void} setHighlightedCompliancePathId
  * @property {() => void} toggleSegmentComparisonHideSame
  * @property {(tableId: string) => void} toggleComparisonTable
@@ -79,6 +84,8 @@ const createInitialUiState = () => ({
     featureAnalysisStandardVersion: 13,
     segmentExplorerDashMode: 'first',
     segmentExplorerActiveTab: 'video',
+    segmentExplorerSortOrder: 'desc',
+    segmentExplorerTimeFilter: { start: null, end: null },
     highlightedCompliancePathId: null,
     segmentComparisonHideSame: false,
     expandedComparisonTables: new Set(),
@@ -127,6 +134,15 @@ export const useUiStore = createStore((set) => ({
         set({ segmentExplorerDashMode: mode }),
     setSegmentExplorerActiveTab: (tab) =>
         set({ segmentExplorerActiveTab: tab }),
+    toggleSegmentExplorerSortOrder: () =>
+        set((state) => ({
+            segmentExplorerSortOrder:
+                state.segmentExplorerSortOrder === 'asc' ? 'desc' : 'asc',
+        })),
+    setSegmentExplorerTimeFilter: (filter) =>
+        set({ segmentExplorerTimeFilter: filter }),
+    clearSegmentExplorerTimeFilter: () =>
+        set({ segmentExplorerTimeFilter: { start: null, end: null } }),
     setHighlightedCompliancePathId: (pathId) =>
         set({ highlightedCompliancePathId: pathId }),
     toggleSegmentComparisonHideSame: () =>
@@ -187,6 +203,12 @@ export const uiActions = {
         useUiStore.getState().setSegmentExplorerDashMode(mode),
     setSegmentExplorerActiveTab: (tab) =>
         useUiStore.getState().setSegmentExplorerActiveTab(tab),
+    toggleSegmentExplorerSortOrder: () =>
+        useUiStore.getState().toggleSegmentExplorerSortOrder(),
+    setSegmentExplorerTimeFilter: (filter) =>
+        useUiStore.getState().setSegmentExplorerTimeFilter(filter),
+    clearSegmentExplorerTimeFilter: () =>
+        useUiStore.getState().clearSegmentExplorerTimeFilter(),
     setHighlightedCompliancePathId: (pathId) =>
         useUiStore.getState().setHighlightedCompliancePathId(pathId),
     toggleSegmentComparisonHideSame: () =>
