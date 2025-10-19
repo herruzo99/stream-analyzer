@@ -10,37 +10,7 @@ const VMHD_FLAGS_SCHEMA = {
  */
 export function parseVmhd(box, view) {
     const p = new BoxParser(box, view);
-
-    if (!p.checkBounds(4)) {
-        p.finalize();
-        return;
-    }
-    const versionAndFlags = p.view.getUint32(p.offset);
-    const version = versionAndFlags >> 24;
-    const flagsInt = versionAndFlags & 0x00ffffff;
-
-    const decodedFlags = {};
-    for (const mask in VMHD_FLAGS_SCHEMA) {
-        decodedFlags[VMHD_FLAGS_SCHEMA[mask]] =
-            (flagsInt & parseInt(mask, 16)) !== 0;
-    }
-
-    p.box.details['version'] = {
-        value: version,
-        offset: p.box.offset + p.offset,
-        length: 1,
-    };
-    p.box.details['flags_raw'] = {
-        value: `0x${flagsInt.toString(16).padStart(6, '0')}`,
-        offset: p.box.offset + p.offset + 1,
-        length: 3,
-    };
-    p.box.details['flags'] = {
-        value: decodedFlags,
-        offset: p.box.offset + p.offset + 1,
-        length: 3,
-    };
-    p.offset += 4;
+    p.readVersionAndFlags(VMHD_FLAGS_SCHEMA);
 
     p.readUint16('graphicsmode');
 

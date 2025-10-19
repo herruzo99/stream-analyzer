@@ -11,39 +11,15 @@ const SAIZ_FLAGS_SCHEMA = {
  */
 export function parseSaiz(box, view) {
     const p = new BoxParser(box, view);
+    p.readVersionAndFlags(SAIZ_FLAGS_SCHEMA);
+    const flags = box.details.flags.value;
 
-    if (!p.checkBounds(4)) {
+    if (flags === null) {
         p.finalize();
         return;
     }
-    const versionAndFlags = p.view.getUint32(p.offset);
-    const version = versionAndFlags >> 24;
-    const flagsInt = versionAndFlags & 0x00ffffff;
 
-    const decodedFlags = {};
-    for (const mask in SAIZ_FLAGS_SCHEMA) {
-        decodedFlags[SAIZ_FLAGS_SCHEMA[mask]] =
-            (flagsInt & parseInt(mask, 16)) !== 0;
-    }
-
-    p.box.details['version'] = {
-        value: version,
-        offset: p.box.offset + p.offset,
-        length: 1,
-    };
-    p.box.details['flags_raw'] = {
-        value: `0x${flagsInt.toString(16).padStart(6, '0')}`,
-        offset: p.box.offset + p.offset + 1,
-        length: 3,
-    };
-    p.box.details['flags'] = {
-        value: decodedFlags,
-        offset: p.box.offset + p.offset + 1,
-        length: 3,
-    };
-    p.offset += 4;
-
-    if (decodedFlags.aux_info_type_present) {
+    if (flags.aux_info_type_present) {
         p.readUint32('aux_info_type');
         p.readUint32('aux_info_type_parameter');
     }
@@ -63,7 +39,7 @@ export function parseSaiz(box, view) {
             if (size !== null) {
                 box.entries.push({ sample_info_size: size });
             }
-            // Clean up details to avoid clutter
+            // Clean up details to avoid clutter, as data is now in box.entries
             delete box.details[`sample_info_size_${i + 1}`];
         }
     }

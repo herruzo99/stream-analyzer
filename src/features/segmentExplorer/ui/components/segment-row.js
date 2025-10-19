@@ -6,9 +6,11 @@ import { useDecryptionStore } from '@/state/decryptionStore';
 import { uiActions } from '@/state/uiStore';
 import { eventBus } from '@/application/event-bus';
 import { copyTextToClipboard } from '@/ui/shared/clipboard';
+import { downloadBuffer } from '@/ui/shared/download';
 import { keyManagerService } from '@/infrastructure/decryption/keyManagerService';
 import * as icons from '@/ui/icons';
 import { inferMediaInfoFromExtension } from '@/infrastructure/parsing/utils/media-types';
+import { isDebugMode } from '@/shared/utils/env';
 
 const FLAG_DEFINITIONS = {
     discontinuity: {
@@ -47,6 +49,37 @@ const FLAG_DEFINITIONS = {
         classes: 'text-green-400 font-bold',
     },
 };
+
+/**
+ * Determines if a DASH segment is stale based on the live window.
+ * @param {import('@/types').MediaSegment} seg The segment to check.
+ * @param {import('@/types').Stream} stream The parent stream.
+ * @returns {boolean} True if the segment is considered stale.
+ */
+function isDashSegmentStale(seg, stream) {
+    if (stream.protocol !== 'dash' || stream.manifest?.type !== 'dynamic' || !seg.endTimeUTC) {
+        return false;
+    }
+
+    const { manifest } = stream;
+    const timeShiftBufferDepthMs = (manifest.timeShiftBufferDepth || 0) * 1000;
+    
+    // The manifest's availabilityStartTime is our epoch (T=0 on the server timeline)
+    const availabilityStartTime = manifest.availabilityStartTime?.getTime() || 0;
+    
+    // The current time on the server's timeline
+    const nowOnServerTimeline = Date.now() - availabilityStartTime;
+
+    // The start of the DVR window on the server's timeline
+    const windowStartTime = nowOnServerTimeline - timeShiftBufferDepthMs;
+
+    // The end time of the segment on the server's timeline
+    const segmentEndTime = seg.endTimeUTC - availabilityStartTime;
+
+    // If the segment's end time is before the start of the current live window, it's stale.
+    return segmentEndTime < windowStartTime;
+}
+
 
 function getInBandFlags(cacheEntry) {
     const flags = new Set();
@@ -144,25 +177,6 @@ const encryptionTemplate = (seg) => {
     return html`<span class="text-gray-500">-</span>`;
 };
 
-function handleSegmentCheck(e) {
-    const checkbox = /** @type {HTMLInputElement} */ (e.target);
-    const { streamId, repId, segmentUniqueId } = checkbox.dataset;
-
-    if (checkbox.checked) {
-        if (useAnalysisStore.getState().segmentsForCompare.length >= 10) { // Increased limit
-            checkbox.checked = false;
-            return;
-        }
-        analysisActions.addSegmentToCompare({
-            streamId: parseInt(streamId, 10),
-            repId,
-            segmentUniqueId
-        });
-    } else {
-        analysisActions.removeSegmentFromCompare(segmentUniqueId);
-    }
-}
-
 const getStatusIndicator = (cacheEntry, isFresh, seg) => {
     let colorClass = 'border-gray-500'; // Default: Not loaded
     let tooltip = 'Status: Not Loaded';
@@ -220,7 +234,6 @@ const getActions = (cacheEntry, seg, isFresh, segmentFormat) => {
     const { contentType: inferredContentType } = inferMediaInfoFromExtension(
         seg.resolvedUrl
     );
-    // Correctly determine the format hint. Prioritize text, otherwise use stream's format, or null if unknown.
     const formatHint =
         inferredContentType === 'text'
             ? 'vtt'
@@ -255,13 +268,28 @@ const getActions = (cacheEntry, seg, isFresh, segmentFormat) => {
         });
     };
 
+    const downloadHandler = (e) => {
+        const button = /** @type {HTMLElement} */ (e.currentTarget);
+        const uniqueId = button.dataset.uniqueId;
+        const cacheEntry = useSegmentCacheStore.getState().get(uniqueId);
+        if (cacheEntry && cacheEntry.data) {
+            const filename = seg.template || seg.resolvedUrl.split('/').pop().split('?')[0];
+            downloadBuffer(cacheEntry.data, filename);
+        }
+    };
+
     // Case: Not yet loaded
     if (!cacheEntry) {
         if (isFresh === false) {
             // Stale and not loaded
-            return html`<span class="text-xs text-gray-500 italic"
-                >Unavailable</span
-            >`;
+            return html`<button
+                @click=${loadHandler}
+                data-unique-id="${seg.uniqueId}"
+                data-tooltip="This segment is no longer in the live manifest and may not be available on the server."
+                class="text-xs bg-yellow-600 hover:bg-yellow-700 px-2 py-1 rounded"
+            >
+                Load (Stale)
+            </button>`;
         }
         // Fresh (or static) and not loaded
         return html`<button
@@ -286,12 +314,10 @@ const getActions = (cacheEntry, seg, isFresh, segmentFormat) => {
     // Case: Load resulted in an error
     if (cacheEntry.status !== 200) {
         if (isFresh === false) {
-            // Stale, and previously had an error
             return html`<span class="text-xs text-red-500/80 italic"
                 >Stale (Error)</span
             >`;
         }
-        // Fresh, but had an error. Allow reload.
         return html`<button
             @click=${loadHandler}
             data-unique-id="${seg.uniqueId}"
@@ -317,6 +343,14 @@ const getActions = (cacheEntry, seg, isFresh, segmentFormat) => {
         >
             Analyze
         </button>
+        <button
+            class="text-xs bg-green-600 hover:bg-green-700 px-2 py-1 rounded"
+            data-unique-id="${seg.uniqueId}"
+            title="Download segment"
+            @click=${downloadHandler}
+        >
+            ${icons.download}
+        </button>
     `;
 };
 
@@ -325,18 +359,62 @@ const cellLabel = (label) =>
         ${label}
     </div>`;
 
-export const segmentRowTemplate = (seg, freshSegmentUrls, segmentFormat, repId) => {
+export const segmentRowTemplate = (seg, stream, segmentFormat, repId) => {
     const { segmentsForCompare, activeStreamId } = useAnalysisStore.getState();
     const { get: getFromCache } = useSegmentCacheStore.getState();
 
     const cacheEntry = getFromCache(seg.uniqueId);
     const isChecked = segmentsForCompare.some(s => s.segmentUniqueId === seg.uniqueId);
-
-    // An Init segment is never stale. Media segments are fresh if in the latest manifest.
-    const isFresh =
-        seg.type === 'Init' || freshSegmentUrls.has(seg.resolvedUrl);
+    const isLoaded = cacheEntry && cacheEntry.status === 200;
+    
+    // An Init segment is never stale. For others, use the new time-aware check for DASH,
+    // or the existing freshSegmentUrls check for HLS.
+    const isFresh = seg.type === 'Init' || !isDashSegmentStale(seg, stream);
+    
+    const isDisabled = seg.gap || !isLoaded;
 
     const statusIndicator = getStatusIndicator(cacheEntry, isFresh, seg);
+    const hasParsingIssues = isDebugMode && (cacheEntry?.parsedData?.data?.issues?.length > 0 || cacheEntry?.parsedData?.error);
+    const issuesTooltip = hasParsingIssues 
+        ? (cacheEntry.parsedData.data?.issues || [{type: 'error', message: cacheEntry.parsedData.error}]).map(i => `[${i.type}] ${i.message}`).join('\n') 
+        : '';
+    const parsingWarningIcon = hasParsingIssues 
+        ? html`<span class="ml-1 text-yellow-400" data-tooltip=${issuesTooltip}>${icons.debug}</span>` 
+        : '';
+
+    const toggleCompare = () => {
+        if (isChecked) {
+            analysisActions.removeSegmentFromCompare(seg.uniqueId);
+        } else {
+            if (segmentsForCompare.length >= 10) return;
+            analysisActions.addSegmentToCompare({
+                streamId: activeStreamId,
+                repId,
+                segmentUniqueId: seg.uniqueId,
+            });
+        }
+    };
+
+    const getTitle = () => {
+        if (seg.gap) return 'Cannot compare a GAP segment';
+        if (!isLoaded) return 'Segment must be loaded to compare';
+        return isChecked ? 'Remove from comparison' : 'Add to comparison';
+    };
+
+    const compareButton = html`
+        <button 
+            @click=${toggleCompare} 
+            title=${getTitle()}
+            class="w-6 h-6 rounded-full flex items-center justify-center transition-colors
+                ${isChecked 
+                    ? 'text-red-400 hover:bg-red-900/50' 
+                    : 'text-blue-400 hover:bg-blue-900/50'}
+                ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}"
+            ?disabled=${isDisabled}
+        >
+            ${isChecked ? icons.minusCircle : icons.plusCircle}
+        </button>
+    `;
 
     const rowClasses = {
         'segment-row': true,
@@ -365,18 +443,9 @@ export const segmentRowTemplate = (seg, freshSegmentUrls, segmentFormat, repId) 
             data-end-time=${seg.endTimeUTC || ''}
         >
             <div
-                class="col-span-2 md:col-span-1 md:px-3 md:py-1.5 flex items-center md:border-r md:border-gray-700"
+                class="col-span-2 md:col-span-1 md:px-3 md:py-1.5 flex items-center justify-center md:border-r md:border-gray-700"
             >
-                <input
-                    type="checkbox"
-                    class="bg-gray-700 border-gray-500 rounded focus:ring-blue-500 disabled:opacity-50"
-                    data-stream-id=${activeStreamId}
-                    data-rep-id=${repId}
-                    data-segment-unique-id=${seg.uniqueId}
-                    ?checked=${isChecked}
-                    ?disabled=${seg.gap}
-                    @change=${handleSegmentCheck}
-                />
+                ${compareButton}
             </div>
 
             ${cellLabel('Status / Type')}
@@ -385,13 +454,14 @@ export const segmentRowTemplate = (seg, freshSegmentUrls, segmentFormat, repId) 
             >
                 ${statusIndicator}
                 <div>
-                    <span class="font-medium"
+                    <span class="font-medium flex items-center"
                         >${seg.type === 'Init' ? 'Init' : 'Media'}</span
                     >
                     <span class="block text-xs text-gray-500"
                         >#${seg.number}</span
                     >
                 </div>
+                ${parsingWarningIcon}
             </div>
 
             ${cellLabel('Timing (s)')}

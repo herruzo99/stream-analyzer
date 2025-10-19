@@ -11,6 +11,7 @@ import '@/ui/components/virtualized-list'; // Import the custom element
  * @param {string} options.id - A unique ID for the virtualized list. This is the composite key for the representation.
  * @param {string} options.title - The title to display in the table header.
  * @param {object[]} options.segments - The array of segment objects to render.
+ * @param {import('@/types').Stream} options.stream - The parent stream object.
  * @param {Set<string>} options.freshSegmentUrls - A set of URLs for segments that are considered "fresh".
  * @param {string} options.segmentFormat - The format of the segments (e.g., 'isobmff', 'ts').
  * @param {boolean} [options.isLoading=false] - If true, displays a loading indicator.
@@ -22,6 +23,7 @@ export const segmentTableTemplate = ({
     id,
     title,
     segments,
+    stream, // New parameter
     freshSegmentUrls,
     segmentFormat,
     isLoading = false,
@@ -68,8 +70,8 @@ export const segmentTableTemplate = ({
         }
     } else {
         const rowRenderer = (seg) => {
-            // Pass the composite key 'id' as 'repId' to the row template
-            return segmentRowTemplate(seg, freshSegmentUrls, segmentFormat, id);
+            // Pass the composite key 'id' as 'repId' and the stream object to the row template
+            return segmentRowTemplate(seg, stream, segmentFormat, id);
         };
         const scrollbarWidth = getScrollbarWidth();
 

@@ -54,39 +54,14 @@ function decodeSampleFlags(flagsInt) {
  */
 export function parseTrun(box, view) {
     const p = new BoxParser(box, view);
+    const { version } = p.readVersionAndFlags(TRUN_FLAGS_SCHEMA);
+    const flags = box.details.flags.value;
 
-    if (!p.checkBounds(4)) {
+    if (version === null) {
         p.finalize();
         return;
     }
-    const versionAndFlags = p.view.getUint32(p.offset);
-    const version = versionAndFlags >> 24;
-    const flagsInt = versionAndFlags & 0x00ffffff;
 
-    const decodedFlags = {};
-    for (const mask in TRUN_FLAGS_SCHEMA) {
-        decodedFlags[TRUN_FLAGS_SCHEMA[mask]] =
-            (flagsInt & parseInt(mask, 16)) !== 0;
-    }
-
-    p.box.details['version'] = {
-        value: version,
-        offset: p.box.offset + p.offset,
-        length: 1,
-    };
-    p.box.details['flags_raw'] = {
-        value: `0x${flagsInt.toString(16).padStart(6, '0')}`,
-        offset: p.box.offset + p.offset + 1,
-        length: 3,
-    };
-    p.box.details['flags'] = {
-        value: decodedFlags,
-        offset: p.box.offset + p.offset + 1,
-        length: 3,
-    };
-    p.offset += 4;
-
-    const flags = decodedFlags;
     const sampleCount = p.readUint32('sample_count');
     box.samples = []; // Initialize samples array
 
@@ -112,24 +87,27 @@ export function parseTrun(box, view) {
             if (p.stopped) break;
 
             const sample = {};
+
             if (flags.sample_duration_present) {
                 if (!p.checkBounds(4)) break;
                 sample.duration = p.view.getUint32(p.offset);
                 p.offset += 4;
             }
+
             if (flags.sample_size_present) {
                 if (!p.checkBounds(4)) break;
                 sample.size = p.view.getUint32(p.offset);
                 p.offset += 4;
             }
-            if (flags.sample_flags_present) {
-                if (!p.checkBounds(4)) break;
-                const flagsInt = p.view.getUint32(p.offset);
-                sample.flags = decodeSampleFlags(flagsInt);
-                p.offset += 4;
-            }
-            if (i === 0 && firstSampleFlags !== null) {
+
+            // Correctly handle conditional presence of sample_flags in the loop
+            if (flags.first_sample_flags_present && i === 0) {
                 sample.flags = firstSampleFlags;
+            } else if (flags.sample_flags_present) {
+                if (!p.checkBounds(4)) break;
+                const localFlagsInt = p.view.getUint32(p.offset);
+                sample.flags = decodeSampleFlags(localFlagsInt);
+                p.offset += 4;
             }
 
             if (flags.sample_composition_time_offsets_present) {

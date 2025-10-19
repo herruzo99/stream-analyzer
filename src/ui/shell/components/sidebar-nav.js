@@ -4,9 +4,14 @@ import { useAnalysisStore } from '@/state/analysisStore';
 import { isDebugMode } from '@/shared/utils/env';
 import * as icons from '@/ui/icons';
 
-const NavLink = (icon, label, tabKey, activeTab) => {
+const chevronRight = html`<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>`;
+
+// isSubItem flag adds indentation and adjusts padding
+const NavLink = (icon, label, tabKey, activeTab, isSubItem = false) => {
     const isActive = activeTab === tabKey;
-    const classes = `flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
+    const paddingClass = isSubItem ? 'pl-8' : 'px-4';
+    const pyClass = isSubItem ? 'py-2' : 'py-3';
+    const classes = `flex items-center gap-3 ${paddingClass} ${pyClass} text-sm font-medium rounded-lg transition-colors ${
         isActive
             ? 'bg-blue-600 text-white'
             : 'text-gray-400 hover:bg-gray-700 hover:text-white'
@@ -30,8 +35,37 @@ const NavLink = (icon, label, tabKey, activeTab) => {
     `;
 };
 
+const SubMenu = (item, activeTab) => {
+    const isActive = item.isActive(activeTab);
+    return html`
+        <li>
+            <details class="group" open>
+                <summary class="flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg cursor-pointer list-none
+                    ${isActive ? 'text-white' : 'text-gray-400 hover:bg-gray-700 hover:text-white'}">
+                    ${item.icon}
+                    <span>${item.label}</span>
+                    <span class="ml-auto transition-transform duration-200 group-open:rotate-90">
+                        ${chevronRight}
+                    </span>
+                </summary>
+                <ul class="pl-4 mt-1 space-y-1">
+                    ${item.items.map(subItem => subItem.visible ? NavLink(subItem.icon, subItem.label, subItem.key, activeTab, true) : '')}
+                </ul>
+            </details>
+        </li>
+    `;
+};
+
 const NavGroup = (group, activeTab) => {
-    if (group.items.every((item) => !item.visible)) {
+    // Check if any item or sub-item in the group is visible
+    const isGroupVisible = group.items.some(item => {
+        if (item.type === 'submenu') {
+            return item.items.some(subItem => subItem.visible);
+        }
+        return item.visible;
+    });
+
+    if (!isGroupVisible) {
         return '';
     }
 
@@ -43,19 +77,24 @@ const NavGroup = (group, activeTab) => {
                 ${group.title}
             </h3>
             <ul class="space-y-1">
-                ${group.items.map((item) =>
-                    item.visible
-                        ? NavLink(item.icon, item.label, item.key, activeTab)
-                        : ''
-                )}
+                ${group.items.map((item) => {
+                    if (item.type === 'submenu') {
+                        // A submenu is visible if at least one of its children is visible
+                        if (item.items.some(sub => sub.visible)) {
+                            return SubMenu(item, activeTab);
+                        }
+                    } else if (item.visible) {
+                         return NavLink(item.icon, item.label, item.key, activeTab);
+                    }
+                    return '';
+                })}
             </ul>
         </div>
     `;
 };
 
 export const sidebarNavTemplate = () => {
-    const { streams, activeSegmentUrl, segmentsForCompare } =
-        useAnalysisStore.getState();
+    const { streams, activeSegmentUrl, segmentsForCompare } = useAnalysisStore.getState();
     const { activeTab } = useUiStore.getState();
 
     const navGroups = [
@@ -115,35 +154,51 @@ export const sidebarNavTemplate = () => {
             title: 'Interactive Exploration',
             items: [
                 {
-                    key: 'interactive-manifest',
+                    type: 'submenu',
                     label: 'Manifest',
                     icon: icons.interactiveManifest,
-                    visible: true,
+                    isActive: (activeTab) => ['interactive-manifest', 'updates'].includes(activeTab),
+                    items: [
+                        {
+                            key: 'interactive-manifest',
+                            label: 'Interactive View',
+                            icon: icons.interactiveManifest,
+                            visible: true,
+                        },
+                        {
+                            key: 'updates',
+                            label: 'Live Updates',
+                            icon: icons.updates,
+                            visible: true,
+                        },
+                    ],
                 },
                 {
-                    key: 'updates',
-                    label: 'Manifest Updates',
-                    icon: icons.updates,
-                    visible: true,
-                },
-                {
-                    key: 'explorer',
-                    label: 'Segment Explorer',
+                    type: 'submenu',
+                    label: 'Segments',
                     icon: icons.explorer,
-                    visible: true,
-                },
-                {
-                    key: 'segment-comparison',
-                    label: 'Segment Comparison',
-                    icon: icons.comparison,
-                    visible: segmentsForCompare.length > 1,
-                },
-                {
-                    key: 'interactive-segment',
-                    label: 'Segment Inspector',
-                    icon: icons.interactiveSegment,
-                    visible: !!activeSegmentUrl,
-                },
+                    isActive: (activeTab) => ['explorer', 'segment-comparison', 'interactive-segment'].includes(activeTab),
+                    items: [
+                        {
+                            key: 'explorer',
+                            label: 'Explorer',
+                            icon: icons.explorer,
+                            visible: true,
+                        },
+                        {
+                            key: 'segment-comparison',
+                            label: 'Comparison',
+                            icon: icons.comparison,
+                            visible: segmentsForCompare.length > 1,
+                        },
+                        {
+                            key: 'interactive-segment',
+                            label: 'Inspector',
+                            icon: icons.interactiveSegment,
+                            visible: !!activeSegmentUrl,
+                        },
+                    ]
+                }
             ],
         },
         {

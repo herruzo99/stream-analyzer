@@ -1,5 +1,9 @@
 import { BoxParser } from '../utils.js';
 
+const SENC_FLAGS_SCHEMA = {
+    0x000002: 'use_subsample_encryption',
+};
+
 /**
  * Parses the 'senc' (Sample Encryption) box.
  * @param {import('../parser.js').Box} box
@@ -7,7 +11,8 @@ import { BoxParser } from '../utils.js';
  */
 export function parseSenc(box, view) {
     const p = new BoxParser(box, view);
-    const { flags } = p.readVersionAndFlags();
+    p.readVersionAndFlags(SENC_FLAGS_SCHEMA);
+    const flags = box.details.flags.value;
 
     if (flags === null) {
         p.finalize();
@@ -46,8 +51,7 @@ export function parseSenc(box, view) {
             }
 
             // --- Parse subsample data if flag is set ---
-            if ((flags & 2) !== 0) {
-                // use_subsample_encryption
+            if (flags.use_subsample_encryption) {
                 if (p.checkBounds(2)) {
                     const subSampleCount = p.view.getUint16(p.offset);
                     sampleEntry.subsample_count = subSampleCount;

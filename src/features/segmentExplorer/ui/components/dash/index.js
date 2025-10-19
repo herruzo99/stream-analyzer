@@ -165,6 +165,7 @@ export function getDashExplorerForType(stream, contentType) {
                                                         id: compositeKey,
                                                         title: title,
                                                         segments: segments,
+                                                        stream: stream,
                                                         freshSegmentUrls:
                                                             freshSegmentUrls,
                                                         segmentFormat:

@@ -212,6 +212,30 @@ export const moon = html`<svg
 </svg>`;
 
 // --- Misc UI Icons ---
+export const plusCircle = html`<svg
+    xmlns="http://www.w3.org/2000/svg"
+    class="h-5 w-5"
+    viewBox="0 0 20 20"
+    fill="currentColor"
+>
+    <path
+        fill-rule="evenodd"
+        d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z"
+        clip-rule="evenodd"
+    />
+</svg>`;
+export const minusCircle = html`<svg
+    xmlns="http://www.w3.org/2000/svg"
+    class="h-5 w-5"
+    viewBox="0 0 20 20"
+    fill="currentColor"
+>
+    <path
+        fill-rule="evenodd"
+        d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 000 2h6a1 1 0 100-2H7z"
+        clip-rule="evenodd"
+    />
+</svg>`;
 export const informationCircle = html`<svg
     xmlns="http://www.w3.org/2000/svg"
     class="h-6 w-6"
@@ -264,6 +288,20 @@ export const clipboardCopy = html`<svg
         stroke-linecap="round"
         stroke-linejoin="round"
         d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+    />
+</svg>`;
+export const download = html`<svg
+    xmlns="http://www.w3.org/2000/svg"
+    class="h-4 w-4"
+    fill="none"
+    viewBox="0 0 24 24"
+    stroke="currentColor"
+    stroke-width="2"
+>
+    <path
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
     />
 </svg>`;
 export const checkCircle = html`<svg

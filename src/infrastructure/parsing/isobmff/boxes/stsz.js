@@ -10,26 +10,17 @@ export function parseStsz(box, view) {
 
     const sampleSize = p.readUint32('sample_size');
     const sampleCount = p.readUint32('sample_count');
+    box.entries = [];
 
     if (sampleSize === 0 && sampleCount !== null && sampleCount > 0) {
-        const maxEntriesToShow = 10;
         for (let i = 0; i < sampleCount; i++) {
             if (p.stopped) break;
-            if (i < maxEntriesToShow) {
-                p.readUint32(`entry_size_${i + 1}`);
-            } else {
-                p.offset += 4; // Skip 4 bytes for each remaining entry
-            }
-        }
+            if (!p.checkBounds(4)) break;
 
-        if (sampleCount > maxEntriesToShow) {
-            box.details['...more_entries'] = {
-                value: `${
-                    sampleCount - maxEntriesToShow
-                } more entries not shown but parsed`,
-                offset: 0,
-                length: 0,
-            };
+            const entry_size = p.view.getUint32(p.offset);
+            p.offset += 4;
+
+            box.entries.push({ entry_size });
         }
     }
     p.finalize();

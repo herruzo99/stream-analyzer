@@ -9,27 +9,17 @@ export function parseStco(box, view) {
     p.readVersionAndFlags();
 
     const entryCount = p.readUint32('entry_count');
+    box.entries = [];
 
     if (entryCount !== null && entryCount > 0) {
-        const maxEntriesToShow = 10;
         for (let i = 0; i < entryCount; i++) {
             if (p.stopped) break;
+            if (!p.checkBounds(4)) break;
 
-            if (i < maxEntriesToShow) {
-                p.readUint32(`chunk_offset_${i + 1}`);
-            } else {
-                p.offset += 4; // Skip 4 bytes for each remaining entry
-            }
-        }
+            const chunk_offset = p.view.getUint32(p.offset);
+            p.offset += 4;
 
-        if (entryCount > maxEntriesToShow) {
-            box.details['...more_entries'] = {
-                value: `${
-                    entryCount - maxEntriesToShow
-                } more entries not shown but parsed`,
-                offset: 0,
-                length: 0,
-            };
+            box.entries.push({ chunk_offset });
         }
     }
     p.finalize();

@@ -5,7 +5,7 @@ class VirtualizedList extends HTMLElement {
     constructor() {
         super();
         this._items = [];
-        this._rowTemplate = (item) => html``;
+        this._rowTemplate = (item, index) => html``;
         this._rowHeight = 40;
         this._itemId = (item) => item.id;
         this.unsubscribe = null;
@@ -130,9 +130,10 @@ class VirtualizedList extends HTMLElement {
         this.container.style.paddingTop = `${this.paddingTop}px`;
         this.container.style.paddingBottom = `${this.paddingBottom}px`;
 
-        // Render rows directly into the container, removing the extra div wrapper
         const template = html`
-            ${visibleItems.map(item => this._rowTemplate(item))}
+            ${visibleItems.map((item, index) =>
+                this._rowTemplate(item, this.visibleStartIndex + index)
+            )}
         `;
         render(template, this.container);
     }

@@ -9,29 +9,23 @@ export function parseStsc(box, view) {
     p.readVersionAndFlags();
 
     const entryCount = p.readUint32('entry_count');
+    box.entries = [];
 
     if (entryCount !== null && entryCount > 0) {
-        const maxEntriesToShow = 10;
         for (let i = 0; i < entryCount; i++) {
             if (p.stopped) break;
-            if (i < maxEntriesToShow) {
-                const entryPrefix = `entry_${i + 1}`;
-                p.readUint32(`${entryPrefix}_first_chunk`);
-                p.readUint32(`${entryPrefix}_samples_per_chunk`);
-                p.readUint32(`${entryPrefix}_sample_description_index`);
-            } else {
-                p.offset += 12; // Skip 12 bytes for each remaining entry
-            }
-        }
+            if (!p.checkBounds(12)) break;
 
-        if (entryCount > maxEntriesToShow) {
-            box.details['...more_entries'] = {
-                value: `${
-                    entryCount - maxEntriesToShow
-                } more entries not shown but parsed`,
-                offset: 0,
-                length: 0,
-            };
+            const first_chunk = p.view.getUint32(p.offset);
+            const samples_per_chunk = p.view.getUint32(p.offset + 4);
+            const sample_description_index = p.view.getUint32(p.offset + 8);
+            p.offset += 12;
+
+            box.entries.push({
+                first_chunk,
+                samples_per_chunk,
+                sample_description_index,
+            });
         }
     }
     p.finalize();

@@ -29,17 +29,43 @@ export function parseTfra(box, view) {
         delete box.details['length_sizes_raw'];
 
         const numberOfEntries = p.readUint32('number_of_entries');
-        if (numberOfEntries !== null && numberOfEntries > 0) {
-            if (version === 1) {
-                p.readBigUint64('entry_1_time');
-                p.readBigUint64('entry_1_moof_offset');
-            } else {
-                p.readUint32('entry_1_time');
-                p.readUint32('entry_1_moof_offset');
+        box.entries = [];
+
+        if (numberOfEntries !== null) {
+            for (let i = 0; i < numberOfEntries; i++) {
+                if (p.stopped) break;
+
+                const time = version === 1 ? p.readBigUint64('time') : p.readUint32('time');
+                const moof_offset = version === 1 ? p.readBigUint64('moof_offset') : p.readUint32('moof_offset');
+
+                let traf_number = 0;
+                for (let j = 0; j < length_size_of_traf_num; j++) {
+                    if (p.stopped) break;
+                    traf_number = (traf_number << 8) | p.readUint8(`traf_byte_${j}`);
+                }
+
+                let trun_number = 0;
+                for (let j = 0; j < length_size_of_trun_num; j++) {
+                    if (p.stopped) break;
+                    trun_number = (trun_number << 8) | p.readUint8(`trun_byte_${j}`);
+                }
+
+                let sample_number = 0;
+                for (let j = 0; j < length_size_of_sample_num; j++) {
+                    if (p.stopped) break;
+                    sample_number = (sample_number << 8) | p.readUint8(`sample_byte_${j}`);
+                }
+
+                if (!p.stopped) {
+                    box.entries.push({
+                        time: Number(time),
+                        moof_offset: Number(moof_offset),
+                        traf_number,
+                        trun_number,
+                        sample_number
+                    });
+                }
             }
-            p.skip(length_size_of_traf_num, 'entry_1_traf_number');
-            p.skip(length_size_of_trun_num, 'entry_1_trun_number');
-            p.skip(length_size_of_sample_num, 'entry_1_sample_number');
         }
     }
 

@@ -15,32 +15,23 @@ export function parseCtts(box, view) {
     }
 
     const entryCount = p.readUint32('entry_count');
+    box.entries = [];
 
     if (entryCount !== null && entryCount > 0) {
-        const maxEntriesToShow = 10;
         for (let i = 0; i < entryCount; i++) {
             if (p.stopped) break;
-            if (i < maxEntriesToShow) {
-                const entryPrefix = `entry_${i + 1}`;
-                p.readUint32(`${entryPrefix}_sample_count`);
-                if (version === 1) {
-                    p.readInt32(`${entryPrefix}_sample_offset`);
-                } else {
-                    p.readUint32(`${entryPrefix}_sample_offset`);
-                }
-            } else {
-                p.offset += 8; // Skip 8 bytes for each remaining entry
-            }
-        }
+            if (!p.checkBounds(8)) break;
 
-        if (entryCount > maxEntriesToShow) {
-            box.details['...more_entries'] = {
-                value: `${
-                    entryCount - maxEntriesToShow
-                } more entries not shown but parsed`,
-                offset: 0,
-                length: 0,
-            };
+            const sample_count = p.view.getUint32(p.offset);
+            let sample_offset;
+            if (version === 1) {
+                sample_offset = p.view.getInt32(p.offset + 4);
+            } else {
+                sample_offset = p.view.getUint32(p.offset + 4);
+            }
+            p.offset += 8;
+
+            box.entries.push({ sample_count, sample_offset });
         }
     }
     p.finalize();

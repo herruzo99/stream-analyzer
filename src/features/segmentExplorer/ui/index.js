@@ -4,10 +4,14 @@ import { eventBus } from '@/application/event-bus';
 import { getDashExplorerForType } from './components/dash/index.js';
 import { getHlsExplorerForType } from './components/hls/index.js';
 import { getLocalExplorerForType } from './components/local/index.js';
-import { useAnalysisStore } from '@/state/analysisStore';
+import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
 import { useUiStore, uiActions } from '@/state/uiStore';
+import { toggleDropdown, closeDropdown } from '@/ui/services/dropdownService';
+import { renderApp } from '@/ui/shell/mainRenderer';
+import * as icons from '@/ui/icons';
 
 const CONTENT_TYPE_ORDER = { video: 1, audio: 2, text: 3, application: 4 };
+let rerenderInterval = null;
 
 const renderTabs = (contentTypes, activeTab) => {
     if (contentTypes.length <= 1) {
@@ -58,20 +62,94 @@ const renderTabs = (contentTypes, activeTab) => {
     `;
 };
 
+const comparisonListDropdownTemplate = (segmentsForCompare, streams) => {
+    const handleRemove = (segmentUniqueId) => {
+        analysisActions.removeSegmentFromCompare(segmentUniqueId);
+        // We don't close the dropdown, allowing for multiple removals.
+    };
+
+    const handleGoToCompare = () => {
+        uiActions.setActiveTab('segment-comparison');
+        closeDropdown();
+    };
+
+    const findSegmentInfo = (item) => {
+        const stream = streams.find(s => s.id === item.streamId);
+        const allSegments = (stream.protocol === 'dash' 
+            ? stream.dashRepresentationState.get(item.repId)?.segments
+            : stream.hlsVariantState.get(item.repId)?.segments) ||
+            stream.segments || [];
+        const segment = allSegments.find(s => s.uniqueId === item.segmentUniqueId);
+        return { stream, segment };
+    };
+
+    return html`
+        <div class="dropdown-panel bg-gray-800 border border-gray-700 rounded-lg shadow-xl w-96 max-h-[60vh] flex flex-col">
+            <div class="p-3 border-b border-gray-700">
+                <h4 class="font-bold text-gray-200">Segments for Comparison</h4>
+            </div>
+            ${segmentsForCompare.length === 0 
+                ? html`<div class="text-center text-sm text-gray-400 p-6">No segments selected.</div>`
+                : html`<ul class="grow overflow-y-auto divide-y divide-gray-700 p-2">
+                    ${segmentsForCompare.map(item => {
+                        const { stream, segment } = findSegmentInfo(item);
+                        if (!stream || !segment) return '';
+                        return html`
+                            <li class="p-2 flex items-center justify-between gap-2">
+                                <div class="min-w-0">
+                                    <p class="text-xs font-semibold text-gray-300 truncate" title=${stream.name}>${stream.name}</p>
+                                    <p class="text-xs font-mono text-cyan-400 truncate" title=${segment.resolvedUrl}>Segment #${segment.number}</p>
+                                </div>
+                                <button @click=${() => handleRemove(item.segmentUniqueId)} class="text-red-400 hover:text-red-300 shrink-0 p-1">
+                                    ${icons.xCircle}
+                                </button>
+                            </li>`
+                    })}
+                </ul>`
+            }
+            <div class="p-3 border-t border-gray-700 shrink-0">
+                <button 
+                    @click=${handleGoToCompare}
+                    ?disabled=${segmentsForCompare.length < 2}
+                    class="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    Go to Comparison
+                </button>
+            </div>
+        </div>
+    `;
+};
+
 /**
  * Creates the lit-html template for the Segment Explorer view.
  * @param {import('@/types.ts').Stream} stream
  * @returns {import('lit-html').TemplateResult}
  */
 export function getSegmentExplorerTemplate(stream) {
+    if (rerenderInterval) {
+        clearInterval(rerenderInterval);
+        rerenderInterval = null;
+    }
+
+    if (stream?.protocol === 'dash' && stream.manifest?.type === 'dynamic') {
+        rerenderInterval = setInterval(() => {
+            // Only re-render if the explorer tab is still active
+            if (useUiStore.getState().activeTab === 'explorer') {
+                renderApp();
+            } else {
+                clearInterval(rerenderInterval);
+                rerenderInterval = null;
+            }
+        }, 2000);
+    }
+    
     if (!stream) {
         return html`<p class="text-gray-400">No active stream.</p>`;
     }
 
-    const { segmentsForCompare } = useAnalysisStore.getState();
+    const { streams, segmentsForCompare } = useAnalysisStore.getState();
     const { segmentExplorerActiveTab } = useUiStore.getState();
-    const compareButtonDisabled = segmentsForCompare.length < 2;
-
+    
     const allAdaptationSets =
         stream.manifest?.periods.flatMap((p) => p.adaptationSets) || [];
 
@@ -103,11 +181,11 @@ export function getSegmentExplorerTemplate(stream) {
             >
                 <button
                     id="segment-compare-btn"
-                    @click=${() => uiActions.setActiveTab('segment-comparison')}
-                    class="bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    ?disabled=${compareButtonDisabled}
+                    @click=${(e) => toggleDropdown(e.currentTarget, comparisonListDropdownTemplate(segmentsForCompare, streams))}
+                    class="bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-md transition-colors flex items-center gap-2"
                 >
-                    Compare Selected (${segmentsForCompare.length}/10)
+                    <span>Compare Selected (${segmentsForCompare.length}/10)</span>
+                    ${icons.chevronDown}
                 </button>
             </div>
         </div>

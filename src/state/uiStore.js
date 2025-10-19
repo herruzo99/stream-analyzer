@@ -28,6 +28,8 @@ import { createStore } from 'zustand/vanilla';
  * @property {string} segmentExplorerActiveTab
  * @property {string | null} highlightedCompliancePathId
  * @property {boolean} segmentComparisonHideSame
+ * @property {Set<string>} expandedComparisonTables
+ * @property {Set<string>} expandedComparisonFlags
  */
 
 /**
@@ -50,6 +52,8 @@ import { createStore } from 'zustand/vanilla';
  * @property {(tab: string) => void} setSegmentExplorerActiveTab
  * @property {(pathId: string | null) => void} setHighlightedCompliancePathId
  * @property {() => void} toggleSegmentComparisonHideSame
+ * @property {(tableId: string) => void} toggleComparisonTable
+ * @property {(rowName: string) => void} toggleComparisonFlags
  * @property {() => void} reset
  */
 
@@ -77,6 +81,8 @@ const createInitialUiState = () => ({
     segmentExplorerActiveTab: 'video',
     highlightedCompliancePathId: null,
     segmentComparisonHideSame: false,
+    expandedComparisonTables: new Set(),
+    expandedComparisonFlags: new Set(),
 });
 
 export const useUiStore = createStore((set) => ({
@@ -127,6 +133,28 @@ export const useUiStore = createStore((set) => ({
         set((state) => ({
             segmentComparisonHideSame: !state.segmentComparisonHideSame,
         })),
+    toggleComparisonTable: (tableId) => {
+        set((state) => {
+            const newSet = new Set(state.expandedComparisonTables);
+            if (newSet.has(tableId)) {
+                newSet.delete(tableId);
+            } else {
+                newSet.add(tableId);
+            }
+            return { expandedComparisonTables: newSet };
+        });
+    },
+    toggleComparisonFlags: (rowName) => {
+        set((state) => {
+            const newSet = new Set(state.expandedComparisonFlags);
+            if (newSet.has(rowName)) {
+                newSet.delete(rowName);
+            } else {
+                newSet.add(rowName);
+            }
+            return { expandedComparisonFlags: newSet };
+        });
+    },
     reset: () => set(createInitialUiState()),
 }));
 
@@ -163,5 +191,9 @@ export const uiActions = {
         useUiStore.getState().setHighlightedCompliancePathId(pathId),
     toggleSegmentComparisonHideSame: () =>
         useUiStore.getState().toggleSegmentComparisonHideSame(),
+    toggleComparisonTable: (tableId) =>
+        useUiStore.getState().toggleComparisonTable(tableId),
+    toggleComparisonFlags: (rowName) =>
+        useUiStore.getState().toggleComparisonFlags(rowName),
     reset: () => useUiStore.getState().reset(),
 };

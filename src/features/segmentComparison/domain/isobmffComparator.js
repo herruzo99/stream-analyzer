@@ -28,22 +28,19 @@ const findBox = (boxes, type) => {
  */
 const createRow = (name, values) => {
     const firstValue = values[0];
-    const isSame = values.every((v) => JSON.stringify(v) === JSON.stringify(firstValue));
+    const isSame = values.every(
+        (v) => JSON.stringify(v) === JSON.stringify(firstValue)
+    );
     let status = isSame ? 'same' : 'different';
 
-    const missingIndices = values.map((v, i) => (v === '---' ? i : -1)).filter(i => i !== -1);
+    const missingIndices = values
+        .map((v, i) => (v === '---' ? i : -1))
+        .filter((i) => i !== -1);
     if (missingIndices.length > 0 && missingIndices.length < values.length) {
         status = 'missing';
     }
 
-    const displayValues = values.map(v => {
-        if (typeof v === 'object' && v !== null) {
-            return isSame ? Object.entries(v).filter(([, val]) => val).map(([key]) => key).join(', ') || 'none' : 'See Diff';
-        }
-        return v;
-    });
-
-    return { name, values: displayValues, status };
+    return { name, values, status };
 };
 
 /**
@@ -71,9 +68,25 @@ const getFlagValue = (segment, path) => {
         if (!currentBox) return '---';
     }
     const flags = currentBox?.details?.['flags']?.value;
-    if (typeof flags !== 'object' || flags === null) return flags ?? '---';
-    return Object.entries(flags).filter(([,v]) => v).map(([k]) => k).join(', ') || 'none';
+    return flags ?? '---';
 };
+
+const createTableData = (segments, boxType, headers) => {
+    const boxes = segments.map(seg => seg ? findBox(seg.data.boxes, boxType) : null);
+    const maxEntries = Math.max(...boxes.map(box => box?.entries?.length || 0));
+    if (maxEntries === 0) return null;
+
+    const entries = [];
+    for (let i = 0; i < maxEntries; i++) {
+        const values = boxes.map(box => box?.entries?.[i] || null);
+        const firstValue = values[0];
+        const isSame = values.every(v => JSON.stringify(v) === JSON.stringify(firstValue));
+        entries.push({ values, status: isSame ? 'same' : 'different' });
+    }
+
+    return { headers, entries };
+};
+
 
 /**
  * Creates a generic, field-by-field comparator for any box type.
@@ -83,29 +96,38 @@ const getFlagValue = (segment, path) => {
 const createGenericComparator = (boxType) => {
     return (segments) => {
         const allFields = new Set();
-        segments.forEach(seg => {
+        segments.forEach((seg) => {
             const box = seg ? findBox(seg.data.boxes, boxType) : null;
             if (box) {
-                Object.keys(box.details).forEach(key => {
+                Object.keys(box.details).forEach((key) => {
                     // Ignore raw values if a decoded version exists
-                    if (!key.endsWith('_raw') || !box.details[key.replace('_raw', '')]) {
+                    if (
+                        !key.endsWith('_raw') ||
+                        !box.details[key.replace('_raw', '')]
+                    ) {
                         allFields.add(key);
                     }
                 });
             }
         });
 
-        const rows = Array.from(allFields).sort().map(field => {
-            const values = segments.map(seg => {
-                const box = seg ? findBox(seg.data.boxes, boxType) : null;
-                const value = box?.details[field]?.value;
-                if (field === 'flags' && typeof value === 'object' && value !== null) {
-                    return Object.entries(value).filter(([,v]) => v).map(([k]) => k).join(', ') || 'none';
-                }
-                return value ?? '---';
+        const rows = Array.from(allFields)
+            .sort()
+            .map((field) => {
+                const values = segments.map((seg) => {
+                    const box = seg ? findBox(seg.data.boxes, boxType) : null;
+                    const value = box?.details[field]?.value;
+                    if (
+                        field === 'flags' &&
+                        typeof value === 'object' &&
+                        value !== null
+                    ) {
+                        return value;
+                    }
+                    return value ?? '---';
+                });
+                return createRow(field, values);
             });
-            return createRow(field, values);
-        });
 
         return { title: boxType, rows, isGeneric: true };
     };
@@ -128,11 +150,95 @@ const boxComparators = {
     }),
     ftyp: s => ({ title: 'ftyp (File Type)', rows: [createRow('Major Brand', s.map(seg => getBoxField(seg, ['ftyp'], 'majorBrand')))] }),
     styp: s => ({ title: 'styp (Segment Type)', rows: [createRow('Major Brand', s.map(seg => getBoxField(seg, ['styp'], 'majorBrand')))] }),
-    sidx: s => ({ title: 'sidx (Segment Index)', rows: [
-        createRow('Reference ID', s.map(seg => getBoxField(seg, ['sidx'], 'reference_ID'))),
-        createRow('Timescale', s.map(seg => getBoxField(seg, ['sidx'], 'timescale'))),
-        createRow('Reference Count', s.map(seg => getBoxField(seg, ['sidx'], 'reference_count'))),
-    ]}),
+    sidx: segments => {
+        const sidxBoxes = segments.map(seg => seg ? findBox(seg.data.boxes, 'sidx') : null);
+        return {
+            title: 'sidx (Segment Index)',
+            rows: [
+                createRow('Reference ID', sidxBoxes.map(sidx => sidx?.details?.reference_ID?.value ?? '---')),
+                createRow('Timescale', sidxBoxes.map(sidx => sidx?.details?.timescale?.value ?? '---')),
+                createRow('Reference Count', sidxBoxes.map(sidx => sidx?.details?.reference_count?.value ?? '---')),
+            ],
+            tableData: createTableData(segments, 'sidx', [
+                { key: 'reference_type', label: 'Type' },
+                { key: 'referenced_size', label: 'Size' },
+                { key: 'subsegment_duration', label: 'Duration' },
+                { key: 'starts_with_SAP', label: 'SAP' }
+            ])
+        };
+    },
+    tfra: segments => {
+        const tfraBoxes = segments.map(seg => seg ? findBox(seg.data.boxes, 'tfra') : null);
+        return {
+            title: 'tfra (Track Fragment Random Access)',
+            rows: [
+                createRow('Track ID', tfraBoxes.map(tfra => tfra?.details?.track_ID?.value ?? '---')),
+                createRow('Entry Count', tfraBoxes.map(tfra => tfra?.details?.number_of_entries?.value ?? '---')),
+            ],
+            tableData: createTableData(segments, 'tfra', [
+                { key: 'time', label: 'Time' },
+                { key: 'moof_offset', label: 'Moof Offset' },
+                { key: 'traf_number', label: 'Traf #' },
+                { key: 'trun_number', label: 'Trun #' },
+                { key: 'sample_number', label: 'Sample #' },
+            ])
+        };
+    },
+    ctts: segments => {
+        const cttsBoxes = segments.map(seg => seg ? findBox(seg.data.boxes, 'ctts') : null);
+        return {
+            title: 'ctts (Composition Time to Sample)',
+            rows: [
+                createRow('Entry Count', cttsBoxes.map(ctts => ctts?.details?.entry_count?.value ?? '---')),
+            ],
+            tableData: createTableData(segments, 'ctts', [
+                { key: 'sample_count', label: 'Sample Count' },
+                { key: 'sample_offset', label: 'Sample Offset' },
+            ])
+        };
+    },
+    sbgp: segments => {
+        const sbgpBoxes = segments.map(seg => seg ? findBox(seg.data.boxes, 'sbgp') : null);
+        return {
+            title: 'sbgp (Sample to Group)',
+            rows: [
+                createRow('Grouping Type', sbgpBoxes.map(sbgp => sbgp?.details?.grouping_type?.value ?? '---')),
+                createRow('Entry Count', sbgpBoxes.map(sbgp => sbgp?.details?.entry_count?.value ?? '---')),
+            ],
+            tableData: createTableData(segments, 'sbgp', [
+                { key: 'sample_count', label: 'Sample Count' },
+                { key: 'group_description_index', label: 'Group Index' },
+            ])
+        };
+    },
+    sdtp: segments => {
+        const sdtpBoxes = segments.map(seg => seg ? findBox(seg.data.boxes, 'sdtp') : null);
+        return {
+            title: 'sdtp (Sample Dependency Type)',
+            rows: [
+                createRow('Sample Count', sdtpBoxes.map(sdtp => sdtp?.details?.sample_count?.value ?? '---')),
+            ],
+            tableData: createTableData(segments, 'sdtp', [
+                { key: 'is_leading', label: 'Is Leading' },
+                { key: 'sample_depends_on', label: 'Depends On' },
+                { key: 'sample_is_depended_on', label: 'Is Depended On' },
+                { key: 'sample_has_redundancy', label: 'Has Redundancy' },
+            ])
+        };
+    },
+    subs: segments => {
+        const subsBoxes = segments.map(seg => seg ? findBox(seg.data.boxes, 'subs') : null);
+        return {
+            title: 'subs (Sub-Sample Information)',
+            rows: [
+                createRow('Entry Count', subsBoxes.map(subs => subs?.details?.entry_count?.value ?? '---')),
+            ],
+            tableData: createTableData(segments, 'subs', [
+                { key: 'sample_delta', label: 'Sample Delta' },
+                { key: 'subsample_count', label: 'Subsample Count' },
+            ])
+        };
+    },
     moof: s => ({ title: 'moof (Movie Fragment)', rows: [
         createRow('Sequence Number', s.map(seg => getBoxField(seg, ['moof', 'mfhd'], 'sequence_number'))),
     ]}),
@@ -143,27 +249,97 @@ const boxComparators = {
     tfdt: s => ({ title: 'tfdt (Track Fragment Decode Time)', rows: [
         createRow('Base Media Decode Time', s.map(seg => getBoxField(seg, ['moof', 'traf', 'tfdt'], 'baseMediaDecodeTime'))),
     ]}),
-    trun: segments => {
+    trun: (segments) => {
+        const trunBoxes = segments.map((seg) =>
+            seg ? findBox(seg.data.boxes, 'trun') : null
+        );
+        const flags = trunBoxes.map((trun) => trun?.details?.flags?.value);
+    
         const rows = [
-            createRow('Sample Count', segments.map(seg => getBoxField(seg, ['moof', 'traf', 'trun'], 'sample_count'))),
-            createRow('Data Offset', segments.map(seg => getBoxField(seg, ['moof', 'traf', 'trun'], 'data_offset'))),
-            createRow('Flags', segments.map(seg => getFlagValue(seg, ['moof', 'traf', 'trun']))),
+            createRow(
+                'Sample Count',
+                trunBoxes.map(
+                    (trun) => trun?.details?.sample_count?.value ?? '---'
+                )
+            ),
+            createRow(
+                'Data Offset',
+                trunBoxes.map(
+                    (trun) => trun?.details?.data_offset?.value ?? '---'
+                )
+            ),
+            createRow('Flags', flags),
         ];
-
-        const trunBoxes = segments.map(seg => seg ? findBox(seg.data.boxes, 'trun') : null);
-        const firstSamples = trunBoxes.map(trun => trun?.samples?.[0]);
-        const lastSamples = trunBoxes.map(trun => trun?.samples?.[trun.samples.length - 1]);
-
-        if (firstSamples.some(s => s)) {
-            rows.push(createRow('First Sample Duration', firstSamples.map(s => s?.duration ?? '---')));
-            rows.push(createRow('First Sample Size', firstSamples.map(s => s?.size ?? '---')));
+    
+        const calculateStats = (samples, prop) => {
+            if (!samples || samples.length === 0) return null;
+            const values = samples.map((s) => s[prop]).filter(v => v !== undefined);
+            if (values.length === 0) return null;
+            return {
+                min: Math.min(...values),
+                max: Math.max(...values),
+                avg: (values.reduce((a, b) => a + b, 0) / values.length).toFixed(2),
+            };
+        };
+    
+        const findFirstDifference = (samplesA, samplesB, prop) => {
+            if (!samplesA || !samplesB) return '---';
+            const len = Math.min(samplesA.length, samplesB.length);
+            for (let i = 0; i < len; i++) {
+                if (samplesA[i][prop] !== samplesB[i][prop]) {
+                    return `index ${i} (${samplesA[i][prop]} vs ${samplesB[i][prop]})`;
+                }
+            }
+            if (samplesA.length !== samplesB.length) {
+                return `length mismatch (${samplesA.length} vs ${samplesB.length})`;
+            }
+            return 'none';
+        };
+    
+        if (flags[0]?.sample_duration_present) {
+            const stats = trunBoxes.map((trun) => calculateStats(trun?.samples, 'duration'));
+            rows.push(createRow('Min Sample Duration', stats.map(s => s?.min ?? '---')));
+            rows.push(createRow('Max Sample Duration', stats.map(s => s?.max ?? '---')));
+            rows.push(createRow('Avg Sample Duration', stats.map(s => s?.avg ?? '---')));
+            if (segments.length > 1) {
+                rows.push(createRow('First differing duration', [findFirstDifference(trunBoxes[0]?.samples, trunBoxes[1]?.samples, 'duration')]));
+            }
         }
-        if (lastSamples.some(s => s)) {
-            rows.push(createRow('Last Sample Duration', lastSamples.map(s => s?.duration ?? '---')));
-            rows.push(createRow('Last Sample Size', lastSamples.map(s => s?.size ?? '---')));
+    
+        if (flags[0]?.sample_size_present) {
+            const stats = trunBoxes.map((trun) => calculateStats(trun?.samples, 'size'));
+            rows.push(createRow('Min Sample Size', stats.map(s => s?.min ?? '---')));
+            rows.push(createRow('Max Sample Size', stats.map(s => s?.max ?? '---')));
+            rows.push(createRow('Avg Sample Size', stats.map(s => s?.avg ?? '---')));
+            if (segments.length > 1) {
+                rows.push(createRow('First differing size', [findFirstDifference(trunBoxes[0]?.samples, trunBoxes[1]?.samples, 'size')]));
+            }
         }
+    
+        const tableHeaders = [];
+        if (flags[0]?.sample_duration_present) tableHeaders.push({ key: 'duration', label: 'Duration' });
+        if (flags[0]?.sample_size_present) tableHeaders.push({ key: 'size', label: 'Size' });
+        if (flags[0]?.sample_flags_present) tableHeaders.push({ key: 'flags', label: 'Flags' });
+        if (flags[0]?.sample_composition_time_offsets_present) tableHeaders.push({ key: 'compositionTimeOffset', label: 'CTS Offset' });
 
-        return { title: 'trun (Track Fragment Run)', rows };
+        return {
+            title: 'trun (Track Fragment Run)',
+            rows,
+            isGeneric: false,
+            tableData: tableHeaders.length > 0 ? {
+                headers: tableHeaders,
+                entries: (() => {
+                    const maxEntries = Math.max(...trunBoxes.map(trun => trun?.samples?.length || 0));
+                    const tableEntries = [];
+                    for (let i = 0; i < maxEntries; i++) {
+                        const values = trunBoxes.map(trun => trun?.samples?.[i] || null);
+                        const isSame = values.every(v => JSON.stringify(v) === JSON.stringify(values[0]));
+                        tableEntries.push({ values, status: isSame ? 'same' : 'different' });
+                    }
+                    return tableEntries;
+                })()
+            } : null,
+        };
     },
     pssh: s => ({ title: 'pssh (Protection System Specific Header)', rows: [
         createRow('System ID', s.map(seg => getBoxField(seg, ['pssh'], 'System ID'))),
@@ -177,12 +353,80 @@ const boxComparators = {
     trex: s => ({ title: 'trex (Track Extends)', rows: [
         createRow('Track ID', s.map(seg => getBoxField(seg, ['moov', 'mvex', 'trex'], 'track_ID'))),
     ]}),
-    stts: s => ({ title: 'stts (Time-to-Sample)', rows: [createRow('Entry Count', s.map(seg => getBoxField(seg, ['moov', 'trak', 'mdia', 'minf', 'stbl', 'stts'], 'entry_count')))] }),
-    stsc: s => ({ title: 'stsc (Sample-to-Chunk)', rows: [createRow('Entry Count', s.map(seg => getBoxField(seg, ['moov', 'trak', 'mdia', 'minf', 'stbl', 'stsc'], 'entry_count')))] }),
-    stsz: s => ({ title: 'stsz (Sample Size)', rows: [
-        createRow('Sample Count', s.map(seg => getBoxField(seg, ['moov', 'trak', 'mdia', 'minf', 'stbl', 'stsz'], 'sample_count'))),
-    ]}),
-    stco: s => ({ title: 'stco (Chunk Offset)', rows: [createRow('Entry Count', s.map(seg => getBoxField(seg, ['moov', 'trak', 'mdia', 'minf', 'stbl', 'stco'], 'entry_count')))] }),
+    stts: segments => {
+        const sttsBoxes = segments.map(seg => seg ? findBox(seg.data.boxes, 'stts') : null);
+        const totalSamples = sttsBoxes.map(stts => stts?.entries?.reduce((sum, entry) => sum + entry.sample_count, 0) ?? '---');
+        const totalDuration = sttsBoxes.map(stts => stts?.entries?.reduce((sum, entry) => sum + (entry.sample_count * entry.sample_delta), 0) ?? '---');
+        
+        return {
+            title: 'stts (Time-to-Sample)',
+            rows: [
+                createRow('Entry Count', sttsBoxes.map(stts => stts?.details?.entry_count?.value ?? '---')),
+                createRow('Total Sample Count', totalSamples),
+                createRow('Total Duration', totalDuration),
+            ],
+            tableData: createTableData(segments, 'stts', [
+                { key: 'sample_count', label: 'Sample Count' },
+                { key: 'sample_delta', label: 'Sample Delta' },
+            ])
+        };
+    },
+    stsc: segments => {
+        const stscBoxes = segments.map(seg => seg ? findBox(seg.data.boxes, 'stsc') : null);
+    
+        return {
+            title: 'stsc (Sample-to-Chunk)',
+            rows: [
+                createRow('Entry Count', stscBoxes.map(stsc => stsc?.details?.entry_count?.value ?? '---')),
+            ],
+            tableData: createTableData(segments, 'stsc', [
+                { key: 'first_chunk', label: 'First Chunk' },
+                { key: 'samples_per_chunk', label: 'Samples/Chunk' },
+                { key: 'sample_description_index', label: 'Desc Index' },
+            ])
+        };
+    },
+    stsz: segments => {
+        const stszBoxes = segments.map(seg => seg ? findBox(seg.data.boxes, 'stsz') : null);
+        const sampleSizes = stszBoxes.map(stsz => stsz?.details?.sample_size?.value ?? '---');
+        
+        const rows = [createRow('Sample Size (default)', sampleSizes)];
+        let tableData = null;
+    
+        if (sampleSizes.some(s => s === 0)) {
+            const totalSizes = stszBoxes.map(stsz => stsz?.entries?.reduce((sum, entry) => sum + entry.entry_size, 0) ?? 0);
+            const sampleCounts = stszBoxes.map(stsz => stsz?.details?.sample_count?.value ?? 0);
+            const avgSizes = totalSizes.map((total, i) => sampleCounts[i] > 0 ? (total / sampleCounts[i]).toFixed(2) : '---');
+    
+            rows.push(createRow('Sample Count', stszBoxes.map(stsz => stsz?.details?.sample_count?.value ?? '---')));
+            rows.push(createRow('Average Sample Size', avgSizes.map(v => v === '---' ? v : `${v} bytes`)));
+            tableData = createTableData(segments, 'stsz', [ { key: 'entry_size', label: 'Entry Size' } ]);
+        }
+        
+        return { title: 'stsz (Sample Size)', rows, tableData };
+    },
+    stco: segments => {
+        const stcoBoxes = segments.map(seg => seg ? findBox(seg.data.boxes, 'stco') : null);
+    
+        return {
+            title: 'stco (Chunk Offset)',
+            rows: [
+                createRow('Entry Count', stcoBoxes.map(stco => stco?.details?.entry_count?.value ?? '---')),
+            ],
+            tableData: createTableData(segments, 'stco', [ { key: 'chunk_offset', label: 'Chunk Offset' } ])
+        };
+    },
+    stss: segments => {
+        const stssBoxes = segments.map(seg => seg ? findBox(seg.data.boxes, 'stss') : null);
+    
+        return {
+            title: 'stss (Sync Sample)',
+            rows: [
+                createRow('Sync Sample Count', stssBoxes.map(stss => stss?.details?.entry_count?.value ?? '---')),
+            ],
+            tableData: createTableData(segments, 'stss', [ { key: 'sample_number', label: 'Sample Number' } ])
+        };
+    },
 };
 
 /**
@@ -298,7 +542,7 @@ export function compareIsobmffSegments(segments) {
     for (const boxType of Array.from(allBoxTypes).sort()) {
         const comparator = boxComparators[boxType] || createGenericComparator(boxType);
         const section = comparator(segments);
-        if (section.rows.length > 0) {
+        if (section.rows.length > 0 || section.tableData) {
             sections.push(section);
         }
     }
