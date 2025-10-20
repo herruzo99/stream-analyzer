@@ -71,6 +71,10 @@ export const dashTooltipData = {
         text: 'XML Namespace for XML Schema Instance. Enables the use of schema-related attributes like xsi:schemaLocation, which are used for XML validation.',
         isoRef: 'W3C XML Schema Part 1',
     },
+    'MPD@xsi:schemaLocation': {
+        text: 'XML Schema Location. Provides a hint to XML validators, associating the DASH namespace URI with the physical location of its schema definition file (XSD). This is not required for playback but is good practice for manifest validation.',
+        isoRef: 'W3C XML Schema Part 1 & Clause 5.2.2',
+    },
     'MPD@schemaLocation': {
         text: 'XML Schema Location. Provides a hint to XML validators, associating the DASH namespace URI with the physical location of its schema definition file (XSD). This is not required for playback but is good practice for manifest validation.',
         isoRef: 'W3C XML Schema Part 1 & Clause 5.2.2',

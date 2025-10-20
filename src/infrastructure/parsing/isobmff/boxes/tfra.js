@@ -35,25 +35,34 @@ export function parseTfra(box, view) {
             for (let i = 0; i < numberOfEntries; i++) {
                 if (p.stopped) break;
 
-                const time = version === 1 ? p.readBigUint64('time') : p.readUint32('time');
-                const moof_offset = version === 1 ? p.readBigUint64('moof_offset') : p.readUint32('moof_offset');
+                const time =
+                    version === 1
+                        ? p.readBigUint64('time')
+                        : p.readUint32('time');
+                const moof_offset =
+                    version === 1
+                        ? p.readBigUint64('moof_offset')
+                        : p.readUint32('moof_offset');
 
                 let traf_number = 0;
                 for (let j = 0; j < length_size_of_traf_num; j++) {
                     if (p.stopped) break;
-                    traf_number = (traf_number << 8) | p.readUint8(`traf_byte_${j}`);
+                    traf_number =
+                        (traf_number << 8) | p.readUint8(`traf_byte_${j}`);
                 }
 
                 let trun_number = 0;
                 for (let j = 0; j < length_size_of_trun_num; j++) {
                     if (p.stopped) break;
-                    trun_number = (trun_number << 8) | p.readUint8(`trun_byte_${j}`);
+                    trun_number =
+                        (trun_number << 8) | p.readUint8(`trun_byte_${j}`);
                 }
 
                 let sample_number = 0;
                 for (let j = 0; j < length_size_of_sample_num; j++) {
                     if (p.stopped) break;
-                    sample_number = (sample_number << 8) | p.readUint8(`sample_byte_${j}`);
+                    sample_number =
+                        (sample_number << 8) | p.readUint8(`sample_byte_${j}`);
                 }
 
                 if (!p.stopped) {
@@ -62,7 +71,7 @@ export function parseTfra(box, view) {
                         moof_offset: Number(moof_offset),
                         traf_number,
                         trun_number,
-                        sample_number
+                        sample_number,
                     });
                 }
             }

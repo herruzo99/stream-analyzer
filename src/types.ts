@@ -618,6 +618,17 @@ export interface SegmentToCompare {
     segmentUniqueId: string;
 }
 
+export interface KeyValuePair {
+    id: number;
+    key: string;
+    value: string;
+}
+
+export interface AuthInfo {
+    headers: KeyValuePair[];
+    queryParams: KeyValuePair[];
+}
+
 export interface Stream {
     id: number;
     name: string;
@@ -642,6 +653,7 @@ export interface Stream {
     adAvails?: AdAvail[];
     inbandEvents?: Event[];
     segments?: MediaSegment[]; // For 'local' protocol
+    auth?: AuthInfo;
 }
 
 export type SerializedStream = Omit<
@@ -689,4 +701,48 @@ export interface AdAvail {
     scte35Signal: Scte35SpliceInfoSection | { error: string };
     adManifestUrl: string | null;
     creatives: AdCreative[];
+}
+
+// --- Network Analysis Types ---
+export type ResourceType =
+    | 'manifest'
+    | 'video'
+    | 'audio'
+    | 'text'
+    | 'init'
+    | 'key'
+    | 'license'
+    | 'other';
+
+export interface TimingBreakdown {
+    dns: number;
+    tcp: number;
+    tls: number;
+    ttfb: number; // Time to First Byte
+    download: number; // Content Download
+}
+
+export interface NetworkEvent {
+    id: string;
+    url: string;
+    resourceType: ResourceType;
+    streamId: number;
+    segmentDuration?: number; // Duration of the media segment in seconds
+    request: {
+        method: string;
+        headers: Record<string, string>;
+    };
+    response: {
+        status: number;
+        statusText: string;
+        headers: Record<string, string>;
+        contentLength: number | null;
+        contentType: string | null;
+    };
+    timing: {
+        startTime: number; // performance.now() relative to analysis start
+        endTime: number;
+        duration: number;
+        breakdown: TimingBreakdown;
+    };
 }

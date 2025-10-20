@@ -138,6 +138,91 @@ const renderExampleCategory = (title, items, presets, rerenderCallback) => {
     </div>`;
 };
 
+const authSettingsTemplate = (inputId, auth) => {
+    const renderParamRow = (param, type) => html`
+        <div class="flex items-center gap-2">
+            <input
+                type="text"
+                class="w-full bg-gray-800 text-white rounded-md p-2 border border-gray-600 focus:ring-1 focus:ring-blue-500"
+                placeholder="Key"
+                .value=${param.key}
+                @input=${(e) =>
+                    analysisActions.updateAuthParam(
+                        inputId,
+                        type,
+                        param.id,
+                        'key',
+                        e.target.value
+                    )}
+            />
+            <input
+                type="text"
+                class="w-full bg-gray-800 text-white rounded-md p-2 border border-gray-600 focus:ring-1 focus:ring-blue-500"
+                placeholder="Value"
+                .value=${param.value}
+                @input=${(e) =>
+                    analysisActions.updateAuthParam(
+                        inputId,
+                        type,
+                        param.id,
+                        'value',
+                        e.target.value
+                    )}
+            />
+            <button
+                type="button"
+                @click=${() =>
+                    analysisActions.removeAuthParam(inputId, type, param.id)}
+                class="text-red-400 hover:text-red-300 p-1"
+            >
+                &times;
+            </button>
+        </div>
+    `;
+
+    const renderSection = (title, type, params) => html`
+        <div>
+            <div class="flex justify-between items-center mb-2">
+                <h5 class="font-semibold text-gray-300 text-sm">${title}</h5>
+                <button
+                    type="button"
+                    @click=${() => analysisActions.addAuthParam(inputId, type)}
+                    class="text-xs text-blue-400 hover:text-blue-300 font-bold"
+                >
+                    + Add
+                </button>
+            </div>
+            <div class="space-y-2">
+                ${params.length > 0
+                    ? params.map((p) => renderParamRow(p, type))
+                    : html`<p class="text-xs text-gray-500 italic">
+                          No ${title.toLowerCase()} configured.
+                      </p>`}
+            </div>
+        </div>
+    `;
+
+    return html`
+        <details class="details-animated mt-4">
+            <summary
+                class="cursor-pointer text-sm font-semibold text-gray-400 hover:text-white"
+            >
+                Authentication Settings
+            </summary>
+            <div
+                class="mt-3 p-4 bg-gray-900/50 rounded-lg border border-gray-700/50 space-y-4"
+            >
+                ${renderSection('Headers', 'headers', auth.headers)}
+                ${renderSection(
+                    'Query Parameters',
+                    'queryParams',
+                    auth.queryParams
+                )}
+            </div>
+        </details>
+    `;
+};
+
 const streamInputTemplate = (input, isOnlyStream, rerenderCallback) => {
     const history = getHistory();
     const presets = getPresets();
@@ -315,6 +400,7 @@ const streamInputTemplate = (input, isOnlyStream, rerenderCallback) => {
                     </div>
                 </div>
             </div>
+            ${authSettingsTemplate(input.id, input.auth)}
             <div
                 class="flex flex-col sm:flex-row items-center gap-4 pt-4 border-t border-gray-700"
             >

@@ -1,7 +1,12 @@
-import { html } from 'lit-html';
+import { html, render } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
+import { useAnalysisStore } from '@/state/analysisStore';
 import { highlightDash, highlightHls } from '@/ui/shared/syntax-highlighter';
 import { copyTextToClipboard } from '@/ui/shared/clipboard';
+
+let container = null;
+let currentStreamId = null;
+let analysisUnsubscribe = null;
 
 // --- Sidebar Logic ---
 
@@ -265,10 +270,19 @@ const manifestViewTemplate = (stream, coverageReport) => {
     return html`${templates}`;
 };
 
-// --- Main Template ---
+// --- Main Render Function and Lifecycle ---
 
-export function getParserCoverageTemplate(stream) {
-    if (!stream || !stream.manifest) return html``;
+function renderParserCoverage() {
+    if (!container || currentStreamId === null) return;
+
+    const stream = useAnalysisStore
+        .getState()
+        .streams.find((s) => s.id === currentStreamId);
+
+    if (!stream || !stream.manifest) {
+        render(html``, container);
+        return;
+    }
 
     const handleDebugCopy = () => {
         const report = stream.coverageReport || [];
@@ -281,13 +295,11 @@ export function getParserCoverageTemplate(stream) {
                 }\n---`;
             })
             .join('\n\n');
-
         const debugString = `--- MANIFEST ---\n${stream.rawManifest}\n\n--- COVERAGE ISSUES (${report.length}) ---\n${issueText}`;
-
         copyTextToClipboard(debugString, 'Debug report copied to clipboard!');
     };
 
-    return html`
+    const template = html`
         <div class="mb-4 shrink-0 flex justify-between items-center">
             <div>
                 <h3 class="text-xl font-bold">Parser Coverage Analysis</h3>
@@ -318,4 +330,31 @@ export function getParserCoverageTemplate(stream) {
             </div>
         </div>
     `;
+
+    render(template, container);
 }
+
+export const parserCoverageView = {
+    hasContextualSidebar: true,
+
+    mount(containerElement, { stream }) {
+        container = containerElement;
+        currentStreamId = stream.id;
+
+        if (analysisUnsubscribe) analysisUnsubscribe();
+        analysisUnsubscribe = useAnalysisStore.subscribe(renderParserCoverage);
+
+        renderParserCoverage();
+    },
+    unmount() {
+        if (analysisUnsubscribe) analysisUnsubscribe();
+        analysisUnsubscribe = null;
+        container = null;
+        currentStreamId = null;
+
+        const contextualSidebar = document.getElementById('contextual-sidebar');
+        if (contextualSidebar) {
+            render(html``, contextualSidebar);
+        }
+    },
+};

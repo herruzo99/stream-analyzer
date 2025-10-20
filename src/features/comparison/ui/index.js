@@ -1,6 +1,10 @@
-import { html } from 'lit-html';
+import { html, render } from 'lit-html';
 import { createComparisonViewModel } from '@/features/comparison/ui/view-model';
 import { comparisonRowTemplate } from '@/features/comparison/ui/row';
+import { useAnalysisStore } from '@/state/analysisStore';
+
+let container = null;
+let analysisUnsubscribe = null;
 
 const sectionTemplate = (title, points, streams) => html`
     <h3 class="text-xl font-bold mt-6 mb-2">${title}</h3>
@@ -9,14 +13,23 @@ const sectionTemplate = (title, points, streams) => html`
     </div>
 `;
 
-export function getComparisonTemplate(streams) {
+function renderComparison() {
+    if (!container) return;
+    const { streams } = useAnalysisStore.getState();
+
     if (streams.length < 2) {
-        return html``;
+        render(
+            html`<div class="text-center py-12 text-gray-400">
+                <p>At least two streams are required for comparison.</p>
+            </div>`,
+            container
+        );
+        return;
     }
 
     const groupedComparisonPoints = createComparisonViewModel(streams);
 
-    return html`
+    const template = html`
         <div class="overflow-x-auto">
             <!-- Main Sticky Header -->
             <div
@@ -47,4 +60,20 @@ export function getComparisonTemplate(streams) {
             </div>
         </div>
     `;
+    render(template, container);
 }
+
+export const comparisonView = {
+    mount(containerElement) {
+        container = containerElement;
+        if (analysisUnsubscribe) analysisUnsubscribe();
+        analysisUnsubscribe = useAnalysisStore.subscribe(renderComparison);
+        renderComparison(); // Render immediately with current state
+    },
+    unmount() {
+        if (analysisUnsubscribe) analysisUnsubscribe();
+        analysisUnsubscribe = null;
+        if (container) render(html``, container);
+        container = null;
+    },
+};

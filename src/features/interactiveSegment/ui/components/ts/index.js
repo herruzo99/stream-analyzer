@@ -35,7 +35,7 @@ const inspectorDetailRow = (packet, key, value) => {
         fieldForDisplay === key && itemForDisplay?.offset === packet.offset
             ? 'is-inspector-field-highlighted'
             : '';
-    
+
     const tooltipKey = key.replace('.', '@');
     const tooltipInfo = allTsTooltipData[tooltipKey] || {};
 
@@ -61,8 +61,10 @@ const inspectorDetailRow = (packet, key, value) => {
             data-field-name="${key}"
             data-inspector-offset="${packet.offset}"
         >
-            <td 
-                class="p-1 pr-2 text-xs text-gray-400 align-top ${tooltipInfo.text ? tooltipTriggerClasses : ''}"
+            <td
+                class="p-1 pr-2 text-xs text-gray-400 align-top ${tooltipInfo.text
+                    ? tooltipTriggerClasses
+                    : ''}"
                 data-tooltip="${tooltipInfo.text || ''}"
                 data-iso="${tooltipInfo.ref || ''}"
             >
