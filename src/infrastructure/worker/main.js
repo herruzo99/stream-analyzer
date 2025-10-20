@@ -6,16 +6,23 @@ import {
     handleGeneratePagedByteMap,
     handleFetchKey,
     handleDecryptAndParseSegment,
+    handleFetchAndParseSegment,
 } from './handlers/segmentParsingHandler.js';
 import { parseManifest as parseHlsManifest } from '@/infrastructure/parsing/hls/index';
-import { fetchWithRetry } from '@/infrastructure/http/fetch';
+import { fetchWithAuth } from './http.js';
 
 async function handleFetchHlsMediaPlaylist({
     streamId,
     variantUri,
     hlsDefinedVariables,
+    auth,
 }) {
-    const response = await fetchWithRetry(variantUri);
+    const response = await fetchWithAuth(
+        variantUri,
+        auth,
+        'manifest',
+        streamId
+    );
     if (!response.ok) throw new Error(`HTTP error ${response.status}`);
     const manifestString = await response.text();
     // Re-use the main parser to ensure uniqueId is generated correctly.
@@ -41,9 +48,10 @@ async function handleFetchHlsMediaPlaylist({
 
 const handlers = {
     'start-analysis': handleStartAnalysis,
-    'parse-live-update': handleParseLiveUpdate,
+    'live-update-fetch-and-parse': handleParseLiveUpdate,
     'get-manifest-metadata': handleGetManifestMetadata,
     'parse-segment-structure': handleParseSegmentStructure,
+    'segment-fetch-and-parse': handleFetchAndParseSegment,
     'generate-paged-byte-map': handleGeneratePagedByteMap,
     'fetch-hls-media-playlist': handleFetchHlsMediaPlaylist,
     'fetch-key': handleFetchKey,
@@ -52,6 +60,17 @@ const handlers = {
 
 self.addEventListener('message', async (event) => {
     const { id, type, payload } = event.data;
+
+    // Handle global, non-request/response messages like network logging.
+    // The check is now correctly `id === undefined` to avoid treating `id: 0` as a global event.
+    if (type && id === undefined) {
+        if (type === 'network:log-event') {
+            // This is a fire-and-forget message, just post it back to main thread
+            self.postMessage({ type, payload });
+        }
+        return;
+    }
+
     const handler = handlers[type];
 
     if (!handler) {

@@ -220,7 +220,9 @@ export const inspectorDetailsTemplate = (
                 data-inspector-offset="${box.offset}"
             >
                 <td
-                    class="p-1 pr-2 text-xs text-gray-400 align-top ${fieldInfo?.text ? tooltipTriggerClasses : ''}"
+                    class="p-1 pr-2 text-xs text-gray-400 align-top ${fieldInfo?.text
+                        ? tooltipTriggerClasses
+                        : ''}"
                     data-tooltip="${fieldInfo?.text || ''}"
                     data-iso="${fieldInfo?.ref || ''}"
                 >

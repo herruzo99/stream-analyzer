@@ -66,8 +66,7 @@ function isDashSegmentStale(seg, stream) {
     }
 
     const { manifest } = stream;
-    const timeShiftBufferDepthMs =
-        (manifest.timeShiftBufferDepth || 0) * 1000;
+    const timeShiftBufferDepthMs = (manifest.timeShiftBufferDepth || 0) * 1000;
 
     const availabilityStartTime =
         manifest.availabilityStartTime?.getTime() || 0;
@@ -395,9 +394,7 @@ export const segmentRowTemplate = (
               .join('\n')
         : '';
     const parsingWarningIcon = hasParsingIssues
-        ? html`<span
-              class="ml-1 text-yellow-400"
-              data-tooltip=${issuesTooltip}
+        ? html`<span class="ml-1 text-yellow-400" data-tooltip=${issuesTooltip}
               >${icons.debug}</span
           >`
         : '';
@@ -418,9 +415,7 @@ export const segmentRowTemplate = (
     const getTitle = () => {
         if (seg.gap) return 'Cannot compare a GAP segment';
         if (!isLoaded) return 'Segment must be loaded to compare';
-        return isChecked
-            ? 'Remove from comparison'
-            : 'Add to comparison';
+        return isChecked ? 'Remove from comparison' : 'Add to comparison';
     };
 
     const compareButton = html`
@@ -441,8 +436,7 @@ export const segmentRowTemplate = (
     const rowClasses = {
         'segment-row': true,
         'h-16': true,
-        'grid grid-cols-2 md:grid-cols-[32px_180px_128px_96px_112px_minmax(400px,auto)] items-center gap-y-2 p-2 md:p-0 border-b border-gray-700':
-            true,
+        'grid grid-cols-2 md:grid-cols-[32px_180px_128px_96px_112px_minmax(400px,auto)] items-center gap-y-2 p-2 md:p-0 border-b border-gray-700': true,
         'hover:bg-gray-700/50 transition-colors duration-200': true,
         'bg-gray-800/50 text-gray-600 italic': seg.gap,
     };

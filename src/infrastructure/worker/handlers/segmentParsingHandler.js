@@ -3,7 +3,8 @@ import { parse as parseTsSegment } from '@/infrastructure/parsing/ts/index';
 import { parseVTT } from '@/infrastructure/parsing/vtt/parser';
 import { debugLog } from '@/shared/utils/debug';
 import { boxParsers } from '@/infrastructure/parsing/isobmff/index';
-import { fetchWithRetry } from '@/infrastructure/http/fetch';
+import { fetchWithAuth } from '../http.js';
+import { inferMediaInfoFromExtension } from '@/infrastructure/parsing/utils/media-types';
 
 // --- Programmatic Color Generation ---
 
@@ -564,7 +565,7 @@ export async function handleGeneratePagedByteMap({
     return Array.from(byteMap.entries());
 }
 
-export async function handleFetchKey({ uri }) {
+export async function handleFetchKey({ uri, auth, streamId }) {
     if (uri.startsWith('data:')) {
         const base64Data = uri.split(',')[1];
         const binaryString = atob(base64Data);
@@ -576,11 +577,52 @@ export async function handleFetchKey({ uri }) {
         return bytes.buffer;
     }
 
-    const response = await fetchWithRetry(uri);
+    const response = await fetchWithAuth(uri, auth, 'key', streamId);
     if (!response.ok) {
         throw new Error(`HTTP error ${response.status} fetching key`);
     }
     return response.arrayBuffer();
+}
+
+export async function handleFetchAndParseSegment({
+    uniqueId,
+    streamId,
+    formatHint,
+    auth,
+    decryption,
+}) {
+    const url = uniqueId.split('@')[0];
+    const { contentType } = inferMediaInfoFromExtension(url);
+    const resourceType = contentType === 'unknown' ? 'other' : contentType;
+    const response = await fetchWithAuth(url, auth, resourceType, streamId);
+    if (!response.ok) {
+        throw new Error(`HTTP error ${response.status} fetching segment`);
+    }
+    const data = await response.arrayBuffer();
+
+    let finalData = data;
+    if (decryption) {
+        const { key, iv } = decryption;
+        const cryptoKey = await self.crypto.subtle.importKey(
+            'raw',
+            key,
+            { name: 'AES-CBC' },
+            false,
+            ['decrypt']
+        );
+        finalData = await self.crypto.subtle.decrypt(
+            { name: 'AES-CBC', iv: iv },
+            cryptoKey,
+            data
+        );
+    }
+
+    const parsedData = await handleParseSegmentStructure({
+        data: finalData,
+        formatHint,
+        url,
+    });
+    return { data: finalData, parsedData };
 }
 
 export async function handleDecryptAndParseSegment({
@@ -589,7 +631,9 @@ export async function handleDecryptAndParseSegment({
     iv,
     formatHint,
 }) {
-    const response = await fetchWithRetry(url);
+    const { contentType } = inferMediaInfoFromExtension(url);
+    const resourceType = contentType === 'unknown' ? 'other' : contentType;
+    const response = await fetchWithAuth(url, null, resourceType);
     if (!response.ok) {
         throw new Error(`HTTP error ${response.status} fetching segment`);
     }

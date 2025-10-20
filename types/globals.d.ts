@@ -4,6 +4,8 @@
 // that are not part of the standard library or imported modules.
 // This is common when using scripts loaded from a CDN.
 
+declare module 'shaka-player/dist/shaka-player.ui.js';
+
 interface Window {
     // Functions defined in index.html for on-demand script loading
     loadGoogleAnalytics: () => void;
@@ -32,4 +34,7 @@ interface Window {
         worker: string;
     };
     PROD_HOSTNAME: string;
+
+    // Shaka Player global
+    shaka?: any;
 }

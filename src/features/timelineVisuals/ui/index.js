@@ -1,44 +1,86 @@
-import { html } from 'lit-html';
+import { html, render } from 'lit-html';
 import { dashTimelineTemplate } from './components/dash/index.js';
 import { hlsTimelineTemplate } from './components/hls/index.js';
 import { createDashTimelineViewModel } from './view-model.js';
 import { useSegmentCacheStore } from '@/state/segmentCacheStore';
+import { useAnalysisStore } from '@/state/analysisStore';
 
-/**
- * Asynchronously generates and returns the template for the timeline view.
- * This function handles the logic for fetching and processing data needed for the view model.
- * @param {import('@/types.ts').Stream} stream - The stream data.
- * @returns {Promise<import('lit-html').TemplateResult>} A promise that resolves to the final template.
- */
-async function getAsyncTimelineTemplate(stream) {
-    if (stream.protocol === 'hls') {
-        return hlsTimelineTemplate(stream.manifest);
-    }
+let container = null;
+let analysisUnsubscribe = null;
+let segmentCacheUnsubscribe = null;
 
-    // For DASH, we must build the view model asynchronously.
-    try {
-        const { cache } = useSegmentCacheStore.getState();
-        const viewModel = await createDashTimelineViewModel(stream, cache);
-        return dashTimelineTemplate(viewModel);
-    } catch (err) {
-        console.error('Failed to create DASH timeline view model:', err);
-        return html`<div class="text-red-400 p-4 text-center">
-            <p class="font-bold">Error loading timeline visualization.</p>
-            <p class="text-sm font-mono mt-2">${err.message}</p>
-        </div>`;
-    }
-}
+function renderTimelineView() {
+    if (!container) return;
 
-/**
- * Main entry point for rendering the timeline. It returns a promise that the `until` directive can use.
- * @param {import('@/types.ts').Stream} stream - The stream data.
- * @returns {Promise<import('lit-html').TemplateResult>}
- */
-export function getTimelineAndVisualsTemplate(stream) {
+    const { streams, activeStreamId } = useAnalysisStore.getState();
+    const stream = streams.find((s) => s.id === activeStreamId);
+
     if (!stream || !stream.manifest) {
-        return Promise.resolve(
-            html`<p class="text-gray-400">No manifest loaded.</p>`
+        render(
+            html`<p class="text-gray-400">No manifest loaded.</p>`,
+            container
         );
+        return;
     }
-    return getAsyncTimelineTemplate(stream);
+
+    const loadingTemplate = html`<div class="text-center py-8 text-gray-400">
+        Loading timeline data...
+    </div>`;
+    render(loadingTemplate, container);
+
+    if (stream.protocol === 'hls') {
+        render(hlsTimelineTemplate(stream.manifest), container);
+    } else {
+        const { cache } = useSegmentCacheStore.getState();
+        createDashTimelineViewModel(stream, cache)
+            .then((viewModel) => {
+                if (container) {
+                    render(dashTimelineTemplate(viewModel), container);
+                }
+            })
+            .catch((err) => {
+                console.error(
+                    'Failed to create DASH timeline view model:',
+                    err
+                );
+                if (container) {
+                    render(
+                        html`<div class="text-red-400 p-4 text-center">
+                            <p class="font-bold">
+                                Error loading timeline visualization.
+                            </p>
+                            <p class="text-sm font-mono mt-2">${err.message}</p>
+                        </div>`,
+                        container
+                    );
+                }
+            });
+    }
 }
+
+export const timelineView = {
+    mount(containerElement) {
+        container = containerElement;
+
+        if (analysisUnsubscribe) analysisUnsubscribe();
+        if (segmentCacheUnsubscribe) segmentCacheUnsubscribe();
+
+        analysisUnsubscribe = useAnalysisStore.subscribe(renderTimelineView);
+        segmentCacheUnsubscribe =
+            useSegmentCacheStore.subscribe(renderTimelineView);
+
+        renderTimelineView(); // Render immediately with current state
+    },
+
+    unmount() {
+        if (analysisUnsubscribe) analysisUnsubscribe();
+        if (segmentCacheUnsubscribe) segmentCacheUnsubscribe();
+        analysisUnsubscribe = null;
+        segmentCacheUnsubscribe = null;
+
+        if (container) {
+            render(html``, container);
+        }
+        container = null;
+    },
+};

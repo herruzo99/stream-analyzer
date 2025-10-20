@@ -1,5 +1,6 @@
-import { html } from 'lit-html';
+import { html, render } from 'lit-html';
 import { useUiStore } from '@/state/uiStore';
+import { useAnalysisStore } from '@/state/analysisStore';
 import { dashManifestTemplate } from './components/dash/renderer.js';
 import { hlsManifestTemplate } from './components/hls/renderer.js';
 import { debugLog } from '@/shared/utils/debug';
@@ -8,27 +9,20 @@ import { dashTooltipData } from './components/dash/tooltip-data.js';
 import { hlsTooltipData } from './components/hls/tooltip-data.js';
 import { isDebugMode } from '@/shared/utils/env';
 
-// --- New Functions for Debug Report ---
+let container = null;
+let currentStreamId = null;
+let uiUnsubscribe = null;
+let analysisUnsubscribe = null;
 
-/**
- * Recursively walks a parsed DASH manifest object to find missing tooltip definitions.
- * @param {object} serializedManifest The root MPD element from fast-xml-parser.
- * @returns {{type: string, name: string}[]}
- */
 function findDashMissingTooltips(serializedManifest) {
     const missing = [];
-    const seen = new Set(); // To avoid duplicate reports for the same key
-
+    const seen = new Set();
     const walk = (node, tagName) => {
         if (!node || typeof node !== 'object') return;
-
-        // Check element tooltip
         if (!dashTooltipData[tagName] && !seen.has(tagName)) {
             missing.push({ type: 'Element', name: tagName });
             seen.add(tagName);
         }
-
-        // Check attributes
         const attrs = node[':@'] || {};
         for (const attrName in attrs) {
             const attrKey = `${tagName}@${attrName}`;
@@ -42,11 +36,8 @@ function findDashMissingTooltips(serializedManifest) {
                 seen.add(attrKey);
             }
         }
-
-        // Recurse into children
         for (const childName in node) {
             if (childName === ':@' || childName === '#text') continue;
-
             const children = Array.isArray(node[childName])
                 ? node[childName]
                 : [node[childName]];
@@ -55,20 +46,15 @@ function findDashMissingTooltips(serializedManifest) {
             });
         }
     };
-
-    walk(serializedManifest, 'MPD');
+    if (serializedManifest) {
+        walk(serializedManifest, 'MPD');
+    }
     return missing;
 }
 
-/**
- * Walks a parsed HLS manifest object to find missing tooltip definitions.
- * @param {object} serializedManifest The parsed HLS object from the hls-parser.
- * @returns {{type: string, name: string}[]}
- */
 function findHlsMissingTooltips(serializedManifest) {
     const missing = [];
     const seen = new Set();
-
     const checkAttributes = (tagName, attributesObject) => {
         if (attributesObject && typeof attributesObject === 'object') {
             for (const attrName in attributesObject) {
@@ -80,8 +66,6 @@ function findHlsMissingTooltips(serializedManifest) {
             }
         }
     };
-
-    // Check generic tags from the `tags` array
     (serializedManifest.tags || []).forEach((tag) => {
         const tagName = tag.name;
         if (!hlsTooltipData[tagName] && !seen.has(tagName)) {
@@ -90,78 +74,27 @@ function findHlsMissingTooltips(serializedManifest) {
         }
         checkAttributes(tagName, tag.value);
     });
-
-    // Check EXT-X-MEDIA tags from the `media` array
     (serializedManifest.media || []).forEach((mediaTag) => {
-        // The tag name is constant here.
         checkAttributes('EXT-X-MEDIA', mediaTag);
     });
-
-    // check EXT-X-STREAM-INF attributes which are stored under variants
     (serializedManifest.variants || []).forEach((variant) => {
         checkAttributes('EXT-X-STREAM-INF', variant.attributes);
     });
-
     return missing;
 }
 
-/**
- * Gathers manifest and missing tooltip data and copies it to the clipboard.
- * @param {import('@/types.ts').Stream} stream
- */
-const handleDebugCopy = (stream) => {
-    let manifestToCopy = stream.rawManifest;
-    let manifestObjectForAnalysis = stream.manifest.serializedManifest;
+function renderInteractiveManifest() {
+    if (!container || currentStreamId === null) return;
 
-    if (stream.protocol === 'hls' && stream.activeMediaPlaylistUrl) {
-        const mediaPlaylist = stream.mediaPlaylists.get(
-            stream.activeMediaPlaylistUrl
-        );
-        if (mediaPlaylist) {
-            manifestToCopy = mediaPlaylist.rawManifest;
-            manifestObjectForAnalysis =
-                mediaPlaylist.manifest.serializedManifest;
-        }
-    }
-
-    let missing = [];
-    if (stream.protocol === 'dash') {
-        missing = findDashMissingTooltips(manifestObjectForAnalysis);
-    } else if (stream.protocol === 'hls') {
-        missing = findHlsMissingTooltips(manifestObjectForAnalysis);
-    }
-
-    const report =
-        missing.length > 0
-            ? missing.map((m) => `[${m.type}] ${m.name}`).join('\n')
-            : 'No missing tooltips found.';
-
-    const debugString = `--- MANIFEST ---\n${manifestToCopy}\n\n--- MISSING TOOLTIPS (${missing.length}) ---\n${report}`;
-
-    copyTextToClipboard(debugString, 'Debug report copied to clipboard!');
-};
-
-/**
- * Dispatches to the correct manifest renderer based on stream protocol.
- * @param {import('@/types.ts').Stream} stream
- * @returns {import('lit-html').TemplateResult}
- */
-export function getInteractiveManifestTemplate(stream) {
-    debugLog(
-        'InteractiveManifest',
-        'getInteractiveManifestTemplate called.',
-        'Stream valid:',
-        !!stream,
-        'Manifest valid:',
-        !!stream?.manifest
-    );
-
+    const stream = useAnalysisStore
+        .getState()
+        .streams.find((s) => s.id === currentStreamId);
     if (!stream || !stream.manifest) {
-        debugLog(
-            'InteractiveManifest',
-            'Render condition failed: No stream or manifest.'
+        render(
+            html`<p class="warn">No Manifest loaded to display.</p>`,
+            container
         );
-        return html`<p class="warn">No Manifest loaded to display.</p>`;
+        return;
     }
 
     const { interactiveManifestCurrentPage } = useUiStore.getState();
@@ -179,8 +112,34 @@ export function getInteractiveManifestTemplate(stream) {
         copyTextToClipboard(manifestToCopy, 'Manifest copied to clipboard!');
     };
 
-    const handleDebugCopyClick = () => {
-        handleDebugCopy(stream);
+    const handleDebugCopy = () => {
+        let manifestToCopy = stream.rawManifest;
+        let manifestObjectForAnalysis = stream.manifest.serializedManifest;
+
+        if (stream.protocol === 'hls' && stream.activeMediaPlaylistUrl) {
+            const mediaPlaylist = stream.mediaPlaylists.get(
+                stream.activeMediaPlaylistUrl
+            );
+            if (mediaPlaylist) {
+                manifestToCopy = mediaPlaylist.rawManifest;
+                manifestObjectForAnalysis =
+                    mediaPlaylist.manifest.serializedManifest;
+            }
+        }
+
+        let missing = [];
+        if (stream.protocol === 'dash') {
+            missing = findDashMissingTooltips(manifestObjectForAnalysis);
+        } else if (stream.protocol === 'hls') {
+            missing = findHlsMissingTooltips(manifestObjectForAnalysis);
+        }
+
+        const report =
+            missing.length > 0
+                ? missing.map((m) => `[${m.type}] ${m.name}`).join('\n')
+                : 'No missing tooltips found.';
+        const debugString = `--- MANIFEST ---\n${manifestToCopy}\n\n--- MISSING TOOLTIPS (${missing.length}) ---\n${report}`;
+        copyTextToClipboard(debugString, 'Debug report copied to clipboard!');
     };
 
     const headerTemplate = html`
@@ -195,7 +154,7 @@ export function getInteractiveManifestTemplate(stream) {
                 </button>
                 ${isDebugMode
                     ? html`<button
-                          @click=${handleDebugCopyClick}
+                          @click=${handleDebugCopy}
                           class="bg-yellow-600 hover:bg-yellow-700 text-black font-bold text-xs py-1 px-3 rounded-md transition-colors"
                       >
                           Copy Debug Report
@@ -205,11 +164,6 @@ export function getInteractiveManifestTemplate(stream) {
         </div>
     `;
 
-    debugLog(
-        'InteractiveManifest',
-        `Dispatching to ${stream.protocol.toUpperCase()} renderer.`
-    );
-
     let contentTemplate;
     if (stream.protocol === 'hls') {
         contentTemplate = hlsManifestTemplate(
@@ -217,12 +171,37 @@ export function getInteractiveManifestTemplate(stream) {
             interactiveManifestCurrentPage
         );
     } else {
-        // Default to DASH
         contentTemplate = dashManifestTemplate(
             stream,
             interactiveManifestCurrentPage
         );
     }
 
-    return html`${headerTemplate} ${contentTemplate}`;
+    render(html`${headerTemplate} ${contentTemplate}`, container);
 }
+
+export const interactiveManifestView = {
+    mount(containerElement, { stream }) {
+        container = containerElement;
+        currentStreamId = stream.id;
+
+        if (uiUnsubscribe) uiUnsubscribe();
+        if (analysisUnsubscribe) analysisUnsubscribe();
+
+        uiUnsubscribe = useUiStore.subscribe(renderInteractiveManifest);
+        analysisUnsubscribe = useAnalysisStore.subscribe(
+            renderInteractiveManifest
+        );
+
+        renderInteractiveManifest();
+    },
+    unmount() {
+        if (uiUnsubscribe) uiUnsubscribe();
+        if (analysisUnsubscribe) analysisUnsubscribe();
+        uiUnsubscribe = null;
+        analysisUnsubscribe = null;
+        if (container) render(html``, container);
+        container = null;
+        currentStreamId = null;
+    },
+};

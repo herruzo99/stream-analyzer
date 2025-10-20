@@ -5,10 +5,8 @@ import { tooltipTriggerClasses } from '@/ui/shared/constants';
 import { eventBus } from '@/application/event-bus';
 import { useUiStore, uiActions } from '@/state/uiStore';
 import { debugLog } from '@/shared/utils/debug';
-import { renderApp } from '@/ui/shell/mainRenderer';
 
 const linesPerPage = 500;
-let showSubstituted = true; // Local state for this view
 
 const onPageChange = (offset, totalPages) => {
     const { interactiveManifestCurrentPage } = useUiStore.getState();
@@ -196,6 +194,8 @@ export const hlsManifestTemplate = (stream, currentPage) => {
 
     let activeManifest;
     let rawManifestStringForToggle;
+    const { interactiveManifestShowSubstituted: showSubstituted } =
+        useUiStore.getState();
 
     if (stream.activeMediaPlaylistUrl) {
         const mediaPlaylist = stream.mediaPlaylists.get(
@@ -288,8 +288,7 @@ export const hlsManifestTemplate = (stream, currentPage) => {
             : '';
 
     const handleToggle = () => {
-        showSubstituted = !showSubstituted;
-        renderApp(); // Trigger a re-render of the entire app to update this view
+        uiActions.toggleInteractiveManifestSubstitution();
     };
 
     const variableControls =

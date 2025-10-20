@@ -24,6 +24,7 @@
         "fast-xml-parser": "^5.3.0",
         "lit-html": "^3.3.1",
         "serve": "^14.2.5",
+        "shaka-player": "^4.16.6",
         "xml-formatter": "^3.6.7",
         "xmldom": "^0.6.0",
         "xpath": "^0.0.34",

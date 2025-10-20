@@ -1,18 +1,26 @@
-import { html } from 'lit-html';
+import { html, render } from 'lit-html';
 import { classMap } from 'lit-html/directives/class-map.js';
 import { eventBus } from '@/application/event-bus';
 import { getDashExplorerForType } from './components/dash/index.js';
-import { getHlsExplorerForType } from './components/hls/index.js';
+import {
+    getHlsExplorerForType,
+    stopLiveSegmentHighlighter,
+} from './components/hls/index.js';
 import { getLocalExplorerForType } from './components/local/index.js';
 import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
 import { useUiStore, uiActions } from '@/state/uiStore';
 import { toggleDropdown, closeDropdown } from '@/ui/services/dropdownService';
-import { renderApp } from '@/ui/shell/mainRenderer';
 import * as icons from '@/ui/icons';
 import { timeFilterTemplate } from './components/time-filter.js';
+import { useSegmentCacheStore } from '@/state/segmentCacheStore';
+
+let container = null;
+let currentStreamId = null;
+let analysisUnsubscribe = null;
+let uiUnsubscribe = null;
+let segmentCacheUnsubscribe = null;
 
 const CONTENT_TYPE_ORDER = { video: 1, audio: 2, text: 3, application: 4 };
-let rerenderInterval = null;
 
 const renderTabs = (contentTypes, activeTab) => {
     if (contentTypes.length <= 1) {
@@ -66,7 +74,6 @@ const renderTabs = (contentTypes, activeTab) => {
 const comparisonListDropdownTemplate = (segmentsForCompare, streams) => {
     const handleRemove = (segmentUniqueId) => {
         analysisActions.removeSegmentFromCompare(segmentUniqueId);
-        // We don't close the dropdown, allowing for multiple removals.
     };
 
     const handleGoToCompare = () => {
@@ -93,9 +100,7 @@ const comparisonListDropdownTemplate = (segmentsForCompare, streams) => {
             class="dropdown-panel bg-gray-800 border border-gray-700 rounded-lg shadow-xl w-96 max-h-[60vh] flex flex-col"
         >
             <div class="p-3 border-b border-gray-700">
-                <h4 class="font-bold text-gray-200">
-                    Segments for Comparison
-                </h4>
+                <h4 class="font-bold text-gray-200">Segments for Comparison</h4>
             </div>
             ${segmentsForCompare.length === 0
                 ? html`<div class="text-center text-sm text-gray-400 p-6">
@@ -210,34 +215,18 @@ function calculateTimeBounds(stream) {
     };
 }
 
-/**
- * Creates the lit-html template for the Segment Explorer view.
- * @param {import('@/types.ts').Stream} stream
- * @returns {import('lit-html').TemplateResult}
- */
-export function getSegmentExplorerTemplate(stream) {
-    if (rerenderInterval) {
-        clearInterval(rerenderInterval);
-        rerenderInterval = null;
-    }
+function renderExplorer() {
+    if (!container || currentStreamId === null) return;
 
-    if (stream?.protocol === 'dash' && stream.manifest?.type === 'dynamic') {
-        rerenderInterval = setInterval(() => {
-            // Only re-render if the explorer tab is still active
-            if (useUiStore.getState().activeTab === 'explorer') {
-                renderApp();
-            } else {
-                clearInterval(rerenderInterval);
-                rerenderInterval = null;
-            }
-        }, 2000);
-    }
+    const { streams, activeStreamId, segmentsForCompare } =
+        useAnalysisStore.getState();
+    const stream = streams.find((s) => s.id === activeStreamId);
 
     if (!stream) {
-        return html`<p class="text-gray-400">No active stream.</p>`;
+        segmentExplorerView.unmount();
+        return;
     }
 
-    const { streams, segmentsForCompare } = useAnalysisStore.getState();
     const {
         segmentExplorerActiveTab,
         segmentExplorerSortOrder,
@@ -246,13 +235,11 @@ export function getSegmentExplorerTemplate(stream) {
 
     const allAdaptationSets =
         stream.manifest?.periods.flatMap((p) => p.adaptationSets) || [];
-
     const availableContentTypes = [
         ...new Set(allAdaptationSets.map((as) => as.contentType)),
     ].sort(
         (a, b) => (CONTENT_TYPE_ORDER[a] || 99) - (CONTENT_TYPE_ORDER[b] || 99)
     );
-
     const activeTab = availableContentTypes.includes(segmentExplorerActiveTab)
         ? segmentExplorerActiveTab
         : availableContentTypes[0] || 'video';
@@ -277,7 +264,7 @@ export function getSegmentExplorerTemplate(stream) {
     const timeFilterActive =
         segmentExplorerTimeFilter.start || segmentExplorerTimeFilter.end;
 
-    return html`
+    const template = html`
         <div class="flex flex-wrap justify-between items-center mb-4 gap-4">
             <h3 class="text-xl font-bold">Segment Explorer</h3>
             <div
@@ -327,7 +314,8 @@ export function getSegmentExplorerTemplate(stream) {
                     class="bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-md transition-colors flex items-center gap-2"
                 >
                     <span
-                        >Compare Selected (${segmentsForCompare.length}/10)</span
+                        >Compare Selected
+                        (${segmentsForCompare.length}/10)</span
                     >
                     ${icons.chevronDown}
                 </button>
@@ -343,4 +331,39 @@ export function getSegmentExplorerTemplate(stream) {
             ${contentTemplate}
         </div>
     `;
+
+    render(template, container);
 }
+
+export const segmentExplorerView = {
+    mount(containerElement, { stream }) {
+        container = containerElement;
+        currentStreamId = stream.id;
+
+        if (analysisUnsubscribe) analysisUnsubscribe();
+        if (uiUnsubscribe) uiUnsubscribe();
+        if (segmentCacheUnsubscribe) segmentCacheUnsubscribe();
+
+        analysisUnsubscribe = useAnalysisStore.subscribe(renderExplorer);
+        uiUnsubscribe = useUiStore.subscribe(renderExplorer);
+        segmentCacheUnsubscribe =
+            useSegmentCacheStore.subscribe(renderExplorer);
+
+        renderExplorer();
+    },
+
+    unmount() {
+        if (analysisUnsubscribe) analysisUnsubscribe();
+        if (uiUnsubscribe) uiUnsubscribe();
+        if (segmentCacheUnsubscribe) segmentCacheUnsubscribe();
+        analysisUnsubscribe = null;
+        uiUnsubscribe = null;
+        segmentCacheUnsubscribe = null;
+
+        stopLiveSegmentHighlighter();
+
+        if (container) render(html``, container);
+        container = null;
+        currentStreamId = null;
+    },
+};

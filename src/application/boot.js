@@ -18,6 +18,8 @@ import { initializeInbandEventMonitor } from './services/inbandEventMonitorServi
 import { keyManagerService } from '@/infrastructure/decryption/keyManagerService';
 import { initializeSegmentService } from '@/infrastructure/segments/segmentService';
 import { initializeUiOrchestration } from '@/ui/services/uiOrchestrationService';
+import { networkActions } from '@/state/networkStore';
+import { eventBus } from './event-bus.js';
 
 // Feature Initializers
 import { initializeAdvertisingFeature } from '@/features/advertising/index';
@@ -93,6 +95,13 @@ export async function startApp() {
     streamInitializationService.initialize();
     keyManagerService.initialize();
     initializeInbandEventMonitor();
+
+    // Listen for network events and clear them on new analysis
+    workerService.registerGlobalHandler(
+        'network:log-event',
+        networkActions.logEvent
+    );
+    eventBus.subscribe('analysis:started', networkActions.clearEvents);
 
     // --- Layer 4: Feature Initialization & UI Orchestration ---
     initializeUiOrchestration();

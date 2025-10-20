@@ -1,6 +1,10 @@
-import { html } from 'lit-html';
+import { html, render } from 'lit-html';
 import { scte35DetailsTemplate } from '@/ui/shared/scte35-details';
 import * as icons from '@/ui/icons';
+import { useAnalysisStore } from '@/state/analysisStore';
+
+let container = null;
+let analysisUnsubscribe = null;
 
 const trackingEventsTableTemplate = (trackingUrls) => {
     if (!trackingUrls || trackingUrls.size === 0) {
@@ -128,28 +132,35 @@ const adAvailTemplate = (avail) => {
     `;
 };
 
-export function getAdvertisingReportTemplate(stream) {
+function renderAdvertisingReport() {
+    if (!container) return;
+
+    const { streams, activeStreamId } = useAnalysisStore.getState();
+    const stream = streams.find((s) => s.id === activeStreamId);
+
     if (!stream || !stream.adAvails || stream.adAvails.length === 0) {
-        return html`
-            <div class="text-center py-12">
-                ${icons.film}
-                <h3 class="mt-2 text-lg font-medium text-gray-300">
-                    No Ad Avails Detected
-                </h3>
-                <p class="mt-1 text-sm text-gray-500">
-                    This stream does not contain any SCTE-35 signals with
-                    resolvable VAST ad manifests.
-                </p>
-            </div>
-        `;
+        render(
+            html`
+                <div class="text-center py-12">
+                    ${icons.film}
+                    <h3 class="mt-2 text-lg font-medium text-gray-300">
+                        No Ad Avails Detected
+                    </h3>
+                    <p class="mt-1 text-sm text-gray-500">
+                        This stream does not contain any SCTE-35 signals with
+                        resolvable VAST ad manifests.
+                    </p>
+                </div>
+            `,
+            container
+        );
+        return;
     }
 
-    // Sort avails by start time
     const sortedAvails = [...stream.adAvails].sort(
         (a, b) => a.startTime - b.startTime
     );
-
-    return html`
+    const template = html`
         <div class="space-y-4">
             <h3 class="text-xl font-bold">Advertising Report</h3>
             <p class="text-sm text-gray-400">
@@ -159,4 +170,24 @@ export function getAdvertisingReportTemplate(stream) {
             ${sortedAvails.map(adAvailTemplate)}
         </div>
     `;
+    render(template, container);
 }
+
+export const advertisingView = {
+    mount(containerElement) {
+        container = containerElement;
+
+        if (analysisUnsubscribe) analysisUnsubscribe();
+        analysisUnsubscribe = useAnalysisStore.subscribe(
+            renderAdvertisingReport
+        );
+
+        renderAdvertisingReport();
+    },
+    unmount() {
+        if (analysisUnsubscribe) analysisUnsubscribe();
+        analysisUnsubscribe = null;
+        if (container) render(html``, container);
+        container = null;
+    },
+};

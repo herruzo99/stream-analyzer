@@ -10,12 +10,12 @@ import { generateFeatureAnalysis } from '@/features/featureAnalysis/domain/analy
 import { parseAllSegmentUrls as parseDashSegments } from '@/infrastructure/parsing/dash/segment-parser';
 import { diffManifest } from '@/ui/shared/diff';
 import { parseSegment } from './segmentParsingHandler.js';
-import { fetchWithRetry } from '@/infrastructure/http/fetch';
+import { fetchWithAuth } from '../http.js';
 import xmlFormatter from 'xml-formatter';
 
 async function fetchAndParseSegment(url, formatHint) {
     // This internal fetcher does not need to handle caching or UI updates.
-    const response = await fetchWithRetry(url);
+    const response = await fetchWithAuth(url, null, 'init');
     if (!response.ok) {
         throw new Error(`HTTP error ${response.status} for segment ${url}`);
     }
@@ -25,21 +25,37 @@ async function fetchAndParseSegment(url, formatHint) {
 }
 
 async function preProcessInput(input) {
-    const trimmedManifest = input.manifestString.trim();
-    let protocol;
+    let protocol, manifestString;
+
+    if (input.file) {
+        manifestString = await input.file.text();
+    } else {
+        const response = await fetchWithAuth(
+            input.url,
+            input.auth,
+            'manifest',
+            input.id
+        );
+        if (!response.ok) {
+            throw new Error(
+                `HTTP error ${response.status} fetching manifest from ${input.url}`
+            );
+        }
+        manifestString = await response.text();
+    }
+
+    const trimmedManifest = manifestString.trim();
 
     if (trimmedManifest.startsWith('#EXTM3U')) {
         protocol = 'hls';
     } else if (/<MPD/i.test(trimmedManifest)) {
         protocol = 'dash';
-    } else if (input.url || input.file?.name) {
+    } else {
         const name = (input.url || input.file.name).toLowerCase();
         protocol = name.includes('.m3u8') ? 'hls' : 'dash';
-    } else {
-        protocol = 'dash';
     }
 
-    return { ...input, protocol };
+    return { ...input, protocol, manifestString };
 }
 
 async function parse(input) {
@@ -61,7 +77,12 @@ async function parse(input) {
         if (manifestIR.isMaster && manifestIR.variants.length > 0) {
             try {
                 const firstVariantUrl = manifestIR.variants[0].resolvedUri;
-                const response = await fetchWithRetry(firstVariantUrl);
+                const response = await fetchWithAuth(
+                    firstVariantUrl,
+                    input.auth,
+                    'manifest',
+                    input.id
+                );
                 const mediaPlaylistString = await response.text();
                 manifestIR.type = mediaPlaylistString.includes('#EXT-X-ENDLIST')
                     ? 'static'
@@ -157,6 +178,7 @@ async function buildStreamObject(
         isPolling: manifestIR.type === 'dynamic',
         manifest: manifestIR,
         rawManifest: input.manifestString,
+        auth: input.auth,
         steeringInfo: steeringTag,
         manifestUpdates: [],
         activeManifestUpdateIndex: 0,
@@ -311,19 +333,15 @@ async function processSingleStream(input) {
 }
 
 export async function handleStartAnalysis({ inputs }) {
+    // Correctly await the results of all stream processing promises.
+    // If any promise in Promise.all rejects, it will short-circuit and
+    // the entire handleStartAnalysis function will reject, which is then
+    // caught by the main worker listener.
     const results = await Promise.all(inputs.map(processSingleStream));
-    // The error was happening during hydration on the main thread.
-    // Let's re-verify the structure before sending.
-    results.forEach((stream) => {
-        if (
-            !stream ||
-            stream.hlsVariantState === undefined ||
-            stream.dashRepresentationState === undefined
-        ) {
-            throw new Error(
-                'Worker produced a malformed stream object before transport.'
-            );
-        }
-    });
+
+    if (results.length === 0) {
+        throw new Error('All streams failed to process.');
+    }
+
     return results;
 }
