@@ -5,6 +5,7 @@ export class WorkerService {
         this.worker = null;
         this.requestId = 0;
         this.pendingTasks = new Map();
+        this.globalHandlers = new Map();
         this.isInitialized = false;
     }
 
@@ -35,7 +36,15 @@ export class WorkerService {
     }
 
     _handleMessage(event) {
-        const { id, result, error } = event.data;
+        const { id, result, error, type, payload } = event.data;
+
+        // Handle global, non-request/response messages
+        if (type && this.globalHandlers.has(type)) {
+            const handler = this.globalHandlers.get(type);
+            handler(payload);
+            return;
+        }
+
         if (!this.pendingTasks.has(id)) {
             return;
         }
@@ -52,6 +61,16 @@ export class WorkerService {
             resolve(result);
         }
         this.pendingTasks.delete(id);
+    }
+
+    /**
+     * Registers a handler for a global message type from the worker.
+     * These messages are not part of the request/response pattern.
+     * @param {string} type The message type to listen for.
+     * @param {(payload: any) => void} handler The function to execute with the message payload.
+     */
+    registerGlobalHandler(type, handler) {
+        this.globalHandlers.set(type, handler);
     }
 
     postTask(type, payload) {

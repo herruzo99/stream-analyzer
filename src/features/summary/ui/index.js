@@ -1,27 +1,51 @@
-import { html } from 'lit-html';
+import { html, render } from 'lit-html';
 import { getDashSummaryTemplate } from './dash.js';
 import { getHlsSummaryTemplate } from './hls.js';
+import { useAnalysisStore } from '@/state/analysisStore';
 
-/**
- * Main dispatcher for the Global Summary view.
- * It selects the appropriate protocol-specific template to render.
- * @param {import('@/types.ts').Stream} stream The active stream.
- * @returns {import('lit-html').TemplateResult} The rendered template for the summary.
- */
-export function getGlobalSummaryTemplate(stream) {
+let container = null;
+let analysisUnsubscribe = null;
+
+function renderSummary() {
+    if (!container) return;
+
+    const { streams, activeStreamId } = useAnalysisStore.getState();
+    const stream = streams.find((s) => s.id === activeStreamId);
+
     if (!stream || !stream.manifest || !stream.manifest.summary) {
-        return html`<p class="warn">No manifest summary data to display.</p>`;
+        render(
+            html`<p class="warn">No manifest summary data to display.</p>`,
+            container
+        );
+        return;
     }
 
+    let template;
     if (stream.protocol === 'dash') {
-        return getDashSummaryTemplate(stream);
+        template = getDashSummaryTemplate(stream);
+    } else if (stream.protocol === 'hls') {
+        template = getHlsSummaryTemplate(stream);
+    } else {
+        template = html`<p class="warn">
+            Summary view not available for unknown protocol.
+        </p>`;
     }
-
-    if (stream.protocol === 'hls') {
-        return getHlsSummaryTemplate(stream);
-    }
-
-    return html`<p class="warn">
-        Summary view not available for unknown protocol.
-    </p>`;
+    render(template, container);
 }
+
+export const summaryView = {
+    mount(containerElement) {
+        container = containerElement;
+
+        if (analysisUnsubscribe) analysisUnsubscribe();
+        analysisUnsubscribe = useAnalysisStore.subscribe(renderSummary);
+
+        renderSummary(); // Render immediately with current state
+    },
+    unmount() {
+        if (analysisUnsubscribe) analysisUnsubscribe();
+        analysisUnsubscribe = null;
+        if (container) render(html``, container);
+        container = null;
+    },
+};

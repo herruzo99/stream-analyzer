@@ -6,7 +6,7 @@ import { applyDeltaUpdate } from '@/infrastructure/parsing/hls/delta-updater';
 import { adaptHlsToIr } from '@/infrastructure/parsing/hls/adapter';
 import { diffManifest } from '@/ui/shared/diff';
 import xmlFormatter from 'xml-formatter';
-import { fetchWithRetry } from '@/infrastructure/http/fetch';
+import { fetchWithAuth } from '../http.js';
 
 function detectProtocol(manifestString) {
     if (typeof manifestString !== 'string') return 'dash'; // Failsafe
@@ -19,30 +19,35 @@ function detectProtocol(manifestString) {
 export async function handleParseLiveUpdate(payload) {
     const {
         streamId,
-        newManifestString,
+        url,
         oldRawManifest,
-        patchString,
+        protocol,
         baseUrl,
+        auth,
         hlsDefinedVariables,
         oldManifestObjectForDelta,
     } = payload;
 
-    let finalManifestString = newManifestString;
-    if (typeof patchString === 'string' && patchString) {
-        finalManifestString = applyXmlPatch(oldRawManifest, patchString);
-    }
-
-    if (typeof finalManifestString !== 'string') {
-        throw new TypeError(
-            `[LiveUpdateHandler] Invalid manifest content received for stream ${streamId}. Expected a string, but got ${typeof finalManifestString}.`
+    const response = await fetchWithAuth(url, auth, 'manifest', streamId);
+    if (!response.ok) {
+        throw new Error(
+            `HTTP ${response.status} fetching live update for ${url}`
         );
     }
+    const newManifestString = await response.text();
 
-    const protocol = detectProtocol(finalManifestString);
+    if (newManifestString === oldRawManifest) {
+        return null; // Signal that no update is needed
+    }
+
+    let finalManifestString = newManifestString;
+    // Patch logic would need to be handled differently now; assuming full manifest updates for now.
+
+    const detectedProtocol = protocol || detectProtocol(finalManifestString);
     let newManifestObject;
     let newSerializedObject;
 
-    if (protocol === 'dash') {
+    if (detectedProtocol === 'dash') {
         const { manifest, serializedManifest } = await parseDashManifest(
             finalManifestString,
             baseUrl
@@ -78,16 +83,18 @@ export async function handleParseLiveUpdate(payload) {
     }
 
     const manifestObjectForChecks =
-        protocol === 'hls' ? newManifestObject : newSerializedObject;
-    const complianceResults = runChecks(manifestObjectForChecks, protocol);
+        detectedProtocol === 'hls' ? newManifestObject : newSerializedObject;
+    const complianceResults = runChecks(
+        manifestObjectForChecks,
+        detectedProtocol
+    );
 
     newManifestObject.serializedManifest = newSerializedObject;
 
-    // --- Perform diffing here in the worker ---
     let formattedOld = oldRawManifest;
     let formattedNew = finalManifestString;
 
-    if (protocol === 'dash') {
+    if (detectedProtocol === 'dash') {
         formattedOld = xmlFormatter(oldRawManifest || '', {
             indentation: '  ',
         });
@@ -95,7 +102,7 @@ export async function handleParseLiveUpdate(payload) {
             indentation: '  ',
         });
     }
-    const diffHtml = diffManifest(formattedOld, formattedNew, protocol);
+    const diffHtml = diffManifest(formattedOld, formattedNew, detectedProtocol);
 
     return {
         streamId,
@@ -104,6 +111,6 @@ export async function handleParseLiveUpdate(payload) {
         oldRawManifest,
         complianceResults,
         serializedManifest: newSerializedObject,
-        diffHtml, // Include the generated diff in the response
+        diffHtml,
     };
 }

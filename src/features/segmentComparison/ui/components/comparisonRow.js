@@ -20,7 +20,9 @@ const flagsCellTemplate = (flags, isExpanded) => {
     return html`
         <div class="text-xs">
             <div class="mb-2 truncate font-semibold">${summary}</div>
-            <table class="w-full text-left bg-gray-900/50 rounded border border-gray-700/50">
+            <table
+                class="w-full text-left bg-gray-900/50 rounded border border-gray-700/50"
+            >
                 <tbody>
                     ${Object.entries(flags).map(
                         ([key, value]) => html`
@@ -78,7 +80,7 @@ const renderCell = (value, rowName, isExpanded) => {
 export const comparisonRowTemplate = (rowData, numColumns) => {
     const { name, values, status } = rowData;
     const { expandedComparisonFlags } = useUiStore.getState();
-    
+
     const containsFlags = values.some(isFlagsObject);
     const isFlagsExpanded = containsFlags && expandedComparisonFlags.has(name);
 
@@ -90,20 +92,38 @@ export const comparisonRowTemplate = (rowData, numColumns) => {
         return '';
     };
 
-    const expanderButton = containsFlags ? html`
-        <button 
-            @click=${() => uiActions.toggleComparisonFlags(name)}
-            class="ml-2 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 font-semibold flex items-center gap-1 px-2 py-0.5 rounded-md transition-colors"
-            title="Toggle flag details"
-        >
-            <span>Details</span>
-            <svg class="w-3 h-3 transition-transform ${isFlagsExpanded ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-        </button>
-    ` : '';
+    const expanderButton = containsFlags
+        ? html`
+              <button
+                  @click=${() => uiActions.toggleComparisonFlags(name)}
+                  class="ml-2 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 font-semibold flex items-center gap-1 px-2 py-0.5 rounded-md transition-colors"
+                  title="Toggle flag details"
+              >
+                  <span>Details</span>
+                  <svg
+                      class="w-3 h-3 transition-transform ${isFlagsExpanded
+                          ? 'rotate-180'
+                          : ''}"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                  >
+                      <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M19 9l-7 7-7-7"
+                      ></path>
+                  </svg>
+              </button>
+          `
+        : '';
 
     return html`
         <div class="grid border-t border-gray-700" style="${gridStyle}">
-            <div class="font-medium text-gray-300 p-3 border-r border-gray-700 flex items-center">
+            <div
+                class="font-medium text-gray-300 p-3 border-r border-gray-700 flex items-center"
+            >
                 <span>${name}</span>
                 ${expanderButton}
             </div>

@@ -432,9 +432,7 @@ function parseAdaptationSet(asEl, parentMergedEl) {
         framePackings: findChildren(mergedAsEl, 'FramePacking').map(
             parseGenericDescriptor
         ),
-        ratings: findChildren(mergedAsEl, 'Rating').map(
-            parseGenericDescriptor
-        ),
+        ratings: findChildren(mergedAsEl, 'Rating').map(parseGenericDescriptor),
         viewpoints: findChildren(mergedAsEl, 'Viewpoint').map(
             parseGenericDescriptor
         ),

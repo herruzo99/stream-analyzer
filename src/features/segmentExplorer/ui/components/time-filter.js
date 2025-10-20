@@ -127,7 +127,9 @@ export const timeFilterTemplate = ({
 
             <!-- Custom Range -->
             <div class="space-y-3 pt-3 border-t border-gray-700">
-                <h5 class="text-xs font-semibold text-gray-400">Custom Range</h5>
+                <h5 class="text-xs font-semibold text-gray-400">
+                    Custom Range
+                </h5>
                 <div>
                     <label
                         for="time-filter-start"
@@ -163,9 +165,11 @@ export const timeFilterTemplate = ({
                     />
                 </div>
             </div>
-            
+
             <!-- Navigation -->
-            <div class="flex items-center justify-center gap-2 pt-2 border-t border-gray-700">
+            <div
+                class="flex items-center justify-center gap-2 pt-2 border-t border-gray-700"
+            >
                 ${shortcutButton('Previous Window', icons.arrowLeft, () =>
                     handleNavigate(-1)
                 )}

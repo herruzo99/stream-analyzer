@@ -2,12 +2,48 @@ import { render, html } from 'lit-html';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { useUiStore } from '@/state/uiStore';
 import { inputViewTemplate } from '@/ui/views/input-view';
-import { useSegmentCacheStore } from '@/state/segmentCacheStore';
 import { renderAppShell } from './components/app-shell.js';
+
+// --- Import View Lifecycle Objects ---
+import { summaryView } from '@/features/summary/ui/index';
+import { comparisonView } from '@/features/comparison/ui/index';
+import { integratorsReportView } from '@/features/integratorsReport/ui/index';
+import { timelineView } from '@/features/timelineVisuals/ui/index';
+import { featuresView } from '@/features/featureAnalysis/ui/index';
+import { complianceView } from '@/features/compliance/ui/index';
+import { advertisingView } from '@/features/advertising/ui/index';
+import { interactiveManifestView } from '@/features/interactiveManifest/ui/index';
+import { manifestUpdatesView } from '@/features/manifestUpdates/ui/index';
+import { segmentExplorerView } from '@/features/segmentExplorer/ui/index';
+import { interactiveSegmentView } from '@/features/interactiveSegment/ui/index';
+import { parserCoverageView } from '@/features/parserCoverage/ui/index';
+import { networkAnalysisView } from '@/features/networkAnalysis/ui/index';
+import { playerView } from '@/features/playerSimulation/ui/index';
+import { segmentComparisonView } from '@/features/segmentComparison/ui/index';
+
+const viewMap = {
+    summary: summaryView,
+    comparison: comparisonView,
+    'integrators-report': integratorsReportView,
+    advertising: advertisingView,
+    features: featuresView,
+    compliance: complianceView,
+    'parser-coverage': parserCoverageView,
+    'player-simulation': playerView,
+    network: networkAnalysisView,
+    explorer: segmentExplorerView,
+    'interactive-segment': interactiveSegmentView,
+    'timeline-visuals': timelineView,
+    'interactive-manifest': interactiveManifestView,
+    updates: manifestUpdatesView,
+    'segment-comparison': segmentComparisonView,
+};
 
 let initialDomContext;
 let appShellDomContext;
 let isShellRendered = false;
+let currentMountedView = null;
+let currentMountedStreamId = null;
 
 const appShellTemplate = () => html`
     <!-- Mobile-specific header is outside the main grid to remain fixed -->
@@ -108,7 +144,6 @@ export function initializeRenderer(domContext) {
     initialDomContext = domContext;
     useAnalysisStore.subscribe(renderApp);
     useUiStore.subscribe(renderApp);
-    // The incorrect global subscription is now removed.
 }
 
 /**
@@ -117,9 +152,10 @@ export function initializeRenderer(domContext) {
 export function renderApp() {
     if (!initialDomContext) return;
 
-    const { streams } = useAnalysisStore.getState();
-    const { viewState } = useUiStore.getState();
+    const { streams, activeStreamId } = useAnalysisStore.getState();
+    const { viewState, activeTab } = useUiStore.getState();
     const isResultsView = viewState === 'results' && streams.length > 0;
+    const activeStream = streams.find((s) => s.id === activeStreamId);
 
     initialDomContext.inputSection.classList.toggle('hidden', isResultsView);
     initialDomContext.appRoot.classList.toggle('hidden', !isResultsView);
@@ -129,26 +165,14 @@ export function renderApp() {
             render(appShellTemplate(), initialDomContext.appRoot);
 
             appShellDomContext = {
-                ...initialDomContext, // Include boot-time globals
-                appRoot: initialDomContext.appRoot,
-                sidebarContainer:
-                    document.body.querySelector('#sidebar-container'),
+                ...initialDomContext,
+                mainContent: document.body.querySelector('#main-content'),
                 sidebarNav: document.body.querySelector('#sidebar-nav'),
                 sidebarFooter: document.body.querySelector('#sidebar-footer'),
                 sidebarContextSwitchers: document.body.querySelector(
                     '#sidebar-context-switchers'
                 ),
-                appShell: initialDomContext.appRoot.querySelector('#app-shell'),
-                mainContentWrapper: initialDomContext.appRoot.querySelector(
-                    '#main-content-wrapper'
-                ),
-                contextHeader:
-                    initialDomContext.appRoot.querySelector('#context-header'),
-                mainContent:
-                    initialDomContext.appRoot.querySelector('#main-content'),
-                contextualSidebar: document.body.querySelector(
-                    '#contextual-sidebar'
-                ),
+                contextHeader: document.body.querySelector('#context-header'),
                 mobileHeader: document.body.querySelector('#mobile-header'),
                 sidebarOverlay: document.body.querySelector('#sidebar-overlay'),
                 sidebarToggleBtn: document.body.querySelector(
@@ -157,13 +181,63 @@ export function renderApp() {
                 mobilePageTitle:
                     document.body.querySelector('#mobile-page-title'),
             };
-
             isShellRendered = true;
         }
 
+        // Render the shell chrome (sidebars, headers, etc.)
         renderAppShell(appShellDomContext);
+
+        // --- View Lifecycle Management ---
+        if (
+            activeTab !== currentMountedView ||
+            (activeStream && activeStream.id !== currentMountedStreamId)
+        ) {
+            // Unmount the old view
+            const oldView = viewMap[currentMountedView];
+            if (oldView?.unmount) {
+                oldView.unmount(appShellDomContext.mainContent);
+            }
+
+            const newView = viewMap[activeTab];
+            const contextualSidebar =
+                document.getElementById('contextual-sidebar');
+
+            // Centralized sidebar visibility management
+            if (newView?.hasContextualSidebar && contextualSidebar) {
+                contextualSidebar.classList.remove('hidden');
+            } else if (contextualSidebar) {
+                contextualSidebar.classList.add('hidden');
+                render(html``, contextualSidebar); // Clear content
+            }
+
+            // Mount the new view
+            if (newView?.mount) {
+                newView.mount(appShellDomContext.mainContent, {
+                    stream: activeStream,
+                    streams: streams,
+                });
+            } else {
+                render(
+                    html`<p class="text-gray-500">
+                        View not implemented for tab: ${activeTab}
+                    </p>`,
+                    appShellDomContext.mainContent
+                );
+            }
+            currentMountedView = activeTab;
+            currentMountedStreamId = activeStream?.id;
+        }
     } else {
+        // --- Input View State ---
+        if (currentMountedView) {
+            const oldView = viewMap[currentMountedView];
+            if (oldView?.unmount) {
+                oldView.unmount(appShellDomContext?.mainContent);
+            }
+            currentMountedView = null;
+        }
         isShellRendered = false;
+        currentMountedStreamId = null;
         appShellDomContext = null;
         if (initialDomContext.appRoot.innerHTML) {
             render(html``, initialDomContext.appRoot);

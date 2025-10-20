@@ -3,7 +3,6 @@ import { eventBus } from '@/application/event-bus';
 import { workerService } from '@/infrastructure/worker/workerService';
 import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
 import { keyManagerService } from '@/infrastructure/decryption/keyManagerService';
-import { fetchWithRetry } from '@/infrastructure/http/fetch';
 
 /**
  * Finds the corresponding HLS segment object and its parent playlist from the manifest IR.
@@ -34,7 +33,9 @@ function findHlsSegmentAndPlaylist(uniqueId) {
 
 async function _fetchAndParseSegment(uniqueId, streamId, formatHint) {
     const { set } = useSegmentCacheStore.getState();
-    const url = uniqueId.split('@')[0]; // Extract the raw URL for fetching
+    const stream = useAnalysisStore
+        .getState()
+        .streams.find((s) => s.id === streamId);
 
     try {
         set(uniqueId, { status: -1, data: null, parsedData: null });
@@ -45,9 +46,14 @@ async function _fetchAndParseSegment(uniqueId, streamId, formatHint) {
             segment: hlsSegment,
             segmentIndex,
         } = findHlsSegmentAndPlaylist(uniqueId);
-        let workerTask = 'parse-segment-structure';
-        let workerPayload = { url, data: null, formatHint };
-        let finalDataBuffer = null;
+
+        let workerPayload = {
+            uniqueId,
+            streamId,
+            formatHint,
+            auth: stream?.auth,
+            decryption: null,
+        };
 
         if (hlsSegment?.encryptionInfo) {
             const { method, uri, iv: ivHex } = hlsSegment.encryptionInfo;
@@ -72,62 +78,35 @@ async function _fetchAndParseSegment(uniqueId, streamId, formatHint) {
                     view.setBigUint64(8, BigInt(sequenceNumber), false);
                 }
 
-                workerTask = 'decrypt-and-parse-segment';
-                workerPayload = { url, key, iv, formatHint, data: null };
+                workerPayload.decryption = { key, iv };
             }
-        }
-
-        if (workerTask === 'parse-segment-structure') {
-            const response = await fetchWithRetry(url, {
-                method: 'GET',
-                cache: 'no-store',
-            });
-            if (!response.ok) {
-                const errorEntry = {
-                    status: response.status,
-                    data: null,
-                    parsedData: { error: `HTTP ${response.status}` },
-                };
-                set(uniqueId, errorEntry);
-                eventBus.dispatch('segment:loaded', {
-                    uniqueId,
-                    entry: errorEntry,
-                });
-                return;
-            }
-            finalDataBuffer = await response.arrayBuffer();
-            workerPayload.data = finalDataBuffer;
         }
 
         const workerResult = await workerService.postTask(
-            workerTask,
+            'segment-fetch-and-parse',
             workerPayload
         );
 
-        let parsedData;
-        if (workerTask === 'decrypt-and-parse-segment') {
-            parsedData = workerResult.parsedData;
-            finalDataBuffer = workerResult.decryptedData;
-        } else {
-            parsedData = workerResult;
-        }
-
         const finalEntry = {
             status: 200,
-            data: finalDataBuffer,
-            parsedData,
+            data: workerResult.data,
+            parsedData: workerResult.parsedData,
         };
 
-        // --- NEW LOGIC: Check for inband events ---
-        if (streamId !== null && parsedData?.data?.events?.length > 0) {
-            analysisActions.addInbandEvents(streamId, parsedData.data.events);
+        if (
+            streamId !== null &&
+            finalEntry.parsedData?.data?.events?.length > 0
+        ) {
+            analysisActions.addInbandEvents(
+                streamId,
+                finalEntry.parsedData.data.events
+            );
         }
-        // --- END NEW LOGIC ---
 
         set(uniqueId, finalEntry);
         eventBus.dispatch('segment:loaded', { uniqueId, entry: finalEntry });
     } catch (error) {
-        console.error(`Failed to fetch or parse segment ${url}:`, error);
+        console.error(`Failed to fetch or parse segment ${uniqueId}:`, error);
         const errorEntry = {
             status: 0,
             data: null,

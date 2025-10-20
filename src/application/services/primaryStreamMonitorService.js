@@ -1,7 +1,6 @@
 import { eventBus } from '@/application/event-bus';
 import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
 import { workerService } from '@/infrastructure/worker/workerService';
-import { fetchWithRetry } from '@/infrastructure/http/fetch';
 
 const pollers = new Map();
 const oneTimePollers = new Map();
@@ -19,47 +18,36 @@ async function monitorStream(streamId) {
     }
 
     try {
-        const response = await fetchWithRetry(stream.originalUrl);
-        if (!response.ok) return;
-        const newManifestString = await response.text();
-
-        if (newManifestString === stream.rawManifest) {
-            return;
-        }
-
-        let workerPayload;
-        if (stream.protocol === 'dash') {
-            workerPayload = {
+        // Delegate fetching and parsing to the worker
+        const updateResult = await workerService.postTask(
+            'live-update-fetch-and-parse',
+            {
                 streamId: stream.id,
-                newManifestString,
+                url: stream.originalUrl,
                 oldRawManifest: stream.rawManifest,
                 protocol: stream.protocol,
                 baseUrl: stream.baseUrl,
-            };
-        } else {
-            // HLS protocol
-            workerPayload = {
-                streamId: stream.id,
-                newManifestString,
-                oldRawManifest: stream.rawManifest,
-                protocol: stream.protocol,
-                baseUrl: stream.baseUrl,
+                auth: stream.auth,
                 hlsDefinedVariables: stream.hlsDefinedVariables,
                 oldManifestObjectForDelta: stream.manifest?.serializedManifest,
-            };
-        }
-
-        const updateResult = await workerService.postTask(
-            'parse-live-update',
-            workerPayload
+            }
         );
 
-        eventBus.dispatch('livestream:manifest-updated', updateResult);
+        // A null result means the manifest was unchanged, so we do nothing.
+        if (updateResult) {
+            eventBus.dispatch('livestream:manifest-updated', updateResult);
+        }
     } catch (e) {
         console.error(
             `[Stream Monitor] Error during update cycle for stream ${stream.id}:`,
             e
         );
+        // Optionally dispatch an error event to show a toast
+        eventBus.dispatch('ui:show-status', {
+            message: `Live update failed for ${stream.name}: ${e.message}`,
+            type: 'fail',
+            duration: 5000,
+        });
     }
 }
 
