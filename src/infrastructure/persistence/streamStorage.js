@@ -8,13 +8,48 @@ const MAX_HISTORY_ITEMS = 10;
 const MAX_PRESETS = 50;
 
 /**
+ * Prepares a stream input object for serialization by handling the File object.
+ * @param {import('@/types').StreamInput} input The stream input object.
+ * @returns {object} A serializable version of the input.
+ */
+function prepareForStorage(input) {
+    const storableInput = JSON.parse(JSON.stringify(input)); // Deep clone to avoid mutation
+    if (storableInput.drmAuth?.serverCertificate instanceof File) {
+        const file = /** @type {File} */ (storableInput.drmAuth.serverCertificate);
+        storableInput.drmAuth.serverCertificate = {
+            isFilePlaceholder: true,
+            name: file.name,
+            type: file.type,
+        };
+    }
+    return storableInput;
+}
+
+/**
+ * Restores a stream input object after deserialization.
+ * @param {object} storedInput The object from localStorage.
+ * @returns {object} A restored stream input object.
+ */
+function restoreFromStorage(storedInput) {
+    if (storedInput.drmAuth?.serverCertificate?.isFilePlaceholder) {
+        const { name, type } = storedInput.drmAuth.serverCertificate;
+        // Create a stub File object. The lack of content (size=0) will be our
+        // signal in the UI to prompt for re-selection.
+        storedInput.drmAuth.serverCertificate = new File([], name, { type });
+    }
+    return storedInput;
+}
+
+
+/**
  * Reads a list of streams from localStorage.
  * @param {string} key The localStorage key.
  * @returns {Array<object>}
  */
 function getStreams(key) {
     try {
-        return JSON.parse(localStorage.getItem(key) || '[]');
+        const stored = JSON.parse(localStorage.getItem(key) || '[]');
+        return stored.map(restoreFromStorage);
     } catch (e) {
         console.error(`Error reading from localStorage key "${key}":`, e);
         return [];
@@ -28,7 +63,8 @@ function getStreams(key) {
  */
 function setStreams(key, streams) {
     try {
-        localStorage.setItem(key, JSON.stringify(streams));
+        const storableStreams = streams.map(prepareForStorage);
+        localStorage.setItem(key, JSON.stringify(storableStreams));
     } catch (e) {
         console.error(`Error writing to localStorage key "${key}":`, e);
     }
@@ -60,6 +96,8 @@ export function saveToHistory(stream) {
         url: stream.originalUrl,
         protocol: stream.protocol,
         type: stream.manifest?.type === 'dynamic' ? 'live' : 'vod',
+        auth: stream.auth, // Persist auth info
+        drmAuth: stream.drmAuth, // Persist DRM auth info
     });
 
     if (newHistory.length > MAX_HISTORY_ITEMS) {
@@ -71,22 +109,18 @@ export function saveToHistory(stream) {
 /**
  * Saves a stream object as a preset.
  * @param {object} preset The preset object to save.
- * @param {string} preset.name
- * @param {string} preset.url
- * @param {'dash'|'hls'|'unknown'} preset.protocol
- * @param {'live'|'vod'} preset.type
  */
-export function savePreset({ name, url, protocol, type }) {
+export function savePreset(preset) {
     const presets = getPresets();
-    const newPresets = presets.filter((item) => item.url !== url);
-    newPresets.unshift({ name, url, protocol, type });
+    const newPresets = presets.filter((item) => item.url !== preset.url);
+    newPresets.unshift(preset);
 
     if (newPresets.length > MAX_PRESETS) {
         newPresets.length = MAX_PRESETS;
     }
     setStreams(PRESETS_KEY, newPresets);
     showToast({
-        message: `Preset "${name}" saved!`,
+        message: `Preset "${preset.name}" saved!`,
         type: 'pass',
     });
 }

@@ -20,6 +20,7 @@ import { parserCoverageView } from '@/features/parserCoverage/ui/index';
 import { networkAnalysisView } from '@/features/networkAnalysis/ui/index';
 import { playerView } from '@/features/playerSimulation/ui/index';
 import { segmentComparisonView } from '@/features/segmentComparison/ui/index';
+import { memoryMonitorView } from '@/features/memoryMonitor/ui/index';
 
 const viewMap = {
     summary: summaryView,
@@ -103,7 +104,10 @@ const appShellTemplate = () => html`
                 id="sidebar-nav"
                 class="flex flex-col grow overflow-y-auto p-3"
             ></nav>
-            <footer id="sidebar-footer" class="shrink-0 p-3"></footer>
+            <footer id="sidebar-footer" class="shrink-0 p-3 space-y-4">
+                <div id="memory-monitor-container"></div>
+                <div id="global-controls-container"></div>
+            </footer>
         </aside>
 
         <!-- Main Content Area -->
@@ -168,7 +172,12 @@ export function renderApp() {
                 ...initialDomContext,
                 mainContent: document.body.querySelector('#main-content'),
                 sidebarNav: document.body.querySelector('#sidebar-nav'),
-                sidebarFooter: document.body.querySelector('#sidebar-footer'),
+                sidebarFooter: document.body.querySelector(
+                    '#global-controls-container'
+                ), // Updated to new container
+                memoryMonitorContainer: document.body.querySelector(
+                    '#memory-monitor-container'
+                ), // New container
                 sidebarContextSwitchers: document.body.querySelector(
                     '#sidebar-context-switchers'
                 ),
@@ -182,6 +191,9 @@ export function renderApp() {
                     document.body.querySelector('#mobile-page-title'),
             };
             isShellRendered = true;
+
+            // Mount the memory monitor once the shell is rendered
+            memoryMonitorView.mount(appShellDomContext.memoryMonitorContainer);
         }
 
         // Render the shell chrome (sidebars, headers, etc.)
@@ -235,6 +247,9 @@ export function renderApp() {
                 oldView.unmount(appShellDomContext?.mainContent);
             }
             currentMountedView = null;
+        }
+        if (isShellRendered) {
+            memoryMonitorView.unmount();
         }
         isShellRendered = false;
         currentMountedStreamId = null;

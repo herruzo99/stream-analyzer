@@ -160,25 +160,39 @@ async function processLiveUpdate(updateData) {
             newSegmentsByCompositeKey
         )) {
             const newSegments = data.segments || [];
-            const repState = newDashState.get(compositeKey);
-            if (repState) {
+            const oldRepState = newDashState.get(compositeKey);
+            if (oldRepState) {
                 const existingUrls = new Set(
-                    repState.segments.map((s) => s.uniqueId)
+                    oldRepState.segments.map((s) => s.uniqueId)
                 );
-                const newlyAddedSegments = [];
-                for (const newSeg of newSegments) {
-                    if (!existingUrls.has(newSeg.uniqueId)) {
-                        newlyAddedSegments.push(newSeg);
-                    }
-                }
+                const newlyAddedSegments = newSegments.filter(
+                    (newSeg) => !existingUrls.has(newSeg.uniqueId)
+                );
 
                 if (newlyAddedSegments.length > 0) {
-                    repState.segments.push(...newlyAddedSegments);
+                    // Create a new repState object to ensure immutability
+                    const updatedRepState = {
+                        ...oldRepState,
+                        segments: [
+                            ...oldRepState.segments,
+                            ...newlyAddedSegments,
+                        ],
+                        freshSegmentUrls: new Set(
+                            newSegments.map((s) => s.uniqueId)
+                        ),
+                    };
+                    newDashState.set(compositeKey, updatedRepState);
                     segmentsWereUpdated = true;
+                } else {
+                    // Even if no new segments, update fresh URLs and create a new object
+                    const updatedRepState = {
+                        ...oldRepState,
+                        freshSegmentUrls: new Set(
+                            newSegments.map((s) => s.uniqueId)
+                        ),
+                    };
+                    newDashState.set(compositeKey, updatedRepState);
                 }
-                repState.freshSegmentUrls = new Set(
-                    newSegments.map((s) => s.uniqueId)
-                );
             }
         }
     } else {

@@ -38,8 +38,36 @@ export async function startSegmentAnalysisUseCase({ files }) {
 
         const parsedSegments = await Promise.all(parsingPromises);
 
+        /** @type {import('@/types').Manifest} */
+        const syntheticManifest = {
+            id: null,
+            type: 'static',
+            profiles: 'local-file',
+            minBufferTime: 0,
+            publishTime: null,
+            availabilityStartTime: null,
+            timeShiftBufferDepth: null,
+            minimumUpdatePeriod: null,
+            duration: 0,
+            maxSegmentDuration: null,
+            maxSubsegmentDuration: null,
+            programInformations: [],
+            metrics: [],
+            locations: [],
+            patchLocations: [],
+            serviceDescriptions: [],
+            initializationSets: [],
+            segmentFormat: parsedSegments[0]?.format || 'unknown',
+            periods: [],
+            events: [],
+            serializedManifest: {},
+            summary: null,
+            serverControl: null,
+        };
+
         // Construct a "synthetic" stream object to hold the segments.
         // This allows us to reuse the entire results view.
+        /** @type {import('@/types').Stream} */
         const syntheticStream = {
             id: 1,
             name: 'Local Segments',
@@ -47,19 +75,28 @@ export async function startSegmentAnalysisUseCase({ files }) {
             baseUrl: '',
             protocol: 'local', // A special protocol type for this workflow
             isPolling: false,
-            manifest: {
-                type: 'static',
-                segmentFormat: parsedSegments[0]?.format || 'unknown',
-                periods: [], // No real manifest periods
-            },
+            manifest: syntheticManifest,
             rawManifest: 'Synthetic manifest for local segment analysis.',
             manifestUpdates: [],
             activeManifestUpdateIndex: 0,
             dashRepresentationState: new Map(),
-            hlsVariantState: new Map(), // Keep the structure consistent
+            hlsVariantState: new Map(),
             semanticData: new Map(),
             adAvails: [],
             inbandEvents: [],
+            steeringInfo: null,
+            mediaPlaylists: new Map(),
+            activeMediaPlaylistUrl: null,
+            featureAnalysis: { results: new Map(), manifestCount: 1 },
+            adaptationEvents: [],
+            auth: { headers: [], queryParams: [] },
+            drmAuth: {
+                licenseServerUrl: '',
+                serverCertificate: null,
+                headers: [],
+                queryParams: [],
+            },
+            licenseServerUrl: '',
 
             // Populate a synthetic representation with the uploaded segments
             segments: parsedSegments.map((ps, index) => ({

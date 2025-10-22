@@ -8,6 +8,7 @@ import { findChildrenRecursive, resolveBaseUrl } from './recursive-parser.js';
 import { formatBitrate } from '@/ui/shared/format';
 import { findInitSegmentUrl } from './segment-parser.js';
 import { isCodecSupported } from '../utils/codec-support.js';
+import { debugLog } from '@/shared/utils/debug';
 
 const getSegmentingStrategy = (serializedManifest) => {
     if (!serializedManifest) return 'unknown';
@@ -108,33 +109,28 @@ export async function generateDashSummary(
 
     for (const period of manifestIR.periods) {
         for (const as of period.adaptationSets) {
-            if (as.contentType === 'video') {
-                for (const rep of as.representations) {
-                    if (
-                        (!rep.width.value || !rep.height.value) &&
-                        context?.fetchAndParseSegment
-                    ) {
-                        const repBaseUrl = resolveBaseUrl(
-                            context.manifestUrl,
-                            serializedManifest,
-                            period.serializedManifest,
-                            as.serializedManifest,
-                            rep.serializedManifest
-                        );
-                        const initUrl = findInitSegmentUrl(
-                            rep,
-                            as,
-                            period,
-                            repBaseUrl
-                        );
-                        if (initUrl) {
-                            try {
-                                const parsedSegment =
-                                    await context.fetchAndParseSegment(
-                                        initUrl,
-                                        'isobmff'
-                                    );
-                                if (parsedSegment?.data?.boxes) {
+            for (const rep of as.representations) {
+                if (context?.fetchAndParseSegment) {
+                    const repBaseUrl = resolveBaseUrl(
+                        context.manifestUrl,
+                        serializedManifest,
+                        period.serializedManifest,
+                        as.serializedManifest,
+                        rep.serializedManifest
+                    );
+                    const initInfo = findInitSegmentUrl(rep, as, period, repBaseUrl);
+                    if (initInfo?.url) {
+                        debugLog('summary-generator', 'Dispatching init segment fetch', initInfo);
+                        try {
+                            const parsedSegment =
+                                await context.fetchAndParseSegment(
+                                    initInfo.url,
+                                    'isobmff',
+                                    initInfo.range
+                                );
+                            if (parsedSegment?.data?.boxes) {
+                                // Enrich Resolution
+                                if (!rep.width.value || !rep.height.value) {
                                     const avc1 = findBoxRecursive(
                                         parsedSegment.data.boxes,
                                         (b) => b.type === 'avc1'
@@ -154,11 +150,41 @@ export async function generateDashSummary(
                                         };
                                     }
                                 }
-                            } catch (e) {
-                                console.warn(
-                                    `[Enrichment] Failed to parse init segment for rep ${rep.id}: ${e.message}`
+                                // Enrich Bandwidth
+                                const btrt = findBoxRecursive(
+                                    parsedSegment.data.boxes,
+                                    (b) => b.type === 'btrt'
                                 );
+                                if (
+                                    btrt &&
+                                    btrt.details.maxBitrate?.value > 0
+                                ) {
+                                    rep.bandwidth = btrt.details.maxBitrate.value;
+                                }
+
+                                // Enrich PSSH data with license URLs
+                                const psshBoxes =
+                                    parsedSegment.data.boxes.filter(
+                                        (b) => b.type === 'pssh'
+                                    );
+                                psshBoxes.forEach((psshBox) => {
+                                    if (
+                                        psshBox.systemId &&
+                                        psshBox.details.license_url?.value
+                                    ) {
+                                        if (allPssh.has(psshBox.systemId)) {
+                                            allPssh.get(
+                                                psshBox.systemId
+                                            ).licenseServerUrl =
+                                                psshBox.details.license_url.value;
+                                        }
+                                    }
+                                });
                             }
+                        } catch (e) {
+                            console.warn(
+                                `[Enrichment] Failed to parse init segment for rep ${rep.id}: ${e.message}`
+                            );
                         }
                     }
                 }
@@ -269,6 +295,13 @@ export async function generateDashSummary(
     const security = {
         isEncrypted: allPssh.size > 0,
         systems: Array.from(allPssh.values()),
+        licenseServerUrls: [
+            ...new Set(
+                Array.from(allPssh.values())
+                    .map((pssh) => pssh.licenseServerUrl)
+                    .filter(Boolean)
+            ),
+        ],
     };
 
     /** @type {import('@/types.ts').ManifestSummary} */

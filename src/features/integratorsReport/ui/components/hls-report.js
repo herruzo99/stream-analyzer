@@ -129,10 +129,15 @@ export const hlsReportTemplate = (viewModel) => {
         })}
         ${listCardTemplate({
             label: 'DRM Systems (KEYFORMAT)',
-            items: security.drmSystems.map((s) => `${s.name} (${s.uuid})`),
+            items: security.drmSystems.map((s) => s.name),
             tooltip:
                 'Detected DRM systems and their unique schemeIdUris, needed for EME APIs.',
             isoRef: 'HLS: 4.4.4.4',
+        })}
+        ${listCardTemplate({
+            label: 'License Server URL(s)',
+            items: security.licenseServerUrls,
+            tooltip: 'License server URLs provided by the user.',
         })}
         ${listCardTemplate({
             label: 'Key IDs (KEYID)',

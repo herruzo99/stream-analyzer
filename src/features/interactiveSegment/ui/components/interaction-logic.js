@@ -1,13 +1,12 @@
 import { inspectorPanelTemplate as isobmffInspector } from './isobmff/index.js';
 import { inspectorPanelTemplate as tsInspector } from './ts/index.js';
 import { html } from 'lit-html';
-import { uiActions } from '@/state/uiStore';
+import { uiActions, useUiStore } from '@/state/uiStore';
 import { renderApp } from '@/ui/shell/mainRenderer';
 
 let mainContainer = null;
 let keydownListener = null;
 let containerListeners = new Map();
-let currentlyHighlightedElements = [];
 let inspectorContainer = null;
 let currentFormat = null;
 let rootParsedData = null;
@@ -26,33 +25,37 @@ function scrollIntoViewIfNeeded(element, container) {
     }
 }
 
-// --- LOCAL MODULE STATE for the inspector panel ---
-let selectedItem = null;
-let highlightedItem = null;
-let highlightedField = null;
-
+// --- STATE SELECTOR (Reads from central store) ---
 export function getInspectorState() {
+    const {
+        interactiveSegmentSelectedItem,
+        interactiveSegmentHighlightedItem,
+    } = useUiStore.getState();
     return {
-        itemForDisplay: selectedItem || highlightedItem,
-        fieldForDisplay: highlightedField,
+        itemForDisplay:
+            interactiveSegmentSelectedItem?.item ||
+            interactiveSegmentHighlightedItem?.item,
+        fieldForDisplay: interactiveSegmentHighlightedItem?.field,
     };
 }
-// --------------------------------------------------
 
-function clearHighlights() {
-    currentlyHighlightedElements.forEach((el) => {
-        el.classList.remove(
-            'is-box-hover-highlighted',
-            'is-field-hover-highlighted',
-            'is-inspector-field-highlighted'
-        );
-    });
-    currentlyHighlightedElements = [];
+// --- IMPERATIVE DOM MANIPULATION (Exported) ---
+export function clearHighlights() {
+    document
+        .querySelectorAll(
+            '.is-box-hover-highlighted, .is-field-hover-highlighted, .is-inspector-field-highlighted'
+        )
+        .forEach((el) => {
+            el.classList.remove(
+                'is-box-hover-highlighted',
+                'is-field-hover-highlighted',
+                'is-inspector-field-highlighted'
+            );
+        });
 }
 
-function applyHighlights(item, fieldName) {
-    if (!item || !mainContainer) return;
-    const container = mainContainer;
+export function applyHighlights(container, item, fieldName) {
+    if (!item || !container) return;
 
     // --- Highlight structure tree node ---
     if (!item.isSample) {
@@ -60,13 +63,6 @@ function applyHighlights(item, fieldName) {
         const structureNode = container.querySelector(highlightSelector);
         if (structureNode) {
             structureNode.classList.add('is-box-hover-highlighted');
-            currentlyHighlightedElements.push(structureNode);
-            const treeContainer = container.querySelector(
-                '.structure-content-area'
-            );
-            if (treeContainer) {
-                scrollIntoViewIfNeeded(structureNode, treeContainer);
-            }
         }
     }
 
@@ -85,7 +81,7 @@ function applyHighlights(item, fieldName) {
     }
 
     // --- Apply highlights to hex view ---
-    const hexContentGrid = mainContainer.querySelector('#hex-grid-content');
+    const hexContentGrid = container.querySelector('#hex-grid-content');
     if (!hexContentGrid) return;
 
     const visibleByteElements =
@@ -97,22 +93,30 @@ function applyHighlights(item, fieldName) {
             10
         );
 
-        // Apply box highlight first.
         if (byteOffset >= boxStart && byteOffset < boxEnd) {
             el.classList.add('is-box-hover-highlighted');
-            currentlyHighlightedElements.push(el);
         }
 
-        // Apply field highlight on top if applicable. CSS will ensure it's visually dominant.
         if (
             fieldStart !== -1 &&
             byteOffset >= fieldStart &&
             byteOffset < fieldEnd
         ) {
             el.classList.add('is-field-hover-highlighted');
-            currentlyHighlightedElements.push(el);
         }
     });
+
+    // --- Highlight inspector field row ---
+    const inspectorPanel = container.querySelector('.segment-inspector-panel');
+    if (inspectorPanel && fieldName) {
+        const fieldRow = inspectorPanel.querySelector(
+            `[data-inspector-offset="${item.offset}"][data-field-name="${fieldName}"]`
+        );
+        if (fieldRow) {
+            fieldRow.classList.add('is-inspector-field-highlighted');
+            scrollIntoViewIfNeeded(fieldRow, inspectorPanel);
+        }
+    }
 }
 
 function cleanupEventListeners(container) {
@@ -137,9 +141,6 @@ export function cleanupSegmentViewInteractivity(dom) {
     if (!container) return;
 
     cleanupEventListeners(container);
-    selectedItem = null;
-    highlightedItem = null;
-    highlightedField = null;
     inspectorContainer = null;
     currentFormat = null;
     rootParsedData = null;
@@ -163,44 +164,28 @@ export function initializeSegmentViewInteractivity(
     rootParsedData = parsedSegmentData;
 
     const handleHover = (item, field) => {
-        highlightedItem = item;
-        highlightedField = field;
-
-        clearHighlights();
-        applyHighlights(item, field);
-
-        // Trigger a full re-render instead of an imperative one.
-        renderApp();
-
-        setTimeout(() => {
-            if (inspectorContainer && field && item) {
-                const fieldRow = inspectorContainer.querySelector(
-                    `[data-inspector-offset="${item.offset}"][data-field-name="${field}"]`
-                );
-                if (fieldRow) {
-                    scrollIntoViewIfNeeded(fieldRow, inspectorContainer);
-                }
-            }
-        }, 0);
+        uiActions.setInteractiveSegmentHighlightedItem(item, field);
     };
 
     const handleSelection = (targetOffset) => {
-        if (selectedItem && selectedItem.offset === targetOffset) {
-            selectedItem = null; // Deselect
+        const { interactiveSegmentSelectedItem } = useUiStore.getState();
+        const currentSelectedItem = interactiveSegmentSelectedItem?.item;
+        let newSelectedItem = null;
+
+        if (currentSelectedItem && currentSelectedItem.offset === targetOffset) {
+            newSelectedItem = null; // Deselect
         } else {
-            selectedItem = findDataByOffset(parsedSegmentData, targetOffset);
-        }
-        highlightedItem = selectedItem;
-        highlightedField = null; // Clear field highlight on selection
-        clearHighlights();
-        if (selectedItem) {
-            applyHighlights(selectedItem, null);
+            newSelectedItem = findDataByOffset(
+                rootParsedData,
+                targetOffset,
+                true
+            );
         }
 
-        // Trigger a full re-render instead of an imperative one.
-        renderApp();
+        uiActions.setInteractiveSegmentSelectedItem(newSelectedItem);
+        uiActions.setInteractiveSegmentHighlightedItem(null, null); // Clear hover on click
 
-        if (window.innerWidth < 1024 && selectedItem) {
+        if (window.innerWidth < 1024 && newSelectedItem) {
             uiActions.setInteractiveSegmentActiveTab('hex');
         }
     };
@@ -330,8 +315,9 @@ export function initializeSegmentViewInteractivity(
     });
 
     keydownListener = (e) => {
-        if (e.key === 'Escape' && selectedItem !== null) {
-            handleSelection(selectedItem.offset); // Deselect
+        const { interactiveSegmentSelectedItem } = useUiStore.getState();
+        if (e.key === 'Escape' && interactiveSegmentSelectedItem !== null) {
+            handleSelection(interactiveSegmentSelectedItem.item.offset); // Deselect
         }
     };
     document.addEventListener('keydown', keydownListener);

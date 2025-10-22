@@ -103,10 +103,16 @@ export const dashReportTemplate = (viewModel) => {
         })}
         ${listCardTemplate({
             label: 'DRM Systems',
-            items: security.drmSystems.map((s) => `${s.name} (${s.uuid})`),
+            items: security.drmSystems.map((s) => s.name),
             tooltip:
                 'Detected DRM systems and their unique schemeIdUris, needed for EME APIs.',
             isoRef: 'DASH: 5.8.4.1',
+        })}
+        ${listCardTemplate({
+            label: 'License Server URL(s)',
+            items: security.licenseServerUrls,
+            tooltip:
+                'License server URLs discovered from PSSH boxes or provided by the user.',
         })}
         ${listCardTemplate({
             label: 'Default Key IDs (KIDs)',

@@ -1,33 +1,20 @@
 import { html } from 'lit-html';
 import { copyShareUrlToClipboard } from '@/ui/services/shareService';
 import { copyDebugInfoToClipboard } from '@/ui/services/debugService';
-import { stopAllMonitoring } from '@/application/services/primaryStreamMonitorService';
-import { stopAllHlsVariantPolling } from '@/application/services/hlsVariantPollerService';
 import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
-import { useSegmentCacheStore } from '@/state/segmentCacheStore';
-import { useDecryptionStore } from '@/state/decryptionStore';
 import { getLastUsedStreams } from '@/infrastructure/persistence/streamStorage';
 import {
-    toggleAllLiveStreamsPolling,
+    togglePlayerAndPolling,
     reloadStream,
 } from '@/ui/services/streamActionsService';
 import { tooltipTriggerClasses } from '@/ui/shared/constants';
 import * as icons from '@/ui/icons';
+import { resetApplicationState } from '@/application/use_cases/resetApplicationState';
 
-function handleNewAnalysis() {
-    // --- Full Application State Reset ---
-    // 1. Stop all background timers.
-    stopAllMonitoring();
-    stopAllHlsVariantPolling();
-
-    // 2. Clear all state stores.
-    useSegmentCacheStore.getState().clear();
-    useDecryptionStore.getState().clearCache();
-
-    // 3. Reset the core analysis and UI state, which also triggers the view change to 'input'.
-    analysisActions.startAnalysis();
-
-    // --- Repopulate with Last Used Streams for Convenience ---
+function handleRestartAnalysis() {
+    // This performs a full reset and then repopulates the input form
+    // for a convenient re-run or modification of the last analysis.
+    resetApplicationState();
     const lastUsed = getLastUsedStreams();
     if (lastUsed && lastUsed.length > 0) {
         analysisActions.setStreamInputs(lastUsed);
@@ -45,27 +32,26 @@ const controlButtonTemplate = (onClick, testId, classes, icon, label) => html`
     </button>
 `;
 
-const reloadButtonTemplate = () => {
+const forcePollButtonTemplate = () => {
     const { streams, activeStreamId } = useAnalysisStore.getState();
     const activeStream = streams.find((s) => s.id === activeStreamId);
 
-    if (!activeStream) {
+    if (!activeStream || activeStream.manifest?.type !== 'dynamic') {
         return html``;
     }
 
     const canReload = !!activeStream.originalUrl;
-    const isLive = activeStream.manifest?.type === 'dynamic';
 
     return html`<button
         @click=${() => reloadStream(activeStream)}
         ?disabled=${!canReload}
         class="w-full flex items-center justify-start gap-3 px-4 py-3 text-sm font-medium rounded-lg transition-colors text-gray-300 bg-gray-700/50 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
         title=${canReload
-            ? 'Manually reload the manifest from its source URL'
-            : 'Cannot reload a manifest loaded from a local file'}
+            ? 'Manually poll the manifest from its source URL'
+            : 'Cannot poll a manifest loaded from a local file'}
     >
         ${icons.updates}
-        <span class="inline">${isLive ? 'Reload Now' : 'Reload Manifest'}</span>
+        <span class="inline">Force Poll</span>
     </button>`;
 };
 
@@ -98,7 +84,7 @@ const pollingButtonTemplate = () => {
             : '';
 
     return html`<button
-        @click=${toggleAllLiveStreamsPolling}
+        @click=${togglePlayerAndPolling}
         class="w-full flex items-center justify-start gap-3 px-4 py-3 text-sm font-medium rounded-lg transition-colors ${buttonClass}"
     >
         ${icon}
@@ -117,7 +103,14 @@ export const globalControlsTemplate = () => {
 
     return html`
         <div class="space-y-2">
-            ${pollingButtonTemplate()} ${reloadButtonTemplate()}
+            ${controlButtonTemplate(
+                handleRestartAnalysis,
+                'new-analysis-btn',
+                'text-white bg-blue-600 hover:bg-blue-700',
+                icons.newAnalysis,
+                'Restart Analysis'
+            )}
+            ${pollingButtonTemplate()} ${forcePollButtonTemplate()}
             ${controlButtonTemplate(
                 copyShareUrlToClipboard,
                 'share-analysis-btn',
@@ -131,13 +124,6 @@ export const globalControlsTemplate = () => {
                 'text-yellow-200 bg-yellow-600/20 hover:bg-yellow-600/40',
                 icons.debug,
                 'Copy Debug Info'
-            )}
-            ${controlButtonTemplate(
-                handleNewAnalysis,
-                'new-analysis-btn',
-                'text-white bg-blue-600 hover:bg-blue-700',
-                icons.newAnalysis,
-                'New Analysis'
             )}
         </div>
     `;

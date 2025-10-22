@@ -9,18 +9,6 @@ import { findInitSegmentUrl } from '@/infrastructure/parsing/dash/segment-parser
 import { getParsedSegment } from '@/infrastructure/segments/segmentService';
 
 /**
- * A private, isolated segment fetcher for this service that does not interact
- * with the global store or cache directly, but uses the public segment service API.
- * @param {string} url The URL of the ISOBFF segment to fetch and parse.
- * @returns {Promise<object>} The parsed segment data.
- * @throws {Error} If the fetch or parsing fails.
- */
-async function _fetchAndParseIsobmff(url) {
-    // Re-use the main segment service, which now handles caching and parsing.
-    return getParsedSegment(url);
-}
-
-/**
  * Runs all CMAF validation checks for a given stream and stores the results.
  * @param {import('@/types.ts').Stream} stream
  */
@@ -28,6 +16,11 @@ async function runCmafValidation(stream) {
     if (stream.protocol !== 'dash') {
         return;
     }
+
+    // Set pending state for local UI loader
+    const semanticData = new Map(stream.semanticData);
+    semanticData.set('cmafValidationStatus', 'pending');
+    analysisActions.updateStream(stream.id, { semanticData });
 
     try {
         const manifestElement = stream.manifest.serializedManifest;
@@ -48,7 +41,7 @@ async function runCmafValidation(stream) {
                 firstAS.serializedManifest,
                 firstRep.serializedManifest
             );
-            const initUrl = findInitSegmentUrl(
+            const initInfo = findInitSegmentUrl(
                 firstRep,
                 firstAS,
                 firstPeriod,
@@ -64,10 +57,14 @@ async function runCmafValidation(stream) {
                 ? /** @type {any} */ (mediaSegment).resolvedUrl
                 : undefined;
 
-            if (initUrl && mediaUrl) {
+            if (initInfo && mediaUrl) {
+                const initUniqueId = initInfo.range
+                    ? `${initInfo.url}@init@${initInfo.range}`
+                    : initInfo.url;
+
                 const [initData, mediaData] = await Promise.all([
-                    _fetchAndParseIsobmff(initUrl),
-                    _fetchAndParseIsobmff(mediaUrl),
+                    getParsedSegment(initUniqueId),
+                    getParsedSegment(mediaUrl),
                 ]);
                 const trackResults = validateCmafTrack(
                     /** @type {any} */ (initData).data,
@@ -78,21 +75,29 @@ async function runCmafValidation(stream) {
         }
 
         // --- Switching Set Validation ---
+        const segmentFetcher = (url, range) => {
+            const uniqueId = range ? `${url}@init@${range}` : url;
+            return getParsedSegment(uniqueId);
+        };
+
         const switchingSetResults = await validateCmafSwitchingSets(
             stream,
-            _fetchAndParseIsobmff,
+            segmentFetcher,
             { resolveBaseUrl, findInitSegmentUrl }
         );
         allResults.push(...switchingSetResults);
 
         // Store results on the stream object
-        const semanticData = new Map(stream.semanticData);
-        semanticData.set('cmafValidation', allResults);
-        analysisActions.updateStream(stream.id, { semanticData });
+        const finalSemanticData = new Map(stream.semanticData);
+        finalSemanticData.set('cmafValidation', allResults);
+        finalSemanticData.set('cmafValidationStatus', 'complete');
+        analysisActions.updateStream(stream.id, {
+            semanticData: finalSemanticData,
+        });
     } catch (e) {
         console.error(`[CMAF Service] Error during validation: ${e.message}`);
-        const semanticData = new Map(stream.semanticData);
-        semanticData.set('cmafValidation', [
+        const finalSemanticData = new Map(stream.semanticData);
+        finalSemanticData.set('cmafValidation', [
             {
                 id: 'CMAF-META',
                 text: 'CMAF Conformance',
@@ -100,15 +105,18 @@ async function runCmafValidation(stream) {
                 details: `Validation failed to run: ${e.message}`,
             },
         ]);
-        analysisActions.updateStream(stream.id, { semanticData });
+        finalSemanticData.set('cmafValidationStatus', 'error');
+        analysisActions.updateStream(stream.id, {
+            semanticData: finalSemanticData,
+        });
     }
 }
 
 /**
- * Initializes the CMAF service to listen for analysis completion events.
+ * Initializes the CMAF service to listen for user-initiated validation requests.
  */
 export function initializeCmafService() {
-    eventBus.subscribe('state:analysis-complete', ({ streams }) => {
-        streams.forEach(runCmafValidation);
+    eventBus.subscribe('ui:cmaf-validation-requested', ({ stream }) => {
+        runCmafValidation(stream);
     });
 }

@@ -19,6 +19,8 @@ import { createStore } from 'zustand/vanilla';
  * @property {boolean} interactiveManifestShowSubstituted
  * @property {number} interactiveSegmentCurrentPage
  * @property {'inspector' | 'hex'} interactiveSegmentActiveTab
+ * @property {{ item: any } | null} interactiveSegmentSelectedItem
+ * @property {{ item: any; field: string } | null} interactiveSegmentHighlightedItem
  * @property {Map<number, object> | null} pagedByteMap
  * @property {boolean} isByteMapLoading
  * @property {'all' | 'fail' | 'warn'} complianceActiveFilter
@@ -45,6 +47,8 @@ import { createStore } from 'zustand/vanilla';
  * @property {() => void} toggleInteractiveManifestSubstitution
  * @property {(page: number) => void} setInteractiveSegmentPage
  * @property {(tab: 'inspector' | 'hex') => void} setInteractiveSegmentActiveTab
+ * @property {(item: any) => void} setInteractiveSegmentSelectedItem
+ * @property {(item: any, field: string) => void} setInteractiveSegmentHighlightedItem
  * @property {(mapArray: [number, object][] | null) => void} setPagedByteMap
  * @property {(isLoading: boolean) => void} setIsByteMapLoading
  * @property {(filter: 'all' | 'fail' | 'warn') => void} setComplianceFilter
@@ -77,6 +81,8 @@ const createInitialUiState = () => ({
     interactiveManifestShowSubstituted: true,
     interactiveSegmentCurrentPage: 1,
     interactiveSegmentActiveTab: 'inspector',
+    interactiveSegmentSelectedItem: null,
+    interactiveSegmentHighlightedItem: null,
     pagedByteMap: null,
     isByteMapLoading: false,
     complianceActiveFilter: 'all',
@@ -122,6 +128,12 @@ export const useUiStore = createStore((set) => ({
         }),
     setInteractiveSegmentActiveTab: (tab) =>
         set({ interactiveSegmentActiveTab: tab }),
+    setInteractiveSegmentSelectedItem: (item) =>
+        set({ interactiveSegmentSelectedItem: item ? { item } : null }),
+    setInteractiveSegmentHighlightedItem: (item, field) =>
+        set({
+            interactiveSegmentHighlightedItem: item ? { item, field } : null,
+        }),
     setPagedByteMap: (mapArray) =>
         set({ pagedByteMap: mapArray ? new Map(mapArray) : null }),
     setIsByteMapLoading: (isLoading) => set({ isByteMapLoading: isLoading }),
@@ -189,6 +201,10 @@ export const uiActions = {
         useUiStore.getState().setInteractiveSegmentPage(page),
     setInteractiveSegmentActiveTab: (tab) =>
         useUiStore.getState().setInteractiveSegmentActiveTab(tab),
+    setInteractiveSegmentSelectedItem: (item) =>
+        useUiStore.getState().setInteractiveSegmentSelectedItem(item),
+    setInteractiveSegmentHighlightedItem: (item, field) =>
+        useUiStore.getState().setInteractiveSegmentHighlightedItem(item, field),
     setPagedByteMap: (mapArray) =>
         useUiStore.getState().setPagedByteMap(mapArray),
     setIsByteMapLoading: (isLoading) =>

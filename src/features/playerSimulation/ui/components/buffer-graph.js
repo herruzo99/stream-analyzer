@@ -2,25 +2,51 @@ import { html } from 'lit-html';
 
 /**
  * Renders an SVG chart visualizing the video buffer ranges.
- * @param {TimeRanges} buffered The TimeRanges object from the video element.
- * @param {number} duration The total duration of the content.
- * @param {number} currentTime The current playback time.
+ * @param {HTMLVideoElement | null} videoEl The video element itself.
  * @returns {import('lit-html').TemplateResult}
  */
-export const bufferGraphTemplate = (buffered, duration, currentTime) => {
-    if (!buffered || duration === 0) {
+export const bufferGraphTemplate = (videoEl) => {
+    if (!videoEl) {
+        return html`<div class="h-8 bg-gray-700 rounded"></div>`;
+    }
+
+    const { buffered, duration, currentTime, seekable } = videoEl;
+    let displayDuration = duration;
+    let timeOffset = 0;
+
+    // For live streams, duration is Infinity. We must use the seekable range as our timeline.
+    if (
+        (!isFinite(duration) || duration === 0) &&
+        seekable &&
+        seekable.length > 0
+    ) {
+        timeOffset = seekable.start(0);
+        displayDuration = seekable.end(seekable.length - 1) - timeOffset;
+    }
+
+    if (!buffered || !isFinite(displayDuration) || displayDuration <= 0) {
         return html`<div class="h-8 bg-gray-700 rounded"></div>`;
     }
 
     const segments = [];
     for (let i = 0; i < buffered.length; i++) {
-        segments.push({
-            start: (buffered.start(i) / duration) * 100,
-            width: ((buffered.end(i) - buffered.start(i)) / duration) * 100,
-        });
+        const start = ((buffered.start(i) - timeOffset) / displayDuration) * 100;
+        const width =
+            ((buffered.end(i) - buffered.start(i)) / displayDuration) * 100;
+        // Clamp values to ensure they stay within the 0-100 range visually
+        if (width > 0) {
+            segments.push({
+                start: Math.max(0, start),
+                width: Math.min(100 - Math.max(0, start), width),
+            });
+        }
     }
 
-    const playheadPosition = (currentTime / duration) * 100;
+    const playheadPosition =
+        Math.max(
+            0,
+            Math.min(100, ((currentTime - timeOffset) / displayDuration) * 100)
+        );
 
     return html`
         <div class="relative w-full h-8 bg-gray-700 rounded overflow-hidden">

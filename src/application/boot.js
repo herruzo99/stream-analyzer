@@ -18,7 +18,7 @@ import { initializeInbandEventMonitor } from './services/inbandEventMonitorServi
 import { keyManagerService } from '@/infrastructure/decryption/keyManagerService';
 import { initializeSegmentService } from '@/infrastructure/segments/segmentService';
 import { initializeUiOrchestration } from '@/ui/services/uiOrchestrationService';
-import { networkActions } from '@/state/networkStore';
+import { initializeNetworkEnrichmentService } from '@/infrastructure/http/networkEnrichmentService';
 import { eventBus } from './event-bus.js';
 
 // Feature Initializers
@@ -28,6 +28,8 @@ import { initializeFeatureAnalysisFeature } from '@/features/featureAnalysis/ind
 import { initializeInteractiveManifestFeature } from '@/features/interactiveManifest/index';
 import { initializeSegmentExplorerFeature } from '@/features/segmentExplorer/index';
 import { initializeStreamInputFeature } from '@/features/streamInput/index';
+import { initializePlayerSimulationFeature } from '@/features/playerSimulation/index';
+import { initializeMemoryMonitorFeature } from '@/features/memoryMonitor/index';
 
 // Side-effect driven imports for services that primarily listen to the event bus
 import '@/application/services/streamService';
@@ -95,13 +97,7 @@ export async function startApp() {
     streamInitializationService.initialize();
     keyManagerService.initialize();
     initializeInbandEventMonitor();
-
-    // Listen for network events and clear them on new analysis
-    workerService.registerGlobalHandler(
-        'network:log-event',
-        networkActions.logEvent
-    );
-    eventBus.subscribe('analysis:started', networkActions.clearEvents);
+    initializeNetworkEnrichmentService(); // Initialize the new service
 
     // --- Layer 4: Feature Initialization & UI Orchestration ---
     initializeUiOrchestration();
@@ -111,6 +107,8 @@ export async function startApp() {
     initializeInteractiveManifestFeature();
     initializeSegmentExplorerFeature();
     initializeStreamInputFeature();
+    initializePlayerSimulationFeature();
+    initializeMemoryMonitorFeature();
 
     // --- Layer 5: Start Application Core ---
     app.start();

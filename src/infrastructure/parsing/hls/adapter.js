@@ -61,13 +61,17 @@ function determineSegmentFormat(hlsParsed) {
 
 /**
  * Returns the correct MIME type based on content and segment format.
- * @param {'video' | 'audio' | 'text'} contentType
+ * @param {'video' | 'audio' | 'text' | 'init'} contentType
  * @param {'isobmff' | 'ts'} segmentFormat
  * @returns {string} The corresponding MIME type.
  */
 function getMimeType(contentType, segmentFormat) {
     if (contentType === 'text') {
         return 'text/vtt';
+    }
+    // Init segments are always ISOBMFF containers, typically containing video or audio config
+    if (contentType === 'init') {
+        return 'video/mp4';
     }
     if (segmentFormat === 'isobmff') {
         return `${contentType}/mp4`;
