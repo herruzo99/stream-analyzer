@@ -107,8 +107,9 @@ async function _fetchAndParseSegment(uniqueId, streamId, formatHint) {
         eventBus.dispatch('segment:loaded', { uniqueId, entry: finalEntry });
     } catch (error) {
         console.error(`Failed to fetch or parse segment ${uniqueId}:`, error);
+        // Use the original error message from the worker
         const errorEntry = {
-            status: 0,
+            status: 0, // status 0 indicates a client-side error
             data: null,
             parsedData: { error: error.message },
         };
@@ -132,10 +133,14 @@ export function getParsedSegment(uniqueId, streamId = null, formatHint = null) {
         const onSegmentLoaded = ({ uniqueId: loadedId, entry }) => {
             if (loadedId === uniqueId) {
                 unsubscribe();
-                if (entry.status !== 200) {
-                    reject(new Error(`HTTP ${entry.status} for ${uniqueId}`));
-                } else if (entry.parsedData?.error) {
-                    reject(new Error(entry.parsedData.error));
+                // Propagate the detailed error message from the entry
+                if (entry.status !== 200 || entry.parsedData?.error) {
+                    reject(
+                        new Error(
+                            entry.parsedData?.error ||
+                                `Failed to load segment ${uniqueId}`
+                        )
+                    );
                 } else {
                     resolve(entry.parsedData);
                 }
@@ -156,5 +161,22 @@ export function getParsedSegment(uniqueId, streamId = null, formatHint = null) {
 export function initializeSegmentService() {
     eventBus.subscribe('segment:fetch', ({ uniqueId, streamId, format }) =>
         _fetchAndParseSegment(uniqueId, streamId, format)
+    );
+
+    // --- NEW LISTENER ---
+    // Listen for segments that were fetched by the Shaka player's networking stack.
+    workerService.registerGlobalHandler(
+        'worker:shaka-segment-loaded',
+        (payload) => {
+            const { uniqueId, status, data, parsedData } = payload;
+            const { set } = useSegmentCacheStore.getState();
+            const entry = { status, data, parsedData };
+
+            set(uniqueId, entry);
+
+            // Notify the UI that a new segment is available in the cache,
+            // which will trigger re-renders in components like the Segment Explorer.
+            eventBus.dispatch('segment:loaded', { uniqueId, entry });
+        }
     );
 }

@@ -584,13 +584,13 @@ function parsePeriod(periodEl, parentMergedEl, previousPeriod = null) {
         };
     });
 
-    // --- NEW: Heuristic for SSAI ad periods ---
+    // --- HEURISTIC for SSAI ad periods ---
     const isAdPeriod = periodId?.toUpperCase().startsWith('DAICONNECT');
     if (isAdPeriod && periodDuration) {
         /** @type {import('@/types.ts').Scte35SpliceCommand} */
         const splice_command = {
             type: 'Splice Insert',
-            splice_event_id: periodId,
+            splice_event_id: parseInt(periodId.replace(/[^0-9]/g, ''), 10) || 0,
             duration_flag: 1,
             break_duration: {
                 auto_return: true,
@@ -603,7 +603,7 @@ function parsePeriod(periodEl, parentMergedEl, previousPeriod = null) {
             duration: periodDuration,
             message: `SSAI Ad Period: ${periodId}`,
             messageData: null,
-            type: 'dash-period',
+            type: 'ssai-period',
             cue: null,
             scte35: {
                 table_id: 0xfc,
@@ -619,7 +619,7 @@ function parsePeriod(periodEl, parentMergedEl, previousPeriod = null) {
         };
         allEvents.push(syntheticEvent);
     }
-    // --- END NEW LOGIC ---
+    // --- END HEURISTIC ---
 
     /** @type {Period} */
     const periodIR = {

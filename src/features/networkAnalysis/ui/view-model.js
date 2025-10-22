@@ -58,45 +58,53 @@ function calculateSummaryStats(events) {
 /**
  * Generates data points for the throughput chart by bucketing requests into time intervals.
  * @param {import('@/types').NetworkEvent[]} events
- * @param {number} absoluteStartTime The absolute start time of the analysis session.
- * @returns {{time: number, bits: number}[]}
+ * @param {number} chartStartTime The absolute start time of the chart's timeline.
+ * @returns {{time: number, throughput: number}[]}
  */
-function generateThroughputData(events, absoluteStartTime) {
+function generateThroughputData(events, chartStartTime) {
     if (events.length === 0) return [];
 
-    const buckets = new Map();
+    const timeBuckets = new Map();
+    const bucketSizeMs = 1000; // 1-second buckets
 
     for (const event of events) {
-        if (!event.response.contentLength) continue;
+        if (!event.response.contentLength || event.timing.duration <= 0)
+            continue;
 
-        const eventStartSecond = Math.floor(event.timing.startTime / 1000);
-        const eventEndSecond = Math.ceil(event.timing.endTime / 1000);
+        const startBucket =
+            Math.floor(event.timing.startTime / bucketSizeMs) * bucketSizeMs;
+        const endBucket =
+            Math.floor(event.timing.endTime / bucketSizeMs) * bucketSizeMs;
 
-        for (let sec = eventStartSecond; sec <= eventEndSecond; sec++) {
-            const bucket = buckets.get(sec) || { bits: 0, duration: 0 };
-            const start = Math.max(event.timing.startTime, sec * 1000);
-            const end = Math.min(event.timing.endTime, (sec + 1) * 1000);
+        for (
+            let bucketTime = startBucket;
+            bucketTime <= endBucket;
+            bucketTime += bucketSizeMs
+        ) {
+            const bucket = timeBuckets.get(bucketTime) || { bits: 0 };
+            const start = Math.max(event.timing.startTime, bucketTime);
+            const end = Math.min(event.timing.endTime, bucketTime + bucketSizeMs);
             const durationInBucket = end - start;
 
-            if (durationInBucket > 0 && event.timing.duration > 0) {
+            if (durationInBucket > 0) {
                 const proportion = durationInBucket / event.timing.duration;
                 bucket.bits += event.response.contentLength * 8 * proportion;
             }
-            buckets.set(sec, bucket);
+            timeBuckets.set(bucketTime, bucket);
         }
     }
 
     const dataPoints = [];
-    for (const [sec, bucket] of buckets.entries()) {
+    for (const [bucketTime, bucket] of timeBuckets.entries()) {
+        const time = (bucketTime - chartStartTime) / 1000;
         dataPoints.push({
-            time: sec - Math.floor(absoluteStartTime / 1000),
-            bits: bucket.bits,
+            time: Math.max(0, time), // Guard against negative time values
+            throughput: bucket.bits / (bucketSizeMs / 1000), // bits per second for the bucket
         });
     }
 
     return dataPoints.sort((a, b) => a.time - b.time);
 }
-
 /**
  * Creates the main view model for the network analysis feature.
  * @param {import('@/types').NetworkEvent[]} filteredEvents The events that match the current UI filters.
@@ -117,22 +125,35 @@ export function createNetworkViewModel(filteredEvents, allEvents, stream) {
             : 0;
     const absoluteDuration = absoluteEndTime - absoluteStartTime;
 
+    const chartStartTime =
+        filteredEvents.length > 0
+            ? Math.min(...filteredEvents.map((e) => e.timing.startTime))
+            : 0;
+
     const throughputData = generateThroughputData(
         filteredEvents,
-        absoluteStartTime
+        chartStartTime
     );
 
     const waterfallData = filteredEvents.map((event) => {
-        const downloadDuration = event.timing.duration / 1000; // seconds
+        const downloadDurationSeconds = (event.timing.duration || 1) / 1000;
         const mediaDuration = event.segmentDuration || 0;
+
         const downloadRatio =
-            mediaDuration > 0 && downloadDuration > 0
-                ? mediaDuration / downloadDuration
+            mediaDuration > 0 && downloadDurationSeconds > 0
+                ? mediaDuration / downloadDurationSeconds
                 : null;
+
+        const throughput =
+            event.response.contentLength > 0 && downloadDurationSeconds > 0
+                ? (event.response.contentLength * 8) / downloadDurationSeconds
+                : 0;
 
         return {
             ...event,
             downloadRatio,
+            size: event.response.contentLength,
+            throughput,
         };
     });
 

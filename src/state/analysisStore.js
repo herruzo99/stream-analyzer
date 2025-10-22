@@ -6,7 +6,8 @@ import { uiActions } from './uiStore.js';
 /** @typedef {import('@/types.ts').DecodedSample} DecodedSample */
 /** @typedef {import('@/types.ts').Event} Event */
 /** @typedef {import('@/types.ts').AuthInfo} AuthInfo */
-/** @typedef {{id: number, url: string, name: string, file: File | null, auth: AuthInfo}} StreamInput */
+/** @typedef {import('@/types.ts').DrmAuthInfo} DrmAuthInfo */
+/** @typedef {{id: number, url: string, name: string, file: File | null, auth: AuthInfo, drmAuth: DrmAuthInfo}} StreamInput */
 /** @typedef {{streamId: number, repId: string, segmentUniqueId: string}} SegmentToCompare */
 
 /**
@@ -34,6 +35,9 @@ import { uiActions } from './uiStore.js';
  * @property {(inputId: number, type: 'headers' | 'queryParams') => void} addAuthParam
  * @property {(inputId: number, type: 'headers' | 'queryParams', paramId: number) => void} removeAuthParam
  * @property {(inputId: number, type: 'headers' | 'queryParams', paramId: number, field: 'key' | 'value', value: string) => void} updateAuthParam
+ * @property {(inputId: number, type: 'headers' | 'queryParams') => void} addDrmAuthParam
+ * @property {(inputId: number, type: 'headers' | 'queryParams', paramId: number) => void} removeDrmAuthParam
+ * @property {(inputId: number, type: 'headers' | 'queryParams', paramId: number, field: 'key' | 'value', value: string) => void} updateDrmAuthParam
  * @property {(id: number, url: string, name: string) => void} populateStreamInput
  * @property {(item: SegmentToCompare) => void} addSegmentToCompare
  * @property {(segmentUniqueId: string) => void} removeSegmentFromCompare
@@ -63,6 +67,12 @@ const createInitialAnalysisState = () => ({
             name: '',
             file: null,
             auth: { headers: [], queryParams: [] },
+            drmAuth: {
+                licenseServerUrl: '',
+                serverCertificate: null,
+                headers: [],
+                queryParams: [],
+            },
         },
     ],
     segmentsForCompare: [],
@@ -131,6 +141,12 @@ export const useAnalysisStore = createStore((set, get) => ({
                     name: '',
                     file: null,
                     auth: { headers: [], queryParams: [] },
+                    drmAuth: {
+                        licenseServerUrl: '',
+                        serverCertificate: null,
+                        headers: [],
+                        queryParams: [],
+                    },
                 },
             ],
             streamIdCounter: state.streamIdCounter + 1,
@@ -144,18 +160,7 @@ export const useAnalysisStore = createStore((set, get) => ({
     },
 
     clearAllStreamInputs: () => {
-        set({
-            streamInputs: [
-                {
-                    id: 0,
-                    url: '',
-                    name: '',
-                    file: null,
-                    auth: { headers: [], queryParams: [] },
-                },
-            ],
-            streamIdCounter: 1,
-        });
+        set({ streamInputs: [createInitialAnalysisState().streamInputs[0]] });
     },
 
     setStreamInputs: (inputs) => {
@@ -163,8 +168,14 @@ export const useAnalysisStore = createStore((set, get) => ({
             id: index,
             url: input.url || '',
             name: input.name || '',
-            file: null, // Files cannot be persisted or set from URLs
+            file: null,
             auth: input.auth || { headers: [], queryParams: [] },
+            drmAuth: input.drmAuth || {
+                licenseServerUrl: '',
+                serverCertificate: null,
+                headers: [],
+                queryParams: [],
+            },
         }));
         set({
             streamInputs: newInputs,
@@ -227,6 +238,53 @@ export const useAnalysisStore = createStore((set, get) => ({
         }));
     },
 
+    addDrmAuthParam: (inputId, type) => {
+        set((state) => ({
+            streamInputs: state.streamInputs.map((input) => {
+                if (input.id === inputId) {
+                    const newDrmAuth = { ...input.drmAuth };
+                    const newId = Date.now();
+                    newDrmAuth[type] = [
+                        ...newDrmAuth[type],
+                        { id: newId, key: '', value: '' },
+                    ];
+                    return { ...input, drmAuth: newDrmAuth };
+                }
+                return input;
+            }),
+        }));
+    },
+
+    removeDrmAuthParam: (inputId, type, paramId) => {
+        set((state) => ({
+            streamInputs: state.streamInputs.map((input) => {
+                if (input.id === inputId) {
+                    const newDrmAuth = { ...input.drmAuth };
+                    newDrmAuth[type] = newDrmAuth[type].filter(
+                        (p) => p.id !== paramId
+                    );
+                    return { ...input, drmAuth: newDrmAuth };
+                }
+                return input;
+            }),
+        }));
+    },
+
+    updateDrmAuthParam: (inputId, type, paramId, field, value) => {
+        set((state) => ({
+            streamInputs: state.streamInputs.map((input) => {
+                if (input.id === inputId) {
+                    const newDrmAuth = { ...input.drmAuth };
+                    newDrmAuth[type] = newDrmAuth[type].map((p) =>
+                        p.id === paramId ? { ...p, [field]: value } : p
+                    );
+                    return { ...input, drmAuth: newDrmAuth };
+                }
+                return input;
+            }),
+        }));
+    },
+
     populateStreamInput: (id, url, name) => {
         set((state) => ({
             streamInputs: state.streamInputs.map((input) =>
@@ -237,6 +295,12 @@ export const useAnalysisStore = createStore((set, get) => ({
                           name,
                           file: null,
                           auth: { headers: [], queryParams: [] },
+                          drmAuth: {
+                              licenseServerUrl: '',
+                              serverCertificate: null,
+                              headers: [],
+                              queryParams: [],
+                          },
                       }
                     : input
             ),
@@ -404,49 +468,4 @@ export const useAnalysisStore = createStore((set, get) => ({
 
 // --- Exporting Store and Actions ---
 
-export const analysisActions = {
-    startAnalysis: () => useAnalysisStore.getState().startAnalysis(),
-    completeAnalysis: (streams) =>
-        useAnalysisStore.getState().completeAnalysis(streams),
-    setActiveStreamId: (id) =>
-        useAnalysisStore.getState().setActiveStreamId(id),
-    setActiveSegmentUrl: (id) =>
-        useAnalysisStore.getState().setActiveSegmentUrl(id),
-    addStreamInput: () => useAnalysisStore.getState().addStreamInput(),
-    removeStreamInput: (id) =>
-        useAnalysisStore.getState().removeStreamInput(id),
-    clearAllStreamInputs: () =>
-        useAnalysisStore.getState().clearAllStreamInputs(),
-    setStreamInputs: (data) =>
-        useAnalysisStore.getState().setStreamInputs(data),
-    updateStreamInput: (id, field, value) =>
-        useAnalysisStore.getState().updateStreamInput(id, field, value),
-    addAuthParam: (inputId, type) =>
-        useAnalysisStore.getState().addAuthParam(inputId, type),
-    removeAuthParam: (inputId, type, paramId) =>
-        useAnalysisStore.getState().removeAuthParam(inputId, type, paramId),
-    updateAuthParam: (inputId, type, paramId, field, value) =>
-        useAnalysisStore
-            .getState()
-            .updateAuthParam(inputId, type, paramId, field, value),
-    populateStreamInput: (id, url, name) =>
-        useAnalysisStore.getState().populateStreamInput(id, url, name),
-    addSegmentToCompare: (item) =>
-        useAnalysisStore.getState().addSegmentToCompare(item),
-    removeSegmentFromCompare: (id) =>
-        useAnalysisStore.getState().removeSegmentFromCompare(id),
-    clearSegmentsToCompare: () =>
-        useAnalysisStore.getState().clearSegmentsToCompare(),
-    updateStream: (id, data) =>
-        useAnalysisStore.getState().updateStream(id, data),
-    setAllLiveStreamsPolling: (isPolling, options) =>
-        useAnalysisStore
-            .getState()
-            .setAllLiveStreamsPolling(isPolling, options),
-    navigateManifestUpdate: (id, dir) =>
-        useAnalysisStore.getState().navigateManifestUpdate(id, dir),
-    updateHlsMediaPlaylist: (payload) =>
-        useAnalysisStore.getState().updateHlsMediaPlaylist(payload),
-    addInbandEvents: (streamId, events) =>
-        useAnalysisStore.getState().addInbandEvents(streamId, events),
-};
+export const analysisActions = useAnalysisStore.getState();

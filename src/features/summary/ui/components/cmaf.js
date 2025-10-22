@@ -1,10 +1,12 @@
 import { html } from 'lit-html';
 import { useUiStore, uiActions } from '@/state/uiStore';
+import { eventBus } from '@/application/event-bus';
+import * as icons from '@/ui/icons';
 
 const getOverallStatus = (results) => {
     if (!results || results.length === 0) {
         return {
-            text: 'Pending',
+            text: 'Not Run',
             color: 'text-gray-400',
             errors: 0,
             warnings: 0,
@@ -55,6 +57,7 @@ const resultRowTemplate = (result) => {
 
 export const cmafValidationSummaryTemplate = (stream) => {
     const results = stream.semanticData?.get('cmafValidation');
+    const status = stream.semanticData?.get('cmafValidationStatus');
 
     const notCmafResult = results?.find(
         (r) => r.id === 'CMAF-BRAND' && r.status === 'fail'
@@ -90,6 +93,34 @@ export const cmafValidationSummaryTemplate = (stream) => {
         uiActions.toggleCmafSummary();
     };
 
+    const handleRunCheck = () => {
+        eventBus.dispatch('ui:cmaf-validation-requested', { stream });
+    };
+
+    let mainAction;
+    if (status === 'pending') {
+        mainAction = html`<button
+            disabled
+            class="w-full bg-gray-600 text-white font-bold py-2 px-4 rounded-md flex items-center justify-center gap-2"
+        >
+            ${icons.spinner} Running Check...
+        </button>`;
+    } else if (status === 'complete' || status === 'error') {
+        mainAction = html`<button
+            @click=${toggleExpand}
+            class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition duration-300"
+        >
+            ${isCmafSummaryExpanded ? 'Hide Details' : 'View Details'}
+        </button>`;
+    } else {
+        mainAction = html`<button
+            @click=${handleRunCheck}
+            class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition duration-300"
+        >
+            Run CMAF Conformance Check
+        </button>`;
+    }
+
     return html`
         <div>
             <h3 class="text-xl font-bold mb-4">CMAF Conformance</h3>
@@ -118,18 +149,7 @@ export const cmafValidationSummaryTemplate = (stream) => {
                     </div>
                 </div>
 
-                ${results
-                    ? html`
-                          <button
-                              @click=${toggleExpand}
-                              class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition duration-300"
-                          >
-                              ${isCmafSummaryExpanded
-                                  ? 'Hide Details'
-                                  : 'View Details'}
-                          </button>
-                      `
-                    : ''}
+                ${mainAction}
                 ${isCmafSummaryExpanded && results
                     ? html` <div
                           class="bg-gray-900/50 rounded border border-gray-700/50 overflow-hidden mt-4"
@@ -158,11 +178,6 @@ export const cmafValidationSummaryTemplate = (stream) => {
                                   ${results.map(resultRowTemplate)}
                               </tbody>
                           </table>
-                      </div>`
-                    : ''}
-                ${!results
-                    ? html`<div class="text-sm text-gray-500 text-center py-4">
-                          Running conformance checks...
                       </div>`
                     : ''}
             </div>

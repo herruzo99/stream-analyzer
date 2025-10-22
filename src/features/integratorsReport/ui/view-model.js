@@ -195,97 +195,100 @@ function getTimingInfo(stream) {
 }
 
 /**
+ * Creates a unified and labeled list of license server URLs.
+ * @param {Stream} stream
+ * @returns {string[]}
+ */
+function getUnifiedLicenseUrls(stream) {
+    const discoveredUrls = stream.manifest?.summary?.security?.licenseServerUrls || [];
+    const urls = new Set();
+    const result = [];
+    const userOverrideUrl = stream.drmAuth?.licenseServerUrl;
+
+    if (userOverrideUrl) {
+        urls.add(userOverrideUrl);
+        result.push(`${userOverrideUrl} (User Override)`);
+    }
+
+    discoveredUrls.forEach(url => {
+        if (!urls.has(url)) {
+            urls.add(url);
+            result.push(`${url} (Discovered from PSSH)`);
+        }
+    });
+
+    return result;
+}
+
+
+/**
  * Gathers security info for an HLS stream by aggregating across all playlists.
  * @param {Stream} stream
  * @returns {object}
  */
 function getHlsSecurityInfo(stream) {
-    const allKeyTags = [];
-    for (const playlist of stream.mediaPlaylists.values()) {
-        const keyTags = (playlist.manifest.tags || []).filter(
-            (t) => t.name === 'EXT-X-KEY' && t.value.METHOD !== 'NONE'
-        );
-        allKeyTags.push(...keyTags);
-    }
-
-    // Also include session keys from master
-    const sessionKeyTags = (stream.manifest.tags || []).filter(
-        (t) => t.name === 'EXT-X-SESSION-KEY' && t.value.METHOD !== 'NONE'
-    );
-    allKeyTags.push(...sessionKeyTags);
-
-    if (allKeyTags.length > 0) {
-        const uniqueKeyFormats = [
-            ...new Set(
-                allKeyTags.map((k) => k.value.KEYFORMAT).filter(Boolean)
-            ),
-        ];
-        const uniqueKeyIDs = [
-            ...new Set(allKeyTags.map((k) => k.value.KEYID).filter(Boolean)),
-        ];
-        const uniqueMethods = [
-            ...new Set(allKeyTags.map((k) => k.value.METHOD)),
-        ];
-
+    const { security: securitySummary } = stream.manifest.summary;
+    if (!securitySummary?.isEncrypted) {
         return {
-            isEncrypted: true,
-            drmSystems: uniqueKeyFormats.map((s) => ({
-                name: getDrmSystemName(s),
-                uuid: s,
-            })),
-            defaultKIDs: uniqueKeyIDs,
-            hlsEncryptionMethod: uniqueMethods.join(', '),
+            isEncrypted: false,
+            drmSystems: [],
+            defaultKIDs: [],
+            hlsEncryptionMethod: null,
             emeRobustnessLevels: [],
+            licenseServerUrls: [],
         };
     }
 
     return {
-        isEncrypted: false,
-        drmSystems: [],
-        defaultKIDs: [],
-        hlsEncryptionMethod: null,
+        isEncrypted: true,
+        drmSystems: securitySummary.systems.map((s) => ({
+            name: getDrmSystemName(s.systemId),
+            uuid: s.systemId,
+        })),
+        defaultKIDs: securitySummary.kids,
+        hlsEncryptionMethod: securitySummary.hlsEncryptionMethod,
         emeRobustnessLevels: [],
+        licenseServerUrls: getUnifiedLicenseUrls(stream),
     };
 }
 
 /**
  * Gathers security info for a DASH stream from its manifest.
- * @param {Manifest} manifest
+ * @param {Stream} stream
  * @returns {object}
  */
-function getDashSecurityInfo(manifest) {
+function getDashSecurityInfo(stream) {
+    const { manifest } = stream;
+    const { security: securitySummary } = manifest.summary;
+    if (!securitySummary?.isEncrypted) {
+        return {
+            isEncrypted: false,
+            drmSystems: [],
+            defaultKIDs: [],
+            hlsEncryptionMethod: null,
+            emeRobustnessLevels: [],
+            licenseServerUrls: [],
+        };
+    }
+
     const contentProtection =
         manifest.periods
             ?.flatMap((p) => p.adaptationSets)
             .flatMap((as) => as.contentProtection) || [];
-
-    if (contentProtection.length > 0) {
-        const uniqueRobustness = [
-            ...new Set(
-                contentProtection.map((cp) => cp.robustness).filter(Boolean)
-            ),
-        ];
-        return {
-            isEncrypted: true,
-            drmSystems: [
-                ...new Set(contentProtection.map((cp) => cp.schemeIdUri)),
-            ].map((s) => ({ name: getDrmSystemName(s), uuid: s })),
-            defaultKIDs: [
-                ...new Set(
-                    contentProtection.map((cp) => cp.defaultKid).filter(Boolean)
-                ),
-            ],
-            hlsEncryptionMethod: null,
-            emeRobustnessLevels: uniqueRobustness,
-        };
-    }
+    const uniqueRobustness = [
+        ...new Set(contentProtection.map((cp) => cp.robustness).filter(Boolean)),
+    ];
 
     return {
-        isEncrypted: false,
-        drmSystems: [],
-        defaultKIDs: [],
+        isEncrypted: true,
+        drmSystems: securitySummary.systems.map((s) => ({
+            name: getDrmSystemName(s.systemId),
+            uuid: s.systemId,
+        })),
+        defaultKIDs: securitySummary.kids,
         hlsEncryptionMethod: null,
-        emeRobustnessLevels: [],
+        emeRobustnessLevels: uniqueRobustness,
+        licenseServerUrls: getUnifiedLicenseUrls(stream),
     };
 }
 
@@ -354,7 +357,7 @@ export function createIntegratorsReportViewModel(stream) {
         return {
             network: getNetworkInfo(stream),
             timing: getTimingInfo(stream),
-            security: getDashSecurityInfo(stream.manifest),
+            security: getDashSecurityInfo(stream),
             integration: getIntegrationRequirements(stream.manifest),
         };
     }

@@ -4,12 +4,12 @@ const DEBUG_ENABLED =
         : false;
 
 /**
- * Logs a message to the console only if debugging is enabled via `?debug=true` in the URL.
+ * Logs a message to the console's "debug" channel only if debugging is enabled via `?debug=1` in the URL.
  * @param {string} component The name of the component/module logging the message.
  * @param {...any} args The arguments to log.
  */
 export function debugLog(component, ...args) {
     if (DEBUG_ENABLED) {
-        console.log(`[DEBUG - ${component}]`, ...args);
+        console.debug(`[DEBUG - ${component}]`, ...args);
     }
 }

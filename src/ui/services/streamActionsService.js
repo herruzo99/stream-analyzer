@@ -1,15 +1,35 @@
 import { eventBus } from '@/application/event-bus';
 import { analysisActions, useAnalysisStore } from '@/state/analysisStore';
+import { playerService } from '@/features/playerSimulation/application/playerService';
 
 /**
- * Toggles the polling state for all live streams.
+ * Toggles the active state for all streams. For live streams, it toggles polling.
+ * For VOD streams, it stops the player if it's playing.
  */
-export function toggleAllLiveStreamsPolling() {
-    const { streams } = useAnalysisStore.getState();
-    const isAnyPolling = streams.some(
+export function togglePlayerAndPolling() {
+    const { streams, activeStreamId } = useAnalysisStore.getState();
+    const activeStream = streams.find((s) => s.id === activeStreamId);
+    if (!activeStream) return;
+
+    const isAnyLivePolling = streams.some(
         (s) => s.manifest?.type === 'dynamic' && s.isPolling
     );
-    analysisActions.setAllLiveStreamsPolling(!isAnyPolling);
+    const isPlayerLoaded = !!playerService.getPlayer()?.getAssetUri();
+
+    // If either the polling is active or the player is loaded, the desired action is to STOP.
+    if (isAnyLivePolling || isPlayerLoaded) {
+        // --- STOP ACTION ---
+        analysisActions.setAllLiveStreamsPolling(false);
+        playerService.unload();
+    } else {
+        // --- START ACTION ---
+        if (activeStream.manifest?.type === 'dynamic') {
+            analysisActions.setAllLiveStreamsPolling(true);
+        }
+        if (activeStream.originalUrl) {
+            playerService.load(activeStream);
+        }
+    }
 }
 
 /**
@@ -24,7 +44,7 @@ export function reloadStream(stream) {
     // A stream loaded from a file will not have an originalUrl.
     if (!stream.originalUrl) {
         eventBus.dispatch('ui:show-status', {
-            message: 'Cannot reload a manifest from a local file.',
+            message: 'Cannot reload a manifest loaded from a local file.',
             type: 'warn',
             duration: 4000,
         });

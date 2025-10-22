@@ -16,18 +16,24 @@ import { createStore } from 'zustand/vanilla';
  * @property {(eventId: string | null) => void} setSelectedEventId
  * @property {() => void} clearEvents
  * @property {(newFilters: Partial<{type: ResourceFilterType}>) => void} setFilters
+ * @property {() => void} reset
  */
+
+/** @returns {NetworkState} */
+const createInitialNetworkState = () => ({
+    events: [],
+    selectedEventId: null,
+    filters: {
+        type: 'all',
+    },
+});
 
 /**
  * A store for logging and managing network requests.
  * @type {import('zustand/vanilla').StoreApi<NetworkState & NetworkActions>}
  */
 export const useNetworkStore = createStore((set, get) => ({
-    events: [],
-    selectedEventId: null,
-    filters: {
-        type: 'all',
-    },
+    ...createInitialNetworkState(),
 
     logEvent: (event) => {
         set((state) => ({ events: [...state.events, event] }));
@@ -46,6 +52,15 @@ export const useNetworkStore = createStore((set, get) => ({
             filters: { ...state.filters, ...newFilters },
         }));
     },
+
+    reset: () => set(createInitialNetworkState()),
 }));
 
-export const networkActions = useNetworkStore.getState();
+export const networkActions = {
+    logEvent: (event) => useNetworkStore.getState().logEvent(event),
+    setSelectedEventId: (eventId) =>
+        useNetworkStore.getState().setSelectedEventId(eventId),
+    clearEvents: () => useNetworkStore.getState().clearEvents(),
+    setFilters: (newFilters) => useNetworkStore.getState().setFilters(newFilters),
+    reset: () => useNetworkStore.getState().reset(),
+};

@@ -124,6 +124,7 @@ export interface PsshInfo {
     systemId: string;
     kids: string[];
     data: string; // Base64 encoded PSSH box data
+    licenseServerUrl?: string | null;
 }
 
 export interface ContentProtection {
@@ -377,6 +378,7 @@ export interface SecuritySummary {
     systems: PsshInfo[];
     hlsEncryptionMethod?: 'AES-128' | 'SAMPLE-AES' | null;
     kids?: string[];
+    licenseServerUrls?: string[];
 }
 
 export interface ManifestSummary {
@@ -629,6 +631,22 @@ export interface AuthInfo {
     queryParams: KeyValuePair[];
 }
 
+export interface DrmAuthInfo {
+    licenseServerUrl: string;
+    serverCertificate: string | File | ArrayBuffer | null;
+    headers: KeyValuePair[];
+    queryParams: KeyValuePair[];
+}
+
+export interface StreamInput {
+    id: number;
+    url: string;
+    name: string;
+    file: File | null;
+    auth: AuthInfo;
+    drmAuth: DrmAuthInfo;
+}
+
 export interface Stream {
     id: number;
     name: string;
@@ -653,7 +671,10 @@ export interface Stream {
     adAvails?: AdAvail[];
     inbandEvents?: Event[];
     segments?: MediaSegment[]; // For 'local' protocol
-    auth?: AuthInfo;
+    auth: AuthInfo;
+    drmAuth: DrmAuthInfo;
+    licenseServerUrl: string;
+    adaptationEvents: AdaptationEvent[];
 }
 
 export type SerializedStream = Omit<
@@ -715,6 +736,7 @@ export type ResourceType =
     | 'other';
 
 export interface TimingBreakdown {
+    redirect: number;
     dns: number;
     tcp: number;
     tls: number;
@@ -745,4 +767,38 @@ export interface NetworkEvent {
         duration: number;
         breakdown: TimingBreakdown;
     };
+}
+
+// --- Player Simulation Types ---
+export interface PlayerStats {
+    bufferHealth: number;
+    latency: number;
+    currentBitrate: number;
+    droppedFrames: number;
+    width: number;
+    height: number;
+    playheadTime: number;
+    estimatedBandwidth: number;
+    gaps: number;
+}
+
+export interface PlayerEvent {
+    timestamp: string;
+    type: 'adaptation' | 'buffering' | 'seek' | 'error' | 'stall';
+    details: string;
+}
+
+export interface AbrHistoryEntry {
+    time: number; // Playhead time
+    bitrate: number;
+    width: number;
+    height: number;
+}
+
+export interface AdaptationEvent {
+    time: number;
+    oldWidth: number;
+    oldHeight: number;
+    newWidth: number;
+    newHeight: number;
 }

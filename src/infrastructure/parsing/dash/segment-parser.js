@@ -6,6 +6,7 @@ import {
     resolveBaseUrl,
 } from './recursive-parser.js';
 import { getDrmSystemName } from '../utils/drm.js';
+import { debugLog } from '@/shared/utils/debug';
 
 /**
  * Generates a list of Media Segment objects based on a starting number and count.
@@ -183,31 +184,26 @@ export async function parseAllSegmentUrls(manifestElement, manifestUrl) {
                 );
 
                 // --- INIT SEGMENT ---
-                let initTemplate = getAttr(template, 'initialization');
-                if (!initTemplate) {
-                    const initContainer = segmentList || segmentBase;
-                    const initializationEl = initContainer
-                        ? findChildren(initContainer, 'Initialization')[0]
-                        : null;
-                    if (initializationEl) {
-                        initTemplate = getAttr(initializationEl, 'sourceURL');
-                    }
-                }
-                if (initTemplate) {
-                    const initUrl = initTemplate.replace(
-                        /\$RepresentationID\$/g,
-                        repId
-                    );
-                    const resolvedUrl = new URL(initUrl, baseUrl).href;
+                const initInfo = findInitSegmentUrl(
+                    { serializedManifest: rep },
+                    { serializedManifest: adaptationSet },
+                    { serializedManifest: period },
+                    baseUrl
+                );
+
+                if (initInfo) {
+                    const uniqueId = initInfo.range
+                        ? `${initInfo.url}@init@${initInfo.range}`
+                        : initInfo.url;
                     segmentsByRep[compositeKey].initSegment = {
                         repId,
                         type: 'Init',
                         number: 0,
-                        resolvedUrl: resolvedUrl,
-                        uniqueId: resolvedUrl,
-                        template: initUrl,
+                        resolvedUrl: initInfo.url,
+                        uniqueId: uniqueId,
+                        range: initInfo.range,
                         encryptionInfo,
-                        flags: [], // Init segments don't have SAP flags
+                        flags: [],
                     };
                 }
 
@@ -414,6 +410,29 @@ export async function parseAllSegmentUrls(manifestElement, manifestUrl) {
                             segmentsByRep[compositeKey].segments = segments;
                         }
                     }
+                } else if (segmentBase) {
+                    const timescale = Number(
+                        getAttr(segmentBase, 'timescale') || '1'
+                    );
+                    const mpdDurationSeconds =
+                        parseDuration(
+                            getAttr(manifestElement, 'mediaPresentationDuration')
+                        ) || 0;
+
+                    const mediaSegment = {
+                        repId,
+                        type: 'Media',
+                        number: 1,
+                        resolvedUrl: baseUrl,
+                        uniqueId: baseUrl, // It's a single file
+                        template: new URL(baseUrl).pathname.split('/').pop(),
+                        time: 0,
+                        duration: mpdDurationSeconds * timescale,
+                        timescale,
+                        encryptionInfo,
+                        flags,
+                    };
+                    segmentsByRep[compositeKey].segments.push(mediaSegment);
                 }
             }
         }
@@ -439,13 +458,18 @@ export function findInitSegmentUrl(
     const template = getInheritedElement('SegmentTemplate', hierarchy);
 
     if (template && getAttr(template, 'initialization')) {
-        return new URL(
-            getAttr(template, 'initialization').replace(
-                /\$RepresentationID\$/g,
-                representation.id
-            ),
-            baseUrl
-        ).href;
+        const result = {
+            url: new URL(
+                getAttr(template, 'initialization').replace(
+                    /\$RepresentationID\$/g,
+                    representation.id
+                ),
+                baseUrl
+            ).href,
+            range: null,
+        };
+        debugLog('findInitSegmentUrl', 'Found via SegmentTemplate@initialization', result);
+        return result;
     }
 
     const list = getInheritedElement('SegmentList', hierarchy);
@@ -457,8 +481,23 @@ export function findInitSegmentUrl(
         : null;
 
     if (initialization && getAttr(initialization, 'sourceURL')) {
-        return new URL(getAttr(initialization, 'sourceURL'), baseUrl).href;
+        const result = {
+            url: new URL(getAttr(initialization, 'sourceURL'), baseUrl).href,
+            range: null,
+        };
+        debugLog('findInitSegmentUrl', 'Found via Initialization@sourceURL', result);
+        return result;
     }
 
+    if (initialization && getAttr(initialization, 'range')) {
+        const result = {
+            url: baseUrl,
+            range: getAttr(initialization, 'range'),
+        };
+        debugLog('findInitSegmentUrl', 'Found via Initialization@range', result);
+        return result;
+    }
+    
+    debugLog('findInitSegmentUrl', 'No init segment information found.');
     return null;
 }

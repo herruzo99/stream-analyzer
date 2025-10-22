@@ -15,6 +15,8 @@ import {
 import {
     cleanupSegmentViewInteractivity,
     initializeSegmentViewInteractivity,
+    clearHighlights,
+    applyHighlights,
 } from './components/interaction-logic.js';
 import { getInteractiveVttTemplate } from './components/vtt/index.js';
 import { inspectorLayoutTemplate } from './components/shared/inspector-layout.js';
@@ -25,6 +27,8 @@ import { workerService } from '@/infrastructure/worker/workerService';
 
 let container = null;
 let uiUnsubscribe = null;
+let analysisUnsubscribe = null;
+let segmentCacheUnsubscribe = null;
 
 const HEX_BYTES_PER_PAGE = 512;
 const ALL_TOOLTIPS_DATA = {
@@ -146,7 +150,6 @@ function renderInteractiveSegment() {
         }
 
         // After rendering, initialize the complex interaction logic
-        // We move this logic inside the render function to ensure `isLoading` is in scope.
         if (
             !isLoading &&
             cachedSegment &&
@@ -157,7 +160,6 @@ function renderInteractiveSegment() {
                 cachedSegment.parsedData.format === 'isobmff'
                     ? findItemIsobmff
                     : findItemTs;
-            // Use a setTimeout to defer this to the next microtask, allowing the DOM to update first.
             setTimeout(() => {
                 initializeSegmentViewInteractivity(
                     { mainContent: container },
@@ -196,20 +198,52 @@ function renderInteractiveSegment() {
     `;
 
     render(template, container);
+
+    // Imperatively apply highlights after the render cycle completes.
+    setTimeout(() => {
+        const {
+            interactiveSegmentSelectedItem,
+            interactiveSegmentHighlightedItem,
+        } = useUiStore.getState();
+        clearHighlights();
+        if (interactiveSegmentHighlightedItem?.item) {
+            applyHighlights(
+                container,
+                interactiveSegmentHighlightedItem.item,
+                interactiveSegmentHighlightedItem.field
+            );
+        }
+        if (interactiveSegmentSelectedItem?.item) {
+            // Re-apply selection highlights over any hover highlights
+            applyHighlights(container, interactiveSegmentSelectedItem.item);
+        }
+    }, 0);
 }
 
 export const interactiveSegmentView = {
     mount(containerElement, stream) {
         container = containerElement;
         if (uiUnsubscribe) uiUnsubscribe();
+        if (analysisUnsubscribe) analysisUnsubscribe();
+        if (segmentCacheUnsubscribe) segmentCacheUnsubscribe();
+
         uiUnsubscribe = useUiStore.subscribe(renderInteractiveSegment);
+        analysisUnsubscribe = useAnalysisStore.subscribe(
+            renderInteractiveSegment
+        );
+        segmentCacheUnsubscribe = useSegmentCacheStore.subscribe(
+            renderInteractiveSegment
+        );
         renderInteractiveSegment();
     },
     unmount() {
-        if (uiUnsubscribe) {
-            uiUnsubscribe();
-            uiUnsubscribe = null;
-        }
+        if (uiUnsubscribe) uiUnsubscribe();
+        if (analysisUnsubscribe) analysisUnsubscribe();
+        if (segmentCacheUnsubscribe) segmentCacheUnsubscribe();
+        uiUnsubscribe = null;
+        analysisUnsubscribe = null;
+        segmentCacheUnsubscribe = null;
+
         cleanupSegmentViewInteractivity({ mainContent: container });
         if (container) {
             render(html``, container);

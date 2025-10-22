@@ -52,7 +52,7 @@ const SubMenu = (item, activeTab) => {
     const isActive = item.isActive(activeTab);
     return html`
         <li>
-            <details class="group" ?open=${isActive}>
+            <details class="group" open="">
                 <summary
                     class="flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg cursor-pointer list-none
                     ${isActive

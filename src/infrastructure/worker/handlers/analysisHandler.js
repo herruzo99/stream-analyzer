@@ -12,15 +12,19 @@ import { diffManifest } from '@/ui/shared/diff';
 import { parseSegment } from './segmentParsingHandler.js';
 import { fetchWithAuth } from '../http.js';
 import xmlFormatter from 'xml-formatter';
+import { debugLog } from '@/shared/utils/debug';
 
-async function fetchAndParseSegment(url, formatHint) {
-    // This internal fetcher does not need to handle caching or UI updates.
-    const response = await fetchWithAuth(url, null, 'init');
+async function fetchAndParseSegment(url, formatHint, range = null) {
+    debugLog('analysisHandler.fetchAndParseSegment', 'Fetching segment...', {
+        url,
+        formatHint,
+        range,
+    });
+    const response = await fetchWithAuth(url, null, 'init', 0, range);
     if (!response.ok) {
         throw new Error(`HTTP error ${response.status} for segment ${url}`);
     }
     const data = await response.arrayBuffer();
-    // Re-use the core parsing logic now exported from the segment handler
     return parseSegment({ data, formatHint, url });
 }
 
@@ -161,6 +165,7 @@ async function buildStreamObject(
     { input, manifestIR, serializedManifestObject, finalBaseUrl },
     analysisResults
 ) {
+    debugLog('buildStreamObject', 'Building stream object from input:', input);
     const {
         featureAnalysisResults,
         semanticData,
@@ -179,6 +184,8 @@ async function buildStreamObject(
         manifest: manifestIR,
         rawManifest: input.manifestString,
         auth: input.auth,
+        drmAuth: input.drmAuth,
+        licenseServerUrl: input.drmAuth.licenseServerUrl, // Correctly pass this forward
         steeringInfo: steeringTag,
         manifestUpdates: [],
         activeManifestUpdateIndex: 0,
@@ -193,7 +200,10 @@ async function buildStreamObject(
         hlsDefinedVariables: manifestIR.hlsDefinedVariables,
         semanticData: semanticData,
         coverageReport,
+        adaptationEvents: [],
     };
+
+    debugLog('buildStreamObject', 'Constructed stream object:', streamObject);
 
     if (input.protocol === 'hls') {
         if (manifestIR.isMaster) {

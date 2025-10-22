@@ -26,16 +26,18 @@ class StreamInitializationService {
      * @param {{ streams: import('@/types.ts').Stream[] }} payload
      */
     async handleAnalysisComplete({ streams }) {
-        const enrichmentPromises = streams.map((stream) => {
-            if (stream.protocol === 'dash') {
-                return this.fetchAllDashInitSegments(stream);
-            } else if (stream.protocol === 'hls' && stream.manifest?.isMaster) {
-                return this.fetchAllHlsMediaPlaylists(stream);
-            }
-            return Promise.resolve();
-        });
-
-        await Promise.all(enrichmentPromises);
+        // NOTE: Eager fetching is disabled to prevent excessive requests on load.
+        // Segments and playlists are now fetched on-demand by user interaction
+        // in the respective UI components (e.g., Segment Explorer).
+        // const enrichmentPromises = streams.map((stream) => {
+        //     if (stream.protocol === 'dash') {
+        //         return this.fetchAllDashInitSegments(stream);
+        //     } else if (stream.protocol === 'hls' && stream.manifest?.isMaster) {
+        //         return this.fetchAllHlsMediaPlaylists(stream);
+        //     }
+        //     return Promise.resolve();
+        // });
+        // await Promise.all(enrichmentPromises);
     }
 
     /**

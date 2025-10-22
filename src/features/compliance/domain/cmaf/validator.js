@@ -84,7 +84,7 @@ const findBoxRecursive = (boxes, type) => {
 /**
  * Performs CMAF Switching Set validation on a stream.
  * @param {import('@/types.ts').Stream} stream
- * @param {(url: string) => Promise<object>} segmentFetcher - A function to fetch and parse a segment by URL.
+ * @param {(url: string, range: string | null) => Promise<object>} segmentFetcher - A function to fetch and parse a segment by URL and optional range.
  * @param {{resolveBaseUrl: Function, findInitSegmentUrl: Function}} parsingUtils - Necessary parsing utilities.
  * @returns {Promise<Array<object>>} A promise that resolves to an array of validation results.
  */
@@ -115,7 +115,7 @@ export async function validateCmafSwitchingSets(
             }
 
             try {
-                const initSegmentUrls = as.representations.map((rep) => {
+                const initSegmentInfos = as.representations.map((rep) => {
                     const resolvedBaseUrl = resolveBaseUrl(
                         stream.baseUrl,
                         manifestElement,
@@ -127,8 +127,8 @@ export async function validateCmafSwitchingSets(
                 });
 
                 const parsedInitSegments = await Promise.all(
-                    initSegmentUrls.map((url) =>
-                        url ? segmentFetcher(url) : Promise.resolve(null)
+                    initSegmentInfos.map((info) =>
+                        info ? segmentFetcher(info.url, info.range) : Promise.resolve(null)
                     )
                 );
 

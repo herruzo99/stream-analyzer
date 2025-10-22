@@ -11,10 +11,12 @@ import { eventBus } from '@/application/event-bus';
 import { showToast } from '@/ui/components/toast';
 import { openModalWithContent } from '@/ui/services/modalService';
 import * as icons from '@/ui/icons';
+import { tooltipTriggerClasses } from '../shared/constants.js';
 
 // --- Local State for this View ---
 let activeTab = 'streams';
 let selectedFiles = [];
+const inputTabs = new Map(); // Map<inputId, 'stream' | 'drm'>
 
 const getBadge = (text, colorClasses) => {
     if (!text) return '';
@@ -138,8 +140,15 @@ const renderExampleCategory = (title, items, presets, rerenderCallback) => {
     </div>`;
 };
 
-const authSettingsTemplate = (inputId, auth) => {
-    const renderParamRow = (param, type) => html`
+const authParamRowTemplate = (param, inputId, type, isDrm) => {
+    const updateAction = isDrm
+        ? analysisActions.updateDrmAuthParam
+        : analysisActions.updateAuthParam;
+    const removeAction = isDrm
+        ? analysisActions.removeDrmAuthParam
+        : analysisActions.removeAuthParam;
+
+    return html`
         <div class="flex items-center gap-2">
             <input
                 type="text"
@@ -147,13 +156,7 @@ const authSettingsTemplate = (inputId, auth) => {
                 placeholder="Key"
                 .value=${param.key}
                 @input=${(e) =>
-                    analysisActions.updateAuthParam(
-                        inputId,
-                        type,
-                        param.id,
-                        'key',
-                        e.target.value
-                    )}
+                    updateAction(inputId, type, param.id, 'key', e.target.value)}
             />
             <input
                 type="text"
@@ -161,7 +164,7 @@ const authSettingsTemplate = (inputId, auth) => {
                 placeholder="Value"
                 .value=${param.value}
                 @input=${(e) =>
-                    analysisActions.updateAuthParam(
+                    updateAction(
                         inputId,
                         type,
                         param.id,
@@ -171,22 +174,26 @@ const authSettingsTemplate = (inputId, auth) => {
             />
             <button
                 type="button"
-                @click=${() =>
-                    analysisActions.removeAuthParam(inputId, type, param.id)}
+                @click=${() => removeAction(inputId, type, param.id)}
                 class="text-red-400 hover:text-red-300 p-1"
             >
                 &times;
             </button>
         </div>
     `;
+};
 
-    const renderSection = (title, type, params) => html`
+const authSectionTemplate = (title, type, params, inputId, isDrm) => {
+    const addAction = isDrm
+        ? analysisActions.addDrmAuthParam
+        : analysisActions.addAuthParam;
+    return html`
         <div>
             <div class="flex justify-between items-center mb-2">
                 <h5 class="font-semibold text-gray-300 text-sm">${title}</h5>
                 <button
                     type="button"
-                    @click=${() => analysisActions.addAuthParam(inputId, type)}
+                    @click=${() => addAction(inputId, type)}
                     class="text-xs text-blue-400 hover:text-blue-300 font-bold"
                 >
                     + Add
@@ -194,33 +201,94 @@ const authSettingsTemplate = (inputId, auth) => {
             </div>
             <div class="space-y-2">
                 ${params.length > 0
-                    ? params.map((p) => renderParamRow(p, type))
+                    ? params.map((p) =>
+                          authParamRowTemplate(p, inputId, type, isDrm)
+                      )
                     : html`<p class="text-xs text-gray-500 italic">
                           No ${title.toLowerCase()} configured.
                       </p>`}
             </div>
         </div>
     `;
+};
+
+const streamAuthSettingsTemplate = (inputId, auth) => html`
+    <div class="mt-3 p-4 bg-gray-900/50 rounded-lg space-y-4">
+        ${authSectionTemplate(
+            'Manifest Request Headers',
+            'headers',
+            auth.headers,
+            inputId,
+            false
+        )}
+        ${authSectionTemplate(
+            'Manifest Query Parameters',
+            'queryParams',
+            auth.queryParams,
+            inputId,
+            false
+        )}
+    </div>
+`;
+
+const drmAuthSettingsTemplate = (inputId, drmAuth) => {
+    const cert = drmAuth.serverCertificate;
+    const certIsFile = cert instanceof File;
+    const certIsFileStub = certIsFile && cert.size === 0;
+    const certUrlValue = !certIsFile ? cert || '' : '';
+    let certFileLabel = 'Upload .der';
+    let certFileClasses = 'bg-gray-600 hover:bg-gray-700';
+
+    if (certIsFileStub) {
+        certFileLabel = `RE-SELECT: ${cert.name}`;
+        certFileClasses = 'bg-yellow-600 hover:bg-yellow-700 text-yellow-900 animate-pulse';
+    } else if (certIsFile) {
+        certFileLabel = cert.name;
+        certFileClasses = 'bg-green-600 text-white';
+    }
+
 
     return html`
-        <details class="details-animated mt-4">
-            <summary
-                class="cursor-pointer text-sm font-semibold text-gray-400 hover:text-white"
-            >
-                Authentication Settings
-            </summary>
-            <div
-                class="mt-3 p-4 bg-gray-900/50 rounded-lg border border-gray-700/50 space-y-4"
-            >
-                ${renderSection('Headers', 'headers', auth.headers)}
-                ${renderSection(
-                    'Query Parameters',
-                    'queryParams',
-                    auth.queryParams
-                )}
+    <div class="mt-3 p-4 bg-gray-900/50 rounded-lg space-y-4">
+        <div>
+            <label for="license-url-${inputId}" class="block text-sm font-medium text-gray-300 mb-1">
+                License Server URL
+                <span class="ml-1 text-cyan-400 ${tooltipTriggerClasses}" data-tooltip="Provide a license server URL to override any found in the manifest. Leave blank to let the player attempt auto-discovery.">?</span>
+            </label>
+            <input
+                type="url"
+                id="license-url-${inputId}"
+                class="w-full bg-gray-800 text-white rounded-md p-2 border border-gray-600 focus:ring-1 focus:ring-blue-500"
+                placeholder="Leave blank for auto-discovery"
+                .value=${drmAuth.licenseServerUrl}
+                @input=${(e) => analysisActions.updateStreamInput(inputId, 'drmAuth', { ...drmAuth, licenseServerUrl: e.target.value })}
+            />
+        </div>
+        <div>
+            <label for="cert-url-${inputId}" class="block text-sm font-medium text-gray-300 mb-1">
+                Service Certificate
+                <span class="ml-1 text-cyan-400 ${tooltipTriggerClasses}" data-tooltip="URL to the DRM service certificate (.der) or upload the file directly. Required for client authentication with some Widevine servers.">?</span>
+            </label>
+            <div class="flex items-center gap-2">
+                 <input
+                    type="url"
+                    id="cert-url-${inputId}"
+                    class="w-full bg-gray-800 text-white rounded-md p-2 border border-gray-600 focus:ring-1 focus:ring-blue-500"
+                    placeholder="Enter URL..."
+                    .value=${certUrlValue}
+                    ?disabled=${certIsFile}
+                    @input=${(e) => analysisActions.updateStreamInput(inputId, 'drmAuth', { ...drmAuth, serverCertificate: e.target.value })}
+                />
+                <label for="cert-file-${inputId}" class="shrink-0 cursor-pointer ${certFileClasses} text-white font-bold py-2 px-3 rounded-md text-center text-sm truncate">
+                   ${certFileLabel}
+                </label>
+                 <input type="file" id="cert-file-${inputId}" class="hidden" accept=".der" @change=${(e) => analysisActions.updateStreamInput(inputId, 'drmAuth', { ...drmAuth, serverCertificate: e.target.files[0] })}/>
             </div>
-        </details>
-    `;
+        </div>
+        ${authSectionTemplate('License Request Headers', 'headers', drmAuth.headers, inputId, true)}
+        ${authSectionTemplate('License Request Query Parameters', 'queryParams', drmAuth.queryParams, inputId, true)}
+    </div>
+`;
 };
 
 const streamInputTemplate = (input, isOnlyStream, rerenderCallback) => {
@@ -274,6 +342,12 @@ const streamInputTemplate = (input, isOnlyStream, rerenderCallback) => {
         hideTimeout = setTimeout(() => toggleDropdown(groupEl, false), 150);
     };
     const handleDropdownFocusIn = () => clearTimeout(hideTimeout);
+
+    const currentInputTab = inputTabs.get(input.id) || 'stream';
+    const setInputTab = (tabName) => {
+        inputTabs.set(input.id, tabName);
+        rerenderCallback();
+    };
 
     return html`<div
         data-testid="stream-input-group"
@@ -400,7 +474,29 @@ const streamInputTemplate = (input, isOnlyStream, rerenderCallback) => {
                     </div>
                 </div>
             </div>
-            ${authSettingsTemplate(input.id, input.auth)}
+
+            <div class="mt-4">
+                <div class="border-b border-gray-700">
+                    <nav class="-mb-px flex space-x-4" aria-label="Tabs">
+                        <button @click=${() =>
+                            setInputTab('stream')} class="py-2 px-1 text-sm font-medium ${
+        currentInputTab === 'stream'
+            ? 'border-blue-500 text-white'
+            : 'border-transparent text-gray-400 hover:text-gray-200'
+    } border-b-2">Stream Auth</button>
+                        <button @click=${() =>
+                            setInputTab('drm')} class="py-2 px-1 text-sm font-medium ${
+        currentInputTab === 'drm'
+            ? 'border-blue-500 text-white'
+            : 'border-transparent text-gray-400 hover:text-gray-200'
+    } border-b-2">DRM Settings</button>
+                    </nav>
+                </div>
+                ${currentInputTab === 'stream'
+                    ? streamAuthSettingsTemplate(input.id, input.auth)
+                    : drmAuthSettingsTemplate(input.id, input.drmAuth)}
+            </div>
+
             <div
                 class="flex flex-col sm:flex-row items-center gap-4 pt-4 border-t border-gray-700"
             >

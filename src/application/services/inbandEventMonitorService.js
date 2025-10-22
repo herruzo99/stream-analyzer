@@ -8,8 +8,9 @@ import {
 const SCTE35_SCHEME_ID = 'urn:scte:scte35:2013:bin';
 
 /**
- * Scans all relevant media segments for in-band event messages ('emsg' boxes).
- * This is a more robust implementation that checks all segments instead of just one.
+ * Scans a single media segment for in-band event messages ('emsg' boxes).
+ * This is a more robust and performant implementation that checks only the first segment
+ * of a Representation to avoid downloading all segments on initial load.
  * @param {import('@/types').Stream} stream
  */
 async function checkForInbandEvents(stream) {
@@ -28,8 +29,6 @@ async function checkForInbandEvents(stream) {
             );
 
             if (hasScte35) {
-                // This AdaptationSet is declared to have in-band SCTE-35.
-                // We will now proactively parse ALL of its segments to find 'emsg' boxes.
                 if (!as.representations || as.representations.length === 0)
                     continue;
 
@@ -37,19 +36,30 @@ async function checkForInbandEvents(stream) {
                     const compositeKey = `${period.id || 0}-${rep.id}`;
                     const repState =
                         stream.dashRepresentationState.get(compositeKey);
-                    const mediaSegments = repState?.segments.filter(
-                        (s) => /** @type {any} */ (s).type === 'Media'
-                    );
+                    const mediaSegments =
+                        repState?.segments.filter(
+                            (s) => /** @type {any} */ (s).type === 'Media'
+                        ) || [];
 
-                    if (!mediaSegments || mediaSegments.length === 0) continue;
+                    if (mediaSegments.length === 0) continue;
 
-                    // Dispatch parsing requests for all segments.
-                    // The segmentService is idempotent and will handle caching, so this is safe and efficient.
-                    // The result of `getParsedSegment` is handled by event listeners, so we don't need to await.
-                    for (const segment of mediaSegments) {
+                    // ARCHITECTURAL REFINEMENT:
+                    // If there's only one media segment and it's a VOD stream, it's highly
+                    // likely a SegmentBase stream representing the entire file. Do NOT fetch it.
+                    if (
+                        mediaSegments.length === 1 &&
+                        stream.manifest?.type === 'static'
+                    ) {
+                        continue;
+                    }
+
+                    // For multi-segment streams (SegmentTemplate/SegmentList),
+                    // proactively parse only the FIRST media segment.
+                    const firstMediaSegment = mediaSegments[0];
+                    if (firstMediaSegment) {
                         const segmentUrl =
                             /** @type {any} */
-                            (segment).resolvedUrl;
+                            (firstMediaSegment).resolvedUrl;
                         if (segmentUrl) {
                             try {
                                 getParsedSegment(
