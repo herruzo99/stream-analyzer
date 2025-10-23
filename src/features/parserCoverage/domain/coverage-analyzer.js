@@ -325,6 +325,12 @@ const irSchema = {
         'forced',
         'segmentAlignment',
         'serializedManifest',
+        'subsegmentAlignment',
+        'subsegmentStartsWithSAP',
+        'sar',
+        'maximumSAPPeriod',
+        'audioSamplingRate',
+        'audioChannelConfigurations',
     ],
     Period: [
         'id',

@@ -65,7 +65,7 @@ export const dashTooltipData = {
     // XML Schema / Namespace Attributes
     'MPD@xmlns': {
         text: 'XML Namespace. Declares the default namespace for elements in the document. For a valid DASH MPD, this must be "urn:mpeg:dash:schema:mpd:2011".',
-        isoRef: 'W3C XML Namespaces & Clause 5.2.2',
+        isoRef: 'Clause 5.2.2',
     },
     'MPD@xmlns:xsi': {
         text: 'XML Namespace for XML Schema Instance. Enables the use of schema-related attributes like xsi:schemaLocation, which are used for XML validation.',
@@ -73,19 +73,19 @@ export const dashTooltipData = {
     },
     'MPD@xsi:schemaLocation': {
         text: 'XML Schema Location. Provides a hint to XML validators, associating the DASH namespace URI with the physical location of its schema definition file (XSD). This is not required for playback but is good practice for manifest validation.',
-        isoRef: 'W3C XML Schema Part 1 & Clause 5.2.2',
+        isoRef: 'Clause 5.2.2 & W3C XML Schema Part 1',
     },
     'MPD@schemaLocation': {
         text: 'XML Schema Location. Provides a hint to XML validators, associating the DASH namespace URI with the physical location of its schema definition file (XSD). This is not required for playback but is good practice for manifest validation.',
-        isoRef: 'W3C XML Schema Part 1 & Clause 5.2.2',
+        isoRef: 'Clause 5.2.2 & W3C XML Schema Part 1',
     },
     'MPD@xmlns:cenc': {
         text: 'XML Namespace for MPEG Common Encryption (CENC). Declares the "cenc" prefix for elements defined in the CENC standard, most notably the <cenc:pssh> element.',
-        isoRef: 'ISO/IEC 23001-7 & Clause 5.8.5.2.2',
+        isoRef: 'Clause 5.8.5.2.2',
     },
     'MPD@xmlns:xlink': {
         text: 'XML Namespace for XLink. Declares the "xlink" prefix, used for attributes like xlink:href that allow parts of the MPD to be defined in external documents.',
-        isoRef: 'W3C XLink & Clause 5.5.2',
+        isoRef: 'Clause 5.5.2, Table 29',
     },
 
     // BaseURL & Locations
@@ -104,6 +104,10 @@ export const dashTooltipData = {
     PatchLocation: {
         text: 'Specifies a URL for fetching an MPD patch document. This enables efficient live stream updates by allowing the client to download only the changes to the manifest instead of the full document.',
         isoRef: 'Clause 5.15.2',
+    },
+    'PatchLocation@ttl': {
+        text: 'Time-To-Live in seconds. Specifies how long after the MPD publish time the patch document at this location is guaranteed to be available. After this time, a client should fall back to fetching the full MPD.',
+        isoRef: 'Clause 5.15.2, Table 48',
     },
 
     // Program Information
@@ -182,6 +186,10 @@ export const dashTooltipData = {
     'AdaptationSet@lang': {
         text: 'Specifies the language of the content in this set, using RFC 5646 codes (e.g., "en" for English, "es-419" for Latin American Spanish).',
         isoRef: 'Clause 5.3.3.2, Table 5',
+    },
+    'AdaptationSet@label': {
+        text: 'A non-standard but commonly used attribute providing a human-readable text string for its parent element, which can be used for UI display. The standard way to provide this information is with a child <Label> element.',
+        isoRef: 'See Clause 5.3.10 for standard <Label> element',
     },
     'AdaptationSet@mimeType': {
         text: 'The MIME type for all Representations in this set. This is a common attribute that can be overridden on a per-Representation basis.',
@@ -333,6 +341,10 @@ export const dashTooltipData = {
         text: 'The scan type of the source video, either "progressive" or "interlaced".',
         isoRef: 'Clause 5.3.7.2, Table 14',
     },
+    'Representation@startWithSAP': {
+        text: 'Specifies that media segments start with a Stream Access Point (SAP) of a certain type (typically 1 or 2). This property is fundamental for enabling seeking and switching at segment boundaries.',
+        isoRef: 'Clause 5.3.7.2, Table 14',
+    },
     SubRepresentation: {
         text: 'Describes a dependent part of a Representation that can be extracted, such as a lower frame-rate track for trick modes or a specific audio channel from a multiplexed stream.',
         isoRef: 'Clause 5.3.6',
@@ -356,8 +368,8 @@ export const dashTooltipData = {
         isoRef: 'Clause 5.3.9.2.2, Table 16',
     },
     Initialization: {
-        text: "Describes the Initialization Segment for this Representation. This segment contains metadata required to initialize the media decoder, such as the 'moov' box in ISOBMFF.",
-        isoRef: "Clause 5.3.9.2",
+        text: "Describes the Initialization Segment for this Representation. This segment contains metadata required to initialize the media decoder, such as the 'moov' box in ISOBFF.",
+        isoRef: "Clause 5.3.9.2.2, Table 16",
     },
     'Initialization@range': {
         text: "The byte range of the Initialization Segment within the resource specified by the parent Representation's BaseURL.",
@@ -447,11 +459,11 @@ export const dashTooltipData = {
     },
     InbandEventStream: {
         text: 'Signals the presence of an event stream multiplexed within the media segments themselves (e.g., as `emsg` boxes). The client must parse the segments to extract these events.',
-        isoRef: 'Clause 5.10.3.2',
+        isoRef: 'Clause 5.10.3',
     },
     'InbandEventStream@schemeIdUri': {
         text: 'A URI identifying the scheme for the in-band events. This tells the client what kind of events to look for (e.g., "urn:scte:scte35:2013:bin" for SCTE-35 ad markers).',
-        isoRef: 'Clause 5.10.4.2',
+        isoRef: 'Clause 5.10.3.2',
     },
     UTCTiming: {
         text: 'Provides a method for clients to synchronize their wall-clocks with the server. This is crucial for consistent live stream startup and calculating segment availability accurately.',
@@ -481,11 +493,11 @@ export const dashTooltipData = {
     },
     'AudioChannelConfiguration@schemeIdUri': {
         text: 'A URI that identifies the scheme used to define the audio channel configuration. A common value is "urn:mpeg:dash:23003:3:audio_channel_configuration:2011".',
-        isoRef: 'Clause 5.8.5.3',
+        isoRef: 'Clause 5.8.5.4',
     },
     'AudioChannelConfiguration@value': {
         text: 'A value whose meaning is defined by the scheme. For the standard MPEG scheme, this is an integer representing the number of channels (e.g., "2" for stereo).',
-        isoRef: 'Clause 5.8.5.3',
+        isoRef: 'Clause 5.8.5.4',
     },
     ContentProtection: {
         text: 'The central element for signaling content protection. It contains information about the DRM system(s) and encryption scheme(s) used, enabling a client to perform license acquisition.',
@@ -511,7 +523,7 @@ export const dashTooltipData = {
         text: 'Specifies the minimum required security level for the client decryptor (e.g., a string indicating software vs. hardware DRM). A client can use this to filter out content it is not authorized to play.',
         isoRef: 'Clause 5.8.4.1.4, Table 33',
     },
-    pssh: {
+    'pssh': {
         text: 'A Base64-encoded Protection System Specific Header (PSSH) box. This opaque blob contains initialization data required by a specific DRM system to generate a license request.',
         isoRef: 'ISO/IEC 23001-7',
     },
@@ -541,13 +553,17 @@ export const dashTooltipData = {
     },
     'Role@value': {
         text: 'A string value whose meaning is defined by the scheme. For the default DASH scheme, common values are "main", "alternate", "supplementary", "commentary", "dub", and "caption".',
-        isoRef: 'Clause 5.8.5.5',
+        isoRef: 'Clause 5.8.5.5, Table 34',
     },
 
     // Service Description Level (Annex K)
     ServiceDescription: {
         text: 'Provides guidance to the client on how the service provider expects the service to be consumed. It allows the provider to influence client heuristics for latency, playback rate, and quality selection.',
         isoRef: 'Annex K.4',
+    },
+    'ServiceDescription@id': {
+        text: 'A unique identifier for this ServiceDescription element within the scope of the MPD.',
+        isoRef: 'Annex K.4.2.1, Table K.5',
     },
     Latency: {
         text: 'Specifies latency targets for the service, including minimum, maximum, and a target live latency. This is a key element for tuning low-latency performance.',
@@ -557,9 +573,49 @@ export const dashTooltipData = {
         text: "The service provider’s preferred presentation latency in milliseconds, measured against a specified ProducerReferenceTime. This guides a low-latency client's target buffer level.",
         isoRef: 'Annex K.4.2.2, Table K.6',
     },
+    'Latency@min': {
+        text: 'The service provider’s indicated minimum presentation latency in milliseconds. A client should not present media earlier than this latency.',
+        isoRef: 'Annex K.4.2.2, Table K.6',
+    },
+    'Latency@max': {
+        text: 'The service provider’s indicated maximum presentation latency in milliseconds. A client should not present media if its latency exceeds this value.',
+        isoRef: 'Annex K.4.2.2, Table K.6',
+    },
+    'Latency@referenceId': {
+        text: 'Identifies the ProducerReferenceTime element in the MPD against which this latency target is measured.',
+        isoRef: 'Annex K.4.2.2, Table K.6',
+    },
     PlaybackRate: {
         text: 'Specifies an acceptable range for playback rate adjustment (e.g., 0.98 to 1.02). This allows a client to slightly speed up or slow down playback to dynamically manage and correct its position relative to the target latency.',
         isoRef: 'Annex K.4.2.3, Table K.7',
+    },
+    'PlaybackRate@min': {
+        text: 'The minimum playback rate (relative to normal speed 1.0) that the client may use for automatic latency adjustments.',
+        isoRef: 'Annex K.4.2.3, Table K.7',
+    },
+    'PlaybackRate@max': {
+        text: 'The maximum playback rate (relative to normal speed 1.0) that the client may use for automatic latency adjustments.',
+        isoRef: 'Annex K.4.2.3, Table K.7',
+    },
+    ProducerReferenceTime: {
+        text: 'Supplies a correlation between media timestamps and a real-world wall-clock time at the point of production (e.g., encoding). This is essential for latency calculation and control.',
+        isoRef: 'Clause 5.12',
+    },
+    'ProducerReferenceTime@id': {
+        text: 'A unique identifier for this ProducerReferenceTime instance, which can be referenced by a Latency element.',
+        isoRef: 'Clause 5.12.2, Table 45',
+    },
+    'ProducerReferenceTime@type': {
+        text: 'Specifies the point in the production chain where the timestamp was captured (e.g., "encoder", "captured").',
+        isoRef: 'Clause 5.12.2, Table 45',
+    },
+    'ProducerReferenceTime@wallClockTime': {
+        text: 'The wall-clock time (UTC) at the point of capture specified by the "type" attribute.',
+        isoRef: 'Clause 5.12.2, Table 45',
+    },
+    'ProducerReferenceTime@presentationTime': {
+        text: "The media presentation time that corresponds to the specified 'wallClockTime'.",
+        isoRef: 'Clause 5.12.2, Table 45',
     },
 
     // 2022 Spec Additions & Refinements

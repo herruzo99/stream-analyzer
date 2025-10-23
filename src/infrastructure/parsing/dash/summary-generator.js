@@ -63,7 +63,7 @@ export async function generateDashSummary(
     serializedManifest,
     context
 ) {
-    const allPssh = new Map();
+    const securitySystems = new Map();
 
     const periodSummaries = manifestIR.periods.map((period) => {
         const videoTracks = period.adaptationSets.filter(
@@ -79,11 +79,23 @@ export async function generateDashSummary(
 
         for (const as of period.adaptationSets) {
             for (const cp of as.contentProtection) {
-                if (cp.pssh) {
-                    for (const pssh of cp.pssh) {
-                        if (!allPssh.has(pssh.systemId)) {
-                            allPssh.set(pssh.systemId, pssh);
-                        }
+                const schemeId = cp.schemeIdUri;
+                if (!schemeId) continue;
+
+                if (!securitySystems.has(schemeId)) {
+                    securitySystems.set(schemeId, {
+                        systemId: schemeId,
+                        pssh: (cp.pssh && cp.pssh.length > 0) ? cp.pssh[0] : null,
+                        kids: cp.defaultKid ? [cp.defaultKid] : [],
+                    });
+                } else {
+                    const existing = securitySystems.get(schemeId);
+                    if (cp.defaultKid && !existing.kids.includes(cp.defaultKid)) {
+                        existing.kids.push(cp.defaultKid);
+                    }
+                    // Prioritize getting a PSSH box if one wasn't found before for this scheme
+                    if (!existing.pssh && cp.pssh && cp.pssh.length > 0) {
+                        existing.pssh = cp.pssh[0];
                     }
                 }
             }
@@ -172,11 +184,11 @@ export async function generateDashSummary(
                                         psshBox.systemId &&
                                         psshBox.details.license_url?.value
                                     ) {
-                                        if (allPssh.has(psshBox.systemId)) {
-                                            allPssh.get(
-                                                psshBox.systemId
-                                            ).licenseServerUrl =
-                                                psshBox.details.license_url.value;
+                                        if (securitySystems.has(psshBox.systemId)) {
+                                            const system = securitySystems.get(psshBox.systemId);
+                                            if (system.pssh) {
+                                                system.pssh.licenseServerUrl = psshBox.details.license_url.value;
+                                            }
                                         }
                                     }
                                 });
@@ -241,6 +253,13 @@ export async function generateDashSummary(
                         .filter((c) => c.value)
                 ),
             ];
+            const channels = [
+                ...new Set(
+                    as.audioChannelConfigurations
+                        .map((c) => c.value)
+                        .filter(Boolean)
+                ),
+            ];
             return {
                 id: as.id || 'N/A',
                 lang: as.lang,
@@ -249,15 +268,7 @@ export async function generateDashSummary(
                     source: c.source,
                     supported: isCodecSupported(c.value),
                 })),
-                channels:
-                    [
-                        ...new Set(
-                            as.representations
-                                .flatMap((r) => r.audioChannelConfigurations)
-                                .map((c) => c.value)
-                                .filter(Boolean)
-                        ),
-                    ].join(', ') || null,
+                channels: channels.join(', ') || null,
                 isDefault: as.roles.some((r) => r.value === 'main'),
                 isForced: false,
                 roles: as.roles.map((r) => r.value).filter(Boolean),
@@ -293,12 +304,12 @@ export async function generateDashSummary(
 
     /** @type {SecuritySummary} */
     const security = {
-        isEncrypted: allPssh.size > 0,
-        systems: Array.from(allPssh.values()),
+        isEncrypted: securitySystems.size > 0,
+        systems: Array.from(securitySystems.values()),
         licenseServerUrls: [
             ...new Set(
-                Array.from(allPssh.values())
-                    .map((pssh) => pssh.licenseServerUrl)
+                Array.from(securitySystems.values())
+                    .map((system) => system.pssh?.licenseServerUrl)
                     .filter(Boolean)
             ),
         ],

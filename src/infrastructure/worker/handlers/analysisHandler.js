@@ -54,8 +54,12 @@ async function preProcessInput(input) {
         protocol = 'hls';
     } else if (/<MPD/i.test(trimmedManifest)) {
         protocol = 'dash';
+    } else if (/<SmoothStreamingMedia/i.test(trimmedManifest)) {
+        throw new Error(
+            'Unsupported Format: This appears to be a Microsoft Smooth Streaming manifest, which is not supported.'
+        );
     } else {
-        const name = (input.url || input.file.name).toLowerCase();
+        const name = (input.url || input.file?.name || '').toLowerCase();
         protocol = name.includes('.m3u8') ? 'hls' : 'dash';
     }
 

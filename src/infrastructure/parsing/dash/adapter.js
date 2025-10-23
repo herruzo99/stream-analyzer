@@ -247,28 +247,20 @@ function parseRepresentation(repEl, parentMergedEl) {
         pdDelta: null,
         representationIndex: null,
         failoverContent: parseFailoverContent(mergedRepEl),
-        audioChannelConfigurations: findChildren(
-            mergedRepEl,
-            'AudioChannelConfiguration'
-        ).map((el) => ({
-            schemeIdUri: getAttr(el, 'schemeIdUri'),
-            value: getAttr(el, 'value'),
-        })),
         contentProtection: findChildren(mergedRepEl, 'ContentProtection').map(
             (cpEl) => {
                 const psshNode = findChildren(cpEl, 'pssh')[0];
                 const psshData = psshNode ? getText(psshNode) : null;
+                const schemeIdUri = getAttr(cpEl, 'schemeIdUri');
                 return {
-                    schemeIdUri: getAttr(cpEl, 'schemeIdUri'),
-                    system: getDrmSystemName(getAttr(cpEl, 'schemeIdUri')),
+                    schemeIdUri: schemeIdUri,
+                    system: getDrmSystemName(schemeIdUri),
                     defaultKid: getAttr(cpEl, 'default_KID'),
                     robustness: getAttr(cpEl, 'robustness'),
                     pssh: psshData
                         ? [
                               {
-                                  systemId: getDrmSystemName(
-                                      getAttr(cpEl, 'schemeIdUri')
-                                  ),
+                                  systemId: schemeIdUri, // Store the raw UUID
                                   kids: [],
                                   data: psshData,
                               },
@@ -377,6 +369,11 @@ function parseAdaptationSet(asEl, parentMergedEl) {
         ];
     }
 
+    const minW = getAttr(asEl, 'minWidth');
+    const maxW = getAttr(asEl, 'maxWidth');
+    const minH = getAttr(asEl, 'minHeight');
+    const maxH = getAttr(asEl, 'maxHeight');
+
     /** @type {AdaptationSet} */
     const asIR = {
         id: getAttr(asEl, 'id'),
@@ -388,19 +385,23 @@ function parseAdaptationSet(asEl, parentMergedEl) {
         bitstreamSwitching:
             getAttr(asEl, 'bitstreamSwitching') === 'true' ? true : null,
         segmentAlignment: getAttr(mergedAsEl, 'segmentAlignment') === 'true',
-        width: getAttr(mergedAsEl, 'width')
-            ? parseInt(getAttr(mergedAsEl, 'width'), 10)
+        subsegmentAlignment:
+            getAttr(mergedAsEl, 'subsegmentAlignment') === 'true',
+        subsegmentStartsWithSAP: getAttr(mergedAsEl, 'subsegmentStartsWithSAP')
+            ? parseInt(getAttr(mergedAsEl, 'subsegmentStartsWithSAP'), 10)
             : null,
-        height: getAttr(mergedAsEl, 'height')
-            ? parseInt(getAttr(mergedAsEl, 'height'), 10)
-            : null,
-        maxWidth: getAttr(asEl, 'maxWidth')
-            ? parseInt(getAttr(asEl, 'maxWidth'), 10)
-            : null,
-        maxHeight: getAttr(asEl, 'maxHeight')
-            ? parseInt(getAttr(asEl, 'maxHeight'), 10)
-            : null,
+        width: minW && minW === maxW ? parseInt(minW, 10) : null,
+        height: minH && minH === maxH ? parseInt(minH, 10) : null,
+        maxWidth: maxW ? parseInt(maxW, 10) : null,
+        maxHeight: maxH ? parseInt(maxH, 10) : null,
         maxFrameRate: getAttr(asEl, 'maxFrameRate'),
+        sar: getAttr(mergedAsEl, 'sar'),
+        maximumSAPPeriod: getAttr(mergedAsEl, 'maximumSAPPeriod')
+            ? parseFloat(getAttr(mergedAsEl, 'maximumSAPPeriod'))
+            : null,
+        audioSamplingRate: getAttr(asEl, 'audioSamplingRate')
+            ? parseInt(getAttr(asEl, 'audioSamplingRate'), 10)
+            : null,
         mimeType: getAttr(mergedAsEl, 'mimeType'),
         profiles: getAttr(mergedAsEl, 'profiles'),
         representations: findChildren(asEl, 'Representation').map((repEl) =>
@@ -410,17 +411,16 @@ function parseAdaptationSet(asEl, parentMergedEl) {
             (cpEl) => {
                 const psshNode = findChildren(cpEl, 'pssh')[0];
                 const psshData = psshNode ? getText(psshNode) : null;
+                const schemeIdUri = getAttr(cpEl, 'schemeIdUri');
                 return {
-                    schemeIdUri: getAttr(cpEl, 'schemeIdUri'),
-                    system: getDrmSystemName(getAttr(cpEl, 'schemeIdUri')),
+                    schemeIdUri: schemeIdUri,
+                    system: getDrmSystemName(schemeIdUri),
                     defaultKid: getAttr(cpEl, 'default_KID'),
                     robustness: getAttr(cpEl, 'robustness'),
                     pssh: psshData
                         ? [
                               {
-                                  systemId: getDrmSystemName(
-                                      getAttr(cpEl, 'schemeIdUri')
-                                  ),
+                                  systemId: schemeIdUri, // Store the raw UUID
                                   kids: [],
                                   data: psshData,
                               },
@@ -429,6 +429,13 @@ function parseAdaptationSet(asEl, parentMergedEl) {
                 };
             }
         ),
+        audioChannelConfigurations: findChildren(
+            mergedAsEl,
+            'AudioChannelConfiguration'
+        ).map((el) => ({
+            schemeIdUri: getAttr(el, 'schemeIdUri'),
+            value: getAttr(el, 'value'),
+        })),
         framePackings: findChildren(mergedAsEl, 'FramePacking').map(
             parseGenericDescriptor
         ),

@@ -6,6 +6,7 @@ import { statCardTemplate, listCardTemplate } from './components/shared.js';
 import { tooltipTriggerClasses } from '@/ui/shared/constants';
 import { getDrmSystemName } from '@/infrastructure/parsing/utils/drm';
 import { copyTextToClipboard } from '@/ui/shared/clipboard';
+import { showToast } from '@/ui/components/toast';
 import { eventBus } from '@/application/event-bus';
 import { useAnalysisStore } from '@/state/analysisStore';
 import {
@@ -200,39 +201,50 @@ const serviceDescriptionTemplate = (stream) => {
     `;
 };
 
-const protectionSystemTemplate = (psshInfo) => {
+const protectionSystemTemplate = (systemInfo) => {
+    const friendlyName = getDrmSystemName(systemInfo.systemId);
+    const psshData = systemInfo.pssh ? systemInfo.pssh.data : null;
+
     const handleCopy = () => {
-        copyTextToClipboard(
-            psshInfo.data,
-            `PSSH data for ${getDrmSystemName(
-                psshInfo.systemId
-            )} copied to clipboard!`
-        );
+        if (psshData) {
+            copyTextToClipboard(
+                psshData,
+                `PSSH data for ${friendlyName} copied to clipboard!`
+            );
+        } else {
+            showToast({
+                message: 'No PSSH data available in the manifest for this system.',
+                type: 'warn',
+            });
+        }
     };
+
+    // Aggregate KIDs from both the PSSH box and any default_KID attributes
+    const kids = [...new Set([...(systemInfo.kids || []), ...(systemInfo.pssh?.kids || [])])];
 
     return html`
         <div class="bg-gray-900/50 p-3 rounded-lg border border-gray-700">
             <div class="flex justify-between items-start">
                 <div>
-                    <h4 class="font-bold text-gray-200">
-                        ${getDrmSystemName(psshInfo.systemId)}
-                    </h4>
-                    <p class="text-xs text-gray-400 font-mono mt-1">
-                        SystemID: ${psshInfo.systemId}
+                    <h4 class="font-bold text-gray-200">${friendlyName}</h4>
+                    <p class="text-xs text-gray-400 font-mono mt-1 break-all">
+                        SystemID: ${systemInfo.systemId}
                     </p>
                 </div>
                 <button
                     @click=${handleCopy}
-                    class="text-xs bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded shrink-0"
+                    class="text-xs bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded shrink-0 disabled:bg-gray-600 disabled:cursor-not-allowed"
+                    ?disabled=${!psshData}
+                    title=${psshData ? 'Copy PSSH data (Base64)' : 'No PSSH data embedded in manifest'}
                 >
                     Copy PSSH
                 </button>
             </div>
             ${listCardTemplate({
                 label: 'Key IDs (KIDs)',
-                items: psshInfo.kids,
+                items: kids,
                 tooltip:
-                    'Key IDs found in this PSSH box. If empty, it applies to all KIDs.',
+                    'Key IDs found in cenc:default_KID attributes or within a PSSH box.',
             })}
         </div>
     `;

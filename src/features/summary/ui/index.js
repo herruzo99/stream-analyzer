@@ -2,9 +2,11 @@ import { html, render } from 'lit-html';
 import { getDashSummaryTemplate } from './dash.js';
 import { getHlsSummaryTemplate } from './hls.js';
 import { useAnalysisStore } from '@/state/analysisStore';
+import { useUiStore } from '@/state/uiStore';
 
 let container = null;
 let analysisUnsubscribe = null;
+let uiUnsubscribe = null;
 
 function renderSummary() {
     if (!container) return;
@@ -38,13 +40,20 @@ export const summaryView = {
         container = containerElement;
 
         if (analysisUnsubscribe) analysisUnsubscribe();
+        if (uiUnsubscribe) uiUnsubscribe();
+        
         analysisUnsubscribe = useAnalysisStore.subscribe(renderSummary);
+        uiUnsubscribe = useUiStore.subscribe(renderSummary);
 
         renderSummary(); // Render immediately with current state
     },
     unmount() {
         if (analysisUnsubscribe) analysisUnsubscribe();
+        if (uiUnsubscribe) uiUnsubscribe();
+
         analysisUnsubscribe = null;
+        uiUnsubscribe = null;
+        
         if (container) render(html``, container);
         container = null;
     },

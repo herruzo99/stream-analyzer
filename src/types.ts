@@ -100,7 +100,7 @@ export interface Representation {
     pdDelta: number | null;
     representationIndex: URLType | null;
     failoverContent: FailoverContent | null;
-    audioChannelConfigurations: AudioChannelConfiguration[];
+    contentProtection: ContentProtection[];
     framePackings: Descriptor[];
     ratings: Descriptor[];
     viewpoints: Descriptor[];
@@ -116,7 +116,6 @@ export interface Representation {
     pathwayId: string | null;
     supplementalCodecs: string | null;
     reqVideoLayout: string | null;
-    contentProtection: ContentProtection[];
     serializedManifest: object;
 }
 
@@ -157,13 +156,19 @@ export interface AdaptationSet {
     group: number | null;
     bitstreamSwitching: boolean | null;
     segmentAlignment: boolean;
+    subsegmentAlignment: boolean;
+    subsegmentStartsWithSAP: number | null;
     width: number | null;
     height: number | null;
     maxWidth: number | null;
     maxHeight: number | null;
     maxFrameRate: string | null;
+    sar: string | null;
+    maximumSAPPeriod: number | null;
+    audioSamplingRate: number | null;
     representations: Representation[];
     contentProtection: ContentProtection[];
+    audioChannelConfigurations: AudioChannelConfiguration[];
     framePackings: Descriptor[];
     ratings: Descriptor[];
     viewpoints: Descriptor[];
@@ -771,15 +776,27 @@ export interface NetworkEvent {
 
 // --- Player Simulation Types ---
 export interface PlayerStats {
-    bufferHealth: number;
-    latency: number;
-    currentBitrate: number;
-    droppedFrames: number;
-    width: number;
-    height: number;
     playheadTime: number;
-    estimatedBandwidth: number;
-    gaps: number;
+    playbackQuality: {
+        resolution: string;
+        droppedFrames: number;
+        totalStalls: number; // Derived from stateHistory
+    };
+    abr: {
+        currentVideoBitrate: number;
+        estimatedBandwidth: number;
+        switchesUp: number; // Derived from switchHistory
+        switchesDown: number; // Derived from switchHistory
+    };
+    buffer: {
+        bufferHealth: number;
+        liveLatency: number;
+        totalGaps: number;
+    };
+    session: {
+        totalPlayTime: number;
+        totalBufferingTime: number;
+    };
 }
 
 export interface PlayerEvent {
