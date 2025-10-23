@@ -39,9 +39,11 @@ export class WorkerService {
         const { id, result, error, type, payload } = event.data;
 
         // Handle global, non-request/response messages
-        if (type && this.globalHandlers.has(type)) {
+        if (type && id === undefined) {
             const handler = this.globalHandlers.get(type);
-            handler(payload);
+            if (handler) {
+                handler(payload);
+            }
             return;
         }
 

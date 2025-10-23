@@ -270,7 +270,7 @@ const getActions = (cacheEntry, seg, isFresh, segmentFormat) => {
         const cacheEntry = useSegmentCacheStore.getState().get(uniqueId);
         if (cacheEntry && cacheEntry.data) {
             const filename =
-                seg.template || seg.resolvedUrl.split('/').pop().split('?')[0];
+                (seg.type === 'Init' ? seg.resolvedUrl.split('/').pop() : seg.template) || seg.resolvedUrl.split('/').pop().split('?')[0];
             downloadBuffer(cacheEntry.data, filename);
         }
     };
@@ -442,7 +442,7 @@ export const segmentRowTemplate = (
     };
 
     const timingContent =
-        seg.type === 'Media' && !seg.gap
+        seg.type === 'Media' && !seg.gap && seg.timescale > 0
             ? html`${(seg.time / seg.timescale).toFixed(2)}s
               (+${(seg.duration / seg.timescale).toFixed(2)}s)`
             : 'N/A';
@@ -451,6 +451,10 @@ export const segmentRowTemplate = (
         const url = /** @type {HTMLElement} */ (e.currentTarget).dataset.url;
         copyTextToClipboard(url, 'Segment URL copied to clipboard!');
     };
+
+    const urlText = seg.type === 'Init' 
+        ? seg.resolvedUrl.split('/').pop().split('?')[0]
+        : (seg.template || 'GAP');
 
     return html`
         <div
@@ -508,7 +512,7 @@ export const segmentRowTemplate = (
                             ? ''
                             : 'text-cyan-400'} truncate"
                         title="${seg.resolvedUrl}"
-                        >${seg.template || 'GAP'}</span
+                        >${urlText}</span
                     >
                     ${!seg.gap
                         ? html`<button

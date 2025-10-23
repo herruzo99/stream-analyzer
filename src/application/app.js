@@ -70,7 +70,7 @@ export class Application {
         const { storage } = this.services;
         const lastUsed = storage.getLastUsedStreams();
         if (lastUsed && lastUsed.length > 0) {
-            // Set inputs from storage. The UI will render declaratively.
+            // Set inputs from storage. The `setStreamInputs` action now handles setting the active input.
             this.analysisActions.setStreamInputs(lastUsed);
         }
     }

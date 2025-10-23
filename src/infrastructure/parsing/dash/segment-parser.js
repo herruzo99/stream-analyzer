@@ -182,10 +182,11 @@ export async function parseAllSegmentUrls(manifestElement, manifestUrl) {
                     'SegmentBase',
                     hierarchy
                 );
+                const baseURLOnly = findChildren(rep, 'BaseURL')[0];
 
                 // --- INIT SEGMENT ---
                 const initInfo = findInitSegmentUrl(
-                    { serializedManifest: rep },
+                    { id: repId, serializedManifest: rep },
                     { serializedManifest: adaptationSet },
                     { serializedManifest: period },
                     baseUrl
@@ -201,6 +202,7 @@ export async function parseAllSegmentUrls(manifestElement, manifestUrl) {
                         number: 0,
                         resolvedUrl: initInfo.url,
                         uniqueId: uniqueId,
+                        template: initInfo.template, // Store the template
                         range: initInfo.range,
                         encryptionInfo,
                         flags: [],
@@ -371,12 +373,11 @@ export async function parseAllSegmentUrls(manifestElement, manifestUrl) {
                                 getAttr(period, 'duration')
                             );
                             let numSegments = 0;
-                            const segmentDurationSeconds =
-                                segmentDuration / timescale;
+                            const templateDuration = Number(getAttr(template, 'duration'));
 
-                            if (periodDuration && segmentDurationSeconds > 0) {
+                            if (periodDuration && templateDuration > 0) {
                                 numSegments = Math.ceil(
-                                    periodDuration / segmentDurationSeconds
+                                    (periodDuration * timescale) / templateDuration
                                 );
                             } else {
                                 const mpdDuration = parseDuration(
@@ -385,9 +386,9 @@ export async function parseAllSegmentUrls(manifestElement, manifestUrl) {
                                         'mediaPresentationDuration'
                                     )
                                 );
-                                if (mpdDuration && segmentDurationSeconds > 0) {
+                                if (mpdDuration && templateDuration > 0) {
                                     numSegments = Math.ceil(
-                                        mpdDuration / segmentDurationSeconds
+                                        (mpdDuration * timescale) / templateDuration
                                     );
                                 }
                             }
@@ -399,7 +400,7 @@ export async function parseAllSegmentUrls(manifestElement, manifestUrl) {
                                 startNumber,
                                 startNumber,
                                 numSegments,
-                                segmentDuration,
+                                templateDuration, // Use template duration in timescale
                                 timescale,
                                 periodStart,
                                 availabilityStartTime,
@@ -433,6 +434,29 @@ export async function parseAllSegmentUrls(manifestElement, manifestUrl) {
                         flags,
                     };
                     segmentsByRep[compositeKey].segments.push(mediaSegment);
+                } else if (baseURLOnly) {
+                    const urlContent = baseURLOnly['#text'] || '';
+                    const resolvedUrl = new URL(urlContent, baseUrl).href;
+                    const timescale = 1; // Default for text tracks
+                    const mpdDurationSeconds =
+                        parseDuration(
+                            getAttr(manifestElement, 'mediaPresentationDuration')
+                        ) || 0;
+
+                    const mediaSegment = {
+                        repId,
+                        type: 'Media',
+                        number: 1,
+                        resolvedUrl: resolvedUrl,
+                        uniqueId: resolvedUrl,
+                        template: urlContent,
+                        time: 0,
+                        duration: mpdDurationSeconds * timescale,
+                        timescale,
+                        encryptionInfo,
+                        flags,
+                    };
+                    segmentsByRep[compositeKey].segments.push(mediaSegment);
                 }
             }
         }
@@ -456,17 +480,13 @@ export function findInitSegmentUrl(
     ];
 
     const template = getInheritedElement('SegmentTemplate', hierarchy);
-
-    if (template && getAttr(template, 'initialization')) {
+    const initializationTemplate = getAttr(template, 'initialization');
+    if (initializationTemplate) {
+        const urlWithSub = initializationTemplate.replace(/\$RepresentationID\$/g, representation.id);
         const result = {
-            url: new URL(
-                getAttr(template, 'initialization').replace(
-                    /\$RepresentationID\$/g,
-                    representation.id
-                ),
-                baseUrl
-            ).href,
+            url: new URL(urlWithSub, baseUrl).href,
             range: null,
+            template: initializationTemplate,
         };
         debugLog('findInitSegmentUrl', 'Found via SegmentTemplate@initialization', result);
         return result;
@@ -481,9 +501,12 @@ export function findInitSegmentUrl(
         : null;
 
     if (initialization && getAttr(initialization, 'sourceURL')) {
+        const urlTemplate = getAttr(initialization, 'sourceURL');
+        const urlWithSub = urlTemplate.replace(/\$RepresentationID\$/g, representation.id);
         const result = {
-            url: new URL(getAttr(initialization, 'sourceURL'), baseUrl).href,
+            url: new URL(urlWithSub, baseUrl).href,
             range: null,
+            template: urlTemplate,
         };
         debugLog('findInitSegmentUrl', 'Found via Initialization@sourceURL', result);
         return result;
@@ -491,8 +514,9 @@ export function findInitSegmentUrl(
 
     if (initialization && getAttr(initialization, 'range')) {
         const result = {
-            url: baseUrl,
+            url: baseUrl, // Range applies to the base URL of the representation context
             range: getAttr(initialization, 'range'),
+            template: new URL(baseUrl).pathname.split('/').pop(),
         };
         debugLog('findInitSegmentUrl', 'Found via Initialization@range', result);
         return result;

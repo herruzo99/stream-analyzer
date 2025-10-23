@@ -17,6 +17,7 @@ import { uiActions } from './uiStore.js';
  * @property {string | null} activeSegmentUrl
  * @property {number} streamIdCounter
  * @property {StreamInput[]} streamInputs
+ * @property {number} activeStreamInputId
  * @property {SegmentToCompare[]} segmentsForCompare
  * @property {Map<string, DecodedSample>} decodedSamples
  */
@@ -38,7 +39,7 @@ import { uiActions } from './uiStore.js';
  * @property {(inputId: number, type: 'headers' | 'queryParams') => void} addDrmAuthParam
  * @property {(inputId: number, type: 'headers' | 'queryParams', paramId: number) => void} removeDrmAuthParam
  * @property {(inputId: number, type: 'headers' | 'queryParams', paramId: number, field: 'key' | 'value', value: string) => void} updateDrmAuthParam
- * @property {(id: number, url: string, name: string) => void} populateStreamInput
+ * @property {(inputId: number, preset: Partial<StreamInput>) => void} populateStreamInput
  * @property {(item: SegmentToCompare) => void} addSegmentToCompare
  * @property {(segmentUniqueId: string) => void} removeSegmentFromCompare
  * @property {() => void} clearSegmentsToCompare
@@ -47,6 +48,7 @@ import { uiActions } from './uiStore.js';
  * @property {(streamId: number, direction: number) => void} navigateManifestUpdate
  * @property {(payload: {streamId: number, variantUri: string, manifest: object, manifestString: string, segments: object[], freshSegmentUrls: string[]}) => void} updateHlsMediaPlaylist
  * @property {(streamId: number, events: Event[]) => void} addInbandEvents
+ * @property {(id: number) => void} setActiveStreamInputId
  */
 
 // --- Main Analysis Store Definition ---
@@ -75,6 +77,7 @@ const createInitialAnalysisState = () => ({
             },
         },
     ],
+    activeStreamInputId: 0,
     segmentsForCompare: [],
     decodedSamples: new Map(),
 });
@@ -126,41 +129,62 @@ export const useAnalysisStore = createStore((set, get) => ({
     },
 
     setActiveStreamId: (streamId) => set({ activeStreamId: streamId }),
+    setActiveStreamInputId: (id) => set({ activeStreamInputId: id }),
     setActiveSegmentUrl: (id) => {
         set({ activeSegmentUrl: id });
         uiActions.setInteractiveSegmentPage(1);
     },
 
     addStreamInput: () => {
-        set((state) => ({
-            streamInputs: [
-                ...state.streamInputs,
-                {
-                    id: state.streamIdCounter,
-                    url: '',
-                    name: '',
-                    file: null,
-                    auth: { headers: [], queryParams: [] },
-                    drmAuth: {
-                        licenseServerUrl: '',
-                        serverCertificate: null,
-                        headers: [],
-                        queryParams: [],
+        set((state) => {
+            const newId = state.streamIdCounter;
+            return {
+                streamInputs: [
+                    ...state.streamInputs,
+                    {
+                        id: newId,
+                        url: '',
+                        name: '',
+                        file: null,
+                        auth: { headers: [], queryParams: [] },
+                        drmAuth: {
+                            licenseServerUrl: '',
+                            serverCertificate: null,
+                            headers: [],
+                            queryParams: [],
+                        },
                     },
-                },
-            ],
-            streamIdCounter: state.streamIdCounter + 1,
-        }));
+                ],
+                streamIdCounter: newId + 1,
+                activeStreamInputId: newId,
+            };
+        });
     },
 
     removeStreamInput: (id) => {
-        set((state) => ({
-            streamInputs: state.streamInputs.filter((i) => i.id !== id),
-        }));
+        set((state) => {
+            const remaining = state.streamInputs.filter((i) => i.id !== id);
+            if (remaining.length === 0) {
+                return createInitialAnalysisState();
+            }
+
+            let newActiveId = state.activeStreamInputId;
+            if (state.activeStreamInputId === id) {
+                const removedIndex = state.streamInputs.findIndex(
+                    (i) => i.id === id
+                );
+                newActiveId = remaining[Math.max(0, removedIndex - 1)].id;
+            }
+
+            return {
+                streamInputs: remaining,
+                activeStreamInputId: newActiveId,
+            };
+        });
     },
 
     clearAllStreamInputs: () => {
-        set({ streamInputs: [createInitialAnalysisState().streamInputs[0]] });
+        set({ streamInputs: [createInitialAnalysisState().streamInputs[0]], activeStreamInputId: 0 });
     },
 
     setStreamInputs: (inputs) => {
@@ -180,6 +204,7 @@ export const useAnalysisStore = createStore((set, get) => ({
         set({
             streamInputs: newInputs,
             streamIdCounter: newInputs.length,
+            activeStreamInputId: newInputs[0]?.id ?? 0,
         });
     },
 
@@ -285,25 +310,33 @@ export const useAnalysisStore = createStore((set, get) => ({
         }));
     },
 
-    populateStreamInput: (id, url, name) => {
+    populateStreamInput: (inputId, preset) => {
         set((state) => ({
-            streamInputs: state.streamInputs.map((input) =>
-                input.id === id
-                    ? {
-                          ...input,
-                          url,
-                          name,
-                          file: null,
-                          auth: { headers: [], queryParams: [] },
-                          drmAuth: {
-                              licenseServerUrl: '',
-                              serverCertificate: null,
-                              headers: [],
-                              queryParams: [],
-                          },
-                      }
-                    : input
-            ),
+            streamInputs: state.streamInputs.map((input) => {
+                if (input.id === inputId) {
+                    // Start with a clean slate for auth to avoid merging issues
+                    const pristineAuth = { headers: [], queryParams: [] };
+                    const pristineDrmAuth = {
+                        licenseServerUrl: '',
+                        serverCertificate: null,
+                        headers: [],
+                        queryParams: [],
+                    };
+
+                    return {
+                        ...input, // keep the id
+                        url: preset.url || '',
+                        name: preset.name || '',
+                        file: null, // presets are URL-based
+                        auth: { ...pristineAuth, ...(preset.auth || {}) },
+                        drmAuth: {
+                            ...pristineDrmAuth,
+                            ...(preset.drmAuth || {}),
+                        },
+                    };
+                }
+                return input;
+            }),
         }));
     },
 

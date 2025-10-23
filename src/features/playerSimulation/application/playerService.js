@@ -2,6 +2,7 @@ import { eventBus } from '@/application/event-bus';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { playerActions } from '@/state/playerStore';
 import { debugLog } from '@/shared/utils/debug';
+import { workerService } from '@/infrastructure/worker/workerService';
 
 let player = null;
 let videoElement = null;
@@ -49,11 +50,32 @@ export const playerService = {
             return;
         }
 
+        // --- ARCHITECTURAL CHANGE: Register custom networking scheme ---
+        // This intercepts all of Shaka's network requests and proxies them
+        // through our instrumented web worker.
+        shaka.net.NetworkingEngine.registerScheme('app', (uri, request, requestType) => {
+            // Remove the 'app:' scheme prefix before sending to worker
+            const finalUri = uri.substring(4);
+            const { auth, id: streamId } = useAnalysisStore.getState().streams.find(s => s.originalUrl === finalUri.split('?')[0]) || {};
+
+            const shakaRequest = {
+                uris: [finalUri],
+                method: request.method,
+                headers: request.headers,
+                body: request.body
+            };
+
+            return workerService.postTask('shaka-fetch', {
+                request: shakaRequest,
+                requestType,
+                auth,
+                streamId,
+            });
+        });
+        // --- END CHANGE ---
+
         videoElement = videoEl;
         player = new shaka.Player();
-
-        // The custom networking filters are removed. Shaka's native configuration is sufficient.
-
         player.attach(videoElement);
 
         ui = new shaka.ui.Overlay(player, videoContainer, videoElement);
@@ -180,7 +202,10 @@ export const playerService = {
 
 
         try {
-            await player.load(stream.originalUrl);
+            // --- ARCHITECTURAL CHANGE: Prepend custom scheme to URL ---
+            const instrumentedUrl = `app:${stream.originalUrl}`;
+            await player.load(instrumentedUrl);
+            // --- END CHANGE ---
             playerActions.setLoadedState(true);
             eventBus.dispatch('player:manifest-loaded');
         } catch (e) {

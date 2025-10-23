@@ -1,31 +1,106 @@
 import { eventBus } from '@/application/event-bus';
 import { playerActions, usePlayerStore } from '@/state/playerStore';
 import { analysisActions } from '@/state/analysisStore';
+import { playerService } from './playerService.js';
 
-function onStatsChanged({ stats }) {
+function onStatsChanged({ stats: shakaStats }) {
     const abrHistory = usePlayerStore.getState().abrHistory;
     const lastBitrate = abrHistory[0]?.bitrate;
 
-    if (stats.streamBandwidth && stats.streamBandwidth !== lastBitrate) {
+    // --- Start of Correction ---
+    // The `streamBandwidth` stat includes audio. For accurate video ABR tracking,
+    // we must get the active variant and look up the video-specific bandwidth.
+    const player = playerService.getPlayer();
+    let videoOnlyBitrate = shakaStats.streamBandwidth || 0;
+
+    if (player) {
+        const activeVariantTrack = player.getVariantTracks().find((t) => t.active);
+        const manifest = player.getManifest();
+
+        if (activeVariantTrack && manifest && manifest.variants) {
+            const activeVariant = manifest.variants.find(
+                (v) => v.id === activeVariantTrack.id
+            );
+            if (activeVariant && activeVariant.video) {
+                videoOnlyBitrate =
+                    activeVariant.video.bandwidth || videoOnlyBitrate;
+            }
+        }
+    }
+    // --- End of Correction ---
+
+    if (videoOnlyBitrate && videoOnlyBitrate !== lastBitrate) {
         playerActions.logAbrSwitch({
-            time: stats.displayTime || 0,
-            bitrate: stats.streamBandwidth,
-            width: stats.width || 0,
-            height: stats.height || 0,
+            time: shakaStats.displayTime || 0,
+            bitrate: videoOnlyBitrate, // Use corrected bitrate
+            width: shakaStats.width || 0,
+            height: shakaStats.height || 0,
         });
     }
 
-    playerActions.updateStats({
-        bufferHealth: stats.bufferHealth || 0,
-        latency: stats.liveLatency || 0,
-        currentBitrate: stats.streamBandwidth || 0,
-        droppedFrames: stats.droppedFrames || 0,
-        width: stats.width || 0,
-        height: stats.height || 0,
-        playheadTime: stats.displayTime || 0,
-        estimatedBandwidth: stats.estimatedBandwidth || 0,
-        gaps: stats.gapCount || 0,
-    });
+    // --- Derive advanced stats from history ---
+    let totalStalls = 0;
+    if (shakaStats.stateHistory) {
+        for (let i = 1; i < shakaStats.stateHistory.length; i++) {
+            const currentState = shakaStats.stateHistory[i];
+            const prevState = shakaStats.stateHistory[i - 1];
+            // A stall is a transition into the buffering state from a non-buffering state
+            if (
+                currentState.state === 'buffering' &&
+                prevState.state !== 'buffering'
+            ) {
+                totalStalls++;
+            }
+        }
+    }
+
+    let switchesUp = 0;
+    let switchesDown = 0;
+    if (shakaStats.switchHistory) {
+        for (let i = 1; i < shakaStats.switchHistory.length; i++) {
+            const currentSwitch = shakaStats.switchHistory[i];
+            const prevSwitch = shakaStats.switchHistory[i - 1];
+            // Consider only variant switches for video tracks
+            if (
+                currentSwitch.type === 'variant' &&
+                prevSwitch.type === 'variant' &&
+                currentSwitch.stream?.type === 'video'
+            ) {
+                if (currentSwitch.bandwidth > prevSwitch.bandwidth) {
+                    switchesUp++;
+                } else if (currentSwitch.bandwidth < prevSwitch.bandwidth) {
+                    switchesDown++;
+                }
+            }
+        }
+    }
+
+    /** @type {import('@/types').PlayerStats} */
+    const newStats = {
+        playheadTime: shakaStats.displayTime || 0,
+        playbackQuality: {
+            resolution: `${shakaStats.width || 0}x${shakaStats.height || 0}`,
+            droppedFrames: shakaStats.droppedFrames || 0,
+            totalStalls: totalStalls,
+        },
+        abr: {
+            currentVideoBitrate: videoOnlyBitrate, // Use corrected bitrate
+            estimatedBandwidth: shakaStats.estimatedBandwidth || 0,
+            switchesUp: switchesUp,
+            switchesDown: switchesDown,
+        },
+        buffer: {
+            bufferHealth: shakaStats.bufferHealth || 0,
+            liveLatency: shakaStats.liveLatency || 0,
+            totalGaps: shakaStats.gapCount || 0,
+        },
+        session: {
+            totalPlayTime: shakaStats.playTime || 0,
+            totalBufferingTime: shakaStats.bufferingTime || 0,
+        },
+    };
+
+    playerActions.updateStats(newStats);
 }
 
 function onAdaptation({ oldTrack, newTrack }) {

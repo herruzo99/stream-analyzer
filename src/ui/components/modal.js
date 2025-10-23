@@ -3,6 +3,7 @@ import { useUiStore } from '@/state/uiStore';
 import { closeModal } from '@/ui/services/modalService';
 import { getSegmentAnalysisTemplate } from '@/features/segmentAnalysis/ui/index';
 import { scte35DetailsTemplate } from '@/ui/shared/scte35-details';
+import { streamLibraryModalTemplate } from './stream-library-modal.js';
 
 let dom;
 
@@ -66,6 +67,9 @@ function getContentTemplate(modalContent) {
             return scte35DetailsTemplate(modalContent.data.scte35);
         case 'about':
             return aboutModalTemplate();
+        case 'streamLibrary':
+            // The library manages its own re-renders, so we pass a function to trigger it
+            return streamLibraryModalTemplate(() => renderModal());
         default:
             return html`<p class="text-red-400">
                 Unknown modal content type: ${modalContent.type}
@@ -84,6 +88,7 @@ function renderModal() {
     if (modalState.isModalOpen) {
         dom.modalTitle.textContent = modalState.modalTitle;
         dom.modalSegmentUrl.textContent = modalState.modalUrl;
+        dom.modalSegmentUrl.classList.toggle('hidden', !modalState.modalUrl);
 
         const template = getContentTemplate(modalState.modalContent);
         render(template, dom.modalContentArea);
@@ -115,7 +120,7 @@ export function initializeModalComponent(domContext) {
     });
 
     useUiStore.subscribe((state, prevState) => {
-        if (state.modalState.isModalOpen !== prevState.modalState.isModalOpen) {
+        if (state.modalState !== prevState.modalState) {
             renderModal();
         }
     });

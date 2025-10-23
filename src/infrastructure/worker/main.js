@@ -8,6 +8,7 @@ import {
     handleDecryptAndParseSegment,
     handleFetchAndParseSegment,
 } from './handlers/segmentParsingHandler.js';
+import { handleShakaFetch } from './handlers/shakaFetchHandler.js';
 import { fetchWithAuth } from './http.js';
 
 async function handleFetchHlsMediaPlaylist({
@@ -45,40 +46,6 @@ async function handleFetchHlsMediaPlaylist({
     };
 }
 
-async function handleLogShakaNetworkEvent({ streamId, resourceType, response }) {
-    // This handler receives an event from the main thread's Shaka response filter.
-    // It constructs a log entry but does NOT perform a fetch itself.
-    // The main `http.js` `logRequest` function is designed for active fetches,
-    // so we build the event manually here.
-
-    const provisionalEvent = {
-        id: crypto.randomUUID(),
-        url: response.uri,
-        resourceType,
-        streamId,
-        request: {
-            method: 'GET', // Assumed for Shaka player requests
-            headers: {}, // Request headers are not available in the response filter
-        },
-        response: {
-            status: response.status,
-            statusText: '', // Not available
-            headers: response.headers,
-            contentLength: response.data?.byteLength || 0,
-            contentType: response.headers['content-type'] || null,
-        },
-        // Timings from performance entries are handled on the main thread via enrichment
-        timing: {
-            startTime: performance.now(),
-            endTime: performance.now(),
-            duration: 0,
-            breakdown: {},
-        },
-    };
-
-    self.postMessage({ type: 'worker:network-event', payload: provisionalEvent });
-}
-
 const handlers = {
     'start-analysis': handleStartAnalysis,
     'live-update-fetch-and-parse': handleParseLiveUpdate,
@@ -89,16 +56,15 @@ const handlers = {
     'fetch-hls-media-playlist': handleFetchHlsMediaPlaylist,
     'fetch-key': handleFetchKey,
     'decrypt-and-parse-segment': handleDecryptAndParseSegment,
-    'log-shaka-network-event': handleLogShakaNetworkEvent,
+    'shaka-fetch': handleShakaFetch,
 };
 
 self.addEventListener('message', async (event) => {
     const { id, type, payload } = event.data;
 
-    // Handle global, non-request/response messages like network logging.
-    if (type && id === undefined) {
-        // This is a fire-and-forget message from one of our internal services.
-        // We simply forward it to the main thread, which will have its own handlers.
+    // A message without an ID is a global, fire-and-forget event
+    // that should be passed through to the main thread's listener.
+    if (id === undefined) {
         self.postMessage({ type, payload });
         return;
     }
@@ -123,6 +89,9 @@ self.addEventListener('message', async (event) => {
                 message: e.message,
                 stack: e.stack,
                 name: e.name,
+                // Add shaka-specific error data if present
+                shakaErrorCode: e.shakaErrorCode,
+                data: e.data,
             },
         });
     }

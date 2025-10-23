@@ -34,6 +34,7 @@ import { createStore } from 'zustand/vanilla';
  * @property {boolean} segmentComparisonHideSame
  * @property {Set<string>} expandedComparisonTables
  * @property {Set<string>} expandedComparisonFlags
+ * @property {'standard' | 'advanced'} playerControlMode
  */
 
 /**
@@ -63,6 +64,7 @@ import { createStore } from 'zustand/vanilla';
  * @property {() => void} toggleSegmentComparisonHideSame
  * @property {(tableId: string) => void} toggleComparisonTable
  * @property {(rowName: string) => void} toggleComparisonFlags
+ * @property {(mode: 'standard' | 'advanced') => void} setPlayerControlMode
  * @property {() => void} reset
  */
 
@@ -96,6 +98,7 @@ const createInitialUiState = () => ({
     segmentComparisonHideSame: false,
     expandedComparisonTables: new Set(),
     expandedComparisonFlags: new Set(),
+    playerControlMode: 'standard',
 });
 
 export const useUiStore = createStore((set) => ({
@@ -183,6 +186,7 @@ export const useUiStore = createStore((set) => ({
             return { expandedComparisonFlags: newSet };
         });
     },
+    setPlayerControlMode: (mode) => set({ playerControlMode: mode }),
     reset: () => set(createInitialUiState()),
 }));
 
@@ -233,5 +237,7 @@ export const uiActions = {
         useUiStore.getState().toggleComparisonTable(tableId),
     toggleComparisonFlags: (rowName) =>
         useUiStore.getState().toggleComparisonFlags(rowName),
+    setPlayerControlMode: (mode) =>
+        useUiStore.getState().setPlayerControlMode(mode),
     reset: () => useUiStore.getState().reset(),
 };

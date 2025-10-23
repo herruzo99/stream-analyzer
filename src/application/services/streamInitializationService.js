@@ -93,14 +93,14 @@ class StreamInitializationService {
                         as.serializedManifest,
                         rep.serializedManifest
                     );
-                    const initUrl = findInitSegmentUrl(
+                    const initInfo = findInitSegmentUrl(
                         rep,
                         as,
                         period,
                         baseUrl
                     );
-                    if (initUrl && !initUrlMap.has(initUrl)) {
-                        initUrlMap.set(initUrl, { repId: rep.id });
+                    if (initInfo && !initUrlMap.has(initInfo.url)) {
+                        initUrlMap.set(initInfo.url, { repId: rep.id });
                     }
                 }
             }

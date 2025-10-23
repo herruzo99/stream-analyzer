@@ -65,6 +65,10 @@
 
 /* --- Animation Utilities (Complex selectors or effects) --- */
 
+.animate-fadeIn {
+    animation: fadeIn 0.3s ease-out forwards;
+}
+
 #input-section:not(.hidden),
 #app-root:not(.hidden) > div {
     animation: fadeIn 0.3s ease-out forwards;
