@@ -7,9 +7,12 @@ import {
     handleFetchKey,
     handleDecryptAndParseSegment,
     handleFetchAndParseSegment,
+    handleCacheRawSegment,
+    handleParseCachedSegment,
 } from './handlers/segmentParsingHandler.js';
 import { handleShakaFetch } from './handlers/shakaFetchHandler.js';
 import { fetchWithAuth } from './http.js';
+import { debugLog } from '@/shared/utils/debug';
 
 async function handleFetchHlsMediaPlaylist({
     streamId,
@@ -57,10 +60,13 @@ const handlers = {
     'fetch-key': handleFetchKey,
     'decrypt-and-parse-segment': handleDecryptAndParseSegment,
     'shaka-fetch': handleShakaFetch,
+    'cache-raw-segment': handleCacheRawSegment,
+    'parse-cached-segment': handleParseCachedSegment,
 };
 
 self.addEventListener('message', async (event) => {
     const { id, type, payload } = event.data;
+    debugLog('Worker', `Received task. ID: ${id}, Type: ${type}`, payload);
 
     // A message without an ID is a global, fire-and-forget event
     // that should be passed through to the main thread's listener.
@@ -72,6 +78,7 @@ self.addEventListener('message', async (event) => {
     const handler = handlers[type];
 
     if (!handler) {
+        debugLog('Worker', `No handler found for task type: ${type}`);
         self.postMessage({
             id,
             error: { message: `Unknown task type: ${type}` },
@@ -81,8 +88,10 @@ self.addEventListener('message', async (event) => {
 
     try {
         const result = await handler(payload);
+        debugLog('Worker', `Task ${id} (${type}) completed successfully.`);
         self.postMessage({ id, result });
     } catch (e) {
+        debugLog('Worker', `Task ${id} (${type}) failed.`, e);
         self.postMessage({
             id,
             error: {

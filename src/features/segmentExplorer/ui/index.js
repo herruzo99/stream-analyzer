@@ -13,6 +13,7 @@ import { toggleDropdown, closeDropdown } from '@/ui/services/dropdownService';
 import * as icons from '@/ui/icons';
 import { timeFilterTemplate } from './components/time-filter.js';
 import { useSegmentCacheStore } from '@/state/segmentCacheStore';
+import { debugLog } from '@/shared/utils/debug';
 
 let container = null;
 let currentStreamId = null;
@@ -161,43 +162,26 @@ function calculateTimeBounds(stream) {
 
     const allTimedSegments = [];
 
-    if (stream.protocol === 'dash') {
-        stream.dashRepresentationState.forEach((repState) => {
-            (repState.segments || []).forEach((seg) => {
-                if (seg.startTimeUTC && seg.endTimeUTC) {
-                    allTimedSegments.push({
-                        startTimeUTC: seg.startTimeUTC,
-                        endTimeUTC: seg.endTimeUTC,
-                    });
-                }
-            });
-        });
-    } else if (stream.protocol === 'hls') {
-        stream.hlsVariantState.forEach((variantState) => {
-            let pdtAnchorTime = 0;
-            let cumulativeDuration = 0;
-
-            const firstPdtSegment = (variantState.segments || []).find(
-                (s) => s.dateTime
-            );
-            if (firstPdtSegment) {
-                pdtAnchorTime = new Date(firstPdtSegment.dateTime).getTime();
+    const processSegments = (segments) => {
+        if (!segments) return;
+        segments.forEach((seg) => {
+            if (seg.startTimeUTC && seg.endTimeUTC) {
+                allTimedSegments.push({
+                    startTimeUTC: seg.startTimeUTC,
+                    endTimeUTC: seg.endTimeUTC,
+                });
             }
-
-            (variantState.segments || []).forEach((seg) => {
-                if (seg.dateTime) {
-                    pdtAnchorTime = new Date(seg.dateTime).getTime();
-                    cumulativeDuration = 0; // Reset on new PDT
-                }
-                const startTimeUTC = pdtAnchorTime + cumulativeDuration * 1000;
-                const endTimeUTC = startTimeUTC + seg.duration * 1000;
-
-                if (pdtAnchorTime > 0) {
-                    allTimedSegments.push({ startTimeUTC, endTimeUTC });
-                }
-                cumulativeDuration += seg.duration;
-            });
         });
+    };
+
+    if (stream.protocol === 'dash') {
+        stream.dashRepresentationState.forEach((repState) =>
+            processSegments(repState.segments)
+        );
+    } else if (stream.protocol === 'hls') {
+        stream.hlsVariantState.forEach((variantState) =>
+            processSegments(variantState.segments)
+        );
     }
 
     if (allTimedSegments.length === 0) {
@@ -217,6 +201,7 @@ function calculateTimeBounds(stream) {
 
 function renderExplorer() {
     if (!container || currentStreamId === null) return;
+    debugLog('SegmentExplorer', 'renderExplorer triggered.');
 
     const { streams, activeStreamId, segmentsForCompare } =
         useAnalysisStore.getState();
@@ -230,7 +215,7 @@ function renderExplorer() {
     const {
         segmentExplorerActiveTab,
         segmentExplorerSortOrder,
-        segmentExplorerTimeFilter,
+        segmentExplorerTargetTime,
     } = useUiStore.getState();
 
     const allAdaptationSets =
@@ -254,6 +239,7 @@ function renderExplorer() {
     }
 
     const { minTime, maxTime } = calculateTimeBounds(stream);
+    const isLive = stream.manifest?.type === 'dynamic';
     const hasTimeData = !!(minTime && maxTime);
     const sortIcon =
         segmentExplorerSortOrder === 'asc'
@@ -261,8 +247,7 @@ function renderExplorer() {
             : icons.sortDescending;
     const sortLabel =
         segmentExplorerSortOrder === 'asc' ? 'Oldest First' : 'Newest First';
-    const timeFilterActive =
-        segmentExplorerTimeFilter.start || segmentExplorerTimeFilter.end;
+    const timeFilterActive = !!segmentExplorerTargetTime;
 
     const template = html`
         <div class="flex flex-wrap justify-between items-center mb-4 gap-4">
@@ -280,26 +265,41 @@ function renderExplorer() {
                     <span>${sortLabel}</span>
                 </button>
 
-                <button
-                    @click=${(e) =>
-                        hasTimeData &&
-                        toggleDropdown(
-                            e.currentTarget,
-                            timeFilterTemplate({
-                                minTime,
-                                maxTime,
-                                currentTimeFilter: segmentExplorerTimeFilter,
-                                isLive: stream.manifest?.type === 'dynamic',
-                            })
-                        )}
-                    ?disabled=${!hasTimeData}
-                    class="bg-gray-700/50 hover:bg-gray-600/50 text-white font-bold py-2 px-3 rounded-md transition duration-300 flex items-center text-sm gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${timeFilterActive
-                        ? 'ring-2 ring-blue-500'
-                        : ''}"
-                >
-                    ${icons.filter}
-                    <span>Filter by Time</span>
-                </button>
+                <div class="flex items-center gap-2">
+                    <button
+                        @click=${(e) =>
+                            hasTimeData &&
+                            toggleDropdown(
+                                e.currentTarget,
+                                timeFilterTemplate({
+                                    minTime,
+                                    maxTime,
+                                    currentTargetTime: segmentExplorerTargetTime,
+                                    isLive,
+                                })
+                            )}
+                        ?disabled=${!hasTimeData}
+                        class="bg-gray-700/50 hover:bg-gray-600/50 text-white font-bold py-2 px-3 rounded-md transition duration-300 flex items-center text-sm gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${timeFilterActive
+                            ? 'ring-2 ring-blue-500'
+                            : ''}"
+                    >
+                        ${icons.filter}
+                        <span>Locate by Time</span>
+                    </button>
+                    ${isLive
+                        ? html`<button
+                              @click=${() =>
+                                  eventBus.dispatch(
+                                      'ui:segment-explorer:time-target-set',
+                                      { target: new Date() }
+                                  )}
+                              class="bg-red-700/50 hover:bg-red-600/50 text-white font-bold py-2 px-3 rounded-md transition duration-300 flex items-center text-sm gap-2"
+                          >
+                              ${icons.play}
+                              <span>Live</span>
+                          </button>`
+                        : ''}
+                </div>
 
                 <button
                     id="segment-compare-btn"
@@ -346,6 +346,11 @@ export const segmentExplorerView = {
 
         analysisUnsubscribe = useAnalysisStore.subscribe(renderExplorer);
         uiUnsubscribe = useUiStore.subscribe(renderExplorer);
+
+        debugLog(
+            'SegmentExplorer',
+            'Subscribing to segmentCacheStore for UI reactivity.'
+        );
         segmentCacheUnsubscribe =
             useSegmentCacheStore.subscribe(renderExplorer);
 

@@ -6,6 +6,9 @@ import { boxParsers } from '@/infrastructure/parsing/isobmff/index';
 import { fetchWithAuth } from '../http.js';
 import { inferMediaInfoFromExtension } from '@/infrastructure/parsing/utils/media-types';
 
+// In-worker cache for raw segment ArrayBuffers
+const rawSegmentCache = new Map();
+
 // --- Programmatic Color Generation ---
 
 // 1. Define the master list of color names to cycle through.
@@ -166,6 +169,72 @@ function assignTsPacketColors(packets) {
         lastColorIndex = colorIndex;
     }
 }
+
+/**
+ * Recursively populates a Map with byte-level information from parsed ISOBMFF boxes.
+ * @param {Map<number, object>} byteMap - The map to populate.
+ * @param {import('@/infrastructure/parsing/isobmff/parser.js').Box[]} boxes - The array of boxes to traverse.
+ * @param {number} page - The current page number (1-based).
+ * @param {number} bytesPerPage - The number of bytes per page.
+ */
+function walkAndMapBytes(byteMap, boxes, page, bytesPerPage) {
+    if (!boxes) return;
+
+    const startOffset = (page - 1) * bytesPerPage;
+    const endOffset = startOffset + bytesPerPage;
+
+    for (const box of boxes) {
+        // Optimization: If the box is entirely outside the visible range, skip it and its children.
+        if (box.offset + box.size < startOffset || box.offset > endOffset) {
+            continue;
+        }
+
+        // Map bytes for the box header.
+        for (let i = box.offset; i < box.contentOffset; i++) {
+            if (i >= startOffset && i < endOffset) {
+                byteMap.set(i, { box, color: box.color, fieldName: 'Box Header' });
+            }
+        }
+
+        // Map bytes for each field in the box's details.
+        for (const [fieldName, field] of Object.entries(box.details)) {
+            // Field offset is absolute. Length is in bits, but we map bytes.
+            const fieldEnd = field.offset + Math.ceil(field.length);
+            for (let i = field.offset; i < fieldEnd; i++) {
+                if (i >= startOffset && i < endOffset) {
+                    byteMap.set(i, { box, color: box.color, fieldName });
+                }
+            }
+        }
+
+        // Map bytes for CENC subsample encryption pattern.
+        if (box.type === 'senc' && box.samples) {
+            for (const sample of box.samples) {
+                if (sample.subsamples) {
+                    let currentOffset = sample.offset;
+                    for (const subsample of sample.subsamples) {
+                        // Mark clear bytes
+                        for (let i = 0; i < subsample.BytesOfClearData; i++) {
+                            const bytePos = currentOffset + i;
+                            if (bytePos >= startOffset && bytePos < endOffset) {
+                                const entry = byteMap.get(bytePos) || { box, color: box.color };
+                                entry.isClear = true;
+                                byteMap.set(bytePos, entry);
+                            }
+                        }
+                        currentOffset += subsample.BytesOfClearData + subsample.BytesOfProtectedData;
+                    }
+                }
+            }
+        }
+
+        // Recurse into children.
+        if (box.children && box.children.length > 0) {
+            walkAndMapBytes(byteMap, box.children, page, bytesPerPage);
+        }
+    }
+}
+
 
 /**
  * The core segment parsing logic, now exported for internal worker use.
@@ -441,71 +510,6 @@ export async function handleParseSegmentStructure({ url, data, formatHint }) {
     return parsedData;
 }
 
-function walkAndMapBytes(byteMap, boxes, page, bytesPerPage) {
-    const startOffset = (page - 1) * bytesPerPage;
-    const endOffset = startOffset + bytesPerPage;
-    const opacities = ['/80', '/60', '/70', '/50', '/90', '/40'];
-
-    for (const box of boxes) {
-        if (box.offset + box.size < startOffset || box.offset > endOffset) {
-            continue;
-        }
-
-        const baseClass = box.color?.bgClass;
-
-        // Highlight only the header
-        for (let i = box.offset; i < box.offset + box.headerSize; i++) {
-            if (i >= startOffset && i < endOffset) {
-                const color = baseClass ? { bgClass: `${baseClass}` } : {};
-                byteMap.set(i, { box, color, fieldName: 'Box Header' });
-            }
-        }
-
-        // Highlight specific fields
-        let fieldIndex = 0;
-        let entriesStartOffset = Infinity;
-        let entriesEndOffset = 0;
-
-        for (const [key, field] of Object.entries(box.details)) {
-            const opacityClass = opacities[fieldIndex % opacities.length];
-            const fieldColor = baseClass
-                ? { bgClass: `${baseClass}${opacityClass}` }
-                : {};
-
-            for (let i = field.offset; i < field.offset + field.length; i++) {
-                if (i >= startOffset && i < endOffset) {
-                    byteMap.set(i, { box, color: fieldColor, fieldName: key });
-                }
-            }
-            fieldIndex++;
-            entriesStartOffset = Math.min(entriesStartOffset, field.offset);
-            entriesEndOffset = Math.max(
-                entriesEndOffset,
-                field.offset + field.length
-            );
-        }
-
-        // Highlight table entry data blocks
-        const hasEntries = box.entries || box.samples;
-        if (hasEntries && entriesEndOffset < box.offset + box.size) {
-            const tableColor = baseClass ? { bgClass: `${baseClass}/30` } : {};
-            for (let i = entriesEndOffset; i < box.offset + box.size; i++) {
-                if (i >= startOffset && i < endOffset) {
-                    byteMap.set(i, {
-                        box,
-                        color: tableColor,
-                        fieldName: 'Table Entries',
-                    });
-                }
-            }
-        }
-
-        if (box.children && box.children.length > 0) {
-            walkAndMapBytes(byteMap, box.children, page, bytesPerPage);
-        }
-    }
-}
-
 export async function handleGeneratePagedByteMap({
     parsedData,
     page,
@@ -660,4 +664,35 @@ export async function handleDecryptAndParseSegment({
     });
 
     return { parsedData, decryptedData };
+}
+
+/**
+ * NEW HANDLER: Caches raw segment data sent from the main thread.
+ */
+export async function handleCacheRawSegment({ uniqueId, data }) {
+    rawSegmentCache.set(uniqueId, data);
+    return { success: true };
+}
+
+/**
+ * NEW HANDLER: Parses segment data that is already cached in the worker.
+ * This is used for init segments that are pre-fetched by the main thread.
+ */
+export async function handleParseCachedSegment({ uniqueId }) {
+    const data = rawSegmentCache.get(uniqueId);
+    if (!data) {
+        throw new Error(
+            `[Worker] Data for uniqueId ${uniqueId} not found in worker cache.`
+        );
+    }
+
+    // The URL is the first part of the uniqueId
+    const url = uniqueId.split('@')[0];
+    const parsedData = await handleParseSegmentStructure({
+        data,
+        url,
+        formatHint: null,
+    });
+
+    return { uniqueId, parsedData };
 }

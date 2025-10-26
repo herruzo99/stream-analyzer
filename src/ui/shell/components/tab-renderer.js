@@ -4,8 +4,8 @@ import { useUiStore } from '@/state/uiStore';
 import { isDebugMode } from '@/shared/utils/env';
 
 export const renderTabButtons = () => {
-    const { streams, activeSegmentUrl } = useAnalysisStore.getState();
-    const { activeTab } = useUiStore.getState();
+    const { streams } = useAnalysisStore.getState();
+    const { activeTab, activeSegmentUrl } = useUiStore.getState();
 
     const tabs = [
         { key: 'comparison', label: 'Comparison', visible: streams.length > 1 },

@@ -1,4 +1,5 @@
 import { createStore } from 'zustand/vanilla';
+import { debugLog } from '@/shared/utils/debug';
 
 /** @typedef {import('@/types').NetworkEvent} NetworkEvent */
 /** @typedef {import('@/types').ResourceType | 'all'} ResourceFilterType */
@@ -36,6 +37,7 @@ export const useNetworkStore = createStore((set, get) => ({
     ...createInitialNetworkState(),
 
     logEvent: (event) => {
+        debugLog('NetworkStore', 'logEvent action called. Adding event to state.', event);
         set((state) => ({ events: [...state.events, event] }));
     },
 

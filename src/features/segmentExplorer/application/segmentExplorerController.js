@@ -18,13 +18,13 @@ export function initializeSegmentExplorerController() {
     });
 
     eventBus.subscribe(
-        'ui:segment-explorer:time-filter-applied',
-        ({ start, end }) => {
-            uiActions.setSegmentExplorerTimeFilter({ start, end });
+        'ui:segment-explorer:time-target-set',
+        ({ target }) => {
+            uiActions.setSegmentExplorerTargetTime(target);
         }
     );
 
-    eventBus.subscribe('ui:segment-explorer:time-filter-cleared', () => {
-        uiActions.clearSegmentExplorerTimeFilter();
+    eventBus.subscribe('ui:segment-explorer:time-target-cleared', () => {
+        uiActions.clearSegmentExplorerTargetTime();
     });
 }

@@ -88,7 +88,7 @@ export function getDashExplorerForType(stream, contentType) {
         </p>`;
     }
 
-    const { segmentExplorerSortOrder, segmentExplorerTimeFilter } =
+    const { segmentExplorerSortOrder, segmentExplorerTargetTime } =
         useUiStore.getState();
 
     return html`
@@ -161,49 +161,10 @@ export function getDashExplorerForType(stream, contentType) {
                                                     ...segments,
                                                 ];
 
-                                                if (
-                                                    segmentExplorerTimeFilter.start ||
-                                                    segmentExplorerTimeFilter.end
-                                                ) {
-                                                    processedSegments =
-                                                        processedSegments.filter(
-                                                            (seg) => {
-                                                                if (
-                                                                    !seg.startTimeUTC ||
-                                                                    seg.type ===
-                                                                        'Init'
-                                                                )
-                                                                    return true; // Always include Init segments
-                                                                const segStartTime =
-                                                                    new Date(
-                                                                        seg.startTimeUTC
-                                                                    );
-                                                                const segEndTime =
-                                                                    seg.endTimeUTC
-                                                                        ? new Date(
-                                                                              seg.endTimeUTC
-                                                                          )
-                                                                        : segStartTime;
-                                                                const filterStart =
-                                                                    segmentExplorerTimeFilter.start;
-                                                                const filterEnd =
-                                                                    segmentExplorerTimeFilter.end;
-
-                                                                const startsAfterFilterStart =
-                                                                    !filterStart ||
-                                                                    segEndTime >=
-                                                                        filterStart;
-                                                                const endsBeforeFilterEnd =
-                                                                    !filterEnd ||
-                                                                    segStartTime <=
-                                                                        filterEnd;
-
-                                                                return (
-                                                                    startsAfterFilterStart &&
-                                                                    endsBeforeFilterEnd
-                                                                );
-                                                            }
-                                                        );
+                                                // The new logic uses targetTime instead of a range.
+                                                // It does not filter the list but is used by child components for scrolling and highlighting.
+                                                if (segmentExplorerTargetTime) {
+                                                    // This logic is now handled inside segment-table and segment-row
                                                 }
 
                                                 processedSegments.sort(

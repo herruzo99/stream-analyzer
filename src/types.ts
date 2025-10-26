@@ -132,6 +132,8 @@ export interface ContentProtection {
     defaultKid: string | null;
     robustness: string | null;
     pssh?: PsshInfo[];
+    refId?: string;
+    ref?: string;
 }
 
 export interface ContentComponent {
@@ -322,6 +324,7 @@ export interface Period {
     serviceDescriptions: ServiceDescription[];
     eventStreams: EventStream[];
     events: Event[];
+    supplementalProperties?: Descriptor[];
     serializedManifest: object;
 }
 
@@ -511,6 +514,7 @@ export interface Manifest {
     segmentFormat: 'isobmff' | 'ts' | 'unknown';
     periods: Period[];
     events: Event[];
+    contentProtections?: ContentProtection[];
     serializedManifest: Element | object;
     summary: ManifestSummary | null;
     serverControl: object | null;

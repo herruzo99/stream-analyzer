@@ -12,6 +12,7 @@ async function logRequest(
     const responseStart = performance.now();
     // We don't read the body here anymore to avoid consuming it.
     const responseEnd = performance.now();
+    debugLog('worker.logRequest', 'Logging network event for:', initialUrl.href);
 
     /** @type {Record<string, string>} */
     const requestHeaders = {};
@@ -60,6 +61,7 @@ async function logRequest(
     };
 
     // Use a different message type to signal this is a provisional event for enrichment
+    debugLog('worker.logRequest', 'Posting worker:network-event message to main thread.', provisionalEvent);
     self.postMessage({ type: 'worker:network-event', payload: provisionalEvent });
 }
 
@@ -70,6 +72,8 @@ async function logRequest(
  * @param {import('@/types').ResourceType} [resourceType='other'] The type of resource being fetched.
  * @param {number} [streamId=0] The ID of the stream this request belongs to.
  * @param {string} [range=null] Optional byte range string (e.g., "0-1023").
+ * @param {Record<string, string>} [shakaHeaders={}] Headers from the shaka request object.
+ * @param {ArrayBuffer} [shakaBody=null] Body from the shaka request object.
  * @returns {Promise<Response>}
  */
 export async function fetchWithAuth(
@@ -77,17 +81,27 @@ export async function fetchWithAuth(
     auth,
     resourceType = 'other',
     streamId = 0,
-    range = null
+    range = null,
+    shakaHeaders = {},
+    shakaBody = null
 ) {
     const initialUrl = new URL(url);
     /** @type {RequestInit} */
     const options = {
-        method: 'GET',
+        method: shakaBody ? 'POST' : 'GET',
         headers: new Headers(),
         mode: 'cors',
         cache: 'no-cache', // Ensure we always revalidate with the server.
+        body: shakaBody,
     };
 
+    // Apply headers from Shaka request first
+    for (const [key, value] of Object.entries(shakaHeaders)) {
+        // @ts-ignore
+        options.headers.append(key, value);
+    }
+    
+    // Apply auth headers and query params from our application's config
     if (auth) {
         auth.queryParams?.forEach((param) => {
             if (param.key) {
@@ -109,6 +123,7 @@ export async function fetchWithAuth(
     }
 
     const requestStart = performance.now();
+    debugLog('fetchWithAuth', `Initiating fetch for ${initialUrl.href}`, options);
     const response = await fetchWithRetry(initialUrl.href, options);
 
     const responseForLogging = response.clone();

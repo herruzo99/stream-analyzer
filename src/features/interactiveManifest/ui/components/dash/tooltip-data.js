@@ -465,6 +465,10 @@ export const dashTooltipData = {
         text: 'A URI identifying the scheme for the in-band events. This tells the client what kind of events to look for (e.g., "urn:scte:scte35:2013:bin" for SCTE-35 ad markers).',
         isoRef: 'Clause 5.10.3.2',
     },
+    'InbandEventStream@value': {
+        text: 'A value that, in combination with @schemeIdUri, provides a unique identifier for the event stream. The semantics of this value are defined by the scheme owner.',
+        isoRef: 'Clause 5.10.2.2, Table 38',
+    },
     UTCTiming: {
         text: 'Provides a method for clients to synchronize their wall-clocks with the server. This is crucial for consistent live stream startup and calculating segment availability accurately.',
         isoRef: 'Clause 5.8.4.11',
@@ -511,6 +515,14 @@ export const dashTooltipData = {
         text: 'An optional string providing additional scheme-specific information. For Common Encryption, this often specifies the 4CC of the encryption scheme, like "cenc" or "cbcs".',
         isoRef: 'Clause 5.8.4.1.4, Table 33',
     },
+    'ContentProtection@ref': {
+        text: 'References another ContentProtection descriptor by its @refId. This allows this element to inherit all attributes and child elements from the referenced "source" descriptor, promoting manifest efficiency.',
+        isoRef: 'Clause 5.8.4.1.4, Table 33',
+    },
+    'ContentProtection@refId': {
+        text: 'A unique identifier for this ContentProtection descriptor. It can be referenced by other ContentProtection elements using the @ref attribute to avoid duplication.',
+        isoRef: 'Clause 5.8.4.1.4, Table 33',
+    },
     'ContentProtection@default_KID': {
         text: 'The default Key ID for the content, as a UUID string without hyphens. This is the primary identifier used to request the correct decryption key from a license server.',
         isoRef: 'ISO/IEC 23001-7 & Clause 5.8.5.2.2',
@@ -535,9 +547,25 @@ export const dashTooltipData = {
         text: 'Specifies a property that is essential for processing the parent element. If a client does not understand the scheme of an EssentialProperty, it MUST ignore the entire parent element (e.g., the AdaptationSet).',
         isoRef: 'Clause 5.8.4.8',
     },
+    'EssentialProperty@schemeIdUri': {
+        text: 'A URI that uniquely identifies the scheme for this essential property. A client must understand this scheme to process the parent element.',
+        isoRef: 'Clause 5.8.2, Table 32',
+    },
+    'EssentialProperty@value': {
+        text: 'A scheme-specific value. Its meaning is defined by the specification associated with the @schemeIdUri.',
+        isoRef: 'Clause 5.8.2, Table 32',
+    },
     SupplementalProperty: {
         text: 'Specifies supplemental information that is not essential for playback but may be used by the client for optimization or enhanced functionality. If a client does not understand the scheme, it can safely ignore this descriptor.',
         isoRef: 'Clause 5.8.4.9',
+    },
+    'SupplementalProperty@schemeIdUri': {
+        text: 'A URI that uniquely identifies the scheme for this supplemental property. A client can safely ignore this descriptor if the scheme is not understood.',
+        isoRef: 'Clause 5.8.2, Table 32',
+    },
+    'SupplementalProperty@value': {
+        text: 'A scheme-specific value. Its meaning is defined by the specification associated with the @schemeIdUri.',
+        isoRef: 'Clause 5.8.2, Table 32',
     },
     Label: {
         text: 'Provides a human-readable text string for its parent element, which can be used for UI display (e.g., showing "1080p (Best)" or "English AAC Stereo" in a track selector).',

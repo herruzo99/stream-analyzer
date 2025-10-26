@@ -3,6 +3,22 @@ import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { segmentRowTemplate } from './segment-row.js';
 import { getScrollbarWidth } from '@/ui/shared/dom-utils';
 import '@/ui/components/virtualized-list'; // Import the custom element
+import { useSegmentCacheStore } from '@/state/segmentCacheStore';
+import { useUiStore, uiActions } from '@/state/uiStore';
+import { eventBus } from '@/application/event-bus';
+
+/**
+ * A map to track which segments have been flashed for each representation.
+ * This state is local to the component to avoid polluting the global store.
+ * The key is the representation ID, and the value is a Set of unique segment IDs.
+ * @type {Map<string, Set<string>>}
+ */
+const flashedSegmentIds = new Map();
+
+// Subscribe to the analysis start event to clear the local state.
+eventBus.subscribe('analysis:started', () => {
+    flashedSegmentIds.clear();
+});
 
 /**
  * A shared component for rendering a table of media segments.
@@ -69,11 +85,64 @@ export const segmentTableTemplate = ({
             content = html``;
         }
     } else {
+        const getFromCache = useSegmentCacheStore.getState().get;
+        const { segmentExplorerTargetTime, segmentExplorerScrollToTarget } =
+            useUiStore.getState();
+
+        // Initialize flashed set for this table if it doesn't exist.
+        // This also pre-populates it on first render to establish a baseline.
+        if (!flashedSegmentIds.has(id)) {
+            flashedSegmentIds.set(id, new Set(segments.map((s) => s.uniqueId)));
+        }
+        const thisTablesFlashed = flashedSegmentIds.get(id);
+
         const rowRenderer = (seg) => {
-            // Pass the composite key 'id' as 'repId' and the stream object to the row template
-            return segmentRowTemplate(seg, stream, segmentFormat, id);
+            const cacheEntry = getFromCache(seg.uniqueId);
+            const shouldFlash =
+                freshSegmentUrls.has(seg.uniqueId) &&
+                !thisTablesFlashed.has(seg.uniqueId);
+
+            if (shouldFlash) {
+                thisTablesFlashed.add(seg.uniqueId);
+            }
+
+            return segmentRowTemplate(
+                seg,
+                stream,
+                segmentFormat,
+                id,
+                freshSegmentUrls,
+                cacheEntry,
+                segmentExplorerTargetTime,
+                shouldFlash // Pass down the decision
+            );
         };
         const scrollbarWidth = getScrollbarWidth();
+
+        setTimeout(() => {
+            /** @type {import('@/ui/components/virtualized-list.js').default | null} */
+            const listElement = document.querySelector(`#vl-${id}`);
+            if (!listElement) return;
+
+            // Time navigation logic
+            if (segmentExplorerTargetTime && segmentExplorerScrollToTarget) {
+                const targetIndex = segments.findIndex(
+                    (seg) =>
+                        seg.startTimeUTC <= segmentExplorerTargetTime.getTime() &&
+                        seg.endTimeUTC >= segmentExplorerTargetTime.getTime()
+                );
+
+                if (targetIndex !== -1) {
+                    const centeredScrollTop =
+                        targetIndex * listElement.rowHeight -
+                        listElement.clientHeight / 2 +
+                        listElement.rowHeight / 2;
+
+                    listElement.scrollTop = Math.max(0, centeredScrollTop);
+                }
+                uiActions.clearSegmentExplorerScrollTrigger();
+            }
+        }, 0);
 
         content = html`
             <div class="overflow-x-auto text-sm">

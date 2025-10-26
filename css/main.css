@@ -63,6 +63,15 @@
     }
 }
 
+@keyframes flash-green {
+    0% {
+        background-color: rgba(74, 222, 128, 0.5); /* bg-green-400/50 */
+    }
+    100% {
+        background-color: transparent;
+    }
+}
+
 /* --- Animation Utilities (Complex selectors or effects) --- */
 
 .animate-fadeIn {
@@ -94,6 +103,9 @@
 }
 details.details-animated[open] > *:not(summary) {
     animation: fadeIn 0.3s ease-out;
+}
+.flash-new-segment {
+    animation: flash-green 1.5s ease-out forwards;
 }
 
 /* --- Loader Styles (Uses custom animation properties) --- */

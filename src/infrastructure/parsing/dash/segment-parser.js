@@ -54,8 +54,8 @@ function generateSegments(
             type: 'Media',
             number: segmentNumber,
             resolvedUrl: resolvedUrl,
-            uniqueId: resolvedUrl,
-            template: url,
+            uniqueId: `${resolvedUrl}@t=${time}`, // Ensure unique ID
+            template: mediaTemplate, // Store the original template
             time: time,
             duration: segmentDuration,
             timescale,
@@ -258,6 +258,16 @@ export async function parseAllSegmentUrls(manifestElement, manifestUrl) {
                                     .replace(
                                         /\$Bandwidth\$/g,
                                         getAttr(rep, 'bandwidth')
+                                    )
+                                    .replace(/\$Number(%0\d+d)?\$/g, (m, p) =>
+                                        String(currentNumber).padStart(
+                                            p
+                                                ? parseInt(
+                                                      p.substring(2, p.length - 1)
+                                                  )
+                                                : 1,
+                                            '0'
+                                        )
                                     );
                                 const resolvedUrl = new URL(url, baseUrl).href;
 
@@ -280,8 +290,8 @@ export async function parseAllSegmentUrls(manifestElement, manifestUrl) {
                                     type: 'Media',
                                     number: currentNumber,
                                     resolvedUrl: resolvedUrl,
-                                    uniqueId: resolvedUrl,
-                                    template: url,
+                                    uniqueId: `${resolvedUrl}@t=${mediaTime}`, // Ensure unique ID
+                                    template: mediaTemplate,
                                     time: mpdStartTimeInTimescale,
                                     duration: d,
                                     timescale,
@@ -373,11 +383,14 @@ export async function parseAllSegmentUrls(manifestElement, manifestUrl) {
                                 getAttr(period, 'duration')
                             );
                             let numSegments = 0;
-                            const templateDuration = Number(getAttr(template, 'duration'));
+                            const templateDuration = Number(
+                                getAttr(template, 'duration')
+                            );
 
                             if (periodDuration && templateDuration > 0) {
                                 numSegments = Math.ceil(
-                                    (periodDuration * timescale) / templateDuration
+                                    (periodDuration * timescale) /
+                                        templateDuration
                                 );
                             } else {
                                 const mpdDuration = parseDuration(
@@ -388,7 +401,8 @@ export async function parseAllSegmentUrls(manifestElement, manifestUrl) {
                                 );
                                 if (mpdDuration && templateDuration > 0) {
                                     numSegments = Math.ceil(
-                                        (mpdDuration * timescale) / templateDuration
+                                        (mpdDuration * timescale) /
+                                            templateDuration
                                     );
                                 }
                             }
@@ -482,13 +496,20 @@ export function findInitSegmentUrl(
     const template = getInheritedElement('SegmentTemplate', hierarchy);
     const initializationTemplate = getAttr(template, 'initialization');
     if (initializationTemplate) {
-        const urlWithSub = initializationTemplate.replace(/\$RepresentationID\$/g, representation.id);
+        const urlWithSub = initializationTemplate.replace(
+            /\$RepresentationID\$/g,
+            representation.id
+        );
         const result = {
             url: new URL(urlWithSub, baseUrl).href,
             range: null,
             template: initializationTemplate,
         };
-        debugLog('findInitSegmentUrl', 'Found via SegmentTemplate@initialization', result);
+        debugLog(
+            'findInitSegmentUrl',
+            'Found via SegmentTemplate@initialization',
+            result
+        );
         return result;
     }
 
@@ -502,7 +523,10 @@ export function findInitSegmentUrl(
 
     if (initialization && getAttr(initialization, 'sourceURL')) {
         const urlTemplate = getAttr(initialization, 'sourceURL');
-        const urlWithSub = urlTemplate.replace(/\$RepresentationID\$/g, representation.id);
+        const urlWithSub = urlTemplate.replace(
+            /\$RepresentationID\$/g,
+            representation.id
+        );
         const result = {
             url: new URL(urlWithSub, baseUrl).href,
             range: null,
@@ -521,7 +545,7 @@ export function findInitSegmentUrl(
         debugLog('findInitSegmentUrl', 'Found via Initialization@range', result);
         return result;
     }
-    
+
     debugLog('findInitSegmentUrl', 'No init segment information found.');
     return null;
 }

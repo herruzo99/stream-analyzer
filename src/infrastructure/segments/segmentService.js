@@ -3,6 +3,7 @@ import { eventBus } from '@/application/event-bus';
 import { workerService } from '@/infrastructure/worker/workerService';
 import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
 import { keyManagerService } from '@/infrastructure/decryption/keyManagerService';
+import { debugLog } from '@/shared/utils/debug';
 
 /**
  * Finds the corresponding HLS segment object and its parent playlist from the manifest IR.
@@ -163,20 +164,86 @@ export function initializeSegmentService() {
         _fetchAndParseSegment(uniqueId, streamId, format)
     );
 
-    // --- NEW LISTENER ---
-    // Listen for segments that were fetched by the Shaka player's networking stack.
     workerService.registerGlobalHandler(
         'worker:shaka-segment-loaded',
         (payload) => {
-            const { uniqueId, status, data, parsedData } = payload;
+            debugLog(
+                'SegmentService',
+                'Handler for "worker:shaka-segment-loaded" triggered.',
+                payload
+            );
+            const {
+                uniqueId: rawUrl,
+                status,
+                data,
+                parsedData,
+                streamId,
+            } = payload;
             const { set } = useSegmentCacheStore.getState();
+            const stream = useAnalysisStore
+                .getState()
+                .streams.find((s) => s.id === streamId);
+
+            if (!stream) {
+                debugLog(
+                    'SegmentService',
+                    `Could not find stream with ID ${streamId}. Cannot process segment.`
+                );
+                return;
+            }
+
+            let canonicalSegment = null;
+            
+            // ** THE FIX **: Add protocol guard before accessing state properties.
+            let allSegmentLists = [];
+            if (stream.protocol === 'dash') {
+                allSegmentLists = [...stream.dashRepresentationState.values()];
+            } else if (stream.protocol === 'hls') {
+                allSegmentLists = [...stream.hlsVariantState.values()];
+            }
+
+            for (const repState of allSegmentLists) {
+                canonicalSegment = (repState.segments || []).find(
+                    (s) => s.resolvedUrl === rawUrl
+                );
+                if (canonicalSegment) break;
+            }
+
+            if (!canonicalSegment) {
+                debugLog(
+                    'SegmentService',
+                    `Could not find a canonical segment in the state for the player-loaded URL: ${rawUrl}. This may be an init segment or a key/license request.`
+                );
+                const entry = { status, data, parsedData };
+                set(rawUrl, entry);
+                eventBus.dispatch('segment:loaded', { uniqueId: rawUrl, entry });
+                return;
+            }
+
+            const canonicalUniqueId = canonicalSegment.uniqueId;
             const entry = { status, data, parsedData };
 
-            set(uniqueId, entry);
+            debugLog(
+                'SegmentService',
+                `Resolved raw URL "${rawUrl}" to canonical uniqueId "${canonicalUniqueId}". Updating segmentCacheStore.`
+            );
+            set(canonicalUniqueId, entry);
 
-            // Notify the UI that a new segment is available in the cache,
-            // which will trigger re-renders in components like the Segment Explorer.
-            eventBus.dispatch('segment:loaded', { uniqueId, entry });
+            debugLog(
+                'SegmentService',
+                'Dispatching "segment:loaded" event to eventBus with canonical ID.'
+            );
+            eventBus.dispatch('segment:loaded', {
+                uniqueId: canonicalUniqueId,
+                entry,
+            });
+
+            if (stream.protocol === 'hls') {
+                analysisActions.addHlsSegmentFromPlayer({
+                    streamId,
+                    segmentUrl: rawUrl,
+                });
+            }
         }
     );
 }

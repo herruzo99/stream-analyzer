@@ -12,6 +12,7 @@ import { createStore } from 'zustand/vanilla';
  * @typedef {object} UiState
  * @property {'input' | 'results'} viewState
  * @property {string} activeTab
+ * @property {string | null} activeSegmentUrl
  * @property {'primary' | 'contextual' | null} activeSidebar
  * @property {ModalState} modalState
  * @property {boolean} isCmafSummaryExpanded
@@ -29,7 +30,8 @@ import { createStore } from 'zustand/vanilla';
  * @property {'first' | 'last'} segmentExplorerDashMode
  * @property {string} segmentExplorerActiveTab
  * @property {'asc' | 'desc'} segmentExplorerSortOrder
- * @property {{start: Date | null, end: Date | null}} segmentExplorerTimeFilter
+ * @property {Date | null} segmentExplorerTargetTime
+ * @property {boolean} segmentExplorerScrollToTarget
  * @property {string | null} highlightedCompliancePathId
  * @property {boolean} segmentComparisonHideSame
  * @property {Set<string>} expandedComparisonTables
@@ -58,19 +60,22 @@ import { createStore } from 'zustand/vanilla';
  * @property {(mode: 'first' | 'last') => void} setSegmentExplorerDashMode
  * @property {(tab: string) => void} setSegmentExplorerActiveTab
  * @property {() => void} toggleSegmentExplorerSortOrder
- * @property {(filter: {start: Date | null, end: Date | null}) => void} setSegmentExplorerTimeFilter
- * @property {() => void} clearSegmentExplorerTimeFilter
+ * @property {(target: Date | null) => void} setSegmentExplorerTargetTime
+ * @property {() => void} clearSegmentExplorerTargetTime
+ * @property {() => void} clearSegmentExplorerScrollTrigger
  * @property {(pathId: string | null) => void} setHighlightedCompliancePathId
  * @property {() => void} toggleSegmentComparisonHideSame
  * @property {(tableId: string) => void} toggleComparisonTable
  * @property {(rowName: string) => void} toggleComparisonFlags
  * @property {(mode: 'standard' | 'advanced') => void} setPlayerControlMode
+ * @property {(segmentUniqueId: string) => void} navigateToInteractiveSegment
  * @property {() => void} reset
  */
 
 const createInitialUiState = () => ({
     viewState: 'input',
     activeTab: 'summary',
+    activeSegmentUrl: null,
     activeSidebar: null,
     modalState: {
         isModalOpen: false,
@@ -93,7 +98,8 @@ const createInitialUiState = () => ({
     segmentExplorerDashMode: 'first',
     segmentExplorerActiveTab: 'video',
     segmentExplorerSortOrder: 'desc',
-    segmentExplorerTimeFilter: { start: null, end: null },
+    segmentExplorerTargetTime: null,
+    segmentExplorerScrollToTarget: false,
     highlightedCompliancePathId: null,
     segmentComparisonHideSame: false,
     expandedComparisonTables: new Set(),
@@ -154,10 +160,18 @@ export const useUiStore = createStore((set) => ({
             segmentExplorerSortOrder:
                 state.segmentExplorerSortOrder === 'asc' ? 'desc' : 'asc',
         })),
-    setSegmentExplorerTimeFilter: (filter) =>
-        set({ segmentExplorerTimeFilter: filter }),
-    clearSegmentExplorerTimeFilter: () =>
-        set({ segmentExplorerTimeFilter: { start: null, end: null } }),
+    setSegmentExplorerTargetTime: (target) =>
+        set({
+            segmentExplorerTargetTime: target,
+            segmentExplorerScrollToTarget: true,
+        }),
+    clearSegmentExplorerTargetTime: () =>
+        set({
+            segmentExplorerTargetTime: null,
+            segmentExplorerScrollToTarget: false,
+        }),
+    clearSegmentExplorerScrollTrigger: () =>
+        set({ segmentExplorerScrollToTarget: false }),
     setHighlightedCompliancePathId: (pathId) =>
         set({ highlightedCompliancePathId: pathId }),
     toggleSegmentComparisonHideSame: () =>
@@ -187,6 +201,17 @@ export const useUiStore = createStore((set) => ({
         });
     },
     setPlayerControlMode: (mode) => set({ playerControlMode: mode }),
+    navigateToInteractiveSegment: (segmentUniqueId) => {
+        set({
+            activeSegmentUrl: segmentUniqueId,
+            activeTab: 'interactive-segment',
+            interactiveSegmentCurrentPage: 1, // Reset page on new segment
+            pagedByteMap: null, // Reset byte map
+            isByteMapLoading: false, // Reset loading state
+            interactiveSegmentSelectedItem: null, // Reset selection
+            interactiveSegmentHighlightedItem: null, // Reset highlight
+        });
+    },
     reset: () => set(createInitialUiState()),
 }));
 
@@ -225,10 +250,12 @@ export const uiActions = {
         useUiStore.getState().setSegmentExplorerActiveTab(tab),
     toggleSegmentExplorerSortOrder: () =>
         useUiStore.getState().toggleSegmentExplorerSortOrder(),
-    setSegmentExplorerTimeFilter: (filter) =>
-        useUiStore.getState().setSegmentExplorerTimeFilter(filter),
-    clearSegmentExplorerTimeFilter: () =>
-        useUiStore.getState().clearSegmentExplorerTimeFilter(),
+    setSegmentExplorerTargetTime: (target) =>
+        useUiStore.getState().setSegmentExplorerTargetTime(target),
+    clearSegmentExplorerTargetTime: () =>
+        useUiStore.getState().clearSegmentExplorerTargetTime(),
+    clearSegmentExplorerScrollTrigger: () =>
+        useUiStore.getState().clearSegmentExplorerScrollTrigger(),
     setHighlightedCompliancePathId: (pathId) =>
         useUiStore.getState().setHighlightedCompliancePathId(pathId),
     toggleSegmentComparisonHideSame: () =>
@@ -239,5 +266,7 @@ export const uiActions = {
         useUiStore.getState().toggleComparisonFlags(rowName),
     setPlayerControlMode: (mode) =>
         useUiStore.getState().setPlayerControlMode(mode),
+    navigateToInteractiveSegment: (segmentUniqueId) =>
+        useUiStore.getState().navigateToInteractiveSegment(segmentUniqueId),
     reset: () => useUiStore.getState().reset(),
 };

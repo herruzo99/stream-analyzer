@@ -50,29 +50,54 @@ export const playerService = {
             return;
         }
 
-        // --- ARCHITECTURAL CHANGE: Register custom networking scheme ---
-        // This intercepts all of Shaka's network requests and proxies them
-        // through our instrumented web worker.
-        shaka.net.NetworkingEngine.registerScheme('app', (uri, request, requestType) => {
-            // Remove the 'app:' scheme prefix before sending to worker
-            const finalUri = uri.substring(4);
-            const { auth, id: streamId } = useAnalysisStore.getState().streams.find(s => s.originalUrl === finalUri.split('?')[0]) || {};
+        const shakaNetworkPlugin = (uri, request, requestType) => {
+            debugLog('ShakaNetworkPlugin', 'Intercepted request for URI:', uri, 'Type:', requestType);
+            const { streams, activeStreamId } = useAnalysisStore.getState();
+            let stream;
 
-            const shakaRequest = {
-                uris: [finalUri],
+            // 1. Most reliable: Find the stream currently loaded in this player instance.
+            const assetUri = player ? player.getAssetUri() : null;
+            if (assetUri) {
+                stream = streams.find(s => s.originalUrl === assetUri);
+            }
+
+            // 2. Fallback for requests during the loading phase, before player.load() has resolved.
+            if (!stream) {
+                stream = streams.find(s => s.originalUrl === uri);
+            }
+            
+            // 3. Last resort if a match still isn't found. Default to the active stream in the UI.
+            if (!stream) {
+                stream = streams.find(s => s.id === activeStreamId);
+            }
+
+            const { auth, id: streamId } = stream || {};
+            
+            const serializableRequest = {
+                uris: request.uris,
                 method: request.method,
-                headers: request.headers,
-                body: request.body
+                headers: {},
+                body: request.body,
             };
+            for (const [key, value] of Object.entries(request.headers)) {
+                serializableRequest.headers[key] = value;
+            }
 
-            return workerService.postTask('shaka-fetch', {
-                request: shakaRequest,
-                requestType,
-                auth,
-                streamId,
-            });
-        });
-        // --- END CHANGE ---
+            debugLog('ShakaNetworkPlugin', 'Dispatching serializable request to worker via shaka-fetch task.', { uri, streamId });
+            const abortableOp = new shaka.util.AbortableOperation(
+                workerService.postTask('shaka-fetch', {
+                    request: serializableRequest,
+                    requestType,
+                    auth,
+                    streamId,
+                })
+            );
+            
+            return abortableOp;
+        };
+        
+        shaka.net.NetworkingEngine.registerScheme('http', shakaNetworkPlugin);
+        shaka.net.NetworkingEngine.registerScheme('https', shakaNetworkPlugin);
 
         videoElement = videoEl;
         player = new shaka.Player();
@@ -202,10 +227,8 @@ export const playerService = {
 
 
         try {
-            // --- ARCHITECTURAL CHANGE: Prepend custom scheme to URL ---
-            const instrumentedUrl = `app:${stream.originalUrl}`;
-            await player.load(instrumentedUrl);
-            // --- END CHANGE ---
+            debugLog('playerService.load', 'Loading instrumented URL:', stream.originalUrl);
+            await player.load(stream.originalUrl);
             playerActions.setLoadedState(true);
             eventBus.dispatch('player:manifest-loaded');
         } catch (e) {

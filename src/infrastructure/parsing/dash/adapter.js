@@ -257,6 +257,8 @@ function parseRepresentation(repEl, parentMergedEl) {
                     system: getDrmSystemName(schemeIdUri),
                     defaultKid: getAttr(cpEl, 'default_KID'),
                     robustness: getAttr(cpEl, 'robustness'),
+                    refId: getAttr(cpEl, 'refId'),
+                    ref: getAttr(cpEl, 'ref'),
                     pssh: psshData
                         ? [
                               {
@@ -417,6 +419,8 @@ function parseAdaptationSet(asEl, parentMergedEl) {
                     system: getDrmSystemName(schemeIdUri),
                     defaultKid: getAttr(cpEl, 'default_KID'),
                     robustness: getAttr(cpEl, 'robustness'),
+                    refId: getAttr(cpEl, 'refId'),
+                    ref: getAttr(cpEl, 'ref'),
                     pssh: psshData
                         ? [
                               {
@@ -655,6 +659,10 @@ function parsePeriod(periodEl, parentMergedEl, previousPeriod = null) {
         ),
         eventStreams: eventStreamIRs,
         events: allEvents,
+        supplementalProperties: findChildren(
+            periodEl,
+            'SupplementalProperty'
+        ).map(parseGenericDescriptor),
         serializedManifest: periodEl,
     };
 
@@ -759,6 +767,30 @@ export async function adaptDashToIr(manifestElement, baseUrl, context) {
         periods: [], // Populated below
         segmentFormat: /** @type {'isobmff' | 'ts' | 'unknown'} */ (
             segmentFormat
+        ),
+        contentProtections: findChildren(manifestCopy, 'ContentProtection').map(
+            (cpEl) => {
+                const psshNode = findChildren(cpEl, 'cenc:pssh')[0];
+                const psshData = psshNode ? getText(psshNode) : null;
+                const schemeIdUri = getAttr(cpEl, 'schemeIdUri');
+                return {
+                    schemeIdUri: schemeIdUri,
+                    system: getDrmSystemName(schemeIdUri),
+                    defaultKid: getAttr(cpEl, 'cenc:default_KID'),
+                    robustness: getAttr(cpEl, 'robustness'),
+                    refId: getAttr(cpEl, 'refId'),
+                    ref: getAttr(cpEl, 'ref'),
+                    pssh: psshData
+                        ? [
+                              {
+                                  systemId: schemeIdUri,
+                                  kids: [],
+                                  data: psshData,
+                              },
+                          ]
+                        : [],
+                };
+            }
         ),
         serializedManifest: manifestElement,
         metrics: [],

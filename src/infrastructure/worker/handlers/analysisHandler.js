@@ -189,7 +189,7 @@ async function buildStreamObject(
         rawManifest: input.manifestString,
         auth: input.auth,
         drmAuth: input.drmAuth,
-        licenseServerUrl: input.drmAuth.licenseServerUrl, // Correctly pass this forward
+        licenseServerUrl: input.drmAuth.licenseServerUrl,
         steeringInfo: steeringTag,
         manifestUpdates: [],
         activeManifestUpdateIndex: 0,

@@ -13,7 +13,7 @@ const extensionPatterns = [
     ['init.mp4', { contentType: 'init', codec: null }],
     ['init.m4s', { contentType: 'init', codec: null }],
 
-    // Media Segments
+    // Media Segments - these are now more generic fallbacks
     ['.m4s', { contentType: 'video', codec: 'avc1, mp4a' }],
     ['.mp4', { contentType: 'video', codec: 'avc1, mp4a' }],
     ['.m4v', { contentType: 'video', codec: 'avc1' }],
@@ -35,7 +35,7 @@ const extensionPatterns = [
 ];
 
 /**
- * Infers the media content type and a likely codec from a filename's extension.
+ * Infers the media content type and a likely codec from a filename's extension and content.
  * @param {string | null | undefined} filename The filename or URI of the media segment.
  * @returns {MediaInfo} An object with the inferred contentType and codec.
  */
@@ -46,14 +46,34 @@ export function inferMediaInfoFromExtension(filename) {
 
     const lowerFilename = filename.toLowerCase();
 
-    for (const [pattern, info] of extensionPatterns) {
-        // Use `includes` for init segments to catch prefixed names.
-        if (pattern.startsWith('init.')) {
-            if (lowerFilename.includes(pattern)) {
+    // --- NEW: Heuristic based on URL content ---
+    if (lowerFilename.includes('_video_') || lowerFilename.includes('/video/')) {
+        return { contentType: 'video', codec: 'avc1' };
+    }
+    if (lowerFilename.includes('_audio_') || lowerFilename.includes('/audio/')) {
+        return { contentType: 'audio', codec: 'mp4a.40.2' };
+    }
+    // --- END NEW ---
+
+    try {
+        const path = new URL(filename).pathname;
+        const lowerPath = path.toLowerCase();
+
+        for (const [pattern, info] of extensionPatterns) {
+            if (pattern.startsWith('init.')) {
+                if (lowerPath.includes(pattern)) {
+                    return info;
+                }
+            } else if (lowerPath.endsWith(pattern)) {
                 return info;
             }
-        } else if (lowerFilename.endsWith(pattern)) {
-            return info;
+        }
+    } catch (e) {
+        // Fallback for non-URL strings or parsing errors
+        for (const [pattern, info] of extensionPatterns) {
+            if (lowerFilename.endsWith(pattern)) {
+                return info;
+            }
         }
     }
 

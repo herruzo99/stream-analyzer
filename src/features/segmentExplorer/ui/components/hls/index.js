@@ -49,7 +49,7 @@ export function stopLiveSegmentHighlighter() {
 
 const renderHlsRendition = (stream, renditionInfo) => {
     const { title, uri, isMuxed } = renditionInfo;
-    const { segmentExplorerSortOrder, segmentExplorerTimeFilter } =
+    const { segmentExplorerSortOrder, segmentExplorerTargetTime } =
         useUiStore.getState();
 
     if (isMuxed) {
@@ -79,63 +79,47 @@ const renderHlsRendition = (stream, renditionInfo) => {
     const variantState = stream.hlsVariantState.get(uri);
     if (!variantState) return html``;
 
-    const {
-        segments: rawSegments,
-        error,
-        isLoading,
-        freshSegmentUrls,
-    } = variantState;
+    const { rawSegments, error, isLoading, freshSegmentUrls } = variantState;
+    
+    // ARCHITECTURAL FIX: Guard against rendering before segments are loaded.
+    const segments = rawSegments || [];
 
     let pdtAnchorTime = 0;
     let cumulativeDuration = 0;
-    const allSegments = (Array.isArray(rawSegments) ? rawSegments : []).map(
-        (seg, index) => {
-            if (/** @type {any} */ (seg).dateTime) {
-                pdtAnchorTime = new Date(
-                    /** @type {any} */ (seg).dateTime
-                ).getTime();
-                cumulativeDuration = 0;
-            }
-            const startTimeUTC = pdtAnchorTime + cumulativeDuration * 1000;
-            const endTimeUTC =
-                startTimeUTC + /** @type {any} */ (seg).duration * 1000;
-            const segmentTime = cumulativeDuration;
-            cumulativeDuration += /** @type {any} */ (seg).duration;
-            return {
-                repId: 'hls-media',
-                type: /** @type {any} */ (seg).type || 'Media',
-                number: (stream.manifest.mediaSequence || 0) + index,
-                uniqueId: /** @type {any} */ (seg).uniqueId,
-                resolvedUrl: /** @type {any} */ (seg).resolvedUrl,
-                template: /** @type {any} */ (seg).uri,
-                time: segmentTime * 90000,
-                duration: /** @type {any} */ (seg).duration * 90000,
-                timescale: 90000,
-                gap: /** @type {any} */ (seg).gap || false,
-                startTimeUTC: startTimeUTC || 0,
-                endTimeUTC: endTimeUTC || 0,
-                flags: /** @type {any} */ (seg).flags || [],
-                encryptionInfo: /** @type {any} */ (seg).encryptionInfo,
-            };
+    const allSegments = segments.map((seg, index) => {
+        if (/** @type {any} */ (seg).dateTime) {
+            pdtAnchorTime = new Date(
+                /** @type {any} */ (seg).dateTime
+            ).getTime();
+            cumulativeDuration = 0;
         }
-    );
+        const startTimeUTC = pdtAnchorTime + cumulativeDuration * 1000;
+        const endTimeUTC =
+            startTimeUTC + /** @type {any} */ (seg).duration * 1000;
+        const segmentTime = cumulativeDuration;
+        cumulativeDuration += /** @type {any} */ (seg).duration;
+        return {
+            repId: 'hls-media',
+            type: /** @type {any} */ (seg).type || 'Media',
+            number: (stream.manifest.mediaSequence || 0) + index,
+            uniqueId: /** @type {any} */ (seg).uniqueId,
+            resolvedUrl: /** @type {any} */ (seg).resolvedUrl,
+            template: /** @type {any} */ (seg).uri,
+            time: segmentTime * 90000,
+            duration: /** @type {any} */ (seg).duration * 90000,
+            timescale: 90000,
+            gap: /** @type {any} */ (seg).gap || false,
+            startTimeUTC: startTimeUTC || 0,
+            endTimeUTC: endTimeUTC || 0,
+            flags: /** @type {any} */ (seg).flags || [],
+            encryptionInfo: /** @type {any} */ (seg).encryptionInfo,
+        };
+    });
 
     let processedSegments = [...allSegments];
 
-    if (segmentExplorerTimeFilter.start || segmentExplorerTimeFilter.end) {
-        processedSegments = processedSegments.filter((seg) => {
-            if (!seg.startTimeUTC) return false;
-            const segStartTime = new Date(seg.startTimeUTC);
-            const segEndTime = new Date(seg.endTimeUTC);
-            const filterStart = segmentExplorerTimeFilter.start;
-            const filterEnd = segmentExplorerTimeFilter.end;
-
-            const startsAfterFilterStart =
-                !filterStart || segEndTime >= filterStart;
-            const endsBeforeFilterEnd = !filterEnd || segStartTime <= filterEnd;
-
-            return startsAfterFilterStart && endsBeforeFilterEnd;
-        });
+    if (segmentExplorerTargetTime) {
+        // This logic is now handled inside segment-table and segment-row
     }
 
     processedSegments.sort((a, b) => {
