@@ -95,7 +95,10 @@ export const waterfallChartTemplate = (events, timeline) => {
         <style>
             .grid-waterfall {
                 display: grid;
-                grid-template-columns: minmax(200px, 1fr) 60px 80px 80px 100px 80px;
+                grid-template-columns: minmax(
+                        200px,
+                        1fr
+                    ) 60px 80px 80px 100px 80px;
             }
         </style>
         <div

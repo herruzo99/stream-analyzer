@@ -128,7 +128,9 @@ export async function validateCmafSwitchingSets(
 
                 const parsedInitSegments = await Promise.all(
                     initSegmentInfos.map((info) =>
-                        info ? segmentFetcher(info.url, info.range) : Promise.resolve(null)
+                        info
+                            ? segmentFetcher(info.url, info.range)
+                            : Promise.resolve(null)
                     )
                 );
 

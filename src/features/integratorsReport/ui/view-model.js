@@ -200,7 +200,8 @@ function getTimingInfo(stream) {
  * @returns {string[]}
  */
 function getUnifiedLicenseUrls(stream) {
-    const discoveredUrls = stream.manifest?.summary?.security?.licenseServerUrls || [];
+    const discoveredUrls =
+        stream.manifest?.summary?.security?.licenseServerUrls || [];
     const urls = new Set();
     const result = [];
     const userOverrideUrl = stream.drmAuth?.licenseServerUrl;
@@ -210,7 +211,7 @@ function getUnifiedLicenseUrls(stream) {
         result.push(`${userOverrideUrl} (User Override)`);
     }
 
-    discoveredUrls.forEach(url => {
+    discoveredUrls.forEach((url) => {
         if (!urls.has(url)) {
             urls.add(url);
             result.push(`${url} (Discovered from PSSH)`);
@@ -219,7 +220,6 @@ function getUnifiedLicenseUrls(stream) {
 
     return result;
 }
-
 
 /**
  * Gathers security info for an HLS stream by aggregating across all playlists.
@@ -276,7 +276,9 @@ function getDashSecurityInfo(stream) {
             ?.flatMap((p) => p.adaptationSets)
             .flatMap((as) => as.contentProtection) || [];
     const uniqueRobustness = [
-        ...new Set(contentProtection.map((cp) => cp.robustness).filter(Boolean)),
+        ...new Set(
+            contentProtection.map((cp) => cp.robustness).filter(Boolean)
+        ),
     ];
 
     return {

@@ -37,7 +37,11 @@ export const useNetworkStore = createStore((set, get) => ({
     ...createInitialNetworkState(),
 
     logEvent: (event) => {
-        debugLog('NetworkStore', 'logEvent action called. Adding event to state.', event);
+        debugLog(
+            'NetworkStore',
+            'logEvent action called. Adding event to state.',
+            event
+        );
         set((state) => ({ events: [...state.events, event] }));
     },
 
@@ -63,6 +67,7 @@ export const networkActions = {
     setSelectedEventId: (eventId) =>
         useNetworkStore.getState().setSelectedEventId(eventId),
     clearEvents: () => useNetworkStore.getState().clearEvents(),
-    setFilters: (newFilters) => useNetworkStore.getState().setFilters(newFilters),
+    setFilters: (newFilters) =>
+        useNetworkStore.getState().setFilters(newFilters),
     reset: () => useNetworkStore.getState().reset(),
 };

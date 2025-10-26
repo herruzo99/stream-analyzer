@@ -30,7 +30,8 @@ export const bufferGraphTemplate = (videoEl) => {
 
     const segments = [];
     for (let i = 0; i < buffered.length; i++) {
-        const start = ((buffered.start(i) - timeOffset) / displayDuration) * 100;
+        const start =
+            ((buffered.start(i) - timeOffset) / displayDuration) * 100;
         const width =
             ((buffered.end(i) - buffered.start(i)) / displayDuration) * 100;
         // Clamp values to ensure they stay within the 0-100 range visually
@@ -42,11 +43,10 @@ export const bufferGraphTemplate = (videoEl) => {
         }
     }
 
-    const playheadPosition =
-        Math.max(
-            0,
-            Math.min(100, ((currentTime - timeOffset) / displayDuration) * 100)
-        );
+    const playheadPosition = Math.max(
+        0,
+        Math.min(100, ((currentTime - timeOffset) / displayDuration) * 100)
+    );
 
     return html`
         <div class="relative w-full h-8 bg-gray-700 rounded overflow-hidden">

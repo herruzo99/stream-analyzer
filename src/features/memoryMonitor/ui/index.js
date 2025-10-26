@@ -42,18 +42,41 @@ const progressBarTemplate = ({ used, total, label }) => {
 };
 
 const appStateBreakdownTemplate = (appState) => html`
-    <div class="text-xs text-gray-500 space-y-1 mt-2 pl-2 border-l border-gray-600">
-        <div class="flex justify-between"><span>Segment Cache Index:</span> <span>${formatBytes(appState.segmentCacheIndex)}</span></div>
-        <div class="flex justify-between"><span>Analysis State:</span> <span>${formatBytes(appState.analysis)}</span></div>
-        <div class="flex justify-between"><span>UI State:</span> <span>${formatBytes(appState.ui)}</span></div>
-        <div class="flex justify-between"><span>Network Log:</span> <span>${formatBytes(appState.network)}</span></div>
-        <div class="flex justify-between"><span>Player State:</span> <span>${formatBytes(appState.player)}</span></div>
-        <div class="flex justify-between"><span>Decryption Keys:</span> <span>${formatBytes(appState.decryption)}</span></div>
+    <div
+        class="text-xs text-gray-500 space-y-1 mt-2 pl-2 border-l border-gray-600"
+    >
+        <div class="flex justify-between">
+            <span>Segment Cache Index:</span>
+            <span>${formatBytes(appState.segmentCacheIndex)}</span>
+        </div>
+        <div class="flex justify-between">
+            <span>Analysis State:</span>
+            <span>${formatBytes(appState.analysis)}</span>
+        </div>
+        <div class="flex justify-between">
+            <span>UI State:</span> <span>${formatBytes(appState.ui)}</span>
+        </div>
+        <div class="flex justify-between">
+            <span>Network Log:</span>
+            <span>${formatBytes(appState.network)}</span>
+        </div>
+        <div class="flex justify-between">
+            <span>Player State:</span>
+            <span>${formatBytes(appState.player)}</span>
+        </div>
+        <div class="flex justify-between">
+            <span>Decryption Keys:</span>
+            <span>${formatBytes(appState.decryption)}</span>
+        </div>
     </div>
 `;
 
 const handleClearCache = () => {
-    if (confirm('Are you sure you want to clear all cached data and reset the application? This will not affect your saved presets.')) {
+    if (
+        confirm(
+            'Are you sure you want to clear all cached data and reset the application? This will not affect your saved presets.'
+        )
+    ) {
         resetApplicationState();
         closeDropdown();
     }
@@ -61,17 +84,26 @@ const handleClearCache = () => {
 
 const memoryDropdownPanelTemplate = (report, isPerformanceApiSupported) => {
     if (!report) {
-        return html`<div class="dropdown-panel bg-gray-800 border border-gray-700 rounded-lg shadow-xl w-80 p-4 text-xs text-gray-500">Calculating...</div>`;
+        return html`<div
+            class="dropdown-panel bg-gray-800 border border-gray-700 rounded-lg shadow-xl w-80 p-4 text-xs text-gray-500"
+        >
+            Calculating...
+        </div>`;
     }
 
     return html`
-        <div class="dropdown-panel bg-gray-800 border border-gray-700 rounded-lg shadow-xl w-80 p-4 space-y-4">
-            ${isPerformanceApiSupported && report.jsHeap ? progressBarTemplate({
-                used: report.jsHeap.used,
-                total: report.jsHeap.limit,
-                label: 'JS Heap',
-            }) : html`<div class="text-xs text-gray-500 italic">Browser does not support JS Heap reporting.</div>`}
-
+        <div
+            class="dropdown-panel bg-gray-800 border border-gray-700 rounded-lg shadow-xl w-80 p-4 space-y-4"
+        >
+            ${isPerformanceApiSupported && report.jsHeap
+                ? progressBarTemplate({
+                      used: report.jsHeap.used,
+                      total: report.jsHeap.limit,
+                      label: 'JS Heap',
+                  })
+                : html`<div class="text-xs text-gray-500 italic">
+                      Browser does not support JS Heap reporting.
+                  </div>`}
             ${progressBarTemplate({
                 used: report.segmentCache,
                 total: 256 * 1024 * 1024, // Assume a reasonable "total" of 256MB for visualization
@@ -97,7 +129,6 @@ const memoryDropdownPanelTemplate = (report, isPerformanceApiSupported) => {
     `;
 };
 
-
 function renderMemoryMonitor() {
     if (!container) return;
 
@@ -112,10 +143,17 @@ function renderMemoryMonitor() {
             summaryText = `App Memory: ${formatBytes(totalAppMemory)}`;
         }
     }
-    
+
     const triggerTemplate = html`
-        <button 
-            @click=${(e) => toggleDropdown(e.currentTarget, memoryDropdownPanelTemplate(report, isPerformanceApiSupported))}
+        <button
+            @click=${(e) =>
+                toggleDropdown(
+                    e.currentTarget,
+                    memoryDropdownPanelTemplate(
+                        report,
+                        isPerformanceApiSupported
+                    )
+                )}
             class="w-full flex items-center justify-between text-left text-xs text-gray-400 hover:bg-gray-700/50 p-2 rounded-md transition-colors"
         >
             <span class="font-mono">${summaryText}</span>

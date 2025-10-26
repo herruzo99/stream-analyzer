@@ -172,7 +172,10 @@ export function initializeSegmentViewInteractivity(
         const currentSelectedItem = interactiveSegmentSelectedItem?.item;
         let newSelectedItem = null;
 
-        if (currentSelectedItem && currentSelectedItem.offset === targetOffset) {
+        if (
+            currentSelectedItem &&
+            currentSelectedItem.offset === targetOffset
+        ) {
             newSelectedItem = null; // Deselect
         } else {
             newSelectedItem = findDataByOffset(

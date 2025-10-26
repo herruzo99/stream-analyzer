@@ -48,8 +48,12 @@ export async function startAnalysisUseCase({ inputs }, services) {
         };
 
         if (input.drmAuth.serverCertificate instanceof File) {
-            debugLog('startAnalysisUseCase', `Reading certificate file "${input.drmAuth.serverCertificate.name}" into ArrayBuffer.`);
-            workerInput.drmAuth.serverCertificate = await input.drmAuth.serverCertificate.arrayBuffer();
+            debugLog(
+                'startAnalysisUseCase',
+                `Reading certificate file "${input.drmAuth.serverCertificate.name}" into ArrayBuffer.`
+            );
+            workerInput.drmAuth.serverCertificate =
+                await input.drmAuth.serverCertificate.arrayBuffer();
         }
 
         return workerInput;

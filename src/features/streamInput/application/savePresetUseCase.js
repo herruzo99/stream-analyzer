@@ -15,7 +15,10 @@ function handleSavePresetRequest({ name, url, button }) {
         .getState()
         .streamInputs.find((i) => i.url === url);
     if (!streamInput) {
-        showToast({ message: 'Could not find stream input to save.', type: 'fail' });
+        showToast({
+            message: 'Could not find stream input to save.',
+            type: 'fail',
+        });
         button.textContent = 'Save as Preset';
         button.disabled = false;
         return;

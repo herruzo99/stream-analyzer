@@ -71,10 +71,13 @@ export function toggleDropdown(triggerElement, contentTemplate) {
     // --- Vertical Positioning ---
     let top;
     // Default: position below the trigger if there is enough space.
-    if (triggerRect.bottom + panelRect.height + SPACING < window.innerHeight - MARGIN) {
+    if (
+        triggerRect.bottom + panelRect.height + SPACING <
+        window.innerHeight - MARGIN
+    ) {
         top = triggerRect.bottom + SPACING;
         panel.style.transformOrigin = 'top right';
-    } 
+    }
     // Alternative: position above the trigger.
     else {
         top = triggerRect.top - panelRect.height - SPACING;
@@ -91,7 +94,7 @@ export function toggleDropdown(triggerElement, contentTemplate) {
 
     // Default: align the right edge of the panel with the right edge of the trigger.
     let rightPos = window.innerWidth - triggerRect.right;
-    
+
     // Check if right-aligning the panel would push it off the left side of the screen.
     if (triggerRect.right - panelRect.width < MARGIN) {
         left = `${MARGIN}px`;

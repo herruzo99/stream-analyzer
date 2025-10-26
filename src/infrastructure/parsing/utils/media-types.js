@@ -47,10 +47,16 @@ export function inferMediaInfoFromExtension(filename) {
     const lowerFilename = filename.toLowerCase();
 
     // --- NEW: Heuristic based on URL content ---
-    if (lowerFilename.includes('_video_') || lowerFilename.includes('/video/')) {
+    if (
+        lowerFilename.includes('_video_') ||
+        lowerFilename.includes('/video/')
+    ) {
         return { contentType: 'video', codec: 'avc1' };
     }
-    if (lowerFilename.includes('_audio_') || lowerFilename.includes('/audio/')) {
+    if (
+        lowerFilename.includes('_audio_') ||
+        lowerFilename.includes('/audio/')
+    ) {
         return { contentType: 'audio', codec: 'mp4a.40.2' };
     }
     // --- END NEW ---

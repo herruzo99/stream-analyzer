@@ -41,7 +41,7 @@ export const summaryView = {
 
         if (analysisUnsubscribe) analysisUnsubscribe();
         if (uiUnsubscribe) uiUnsubscribe();
-        
+
         analysisUnsubscribe = useAnalysisStore.subscribe(renderSummary);
         uiUnsubscribe = useUiStore.subscribe(renderSummary);
 
@@ -53,7 +53,7 @@ export const summaryView = {
 
         analysisUnsubscribe = null;
         uiUnsubscribe = null;
-        
+
         if (container) render(html``, container);
         container = null;
     },

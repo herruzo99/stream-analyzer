@@ -393,7 +393,7 @@ export interface ManifestSummary {
     general: {
         protocol: 'DASH' | 'HLS';
         streamType: 'Live / Dynamic' | 'VOD / Static';
-        streamTypeColor: 'text-red-400' | 'text-blue-400';
+        streamTypeColor: 'text-red-400' | 'text-blue-500';
         duration: number | null;
         segmentFormat: string;
         title: string | null;
@@ -781,10 +781,14 @@ export interface NetworkEvent {
 // --- Player Simulation Types ---
 export interface PlayerStats {
     playheadTime: number;
+    manifestTime: number;
     playbackQuality: {
         resolution: string;
         droppedFrames: number;
+        corruptedFrames: number;
         totalStalls: number; // Derived from stateHistory
+        totalStallDuration: number;
+        timeToFirstFrame: number;
     };
     abr: {
         currentVideoBitrate: number;

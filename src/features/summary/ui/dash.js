@@ -213,14 +213,20 @@ const protectionSystemTemplate = (systemInfo) => {
             );
         } else {
             showToast({
-                message: 'No PSSH data available in the manifest for this system.',
+                message:
+                    'No PSSH data available in the manifest for this system.',
                 type: 'warn',
             });
         }
     };
 
     // Aggregate KIDs from both the PSSH box and any default_KID attributes
-    const kids = [...new Set([...(systemInfo.kids || []), ...(systemInfo.pssh?.kids || [])])];
+    const kids = [
+        ...new Set([
+            ...(systemInfo.kids || []),
+            ...(systemInfo.pssh?.kids || []),
+        ]),
+    ];
 
     return html`
         <div class="bg-gray-900/50 p-3 rounded-lg border border-gray-700">
@@ -235,7 +241,9 @@ const protectionSystemTemplate = (systemInfo) => {
                     @click=${handleCopy}
                     class="text-xs bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded shrink-0 disabled:bg-gray-600 disabled:cursor-not-allowed"
                     ?disabled=${!psshData}
-                    title=${psshData ? 'Copy PSSH data (Base64)' : 'No PSSH data embedded in manifest'}
+                    title=${psshData
+                        ? 'Copy PSSH data (Base64)'
+                        : 'No PSSH data embedded in manifest'}
                 >
                     Copy PSSH
                 </button>
@@ -274,18 +282,23 @@ const contentProtectionTemplate = (security) => {
 };
 
 const supplementalPropertiesTemplate = (stream) => {
-    const periodProps = stream.manifest.periods.flatMap(p => p.supplementalProperties || []);
+    const periodProps = stream.manifest.periods.flatMap(
+        (p) => p.supplementalProperties || []
+    );
     if (periodProps.length === 0) {
         return '';
     }
 
-    const items = periodProps.map(prop => `[${prop.schemeIdUri}]: ${prop.value}`);
+    const items = periodProps.map(
+        (prop) => `[${prop.schemeIdUri}]: ${prop.value}`
+    );
 
     return listCardTemplate({
         label: 'Period Supplemental Properties',
         items,
-        tooltip: 'Supplemental information about the Period that may be used by the client for optimization or enhanced functionality.',
-        isoRef: 'DASH: 5.8.4.9'
+        tooltip:
+            'Supplemental information about the Period that may be used by the client for optimization or enhanced functionality.',
+        isoRef: 'DASH: 5.8.4.9',
     });
 };
 
@@ -380,7 +393,9 @@ export function getDashSummaryTemplate(stream) {
                         : ''}
                 </dl>
                 <div class="mt-4">${profilesCardTemplate(stream)}</div>
-                <div class="mt-4">${supplementalPropertiesTemplate(stream)}</div>
+                <div class="mt-4">
+                    ${supplementalPropertiesTemplate(stream)}
+                </div>
             </div>
 
             <!-- Low Latency Section -->

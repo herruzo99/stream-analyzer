@@ -80,7 +80,7 @@ const renderHlsRendition = (stream, renditionInfo) => {
     if (!variantState) return html``;
 
     const { rawSegments, error, isLoading, freshSegmentUrls } = variantState;
-    
+
     // ARCHITECTURAL FIX: Guard against rendering before segments are loaded.
     const segments = rawSegments || [];
 

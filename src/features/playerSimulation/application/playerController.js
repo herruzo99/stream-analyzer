@@ -4,13 +4,9 @@ import { analysisActions } from '@/state/analysisStore';
 import { playerService } from './playerService.js';
 
 function onStatsChanged({ stats: shakaStats }) {
-    const abrHistory = usePlayerStore.getState().abrHistory;
+    const { abrHistory, currentStats } = usePlayerStore.getState();
     const lastBitrate = abrHistory[0]?.bitrate;
 
-    // --- ARCHITECTURAL CORRECTION: Use video-specific bandwidth for ABR tracking ---
-    // The `streamBandwidth` stat includes audio and other streams. For accurate
-    // video ABR tracking, we must get the active variant from the player manifest
-    // and look up the video-specific bandwidth.
     const player = playerService.getPlayer();
     let videoOnlyBitrate = shakaStats.streamBandwidth || 0;
 
@@ -30,29 +26,56 @@ function onStatsChanged({ stats: shakaStats }) {
             }
         }
     }
-    // --- END CORRECTION ---
 
     if (videoOnlyBitrate && videoOnlyBitrate !== lastBitrate) {
         playerActions.logAbrSwitch({
             time: shakaStats.displayTime || 0,
-            bitrate: videoOnlyBitrate, // Use corrected bitrate
+            bitrate: videoOnlyBitrate,
             width: shakaStats.width || 0,
             height: shakaStats.height || 0,
         });
     }
 
-    // --- Derive advanced stats from history ---
     let totalStalls = 0;
-    if (shakaStats.stateHistory) {
-        for (let i = 1; i < shakaStats.stateHistory.length; i++) {
-            const currentState = shakaStats.stateHistory[i];
-            const prevState = shakaStats.stateHistory[i - 1];
-            // A stall is a transition into the buffering state from a non-buffering state
-            if (
-                currentState.state === 'buffering' &&
-                prevState.state !== 'buffering'
+    let totalStallDuration = 0;
+    let timeToFirstFrame = currentStats?.playbackQuality.timeToFirstFrame || 0;
+
+    if (shakaStats.stateHistory && shakaStats.stateHistory.length > 1) {
+        const firstPlayIndex = shakaStats.stateHistory.findIndex(
+            (s) => s.state === 'playing'
+        );
+
+        if (firstPlayIndex > -1) {
+            // Calculate TTFF only once
+            if (timeToFirstFrame === 0) {
+                const loadingState = shakaStats.stateHistory.find(
+                    (s) => s.state === 'loading'
+                );
+                if (loadingState) {
+                    timeToFirstFrame =
+                        shakaStats.stateHistory[firstPlayIndex].timestamp -
+                        loadingState.timestamp;
+                }
+            }
+
+            // Calculate stalls and stall duration that happen *after* initial playback starts
+            for (
+                let i = firstPlayIndex + 1;
+                i < shakaStats.stateHistory.length;
+                i++
             ) {
-                totalStalls++;
+                const currentState = shakaStats.stateHistory[i];
+                const prevState = shakaStats.stateHistory[i - 1];
+                if (
+                    currentState.state === 'buffering' &&
+                    prevState.state !== 'buffering'
+                ) {
+                    totalStalls++;
+                }
+                if (prevState.state === 'buffering') {
+                    totalStallDuration +=
+                        currentState.timestamp - prevState.timestamp;
+                }
             }
         }
     }
@@ -60,34 +83,39 @@ function onStatsChanged({ stats: shakaStats }) {
     let switchesUp = 0;
     let switchesDown = 0;
     if (shakaStats.switchHistory) {
-        for (let i = 1; i < shakaStats.switchHistory.length; i++) {
-            const currentSwitch = shakaStats.switchHistory[i];
-            const prevSwitch = shakaStats.switchHistory[i - 1];
-            // Consider only variant switches for video tracks
+        const variantSwitches = shakaStats.switchHistory.filter(
+            (s) => s.type === 'variant' && s.bandwidth
+        );
+        for (let i = 1; i < variantSwitches.length; i++) {
             if (
-                currentSwitch.type === 'variant' &&
-                prevSwitch.type === 'variant' &&
-                currentSwitch.stream?.type === 'video'
+                variantSwitches[i].bandwidth > variantSwitches[i - 1].bandwidth
             ) {
-                if (currentSwitch.bandwidth > prevSwitch.bandwidth) {
-                    switchesUp++;
-                } else if (currentSwitch.bandwidth < prevSwitch.bandwidth) {
-                    switchesDown++;
-                }
+                switchesUp++;
+            } else if (
+                variantSwitches[i].bandwidth < variantSwitches[i - 1].bandwidth
+            ) {
+                switchesDown++;
             }
         }
     }
 
+    const seekRange = player ? player.seekRange() : { start: 0, end: 0 };
+    const manifestTime = seekRange.end - seekRange.start;
+
     /** @type {import('@/types').PlayerStats} */
     const newStats = {
         playheadTime: shakaStats.displayTime || 0,
+        manifestTime: manifestTime,
         playbackQuality: {
             resolution: `${shakaStats.width || 0}x${shakaStats.height || 0}`,
             droppedFrames: shakaStats.droppedFrames || 0,
+            corruptedFrames: shakaStats.corruptedFrames || 0,
             totalStalls: totalStalls,
+            totalStallDuration: totalStallDuration,
+            timeToFirstFrame: timeToFirstFrame,
         },
         abr: {
-            currentVideoBitrate: videoOnlyBitrate, // Use corrected bitrate
+            currentVideoBitrate: videoOnlyBitrate,
             estimatedBandwidth: shakaStats.estimatedBandwidth || 0,
             switchesUp: switchesUp,
             switchesDown: switchesDown,
@@ -108,11 +136,9 @@ function onStatsChanged({ stats: shakaStats }) {
 
 function onAdaptation({ oldTrack, newTrack }) {
     const time = new Date().toLocaleTimeString();
-    const details = `Bitrate: ${(oldTrack.bandwidth / 1000).toFixed(
-        0
-    )}k → ${(newTrack.bandwidth / 1000).toFixed(
-        0
-    )}k | Resolution: ${oldTrack.height}p → ${newTrack.height}p`;
+    const details = `Bitrate: ${(oldTrack.bandwidth / 1000).toFixed(0)}k → ${(
+        newTrack.bandwidth / 1000
+    ).toFixed(0)}k | Resolution: ${oldTrack.height}p → ${newTrack.height}p`;
     playerActions.logEvent({ timestamp: time, type: 'adaptation', details });
 
     // Also log this to the main stream object for the timeline view

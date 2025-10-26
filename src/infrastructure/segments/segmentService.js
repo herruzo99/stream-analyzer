@@ -193,7 +193,7 @@ export function initializeSegmentService() {
             }
 
             let canonicalSegment = null;
-            
+
             // ** THE FIX **: Add protocol guard before accessing state properties.
             let allSegmentLists = [];
             if (stream.protocol === 'dash') {
@@ -216,7 +216,10 @@ export function initializeSegmentService() {
                 );
                 const entry = { status, data, parsedData };
                 set(rawUrl, entry);
-                eventBus.dispatch('segment:loaded', { uniqueId: rawUrl, entry });
+                eventBus.dispatch('segment:loaded', {
+                    uniqueId: rawUrl,
+                    entry,
+                });
                 return;
             }
 
