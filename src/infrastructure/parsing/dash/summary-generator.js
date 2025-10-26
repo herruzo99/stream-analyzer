@@ -65,6 +65,19 @@ export async function generateDashSummary(
 ) {
     const securitySystems = new Map();
 
+    // First pass: Process top-level ContentProtection elements which often act as templates
+    if (manifestIR.contentProtections) {
+        for (const cp of manifestIR.contentProtections) {
+            if (cp.schemeIdUri && !securitySystems.has(cp.schemeIdUri)) {
+                securitySystems.set(cp.schemeIdUri, {
+                    systemId: cp.schemeIdUri,
+                    pssh: (cp.pssh && cp.pssh.length > 0) ? cp.pssh[0] : null,
+                    kids: cp.defaultKid ? [cp.defaultKid] : [],
+                });
+            }
+        }
+    }
+
     const periodSummaries = manifestIR.periods.map((period) => {
         const videoTracks = period.adaptationSets.filter(
             (as) => as.contentType === 'video'

@@ -1,5 +1,4 @@
 import { html, render } from 'lit-html';
-import { useAnalysisStore } from '@/state/analysisStore';
 import { useSegmentCacheStore } from '@/state/segmentCacheStore';
 import { useUiStore, uiActions } from '@/state/uiStore';
 import {
@@ -27,8 +26,8 @@ import { workerService } from '@/infrastructure/worker/workerService';
 
 let container = null;
 let uiUnsubscribe = null;
-let analysisUnsubscribe = null;
 let segmentCacheUnsubscribe = null;
+let isViewInitialized = false;
 
 const HEX_BYTES_PER_PAGE = 512;
 const ALL_TOOLTIPS_DATA = {
@@ -47,8 +46,8 @@ const loadingTemplate = (message) =>
 function renderInteractiveSegment() {
     if (!container) return;
 
-    const { activeSegmentUrl } = useAnalysisStore.getState();
     const {
+        activeSegmentUrl,
         interactiveSegmentCurrentPage: currentPage,
         pagedByteMap,
         isByteMapLoading,
@@ -78,6 +77,7 @@ function renderInteractiveSegment() {
         const format = cachedSegment.parsedData?.format;
         const isBinaryFormat = format === 'isobmff' || format === 'ts';
 
+        // --- DATA FETCHING SIDE-EFFECT ISOLATION ---
         if (isBinaryFormat && !pagedByteMap && !isByteMapLoading) {
             uiActions.setIsByteMapLoading(true);
             workerService
@@ -92,20 +92,52 @@ function renderInteractiveSegment() {
                 .finally(() => {
                     uiActions.setIsByteMapLoading(false);
                 });
-        }
 
-        let inspectorContent, structureContent, hexContent;
+            // Render a loading state and return immediately. State updates will trigger a re-render.
+            content = inspectorLayoutTemplate({
+                inspectorContent: loadingTemplate('Generating paged view...'),
+                structureContent: loadingTemplate('Generating paged view...'),
+                hexContent: loadingTemplate('Generating paged view...'),
+            });
+            const loadingWrapperTemplate = html`
+                <div class="mb-6 shrink-0">
+                    <div class="flex justify-between items-center mb-2">
+                        <h3 class="text-xl font-bold text-white">
+                            🔍 Interactive Segment View
+                        </h3>
+                        <button
+                            @click=${() => uiActions.setActiveTab('explorer')}
+                            class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md transition duration-300 text-sm"
+                        >
+                            &larr; Back to Segment Explorer
+                        </button>
+                    </div>
+                    <p
+                        class="text-sm text-gray-400 mb-4 font-mono break-all bg-gray-800 p-2 rounded"
+                    >
+                        ${(activeSegmentUrl || '').split('@')[0]}
+                    </p>
+                </div>
+                <div class="grow min-h-0">${content}</div>
+            `;
+            render(loadingWrapperTemplate, container);
+            return;
+        }
+        // --- END ISOLATION ---
+
         const isLoading = isByteMapLoading || (!pagedByteMap && isBinaryFormat);
 
         if (isLoading) {
-            const loadingSpinner = loadingTemplate('Generating paged view...');
-            inspectorContent = loadingSpinner;
-            structureContent = loadingSpinner;
-            hexContent = loadingSpinner;
-        } else {
-            if (format === 'vtt') {
-                content = getInteractiveVttTemplate(cachedSegment.data);
-            } else if (format === 'ts') {
+            content = inspectorLayoutTemplate({
+                inspectorContent: loadingTemplate('Generating paged view...'),
+                structureContent: loadingTemplate('Generating paged view...'),
+                hexContent: loadingTemplate('Generating paged view...'),
+            });
+        } else if (format === 'vtt') {
+            content = getInteractiveVttTemplate(cachedSegment.data);
+        } else if (isBinaryFormat) {
+            let inspectorContent, structureContent;
+            if (format === 'ts') {
                 inspectorContent = tsInspector(cachedSegment.parsedData);
                 structureContent = tsStructure(cachedSegment.parsedData);
             } else if (format === 'isobmff') {
@@ -115,13 +147,6 @@ function renderInteractiveSegment() {
                 structureContent = isobmffStructure(
                     cachedSegment.parsedData.data
                 );
-            } else {
-                const unsupported = html`<div class="text-yellow-400 p-4">
-                    Interactive view not supported for this segment format.
-                </div>`;
-                inspectorContent = unsupported;
-                structureContent = html``;
-                hexContent = unsupported;
             }
 
             const onHexPageChange = (offset) => {
@@ -133,7 +158,8 @@ function renderInteractiveSegment() {
                     uiActions.setInteractiveSegmentPage(newPage);
                 }
             };
-            hexContent = hexViewTemplate(
+
+            const hexContent = hexViewTemplate(
                 cachedSegment.data,
                 pagedByteMap,
                 currentPage,
@@ -147,28 +173,29 @@ function renderInteractiveSegment() {
                 structureContent,
                 hexContent,
             });
-        }
 
-        // After rendering, initialize the complex interaction logic
-        if (
-            !isLoading &&
-            cachedSegment &&
-            (cachedSegment.parsedData?.format === 'isobmff' ||
-                cachedSegment.parsedData?.format === 'ts')
-        ) {
-            const findFn =
-                cachedSegment.parsedData.format === 'isobmff'
-                    ? findItemIsobmff
-                    : findItemTs;
-            setTimeout(() => {
-                initializeSegmentViewInteractivity(
-                    { mainContent: container },
-                    cachedSegment.parsedData,
-                    pagedByteMap || new Map(),
-                    findFn,
-                    cachedSegment.parsedData.format
-                );
-            }, 0);
+            // After rendering, initialize the complex interaction logic only once.
+            if (!isLoading && !isViewInitialized) {
+                const findFn =
+                    cachedSegment.parsedData.format === 'isobmff'
+                        ? findItemIsobmff
+                        : findItemTs;
+                setTimeout(() => {
+                    initializeSegmentViewInteractivity(
+                        { mainContent: container },
+                        cachedSegment.parsedData,
+                        pagedByteMap || new Map(),
+                        findFn,
+                        cachedSegment.parsedData.format
+                    );
+                    isViewInitialized = true;
+                }, 0);
+            }
+        } else {
+            content = html`<div class="text-yellow-400 p-4">
+                Interactive view not supported for this segment format
+                (${format}).
+            </div>`;
         }
     }
 
@@ -179,10 +206,7 @@ function renderInteractiveSegment() {
                     🔍 Interactive Segment View
                 </h3>
                 <button
-                    @click=${() =>
-                        /** @type {HTMLElement | null} */ (
-                            document.querySelector('[data-tab="explorer"]')
-                        )?.click()}
+                    @click=${() => uiActions.setActiveTab('explorer')}
                     class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md transition duration-300 text-sm"
                 >
                     &larr; Back to Segment Explorer
@@ -223,14 +247,11 @@ function renderInteractiveSegment() {
 export const interactiveSegmentView = {
     mount(containerElement, stream) {
         container = containerElement;
+        isViewInitialized = false; // Reset initialization flag on mount
         if (uiUnsubscribe) uiUnsubscribe();
-        if (analysisUnsubscribe) analysisUnsubscribe();
         if (segmentCacheUnsubscribe) segmentCacheUnsubscribe();
 
         uiUnsubscribe = useUiStore.subscribe(renderInteractiveSegment);
-        analysisUnsubscribe = useAnalysisStore.subscribe(
-            renderInteractiveSegment
-        );
         segmentCacheUnsubscribe = useSegmentCacheStore.subscribe(
             renderInteractiveSegment
         );
@@ -238,11 +259,10 @@ export const interactiveSegmentView = {
     },
     unmount() {
         if (uiUnsubscribe) uiUnsubscribe();
-        if (analysisUnsubscribe) analysisUnsubscribe();
         if (segmentCacheUnsubscribe) segmentCacheUnsubscribe();
         uiUnsubscribe = null;
-        analysisUnsubscribe = null;
         segmentCacheUnsubscribe = null;
+        isViewInitialized = false;
 
         cleanupSegmentViewInteractivity({ mainContent: container });
         if (container) {

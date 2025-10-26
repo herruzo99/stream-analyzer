@@ -273,6 +273,22 @@ const contentProtectionTemplate = (security) => {
     `;
 };
 
+const supplementalPropertiesTemplate = (stream) => {
+    const periodProps = stream.manifest.periods.flatMap(p => p.supplementalProperties || []);
+    if (periodProps.length === 0) {
+        return '';
+    }
+
+    const items = periodProps.map(prop => `[${prop.schemeIdUri}]: ${prop.value}`);
+
+    return listCardTemplate({
+        label: 'Period Supplemental Properties',
+        items,
+        tooltip: 'Supplemental information about the Period that may be used by the client for optimization or enhanced functionality.',
+        isoRef: 'DASH: 5.8.4.9'
+    });
+};
+
 export function getDashSummaryTemplate(stream) {
     const summary = stream.manifest.summary;
     const { activeStreamId } = useAnalysisStore.getState();
@@ -364,6 +380,7 @@ export function getDashSummaryTemplate(stream) {
                         : ''}
                 </dl>
                 <div class="mt-4">${profilesCardTemplate(stream)}</div>
+                <div class="mt-4">${supplementalPropertiesTemplate(stream)}</div>
             </div>
 
             <!-- Low Latency Section -->

@@ -7,14 +7,17 @@ function onStatsChanged({ stats: shakaStats }) {
     const abrHistory = usePlayerStore.getState().abrHistory;
     const lastBitrate = abrHistory[0]?.bitrate;
 
-    // --- Start of Correction ---
-    // The `streamBandwidth` stat includes audio. For accurate video ABR tracking,
-    // we must get the active variant and look up the video-specific bandwidth.
+    // --- ARCHITECTURAL CORRECTION: Use video-specific bandwidth for ABR tracking ---
+    // The `streamBandwidth` stat includes audio and other streams. For accurate
+    // video ABR tracking, we must get the active variant from the player manifest
+    // and look up the video-specific bandwidth.
     const player = playerService.getPlayer();
     let videoOnlyBitrate = shakaStats.streamBandwidth || 0;
 
     if (player) {
-        const activeVariantTrack = player.getVariantTracks().find((t) => t.active);
+        const activeVariantTrack = player
+            .getVariantTracks()
+            .find((t) => t.active);
         const manifest = player.getManifest();
 
         if (activeVariantTrack && manifest && manifest.variants) {
@@ -27,7 +30,7 @@ function onStatsChanged({ stats: shakaStats }) {
             }
         }
     }
-    // --- End of Correction ---
+    // --- END CORRECTION ---
 
     if (videoOnlyBitrate && videoOnlyBitrate !== lastBitrate) {
         playerActions.logAbrSwitch({

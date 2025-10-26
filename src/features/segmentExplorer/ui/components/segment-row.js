@@ -238,9 +238,9 @@ const getActions = (cacheEntry, seg, isFresh, segmentFormat) => {
               : segmentFormat;
 
     const analyzeHandler = (e) => {
-        const button = /** @type {HTMLElement} */ (e.currentTarget);
-        const uniqueId = button.dataset.uniqueId;
-        eventBus.dispatch('ui:request-segment-analysis', {
+        const uniqueId = /** @type {HTMLElement} */ (e.currentTarget).dataset
+            .uniqueId;
+        eventBus.dispatch('ui:show-segment-analysis-modal', {
             uniqueId,
             format: formatHint,
         });
@@ -248,13 +248,12 @@ const getActions = (cacheEntry, seg, isFresh, segmentFormat) => {
     const viewRawHandler = (e) => {
         const uniqueId = /** @type {HTMLElement} */ (e.currentTarget).dataset
             .uniqueId;
-        analysisActions.setActiveSegmentUrl(uniqueId);
-        uiActions.setActiveTab('interactive-segment');
+        uiActions.navigateToInteractiveSegment(uniqueId);
     };
     const loadHandler = (e) => {
         const uniqueId = /** @type {HTMLElement} */ (e.currentTarget).dataset
             .uniqueId;
-        if (seg.encryptionInfo) {
+        if (seg.encryptionInfo && seg.encryptionInfo.method === 'AES-128') {
             keyManagerService.getKey(seg.encryptionInfo.uri).catch(() => {});
         }
         eventBus.dispatch('segment:fetch', {
@@ -270,7 +269,10 @@ const getActions = (cacheEntry, seg, isFresh, segmentFormat) => {
         const cacheEntry = useSegmentCacheStore.getState().get(uniqueId);
         if (cacheEntry && cacheEntry.data) {
             const filename =
-                (seg.type === 'Init' ? seg.resolvedUrl.split('/').pop() : seg.template) || seg.resolvedUrl.split('/').pop().split('?')[0];
+                (seg.type === 'Init'
+                    ? seg.resolvedUrl.split('/').pop()
+                    : seg.template) ||
+                seg.resolvedUrl.split('/').pop().split('?')[0];
             downloadBuffer(cacheEntry.data, filename);
         }
     };
@@ -361,12 +363,12 @@ export const segmentRowTemplate = (
     stream,
     segmentFormat,
     repId,
-    freshSegmentUrls
+    freshSegmentUrls,
+    cacheEntry,
+    targetTime,
+    shouldFlash = false
 ) => {
     const { segmentsForCompare, activeStreamId } = useAnalysisStore.getState();
-    const { get: getFromCache } = useSegmentCacheStore.getState();
-
-    const cacheEntry = getFromCache(seg.uniqueId);
     const isChecked = segmentsForCompare.some(
         (s) => s.segmentUniqueId === seg.uniqueId
     );
@@ -433,12 +435,22 @@ export const segmentRowTemplate = (
         </button>
     `;
 
+    const isTarget =
+        targetTime &&
+        seg.startTimeUTC &&
+        seg.endTimeUTC &&
+        seg.startTimeUTC <= targetTime.getTime() &&
+        seg.endTimeUTC > targetTime.getTime();
+
     const rowClasses = {
-        'segment-row': true,
-        'h-16': true,
-        'grid grid-cols-2 md:grid-cols-[32px_180px_128px_96px_112px_minmax(400px,auto)] items-center gap-y-2 p-2 md:p-0 border-b border-gray-700': true,
-        'hover:bg-gray-700/50 transition-colors duration-200': true,
-        'bg-gray-800/50 text-gray-600 italic': seg.gap,
+        'bg-gray-800/50': seg.gap,
+        'text-gray-600': seg.gap,
+        italic: seg.gap,
+        'ring-2': isTarget,
+        'ring-cyan-400': isTarget,
+        'z-10': isTarget,
+        relative: isTarget,
+        'flash-new-segment': shouldFlash,
     };
 
     const timingContent =
@@ -452,13 +464,15 @@ export const segmentRowTemplate = (
         copyTextToClipboard(url, 'Segment URL copied to clipboard!');
     };
 
-    const urlText = seg.type === 'Init' 
+    const urlText = seg.resolvedUrl
         ? seg.resolvedUrl.split('/').pop().split('?')[0]
-        : (seg.template || 'GAP');
+        : 'GAP';
 
     return html`
         <div
-            class=${classMap(rowClasses)}
+            class="segment-row h-16 grid grid-cols-2 md:grid-cols-[32px_180px_128px_96px_112px_minmax(400px,auto)] items-center gap-y-2 p-2 md:p-0 border-b border-gray-700 hover:bg-gray-700/50 transition-colors duration-200 ${classMap(
+                rowClasses
+            )}"
             data-url="${seg.resolvedUrl}"
             data-start-time=${seg.startTimeUTC || ''}
             data-end-time=${seg.endTimeUTC || ''}

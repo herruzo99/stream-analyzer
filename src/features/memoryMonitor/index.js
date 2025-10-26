@@ -1,10 +1,9 @@
-import { memoryMonitorView } from './ui/index.js';
+import { memoryService } from './application/memoryService.js';
 
 /**
  * Initializes the Memory Monitor feature.
- * Currently, this feature is UI-only, so we just need to ensure the view is available.
+ * This starts the background service that periodically calculates memory usage.
  */
 export function initializeMemoryMonitorFeature() {
-    // The view object handles its own logic via mount/unmount.
-    // No additional application-layer setup is needed for this feature.
+    memoryService.start();
 }

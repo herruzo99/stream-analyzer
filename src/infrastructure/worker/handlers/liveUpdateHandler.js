@@ -7,6 +7,7 @@ import { adaptHlsToIr } from '@/infrastructure/parsing/hls/adapter';
 import { diffManifest } from '@/ui/shared/diff';
 import xmlFormatter from 'xml-formatter';
 import { fetchWithAuth } from '../http.js';
+import { parseAllSegmentUrls as parseDashSegments } from '@/infrastructure/parsing/dash/segment-parser';
 
 function detectProtocol(manifestString) {
     if (typeof manifestString !== 'string') return 'dash'; // Failsafe
@@ -46,6 +47,7 @@ export async function handleParseLiveUpdate(payload) {
     const detectedProtocol = protocol || detectProtocol(finalManifestString);
     let newManifestObject;
     let newSerializedObject;
+    let dashRepStateForUpdate = null;
 
     if (detectedProtocol === 'dash') {
         const { manifest, serializedManifest } = await parseDashManifest(
@@ -54,6 +56,24 @@ export async function handleParseLiveUpdate(payload) {
         );
         newManifestObject = manifest;
         newSerializedObject = serializedManifest;
+
+        // Re-parse segments and create the state update object for the main thread
+        const segmentsByCompositeKey = await parseDashSegments(
+            newSerializedObject,
+            baseUrl
+        );
+        dashRepStateForUpdate = [];
+        for (const [key, data] of Object.entries(segmentsByCompositeKey)) {
+            const allSegments = [data.initSegment, ...(data.segments || [])].filter(Boolean);
+            dashRepStateForUpdate.push([
+                key,
+                {
+                    segments: allSegments,
+                    freshSegmentUrls: allSegments.map(s => s.uniqueId), // Will be converted to Set in store
+                    diagnostics: data.diagnostics,
+                },
+            ]);
+        }
     } else {
         // HLS Path
         if (finalManifestString.includes('#EXT-X-SKIP')) {
@@ -112,5 +132,6 @@ export async function handleParseLiveUpdate(payload) {
         complianceResults,
         serializedManifest: newSerializedObject,
         diffHtml,
+        dashRepresentationState: dashRepStateForUpdate, // Include DASH state in the update
     };
 }

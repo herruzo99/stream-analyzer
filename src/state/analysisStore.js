@@ -14,7 +14,6 @@ import { uiActions } from './uiStore.js';
  * @typedef {object} AnalysisState
  * @property {Stream[]} streams
  * @property {number | null} activeStreamId
- * @property {string | null} activeSegmentUrl
  * @property {number} streamIdCounter
  * @property {StreamInput[]} streamInputs
  * @property {number} activeStreamInputId
@@ -49,6 +48,7 @@ import { uiActions } from './uiStore.js';
  * @property {(payload: {streamId: number, variantUri: string, manifest: object, manifestString: string, segments: object[], freshSegmentUrls: string[]}) => void} updateHlsMediaPlaylist
  * @property {(streamId: number, events: Event[]) => void} addInbandEvents
  * @property {(id: number) => void} setActiveStreamInputId
+ * @property {(payload: {streamId: number, segmentUrl: string}) => void} addHlsSegmentFromPlayer
  */
 
 // --- Main Analysis Store Definition ---
@@ -60,7 +60,6 @@ import { uiActions } from './uiStore.js';
 const createInitialAnalysisState = () => ({
     streams: [],
     activeStreamId: null,
-    activeSegmentUrl: null,
     streamIdCounter: 1,
     streamInputs: [
         {
@@ -100,28 +99,38 @@ export const useAnalysisStore = createStore((set, get) => ({
     },
 
     completeAnalysis: (streams) => {
+        const fullyFormedStreams = streams.map((s) => {
+            const newStream = { ...s };
+
+            // ** THE FIX **: Reconstruct Maps from the arrays sent by the worker.
+            newStream.hlsVariantState = new Map(s.hlsVariantState || []);
+            newStream.dashRepresentationState = new Map(
+                s.dashRepresentationState || []
+            );
+
+            newStream.wasStoppedByInactivity = false;
+            newStream.activeMediaPlaylistUrl = null;
+            newStream.inbandEvents = [];
+            newStream.adAvails = [];
+            newStream.mediaPlaylists =
+                s.protocol === 'hls' && s.manifest?.isMaster
+                    ? new Map([
+                          [
+                              'master',
+                              {
+                                  manifest: s.manifest,
+                                  rawManifest: s.rawManifest,
+                                  lastFetched: new Date(),
+                              },
+                          ],
+                      ])
+                    : new Map();
+            return newStream;
+        });
+
         set({
-            streams: streams.map((s) => ({
-                ...s,
-                wasStoppedByInactivity: false,
-                activeMediaPlaylistUrl: null,
-                inbandEvents: [],
-                adAvails: [],
-                mediaPlaylists:
-                    s.protocol === 'hls' && s.manifest?.isMaster
-                        ? new Map([
-                              [
-                                  'master',
-                                  {
-                                      manifest: s.manifest,
-                                      rawManifest: s.rawManifest,
-                                      lastFetched: new Date(),
-                                  },
-                              ],
-                          ])
-                        : new Map(),
-            })),
-            activeStreamId: streams[0]?.id ?? null,
+            streams: fullyFormedStreams,
+            activeStreamId: fullyFormedStreams[0]?.id ?? null,
         });
         eventBus.dispatch('state:analysis-complete', {
             streams: get().streams,
@@ -131,8 +140,11 @@ export const useAnalysisStore = createStore((set, get) => ({
     setActiveStreamId: (streamId) => set({ activeStreamId: streamId }),
     setActiveStreamInputId: (id) => set({ activeStreamInputId: id }),
     setActiveSegmentUrl: (id) => {
-        set({ activeSegmentUrl: id });
-        uiActions.setInteractiveSegmentPage(1);
+        // This action now lives in uiStore to prevent race conditions.
+        // It's kept here for now to avoid breaking other parts of the app that might still call it.
+        // A future refactoring would remove this entirely.
+        console.warn('setActiveSegmentUrl is deprecated in analysisStore. Use uiActions.navigateToInteractiveSegment instead.');
+        uiActions.navigateToInteractiveSegment(id);
     },
 
     addStreamInput: () => {
@@ -372,13 +384,38 @@ export const useAnalysisStore = createStore((set, get) => ({
     },
 
     updateStream: (streamId, updatedStreamData) => {
-        set((state) => ({
-            streams: state.streams.map((s) =>
-                s.id === streamId ? { ...s, ...updatedStreamData } : s
-            ),
-        }));
+        set((state) => {
+            const streams = state.streams.map((s) => {
+                if (s.id === streamId) {
+                    const updatedStream = { ...s, ...updatedStreamData };
+                    
+                    // ARCHITECTURAL FIX: Ensure data structures are correct after worker serialization
+                    if (updatedStream.dashRepresentationState && updatedStream.dashRepresentationState instanceof Array) {
+                        const newRepState = new Map(s.dashRepresentationState);
+                        for (const [key, value] of updatedStream.dashRepresentationState) {
+                            if (Array.isArray(value.freshSegmentUrls)) {
+                                value.freshSegmentUrls = new Set(value.freshSegmentUrls);
+                            }
+                            newRepState.set(key, value);
+                        }
+                        updatedStream.dashRepresentationState = newRepState;
+                    }
+                    if (updatedStream.hlsVariantState) {
+                         for (const variantState of updatedStream.hlsVariantState.values()) {
+                            if (Array.isArray(variantState.freshSegmentUrls)) {
+                                variantState.freshSegmentUrls = new Set(variantState.freshSegmentUrls);
+                            }
+                        }
+                    }
+                    return updatedStream;
+                }
+                return s;
+            });
+            return { streams };
+        });
         eventBus.dispatch('state:stream-updated', { streamId });
     },
+
 
     addInbandEvents: (streamId, events) => {
         if (!events || events.length === 0) return;
@@ -495,6 +532,67 @@ export const useAnalysisStore = createStore((set, get) => ({
                         : s
                 ),
             };
+        });
+    },
+
+    addHlsSegmentFromPlayer: ({ streamId, segmentUrl }) => {
+        set((state) => {
+            const stream = state.streams.find((s) => s.id === streamId);
+            if (!stream || stream.protocol !== 'hls' || !stream.manifest?.isMaster) return {};
+
+            const newVariantState = new Map(stream.hlsVariantState);
+            let updated = false;
+
+            for (const [variantUri, variantState] of newVariantState.entries()) {
+                const baseUrlForVariant = new URL(variantUri, stream.baseUrl).href;
+                const baseDir = baseUrlForVariant.substring(0, baseUrlForVariant.lastIndexOf('/') + 1);
+
+                if (segmentUrl.startsWith(baseDir)) {
+                    const segmentExists = (variantState.segments || []).some(s => s.resolvedUrl === segmentUrl);
+                    if (!segmentExists) {
+                        const filename = segmentUrl.split('/').pop().split('?')[0];
+                        const match = filename.match(/(\d+)\.(m4s|ts)/);
+                        const sequenceNumber = match ? parseInt(match[1], 10) : -1;
+                        
+                        if (sequenceNumber !== -1) {
+                            /** @type {import('@/types').HlsSegment} */
+                            const newSegment = {
+                                repId: 'hls-media',
+                                type: 'Media',
+                                number: sequenceNumber,
+                                uniqueId: segmentUrl,
+                                resolvedUrl: segmentUrl,
+                                template: filename,
+                                time: 0,
+                                duration: 0, // Duration is unknown without the manifest
+                                timescale: 90000,
+                                gap: false,
+                                flags: [],
+                                title: '',
+                                tags: [],
+                                parts: [],
+                                bitrate: null,
+                                extinfLineNumber: -1,
+                            };
+                            const updatedSegments = [...(variantState.segments || []), newSegment].sort((a,b) => a.number - b.number);
+                            
+                            variantState.segments = updatedSegments;
+                            variantState.freshSegmentUrls.add(newSegment.uniqueId); // <-- THE FIX
+                            updated = true;
+                            break; 
+                        }
+                    }
+                }
+            }
+
+            if (updated) {
+                return {
+                    streams: state.streams.map((s) =>
+                        s.id === streamId ? { ...s, hlsVariantState: newVariantState } : s
+                    ),
+                };
+            }
+            return {};
         });
     },
 }));

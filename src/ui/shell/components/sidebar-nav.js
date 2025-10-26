@@ -115,8 +115,8 @@ const NavGroup = (group, activeTab) => {
 };
 
 export function getNavGroups() {
-    const { streams, activeSegmentUrl, segmentsForCompare } =
-        useAnalysisStore.getState();
+    const { streams, segmentsForCompare } = useAnalysisStore.getState();
+    const { activeSegmentUrl } = useUiStore.getState();
     const activeStream = streams.find(
         (s) => s.id === useAnalysisStore.getState().activeStreamId
     );

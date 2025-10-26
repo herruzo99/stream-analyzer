@@ -24,8 +24,11 @@ export const useSegmentCacheStore = createStore((set, get) => ({
     set: (url, entry) => {
         const currentCache = get().cache;
         currentCache.set(url, entry);
-        // Create a new object reference to trigger Zustand's shallow comparison
-        set({ cache: currentCache.clone() });
+        // Create a new LRUCache instance pointing to the same internal map.
+        // This is a cheap way to create a new object reference and trigger Zustand's update.
+        const newCache = new LRUCache(currentCache.maxSize);
+        newCache.cache = currentCache.cache;
+        set({ cache: newCache });
     },
     get: (url) => get().cache.get(url),
     clear: () => set({ cache: new LRUCache(SEGMENT_CACHE_SIZE) }),

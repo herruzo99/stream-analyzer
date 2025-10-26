@@ -4,15 +4,32 @@ import { showToast } from '@/ui/components/toast';
 import { showLoader, hideLoader } from '@/ui/components/loader';
 import { getParsedSegment } from '@/infrastructure/segments/segmentService';
 import { useAnalysisStore } from '@/state/analysisStore';
+import { useSegmentCacheStore } from '@/state/segmentCacheStore';
 
 /**
  * Initializes listeners for global UI events that orchestrate application-level responses.
  */
 export function initializeUiOrchestration() {
     eventBus.subscribe(
-        'ui:request-segment-analysis',
+        'ui:show-segment-analysis-modal',
         ({ uniqueId, format }) => {
             const { activeStreamId } = useAnalysisStore.getState();
+            const cachedEntry = useSegmentCacheStore.getState().get(uniqueId);
+
+            // If we have parsed data already, just open the modal.
+            if (cachedEntry?.parsedData) {
+                openModalWithContent({
+                    title: 'Segment Analysis',
+                    url: uniqueId,
+                    content: {
+                        type: 'segmentAnalysis',
+                        data: { parsedData: cachedEntry.parsedData },
+                    },
+                });
+                return;
+            }
+
+            // Otherwise, trigger the full fetch/parse flow.
             showLoader('Analyzing segment...');
             getParsedSegment(uniqueId, activeStreamId, format)
                 .then((parsedData) => {

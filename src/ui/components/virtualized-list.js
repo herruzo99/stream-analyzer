@@ -131,6 +131,8 @@ class VirtualizedList extends HTMLElement {
     }
 }
 
+export default VirtualizedList;
+
 if (!customElements.get('virtualized-list')) {
     customElements.define('virtualized-list', VirtualizedList);
 }

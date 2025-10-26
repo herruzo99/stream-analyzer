@@ -1,6 +1,7 @@
 import { fetchWithAuth } from '../http.js';
 import { inferMediaInfoFromExtension } from '@/infrastructure/parsing/utils/media-types';
 import { parseSegment } from './segmentParsingHandler.js';
+import { debugLog } from '@/shared/utils/debug';
 
 /**
  * Maps Shaka Player's request type values to our internal resource types for logging.
@@ -38,6 +39,7 @@ function mapShakaRequestType(request, requestType) {
 
 /**
  * Fetches a resource for Shaka player, logs it, and returns the ArrayBuffer.
+ * This function is called by the worker's main message handler.
  * @param {object} payload
  * @param {object} payload.request The simplified, serializable request object.
  * @param {number} payload.requestType The request type enum value.
@@ -58,11 +60,10 @@ export async function handleShakaFetch({
     const url = request.uris[0];
     const resourceType = mapShakaRequestType(request, requestType);
 
-    const response = await fetchWithAuth(url, auth, resourceType, streamId);
+    const response = await fetchWithAuth(url, auth, resourceType, streamId, null, request.headers, request.body);
     if (!response.ok) {
-        // Shaka expects a specific error structure for network failures.
         const error = new Error(`HTTP error ${response.status} for ${url}`);
-        // @ts-ignore
+        // @ts-ignore - attaching custom Shaka-related properties for the player to interpret
         error.shakaErrorCode = 6001; // shaka.util.Error.Code.HTTP_ERROR
         // @ts-ignore
         error.data = [url, response, request, requestType, null];
@@ -76,6 +77,8 @@ export async function handleShakaFetch({
     });
 
     let data;
+    // Shaka's manifest parsers expect text, but the networking engine contract requires an ArrayBuffer.
+    // We get the text, then encode it to a UTF-8 ArrayBuffer to satisfy the contract.
     if (requestType === MANIFEST_REQUEST_TYPE) {
         const manifestText = await response.text();
         data = new TextEncoder().encode(manifestText).buffer;
@@ -83,9 +86,15 @@ export async function handleShakaFetch({
         data = await response.arrayBuffer();
     }
 
+    // If this was a segment, parse it and notify the main thread to populate the cache.
+    // This allows other features (like the inspector) to use segments played by the simulator.
     if (requestType === SEGMENT_REQUEST_TYPE) {
         try {
-            const parsedData = await parseSegment({ data: data.slice(0), url });
+            // We use slice(0) to create a copy, as the buffer will be transferred and become unusable here.
+            const parsedData = await parseSegment({
+                data: data.slice(0),
+                url,
+            });
             self.postMessage({
                 type: 'worker:shaka-segment-loaded',
                 payload: {
@@ -93,22 +102,23 @@ export async function handleShakaFetch({
                     status: response.status,
                     data,
                     parsedData,
+                    streamId,
                 },
             });
-        } catch(e) {
-            console.error(`[Worker] Failed to parse Shaka-loaded segment ${url}:`, e);
+        } catch (e) {
+            console.error(
+                `[Worker] Failed to parse Shaka-loaded segment ${url}:`,
+                e
+            );
         }
     }
 
-    // --- ARCHITECTURAL CORRECTION ---
     // The returned object MUST conform to the shaka.extern.Response interface.
-    // This includes `uri`, `originalUri`, `data`, and `headers`.
     return {
-        uri: response.url,      // The final URL after any redirects.
-        originalUri: url,       // The URL originally requested.
-        data: data,             // The ArrayBuffer containing the data.
-        headers: headers,       // The response headers.
-        fromCache: !!response.headers.get('X-Cache'), // Optional but good practice.
+        uri: response.url,
+        originalUri: url,
+        data: data,
+        headers: headers,
+        originalRequest: request,
     };
-    // --- END CORRECTION ---
 }
