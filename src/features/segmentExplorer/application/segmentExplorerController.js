@@ -17,12 +17,9 @@ export function initializeSegmentExplorerController() {
         uiActions.toggleSegmentExplorerSortOrder();
     });
 
-    eventBus.subscribe(
-        'ui:segment-explorer:time-target-set',
-        ({ target }) => {
-            uiActions.setSegmentExplorerTargetTime(target);
-        }
-    );
+    eventBus.subscribe('ui:segment-explorer:time-target-set', ({ target }) => {
+        uiActions.setSegmentExplorerTargetTime(target);
+    });
 
     eventBus.subscribe('ui:segment-explorer:time-target-cleared', () => {
         uiActions.clearSegmentExplorerTargetTime();

@@ -15,7 +15,9 @@ const MAX_PRESETS = 50;
 function prepareForStorage(input) {
     const storableInput = JSON.parse(JSON.stringify(input)); // Deep clone to avoid mutation
     if (storableInput.drmAuth?.serverCertificate instanceof File) {
-        const file = /** @type {File} */ (storableInput.drmAuth.serverCertificate);
+        const file = /** @type {File} */ (
+            storableInput.drmAuth.serverCertificate
+        );
         storableInput.drmAuth.serverCertificate = {
             isFilePlaceholder: true,
             name: file.name,
@@ -39,7 +41,6 @@ function restoreFromStorage(storedInput) {
     }
     return storedInput;
 }
-
 
 /**
  * Reads a list of streams from localStorage.

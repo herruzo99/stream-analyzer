@@ -83,7 +83,10 @@ function generateThroughputData(events, chartStartTime) {
         ) {
             const bucket = timeBuckets.get(bucketTime) || { bits: 0 };
             const start = Math.max(event.timing.startTime, bucketTime);
-            const end = Math.min(event.timing.endTime, bucketTime + bucketSizeMs);
+            const end = Math.min(
+                event.timing.endTime,
+                bucketTime + bucketSizeMs
+            );
             const durationInBucket = end - start;
 
             if (durationInBucket > 0) {

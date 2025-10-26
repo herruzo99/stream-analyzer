@@ -263,7 +263,10 @@ export async function parseAllSegmentUrls(manifestElement, manifestUrl) {
                                         String(currentNumber).padStart(
                                             p
                                                 ? parseInt(
-                                                      p.substring(2, p.length - 1)
+                                                      p.substring(
+                                                          2,
+                                                          p.length - 1
+                                                      )
                                                   )
                                                 : 1,
                                             '0'
@@ -431,7 +434,10 @@ export async function parseAllSegmentUrls(manifestElement, manifestUrl) {
                     );
                     const mpdDurationSeconds =
                         parseDuration(
-                            getAttr(manifestElement, 'mediaPresentationDuration')
+                            getAttr(
+                                manifestElement,
+                                'mediaPresentationDuration'
+                            )
                         ) || 0;
 
                     const mediaSegment = {
@@ -454,7 +460,10 @@ export async function parseAllSegmentUrls(manifestElement, manifestUrl) {
                     const timescale = 1; // Default for text tracks
                     const mpdDurationSeconds =
                         parseDuration(
-                            getAttr(manifestElement, 'mediaPresentationDuration')
+                            getAttr(
+                                manifestElement,
+                                'mediaPresentationDuration'
+                            )
                         ) || 0;
 
                     const mediaSegment = {
@@ -532,7 +541,11 @@ export function findInitSegmentUrl(
             range: null,
             template: urlTemplate,
         };
-        debugLog('findInitSegmentUrl', 'Found via Initialization@sourceURL', result);
+        debugLog(
+            'findInitSegmentUrl',
+            'Found via Initialization@sourceURL',
+            result
+        );
         return result;
     }
 
@@ -542,7 +555,11 @@ export function findInitSegmentUrl(
             range: getAttr(initialization, 'range'),
             template: new URL(baseUrl).pathname.split('/').pop(),
         };
-        debugLog('findInitSegmentUrl', 'Found via Initialization@range', result);
+        debugLog(
+            'findInitSegmentUrl',
+            'Found via Initialization@range',
+            result
+        );
         return result;
     }
 

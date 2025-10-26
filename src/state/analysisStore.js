@@ -143,7 +143,9 @@ export const useAnalysisStore = createStore((set, get) => ({
         // This action now lives in uiStore to prevent race conditions.
         // It's kept here for now to avoid breaking other parts of the app that might still call it.
         // A future refactoring would remove this entirely.
-        console.warn('setActiveSegmentUrl is deprecated in analysisStore. Use uiActions.navigateToInteractiveSegment instead.');
+        console.warn(
+            'setActiveSegmentUrl is deprecated in analysisStore. Use uiActions.navigateToInteractiveSegment instead.'
+        );
         uiActions.navigateToInteractiveSegment(id);
     },
 
@@ -196,7 +198,10 @@ export const useAnalysisStore = createStore((set, get) => ({
     },
 
     clearAllStreamInputs: () => {
-        set({ streamInputs: [createInitialAnalysisState().streamInputs[0]], activeStreamInputId: 0 });
+        set({
+            streamInputs: [createInitialAnalysisState().streamInputs[0]],
+            activeStreamInputId: 0,
+        });
     },
 
     setStreamInputs: (inputs) => {
@@ -388,22 +393,32 @@ export const useAnalysisStore = createStore((set, get) => ({
             const streams = state.streams.map((s) => {
                 if (s.id === streamId) {
                     const updatedStream = { ...s, ...updatedStreamData };
-                    
-                    // ARCHITECTURAL FIX: Ensure data structures are correct after worker serialization
-                    if (updatedStream.dashRepresentationState && updatedStream.dashRepresentationState instanceof Array) {
+
+                    // ** THE FIX **: Reconstruct Maps and Sets from serialized arrays from the worker.
+                    if (
+                        updatedStream.dashRepresentationState &&
+                        Array.isArray(updatedStream.dashRepresentationState)
+                    ) {
                         const newRepState = new Map(s.dashRepresentationState);
-                        for (const [key, value] of updatedStream.dashRepresentationState) {
+                        for (const [
+                            key,
+                            value,
+                        ] of updatedStream.dashRepresentationState) {
                             if (Array.isArray(value.freshSegmentUrls)) {
-                                value.freshSegmentUrls = new Set(value.freshSegmentUrls);
+                                value.freshSegmentUrls = new Set(
+                                    value.freshSegmentUrls
+                                );
                             }
                             newRepState.set(key, value);
                         }
                         updatedStream.dashRepresentationState = newRepState;
                     }
                     if (updatedStream.hlsVariantState) {
-                         for (const variantState of updatedStream.hlsVariantState.values()) {
+                        for (const variantState of updatedStream.hlsVariantState.values()) {
                             if (Array.isArray(variantState.freshSegmentUrls)) {
-                                variantState.freshSegmentUrls = new Set(variantState.freshSegmentUrls);
+                                variantState.freshSegmentUrls = new Set(
+                                    variantState.freshSegmentUrls
+                                );
                             }
                         }
                     }
@@ -415,7 +430,6 @@ export const useAnalysisStore = createStore((set, get) => ({
         });
         eventBus.dispatch('state:stream-updated', { streamId });
     },
-
 
     addInbandEvents: (streamId, events) => {
         if (!events || events.length === 0) return;
@@ -538,22 +552,41 @@ export const useAnalysisStore = createStore((set, get) => ({
     addHlsSegmentFromPlayer: ({ streamId, segmentUrl }) => {
         set((state) => {
             const stream = state.streams.find((s) => s.id === streamId);
-            if (!stream || stream.protocol !== 'hls' || !stream.manifest?.isMaster) return {};
+            if (
+                !stream ||
+                stream.protocol !== 'hls' ||
+                !stream.manifest?.isMaster
+            )
+                return {};
 
             const newVariantState = new Map(stream.hlsVariantState);
             let updated = false;
 
-            for (const [variantUri, variantState] of newVariantState.entries()) {
-                const baseUrlForVariant = new URL(variantUri, stream.baseUrl).href;
-                const baseDir = baseUrlForVariant.substring(0, baseUrlForVariant.lastIndexOf('/') + 1);
+            for (const [
+                variantUri,
+                variantState,
+            ] of newVariantState.entries()) {
+                const baseUrlForVariant = new URL(variantUri, stream.baseUrl)
+                    .href;
+                const baseDir = baseUrlForVariant.substring(
+                    0,
+                    baseUrlForVariant.lastIndexOf('/') + 1
+                );
 
                 if (segmentUrl.startsWith(baseDir)) {
-                    const segmentExists = (variantState.segments || []).some(s => s.resolvedUrl === segmentUrl);
+                    const segmentExists = (variantState.segments || []).some(
+                        (s) => s.resolvedUrl === segmentUrl
+                    );
                     if (!segmentExists) {
-                        const filename = segmentUrl.split('/').pop().split('?')[0];
+                        const filename = segmentUrl
+                            .split('/')
+                            .pop()
+                            .split('?')[0];
                         const match = filename.match(/(\d+)\.(m4s|ts)/);
-                        const sequenceNumber = match ? parseInt(match[1], 10) : -1;
-                        
+                        const sequenceNumber = match
+                            ? parseInt(match[1], 10)
+                            : -1;
+
                         if (sequenceNumber !== -1) {
                             /** @type {import('@/types').HlsSegment} */
                             const newSegment = {
@@ -574,12 +607,18 @@ export const useAnalysisStore = createStore((set, get) => ({
                                 bitrate: null,
                                 extinfLineNumber: -1,
                             };
-                            const updatedSegments = [...(variantState.segments || []), newSegment].sort((a,b) => a.number - b.number);
-                            
+                            const updatedSegments = [
+                                ...(variantState.segments || []),
+                                newSegment,
+                            ].sort((a, b) => a.number - b.number);
+
                             variantState.segments = updatedSegments;
-                            variantState.freshSegmentUrls.add(newSegment.uniqueId); // <-- THE FIX
+                            // ** THE FIX **: Ensure the freshSegmentUrls Set is updated.
+                            variantState.freshSegmentUrls.add(
+                                newSegment.uniqueId
+                            );
                             updated = true;
-                            break; 
+                            break;
                         }
                     }
                 }
@@ -588,7 +627,9 @@ export const useAnalysisStore = createStore((set, get) => ({
             if (updated) {
                 return {
                     streams: state.streams.map((s) =>
-                        s.id === streamId ? { ...s, hlsVariantState: newVariantState } : s
+                        s.id === streamId
+                            ? { ...s, hlsVariantState: newVariantState }
+                            : s
                     ),
                 };
             }

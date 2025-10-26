@@ -274,7 +274,8 @@ function renderExplorer() {
                                 timeFilterTemplate({
                                     minTime,
                                     maxTime,
-                                    currentTargetTime: segmentExplorerTargetTime,
+                                    currentTargetTime:
+                                        segmentExplorerTargetTime,
                                     isLive,
                                 })
                             )}

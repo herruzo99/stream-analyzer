@@ -33,7 +33,8 @@ export function copyDebugInfoToClipboard() {
                     name: stream.name,
                     originalUrl: stream.originalUrl,
                     protocol: stream.protocol,
-                    rawManifest: latestUpdate?.rawManifest || stream.rawManifest,
+                    rawManifest:
+                        latestUpdate?.rawManifest || stream.rawManifest,
                     manifestSummary: stream.manifest?.summary || null,
                     latestComplianceResults:
                         latestUpdate?.complianceResults || [],

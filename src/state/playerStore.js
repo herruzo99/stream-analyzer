@@ -7,6 +7,14 @@ import { createStore } from 'zustand/vanilla';
  */
 
 /**
+ * @typedef {object} PlaybackHistoryEntry
+ * @property {number} time
+ * @property {number} bufferHealth
+ * @property {number} bandwidth
+ * @property {number} bitrate
+ */
+
+/**
  * @typedef {object} PlayerState
  * @property {boolean} isLoaded
  * @property {'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ENDED' | 'IDLE'} playbackState
@@ -16,7 +24,8 @@ import { createStore } from 'zustand/vanilla';
  * @property {PlayerStats | null} currentStats
  * @property {PlayerEvent[]} eventLog
  * @property {AbrHistoryEntry[]} abrHistory
- * @property {'stats' | 'log'} activeTab
+ * @property {PlaybackHistoryEntry[]} playbackHistory
+ * @property {'stats' | 'log' | 'graphs'} activeTab
  */
 
 /**
@@ -26,7 +35,7 @@ import { createStore } from 'zustand/vanilla';
  * @property {(stats: PlayerStats) => void} updateStats
  * @property {(event: PlayerEvent) => void} logEvent
  * @property {(entry: AbrHistoryEntry) => void} logAbrSwitch
- * @property {(tab: 'stats' | 'log') => void} setActiveTab
+ * @property {(tab: 'stats' | 'log' | 'graphs') => void} setActiveTab
  * @property {() => void} reset
  */
 
@@ -40,6 +49,7 @@ const createInitialPlayerState = () => ({
     currentStats: null,
     eventLog: [],
     abrHistory: [],
+    playbackHistory: [],
     activeTab: 'stats',
 });
 
@@ -54,7 +64,20 @@ export const usePlayerStore = createStore((set, get) => ({
 
     updatePlaybackInfo: (info) => set(info),
 
-    updateStats: (stats) => set({ currentStats: stats }),
+    updateStats: (stats) => {
+        const history = get().playbackHistory;
+        const newEntry = {
+            time: stats.playheadTime,
+            bufferHealth: stats.buffer.bufferHealth,
+            bandwidth: stats.abr.estimatedBandwidth,
+            bitrate: stats.abr.currentVideoBitrate,
+        };
+
+        set({
+            currentStats: stats,
+            playbackHistory: [...history, newEntry].slice(-300), // Keep last 300 points
+        });
+    },
 
     logEvent: (event) => {
         set((state) => ({

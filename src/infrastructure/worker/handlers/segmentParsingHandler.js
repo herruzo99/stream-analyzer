@@ -192,7 +192,11 @@ function walkAndMapBytes(byteMap, boxes, page, bytesPerPage) {
         // Map bytes for the box header.
         for (let i = box.offset; i < box.contentOffset; i++) {
             if (i >= startOffset && i < endOffset) {
-                byteMap.set(i, { box, color: box.color, fieldName: 'Box Header' });
+                byteMap.set(i, {
+                    box,
+                    color: box.color,
+                    fieldName: 'Box Header',
+                });
             }
         }
 
@@ -217,12 +221,17 @@ function walkAndMapBytes(byteMap, boxes, page, bytesPerPage) {
                         for (let i = 0; i < subsample.BytesOfClearData; i++) {
                             const bytePos = currentOffset + i;
                             if (bytePos >= startOffset && bytePos < endOffset) {
-                                const entry = byteMap.get(bytePos) || { box, color: box.color };
+                                const entry = byteMap.get(bytePos) || {
+                                    box,
+                                    color: box.color,
+                                };
                                 entry.isClear = true;
                                 byteMap.set(bytePos, entry);
                             }
                         }
-                        currentOffset += subsample.BytesOfClearData + subsample.BytesOfProtectedData;
+                        currentOffset +=
+                            subsample.BytesOfClearData +
+                            subsample.BytesOfProtectedData;
                     }
                 }
             }
@@ -234,7 +243,6 @@ function walkAndMapBytes(byteMap, boxes, page, bytesPerPage) {
         }
     }
 }
-
 
 /**
  * The core segment parsing logic, now exported for internal worker use.

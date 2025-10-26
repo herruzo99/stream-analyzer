@@ -24,7 +24,9 @@ function mapShakaRequestType(request, requestType) {
         case KEY:
             return 'key';
         case SEGMENT: {
-            const { contentType } = inferMediaInfoFromExtension(request.uris[0]);
+            const { contentType } = inferMediaInfoFromExtension(
+                request.uris[0]
+            );
             if (['video', 'audio', 'text', 'init'].includes(contentType)) {
                 return /** @type {import('@/types').ResourceType} */ (
                     contentType
@@ -60,7 +62,15 @@ export async function handleShakaFetch({
     const url = request.uris[0];
     const resourceType = mapShakaRequestType(request, requestType);
 
-    const response = await fetchWithAuth(url, auth, resourceType, streamId, null, request.headers, request.body);
+    const response = await fetchWithAuth(
+        url,
+        auth,
+        resourceType,
+        streamId,
+        null,
+        request.headers,
+        request.body
+    );
     if (!response.ok) {
         const error = new Error(`HTTP error ${response.status} for ${url}`);
         // @ts-ignore - attaching custom Shaka-related properties for the player to interpret

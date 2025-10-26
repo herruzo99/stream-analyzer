@@ -64,12 +64,15 @@ export async function handleParseLiveUpdate(payload) {
         );
         dashRepStateForUpdate = [];
         for (const [key, data] of Object.entries(segmentsByCompositeKey)) {
-            const allSegments = [data.initSegment, ...(data.segments || [])].filter(Boolean);
+            const allSegments = [
+                data.initSegment,
+                ...(data.segments || []),
+            ].filter(Boolean);
             dashRepStateForUpdate.push([
                 key,
                 {
                     segments: allSegments,
-                    freshSegmentUrls: allSegments.map(s => s.uniqueId), // Will be converted to Set in store
+                    freshSegmentUrls: allSegments.map((s) => s.uniqueId), // Will be converted to Set in store
                     diagnostics: data.diagnostics,
                 },
             ]);

@@ -15,7 +15,8 @@ export const ABR_STRATEGY_PRESETS = [
     {
         id: 'aggressive',
         label: 'Quality First (Aggressive)',
-        description: 'Upgrades quality quickly, holds onto high quality longer. Higher risk of rebuffering.',
+        description:
+            'Upgrades quality quickly, holds onto high quality longer. Higher risk of rebuffering.',
         config: {
             bandwidthUpgradeTarget: 0.7,
             bandwidthDowngradeTarget: 0.7,
@@ -24,7 +25,8 @@ export const ABR_STRATEGY_PRESETS = [
     {
         id: 'conservative',
         label: 'Stability First (Conservative)',
-        description: 'Requires significant bandwidth headroom to upgrade, downgrades quickly to avoid stalls.',
+        description:
+            'Requires significant bandwidth headroom to upgrade, downgrades quickly to avoid stalls.',
         config: {
             bandwidthUpgradeTarget: 0.95,
             bandwidthDowngradeTarget: 0.98,
@@ -39,7 +41,8 @@ export const BUFFERING_PRESETS = [
     {
         id: 'standard',
         label: 'Standard (Default)',
-        description: 'Balanced settings suitable for typical VOD and live streams.',
+        description:
+            'Balanced settings suitable for typical VOD and live streams.',
         config: {
             rebufferingGoal: 2,
             bufferingGoal: 10,
@@ -49,7 +52,8 @@ export const BUFFERING_PRESETS = [
     {
         id: 'low-latency',
         label: 'Low Latency',
-        description: 'Smaller buffers to stay closer to the live edge. Higher risk of stalls on unstable networks.',
+        description:
+            'Smaller buffers to stay closer to the live edge. Higher risk of stalls on unstable networks.',
         config: {
             rebufferingGoal: 0.5,
             bufferingGoal: 3,
@@ -59,7 +63,8 @@ export const BUFFERING_PRESETS = [
     {
         id: 'stable',
         label: 'High Stability (Travel)',
-        description: 'Large buffers to survive network drops (e.g., tunnels). Increases start-up time and latency.',
+        description:
+            'Large buffers to survive network drops (e.g., tunnels). Increases start-up time and latency.',
         config: {
             rebufferingGoal: 5,
             bufferingGoal: 30,

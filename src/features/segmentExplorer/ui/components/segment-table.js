@@ -128,7 +128,8 @@ export const segmentTableTemplate = ({
             if (segmentExplorerTargetTime && segmentExplorerScrollToTarget) {
                 const targetIndex = segments.findIndex(
                     (seg) =>
-                        seg.startTimeUTC <= segmentExplorerTargetTime.getTime() &&
+                        seg.startTimeUTC <=
+                            segmentExplorerTargetTime.getTime() &&
                         seg.endTimeUTC >= segmentExplorerTargetTime.getTime()
                 );
 

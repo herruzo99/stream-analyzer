@@ -51,28 +51,34 @@ export const playerService = {
         }
 
         const shakaNetworkPlugin = (uri, request, requestType) => {
-            debugLog('ShakaNetworkPlugin', 'Intercepted request for URI:', uri, 'Type:', requestType);
+            debugLog(
+                'ShakaNetworkPlugin',
+                'Intercepted request for URI:',
+                uri,
+                'Type:',
+                requestType
+            );
             const { streams, activeStreamId } = useAnalysisStore.getState();
             let stream;
 
             // 1. Most reliable: Find the stream currently loaded in this player instance.
             const assetUri = player ? player.getAssetUri() : null;
             if (assetUri) {
-                stream = streams.find(s => s.originalUrl === assetUri);
+                stream = streams.find((s) => s.originalUrl === assetUri);
             }
 
             // 2. Fallback for requests during the loading phase, before player.load() has resolved.
             if (!stream) {
-                stream = streams.find(s => s.originalUrl === uri);
+                stream = streams.find((s) => s.originalUrl === uri);
             }
-            
+
             // 3. Last resort if a match still isn't found. Default to the active stream in the UI.
             if (!stream) {
-                stream = streams.find(s => s.id === activeStreamId);
+                stream = streams.find((s) => s.id === activeStreamId);
             }
 
             const { auth, id: streamId } = stream || {};
-            
+
             const serializableRequest = {
                 uris: request.uris,
                 method: request.method,
@@ -83,7 +89,11 @@ export const playerService = {
                 serializableRequest.headers[key] = value;
             }
 
-            debugLog('ShakaNetworkPlugin', 'Dispatching serializable request to worker via shaka-fetch task.', { uri, streamId });
+            debugLog(
+                'ShakaNetworkPlugin',
+                'Dispatching serializable request to worker via shaka-fetch task.',
+                { uri, streamId }
+            );
             const abortableOp = new shaka.util.AbortableOperation(
                 workerService.postTask('shaka-fetch', {
                     request: serializableRequest,
@@ -92,10 +102,10 @@ export const playerService = {
                     streamId,
                 })
             );
-            
+
             return abortableOp;
         };
-        
+
         shaka.net.NetworkingEngine.registerScheme('http', shakaNetworkPlugin);
         shaka.net.NetworkingEngine.registerScheme('https', shakaNetworkPlugin);
 
@@ -107,7 +117,10 @@ export const playerService = {
         ui.getControls();
 
         player.addEventListener('error', this.onErrorEvent.bind(this));
-        player.addEventListener('adaptation', this.onAdaptationEvent.bind(this));
+        player.addEventListener(
+            'adaptation',
+            this.onAdaptationEvent.bind(this)
+        );
         player.addEventListener('buffering', this.onBufferingEvent.bind(this));
 
         if (statsInterval) clearInterval(statsInterval);
@@ -139,8 +152,9 @@ export const playerService = {
                           }
                         : null,
                     activeAudioTrack:
-                        player.getAudioLanguagesAndRoles().find((t) => t.active) ||
-                        null,
+                        player
+                            .getAudioLanguagesAndRoles()
+                            .find((t) => t.active) || null,
                     activeTextTrack:
                         player.getTextTracks().find((t) => t.active) || null,
                 });
@@ -155,14 +169,16 @@ export const playerService = {
      * @param {import('@/types').Stream} stream The stream object containing the manifest URL and DRM info.
      */
     async load(stream) {
-        if (!this.isInitialized || !player || !stream || !stream.drmAuth) return;
+        if (!this.isInitialized || !player || !stream || !stream.drmAuth)
+            return;
 
         const isEncrypted = stream.manifest?.summary?.security?.isEncrypted;
 
         if (isEncrypted) {
             const discoveredUrls =
                 stream.manifest.summary.security.licenseServerUrls || [];
-            const licenseServerUrl = stream.drmAuth.licenseServerUrl || discoveredUrls[0] || '';
+            const licenseServerUrl =
+                stream.drmAuth.licenseServerUrl || discoveredUrls[0] || '';
 
             if (!licenseServerUrl) {
                 this.onError({
@@ -175,7 +191,7 @@ export const playerService = {
             }
 
             const licenseRequestHeaders = {};
-            stream.drmAuth?.headers?.forEach(h => {
+            stream.drmAuth?.headers?.forEach((h) => {
                 if (h.key) licenseRequestHeaders[h.key] = h.value;
             });
 
@@ -209,9 +225,12 @@ export const playerService = {
                     },
                 };
 
-                debugLog('playerService.load', 'Applying DRM configuration:', drmConfig);
+                debugLog(
+                    'playerService.load',
+                    'Applying DRM configuration:',
+                    drmConfig
+                );
                 player.configure(drmConfig);
-
             } catch (e) {
                 this.onError({
                     code: 'DRM_CERTIFICATE_FAILED',
@@ -225,9 +244,12 @@ export const playerService = {
             player.configure({ drm: { servers: {} } });
         }
 
-
         try {
-            debugLog('playerService.load', 'Loading instrumented URL:', stream.originalUrl);
+            debugLog(
+                'playerService.load',
+                'Loading instrumented URL:',
+                stream.originalUrl
+            );
             await player.load(stream.originalUrl);
             playerActions.setLoadedState(true);
             eventBus.dispatch('player:manifest-loaded');
@@ -336,9 +358,10 @@ export const playerService = {
     onError(error) {
         console.error('Shaka Player Error:', error.code, error);
         playerActions.setLoadedState(false);
-        
+
         let message = `Player error: ${error.code} - ${error.message}`;
-        if (error.code === 6007) { // LICENSE_REQUEST_FAILED
+        if (error.code === 6007) {
+            // LICENSE_REQUEST_FAILED
             const networkError = error.data[0];
             if (networkError && networkError.data) {
                 const httpStatus = networkError.data[1];

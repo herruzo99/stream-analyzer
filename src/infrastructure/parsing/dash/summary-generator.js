@@ -71,7 +71,7 @@ export async function generateDashSummary(
             if (cp.schemeIdUri && !securitySystems.has(cp.schemeIdUri)) {
                 securitySystems.set(cp.schemeIdUri, {
                     systemId: cp.schemeIdUri,
-                    pssh: (cp.pssh && cp.pssh.length > 0) ? cp.pssh[0] : null,
+                    pssh: cp.pssh && cp.pssh.length > 0 ? cp.pssh[0] : null,
                     kids: cp.defaultKid ? [cp.defaultKid] : [],
                 });
             }
@@ -98,12 +98,15 @@ export async function generateDashSummary(
                 if (!securitySystems.has(schemeId)) {
                     securitySystems.set(schemeId, {
                         systemId: schemeId,
-                        pssh: (cp.pssh && cp.pssh.length > 0) ? cp.pssh[0] : null,
+                        pssh: cp.pssh && cp.pssh.length > 0 ? cp.pssh[0] : null,
                         kids: cp.defaultKid ? [cp.defaultKid] : [],
                     });
                 } else {
                     const existing = securitySystems.get(schemeId);
-                    if (cp.defaultKid && !existing.kids.includes(cp.defaultKid)) {
+                    if (
+                        cp.defaultKid &&
+                        !existing.kids.includes(cp.defaultKid)
+                    ) {
                         existing.kids.push(cp.defaultKid);
                     }
                     // Prioritize getting a PSSH box if one wasn't found before for this scheme
@@ -143,9 +146,18 @@ export async function generateDashSummary(
                         as.serializedManifest,
                         rep.serializedManifest
                     );
-                    const initInfo = findInitSegmentUrl(rep, as, period, repBaseUrl);
+                    const initInfo = findInitSegmentUrl(
+                        rep,
+                        as,
+                        period,
+                        repBaseUrl
+                    );
                     if (initInfo?.url) {
-                        debugLog('summary-generator', 'Dispatching init segment fetch', initInfo);
+                        debugLog(
+                            'summary-generator',
+                            'Dispatching init segment fetch',
+                            initInfo
+                        );
                         try {
                             const parsedSegment =
                                 await context.fetchAndParseSegment(
@@ -184,7 +196,8 @@ export async function generateDashSummary(
                                     btrt &&
                                     btrt.details.maxBitrate?.value > 0
                                 ) {
-                                    rep.bandwidth = btrt.details.maxBitrate.value;
+                                    rep.bandwidth =
+                                        btrt.details.maxBitrate.value;
                                 }
 
                                 // Enrich PSSH data with license URLs
@@ -197,10 +210,17 @@ export async function generateDashSummary(
                                         psshBox.systemId &&
                                         psshBox.details.license_url?.value
                                     ) {
-                                        if (securitySystems.has(psshBox.systemId)) {
-                                            const system = securitySystems.get(psshBox.systemId);
+                                        if (
+                                            securitySystems.has(
+                                                psshBox.systemId
+                                            )
+                                        ) {
+                                            const system = securitySystems.get(
+                                                psshBox.systemId
+                                            );
                                             if (system.pssh) {
-                                                system.pssh.licenseServerUrl = psshBox.details.license_url.value;
+                                                system.pssh.licenseServerUrl =
+                                                    psshBox.details.license_url.value;
                                             }
                                         }
                                     }

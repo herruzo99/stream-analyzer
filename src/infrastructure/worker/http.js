@@ -12,7 +12,11 @@ async function logRequest(
     const responseStart = performance.now();
     // We don't read the body here anymore to avoid consuming it.
     const responseEnd = performance.now();
-    debugLog('worker.logRequest', 'Logging network event for:', initialUrl.href);
+    debugLog(
+        'worker.logRequest',
+        'Logging network event for:',
+        initialUrl.href
+    );
 
     /** @type {Record<string, string>} */
     const requestHeaders = {};
@@ -41,7 +45,8 @@ async function logRequest(
             status: response.status,
             statusText: response.statusText,
             headers: responseHeaders,
-            contentLength: Number(response.headers.get('content-length')) || null,
+            contentLength:
+                Number(response.headers.get('content-length')) || null,
             contentType: response.headers.get('content-type'),
         },
         timing: {
@@ -61,8 +66,15 @@ async function logRequest(
     };
 
     // Use a different message type to signal this is a provisional event for enrichment
-    debugLog('worker.logRequest', 'Posting worker:network-event message to main thread.', provisionalEvent);
-    self.postMessage({ type: 'worker:network-event', payload: provisionalEvent });
+    debugLog(
+        'worker.logRequest',
+        'Posting worker:network-event message to main thread.',
+        provisionalEvent
+    );
+    self.postMessage({
+        type: 'worker:network-event',
+        payload: provisionalEvent,
+    });
 }
 
 /**
@@ -100,7 +112,7 @@ export async function fetchWithAuth(
         // @ts-ignore
         options.headers.append(key, value);
     }
-    
+
     // Apply auth headers and query params from our application's config
     if (auth) {
         auth.queryParams?.forEach((param) => {
@@ -123,7 +135,11 @@ export async function fetchWithAuth(
     }
 
     const requestStart = performance.now();
-    debugLog('fetchWithAuth', `Initiating fetch for ${initialUrl.href}`, options);
+    debugLog(
+        'fetchWithAuth',
+        `Initiating fetch for ${initialUrl.href}`,
+        options
+    );
     const response = await fetchWithRetry(initialUrl.href, options);
 
     const responseForLogging = response.clone();

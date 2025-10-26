@@ -42,19 +42,32 @@ export class WorkerService {
 
         // Handle global, non-request/response messages
         if (type && id === undefined) {
-            debugLog('WorkerService', `Received global message of type: ${type}`, payload);
+            debugLog(
+                'WorkerService',
+                `Received global message of type: ${type}`,
+                payload
+            );
             const handler = this.globalHandlers.get(type);
             if (handler) {
-                debugLog('WorkerService', `Found handler for ${type}, executing.`);
+                debugLog(
+                    'WorkerService',
+                    `Found handler for ${type}, executing.`
+                );
                 handler(payload);
             } else {
-                debugLog('WorkerService', `No handler registered for global message type: ${type}`);
+                debugLog(
+                    'WorkerService',
+                    `No handler registered for global message type: ${type}`
+                );
             }
             return;
         }
 
         if (!this.pendingTasks.has(id)) {
-            debugLog('WorkerService', `Received message for unknown or completed task ID: ${id}`);
+            debugLog(
+                'WorkerService',
+                `Received message for unknown or completed task ID: ${id}`
+            );
             return;
         }
 

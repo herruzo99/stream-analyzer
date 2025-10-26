@@ -11,16 +11,35 @@ import { closeDropdown } from '@/ui/services/dropdownService';
  */
 const optionCardTemplate = ({ label, description, isActive, onClick }) => {
     const activeClasses = 'bg-blue-800 border-blue-600 ring-2 ring-blue-500';
-    const baseClasses = 'bg-gray-900/50 p-3 rounded-lg border border-gray-700 cursor-pointer transition-all duration-150 ease-in-out text-left w-full';
+    const baseClasses =
+        'bg-gray-900/50 p-3 rounded-lg border border-gray-700 cursor-pointer transition-all duration-150 ease-in-out text-left w-full';
     const hoverClasses = 'hover:bg-gray-700 hover:border-gray-500';
 
     return html`
-        <button class="${baseClasses} ${hoverClasses} ${isActive ? activeClasses : ''}" @click=${onClick}>
+        <button
+            class="${baseClasses} ${hoverClasses} ${isActive
+                ? activeClasses
+                : ''}"
+            @click=${onClick}
+        >
             <div class="flex justify-between items-center">
-                <span class="font-semibold text-gray-200 truncate">${label}</span>
-                ${isActive ? html`<span class="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-600 text-white shrink-0 ml-2">ACTIVE</span>` : ''}
+                <span class="font-semibold text-gray-200 truncate"
+                    >${label}</span
+                >
+                ${isActive
+                    ? html`<span
+                          class="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-600 text-white shrink-0 ml-2"
+                          >ACTIVE</span
+                      >`
+                    : ''}
             </div>
-            ${description ? html`<div class="text-xs text-gray-400 mt-1 whitespace-normal">${description}</div>` : ''}
+            ${description
+                ? html`<div
+                      class="text-xs text-gray-400 mt-1 whitespace-normal"
+                  >
+                      ${description}
+                  </div>`
+                : ''}
         </button>
     `;
 };
@@ -32,20 +51,28 @@ const optionCardTemplate = ({ label, description, isActive, onClick }) => {
  * @param {(option: object) => void} onSelect - Callback function when an option is selected.
  * @returns {import('lit-html').TemplateResult}
  */
-export const formattedOptionsDropdownTemplate = (options, activeId, onSelect) => {
+export const formattedOptionsDropdownTemplate = (
+    options,
+    activeId,
+    onSelect
+) => {
     const handleSelect = (option) => {
         onSelect(option);
         closeDropdown();
     };
 
     return html`
-        <div class="dropdown-panel bg-gray-800 border border-gray-700 rounded-lg shadow-xl w-80 p-2 space-y-2 max-h-[60vh] overflow-y-auto">
-            ${options.map(option => optionCardTemplate({
-                label: option.label,
-                description: option.description,
-                isActive: option.id === activeId,
-                onClick: () => handleSelect(option),
-            }))}
+        <div
+            class="dropdown-panel bg-gray-800 border border-gray-700 rounded-lg shadow-xl w-80 p-2 space-y-2 max-h-[60vh] overflow-y-auto"
+        >
+            ${options.map((option) =>
+                optionCardTemplate({
+                    label: option.label,
+                    description: option.description,
+                    isActive: option.id === activeId,
+                    onClick: () => handleSelect(option),
+                })
+            )}
         </div>
     `;
 };

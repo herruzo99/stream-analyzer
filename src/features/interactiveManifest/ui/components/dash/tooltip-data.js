@@ -356,7 +356,7 @@ export const dashTooltipData = {
         isoRef: 'Clause 5.3.9.2',
     },
     'SegmentBase@timescale': {
-        text: "The number of time units that pass in one second (e.g., 90000 for video). This timescale provides the denominator for time and duration values within this segment information context, overriding any higher-level timescales.",
+        text: 'The number of time units that pass in one second (e.g., 90000 for video). This timescale provides the denominator for time and duration values within this segment information context, overriding any higher-level timescales.',
         isoRef: 'Clause 5.3.9.2.2, Table 16',
     },
     'SegmentBase@indexRange': {
@@ -369,7 +369,7 @@ export const dashTooltipData = {
     },
     Initialization: {
         text: "Describes the Initialization Segment for this Representation. This segment contains metadata required to initialize the media decoder, such as the 'moov' box in ISOBFF.",
-        isoRef: "Clause 5.3.9.2.2, Table 16",
+        isoRef: 'Clause 5.3.9.2.2, Table 16',
     },
     'Initialization@range': {
         text: "The byte range of the Initialization Segment within the resource specified by the parent Representation's BaseURL.",
@@ -535,7 +535,7 @@ export const dashTooltipData = {
         text: 'Specifies the minimum required security level for the client decryptor (e.g., a string indicating software vs. hardware DRM). A client can use this to filter out content it is not authorized to play.',
         isoRef: 'Clause 5.8.4.1.4, Table 33',
     },
-    'pssh': {
+    pssh: {
         text: 'A Base64-encoded Protection System Specific Header (PSSH) box. This opaque blob contains initialization data required by a specific DRM system to generate a license request.',
         isoRef: 'ISO/IEC 23001-7',
     },

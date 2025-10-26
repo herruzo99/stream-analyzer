@@ -66,8 +66,9 @@ export async function createDashTimelineViewModel(stream, segmentCache) {
                         );
                         if (initUrl) {
                             try {
-                                const initSegment =
-                                    await getParsedSegment(initUrl.url);
+                                const initSegment = await getParsedSegment(
+                                    initUrl.url
+                                );
                                 if (initSegment?.data?.boxes) {
                                     elstData = findBoxRecursive(
                                         initSegment.data.boxes,
@@ -123,8 +124,9 @@ export async function createDashTimelineViewModel(stream, segmentCache) {
                             let tfraData = null;
                             if (initUrl) {
                                 try {
-                                    const initSegment =
-                                        await getParsedSegment(initUrl.url);
+                                    const initSegment = await getParsedSegment(
+                                        initUrl.url
+                                    );
                                     if (initSegment?.data?.boxes) {
                                         tfraData = findBoxRecursive(
                                             initSegment.data.boxes,

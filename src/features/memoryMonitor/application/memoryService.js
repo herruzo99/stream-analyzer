@@ -66,12 +66,7 @@ function calculateApplicationStateSize() {
         decryption,
         segmentCacheIndex,
         total:
-            analysis +
-            ui +
-            player +
-            network +
-            decryption +
-            segmentCacheIndex,
+            analysis + ui + player + network + decryption + segmentCacheIndex,
     };
 }
 
