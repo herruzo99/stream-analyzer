@@ -46,89 +46,132 @@ function mapShakaRequestType(request, requestType) {
  * @param {object} payload.request The simplified, serializable request object.
  * @param {number} payload.requestType The request type enum value.
  * @param {import('@/types').AuthInfo} payload.auth Authentication info.
- * @param {number} payload.streamId The ID of the stream.
+ * @param {number} payload.streamId The ID of the stream this request belongs to.
+ * @param {AbortSignal} signal - The AbortSignal for the operation.
  * @returns {Promise<shaka.extern.Response>}
  */
-export async function handleShakaFetch({
-    request,
-    requestType,
-    auth,
-    streamId,
-}) {
-    // Enum values from shaka.net.NetworkingEngine.RequestType for clarity
+export async function handleShakaFetch(
+    { request, requestType, auth, streamId },
+    signal
+) {
     const MANIFEST_REQUEST_TYPE = 0;
     const SEGMENT_REQUEST_TYPE = 1;
+    const NETWORK_ERROR = 6001;
+    const NETWORK_CATEGORY = 1;
+    const CRITICAL_SEVERITY = 2;
 
     const url = request.uris[0];
-    const resourceType = mapShakaRequestType(request, requestType);
 
-    const response = await fetchWithAuth(
-        url,
-        auth,
-        resourceType,
-        streamId,
-        null,
-        request.headers,
-        request.body
-    );
-    if (!response.ok) {
-        const error = new Error(`HTTP error ${response.status} for ${url}`);
-        // @ts-ignore - attaching custom Shaka-related properties for the player to interpret
-        error.shakaErrorCode = 6001; // shaka.util.Error.Code.HTTP_ERROR
-        // @ts-ignore
-        error.data = [url, response, request, requestType, null];
-        throw error;
-    }
+    try {
+        const startTime = performance.now();
+        const response = await fetchWithAuth(
+            url,
+            auth,
+            null, // range
+            request.headers,
+            request.body,
+            signal
+        );
 
-    /** @type {Record<string, string>} */
-    const headers = {};
-    response.headers.forEach((value, key) => {
-        headers[key] = value;
-    });
-
-    let data;
-    // Shaka's manifest parsers expect text, but the networking engine contract requires an ArrayBuffer.
-    // We get the text, then encode it to a UTF-8 ArrayBuffer to satisfy the contract.
-    if (requestType === MANIFEST_REQUEST_TYPE) {
-        const manifestText = await response.text();
-        data = new TextEncoder().encode(manifestText).buffer;
-    } else {
-        data = await response.arrayBuffer();
-    }
-
-    // If this was a segment, parse it and notify the main thread to populate the cache.
-    // This allows other features (like the inspector) to use segments played by the simulator.
-    if (requestType === SEGMENT_REQUEST_TYPE) {
-        try {
-            // We use slice(0) to create a copy, as the buffer will be transferred and become unusable here.
-            const parsedData = await parseSegment({
-                data: data.slice(0),
-                url,
-            });
-            self.postMessage({
-                type: 'worker:shaka-segment-loaded',
-                payload: {
-                    uniqueId: url,
-                    status: response.status,
-                    data,
-                    parsedData,
-                    streamId,
+        // Explicitly post a global message for the network event.
+        const resourceType = mapShakaRequestType(request, requestType);
+        self.postMessage({
+            type: 'worker:network-event',
+            payload: {
+                id: crypto.randomUUID(),
+                url: response.url,
+                resourceType,
+                streamId,
+                request: {
+                    method: request.method,
+                    headers: request.headers,
                 },
-            });
-        } catch (e) {
-            console.error(
-                `[Worker] Failed to parse Shaka-loaded segment ${url}:`,
-                e
-            );
-        }
-    }
+                response: {
+                    status: response.status,
+                    statusText: response.statusText,
+                    headers: response.headers,
+                    contentLength: Number(response.headers['content-length']) || null,
+                    contentType: response.headers['content-type'],
+                },
+                timing: {
+                    startTime,
+                    endTime: performance.now(),
+                    duration: performance.now() - startTime,
+                    breakdown: null, // Let main thread enrich this
+                },
+            },
+        });
 
-    // The returned object MUST conform to the shaka.extern.Response interface.
-    return {
-        uri: response.url,
-        originalUri: url,
-        data: data,
-        headers: headers,
-        originalRequest: request,
-    };
+        if (!response.ok) {
+            // Let Shaka handle HTTP errors
+            return {
+                uri: response.url,
+                originalUri: url,
+                data: new ArrayBuffer(0),
+                headers: response.headers,
+                status: response.status,
+                originalRequest: request,
+            };
+        }
+
+        let data;
+        if (requestType === MANIFEST_REQUEST_TYPE) {
+            const manifestText = await response.text();
+            data = new TextEncoder().encode(manifestText).buffer;
+        } else {
+            data = await response.arrayBuffer();
+        }
+
+        if (requestType === SEGMENT_REQUEST_TYPE) {
+            try {
+                const parsedData = await parseSegment({
+                    data: data.slice(0),
+                    url,
+                });
+                self.postMessage({
+                    type: 'worker:shaka-segment-loaded',
+                    payload: {
+                        uniqueId: url,
+                        status: response.status,
+                        data,
+                        parsedData,
+                        streamId,
+                    },
+                });
+            } catch (e) {
+                console.error(
+                    `[Worker] Failed to parse Shaka-loaded segment ${url}:`,
+                    e
+                );
+            }
+        }
+
+        return {
+            uri: response.url,
+            originalUri: url,
+            data: data,
+            headers: response.headers,
+            status: response.status,
+            originalRequest: request,
+        };
+    } catch (error) {
+        if (error.name === 'AbortError') {
+            debugLog('shakaFetchHandler', `Fetch aborted for ${url}`);
+            // Re-throw to be caught by the main worker loop, which will ignore it.
+            throw error;
+        }
+        
+        debugLog(
+            'shakaFetchHandler',
+            'Caught catastrophic fetch error, re-throwing as Shaka-compatible object.',
+            error
+        );
+        throw {
+            message: error.message || 'A network error occurred.',
+            code: error.code || NETWORK_ERROR,
+            category: error.category || NETWORK_CATEGORY,
+            severity: error.severity || CRITICAL_SEVERITY,
+            data: error.data || [url, null, request, requestType, error],
+        };
+    }
 }

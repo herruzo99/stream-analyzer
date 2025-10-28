@@ -41,7 +41,9 @@ export const playerStatusDisplayTemplate = () => {
     };
 
     const videoInfo = activeVideoTrack
-        ? `${activeVideoTrack.height}p @ ${formatBitrate(activeVideoTrack.bitrate)}`
+        ? `${activeVideoTrack.height}p @ ${formatBitrate(
+              activeVideoTrack.bitrate
+          )}`
         : 'N/A';
     const audioInfo = activeAudioTrack?.language || 'N/A';
     const textInfo = activeTextTrack?.language || 'Off';
@@ -49,7 +51,7 @@ export const playerStatusDisplayTemplate = () => {
     return html`
         <div class="bg-gray-800 p-4 rounded-lg border border-gray-700 mb-4">
             <div
-                class="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-4 items-center"
+                class="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-4 items-center"
             >
                 ${statusCard(
                     'State',

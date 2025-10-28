@@ -2,6 +2,7 @@ import { html, render } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
 import { copyTextToClipboard } from '@/ui/shared/clipboard';
+import { debugLog } from '@/shared/utils/debug';
 
 let container = null;
 let currentStreamId = null;
@@ -21,6 +22,8 @@ function renderManifestUpdates() {
         .getState()
         .streams.find((s) => s.id === currentStreamId);
 
+    debugLog('ManifestUpdatesUI', 'renderManifestUpdates called.', { stream });
+    
     if (!stream) {
         manifestUpdatesView.unmount();
         return;
@@ -57,6 +60,8 @@ function renderManifestUpdates() {
     } else {
         const { manifestUpdates, activeManifestUpdateIndex } = stream;
         const updateCount = manifestUpdates.length;
+        
+        debugLog('ManifestUpdatesUI', `Rendering ${updateCount} updates. Active index: ${activeManifestUpdateIndex}`);
 
         if (updateCount === 0) {
             template = html`<p class="info">

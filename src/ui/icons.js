@@ -545,3 +545,26 @@ export const hdcp = html`<svg
         clip-rule="evenodd"
     />
 </svg>`;
+
+// --- PiP Icons ---
+export const pipEnter = html`<svg
+    xmlns="http://www.w3.org/2000/svg"
+    class="h-5 w-5"
+    viewBox="0 0 20 20"
+    fill="currentColor"
+>
+    <path
+        d="M15 12a1 1 0 100-2H5a1 1 0 000 2h10zM3 4a1 1 0 011-1h12a1 1 0 011 1v10a1 1 0 01-1 1h-3a1 1 0 110-2h2V5H5v2a1 1 0 11-2 0V5a1 1 0 011-1z"
+    />
+</svg>`;
+
+export const pipExit = html`<svg
+    xmlns="http://www.w3.org/2000/svg"
+    class="h-5 w-5"
+    viewBox="0 0 20 20"
+    fill="currentColor"
+>
+    <path
+        d="M10.707 3.293a1 1 0 010 1.414L7.414 8H15a1 1 0 110 2H7.414l3.293 3.293a1 1 0 11-1.414 1.414l-5-5a1 1 0 010-1.414l5-5a1 1 0 011.414 0z"
+    />
+</svg>`;

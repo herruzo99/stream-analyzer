@@ -163,7 +163,7 @@ export async function fetchStreamMetadata(url) {
         // Use the centralized worker service with a promise-based API
         return await workerService.postTask('get-manifest-metadata', {
             manifestString,
-        });
+        }).promise;
     } catch (e) {
         showToast({ message: `Error: ${e.message}`, type: 'fail' });
         throw e;

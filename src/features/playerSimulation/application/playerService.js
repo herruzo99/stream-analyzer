@@ -51,56 +51,53 @@ export const playerService = {
         }
 
         const shakaNetworkPlugin = (uri, request, requestType) => {
-            debugLog(
-                'ShakaNetworkPlugin',
-                'Intercepted request for URI:',
-                uri,
-                'Type:',
-                requestType
-            );
             const { streams, activeStreamId } = useAnalysisStore.getState();
-            let stream;
-
-            // 1. Most reliable: Find the stream currently loaded in this player instance.
-            const assetUri = player ? player.getAssetUri() : null;
-            if (assetUri) {
-                stream = streams.find((s) => s.originalUrl === assetUri);
-            }
-
-            // 2. Fallback for requests during the loading phase, before player.load() has resolved.
-            if (!stream) {
-                stream = streams.find((s) => s.originalUrl === uri);
-            }
-
-            // 3. Last resort if a match still isn't found. Default to the active stream in the UI.
-            if (!stream) {
-                stream = streams.find((s) => s.id === activeStreamId);
-            }
-
+            // The activeStreamId is the most reliable source of truth for the current context.
+            const stream = streams.find((s) => s.id === activeStreamId);
             const { auth, id: streamId } = stream || {};
 
             const serializableRequest = {
                 uris: request.uris,
                 method: request.method,
-                headers: {},
+                headers: { ...request.headers },
                 body: request.body,
             };
-            for (const [key, value] of Object.entries(request.headers)) {
-                serializableRequest.headers[key] = value;
-            }
 
-            debugLog(
-                'ShakaNetworkPlugin',
-                'Dispatching serializable request to worker via shaka-fetch task.',
-                { uri, streamId }
-            );
+            const workerTask = workerService.postTask('shaka-fetch', {
+                request: serializableRequest,
+                requestType,
+                auth,
+                streamId,
+            });
+
+            const shakaPromise = workerTask.promise.catch((error) => {
+                // Convert generic worker errors into Shaka-compatible errors.
+                if (error.name === 'AbortError') {
+                    throw new shaka.util.Error(
+                        shaka.util.Error.Severity.RECOVERABLE,
+                        shaka.util.Error.Category.PLAYER,
+                        shaka.util.Error.Code.OPERATION_ABORTED
+                    );
+                }
+                // For other errors, wrap them as a generic network error.
+                throw new shaka.util.Error(
+                    shaka.util.Error.Severity.CRITICAL,
+                    shaka.util.Error.Category.NETWORK,
+                    shaka.util.Error.Code.NETWORK_ERROR,
+                    error.message
+                );
+            });
+
             const abortableOp = new shaka.util.AbortableOperation(
-                workerService.postTask('shaka-fetch', {
-                    request: serializableRequest,
-                    requestType,
-                    auth,
-                    streamId,
-                })
+                shakaPromise,
+                () => {
+                    debugLog(
+                        'ShakaNetworkPlugin',
+                        `onAbort called for URI: ${uri}. Cancelling worker task.`
+                    );
+                    workerTask.cancel();
+                    return Promise.resolve();
+                }
             );
 
             return abortableOp;
@@ -122,6 +119,14 @@ export const playerService = {
             this.onAdaptationEvent.bind(this)
         );
         player.addEventListener('buffering', this.onBufferingEvent.bind(this));
+
+        // PiP Event Listeners
+        videoElement.addEventListener('enterpictureinpicture', () =>
+            eventBus.dispatch('player:pip-changed', { isInPiP: true })
+        );
+        videoElement.addEventListener('leavepictureinpicture', () =>
+            eventBus.dispatch('player:pip-changed', { isInPiP: false })
+        );
 
         if (statsInterval) clearInterval(statsInterval);
         statsInterval = setInterval(() => {
@@ -167,8 +172,9 @@ export const playerService = {
     /**
      * Loads a new manifest into the player.
      * @param {import('@/types').Stream} stream The stream object containing the manifest URL and DRM info.
+     * @param {boolean} [autoPlay=false] - Whether to start playback automatically after loading.
      */
-    async load(stream) {
+    async load(stream, autoPlay = false) {
         if (!this.isInitialized || !player || !stream || !stream.drmAuth)
             return;
 
@@ -253,6 +259,10 @@ export const playerService = {
             await player.load(stream.originalUrl);
             playerActions.setLoadedState(true);
             eventBus.dispatch('player:manifest-loaded');
+
+            if (autoPlay && videoElement) {
+                videoElement.play();
+            }
         } catch (e) {
             playerActions.setLoadedState(false);
             this.onError(e);
@@ -300,6 +310,30 @@ export const playerService = {
     },
 
     // --- New Control Methods ---
+    async enterPictureInPicture() {
+        if (
+            videoElement &&
+            document.pictureInPictureEnabled &&
+            !videoElement.disablePictureInPicture
+        ) {
+            try {
+                await videoElement.requestPictureInPicture();
+            } catch (error) {
+                console.error('PiP request failed:', error);
+            }
+        }
+    },
+
+    async exitPictureInPicture() {
+        if (document.pictureInPictureElement) {
+            try {
+                await document.exitPictureInPicture();
+            } catch (error) {
+                console.error('Exit PiP failed:', error);
+            }
+        }
+    },
+
     setAbrEnabled(enabled) {
         if (player) {
             player.configure({ abr: { enabled } });

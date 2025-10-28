@@ -4,9 +4,12 @@ import { useAnalysisStore } from '@/state/analysisStore';
 import { createNetworkViewModel } from './view-model.js';
 import { networkToolbarTemplate } from './components/network-toolbar.js';
 import { summaryCardsTemplate } from './components/summary-cards.js';
-import { throughputChartTemplate } from './components/throughput-chart.js';
 import { waterfallChartTemplate } from './components/waterfall-chart.js';
 import { networkDetailsPanelTemplate } from './components/network-details-panel.js';
+
+// New ECharts integration
+import { renderChart, disposeChart } from '@/ui/shared/charts/chart-renderer';
+import { throughputChartOptions } from '@/ui/shared/charts/throughput-chart';
 
 let container = null;
 let networkUnsubscribe = null;
@@ -44,6 +47,15 @@ function renderNetworkView() {
         allStreamEvents,
         stream
     );
+    
+    const chartOpts = throughputChartOptions(viewModel.throughputData);
+    // Defer chart rendering until after lit-html has created the container div
+    setTimeout(() => {
+        const chartContainer = container?.querySelector('#throughput-chart-container');
+        if (chartContainer) {
+            renderChart(chartContainer, chartOpts);
+        }
+    }, 0);
 
     const template = html`
         <div>
@@ -52,7 +64,10 @@ function renderNetworkView() {
             ${summaryCardsTemplate(viewModel.summary)}
             <div class="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6 mt-6">
                 <div class="space-y-6">
-                    ${throughputChartTemplate(viewModel.throughputData)}
+                    <div class="bg-gray-800 p-4 rounded-lg">
+                        <h4 class="font-bold text-gray-300 mb-2">Throughput Over Time</h4>
+                        <div id="throughput-chart-container" class="h-48"></div>
+                    </div>
                     ${waterfallChartTemplate(
                         viewModel.waterfallData,
                         viewModel.timeline
@@ -79,6 +94,11 @@ export const networkAnalysisView = {
     },
 
     unmount() {
+        const chartContainer = container?.querySelector('#throughput-chart-container');
+        if (chartContainer) {
+            disposeChart(chartContainer);
+        }
+
         if (networkUnsubscribe) networkUnsubscribe();
         if (analysisUnsubscribe) analysisUnsubscribe();
         networkUnsubscribe = null;

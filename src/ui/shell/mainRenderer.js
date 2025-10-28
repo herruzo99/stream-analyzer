@@ -43,7 +43,7 @@ const viewMap = {
 let initialDomContext;
 let appShellDomContext;
 let isShellRendered = false;
-let currentMountedView = null;
+let currentMountedViewKey = null;
 let currentMountedStreamId = null;
 
 const appShellTemplate = () => html`
@@ -125,10 +125,13 @@ const appShellTemplate = () => html`
                         class="flex items-center gap-2 sm:gap-4 flex-wrap justify-start w-full"
                     ></div>
                 </header>
-                <main
-                    id="main-content"
-                    class="grow p-4 sm:p-6 flex flex-col"
-                ></main>
+                <!-- This is now the container for all views -->
+                <main id="content-area" class="grow flex flex-col relative">
+                    <!-- Generic container for all non-player tabs -->
+                    <div id="tab-view-container" class="grow flex flex-col p-4 sm:p-6"></div>
+                    <!-- Static, persistent container for the player. Its visibility is toggled. -->
+                    <div id="persistent-player-container" class="grow flex flex-col hidden"></div>
+                </main>
             </div>
         </div>
 
@@ -170,14 +173,14 @@ export function renderApp() {
 
             appShellDomContext = {
                 ...initialDomContext,
-                mainContent: document.body.querySelector('#main-content'),
+                mainContent: document.body.querySelector('#tab-view-container'),
                 sidebarNav: document.body.querySelector('#sidebar-nav'),
                 sidebarFooter: document.body.querySelector(
                     '#global-controls-container'
-                ), // Updated to new container
+                ),
                 memoryMonitorContainer: document.body.querySelector(
                     '#memory-monitor-container'
-                ), // New container
+                ),
                 sidebarContextSwitchers: document.body.querySelector(
                     '#sidebar-context-switchers'
                 ),
@@ -192,68 +195,74 @@ export function renderApp() {
             };
             isShellRendered = true;
 
-            // Mount the memory monitor once the shell is rendered
+            // Mount persistent views once
             memoryMonitorView.mount(appShellDomContext.memoryMonitorContainer);
+            const playerContainer = document.getElementById('persistent-player-container');
+            if(playerContainer) {
+                // Initially mount with the active stream, but it won't load media yet.
+                playerView.mount(playerContainer, { stream: activeStream });
+            }
         }
 
-        // Render the shell chrome (sidebars, headers, etc.)
         renderAppShell(appShellDomContext);
 
-        // --- View Lifecycle Management ---
-        if (
-            activeTab !== currentMountedView ||
-            (activeStream && activeStream.id !== currentMountedStreamId)
-        ) {
-            // Unmount the old view
-            const oldView = viewMap[currentMountedView];
-            if (oldView?.unmount) {
-                oldView.unmount(appShellDomContext.mainContent);
+        // --- View Lifecycle & Visibility Management ---
+        const playerContainer = document.getElementById('persistent-player-container');
+        const tabViewContainer = document.getElementById('tab-view-container');
+        
+        const previousViewKey = currentMountedViewKey;
+        const currentViewKey = activeTab;
+
+        if (currentViewKey !== previousViewKey || (activeStream && activeStream.id !== currentMountedStreamId)) {
+            const oldView = viewMap[previousViewKey];
+            const newView = viewMap[currentViewKey];
+            
+            // Deactivate/Unmount old view
+            if (oldView) {
+                if (previousViewKey === 'player-simulation' && newView !== playerView) {
+                    oldView.deactivate?.();
+                } else if (oldView !== playerView) {
+                    oldView.unmount?.(appShellDomContext.mainContent);
+                }
             }
 
-            const newView = viewMap[activeTab];
-            const contextualSidebar =
-                document.getElementById('contextual-sidebar');
+            // Activate/Mount new view
+            if (newView) {
+                playerContainer?.classList.toggle('hidden', newView !== playerView);
+                tabViewContainer?.classList.toggle('hidden', newView === playerView);
 
-            // Centralized sidebar visibility management
-            if (newView?.hasContextualSidebar && contextualSidebar) {
-                contextualSidebar.classList.remove('hidden');
-            } else if (contextualSidebar) {
-                contextualSidebar.classList.add('hidden');
-                render(html``, contextualSidebar); // Clear content
-            }
+                if (newView === playerView) {
+                    newView.activate?.(activeStream);
+                } else {
+                    newView.mount?.(appShellDomContext.mainContent, { stream: activeStream, streams });
+                }
 
-            // Mount the new view
-            if (newView?.mount) {
-                newView.mount(appShellDomContext.mainContent, {
-                    stream: activeStream,
-                    streams: streams,
-                });
-            } else {
-                render(
-                    html`<p class="text-gray-500">
-                        View not implemented for tab: ${activeTab}
-                    </p>`,
-                    appShellDomContext.mainContent
-                );
+                const contextualSidebar = document.getElementById('contextual-sidebar');
+                if (newView.hasContextualSidebar && contextualSidebar) {
+                    contextualSidebar.classList.remove('hidden');
+                } else if (contextualSidebar) {
+                    contextualSidebar.classList.add('hidden');
+                    render(html``, contextualSidebar);
+                }
             }
-            currentMountedView = activeTab;
+            
+            currentMountedViewKey = currentViewKey;
             currentMountedStreamId = activeStream?.id;
         }
+
     } else {
         // --- Input View State ---
-        if (currentMountedView) {
-            const oldView = viewMap[currentMountedView];
-            if (oldView?.unmount) {
-                oldView.unmount(appShellDomContext?.mainContent);
-            }
-            currentMountedView = null;
-        }
         if (isShellRendered) {
+             // Full teardown of persistent views
+            playerView.unmount();
             memoryMonitorView.unmount();
         }
+        
         isShellRendered = false;
+        currentMountedViewKey = null;
         currentMountedStreamId = null;
         appShellDomContext = null;
+
         if (initialDomContext.appRoot.innerHTML) {
             render(html``, initialDomContext.appRoot);
         }

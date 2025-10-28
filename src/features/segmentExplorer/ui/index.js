@@ -201,7 +201,7 @@ function calculateTimeBounds(stream) {
 
 function renderExplorer() {
     if (!container || currentStreamId === null) return;
-    debugLog('SegmentExplorer', 'renderExplorer triggered.');
+    debugLog('SegmentExplorerUI', 'renderExplorer triggered.');
 
     const { streams, activeStreamId, segmentsForCompare } =
         useAnalysisStore.getState();
@@ -211,6 +211,8 @@ function renderExplorer() {
         segmentExplorerView.unmount();
         return;
     }
+
+    debugLog('SegmentExplorerUI', 'Rendering for stream:', stream);
 
     const {
         segmentExplorerActiveTab,

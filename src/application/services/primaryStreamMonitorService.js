@@ -1,6 +1,7 @@
 import { eventBus } from '@/application/event-bus';
 import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
 import { workerService } from '@/infrastructure/worker/workerService';
+import { debugLog } from '@/shared/utils/debug';
 
 const pollers = new Map();
 const oneTimePollers = new Map();
@@ -18,31 +19,49 @@ async function monitorStream(streamId) {
     }
 
     try {
-        // Delegate fetching and parsing to the worker
+        const latestUpdate = stream.manifestUpdates[0];
+        const oldRawManifestForDiff = latestUpdate
+            ? latestUpdate.rawManifest
+            : stream.rawManifest;
+        
+        debugLog(
+            'PrimaryMonitor',
+            `Polling stream ${streamId}. Using manifest from timestamp ${latestUpdate?.timestamp} for comparison.`
+        );
+
+        // CORRECTED: Await the 'promise' property of the returned object
         const updateResult = await workerService.postTask(
             'live-update-fetch-and-parse',
             {
                 streamId: stream.id,
                 url: stream.originalUrl,
-                oldRawManifest: stream.rawManifest,
+                oldRawManifest: oldRawManifestForDiff,
                 protocol: stream.protocol,
                 baseUrl: stream.baseUrl,
                 auth: stream.auth,
                 hlsDefinedVariables: stream.hlsDefinedVariables,
                 oldManifestObjectForDelta: stream.manifest?.serializedManifest,
             }
-        );
+        ).promise;
 
-        // A null result means the manifest was unchanged, so we do nothing.
         if (updateResult) {
+            debugLog(
+                'PrimaryMonitor',
+                `Worker returned changes for stream ${streamId}. Dispatching 'livestream:manifest-updated'.`,
+                updateResult
+            );
             eventBus.dispatch('livestream:manifest-updated', updateResult);
+        } else {
+            debugLog(
+                'PrimaryMonitor',
+                `Worker reported no changes for stream ${streamId}.`
+            );
         }
     } catch (e) {
         console.error(
             `[Stream Monitor] Error during update cycle for stream ${stream.id}:`,
             e
         );
-        // Optionally dispatch an error event to show a toast
         eventBus.dispatch('ui:show-status', {
             message: `Live update failed for ${stream.name}: ${e.message}`,
             type: 'fail',
@@ -66,6 +85,10 @@ function startMonitoring(stream) {
     }
     if (stream.manifest?.type === 'dynamic' && stream.originalUrl) {
         const pollInterval = calculatePollInterval(stream);
+        debugLog(
+            'PrimaryMonitor',
+            `Starting poller for stream ${stream.id} with interval ${pollInterval}ms.`
+        );
         const pollerId = setInterval(
             () => monitorStream(stream.id),
             pollInterval
@@ -76,6 +99,7 @@ function startMonitoring(stream) {
 
 function stopMonitoring(streamId) {
     if (pollers.has(streamId)) {
+        debugLog('PrimaryMonitor', `Stopping poller for stream ${streamId}.`);
         clearInterval(pollers.get(streamId).pollerId);
         pollers.delete(streamId);
     }
@@ -99,7 +123,10 @@ export function managePollers() {
             if (!isCurrentlyPolling) {
                 startMonitoring(stream);
             } else if (poller.pollInterval !== newPollInterval) {
-                // Interval has changed, restart the poller
+                debugLog(
+                    'PrimaryMonitor',
+                    `Restarting poller for stream ${stream.id} due to interval change.`
+                );
                 stopMonitoring(stream.id);
                 startMonitoring(stream);
             }
@@ -123,8 +150,9 @@ function scheduleOneTimePoll({ streamId, pollTime, reason }) {
         return;
     }
 
-    console.log(
-        `[Monitor] Scheduling high-priority poll for stream ${streamId} in ${delay}ms. Reason: ${reason}`
+    debugLog(
+        'PrimaryMonitor',
+        `Scheduling high-priority poll for stream ${streamId} in ${delay}ms. Reason: ${reason}`
     );
 
     const timerId = setTimeout(() => {

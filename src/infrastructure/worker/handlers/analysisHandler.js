@@ -14,13 +14,18 @@ import { fetchWithAuth } from '../http.js';
 import xmlFormatter from 'xml-formatter';
 import { debugLog } from '@/shared/utils/debug';
 
-async function fetchAndParseSegment(url, formatHint, range = null) {
+async function fetchAndParseSegment(
+    url,
+    formatHint,
+    range = null,
+    auth = null
+) {
     debugLog('analysisHandler.fetchAndParseSegment', 'Fetching segment...', {
         url,
         formatHint,
         range,
     });
-    const response = await fetchWithAuth(url, null, 'init', 0, range);
+    const response = await fetchWithAuth(url, auth, range);
     if (!response.ok) {
         throw new Error(`HTTP error ${response.status} for segment ${url}`);
     }
@@ -28,28 +33,77 @@ async function fetchAndParseSegment(url, formatHint, range = null) {
     return parseSegment({ data, formatHint, url });
 }
 
-async function preProcessInput(input) {
-    let protocol, manifestString;
+async function preProcessInput(input, signal) {
+    let protocol, manifestString, finalUrl;
 
     if (input.file) {
         manifestString = await input.file.text();
+        finalUrl = input.file.name;
     } else {
+        const startTime = performance.now();
         const response = await fetchWithAuth(
             input.url,
             input.auth,
-            'manifest',
-            input.id
+            null,
+            {},
+            null,
+            signal
         );
+
+        self.postMessage({
+            type: 'worker:network-event',
+            payload: {
+                id: crypto.randomUUID(),
+                url: response.url,
+                resourceType: 'manifest',
+                streamId: input.id,
+                request: { method: 'GET', headers: {} },
+                response: {
+                    status: response.status,
+                    statusText: response.statusText,
+                    headers: response.headers,
+                    contentLength:
+                        Number(response.headers['content-length']) || null,
+                    contentType: response.headers['content-type'],
+                },
+                timing: {
+                    startTime,
+                    endTime: performance.now(),
+                    duration: performance.now() - startTime,
+                    breakdown: null,
+                },
+            },
+        });
+
         if (!response.ok) {
             throw new Error(
                 `HTTP error ${response.status} fetching manifest from ${input.url}`
             );
         }
         manifestString = await response.text();
+        finalUrl = response.url; // Capture the final URL after redirects
+
+        const wasRedirected = response.url !== input.url;
+
+        debugLog(
+            'analysisHandler.preProcessInput',
+            `Received manifest content. Length: ${manifestString.length} characters. Was Redirected: ${wasRedirected}. Final URL: ${finalUrl}`
+        );
+
+        if (!manifestString || manifestString.trim() === '') {
+            if (wasRedirected) {
+                throw new Error(
+                    `Manifest fetch redirected to a new location which returned an empty response. Original: ${input.url}, Final: ${response.url}`
+                );
+            } else {
+                throw new Error(
+                    'Manifest content is empty. This may be due to a network or CORS issue.'
+                );
+            }
+        }
     }
 
     const trimmedManifest = manifestString.trim();
-
     if (trimmedManifest.startsWith('#EXTM3U')) {
         protocol = 'hls';
     } else if (/<MPD/i.test(trimmedManifest)) {
@@ -59,22 +113,26 @@ async function preProcessInput(input) {
             'Unsupported Format: This appears to be a Microsoft Smooth Streaming manifest, which is not supported.'
         );
     } else {
-        const name = (input.url || input.file?.name || '').toLowerCase();
+        const name = (finalUrl || input.file?.name || '').toLowerCase();
         protocol = name.includes('.m3u8') ? 'hls' : 'dash';
     }
 
-    return { ...input, protocol, manifestString };
+    return { ...input, protocol, manifestString, finalUrl };
 }
 
 async function parse(input) {
     let manifestIR, serializedManifestObject, finalBaseUrl;
-    const context = { fetchAndParseSegment, manifestUrl: input.url };
+    const context = {
+        fetchAndParseSegment: (url, format, range) =>
+            fetchAndParseSegment(url, format, range, input.auth),
+        manifestUrl: input.finalUrl,
+    };
 
     if (input.protocol === 'hls') {
         const { manifest, definedVariables, baseUrl } = await parseHlsManifest(
             input.manifestString,
-            input.url,
-            undefined, // parentVariables
+            input.finalUrl,
+            undefined,
             context
         );
         manifestIR = manifest;
@@ -87,9 +145,7 @@ async function parse(input) {
                 const firstVariantUrl = manifestIR.variants[0].resolvedUri;
                 const response = await fetchWithAuth(
                     firstVariantUrl,
-                    input.auth,
-                    'manifest',
-                    input.id
+                    input.auth
                 );
                 const mediaPlaylistString = await response.text();
                 manifestIR.type = mediaPlaylistString.includes('#EXT-X-ENDLIST')
@@ -101,7 +157,11 @@ async function parse(input) {
         }
     } else {
         const { manifest, serializedManifest, baseUrl } =
-            await parseDashManifest(input.manifestString, input.url, context);
+            await parseDashManifest(
+                input.manifestString,
+                input.finalUrl,
+                context
+            );
         manifestIR = manifest;
         serializedManifestObject = serializedManifest;
         finalBaseUrl = baseUrl;
@@ -115,7 +175,6 @@ async function runAllAnalyses({
     serializedManifestObject,
     finalBaseUrl,
 }) {
-    // ... Analysis logic is unchanged ...
     const rawInitialAnalysis = generateFeatureAnalysis(
         manifestIR,
         input.protocol,
@@ -180,8 +239,8 @@ async function buildStreamObject(
 
     const streamObject = {
         id: input.id,
-        name: input.url ? new URL(input.url).hostname : input.file.name,
-        originalUrl: input.url,
+        name: input.finalUrl ? new URL(input.finalUrl).hostname : input.file.name,
+        originalUrl: input.finalUrl,
         baseUrl: finalBaseUrl,
         protocol: input.protocol,
         isPolling: manifestIR.type === 'dynamic',
@@ -216,12 +275,9 @@ async function buildStreamObject(
                 rawManifest: streamObject.rawManifest,
                 lastFetched: new Date(),
             });
-
-            // Populate hlsVariantState for ALL available renditions (video, audio, subtitles)
             const allAdaptationSets = manifestIR.periods.flatMap(
                 (p) => p.adaptationSets
             );
-
             for (const as of allAdaptationSets) {
                 const representation = as.representations[0];
                 if (
@@ -250,7 +306,7 @@ async function buildStreamObject(
                 ),
                 isLoading: false,
                 isPolling: manifestIR.type === 'dynamic',
-                isExpanded: true, // If it's the only playlist, expand it
+                isExpanded: true,
                 displayMode: 'all',
                 error: null,
             });
@@ -260,14 +316,11 @@ async function buildStreamObject(
             serializedManifestObject,
             streamObject.baseUrl
         );
-
         for (const [key, data] of Object.entries(segmentsByCompositeKey)) {
             const mediaSegments = data.segments || [];
-
             const allSegments = [data.initSegment, ...mediaSegments].filter(
                 Boolean
             );
-
             streamObject.dashRepresentationState.set(key, {
                 segments: allSegments,
                 freshSegmentUrls: new Set(allSegments.map((s) => s.uniqueId)),
@@ -300,7 +353,6 @@ async function buildStreamObject(
 function serializeStreamForTransport(streamObject) {
     const serialized = { ...streamObject };
 
-    // Serialize hlsVariantState, including the freshSegmentUrls Set
     const hlsVariantStateArray = [];
     for (const [key, value] of streamObject.hlsVariantState.entries()) {
         hlsVariantStateArray.push([
@@ -328,7 +380,6 @@ function serializeStreamForTransport(streamObject) {
     serialized.mediaPlaylists = Array.from(
         streamObject.mediaPlaylists.entries()
     );
-    // Ensure nested Maps are also serialized if they exist
     if (streamObject.manifest?.hlsDefinedVariables) {
         serialized.manifest.hlsDefinedVariables = Array.from(
             streamObject.manifest.hlsDefinedVariables.entries()
@@ -338,24 +389,53 @@ function serializeStreamForTransport(streamObject) {
     return serialized;
 }
 
-async function processSingleStream(input) {
-    const preProcessed = await preProcessInput(input);
-    const parsed = await parse(preProcessed);
-    const analysisResults = await runAllAnalyses(parsed);
-    const streamObject = await buildStreamObject(parsed, analysisResults);
-    return serializeStreamForTransport(streamObject);
-}
+export async function handleStartAnalysis({ inputs }, signal) {
+    const analysisStartTime = performance.now();
+    debugLog('handleStartAnalysis', 'Starting analysis pipeline...');
 
-export async function handleStartAnalysis({ inputs }) {
-    // Correctly await the results of all stream processing promises.
-    // If any promise in Promise.all rejects, it will short-circuit and
-    // the entire handleStartAnalysis function will reject, which is then
-    // caught by the main worker listener.
-    const results = await Promise.all(inputs.map(processSingleStream));
+    try {
+        const workerInputsPromises = inputs.map(async (input) => {
+            const workerInput = { ...input, isDebug: input.isDebug };
+            if (input.drmAuth.serverCertificate instanceof File) {
+                workerInput.drmAuth.serverCertificate =
+                    await input.drmAuth.serverCertificate.arrayBuffer();
+            }
+            return workerInput;
+        });
+        const workerInputs = await Promise.all(workerInputsPromises);
 
-    if (results.length === 0) {
-        throw new Error('All streams failed to process.');
+        debugLog(
+            'handleStartAnalysis',
+            `Dispatching ${workerInputs.length} stream(s) for fetching and analysis.`,
+            workerInputs
+        );
+
+        const processingPromises = workerInputs.map(async (input) => {
+            const preProcessed = await preProcessInput(input, signal);
+            const parsed = await parse(preProcessed);
+            const analysisResults = await runAllAnalyses(parsed);
+            const streamObject = await buildStreamObject(parsed, analysisResults);
+            return serializeStreamForTransport(streamObject);
+        });
+
+        const workerResults = await Promise.all(processingPromises);
+
+        if (workerResults.length > 0 && !workerResults[0]?.rawManifest?.trim()) {
+            throw new Error(
+                'Manifest content is empty after processing. This may be due to a network or CORS issue.'
+            );
+        }
+        
+        debugLog(
+            'handleStartAnalysis',
+            `Initial Analysis Pipeline (success): ${(
+                performance.now() - analysisStartTime
+            ).toFixed(2)}ms`
+        );
+
+        return workerResults;
+    } catch (error) {
+        debugLog('handleStartAnalysis', 'Analysis pipeline failed.', error);
+        throw error;
     }
-
-    return results;
 }

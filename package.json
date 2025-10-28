@@ -21,6 +21,7 @@
     "description": "",
     "dependencies": {
         "diff": "^8.0.2",
+        "echarts": "^6.0.0",
         "fast-xml-parser": "^5.3.0",
         "lit-html": "^3.3.1",
         "serve": "^14.2.5",

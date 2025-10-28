@@ -1,119 +1,44 @@
 import { fetchWithRetry } from '@/infrastructure/http/fetch';
 import { debugLog } from '@/shared/utils/debug';
 
-async function logRequest(
-    response,
-    requestStart,
-    initialUrl,
-    options,
-    resourceType,
-    streamId
-) {
-    const responseStart = performance.now();
-    // We don't read the body here anymore to avoid consuming it.
-    const responseEnd = performance.now();
-    debugLog(
-        'worker.logRequest',
-        'Logging network event for:',
-        initialUrl.href
-    );
-
-    /** @type {Record<string, string>} */
-    const requestHeaders = {};
-    // @ts-ignore
-    options.headers.forEach((value, key) => {
-        requestHeaders[key] = value;
-    });
-
-    /** @type {Record<string, string>} */
-    const responseHeaders = {};
-    response.headers.forEach((value, key) => {
-        responseHeaders[key] = value;
-    });
-
-    /** @type {import('@/types').NetworkEvent} */
-    const provisionalEvent = {
-        id: crypto.randomUUID(),
-        url: response.url,
-        resourceType,
-        streamId,
-        request: {
-            method: options.method,
-            headers: requestHeaders,
-        },
-        response: {
-            status: response.status,
-            statusText: response.statusText,
-            headers: responseHeaders,
-            contentLength:
-                Number(response.headers.get('content-length')) || null,
-            contentType: response.headers.get('content-type'),
-        },
-        timing: {
-            startTime: requestStart,
-            endTime: responseEnd,
-            duration: responseEnd - requestStart,
-            breakdown: {
-                // This is now a reliable fallback, to be enriched by the main thread
-                redirect: 0,
-                dns: 0,
-                tcp: 0,
-                tls: 0,
-                ttfb: responseStart - requestStart,
-                download: responseEnd - responseStart,
-            },
-        },
-    };
-
-    // Use a different message type to signal this is a provisional event for enrichment
-    debugLog(
-        'worker.logRequest',
-        'Posting worker:network-event message to main thread.',
-        provisionalEvent
-    );
-    self.postMessage({
-        type: 'worker:network-event',
-        payload: provisionalEvent,
-    });
-}
-
 /**
- * Executes a fetch request, applying authentication parameters and logging the transaction.
+ * Executes a fetch request, applying authentication parameters.
+ * This is a simplified, synchronous-style fetch utility for the worker.
  * @param {string} url The URL to fetch.
  * @param {import('@/types').AuthInfo} [auth] Optional authentication parameters.
- * @param {import('@/types').ResourceType} [resourceType='other'] The type of resource being fetched.
- * @param {number} [streamId=0] The ID of the stream this request belongs to.
  * @param {string} [range=null] Optional byte range string (e.g., "0-1023").
- * @param {Record<string, string>} [shakaHeaders={}] Headers from the shaka request object.
- * @param {ArrayBuffer} [shakaBody=null] Body from the shaka request object.
- * @returns {Promise<Response>}
+ * @param {Record<string, string>} [extraHeaders={}] Additional headers.
+ * @param {ArrayBuffer} [body=null] Request body.
+ * @param {AbortSignal} [signal=null] An AbortSignal to cancel the fetch.
+ * @returns {Promise<{
+ *   ok: boolean,
+ *   status: number,
+ *   statusText: string,
+ *   headers: Record<string, string>,
+ *   url: string,
+ *   arrayBuffer: () => Promise<ArrayBuffer>,
+ *   text: () => Promise<string>
+ * }>}
  */
 export async function fetchWithAuth(
     url,
     auth,
-    resourceType = 'other',
-    streamId = 0,
     range = null,
-    shakaHeaders = {},
-    shakaBody = null
+    extraHeaders = {},
+    body = null,
+    signal = null
 ) {
     const initialUrl = new URL(url);
     /** @type {RequestInit} */
     const options = {
-        method: shakaBody ? 'POST' : 'GET',
-        headers: new Headers(),
+        method: body ? 'POST' : 'GET',
+        headers: new Headers(extraHeaders),
         mode: 'cors',
-        cache: 'no-cache', // Ensure we always revalidate with the server.
-        body: shakaBody,
+        cache: 'no-cache',
+        body,
+        signal,
     };
 
-    // Apply headers from Shaka request first
-    for (const [key, value] of Object.entries(shakaHeaders)) {
-        // @ts-ignore
-        options.headers.append(key, value);
-    }
-
-    // Apply auth headers and query params from our application's config
     if (auth) {
         auth.queryParams?.forEach((param) => {
             if (param.key) {
@@ -129,29 +54,27 @@ export async function fetchWithAuth(
     }
 
     if (range) {
-        debugLog('fetchWithAuth', `Applying Range header: bytes=${range}`);
         // @ts-ignore
         options.headers.append('Range', `bytes=${range}`);
     }
 
-    const requestStart = performance.now();
-    debugLog(
-        'fetchWithAuth',
-        `Initiating fetch for ${initialUrl.href}`,
-        options
-    );
+    debugLog('worker.fetchWithAuth', `Fetching: ${initialUrl.href}`, options);
     const response = await fetchWithRetry(initialUrl.href, options);
 
-    const responseForLogging = response.clone();
+    /** @type {Record<string, string>} */
+    const responseHeaders = {};
+    response.headers.forEach((value, key) => {
+        responseHeaders[key] = value;
+    });
 
-    logRequest(
-        responseForLogging,
-        requestStart,
-        initialUrl,
-        options,
-        resourceType,
-        streamId
-    );
-
-    return response;
+    // Return a unified response object, deferring body reading to the caller.
+    return {
+        ok: response.ok,
+        status: response.status,
+        statusText: response.statusText,
+        headers: responseHeaders,
+        url: response.url,
+        arrayBuffer: () => response.arrayBuffer(),
+        text: () => response.text(),
+    };
 }

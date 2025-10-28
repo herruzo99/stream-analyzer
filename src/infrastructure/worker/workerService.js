@@ -1,4 +1,5 @@
 import { debugLog } from '@/shared/utils/debug';
+import { eventBus } from '@/application/event-bus';
 
 const TASK_TIMEOUT = 30000; // 30 seconds
 
@@ -7,7 +8,6 @@ export class WorkerService {
         this.worker = null;
         this.requestId = 0;
         this.pendingTasks = new Map();
-        this.globalHandlers = new Map();
         this.isInitialized = false;
     }
 
@@ -40,34 +40,17 @@ export class WorkerService {
     _handleMessage(event) {
         const { id, result, error, type, payload } = event.data;
 
-        // Handle global, non-request/response messages
         if (type && id === undefined) {
             debugLog(
                 'WorkerService',
-                `Received global message of type: ${type}`,
+                `Received global event from worker: ${type}. Dispatching to event bus.`,
                 payload
             );
-            const handler = this.globalHandlers.get(type);
-            if (handler) {
-                debugLog(
-                    'WorkerService',
-                    `Found handler for ${type}, executing.`
-                );
-                handler(payload);
-            } else {
-                debugLog(
-                    'WorkerService',
-                    `No handler registered for global message type: ${type}`
-                );
-            }
+            eventBus.dispatch(type, payload);
             return;
         }
 
         if (!this.pendingTasks.has(id)) {
-            debugLog(
-                'WorkerService',
-                `Received message for unknown or completed task ID: ${id}`
-            );
             return;
         }
 
@@ -75,45 +58,64 @@ export class WorkerService {
         clearTimeout(timeoutId);
 
         if (error) {
-            const errorObj = new Error(`[Worker Task Failed] ${error.message}`);
-            errorObj.stack = error.stack;
-            errorObj.name = error.name;
-            reject(errorObj);
+            // Reject with a generic Error, wrapping the worker's message.
+            // The caller is responsible for converting this to a domain-specific error if needed.
+            const genericError = new Error(
+                `Worker task failed: ${error.message}`
+            );
+            // Attach original error properties for context
+            Object.assign(genericError, error);
+            reject(genericError);
         } else {
             resolve(result);
         }
         this.pendingTasks.delete(id);
     }
 
-    /**
-     * Registers a handler for a global message type from the worker.
-     * These messages are not part of the request/response pattern.
-     * @param {string} type The message type to listen for.
-     * @param {(payload: any) => void} handler The function to execute with the message payload.
-     */
-    registerGlobalHandler(type, handler) {
-        this.globalHandlers.set(type, handler);
+    cancelTask(id) {
+        if (this.pendingTasks.has(id)) {
+            const { reject, timeoutId } = this.pendingTasks.get(id);
+            clearTimeout(timeoutId);
+
+            // Notify worker to cancel the operation
+            this.worker.postMessage({ id, type: 'cancel-task' });
+
+            // Immediately reject the promise with a standard AbortError.
+            const abortError = new Error('Operation aborted by user.');
+            abortError.name = 'AbortError';
+            reject(abortError);
+
+            this.pendingTasks.delete(id);
+            debugLog('WorkerService', `Task ${id} cancelled by main thread.`);
+        }
     }
 
     postTask(type, payload) {
         if (!this.isInitialized) {
-            return Promise.reject(
-                new Error('WorkerService has not been initialized.')
-            );
+            return {
+                promise: Promise.reject(
+                    new Error('WorkerService has not been initialized.')
+                ),
+                cancel: () => {},
+            };
         }
-        return new Promise((resolve, reject) => {
-            const id = this.requestId++;
 
+        const id = this.requestId++;
+        const promise = new Promise((resolve, reject) => {
             const timeoutId = setTimeout(() => {
                 if (this.pendingTasks.has(id)) {
-                    reject(new Error(`Task "${type}" timed out.`));
-                    this.pendingTasks.delete(id);
+                    this.cancelTask(id);
                 }
             }, TASK_TIMEOUT);
 
             this.pendingTasks.set(id, { resolve, reject, timeoutId });
             this.worker.postMessage({ id, type, payload });
         });
+
+        return {
+            promise,
+            cancel: () => this.cancelTask(id),
+        };
     }
 }
 

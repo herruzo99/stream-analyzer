@@ -1,13 +1,13 @@
 import { parseManifest as parseDashManifest } from '@/infrastructure/parsing/dash/parser';
 import { parseManifest as parseHlsManifest } from '@/infrastructure/parsing/hls/index';
 import { runChecks } from '@/features/compliance/domain/engine';
-import { applyXmlPatch } from '@/infrastructure/parsing/dash/patch';
 import { applyDeltaUpdate } from '@/infrastructure/parsing/hls/delta-updater';
 import { adaptHlsToIr } from '@/infrastructure/parsing/hls/adapter';
 import { diffManifest } from '@/ui/shared/diff';
 import xmlFormatter from 'xml-formatter';
 import { fetchWithAuth } from '../http.js';
 import { parseAllSegmentUrls as parseDashSegments } from '@/infrastructure/parsing/dash/segment-parser';
+import { debugLog } from '@/shared/utils/debug';
 
 function detectProtocol(manifestString) {
     if (typeof manifestString !== 'string') return 'dash'; // Failsafe
@@ -17,7 +17,7 @@ function detectProtocol(manifestString) {
     return 'dash';
 }
 
-export async function handleParseLiveUpdate(payload) {
+export async function handleParseLiveUpdate(payload, signal) {
     const {
         streamId,
         url,
@@ -29,22 +29,41 @@ export async function handleParseLiveUpdate(payload) {
         oldManifestObjectForDelta,
     } = payload;
 
-    const response = await fetchWithAuth(url, auth, 'manifest', streamId);
+    debugLog('LiveUpdateHandler', `Fetching live update for ${url}`);
+    const response = await fetchWithAuth(url, auth, null, {}, null, signal);
     if (!response.ok) {
         throw new Error(
             `HTTP ${response.status} fetching live update for ${url}`
         );
     }
     const newManifestString = await response.text();
+    debugLog('LiveUpdateHandler', `Fetched new manifest content (length: ${newManifestString.length}).`);
+    const detectedProtocol = protocol || detectProtocol(newManifestString);
 
-    if (newManifestString === oldRawManifest) {
-        return null; // Signal that no update is needed
+    let formattedOld = oldRawManifest;
+    let formattedNew = newManifestString;
+
+    if (detectedProtocol === 'dash') {
+        const formatOptions = { indentation: '  ', lineSeparator: '\n' };
+        formattedOld = xmlFormatter(oldRawManifest || '', formatOptions);
+        formattedNew = xmlFormatter(newManifestString || '', formatOptions);
+        debugLog('LiveUpdateHandler', `Normalized old and new DASH manifests.`);
     }
 
-    let finalManifestString = newManifestString;
-    // Patch logic would need to be handled differently now; assuming full manifest updates for now.
+    if (formattedOld === formattedNew) {
+        debugLog('LiveUpdateHandler', 'Normalized manifests are identical. No changes detected. Returning null.');
+        // For debugging, log the strings if they seem short
+        if (formattedNew.length < 200) {
+            console.log("Old manifest:\n", formattedOld);
+            console.log("New manifest:\n", formattedNew);
+        }
+        return null;
+    }
 
-    const detectedProtocol = protocol || detectProtocol(finalManifestString);
+    debugLog('LiveUpdateHandler', 'Manifests differ. Proceeding with analysis.');
+    const diffHtml = diffManifest(formattedOld, formattedNew, detectedProtocol);
+
+    let finalManifestString = newManifestString;
     let newManifestObject;
     let newSerializedObject;
     let dashRepStateForUpdate = null;
@@ -57,7 +76,6 @@ export async function handleParseLiveUpdate(payload) {
         newManifestObject = manifest;
         newSerializedObject = serializedManifest;
 
-        // Re-parse segments and create the state update object for the main thread
         const segmentsByCompositeKey = await parseDashSegments(
             newSerializedObject,
             baseUrl
@@ -72,14 +90,15 @@ export async function handleParseLiveUpdate(payload) {
                 key,
                 {
                     segments: allSegments,
-                    freshSegmentUrls: allSegments.map((s) => s.uniqueId), // Will be converted to Set in store
+                    freshSegmentUrls: allSegments.map((s) => s.uniqueId),
                     diagnostics: data.diagnostics,
                 },
             ]);
         }
+        debugLog('LiveUpdateHandler', `Reparsed DASH segments for ${dashRepStateForUpdate.length} representations.`);
     } else {
-        // HLS Path
         if (finalManifestString.includes('#EXT-X-SKIP')) {
+            debugLog('LiveUpdateHandler', `Detected HLS Delta Update.`);
             const { manifest: deltaIr } = await parseHlsManifest(
                 finalManifestString,
                 baseUrl,
@@ -111,23 +130,11 @@ export async function handleParseLiveUpdate(payload) {
         manifestObjectForChecks,
         detectedProtocol
     );
+    debugLog('LiveUpdateHandler', `Ran ${complianceResults.length} compliance checks.`);
 
     newManifestObject.serializedManifest = newSerializedObject;
-
-    let formattedOld = oldRawManifest;
-    let formattedNew = finalManifestString;
-
-    if (detectedProtocol === 'dash') {
-        formattedOld = xmlFormatter(oldRawManifest || '', {
-            indentation: '  ',
-        });
-        formattedNew = xmlFormatter(finalManifestString || '', {
-            indentation: '  ',
-        });
-    }
-    const diffHtml = diffManifest(formattedOld, formattedNew, detectedProtocol);
-
-    return {
+    
+    const result = {
         streamId,
         newManifestObject,
         newManifestString: finalManifestString,
@@ -135,6 +142,8 @@ export async function handleParseLiveUpdate(payload) {
         complianceResults,
         serializedManifest: newSerializedObject,
         diffHtml,
-        dashRepresentationState: dashRepStateForUpdate, // Include DASH state in the update
+        dashRepresentationState: dashRepStateForUpdate,
     };
+    debugLog('LiveUpdateHandler', 'Successfully generated update package.', result);
+    return result;
 }
