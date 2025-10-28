@@ -577,7 +577,7 @@ export async function handleGeneratePagedByteMap({
     return Array.from(byteMap.entries());
 }
 
-export async function handleFetchKey({ uri, auth, streamId }) {
+export async function handleFetchKey({ uri, auth, streamId }, signal) {
     if (uri.startsWith('data:')) {
         const base64Data = uri.split(',')[1];
         const binaryString = atob(base64Data);
@@ -589,24 +589,28 @@ export async function handleFetchKey({ uri, auth, streamId }) {
         return bytes.buffer;
     }
 
-    const response = await fetchWithAuth(uri, auth, 'key', streamId);
+    const response = await fetchWithAuth(uri, auth, null, {}, null, signal);
     if (!response.ok) {
         throw new Error(`HTTP error ${response.status} fetching key`);
     }
     return response.arrayBuffer();
 }
 
-export async function handleFetchAndParseSegment({
-    uniqueId,
-    streamId,
-    formatHint,
-    auth,
-    decryption,
-}) {
+export async function handleFetchAndParseSegment(
+    { uniqueId, streamId, formatHint, auth, decryption },
+    signal
+) {
     const url = uniqueId.split('@')[0];
     const { contentType } = inferMediaInfoFromExtension(url);
     const resourceType = contentType === 'unknown' ? 'other' : contentType;
-    const response = await fetchWithAuth(url, auth, resourceType, streamId);
+    const response = await fetchWithAuth(
+        url,
+        auth,
+        null, // range
+        {}, // extraHeaders
+        null, // body
+        signal
+    );
     if (!response.ok) {
         throw new Error(`HTTP error ${response.status} fetching segment`);
     }
@@ -637,15 +641,20 @@ export async function handleFetchAndParseSegment({
     return { data: finalData, parsedData };
 }
 
-export async function handleDecryptAndParseSegment({
-    url,
-    key,
-    iv,
-    formatHint,
-}) {
+export async function handleDecryptAndParseSegment(
+    { url, key, iv, formatHint },
+    signal
+) {
     const { contentType } = inferMediaInfoFromExtension(url);
     const resourceType = contentType === 'unknown' ? 'other' : contentType;
-    const response = await fetchWithAuth(url, null, resourceType);
+    const response = await fetchWithAuth(
+        url,
+        null,
+        null, // range
+        {}, // extraHeaders
+        null, // body
+        signal
+    );
     if (!response.ok) {
         throw new Error(`HTTP error ${response.status} fetching segment`);
     }

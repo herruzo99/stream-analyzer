@@ -506,7 +506,8 @@ export const inputViewTemplate = (rerenderCallback) => {
                     class="flex flex-col sm:flex-row gap-4 mt-6 pt-6 border-t border-gray-700"
                 >
                     <button
-                        @click=${() => analysisActions.clearAllStreamInputs()}
+                        @click=${() =>
+                            analysisActions.clearAllStreamInputs()}
                         class="w-full sm:w-auto grow bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md transition duration-300"
                     >
                         Clear All

@@ -17,6 +17,8 @@ import { createStore } from 'zustand/vanilla';
 /**
  * @typedef {object} PlayerState
  * @property {boolean} isLoaded
+ * @property {boolean} isPictureInPicture
+ * @property {boolean} isPipUnmount - True when the view is unmounted but player persists in PiP.
  * @property {'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ENDED' | 'IDLE'} playbackState
  * @property {object | null} activeVideoTrack
  * @property {object | null} activeAudioTrack
@@ -31,6 +33,8 @@ import { createStore } from 'zustand/vanilla';
 /**
  * @typedef {object} PlayerActions
  * @property {(isLoaded: boolean) => void} setLoadedState
+ * @property {(isInPiP: boolean) => void} setPictureInPicture
+ * @property {(isPipUnmount: boolean) => void} setPipUnmountState
  * @property {(info: Partial<Pick<PlayerState, 'playbackState' | 'activeVideoTrack' | 'activeAudioTrack' | 'activeTextTrack'>>) => void} updatePlaybackInfo
  * @property {(stats: PlayerStats) => void} updateStats
  * @property {(event: PlayerEvent) => void} logEvent
@@ -42,6 +46,8 @@ import { createStore } from 'zustand/vanilla';
 /** @returns {PlayerState} */
 const createInitialPlayerState = () => ({
     isLoaded: false,
+    isPictureInPicture: false,
+    isPipUnmount: false,
     playbackState: 'IDLE',
     activeVideoTrack: null,
     activeAudioTrack: null,
@@ -61,6 +67,10 @@ export const usePlayerStore = createStore((set, get) => ({
     ...createInitialPlayerState(),
 
     setLoadedState: (isLoaded) => set({ isLoaded }),
+
+    setPictureInPicture: (isInPiP) => set({ isPictureInPicture: isInPiP }),
+
+    setPipUnmountState: (isPipUnmount) => set({ isPipUnmount }),
 
     updatePlaybackInfo: (info) => set(info),
 

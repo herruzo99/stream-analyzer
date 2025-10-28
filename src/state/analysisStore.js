@@ -1,6 +1,8 @@
 import { createStore } from 'zustand/vanilla';
 import { eventBus } from '@/application/event-bus';
 import { uiActions } from './uiStore.js';
+import { debugLog } from '@/shared/utils/debug';
+
 // --- Type Definitions ---
 /** @typedef {import('@/types.ts').Stream} Stream */
 /** @typedef {import('@/types.ts').DecodedSample} DecodedSample */
@@ -9,6 +11,8 @@ import { uiActions } from './uiStore.js';
 /** @typedef {import('@/types.ts').DrmAuthInfo} DrmAuthInfo */
 /** @typedef {{id: number, url: string, name: string, file: File | null, auth: AuthInfo, drmAuth: DrmAuthInfo}} StreamInput */
 /** @typedef {{streamId: number, repId: string, segmentUniqueId: string}} SegmentToCompare */
+
+// ... (rest of type definitions are unchanged) ...
 
 /**
  * @typedef {object} AnalysisState
@@ -51,8 +55,6 @@ import { uiActions } from './uiStore.js';
  * @property {(payload: {streamId: number, segmentUrl: string}) => void} addHlsSegmentFromPlayer
  */
 
-// --- Main Analysis Store Definition ---
-
 /**
  * Creates the initial state for the main analysis store.
  * @returns {AnalysisState}
@@ -94,7 +96,13 @@ export const useAnalysisStore = createStore((set, get) => ({
     },
 
     startAnalysis: () => {
-        get()._reset();
+        const initialState = createInitialAnalysisState();
+        set({
+            streams: initialState.streams,
+            activeStreamId: initialState.activeStreamId,
+            segmentsForCompare: initialState.segmentsForCompare,
+            decodedSamples: initialState.decodedSamples,
+        });
         uiActions.reset();
     },
 
@@ -102,11 +110,27 @@ export const useAnalysisStore = createStore((set, get) => ({
         const fullyFormedStreams = streams.map((s) => {
             const newStream = { ...s };
 
-            // ** THE FIX **: Reconstruct Maps from the arrays sent by the worker.
-            newStream.hlsVariantState = new Map(s.hlsVariantState || []);
-            newStream.dashRepresentationState = new Map(
-                s.dashRepresentationState || []
-            );
+            const newDashRepState = new Map();
+            if (s.dashRepresentationState) {
+                for (const [key, value] of s.dashRepresentationState) {
+                    newDashRepState.set(key, {
+                        ...value,
+                        freshSegmentUrls: new Set(value.freshSegmentUrls || []),
+                    });
+                }
+            }
+            newStream.dashRepresentationState = newDashRepState;
+
+            const newHlsVariantState = new Map();
+            if (s.hlsVariantState) {
+                for (const [key, value] of s.hlsVariantState) {
+                    newHlsVariantState.set(key, {
+                        ...value,
+                        freshSegmentUrls: new Set(value.freshSegmentUrls || []),
+                    });
+                }
+            }
+            newStream.hlsVariantState = newHlsVariantState;
 
             newStream.wasStoppedByInactivity = false;
             newStream.activeMediaPlaylistUrl = null;
@@ -140,9 +164,6 @@ export const useAnalysisStore = createStore((set, get) => ({
     setActiveStreamId: (streamId) => set({ activeStreamId: streamId }),
     setActiveStreamInputId: (id) => set({ activeStreamInputId: id }),
     setActiveSegmentUrl: (id) => {
-        // This action now lives in uiStore to prevent race conditions.
-        // It's kept here for now to avoid breaking other parts of the app that might still call it.
-        // A future refactoring would remove this entirely.
         console.warn(
             'setActiveSegmentUrl is deprecated in analysisStore. Use uiActions.navigateToInteractiveSegment instead.'
         );
@@ -198,9 +219,11 @@ export const useAnalysisStore = createStore((set, get) => ({
     },
 
     clearAllStreamInputs: () => {
+        const initialState = createInitialAnalysisState();
         set({
-            streamInputs: [createInitialAnalysisState().streamInputs[0]],
-            activeStreamInputId: 0,
+            streamInputs: initialState.streamInputs,
+            streamIdCounter: initialState.streamIdCounter,
+            activeStreamInputId: initialState.activeStreamInputId,
         });
     },
 
@@ -331,7 +354,6 @@ export const useAnalysisStore = createStore((set, get) => ({
         set((state) => ({
             streamInputs: state.streamInputs.map((input) => {
                 if (input.id === inputId) {
-                    // Start with a clean slate for auth to avoid merging issues
                     const pristineAuth = { headers: [], queryParams: [] };
                     const pristineDrmAuth = {
                         licenseServerUrl: '',
@@ -341,10 +363,10 @@ export const useAnalysisStore = createStore((set, get) => ({
                     };
 
                     return {
-                        ...input, // keep the id
+                        ...input,
                         url: preset.url || '',
                         name: preset.name || '',
-                        file: null, // presets are URL-based
+                        file: null,
                         auth: { ...pristineAuth, ...(preset.auth || {}) },
                         drmAuth: {
                             ...pristineDrmAuth,
@@ -389,45 +411,18 @@ export const useAnalysisStore = createStore((set, get) => ({
     },
 
     updateStream: (streamId, updatedStreamData) => {
+        let newStreamState;
         set((state) => {
-            const streams = state.streams.map((s) => {
+            const newStreams = state.streams.map((s) => {
                 if (s.id === streamId) {
-                    const updatedStream = { ...s, ...updatedStreamData };
-
-                    // ** THE FIX **: Reconstruct Maps and Sets from serialized arrays from the worker.
-                    if (
-                        updatedStream.dashRepresentationState &&
-                        Array.isArray(updatedStream.dashRepresentationState)
-                    ) {
-                        const newRepState = new Map(s.dashRepresentationState);
-                        for (const [
-                            key,
-                            value,
-                        ] of updatedStream.dashRepresentationState) {
-                            if (Array.isArray(value.freshSegmentUrls)) {
-                                value.freshSegmentUrls = new Set(
-                                    value.freshSegmentUrls
-                                );
-                            }
-                            newRepState.set(key, value);
-                        }
-                        updatedStream.dashRepresentationState = newRepState;
-                    }
-                    if (updatedStream.hlsVariantState) {
-                        for (const variantState of updatedStream.hlsVariantState.values()) {
-                            if (Array.isArray(variantState.freshSegmentUrls)) {
-                                variantState.freshSegmentUrls = new Set(
-                                    variantState.freshSegmentUrls
-                                );
-                            }
-                        }
-                    }
-                    return updatedStream;
+                    newStreamState = { ...s, ...updatedStreamData };
+                    return newStreamState;
                 }
                 return s;
             });
-            return { streams };
+            return { streams: newStreams };
         });
+        debugLog('AnalysisStore', `State updated for stream ${streamId}.`, newStreamState);
         eventBus.dispatch('state:stream-updated', { streamId });
     },
 
@@ -519,9 +514,19 @@ export const useAnalysisStore = createStore((set, get) => ({
             const newVariantState = new Map(stream.hlsVariantState);
             const currentState = newVariantState.get(variantUri);
             if (currentState) {
+                // --- MODIFIED: Merge segments instead of replacing ---
+                const oldSegments = currentState.segments || [];
+                const newSegments = segments || [];
+
+                const segmentMap = new Map();
+                oldSegments.forEach(seg => segmentMap.set(seg.uniqueId, seg));
+                newSegments.forEach(seg => segmentMap.set(seg.uniqueId, seg));
+                const mergedSegments = Array.from(segmentMap.values());
+                // --- END MODIFICATION ---
+
                 newVariantState.set(variantUri, {
                     ...currentState,
-                    segments: segments,
+                    segments: mergedSegments,
                     freshSegmentUrls: new Set(freshSegmentUrls),
                     isLoading: false,
                     error: null,
@@ -597,7 +602,7 @@ export const useAnalysisStore = createStore((set, get) => ({
                                 resolvedUrl: segmentUrl,
                                 template: filename,
                                 time: 0,
-                                duration: 0, // Duration is unknown without the manifest
+                                duration: 0,
                                 timescale: 90000,
                                 gap: false,
                                 flags: [],
@@ -613,7 +618,6 @@ export const useAnalysisStore = createStore((set, get) => ({
                             ].sort((a, b) => a.number - b.number);
 
                             variantState.segments = updatedSegments;
-                            // ** THE FIX **: Ensure the freshSegmentUrls Set is updated.
                             variantState.freshSegmentUrls.add(
                                 newSegment.uniqueId
                             );

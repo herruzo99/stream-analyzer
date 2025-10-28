@@ -22,6 +22,39 @@ import {
 
 // --- Helper Components ---
 
+const pipButtonTemplate = () => {
+    const { isPictureInPicture } = usePlayerStore.getState();
+    const isPipSupported =
+        typeof document !== 'undefined' && document.pictureInPictureEnabled;
+
+    if (!isPipSupported) {
+        return html``;
+    }
+
+    const handleClick = () => {
+        if (isPictureInPicture) {
+            playerService.exitPictureInPicture();
+        } else {
+            playerService.enterPictureInPicture();
+        }
+    };
+
+    const icon = isPictureInPicture ? icons.pipExit : icons.pipEnter;
+    const label = isPictureInPicture
+        ? 'Exit Picture-in-Picture'
+        : 'Enter Picture-in-Picture';
+
+    return html`
+        <button
+            @click=${handleClick}
+            class="bg-gray-700/50 hover:bg-gray-600/50 text-white font-bold p-2 rounded-md transition duration-300 h-full aspect-square flex items-center justify-center"
+            title=${label}
+        >
+            ${icon}
+        </button>
+    `;
+};
+
 const controlSectionTemplate = (title, content, disabled = false) => html`
     <div
         class="bg-gray-800 p-4 rounded-lg transition-opacity h-full ${disabled
@@ -508,33 +541,36 @@ export const playerControlsTemplate = () => {
 
     // --- Section Content ---
     const trackSelectionContent = html`
-        <div class="space-y-2 text-sm">
-            ${dropdownButton(
-                videoButtonLabel,
-                videoButtonSubtext,
-                (e) =>
+        <div class="flex items-stretch gap-2">
+            <div class="grow space-y-2 text-sm">
+                ${dropdownButton(
+                    videoButtonLabel,
+                    videoButtonSubtext,
+                    (e) =>
+                        toggleDropdown(
+                            e.currentTarget,
+                            videoSelectionPanelTemplate(
+                                videoTracks,
+                                isAbrEnabled,
+                                videoBandwidthMap
+                            )
+                        ),
+                    !isAbrEnabled
+                )}
+                ${dropdownButton(audioButtonLabel, audioButtonSubtext, (e) =>
                     toggleDropdown(
                         e.currentTarget,
-                        videoSelectionPanelTemplate(
-                            videoTracks,
-                            isAbrEnabled,
-                            videoBandwidthMap
-                        )
-                    ),
-                !isAbrEnabled
-            )}
-            ${dropdownButton(audioButtonLabel, audioButtonSubtext, (e) =>
-                toggleDropdown(
-                    e.currentTarget,
-                    audioSelectionPanelTemplate(audioTracks)
-                )
-            )}
-            ${dropdownButton(textButtonLabel, textButtonSubtext, (e) =>
-                toggleDropdown(
-                    e.currentTarget,
-                    textSelectionPanelTemplate(textTracks)
-                )
-            )}
+                        audioSelectionPanelTemplate(audioTracks)
+                    )
+                )}
+                ${dropdownButton(textButtonLabel, textButtonSubtext, (e) =>
+                    toggleDropdown(
+                        e.currentTarget,
+                        textSelectionPanelTemplate(textTracks)
+                    )
+                )}
+            </div>
+            <div class="shrink-0">${pipButtonTemplate()}</div>
         </div>
     `;
 

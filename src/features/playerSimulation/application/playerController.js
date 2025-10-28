@@ -2,6 +2,7 @@ import { eventBus } from '@/application/event-bus';
 import { playerActions, usePlayerStore } from '@/state/playerStore';
 import { analysisActions } from '@/state/analysisStore';
 import { playerService } from './playerService.js';
+import { useUiStore } from '@/state/uiStore';
 
 function onStatsChanged({ stats: shakaStats }) {
     const { abrHistory, currentStats } = usePlayerStore.getState();
@@ -170,11 +171,26 @@ function onPlayerError({ error }) {
     playerActions.logEvent({ timestamp: time, type, details });
 }
 
+function onPipChanged({ isInPiP }) {
+    playerActions.setPictureInPicture(isInPiP);
+
+    if (!isInPiP) {
+        // This is a user-initiated action to close PiP.
+        // If we are not on the player tab, the player instance is now "orphaned"
+        // and should be destroyed to free up resources.
+        const { activeTab } = useUiStore.getState();
+        if (activeTab !== 'player-simulation') {
+            playerService.destroy();
+        }
+    }
+}
+
 export function initializePlayerController() {
     eventBus.subscribe('player:stats-changed', onStatsChanged);
     eventBus.subscribe('player:adaptation-internal', onAdaptation);
     eventBus.subscribe('player:buffering', onBuffering);
     eventBus.subscribe('player:error', onPlayerError);
+    eventBus.subscribe('player:pip-changed', onPipChanged);
 
     // Reset store when a new analysis starts
     eventBus.subscribe('analysis:started', playerActions.reset);

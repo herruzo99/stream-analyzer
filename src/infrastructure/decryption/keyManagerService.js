@@ -51,7 +51,8 @@ class KeyManagerService {
     async _fetchAndCacheKey(uri) {
         try {
             decryptionActions.setKeyPending(uri);
-            const key = await workerService.postTask('fetch-key', { uri });
+            const key = await workerService.postTask('fetch-key', { uri })
+                .promise;
             decryptionActions.setKeyReady(uri, key);
             pendingFetches.delete(uri);
             return key;

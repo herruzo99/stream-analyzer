@@ -1,16 +1,20 @@
 import { html, render } from 'lit-html';
 import { playerService } from '../application/playerService.js';
-import { bufferGraphTemplate } from './components/buffer-graph.js';
 import { statsCardsTemplate } from './components/stats-cards.js';
 import { eventLogTemplate } from './components/event-log.js';
 import { playerControlsTemplate } from './components/player-controls.js';
-import { abrHistoryGraphTemplate } from './components/abr-history-graph.js';
-import { bufferHistoryGraphTemplate } from './components/buffer-history-graph.js';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { usePlayerStore, playerActions } from '@/state/playerStore';
 import { eventBus } from '@/application/event-bus';
 import shaka from 'shaka-player/dist/shaka-player.ui.js';
 import 'shaka-player/dist/controls.css';
+
+// New ECharts integration
+import { renderChart, disposeChart } from '@/ui/shared/charts/chart-renderer';
+import { bufferTimelineChartOptions } from '@/ui/shared/charts/buffer-timeline-chart';
+import { abrHistoryChartOptions } from '@/ui/shared/charts/abr-history-chart';
+import { bufferHealthChartOptions } from '@/ui/shared/charts/buffer-health-chart';
+
 
 const viewState = {
     container: null,
@@ -22,14 +26,16 @@ const viewState = {
     subscriptions: [],
     animationFrameId: null,
     lastError: null,
+    isMounted: false,
 };
 
-function updateBufferGraph() {
-    if (viewState.bufferGraphContainer) {
-        render(
-            bufferGraphTemplate(viewState.videoEl),
-            viewState.bufferGraphContainer
-        );
+function updateBufferTimeline() {
+    if (viewState.bufferGraphContainer && playerService.isInitialized) {
+        const stream = useAnalysisStore.getState().streams.find(s => s.id === useAnalysisStore.getState().activeStreamId);
+        const options = bufferTimelineChartOptions(viewState.videoEl, stream);
+        if (Object.keys(options).length > 0) {
+            renderChart(viewState.bufferGraphContainer, options);
+        }
     }
 }
 
@@ -38,7 +44,7 @@ function startUiUpdates() {
         cancelAnimationFrame(viewState.animationFrameId);
     }
     function loop() {
-        updateBufferGraph();
+        updateBufferTimeline();
         viewState.animationFrameId = requestAnimationFrame(loop);
     }
     loop();
@@ -84,10 +90,21 @@ function renderDiagnosticPanel() {
     } else if (activeTab === 'log') {
         content = eventLogTemplate(eventLog);
     } else if (activeTab === 'graphs') {
+        const abrChartOpts = abrHistoryChartOptions(playbackHistory);
+        const bufferChartOpts = bufferHealthChartOptions(playbackHistory, bufferingGoal);
+
+        // Defer chart rendering until after lit-html has created the container div
+        setTimeout(() => {
+            const abrContainer = viewState.diagnosticPanelContainer?.querySelector('#abr-chart-container');
+            const bufferContainer = viewState.diagnosticPanelContainer?.querySelector('#buffer-chart-container');
+            if (abrContainer) renderChart(abrContainer, abrChartOpts);
+            if (bufferContainer) renderChart(bufferContainer, bufferChartOpts);
+        }, 0);
+        
         content = html`
             <div class="space-y-6">
-                ${abrHistoryGraphTemplate(playbackHistory)}
-                ${bufferHistoryGraphTemplate(playbackHistory, bufferingGoal)}
+                <div id="abr-chart-container" class="h-64"></div>
+                <div id="buffer-chart-container" class="h-48"></div>
             </div>
         `;
     }
@@ -146,27 +163,26 @@ const drmErrorTemplate = (error) => {
 };
 
 const playerViewShellTemplate = () => {
+    const { lastError } = viewState;
     const isDrmError =
-        viewState.lastError?.code === 'DRM_NO_LICENSE_URL' ||
-        viewState.lastError?.code === 6007;
+        lastError?.code === 'DRM_NO_LICENSE_URL' || lastError?.code === 6007;
 
     return html`
-        <div class="flex flex-col h-full gap-6">
+        <div id="player-view-shell" class="flex flex-col h-full gap-6 p-4 sm:p-6">
             <div class="space-y-4">
                 <div
                     data-shaka-player-container
                     id="video-container-element"
                     class="w-full bg-black aspect-video relative shadow-2xl rounded-lg"
                 >
-                    ${isDrmError ? drmErrorTemplate(viewState.lastError) : ''}
+                    ${isDrmError ? drmErrorTemplate(lastError) : ''}
                     <video
                         id="player-video-element"
-                        autoplay
                         class="w-full h-full rounded-lg"
                         data-shaka-player
                     ></video>
                 </div>
-                <div id="buffer-graph-container-element"></div>
+                <div id="buffer-graph-container-element" class="h-8 rounded-lg bg-gray-800"></div>
             </div>
             <div id="player-controls-container" class="shrink-0"></div>
             <div
@@ -178,27 +194,38 @@ const playerViewShellTemplate = () => {
 };
 
 export const playerView = {
+    isMounted: () => viewState.isMounted,
+
+    activate(stream) {
+        if (playerService.isInitialized && stream?.originalUrl) {
+            const player = playerService.getPlayer();
+            const currentAsset = player?.getAssetUri();
+            // Only load if not already loaded or if the stream is different
+            if (currentAsset !== stream.originalUrl) {
+                viewState.lastError = null;
+                // Explicitly request autoplay when activating the view
+                playerService.load(stream, true);
+            } else {
+                // If the same stream is already loaded, just play it
+                const videoElement = player?.getMediaElement();
+                if (videoElement && videoElement.paused) {
+                    videoElement.play();
+                }
+            }
+        }
+    },
+
+    deactivate() {
+        // No-op. We no longer want to pause playback when leaving the view.
+        // Playback state is now managed solely by the user via player controls
+        // or by the browser (e.g., when the tab becomes inactive).
+    },
+
     mount(containerElement, { stream }) {
+        if (viewState.isMounted) return;
+
         viewState.container = containerElement;
         viewState.lastError = null;
-
-        const activeStream = stream;
-
-        if (!activeStream?.originalUrl) {
-            render(
-                html`<div class="text-center py-12 text-yellow-400">
-                    <p>
-                        Player simulation requires a stream with a valid
-                        manifest URL.
-                    </p>
-                    <p class="text-sm text-gray-400 mt-2">
-                        Analysis from local files is not supported for playback.
-                    </p>
-                </div>`,
-                viewState.container
-            );
-            return;
-        }
 
         render(playerViewShellTemplate(), viewState.container);
 
@@ -223,16 +250,7 @@ export const playerView = {
             viewState.videoContainer,
             shaka
         );
-        playerService.load(activeStream);
-
-        viewState.subscriptions.forEach((unsub) => unsub());
-        viewState.subscriptions = [];
-
-        const onPlayerError = ({ error }) => {
-            viewState.lastError = error;
-            // Re-render the shell to show the DRM error overlay if necessary
-            render(playerViewShellTemplate(), viewState.container);
-        };
+        // DO NOT load stream here. Loading is now managed by the mainRenderer via activate().
 
         viewState.subscriptions.push(usePlayerStore.subscribe(renderControls));
         viewState.subscriptions.push(
@@ -242,46 +260,47 @@ export const playerView = {
             usePlayerStore.subscribe(renderDiagnosticPanel)
         );
         viewState.subscriptions.push(
-            eventBus.subscribe('player:error', onPlayerError)
-        );
-
-        viewState.subscriptions.push(
-            useAnalysisStore.subscribe((state, prevState) => {
-                if (state.activeStreamId !== prevState.activeStreamId) {
-                    const newStream = state.streams.find(
-                        (s) => s.id === state.activeStreamId
-                    );
-                    viewState.lastError = null; // Clear error on stream change
-                    if (newStream?.originalUrl) {
-                        playerService.load(newStream);
-                    } else {
-                        playerService.unload();
-                    }
-                }
+            eventBus.subscribe('player:error', ({ error }) => {
+                viewState.lastError = error;
+                render(playerViewShellTemplate(), viewState.container);
             })
         );
-
-        const onManifestLoaded = () => {
-            viewState.lastError = null;
-            startUiUpdates();
-            renderControls();
-        };
         viewState.subscriptions.push(
-            eventBus.subscribe('player:manifest-loaded', onManifestLoaded)
+            eventBus.subscribe('player:manifest-loaded', () => {
+                viewState.lastError = null;
+                startUiUpdates();
+                renderControls();
+                render(playerViewShellTemplate(), viewState.container);
+            })
         );
 
         renderControls();
         renderDiagnosticPanel();
+        viewState.isMounted = true;
     },
 
     unmount() {
+        if (!viewState.isMounted) return;
+
         stopUiUpdates();
+        
+        if (viewState.bufferGraphContainer) disposeChart(viewState.bufferGraphContainer);
+        const abrChart = viewState.diagnosticPanelContainer?.querySelector('#abr-chart-container');
+        if (abrChart) disposeChart(abrChart);
+        const bufferChart = viewState.diagnosticPanelContainer?.querySelector('#buffer-chart-container');
+        if (bufferChart) disposeChart(bufferChart);
+
         playerService.destroy();
         viewState.subscriptions.forEach((unsub) => unsub());
         playerActions.reset();
 
+        if (viewState.container) {
+            render(html``, viewState.container);
+        }
+
         Object.keys(viewState).forEach((key) => {
             viewState[key] = Array.isArray(viewState[key]) ? [] : null;
         });
+        viewState.isMounted = false;
     },
 };

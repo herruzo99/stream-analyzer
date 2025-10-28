@@ -1,10 +1,10 @@
-import { workerService } from '@/infrastructure/worker/workerService';
 import { networkActions } from '@/state/networkStore';
 import {
     getPerformanceEntry,
     getTimingBreakdownFromPerfEntry,
 } from '@/shared/utils/performance';
 import { debugLog } from '@/shared/utils/debug';
+import { eventBus } from '@/application/event-bus';
 
 async function enrichAndLogEvent(provisionalEvent) {
     debugLog(
@@ -20,12 +20,8 @@ async function enrichAndLogEvent(provisionalEvent) {
             'Found PerformanceEntry, enriching timing data.',
             perfEntry
         );
-        provisionalEvent.timing = {
-            startTime: perfEntry.startTime,
-            endTime: perfEntry.responseEnd,
-            duration: perfEntry.duration,
-            breakdown: getTimingBreakdownFromPerfEntry(perfEntry),
-        };
+        provisionalEvent.timing.breakdown =
+            getTimingBreakdownFromPerfEntry(perfEntry);
         provisionalEvent.response.contentLength =
             provisionalEvent.response.contentLength || perfEntry.transferSize;
     } else {
@@ -41,10 +37,7 @@ async function enrichAndLogEvent(provisionalEvent) {
 export function initializeNetworkEnrichmentService() {
     debugLog(
         'NetworkEnrichmentService',
-        'Initializing and registering global handler for "worker:network-event".'
+        'Initializing and subscribing to "worker:network-event".'
     );
-    workerService.registerGlobalHandler(
-        'worker:network-event',
-        enrichAndLogEvent
-    );
+    eventBus.subscribe('worker:network-event', enrichAndLogEvent);
 }

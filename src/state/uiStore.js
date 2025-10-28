@@ -37,6 +37,8 @@ import { createStore } from 'zustand/vanilla';
  * @property {Set<string>} expandedComparisonTables
  * @property {Set<string>} expandedComparisonFlags
  * @property {'standard' | 'advanced'} playerControlMode
+ * @property {'presets' | 'history' | 'examples'} streamLibraryActiveTab
+ * @property {string} streamLibrarySearchTerm
  */
 
 /**
@@ -69,6 +71,8 @@ import { createStore } from 'zustand/vanilla';
  * @property {(rowName: string) => void} toggleComparisonFlags
  * @property {(mode: 'standard' | 'advanced') => void} setPlayerControlMode
  * @property {(segmentUniqueId: string) => void} navigateToInteractiveSegment
+ * @property {(tab: 'presets' | 'history' | 'examples') => void} setStreamLibraryTab
+ * @property {(term: string) => void} setStreamLibrarySearchTerm
  * @property {() => void} reset
  */
 
@@ -105,6 +109,8 @@ const createInitialUiState = () => ({
     expandedComparisonTables: new Set(),
     expandedComparisonFlags: new Set(),
     playerControlMode: 'standard',
+    streamLibraryActiveTab: 'presets',
+    streamLibrarySearchTerm: '',
 });
 
 export const useUiStore = createStore((set) => ({
@@ -212,6 +218,8 @@ export const useUiStore = createStore((set) => ({
             interactiveSegmentHighlightedItem: null, // Reset highlight
         });
     },
+    setStreamLibraryTab: (tab) => set({ streamLibraryActiveTab: tab }),
+    setStreamLibrarySearchTerm: (term) => set({ streamLibrarySearchTerm: term }),
     reset: () => set(createInitialUiState()),
 }));
 
@@ -268,5 +276,9 @@ export const uiActions = {
         useUiStore.getState().setPlayerControlMode(mode),
     navigateToInteractiveSegment: (segmentUniqueId) =>
         useUiStore.getState().navigateToInteractiveSegment(segmentUniqueId),
+    setStreamLibraryTab: (tab) =>
+        useUiStore.getState().setStreamLibraryTab(tab),
+    setStreamLibrarySearchTerm: (term) =>
+        useUiStore.getState().setStreamLibrarySearchTerm(term),
     reset: () => useUiStore.getState().reset(),
 };

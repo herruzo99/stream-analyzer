@@ -1,7 +1,7 @@
 import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
 import { eventBus } from '@/application/event-bus';
 import { generateFeatureAnalysis } from '@/features/featureAnalysis/domain/analyzer';
-import { parseAllSegmentUrls as parseDashSegments } from '@/infrastructure/parsing/dash/segment-parser';
+import { debugLog } from '@/shared/utils/debug';
 
 /**
  * A more specific stream type where the protocol is guaranteed to be 'dash' or 'hls'.
@@ -92,19 +92,23 @@ function checkForNewIssues(oldResults, newResults) {
  * @param {object} updateData The event data from `livestream:manifest-updated`.
  */
 async function processLiveUpdate(updateData) {
+    debugLog('LiveUpdateProcessor', 'Received "livestream:manifest-updated" event.', updateData);
     const {
         streamId,
         newManifestString,
         newManifestObject,
         complianceResults,
         serializedManifest,
-        diffHtml, // diffHtml is now provided by the worker
+        diffHtml,
+        dashRepresentationState: dashRepStateFromArray,
     } = updateData;
+
     const stream = useAnalysisStore
         .getState()
         .streams.find((s) => s.id === streamId);
 
     if (!stream || (stream.protocol !== 'dash' && stream.protocol !== 'hls')) {
+        debugLog('LiveUpdateProcessor', `Stream ${streamId} not found or has invalid protocol. Aborting update.`);
         return;
     }
 
@@ -147,70 +151,61 @@ async function processLiveUpdate(updateData) {
         }
     });
 
-    let newDashState, newHlsState;
     let segmentsWereUpdated = false;
+    let newDashState = new Map(stream.dashRepresentationState);
+    let newHlsState = new Map(stream.hlsVariantState);
 
-    if (stream.protocol === 'dash') {
-        newDashState = new Map(stream.dashRepresentationState);
-        const newSegmentsByCompositeKey = await parseDashSegments(
-            serializedManifest,
-            stream.baseUrl
-        );
-        for (const [compositeKey, data] of Object.entries(
-            newSegmentsByCompositeKey
-        )) {
-            const newSegments = data.segments || [];
-            const oldRepState = newDashState.get(compositeKey);
-            if (oldRepState) {
-                const existingUrls = new Set(
-                    oldRepState.segments.map((s) => s.uniqueId)
-                );
-                const newlyAddedSegments = newSegments.filter(
-                    (newSeg) => !existingUrls.has(newSeg.uniqueId)
-                );
+    if (stream.protocol === 'dash' && dashRepStateFromArray) {
+        debugLog('LiveUpdateProcessor', 'Processing DASH segment state update.');
+        for (const [key, value] of dashRepStateFromArray) {
+            const oldRepState = stream.dashRepresentationState.get(key);
+            
+            // --- MODIFIED: Merge segments instead of replacing ---
+            const oldSegments = oldRepState?.segments || [];
+            const newSegments = value.segments || [];
 
-                if (newlyAddedSegments.length > 0) {
-                    // Create a new repState object to ensure immutability
-                    const updatedRepState = {
-                        ...oldRepState,
-                        segments: [
-                            ...oldRepState.segments,
-                            ...newlyAddedSegments,
-                        ],
-                        freshSegmentUrls: new Set(
-                            newSegments.map((s) => s.uniqueId)
-                        ),
-                    };
-                    newDashState.set(compositeKey, updatedRepState);
-                    segmentsWereUpdated = true;
-                } else {
-                    // Even if no new segments, update fresh URLs and create a new object
-                    const updatedRepState = {
-                        ...oldRepState,
-                        freshSegmentUrls: new Set(
-                            newSegments.map((s) => s.uniqueId)
-                        ),
-                    };
-                    newDashState.set(compositeKey, updatedRepState);
-                }
+            const segmentMap = new Map();
+            oldSegments.forEach(seg => segmentMap.set(seg.uniqueId, seg));
+            newSegments.forEach(seg => segmentMap.set(seg.uniqueId, seg));
+            const mergedSegments = Array.from(segmentMap.values());
+            // --- END MODIFICATION ---
+
+            if (value.segments.length > (oldRepState?.segments.length || 0)) {
+                segmentsWereUpdated = true;
+                debugLog('LiveUpdateProcessor', `New segments detected for rep ${key}. Old count: ${oldRepState?.segments.length || 0}, New count: ${value.segments.length}`);
             }
+
+            newDashState.set(key, {
+                ...value,
+                segments: mergedSegments,
+                freshSegmentUrls: new Set(value.freshSegmentUrls || []),
+            });
         }
-    } else {
-        newHlsState = new Map(stream.hlsVariantState);
-        if (!newManifestObject.isMaster) {
-            const variant = newHlsState.get(stream.originalUrl);
-            if (variant) {
-                const oldSegmentCount = variant.segments.length;
-                variant.segments = newManifestObject.segments || [];
-                if (variant.segments.length > oldSegmentCount) {
-                    segmentsWereUpdated = true;
-                }
-                variant.freshSegmentUrls = new Set(
-                    variant.segments.map((s) => s.uniqueId)
-                );
+    } else if (stream.protocol === 'hls' && !newManifestObject.isMaster) {
+        const variantState = newHlsState.get(stream.originalUrl);
+        if (variantState) {
+            // --- MODIFIED: Merge segments instead of replacing ---
+            const oldSegments = variantState.segments || [];
+            const newSegments = newManifestObject.segments || [];
+
+            const segmentMap = new Map();
+            oldSegments.forEach(seg => segmentMap.set(seg.uniqueId, seg));
+            newSegments.forEach(seg => segmentMap.set(seg.uniqueId, seg));
+            const mergedSegments = Array.from(segmentMap.values());
+            // --- END MODIFICATION ---
+
+            if (newSegments.length > oldSegments.length) {
+                segmentsWereUpdated = true;
             }
+            newHlsState.set(stream.originalUrl, {
+                ...variantState,
+                segments: mergedSegments,
+                freshSegmentUrls: new Set(newSegments.map((s) => s.uniqueId)),
+            });
         }
     }
+    
+    debugLog('LiveUpdateProcessor', `Segments were updated: ${segmentsWereUpdated}`);
 
     schedulePollsFromScte35(
         /** @type {KnownProtocolStream} */ (stream),
@@ -226,12 +221,14 @@ async function processLiveUpdate(updateData) {
         hlsVariantState: newHlsState,
     };
 
+    debugLog('LiveUpdateProcessor', 'Calling analysisActions.updateStream with payload:', updatePayload);
     analysisActions.updateStream(streamId, updatePayload);
     eventBus.dispatch('stream:data-updated', { streamId });
     if (segmentsWereUpdated) {
         eventBus.dispatch('stream:segments-updated', { streamId });
     }
 }
+
 
 /**
  * Initializes the service by subscribing to the live manifest update event.

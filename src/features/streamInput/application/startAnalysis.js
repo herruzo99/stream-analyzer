@@ -70,7 +70,7 @@ export async function startAnalysisUseCase({ inputs }, services) {
     try {
         const workerResults = await workerService.postTask('start-analysis', {
             inputs: workerInputs,
-        });
+        }).promise;
 
         // Failsafe check for empty manifest content which can result from network issues (e.g., 304 response)
         if (!workerResults[0]?.rawManifest?.trim()) {

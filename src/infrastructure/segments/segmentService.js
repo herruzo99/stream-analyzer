@@ -164,89 +164,86 @@ export function initializeSegmentService() {
         _fetchAndParseSegment(uniqueId, streamId, format)
     );
 
-    workerService.registerGlobalHandler(
-        'worker:shaka-segment-loaded',
-        (payload) => {
+    eventBus.subscribe('worker:shaka-segment-loaded', (payload) => {
+        debugLog(
+            'SegmentService',
+            'Handler for "worker:shaka-segment-loaded" triggered.',
+            payload
+        );
+        const {
+            uniqueId: rawUrl,
+            status,
+            data,
+            parsedData,
+            streamId,
+        } = payload;
+        const { set } = useSegmentCacheStore.getState();
+        const stream = useAnalysisStore
+            .getState()
+            .streams.find((s) => s.id === streamId);
+
+        if (!stream) {
             debugLog(
                 'SegmentService',
-                'Handler for "worker:shaka-segment-loaded" triggered.',
-                payload
+                `Could not find stream with ID ${streamId}. Cannot process segment.`
             );
-            const {
-                uniqueId: rawUrl,
-                status,
-                data,
-                parsedData,
-                streamId,
-            } = payload;
-            const { set } = useSegmentCacheStore.getState();
-            const stream = useAnalysisStore
-                .getState()
-                .streams.find((s) => s.id === streamId);
+            return;
+        }
 
-            if (!stream) {
-                debugLog(
-                    'SegmentService',
-                    `Could not find stream with ID ${streamId}. Cannot process segment.`
-                );
-                return;
-            }
+        let canonicalSegment = null;
 
-            let canonicalSegment = null;
+        // ** THE FIX **: Add protocol guard before accessing state properties.
+        let allSegmentLists = [];
+        if (stream.protocol === 'dash') {
+            allSegmentLists = [...stream.dashRepresentationState.values()];
+        } else if (stream.protocol === 'hls') {
+            allSegmentLists = [...stream.hlsVariantState.values()];
+        }
 
-            // ** THE FIX **: Add protocol guard before accessing state properties.
-            let allSegmentLists = [];
-            if (stream.protocol === 'dash') {
-                allSegmentLists = [...stream.dashRepresentationState.values()];
-            } else if (stream.protocol === 'hls') {
-                allSegmentLists = [...stream.hlsVariantState.values()];
-            }
+        for (const repState of allSegmentLists) {
+            canonicalSegment = (repState.segments || []).find(
+                (s) => s.resolvedUrl === rawUrl
+            );
+            if (canonicalSegment) break;
+        }
 
-            for (const repState of allSegmentLists) {
-                canonicalSegment = (repState.segments || []).find(
-                    (s) => s.resolvedUrl === rawUrl
-                );
-                if (canonicalSegment) break;
-            }
-
-            if (!canonicalSegment) {
-                debugLog(
-                    'SegmentService',
-                    `Could not find a canonical segment in the state for the player-loaded URL: ${rawUrl}. This may be an init segment or a key/license request.`
-                );
-                const entry = { status, data, parsedData };
-                set(rawUrl, entry);
-                eventBus.dispatch('segment:loaded', {
-                    uniqueId: rawUrl,
-                    entry,
-                });
-                return;
-            }
-
-            const canonicalUniqueId = canonicalSegment.uniqueId;
+        if (!canonicalSegment) {
+            debugLog(
+                'SegmentService',
+                `Could not find a canonical segment in the state for the player-loaded URL: ${rawUrl}. This may be an init segment or a key/license request.`
+            );
             const entry = { status, data, parsedData };
-
-            debugLog(
-                'SegmentService',
-                `Resolved raw URL "${rawUrl}" to canonical uniqueId "${canonicalUniqueId}". Updating segmentCacheStore.`
-            );
-            set(canonicalUniqueId, entry);
-
-            debugLog(
-                'SegmentService',
-                'Dispatching "segment:loaded" event to eventBus with canonical ID.'
-            );
+            set(rawUrl, entry);
             eventBus.dispatch('segment:loaded', {
-                uniqueId: canonicalUniqueId,
+                uniqueId: rawUrl,
                 entry,
             });
-
-            if (stream.protocol === 'hls') {
-                analysisActions.addHlsSegmentFromPlayer({
-                    streamId,
-                    segmentUrl: rawUrl,
-                });
-            }
+            return;
         }
-    );
+
+        const canonicalUniqueId = canonicalSegment.uniqueId;
+        const entry = { status, data, parsedData };
+
+        debugLog(
+            'SegmentService',
+            `Resolved raw URL "${rawUrl}" to canonical uniqueId "${canonicalUniqueId}". Updating segmentCacheStore.`
+        );
+        set(canonicalUniqueId, entry);
+
+        debugLog(
+            'SegmentService',
+            'Dispatching "segment:loaded" event to eventBus with canonical ID.'
+        );
+        eventBus.dispatch('segment:loaded', {
+            uniqueId: canonicalUniqueId,
+            entry,
+        });
+
+        if (stream.protocol === 'hls') {
+            analysisActions.addHlsSegmentFromPlayer({
+                streamId,
+                segmentUrl: rawUrl,
+            });
+        }
+    });
 }
