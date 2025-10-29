@@ -28,7 +28,8 @@ eventBus.subscribe('analysis:started', () => {
  * @param {string} options.title - The title to display in the table header.
  * @param {object[]} options.segments - The array of segment objects to render.
  * @param {import('@/types').Stream} options.stream - The parent stream object.
- * @param {Set<string>} options.freshSegmentUrls - A set of URLs for segments that are considered "fresh".
+ * @param {Set<string>} options.currentSegmentUrls - A set of URLs for all segments in the current manifest.
+ * @param {Set<string>} options.newlyAddedSegmentUrls - A set of URLs for segments new in the latest update.
  * @param {string} options.segmentFormat - The format of the segments (e.g., 'isobmff', 'ts').
  * @param {boolean} [options.isLoading=false] - If true, displays a loading indicator.
  * @param {string|null} [options.error=null] - If set, displays an error message.
@@ -40,7 +41,8 @@ export const segmentTableTemplate = ({
     title,
     segments,
     stream, // New parameter
-    freshSegmentUrls,
+    currentSegmentUrls,
+    newlyAddedSegmentUrls,
     segmentFormat,
     isLoading = false,
     error = null,
@@ -89,8 +91,6 @@ export const segmentTableTemplate = ({
         const { segmentExplorerTargetTime, segmentExplorerScrollToTarget } =
             useUiStore.getState();
 
-        // Initialize flashed set for this table if it doesn't exist.
-        // This also pre-populates it on first render to establish a baseline.
         if (!flashedSegmentIds.has(id)) {
             flashedSegmentIds.set(id, new Set(segments.map((s) => s.uniqueId)));
         }
@@ -99,7 +99,7 @@ export const segmentTableTemplate = ({
         const rowRenderer = (seg) => {
             const cacheEntry = getFromCache(seg.uniqueId);
             const shouldFlash =
-                freshSegmentUrls.has(seg.uniqueId) &&
+                newlyAddedSegmentUrls.has(seg.uniqueId) &&
                 !thisTablesFlashed.has(seg.uniqueId);
 
             if (shouldFlash) {
@@ -111,10 +111,10 @@ export const segmentTableTemplate = ({
                 stream,
                 segmentFormat,
                 id,
-                freshSegmentUrls,
+                currentSegmentUrls,
                 cacheEntry,
                 segmentExplorerTargetTime,
-                shouldFlash // Pass down the decision
+                shouldFlash
             );
         };
         const scrollbarWidth = getScrollbarWidth();
@@ -124,7 +124,6 @@ export const segmentTableTemplate = ({
             const listElement = document.querySelector(`#vl-${id}`);
             if (!listElement) return;
 
-            // Time navigation logic
             if (segmentExplorerTargetTime && segmentExplorerScrollToTarget) {
                 const targetIndex = segments.findIndex(
                     (seg) =>

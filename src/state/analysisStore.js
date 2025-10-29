@@ -12,8 +12,6 @@ import { debugLog } from '@/shared/utils/debug';
 /** @typedef {{id: number, url: string, name: string, file: File | null, auth: AuthInfo, drmAuth: DrmAuthInfo}} StreamInput */
 /** @typedef {{streamId: number, repId: string, segmentUniqueId: string}} SegmentToCompare */
 
-// ... (rest of type definitions are unchanged) ...
-
 /**
  * @typedef {object} AnalysisState
  * @property {Stream[]} streams
@@ -23,12 +21,13 @@ import { debugLog } from '@/shared/utils/debug';
  * @property {number} activeStreamInputId
  * @property {SegmentToCompare[]} segmentsForCompare
  * @property {Map<string, DecodedSample>} decodedSamples
+ * @property {Map<string, {streamId: number, auth: AuthInfo}>} urlAuthMap
  */
 
 /**
  * @typedef {object} AnalysisActions
  * @property {() => void} startAnalysis
- * @property {(streams: Stream[]) => void} completeAnalysis
+ * @property {(streams: Stream[], urlAuthMapArray: [string, {streamId: number, auth: AuthInfo}][]) => void} completeAnalysis
  * @property {(streamId: number) => void} setActiveStreamId
  * @property {(id: string) => void} setActiveSegmentUrl
  * @property {() => void} addStreamInput
@@ -49,16 +48,12 @@ import { debugLog } from '@/shared/utils/debug';
  * @property {(streamId: number, updatedStreamData: Partial<Stream>) => void} updateStream
  * @property {(isPolling: boolean, options?: { fromInactivity?: boolean }) => void} setAllLiveStreamsPolling
  * @property {(streamId: number, direction: number) => void} navigateManifestUpdate
- * @property {(payload: {streamId: number, variantUri: string, manifest: object, manifestString: string, segments: object[], freshSegmentUrls: string[]}) => void} updateHlsMediaPlaylist
+ * @property {(payload: {streamId: number, variantUri: string, manifest: object, manifestString: string, segments: object[], currentSegmentUrls: string[], newSegmentUrls: string[]}) => void} updateHlsMediaPlaylist
  * @property {(streamId: number, events: Event[]) => void} addInbandEvents
  * @property {(id: number) => void} setActiveStreamInputId
  * @property {(payload: {streamId: number, segmentUrl: string}) => void} addHlsSegmentFromPlayer
  */
 
-/**
- * Creates the initial state for the main analysis store.
- * @returns {AnalysisState}
- */
 const createInitialAnalysisState = () => ({
     streams: [],
     activeStreamId: null,
@@ -81,12 +76,9 @@ const createInitialAnalysisState = () => ({
     activeStreamInputId: 0,
     segmentsForCompare: [],
     decodedSamples: new Map(),
+    urlAuthMap: new Map(),
 });
 
-/**
- * The main application state store, powered by Zustand.
- * @type {import('zustand/vanilla').StoreApi<AnalysisState & AnalysisActions & { _reset: () => void }>}
- */
 export const useAnalysisStore = createStore((set, get) => ({
     ...createInitialAnalysisState(),
 
@@ -102,11 +94,12 @@ export const useAnalysisStore = createStore((set, get) => ({
             activeStreamId: initialState.activeStreamId,
             segmentsForCompare: initialState.segmentsForCompare,
             decodedSamples: initialState.decodedSamples,
+            urlAuthMap: initialState.urlAuthMap,
         });
         uiActions.reset();
     },
 
-    completeAnalysis: (streams) => {
+    completeAnalysis: (streams, urlAuthMapArray) => {
         const fullyFormedStreams = streams.map((s) => {
             const newStream = { ...s };
 
@@ -115,7 +108,12 @@ export const useAnalysisStore = createStore((set, get) => ({
                 for (const [key, value] of s.dashRepresentationState) {
                     newDashRepState.set(key, {
                         ...value,
-                        freshSegmentUrls: new Set(value.freshSegmentUrls || []),
+                        currentSegmentUrls: new Set(
+                            value.currentSegmentUrls || []
+                        ),
+                        newlyAddedSegmentUrls: new Set(
+                            value.newlyAddedSegmentUrls || []
+                        ),
                     });
                 }
             }
@@ -126,7 +124,12 @@ export const useAnalysisStore = createStore((set, get) => ({
                 for (const [key, value] of s.hlsVariantState) {
                     newHlsVariantState.set(key, {
                         ...value,
-                        freshSegmentUrls: new Set(value.freshSegmentUrls || []),
+                        currentSegmentUrls: new Set(
+                            value.currentSegmentUrls || []
+                        ),
+                        newlyAddedSegmentUrls: new Set(
+                            value.newlyAddedSegmentUrls || []
+                        ),
                     });
                 }
             }
@@ -155,6 +158,7 @@ export const useAnalysisStore = createStore((set, get) => ({
         set({
             streams: fullyFormedStreams,
             activeStreamId: fullyFormedStreams[0]?.id ?? null,
+            urlAuthMap: new Map(urlAuthMapArray),
         });
         eventBus.dispatch('state:analysis-complete', {
             streams: get().streams,
@@ -411,19 +415,82 @@ export const useAnalysisStore = createStore((set, get) => ({
     },
 
     updateStream: (streamId, updatedStreamData) => {
-        let newStreamState;
         set((state) => {
-            const newStreams = state.streams.map((s) => {
-                if (s.id === streamId) {
-                    newStreamState = { ...s, ...updatedStreamData };
-                    return newStreamState;
+            const stream = state.streams.find((s) => s.id === streamId);
+            if (!stream) return state;
+
+            const newUrlAuthMap = new Map(state.urlAuthMap);
+            const authContext = { streamId, auth: stream.auth };
+            let segmentsWereUpdated = false;
+
+            const newDashState = new Map(stream.dashRepresentationState);
+            if (updatedStreamData.dashRepresentationState) {
+                for (const [
+                    key,
+                    value,
+                ] of updatedStreamData.dashRepresentationState) {
+                    const newSegmentUrls = value.newlyAddedSegmentUrls;
+                    if (newSegmentUrls && newSegmentUrls.size > 0) {
+                        segmentsWereUpdated = true;
+                        for (const segUrl of newSegmentUrls) {
+                            newUrlAuthMap.set(segUrl, authContext);
+                        }
+                    }
+                    newDashState.set(key, {
+                        ...value,
+                        segments: value.segments || [],
+                        currentSegmentUrls: new Set(value.currentSegmentUrls),
+                        newlyAddedSegmentUrls: new Set(newSegmentUrls),
+                    });
                 }
-                return s;
-            });
-            return { streams: newStreams };
+            }
+
+            const newHlsState = new Map(stream.hlsVariantState);
+            if (updatedStreamData.hlsVariantState) {
+                for (const [key, value] of updatedStreamData.hlsVariantState) {
+                    const newSegmentUrls = value.newlyAddedSegmentUrls;
+                    if (newSegmentUrls && newSegmentUrls.size > 0) {
+                        segmentsWereUpdated = true;
+                        for (const segUrl of newSegmentUrls) {
+                            newUrlAuthMap.set(segUrl, authContext);
+                        }
+                    }
+                    newHlsState.set(key, {
+                        ...value,
+                        segments: value.segments || [],
+                        currentSegmentUrls: new Set(value.currentSegmentUrls),
+                        newlyAddedSegmentUrls: new Set(newSegmentUrls),
+                    });
+                }
+            }
+
+            const newStreamState = {
+                ...stream,
+                ...updatedStreamData,
+                dashRepresentationState: newDashState,
+                hlsVariantState: newHlsState,
+            };
+
+            const newStreams = state.streams.map((s) =>
+                s.id === streamId ? newStreamState : s
+            );
+
+            debugLog(
+                'AnalysisStore',
+                `State updated for stream ${streamId}. Segments updated: ${segmentsWereUpdated}`,
+                {
+                    newState: newStreamState,
+                    newUrlAuthMapSize: newUrlAuthMap.size,
+                }
+            );
+
+            if (segmentsWereUpdated) {
+                eventBus.dispatch('stream:segments-updated', { streamId });
+            }
+            eventBus.dispatch('state:stream-updated', { streamId });
+
+            return { streams: newStreams, urlAuthMap: newUrlAuthMap };
         });
-        debugLog('AnalysisStore', `State updated for stream ${streamId}.`, newStreamState);
-        eventBus.dispatch('state:stream-updated', { streamId });
     },
 
     addInbandEvents: (streamId, events) => {
@@ -505,29 +572,38 @@ export const useAnalysisStore = createStore((set, get) => ({
         manifest,
         manifestString,
         segments,
-        freshSegmentUrls,
+        currentSegmentUrls,
+        newSegmentUrls,
     }) => {
         set((state) => {
             const stream = state.streams.find((s) => s.id === streamId);
             if (!stream) return {};
 
+            const newUrlAuthMap = new Map(state.urlAuthMap);
             const newVariantState = new Map(stream.hlsVariantState);
             const currentState = newVariantState.get(variantUri);
-            if (currentState) {
-                // --- MODIFIED: Merge segments instead of replacing ---
-                const oldSegments = currentState.segments || [];
-                const newSegments = segments || [];
 
-                const segmentMap = new Map();
-                oldSegments.forEach(seg => segmentMap.set(seg.uniqueId, seg));
-                newSegments.forEach(seg => segmentMap.set(seg.uniqueId, seg));
+            if (currentState) {
+                const oldSegments = currentState.segments || [];
+                const newSegmentsFromManifest = segments || [];
+
+                const segmentMap = new Map(
+                    oldSegments.map((seg) => [seg.uniqueId, seg])
+                );
+                newSegmentsFromManifest.forEach((seg) => {
+                    segmentMap.set(seg.uniqueId, seg);
+                    newUrlAuthMap.set(seg.resolvedUrl, {
+                        streamId,
+                        auth: stream.auth,
+                    });
+                });
                 const mergedSegments = Array.from(segmentMap.values());
-                // --- END MODIFICATION ---
 
                 newVariantState.set(variantUri, {
                     ...currentState,
                     segments: mergedSegments,
-                    freshSegmentUrls: new Set(freshSegmentUrls),
+                    currentSegmentUrls: new Set(currentSegmentUrls),
+                    newlyAddedSegmentUrls: new Set(newSegmentUrls),
                     isLoading: false,
                     error: null,
                 });
@@ -550,6 +626,7 @@ export const useAnalysisStore = createStore((set, get) => ({
                           }
                         : s
                 ),
+                urlAuthMap: newUrlAuthMap,
             };
         });
     },
@@ -557,12 +634,7 @@ export const useAnalysisStore = createStore((set, get) => ({
     addHlsSegmentFromPlayer: ({ streamId, segmentUrl }) => {
         set((state) => {
             const stream = state.streams.find((s) => s.id === streamId);
-            if (
-                !stream ||
-                stream.protocol !== 'hls' ||
-                !stream.manifest?.isMaster
-            )
-                return {};
+            if (!stream || stream.protocol !== 'hls') return {};
 
             const newVariantState = new Map(stream.hlsVariantState);
             let updated = false;
@@ -571,64 +643,58 @@ export const useAnalysisStore = createStore((set, get) => ({
                 variantUri,
                 variantState,
             ] of newVariantState.entries()) {
-                const baseUrlForVariant = new URL(variantUri, stream.baseUrl)
-                    .href;
-                const baseDir = baseUrlForVariant.substring(
+                const baseDir = variantUri.substring(
                     0,
-                    baseUrlForVariant.lastIndexOf('/') + 1
+                    variantUri.lastIndexOf('/') + 1
                 );
 
-                if (segmentUrl.startsWith(baseDir)) {
-                    const segmentExists = (variantState.segments || []).some(
+                if (
+                    segmentUrl.startsWith(baseDir) &&
+                    !(variantState.segments || []).some(
                         (s) => s.resolvedUrl === segmentUrl
-                    );
-                    if (!segmentExists) {
-                        const filename = segmentUrl
-                            .split('/')
-                            .pop()
-                            .split('?')[0];
-                        const match = filename.match(/(\d+)\.(m4s|ts)/);
-                        const sequenceNumber = match
-                            ? parseInt(match[1], 10)
-                            : -1;
+                    )
+                ) {
+                    const filename = segmentUrl.split('/').pop().split('?')[0];
+                    const match = filename.match(/(\d+)\.(m4s|ts)/);
+                    const sequenceNumber = match ? parseInt(match[1], 10) : -1;
 
-                        if (sequenceNumber !== -1) {
-                            /** @type {import('@/types').HlsSegment} */
-                            const newSegment = {
-                                repId: 'hls-media',
-                                type: 'Media',
-                                number: sequenceNumber,
-                                uniqueId: segmentUrl,
-                                resolvedUrl: segmentUrl,
-                                template: filename,
-                                time: 0,
-                                duration: 0,
-                                timescale: 90000,
-                                gap: false,
-                                flags: [],
-                                title: '',
-                                tags: [],
-                                parts: [],
-                                bitrate: null,
-                                extinfLineNumber: -1,
-                            };
-                            const updatedSegments = [
-                                ...(variantState.segments || []),
-                                newSegment,
-                            ].sort((a, b) => a.number - b.number);
+                    if (sequenceNumber !== -1) {
+                        /** @type {import('@/types').HlsSegment} */
+                        const newSegment = {
+                            repId: 'hls-media',
+                            type: 'Media',
+                            number: sequenceNumber,
+                            uniqueId: segmentUrl,
+                            resolvedUrl: segmentUrl,
+                            template: filename,
+                            time: 0,
+                            duration: 0, // Duration is unknown for segments discovered this way
+                            timescale: 90000,
+                            gap: false,
+                            flags: [],
+                            title: '',
+                            tags: [],
+                            parts: [],
+                            bitrate: null,
+                            extinfLineNumber: -1,
+                        };
+                        const updatedSegments = [
+                            ...(variantState.segments || []),
+                            newSegment,
+                        ].sort((a, b) => a.number - b.number);
 
-                            variantState.segments = updatedSegments;
-                            variantState.freshSegmentUrls.add(
-                                newSegment.uniqueId
-                            );
-                            updated = true;
-                            break;
-                        }
+                        variantState.segments = updatedSegments;
+                        variantState.newlyAddedSegmentUrls.add(
+                            newSegment.uniqueId
+                        );
+                        updated = true;
+                        break; // Stop after finding the correct variant
                     }
                 }
             }
 
             if (updated) {
+                eventBus.dispatch('stream:segments-updated', { streamId });
                 return {
                     streams: state.streams.map((s) =>
                         s.id === streamId
@@ -637,11 +703,9 @@ export const useAnalysisStore = createStore((set, get) => ({
                     ),
                 };
             }
-            return {};
+            return {}; // No change
         });
     },
 }));
-
-// --- Exporting Store and Actions ---
 
 export const analysisActions = useAnalysisStore.getState();

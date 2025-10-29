@@ -15,7 +15,6 @@ import { bufferTimelineChartOptions } from '@/ui/shared/charts/buffer-timeline-c
 import { abrHistoryChartOptions } from '@/ui/shared/charts/abr-history-chart';
 import { bufferHealthChartOptions } from '@/ui/shared/charts/buffer-health-chart';
 
-
 const viewState = {
     container: null,
     videoEl: null,
@@ -31,7 +30,11 @@ const viewState = {
 
 function updateBufferTimeline() {
     if (viewState.bufferGraphContainer && playerService.isInitialized) {
-        const stream = useAnalysisStore.getState().streams.find(s => s.id === useAnalysisStore.getState().activeStreamId);
+        const stream = useAnalysisStore
+            .getState()
+            .streams.find(
+                (s) => s.id === useAnalysisStore.getState().activeStreamId
+            );
         const options = bufferTimelineChartOptions(viewState.videoEl, stream);
         if (Object.keys(options).length > 0) {
             renderChart(viewState.bufferGraphContainer, options);
@@ -91,16 +94,25 @@ function renderDiagnosticPanel() {
         content = eventLogTemplate(eventLog);
     } else if (activeTab === 'graphs') {
         const abrChartOpts = abrHistoryChartOptions(playbackHistory);
-        const bufferChartOpts = bufferHealthChartOptions(playbackHistory, bufferingGoal);
+        const bufferChartOpts = bufferHealthChartOptions(
+            playbackHistory,
+            bufferingGoal
+        );
 
         // Defer chart rendering until after lit-html has created the container div
         setTimeout(() => {
-            const abrContainer = viewState.diagnosticPanelContainer?.querySelector('#abr-chart-container');
-            const bufferContainer = viewState.diagnosticPanelContainer?.querySelector('#buffer-chart-container');
+            const abrContainer =
+                viewState.diagnosticPanelContainer?.querySelector(
+                    '#abr-chart-container'
+                );
+            const bufferContainer =
+                viewState.diagnosticPanelContainer?.querySelector(
+                    '#buffer-chart-container'
+                );
             if (abrContainer) renderChart(abrContainer, abrChartOpts);
             if (bufferContainer) renderChart(bufferContainer, bufferChartOpts);
         }, 0);
-        
+
         content = html`
             <div class="space-y-6">
                 <div id="abr-chart-container" class="h-64"></div>
@@ -168,7 +180,10 @@ const playerViewShellTemplate = () => {
         lastError?.code === 'DRM_NO_LICENSE_URL' || lastError?.code === 6007;
 
     return html`
-        <div id="player-view-shell" class="flex flex-col h-full gap-6 p-4 sm:p-6">
+        <div
+            id="player-view-shell"
+            class="flex flex-col h-full gap-6 p-4 sm:p-6"
+        >
             <div class="space-y-4">
                 <div
                     data-shaka-player-container
@@ -182,7 +197,10 @@ const playerViewShellTemplate = () => {
                         data-shaka-player
                     ></video>
                 </div>
-                <div id="buffer-graph-container-element" class="h-8 rounded-lg bg-gray-800"></div>
+                <div
+                    id="buffer-graph-container-element"
+                    class="h-8 rounded-lg bg-gray-800"
+                ></div>
             </div>
             <div id="player-controls-container" class="shrink-0"></div>
             <div
@@ -245,11 +263,7 @@ export const playerView = {
             '#diagnostic-panel-container'
         );
 
-        playerService.initialize(
-            viewState.videoEl,
-            viewState.videoContainer,
-            shaka
-        );
+        playerService.initialize(viewState.videoEl, viewState.videoContainer);
         // DO NOT load stream here. Loading is now managed by the mainRenderer via activate().
 
         viewState.subscriptions.push(usePlayerStore.subscribe(renderControls));
@@ -283,11 +297,16 @@ export const playerView = {
         if (!viewState.isMounted) return;
 
         stopUiUpdates();
-        
-        if (viewState.bufferGraphContainer) disposeChart(viewState.bufferGraphContainer);
-        const abrChart = viewState.diagnosticPanelContainer?.querySelector('#abr-chart-container');
+
+        if (viewState.bufferGraphContainer)
+            disposeChart(viewState.bufferGraphContainer);
+        const abrChart = viewState.diagnosticPanelContainer?.querySelector(
+            '#abr-chart-container'
+        );
         if (abrChart) disposeChart(abrChart);
-        const bufferChart = viewState.diagnosticPanelContainer?.querySelector('#buffer-chart-container');
+        const bufferChart = viewState.diagnosticPanelContainer?.querySelector(
+            '#buffer-chart-container'
+        );
         if (bufferChart) disposeChart(bufferChart);
 
         playerService.destroy();

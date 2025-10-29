@@ -109,21 +109,30 @@ const entriesTableTemplate = (box) => {
         return '';
     }
 
-    const headers = Object.keys(entries[0] || {});
+    const headers = Object.keys(entries[0] || {}).filter(
+        (key) => !['offset', 'index'].includes(key)
+    );
     if (headers.length === 0) return '';
 
-    const rowHeight = 32; // Use a more compact row height
+    const rowHeight = 32;
 
-    const rowRenderer = (entry, index) => {
+    const rowRenderer = (entry) => {
+        const rowTooltip = `Sample #${entry.index} located at file offset ${entry.offset}.`;
+        const rowBgClass = box.color?.bgClass
+            ? `${box.color.bgClass.replace(/-\d{2,3}/, '-900')}/30`
+            : 'bg-gray-800/30';
+
         return html`
             <div
-                class="flex items-center border-b border-gray-700/50 text-xs"
+                class="flex items-center border-b border-gray-700/50 text-xs ${rowBgClass} hover:bg-blue-500/40 cursor-pointer"
                 style="height: ${rowHeight}px;"
+                data-sample-offset="${entry.offset}"
+                data-tooltip="${rowTooltip}"
             >
                 <div
                     class="p-1 font-mono text-gray-500 w-12 text-right pr-2 border-r border-gray-700/50 self-stretch flex items-center justify-end"
                 >
-                    ${index + 1}
+                    ${entry.index + 1}
                 </div>
                 ${headers.map(
                     (header) => html`
@@ -165,9 +174,9 @@ const entriesTableTemplate = (box) => {
                 </div>
                 <virtualized-list
                     .items=${entries}
-                    .rowTemplate=${rowRenderer}
+                    .rowTemplate=${(item) => rowRenderer(item)}
                     .rowHeight=${rowHeight}
-                    .itemId=${(item, index) => index}
+                    .itemId=${(item) => item.index}
                     style="height: ${Math.min(
                         entries.length * rowHeight,
                         400

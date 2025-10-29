@@ -47,11 +47,13 @@ function renderNetworkView() {
         allStreamEvents,
         stream
     );
-    
+
     const chartOpts = throughputChartOptions(viewModel.throughputData);
     // Defer chart rendering until after lit-html has created the container div
     setTimeout(() => {
-        const chartContainer = container?.querySelector('#throughput-chart-container');
+        const chartContainer = container?.querySelector(
+            '#throughput-chart-container'
+        );
         if (chartContainer) {
             renderChart(chartContainer, chartOpts);
         }
@@ -65,7 +67,9 @@ function renderNetworkView() {
             <div class="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6 mt-6">
                 <div class="space-y-6">
                     <div class="bg-gray-800 p-4 rounded-lg">
-                        <h4 class="font-bold text-gray-300 mb-2">Throughput Over Time</h4>
+                        <h4 class="font-bold text-gray-300 mb-2">
+                            Throughput Over Time
+                        </h4>
                         <div id="throughput-chart-container" class="h-48"></div>
                     </div>
                     ${waterfallChartTemplate(
@@ -94,7 +98,9 @@ export const networkAnalysisView = {
     },
 
     unmount() {
-        const chartContainer = container?.querySelector('#throughput-chart-container');
+        const chartContainer = container?.querySelector(
+            '#throughput-chart-container'
+        );
         if (chartContainer) {
             disposeChart(chartContainer);
         }

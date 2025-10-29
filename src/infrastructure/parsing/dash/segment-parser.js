@@ -99,16 +99,21 @@ async function getUtcTime(manifestElement) {
  * This is now an async function to handle fetching server time for live streams.
  * @param {object} manifestElement The serialized <MPD> element.
  * @param {string} manifestUrl The URL from which the MPD was fetched (the initial base URL).
+ * @param {object} context Context object containing the current wall-clock time.
  * @returns {Promise<Record<string, object>>} A map of composite keys (periodId-repId) to their segment lists.
  */
-export async function parseAllSegmentUrls(manifestElement, manifestUrl) {
+export async function parseAllSegmentUrls(
+    manifestElement,
+    manifestUrl,
+    context = {}
+) {
     const segmentsByRep = {};
     const isDynamic = getAttr(manifestElement, 'type') === 'dynamic';
     const availabilityStartTime = new Date(
         getAttr(manifestElement, 'availabilityStartTime') || 0
     ).getTime();
     const serverTime = await getUtcTime(manifestElement);
-    const now = serverTime || Date.now();
+    const now = context.now || serverTime || Date.now();
 
     const periods = findChildren(manifestElement, 'Period');
 
@@ -232,6 +237,7 @@ export async function parseAllSegmentUrls(manifestElement, manifestUrl) {
                         ) || 0;
 
                     if (mediaTemplate && timeline) {
+                        // Logic for SegmentTimeline (VOD and Live) remains the same
                         const allTimelineSegments = [];
                         let mediaTime = -1;
                         let currentNumber = startNumber;
@@ -292,7 +298,7 @@ export async function parseAllSegmentUrls(manifestElement, manifestUrl) {
                                     type: 'Media',
                                     number: currentNumber,
                                     resolvedUrl: resolvedUrl,
-                                    uniqueId: resolvedUrl, // CORRECTED: The resolved URL is guaranteed to be unique
+                                    uniqueId: resolvedUrl,
                                     template: mediaTemplate,
                                     time: mpdStartTimeInTimescale,
                                     duration: d,
@@ -338,61 +344,67 @@ export async function parseAllSegmentUrls(manifestElement, manifestUrl) {
                         const segmentDuration = Number(
                             getAttr(template, 'duration')
                         );
-                        if (isDynamic) {
-                            const timeShiftBufferDepth = parseDuration(
-                                getAttr(manifestElement, 'timeShiftBufferDepth')
-                            );
-                            const bufferSegments = timeShiftBufferDepth
-                                ? Math.ceil(
-                                      timeShiftBufferDepth /
-                                          (segmentDuration / timescale)
-                                  )
-                                : 30;
 
+                        if (isDynamic) {
+                            const timeShiftBufferDepth =
+                                parseDuration(
+                                    getAttr(
+                                        manifestElement,
+                                        'timeShiftBufferDepth'
+                                    )
+                                ) || 0;
+                            const segmentDurationSeconds =
+                                segmentDuration / timescale;
                             const liveEdgeTime =
                                 (now - availabilityStartTime) / 1000 -
                                 periodStart;
-                            const lastSegNum =
+
+                            const latestSegmentNum =
                                 Math.floor(
-                                    liveEdgeTime / (segmentDuration / timescale)
-                                ) + startNumber;
+                                    liveEdgeTime / segmentDurationSeconds
+                                ) +
+                                startNumber -
+                                1; // -1 because startNumber is 1-based index of time 0
+                            const bufferSegmentsCount =
+                                timeShiftBufferDepth / segmentDurationSeconds;
+                            const firstSegmentNum = Math.max(
+                                startNumber,
+                                latestSegmentNum - bufferSegmentsCount + 1
+                            );
+                            const numSegmentsInWindow =
+                                latestSegmentNum - firstSegmentNum + 1;
 
                             segmentsByRep[compositeKey].diagnostics[
-                                'Live Segment Calculation'
-                            ] = { latestSegmentNum: lastSegNum };
+                                'Time-based Calculation'
+                            ] = { latestSegmentNum };
 
-                            const segments = generateSegments(
-                                repId,
-                                baseUrl,
-                                mediaTemplate,
-                                startNumber,
-                                Math.max(
+                            segmentsByRep[compositeKey].segments =
+                                generateSegments(
+                                    repId,
+                                    baseUrl,
+                                    mediaTemplate,
                                     startNumber,
-                                    lastSegNum - bufferSegments + 1
-                                ),
-                                bufferSegments,
-                                segmentDuration,
-                                timescale,
-                                periodStart,
-                                availabilityStartTime,
-                                availabilityTimeOffset,
-                                encryptionInfo,
-                                flags
-                            );
-                            segmentsByRep[compositeKey].segments = segments;
+                                    firstSegmentNum,
+                                    numSegmentsInWindow,
+                                    segmentDuration,
+                                    timescale,
+                                    periodStart,
+                                    availabilityStartTime,
+                                    availabilityTimeOffset,
+                                    encryptionInfo,
+                                    flags
+                                );
                         } else {
+                            // VOD with $Number$ and @duration
                             const periodDuration = parseDuration(
                                 getAttr(period, 'duration')
                             );
                             let numSegments = 0;
-                            const templateDuration = Number(
-                                getAttr(template, 'duration')
-                            );
 
-                            if (periodDuration && templateDuration > 0) {
+                            if (periodDuration && segmentDuration > 0) {
                                 numSegments = Math.ceil(
                                     (periodDuration * timescale) /
-                                        templateDuration
+                                        segmentDuration
                                 );
                             } else {
                                 const mpdDuration = parseDuration(
@@ -401,30 +413,30 @@ export async function parseAllSegmentUrls(manifestElement, manifestUrl) {
                                         'mediaPresentationDuration'
                                     )
                                 );
-                                if (mpdDuration && templateDuration > 0) {
+                                if (mpdDuration && segmentDuration > 0) {
                                     numSegments = Math.ceil(
                                         (mpdDuration * timescale) /
-                                            templateDuration
+                                            segmentDuration
                                     );
                                 }
                             }
 
-                            const segments = generateSegments(
-                                repId,
-                                baseUrl,
-                                mediaTemplate,
-                                startNumber,
-                                startNumber,
-                                numSegments,
-                                templateDuration, // Use template duration in timescale
-                                timescale,
-                                periodStart,
-                                availabilityStartTime,
-                                availabilityTimeOffset,
-                                encryptionInfo,
-                                flags
-                            );
-                            segmentsByRep[compositeKey].segments = segments;
+                            segmentsByRep[compositeKey].segments =
+                                generateSegments(
+                                    repId,
+                                    baseUrl,
+                                    mediaTemplate,
+                                    startNumber,
+                                    startNumber,
+                                    numSegments,
+                                    segmentDuration,
+                                    timescale,
+                                    periodStart,
+                                    availabilityStartTime,
+                                    availabilityTimeOffset,
+                                    encryptionInfo,
+                                    flags
+                                );
                         }
                     }
                 } else if (segmentBase) {
@@ -506,10 +518,7 @@ export function findInitSegmentUrl(
     if (initializationTemplate) {
         const urlWithSub = initializationTemplate
             .replace(/\$RepresentationID\$/g, representation.id)
-            .replace(
-                /\$Bandwidth\$/g,
-                getAttr(repElement, 'bandwidth')
-            );
+            .replace(/\$Bandwidth\$/g, getAttr(repElement, 'bandwidth'));
         const result = {
             url: new URL(urlWithSub, baseUrl).href,
             range: null,
@@ -530,10 +539,7 @@ export function findInitSegmentUrl(
         const urlTemplate = getAttr(initialization, 'sourceURL');
         const urlWithSub = urlTemplate
             .replace(/\$RepresentationID\$/g, representation.id)
-            .replace(
-                /\$Bandwidth\$/g,
-                getAttr(repElement, 'bandwidth')
-            );
+            .replace(/\$Bandwidth\$/g, getAttr(repElement, 'bandwidth'));
         const result = {
             url: new URL(urlWithSub, baseUrl).href,
             range: null,
@@ -550,6 +556,6 @@ export function findInitSegmentUrl(
         };
         return result;
     }
-    
+
     return null;
 }

@@ -97,35 +97,37 @@ export function parseTrun(box, view) {
             const sample = {};
 
             if (flags.sample_duration_present) {
-                if (!p.checkBounds(4)) break;
-                sample.duration = p.view.getUint32(p.offset);
-                p.offset += 4;
+                sample.duration = p.readUint32(`sample_${i + 1}_duration`);
             }
 
             if (flags.sample_size_present) {
-                if (!p.checkBounds(4)) break;
-                sample.size = p.view.getUint32(p.offset);
-                p.offset += 4;
+                sample.size = p.readUint32(`sample_${i + 1}_size`);
             }
 
-            // Correctly handle conditional presence of sample_flags in the loop
             if (flags.first_sample_flags_present && i === 0) {
                 sample.flags = firstSampleFlags;
             } else if (flags.sample_flags_present) {
-                if (!p.checkBounds(4)) break;
-                const localFlagsInt = p.view.getUint32(p.offset);
-                sample.flags = decodeSampleFlags(localFlagsInt);
-                p.offset += 4;
+                const localFlagsInt = p.readUint32(`sample_${i + 1}_flags_raw`);
+                if (localFlagsInt !== null) {
+                    sample.flags = decodeSampleFlags(localFlagsInt);
+                    box.details[`sample_${i + 1}_flags`] = {
+                        ...box.details[`sample_${i + 1}_flags_raw`],
+                        value: sample.flags,
+                    };
+                    delete box.details[`sample_${i + 1}_flags_raw`];
+                }
             }
 
             if (flags.sample_composition_time_offsets_present) {
-                if (!p.checkBounds(4)) break;
                 if (version === 0) {
-                    sample.compositionTimeOffset = p.view.getUint32(p.offset);
+                    sample.compositionTimeOffset = p.readUint32(
+                        `sample_${i + 1}_composition_time_offset`
+                    );
                 } else {
-                    sample.compositionTimeOffset = p.view.getInt32(p.offset);
+                    sample.compositionTimeOffset = p.readInt32(
+                        `sample_${i + 1}_composition_time_offset`
+                    );
                 }
-                p.offset += 4;
             }
             box.samples.push(sample);
         }
@@ -161,6 +163,22 @@ export const trunTooltip = {
     },
     'trun@samples': {
         text: 'A table providing per-sample information (duration, size, flags, composition time offset) as indicated by the flags.',
+        ref: 'ISO/IEC 14496-12, 8.8.8.2',
+    },
+    'trun@sample_duration': {
+        text: 'The duration of this sample.',
+        ref: 'ISO/IEC 14496-12, 8.8.8.2',
+    },
+    'trun@sample_size': {
+        text: 'The size of this sample in bytes.',
+        ref: 'ISO/IEC 14496-12, 8.8.8.2',
+    },
+    'trun@sample_flags': {
+        text: 'Flags for this sample, indicating dependency and sync information.',
+        ref: 'ISO/IEC 14496-12, 8.8.8.2',
+    },
+    'trun@sample_composition_time_offset': {
+        text: 'The composition time offset for this sample.',
         ref: 'ISO/IEC 14496-12, 8.8.8.2',
     },
 };

@@ -10,6 +10,7 @@ import {
 import { tooltipTriggerClasses } from '@/ui/shared/constants';
 import * as icons from '@/ui/icons';
 import { resetApplicationState } from '@/application/use_cases/resetApplicationState';
+import '@/features/memoryMonitor/ui/index';
 
 function handleRestartAnalysis() {
     // This performs a full reset and then repopulates the input form
@@ -102,7 +103,13 @@ export const globalControlsTemplate = () => {
     if (streams.length === 0) return html``;
 
     return html`
-        <div class="space-y-2">
+        <div
+            id="memory-monitor-container"
+            class="border-t border-gray-700/50 pt-3"
+        >
+            <memory-monitor></memory-monitor>
+        </div>
+        <div class="space-y-2 border-t border-gray-700/50 pt-3">
             ${controlButtonTemplate(
                 handleRestartAnalysis,
                 'new-analysis-btn',

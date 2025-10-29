@@ -16,7 +16,8 @@ function createTooltipProxy() {
 
 function showCustomTooltip(chartEvent, chartContainer) {
     if (!tooltipProxyEl) createTooltipProxy();
-    if (!chartEvent.componentType || chartEvent.componentType === 'markLine') return;
+    if (!chartEvent.componentType || chartEvent.componentType === 'markLine')
+        return;
 
     let tooltipContent = '';
     const { seriesName, value, name, componentType, data } = chartEvent;

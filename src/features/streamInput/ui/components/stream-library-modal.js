@@ -51,7 +51,9 @@ const renderStreamListItem = (stream, isPreset) => {
             } else {
                 deleteHistoryItem(stream.url);
             }
-            uiActions.setStreamLibraryTab(useUiStore.getState().streamLibraryActiveTab);
+            uiActions.setStreamLibraryTab(
+                useUiStore.getState().streamLibraryActiveTab
+            );
         }
     };
 
@@ -141,7 +143,8 @@ const renderExampleSection = (searchTerm) => {
 };
 
 export const streamLibraryModalTemplate = () => {
-    const { streamLibraryActiveTab, streamLibrarySearchTerm } = useUiStore.getState();
+    const { streamLibraryActiveTab, streamLibrarySearchTerm } =
+        useUiStore.getState();
     const lowerSearch = streamLibrarySearchTerm.toLowerCase();
 
     let content;
@@ -182,7 +185,8 @@ export const streamLibraryModalTemplate = () => {
                     type="search"
                     placeholder="Search streams..."
                     .value=${streamLibrarySearchTerm}
-                    @input=${(e) => uiActions.setStreamLibrarySearchTerm(e.target.value)}
+                    @input=${(e) =>
+                        uiActions.setStreamLibrarySearchTerm(e.target.value)}
                     class="w-full bg-gray-900 text-white rounded-md p-2 border border-gray-600 focus:ring-1 focus:ring-blue-500"
                 />
                 <div class="border-b border-gray-700">

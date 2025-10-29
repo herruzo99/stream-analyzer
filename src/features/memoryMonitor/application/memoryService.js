@@ -5,70 +5,10 @@ import { usePlayerStore } from '@/state/playerStore';
 import { useNetworkStore } from '@/state/networkStore';
 import { useDecryptionStore } from '@/state/decryptionStore';
 import { useMemoryStore, memoryActions } from '@/state/memoryStore';
+import { workerService } from '@/infrastructure/worker/workerService';
 
-const UPDATE_INTERVAL_MS = 2000;
+const UPDATE_INTERVAL_MS = 3000;
 let intervalId = null;
-
-/**
- * Estimates the size of a JavaScript object by serializing it to a JSON string.
- * @param {any} object The object to measure.
- * @returns {number} The estimated size in bytes.
- */
-function estimateObjectSize(object) {
-    if (object === null || object === undefined) {
-        return 0;
-    }
-    // A Map can't be stringified directly, so we convert it to an array of entries.
-    const replacer = (key, value) => {
-        if (value instanceof Map) {
-            return Array.from(value.entries());
-        }
-        if (value instanceof Set) {
-            return Array.from(value.values());
-        }
-        return value;
-    };
-    try {
-        const string = JSON.stringify(object, replacer);
-        // Each character in a JavaScript string is 2 bytes (UTF-16).
-        return string.length * 2;
-    } catch (e) {
-        return 0; // In case of circular references or other errors
-    }
-}
-
-function calculateSegmentCacheSize() {
-    const { cache } = useSegmentCacheStore.getState();
-    let size = 0;
-    cache.forEach((entry) => {
-        if (entry.data instanceof ArrayBuffer) {
-            size += entry.data.byteLength;
-        }
-    });
-    return size;
-}
-
-function calculateApplicationStateSize() {
-    const analysis = estimateObjectSize(useAnalysisStore.getState());
-    const ui = estimateObjectSize(useUiStore.getState());
-    const player = estimateObjectSize(usePlayerStore.getState());
-    const network = estimateObjectSize(useNetworkStore.getState());
-    const decryption = estimateObjectSize(useDecryptionStore.getState());
-    const segmentCacheIndex = estimateObjectSize(
-        useSegmentCacheStore.getState()
-    );
-
-    return {
-        analysis,
-        ui,
-        player,
-        network,
-        decryption,
-        segmentCacheIndex,
-        total:
-            analysis + ui + player + network + decryption + segmentCacheIndex,
-    };
-}
 
 function getJsHeapSize() {
     const { isPerformanceApiSupported } = useMemoryStore.getState();
@@ -83,13 +23,127 @@ function getJsHeapSize() {
     };
 }
 
-function updateMemoryReport() {
+function calculateSegmentCacheSize() {
+    const { cache } = useSegmentCacheStore.getState();
+    let size = 0;
+    cache.forEach((entry) => {
+        if (entry.data instanceof ArrayBuffer) {
+            size += entry.data.byteLength;
+        }
+    });
+    return size;
+}
+
+function updateMemoryReport(appStateSize) {
     const report = {
         jsHeap: getJsHeapSize(),
         segmentCache: calculateSegmentCacheSize(),
-        appState: calculateApplicationStateSize(),
+        appState: appStateSize,
     };
     memoryActions.updateReport(report);
+}
+
+/**
+ * Deep clones the analysis state and removes any references to raw ArrayBuffer data
+ * to create a pure metadata object that is safe to send to the worker.
+ * @param {object} analysisState - The original state from the analysisStore.
+ * @returns {object} A cleansed, serializable state object.
+ */
+function cleanseStateForWorker(analysisState) {
+    // Manually reconstruct the stream objects to ensure no heavy data is included.
+    const cleansedStreams = analysisState.streams.map((stream) => {
+        const cleansedStream = { ...stream };
+
+        // Remove references to parsed data on segments, which can hold ArrayBuffers.
+        const cleanseSegments = (segments) => {
+            if (!segments) return [];
+            return segments.map((seg) => {
+                const { parsedData, ...rest } = seg;
+                return rest;
+            });
+        };
+
+        cleansedStream.dashRepresentationState = new Map(
+            Array.from(stream.dashRepresentationState.entries()).map(
+                ([key, value]) => {
+                    return [
+                        key,
+                        { ...value, segments: cleanseSegments(value.segments) },
+                    ];
+                }
+            )
+        );
+
+        cleansedStream.hlsVariantState = new Map(
+            Array.from(stream.hlsVariantState.entries()).map(([key, value]) => {
+                return [
+                    key,
+                    { ...value, segments: cleanseSegments(value.segments) },
+                ];
+            })
+        );
+
+        if (cleansedStream.segments) {
+            cleansedStream.segments = cleanseSegments(cleansedStream.segments);
+        }
+
+        return cleansedStream;
+    });
+
+    return {
+        ...analysisState,
+        streams: cleansedStreams,
+    };
+}
+
+async function dispatchAndProcessMemoryCalculation() {
+    const analysisState = useAnalysisStore.getState();
+    const uiState = useUiStore.getState();
+    const playerState = usePlayerStore.getState();
+    const networkState = useNetworkStore.getState();
+    const decryptionState = useDecryptionStore.getState();
+
+    const statePayload = {
+        analysis: cleanseStateForWorker({
+            streams: analysisState.streams,
+            activeStreamId: analysisState.activeStreamId,
+            streamInputs: analysisState.streamInputs,
+            segmentsForCompare: analysisState.segmentsForCompare,
+            urlAuthMap: analysisState.urlAuthMap,
+        }),
+        ui: {
+            viewState: uiState.viewState,
+            activeTab: uiState.activeTab,
+            activeSegmentUrl: uiState.activeSegmentUrl,
+        },
+        player: {
+            isLoaded: playerState.isLoaded,
+            playbackState: playerState.playbackState,
+            currentStats: playerState.currentStats,
+            eventLog: playerState.eventLog,
+            abrHistory: playerState.abrHistory,
+            playbackHistory: playerState.playbackHistory,
+        },
+        network: {
+            events: networkState.events,
+            filters: networkState.filters,
+        },
+        decryption: {
+            keyCache: decryptionState.keyCache,
+        },
+    };
+
+    try {
+        const appStateSize = await workerService.postTask(
+            'calculate-memory-report',
+            statePayload
+        ).promise;
+        updateMemoryReport(appStateSize);
+    } catch (error) {
+        if (error.name !== 'AbortError') {
+            console.error('Failed to calculate memory report:', error);
+        }
+    }
 }
 
 export const memoryService = {
@@ -97,8 +151,11 @@ export const memoryService = {
         if (intervalId) {
             clearInterval(intervalId);
         }
-        updateMemoryReport(); // Initial report
-        intervalId = setInterval(updateMemoryReport, UPDATE_INTERVAL_MS);
+        dispatchAndProcessMemoryCalculation();
+        intervalId = setInterval(
+            dispatchAndProcessMemoryCalculation,
+            UPDATE_INTERVAL_MS
+        );
     },
     stop() {
         if (intervalId) {

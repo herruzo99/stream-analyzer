@@ -38,7 +38,7 @@ export async function startSegmentAnalysisUseCase({ files }) {
 
         const parsedSegments = await Promise.all(parsingPromises);
 
-        /** @type {import('@/types').Manifest} */
+        /** @type {import('@/types.ts').Manifest} */
         const syntheticManifest = {
             id: null,
             type: 'static',
@@ -116,12 +116,13 @@ export async function startSegmentAnalysisUseCase({ files }) {
             })),
         };
 
-        // Use the generic `dashRepresentationState` to hold the segments
+        const allSegmentUrls = new Set(
+            syntheticStream.segments.map((s) => s.uniqueId)
+        );
         syntheticStream.dashRepresentationState.set('0-local-rep', {
             segments: syntheticStream.segments,
-            freshSegmentUrls: new Set(
-                syntheticStream.segments.map((s) => s.uniqueId)
-            ),
+            currentSegmentUrls: allSegmentUrls,
+            newlyAddedSegmentUrls: allSegmentUrls, // On initial load, all are new.
             diagnostics: {},
         });
 

@@ -8,7 +8,7 @@ import { debugLog } from '@/shared/utils/debug';
  * @param {import('@/types').AuthInfo} [auth] Optional authentication parameters.
  * @param {string} [range=null] Optional byte range string (e.g., "0-1023").
  * @param {Record<string, string>} [extraHeaders={}] Additional headers.
- * @param {ArrayBuffer} [body=null] Request body.
+ * @param {BodyInit | null} [body=null] Request body.
  * @param {AbortSignal} [signal=null] An AbortSignal to cancel the fetch.
  * @returns {Promise<{
  *   ok: boolean,

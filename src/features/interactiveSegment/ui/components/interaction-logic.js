@@ -54,7 +54,12 @@ export function clearHighlights() {
         });
 }
 
-export function applyHighlights(container, item, fieldName) {
+export function applyHighlights(
+    container,
+    item,
+    fieldName,
+    pageStartOffset = 0
+) {
     if (!item || !container) return;
 
     // --- Highlight structure tree node ---
@@ -88,6 +93,9 @@ export function applyHighlights(container, item, fieldName) {
         hexContentGrid.querySelectorAll('[data-byte-offset]');
 
     visibleByteElements.forEach((el) => {
+        // --- ARCHITECTURAL FIX ---
+        // The element's data-byte-offset is its absolute offset in the file.
+        // No page offset calculation is needed here. The value from the DOM is already correct.
         const byteOffset = parseInt(
             /** @type {HTMLElement} */ (el).dataset.byteOffset,
             10
@@ -214,6 +222,32 @@ export function initializeSegmentViewInteractivity(
     };
 
     const handleInspectorHover = (e) => {
+        const sampleRow = /** @type {HTMLElement | null} */ (
+            e.target.closest('[data-sample-offset]')
+        );
+        if (sampleRow) {
+            const dataOffset = parseInt(sampleRow.dataset.sampleOffset, 10);
+            if (isNaN(dataOffset)) return;
+            const item = findDataByOffset(parsedSegmentData, dataOffset, true); // Use deep find for samples
+            if (item) {
+                handleHover(item, 'Sample Data');
+            }
+            return;
+        }
+
+        const entryRow = /** @type {HTMLElement | null} */ (
+            e.target.closest('[data-entry-row-for-offset]')
+        );
+        if (entryRow) {
+            const dataOffset = parseInt(entryRow.dataset.entryRowForOffset, 10);
+            if (isNaN(dataOffset)) return;
+            const item = findDataByOffset(parsedSegmentData, dataOffset);
+            if (item) {
+                handleHover(item, 'Box Entries');
+            }
+            return;
+        }
+
         const fieldRow = /** @type {HTMLElement | null} */ (
             e.target.closest('[data-field-name]')
         );
@@ -275,6 +309,28 @@ export function initializeSegmentViewInteractivity(
     const handleClick = (e) => {
         const target = /** @type {HTMLElement} */ (e.target);
         if (target.closest('summary')) e.preventDefault();
+
+        const sampleRow = /** @type {HTMLElement | null} */ (
+            target.closest('[data-sample-offset]')
+        );
+        if (sampleRow) {
+            const offset = parseInt(sampleRow.dataset.sampleOffset, 10);
+            if (!isNaN(offset)) {
+                handleSelection(offset);
+            }
+            return;
+        }
+
+        const entryRow = /** @type {HTMLElement | null} */ (
+            target.closest('[data-entry-row-for-offset]')
+        );
+        if (entryRow) {
+            const offset = parseInt(entryRow.dataset.entryRowForOffset, 10);
+            if (!isNaN(offset)) {
+                handleSelection(offset);
+            }
+            return;
+        }
 
         const treeNode = /** @type {HTMLElement | null} */ (
             target.closest(

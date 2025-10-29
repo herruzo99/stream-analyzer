@@ -8,6 +8,8 @@ async function fetchHlsMediaPlaylist({ streamId, variantUri }) {
         .streams.find((s) => s.id === streamId);
     if (!stream) return;
 
+    const oldSegments = stream.hlsVariantState.get(variantUri)?.segments || [];
+
     try {
         const result = await workerService.postTask(
             'fetch-hls-media-playlist',
@@ -15,6 +17,7 @@ async function fetchHlsMediaPlaylist({ streamId, variantUri }) {
                 streamId,
                 variantUri,
                 hlsDefinedVariables: stream.hlsDefinedVariables,
+                oldSegments,
             }
         );
 

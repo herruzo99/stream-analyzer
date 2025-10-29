@@ -15,10 +15,12 @@ function onStatsChanged({ stats: shakaStats }) {
         const activeVariantTrack = player
             .getVariantTracks()
             .find((t) => t.active);
-        const manifest = player.getManifest();
 
-        if (activeVariantTrack && manifest && manifest.variants) {
-            const activeVariant = manifest.variants.find(
+        // ARCHITECTURAL FIX: Use cached variants instead of getManifest()
+        const variants = playerService.getActiveManifestVariants();
+
+        if (activeVariantTrack && variants) {
+            const activeVariant = variants.find(
                 (v) => v.id === activeVariantTrack.id
             );
             if (activeVariant && activeVariant.video) {
@@ -142,19 +144,21 @@ function onAdaptation({ oldTrack, newTrack }) {
     ).toFixed(0)}k | Resolution: ${oldTrack.height}p → ${newTrack.height}p`;
     playerActions.logEvent({ timestamp: time, type: 'adaptation', details });
 
-    // Also log this to the main stream object for the timeline view
-    analysisActions.updateStream(newTrack.streamId, {
-        adaptationEvents: [
-            ...(newTrack.stream?.adaptationEvents || []),
-            {
-                time: newTrack.playheadTime,
-                oldWidth: oldTrack.width,
-                oldHeight: oldTrack.height,
-                newWidth: newTrack.width,
-                newHeight: newTrack.height,
-            },
-        ],
-    });
+    // The stream object is now passed directly with the event, no need for a global lookup.
+    if (newTrack.stream) {
+        analysisActions.updateStream(newTrack.streamId, {
+            adaptationEvents: [
+                ...(newTrack.stream.adaptationEvents || []),
+                {
+                    time: newTrack.playheadTime,
+                    oldWidth: oldTrack.width,
+                    oldHeight: oldTrack.height,
+                    newWidth: newTrack.width,
+                    newHeight: newTrack.height,
+                },
+            ],
+        });
+    }
 }
 
 function onBuffering({ buffering }) {

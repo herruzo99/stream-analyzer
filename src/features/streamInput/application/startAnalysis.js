@@ -68,19 +68,22 @@ export async function startAnalysisUseCase({ inputs }, services) {
     );
 
     try {
-        const workerResults = await workerService.postTask('start-analysis', {
-            inputs: workerInputs,
-        }).promise;
+        const { streams, urlAuthMapArray } = await workerService.postTask(
+            'start-analysis',
+            {
+                inputs: workerInputs,
+            }
+        ).promise;
 
         // Failsafe check for empty manifest content which can result from network issues (e.g., 304 response)
-        if (!workerResults[0]?.rawManifest?.trim()) {
+        if (!streams[0]?.rawManifest?.trim()) {
             throw new Error(
                 'Manifest content is empty. This may be due to a network or CORS issue.'
             );
         }
 
         // Reconstruct Map objects from the serialized arrays
-        workerResults.forEach((stream) => {
+        streams.forEach((stream) => {
             stream.hlsVariantState = new Map(stream.hlsVariantState || []);
             stream.dashRepresentationState = new Map(
                 stream.dashRepresentationState || []
@@ -95,7 +98,7 @@ export async function startAnalysisUseCase({ inputs }, services) {
             stream.adAvails = []; // Initialize adAvails
         });
 
-        analysisActions.completeAnalysis(workerResults);
+        analysisActions.completeAnalysis(streams, urlAuthMapArray);
         const tEndTotal = performance.now();
         debugLog(
             'startAnalysisUseCase',

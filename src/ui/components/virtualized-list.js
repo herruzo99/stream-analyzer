@@ -12,25 +12,33 @@ class VirtualizedList extends HTMLElement {
         this.visibleEndIndex = 0;
         this.paddingTop = 0;
         this.paddingBottom = 0;
-        this.isScrolledToBottom = true;
         this._onScroll = this._onScroll.bind(this);
     }
 
     // --- Property Setters for Reactivity ---
     set items(newItems) {
         if (this._items === newItems) return;
-        const hadItems = this._items.length > 0;
-        const newCount = newItems.length;
-        const oldCount = this._items.length;
+
+        // --- FIX: Preserve scroll position across updates ---
+        const oldScrollTop = this.scrollTop;
+        const oldScrollHeight = this.scrollHeight;
+        const isScrolledToBottom =
+            oldScrollTop + this.clientHeight >= oldScrollHeight - 10;
+        // --- END FIX ---
 
         this._items = newItems;
         this._updateVisibleItems();
 
-        if (hadItems && newCount > oldCount && this.isScrolledToBottom) {
-            setTimeout(() => {
+        // --- FIX: Restore scroll position after render ---
+        // Use requestAnimationFrame to ensure this runs after the DOM has been updated by lit-html
+        requestAnimationFrame(() => {
+            if (isScrolledToBottom) {
                 this.scrollTop = this.scrollHeight;
-            }, 0);
-        }
+            } else {
+                this.scrollTop = oldScrollTop;
+            }
+        });
+        // --- END FIX ---
     }
 
     get items() {
@@ -88,9 +96,7 @@ class VirtualizedList extends HTMLElement {
     }
 
     _onScroll() {
-        const isAtBottom =
-            this.scrollTop + this.clientHeight >= this.scrollHeight - 10;
-        this.isScrolledToBottom = isAtBottom;
+        // This is now just for triggering re-renders on scroll, not for tracking state.
         this._updateVisibleItems();
     }
 

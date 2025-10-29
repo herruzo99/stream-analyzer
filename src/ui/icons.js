@@ -87,7 +87,7 @@ export const interactiveManifest = html`<svg
 >
     <path
         fill-rule="evenodd"
-        d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z"
+        d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2-2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z"
         clip-rule="evenodd"
     />
 </svg>`;
@@ -112,7 +112,7 @@ export const explorer = html`<svg
     <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
     <path
         fill-rule="evenodd"
-        d="M4 5a2 2 0 012-2h8a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h4a1 1 0 100-2H7zm0 4a1 1 0 100 2h4a1 1 0 100-2H7z"
+        d="M4 5a2 2 0 012-2h8a2 2 0 012 2v10a2 2 0 01-2-2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h4a1 1 0 100-2H7zm0 4a1 1 0 100 2h4a1 1 0 100-2H7z"
         clip-rule="evenodd"
     />
 </svg>`;
@@ -222,6 +222,51 @@ export const moon = html`<svg
     <path
         d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"
     />
+</svg>`;
+export const volumeUp = html`<svg
+    xmlns="http://www.w3.org/2000/svg"
+    class="h-5 w-5"
+    viewBox="0 0 20 20"
+    fill="currentColor"
+>
+    <path
+        fill-rule="evenodd"
+        d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z"
+        clip-rule="evenodd"
+    />
+</svg>`;
+export const volumeOff = html`<svg
+    xmlns="http://www.w3.org/2000/svg"
+    class="h-5 w-5"
+    viewBox="0 0 20 20"
+    fill="currentColor"
+>
+    <path
+        fill-rule="evenodd"
+        d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM12.293 7.293a1 1 0 011.414 0L15 8.586l1.293-1.293a1 1 0 111.414 1.414L16.414 10l1.293 1.293a1 1 0 01-1.414 1.414L15 11.414l-1.293 1.293a1 1 0 01-1.414-1.414L13.586 10l-1.293-1.293a1 1 0 010-1.414z"
+        clip-rule="evenodd"
+    />
+</svg>`;
+export const sync = html`<svg
+    xmlns="http://www.w3.org/2000/svg"
+    class="h-5 w-5"
+    viewBox="0 0 20 20"
+    fill="currentColor"
+>
+    <path
+        fill-rule="evenodd"
+        d="M10 2a1 1 0 00-1 1v1a1 1 0 002 0V3a1 1 0 00-1-1zM4 10a1 1 0 01-1-1V7a1 1 0 012 0v2a1 1 0 01-1 1zm12 0a1 1 0 01-1-1V7a1 1 0 012 0v2a1 1 0 01-1 1zM10 16a1 1 0 011-1h2a1 1 0 110 2h-2a1 1 0 01-1-1zM6 16a1 1 0 011-1h.01a1 1 0 110 2H7a1 1 0 01-1-1z"
+        clip-rule="evenodd"
+    />
+    <path
+        d="M12 11a1 1 0 011-1h2a1 1 0 110 2h-2a1 1 0 01-1-1zM6 11a1 1 0 011-1h.01a1 1 0 110 2H7a1 1 0 01-1-1z"
+    />
+    <path
+        fill-rule="evenodd"
+        d="M10 4a1 1 0 011 1v1a1 1 0 11-2 0V5a1 1 0 011-1zM6 4a1 1 0 011 1v1a1 1 0 11-2 0V5a1 1 0 011-1z"
+        clip-rule="evenodd"
+    />
+    <path d="M14 11a1 1 0 01-1 1h-.01a1 1 0 110-2H13a1 1 0 011 1z" />
 </svg>`;
 
 // --- Misc UI Icons ---

@@ -148,7 +148,8 @@ export function getDashExplorerForType(stream, contentType) {
 
                                                 const {
                                                     segments,
-                                                    freshSegmentUrls,
+                                                    currentSegmentUrls,
+                                                    newlyAddedSegmentUrls,
                                                     diagnostics,
                                                 } = repState;
                                                 const title = `Representation: ${
@@ -200,8 +201,10 @@ export function getDashExplorerForType(stream, contentType) {
                                                         segments:
                                                             processedSegments,
                                                         stream: stream,
-                                                        freshSegmentUrls:
-                                                            freshSegmentUrls,
+                                                        currentSegmentUrls:
+                                                            currentSegmentUrls,
+                                                        newlyAddedSegmentUrls:
+                                                            newlyAddedSegmentUrls,
                                                         segmentFormat:
                                                             stream.manifest
                                                                 .segmentFormat,
