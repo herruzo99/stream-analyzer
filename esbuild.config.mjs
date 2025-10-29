@@ -19,6 +19,14 @@ const esbuildOptions = {
     assetNames: isDev ? '[name]' : '[name]-[hash]',
     metafile: true, // Always generate metafile, but we'll use it in memory
     logLevel: 'info',
+    // --- ARCHITECTURAL FIX ---
+    // The 'xml-formatter' dependency uses the Node.js 'global' object, which
+    // is not defined in a web worker environment, causing a ReferenceError.
+    // By defining 'global' as 'self', we instruct esbuild to replace all
+    // instances at build time with the correct global object for a worker context.
+    define: {
+        global: 'self',
+    },
     plugins: [tsPaths()],
 };
 

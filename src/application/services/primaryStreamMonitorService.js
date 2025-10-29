@@ -2,6 +2,7 @@ import { eventBus } from '@/application/event-bus';
 import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
 import { workerService } from '@/infrastructure/worker/workerService';
 import { debugLog } from '@/shared/utils/debug';
+import { playerService } from '@/features/playerSimulation/application/playerService';
 
 const pollers = new Map();
 const oneTimePollers = new Map();
@@ -23,40 +24,33 @@ async function monitorStream(streamId) {
         const oldRawManifestForDiff = latestUpdate
             ? latestUpdate.rawManifest
             : stream.rawManifest;
-        
+
         debugLog(
             'PrimaryMonitor',
             `Polling stream ${streamId}. Using manifest from timestamp ${latestUpdate?.timestamp} for comparison.`
         );
 
-        // CORRECTED: Await the 'promise' property of the returned object
-        const updateResult = await workerService.postTask(
-            'live-update-fetch-and-parse',
-            {
-                streamId: stream.id,
-                url: stream.originalUrl,
-                oldRawManifest: oldRawManifestForDiff,
-                protocol: stream.protocol,
-                baseUrl: stream.baseUrl,
-                auth: stream.auth,
-                hlsDefinedVariables: stream.hlsDefinedVariables,
-                oldManifestObjectForDelta: stream.manifest?.serializedManifest,
-            }
-        ).promise;
+        // --- UNIFICATION: Use the same worker task as the Shaka plugin ---
+        const workerTask = 'shaka-fetch-manifest';
+        const payload = {
+            streamId: stream.id,
+            url: stream.originalUrl,
+            auth: stream.auth,
+            oldRawManifest: oldRawManifestForDiff,
+            protocol: stream.protocol,
+            baseUrl: stream.baseUrl,
+            hlsDefinedVariables: stream.hlsDefinedVariables,
+            oldManifestObjectForDelta: stream.manifest?.serializedManifest,
+            // Pass current segment state to the worker for diffing
+            oldDashRepresentationState: Array.from(
+                stream.dashRepresentationState.entries()
+            ),
+            oldHlsVariantState: Array.from(stream.hlsVariantState.entries()),
+        };
 
-        if (updateResult) {
-            debugLog(
-                'PrimaryMonitor',
-                `Worker returned changes for stream ${streamId}. Dispatching 'livestream:manifest-updated'.`,
-                updateResult
-            );
-            eventBus.dispatch('livestream:manifest-updated', updateResult);
-        } else {
-            debugLog(
-                'PrimaryMonitor',
-                `Worker reported no changes for stream ${streamId}.`
-            );
-        }
+        // This task now triggers a 'livestream:manifest-updated' message on the main thread,
+        // which is handled by the LiveUpdateProcessor service.
+        await workerService.postTask(workerTask, payload).promise;
     } catch (e) {
         console.error(
             `[Stream Monitor] Error during update cycle for stream ${stream.id}:`,
@@ -114,7 +108,20 @@ export function managePollers() {
         .getState()
         .streams.filter((s) => s.manifest?.type === 'dynamic');
 
+    const playerActiveStreamIds = playerService.getActiveStreamIds();
+
     dynamicStreams.forEach((stream) => {
+        if (playerActiveStreamIds.has(stream.id)) {
+            if (pollers.has(stream.id)) {
+                debugLog(
+                    'PrimaryMonitor',
+                    `Ceding polling control of stream ${stream.id} to PlayerService.`
+                );
+                stopMonitoring(stream.id);
+            }
+            return;
+        }
+
         const poller = pollers.get(stream.id);
         const isCurrentlyPolling = !!poller;
         const newPollInterval = calculatePollInterval(stream);
@@ -186,6 +193,7 @@ export function initializeLiveStreamMonitor() {
     managerInterval = setInterval(managePollers, 1000);
     eventBus.subscribe('state:stream-updated', managePollers);
     eventBus.subscribe('state:analysis-complete', managePollers);
+    eventBus.subscribe('player:active-streams-changed', managePollers);
     eventBus.subscribe('manifest:force-reload', ({ streamId }) =>
         monitorStream(streamId)
     );

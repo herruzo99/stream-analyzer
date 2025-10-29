@@ -4,9 +4,6 @@ import { useMemoryStore } from '@/state/memoryStore';
 import { toggleDropdown, closeDropdown } from '@/ui/services/dropdownService';
 import * as icons from '@/ui/icons';
 
-let container = null;
-let memoryUnsubscribe = null;
-
 function formatBytes(bytes) {
     if (bytes === undefined || bytes === null || isNaN(bytes)) return 'N/A';
     if (bytes === 0) return '0 B';
@@ -41,35 +38,34 @@ const progressBarTemplate = ({ used, total, label }) => {
     `;
 };
 
-const appStateBreakdownTemplate = (appState) => html`
-    <div
-        class="text-xs text-gray-500 space-y-1 mt-2 pl-2 border-l border-gray-600"
-    >
-        <div class="flex justify-between">
-            <span>Segment Cache Index:</span>
-            <span>${formatBytes(appState.segmentCacheIndex)}</span>
+const appStateBreakdownTemplate = (appState) => {
+    if (!appState) return '';
+    return html`
+        <div
+            class="text-xs text-gray-500 space-y-1 mt-2 pl-2 border-l border-gray-600"
+        >
+            <div class="flex justify-between">
+                <span>Analysis State:</span>
+                <span>${formatBytes(appState.analysis)}</span>
+            </div>
+            <div class="flex justify-between">
+                <span>UI State:</span> <span>${formatBytes(appState.ui)}</span>
+            </div>
+            <div class="flex justify-between">
+                <span>Network Log:</span>
+                <span>${formatBytes(appState.network)}</span>
+            </div>
+            <div class="flex justify-between">
+                <span>Player State:</span>
+                <span>${formatBytes(appState.player)}</span>
+            </div>
+            <div class="flex justify-between">
+                <span>Decryption Keys:</span>
+                <span>${formatBytes(appState.decryption)}</span>
+            </div>
         </div>
-        <div class="flex justify-between">
-            <span>Analysis State:</span>
-            <span>${formatBytes(appState.analysis)}</span>
-        </div>
-        <div class="flex justify-between">
-            <span>UI State:</span> <span>${formatBytes(appState.ui)}</span>
-        </div>
-        <div class="flex justify-between">
-            <span>Network Log:</span>
-            <span>${formatBytes(appState.network)}</span>
-        </div>
-        <div class="flex justify-between">
-            <span>Player State:</span>
-            <span>${formatBytes(appState.player)}</span>
-        </div>
-        <div class="flex justify-between">
-            <span>Decryption Keys:</span>
-            <span>${formatBytes(appState.decryption)}</span>
-        </div>
-    </div>
-`;
+    `;
+};
 
 const handleClearCache = () => {
     if (
@@ -129,52 +125,52 @@ const memoryDropdownPanelTemplate = (report, isPerformanceApiSupported) => {
     `;
 };
 
-function renderMemoryMonitor() {
-    if (!container) return;
+class MemoryMonitorComponent extends HTMLElement {
+    constructor() {
+        super();
+        this.unsubscribe = null;
+    }
 
-    const { report, isPerformanceApiSupported } = useMemoryStore.getState();
+    connectedCallback() {
+        this.render();
+        this.unsubscribe = useMemoryStore.subscribe(() => this.render());
+    }
 
-    let summaryText = 'Calculating...';
-    if (report) {
-        if (isPerformanceApiSupported && report.jsHeap) {
-            summaryText = `JS Heap: ${formatBytes(report.jsHeap.used)}`;
-        } else {
-            const totalAppMemory = report.segmentCache + report.appState.total;
-            summaryText = `App Memory: ${formatBytes(totalAppMemory)}`;
+    disconnectedCallback() {
+        if (this.unsubscribe) {
+            this.unsubscribe();
+            this.unsubscribe = null;
         }
     }
 
-    const triggerTemplate = html`
-        <button
-            @click=${(e) =>
-                toggleDropdown(
-                    e.currentTarget,
-                    memoryDropdownPanelTemplate(
-                        report,
-                        isPerformanceApiSupported
-                    )
-                )}
-            class="w-full flex items-center justify-between text-left text-xs text-gray-400 hover:bg-gray-700/50 p-2 rounded-md transition-colors"
-        >
-            <span class="font-mono">${summaryText}</span>
-            <span class="text-gray-500">${icons.chevronDown}</span>
-        </button>
-    `;
+    render() {
+        const { report, isPerformanceApiSupported } = useMemoryStore.getState();
 
-    render(triggerTemplate, container);
+        let summaryText = 'Calculating...';
+        if (report) {
+            const totalAppMemory = report.segmentCache + report.appState.total;
+            summaryText = `App Memory: ${formatBytes(totalAppMemory)}`;
+        }
+
+        const triggerTemplate = html`
+            <button
+                @click=${(e) =>
+                    toggleDropdown(
+                        e.currentTarget,
+                        memoryDropdownPanelTemplate(
+                            report,
+                            isPerformanceApiSupported
+                        )
+                    )}
+                class="w-full flex items-center justify-between text-left text-xs text-gray-400 hover:bg-gray-700/50 p-2 rounded-md transition-colors"
+            >
+                <span class="font-mono">${summaryText}</span>
+                <span class="text-gray-500">${icons.chevronDown}</span>
+            </button>
+        `;
+
+        render(triggerTemplate, this);
+    }
 }
 
-export const memoryMonitorView = {
-    mount(containerElement) {
-        container = containerElement;
-        if (memoryUnsubscribe) memoryUnsubscribe();
-        memoryUnsubscribe = useMemoryStore.subscribe(renderMemoryMonitor);
-        renderMemoryMonitor();
-    },
-    unmount() {
-        if (memoryUnsubscribe) memoryUnsubscribe();
-        memoryUnsubscribe = null;
-        if (container) render(html``, container);
-        container = null;
-    },
-};
+customElements.define('memory-monitor', MemoryMonitorComponent);

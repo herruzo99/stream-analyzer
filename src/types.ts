@@ -547,7 +547,8 @@ export interface FeatureAnalysisState {
 
 export interface HlsVariantState {
     segments: HlsSegment[];
-    freshSegmentUrls: Set<string>;
+    currentSegmentUrls: Set<string>;
+    newlyAddedSegmentUrls: Set<string>;
     isLoading: boolean;
     isPolling: boolean;
     isExpanded: boolean;
@@ -557,7 +558,8 @@ export interface HlsVariantState {
 
 export interface DashRepresentationState {
     segments: MediaSegment[];
-    freshSegmentUrls: Set<string>;
+    currentSegmentUrls: Set<string>;
+    newlyAddedSegmentUrls: Set<string>;
     diagnostics: object;
 }
 
@@ -826,4 +828,21 @@ export interface AdaptationEvent {
     oldHeight: number;
     newWidth: number;
     newHeight: number;
+}
+
+// --- Multi-Player View Types ---
+export interface PlayerInstance {
+    streamId: number;
+    streamName: string;
+    manifestUrl: string | null;
+    state:
+        | 'idle'
+        | 'loading'
+        | 'playing'
+        | 'paused'
+        | 'buffering'
+        | 'ended'
+        | 'error';
+    error: string | null;
+    stats: PlayerStats | null;
 }

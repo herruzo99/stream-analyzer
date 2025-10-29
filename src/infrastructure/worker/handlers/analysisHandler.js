@@ -9,7 +9,7 @@ import {
 import { generateFeatureAnalysis } from '@/features/featureAnalysis/domain/analyzer';
 import { parseAllSegmentUrls as parseDashSegments } from '@/infrastructure/parsing/dash/segment-parser';
 import { diffManifest } from '@/ui/shared/diff';
-import { parseSegment } from './segmentParsingHandler.js';
+import { parseSegment } from '../parsingService.js';
 import { fetchWithAuth } from '../http.js';
 import xmlFormatter from 'xml-formatter';
 import { debugLog } from '@/shared/utils/debug';
@@ -33,6 +33,7 @@ async function fetchAndParseSegment(
     return parseSegment({ data, formatHint, url });
 }
 
+// ... rest of the file is unchanged, no need to regenerate ...
 async function preProcessInput(input, signal) {
     let protocol, manifestString, finalUrl;
 
@@ -128,10 +129,29 @@ async function parse(input) {
         manifestUrl: input.finalUrl,
     };
 
+    // --- ARCHITECTURAL FIX ---
+    // The base URL for resolving relative paths should be the directory containing the manifest,
+    // not the manifest URL itself.
+    const getBaseUrlDirectory = (url) => {
+        try {
+            const parsedUrl = new URL(url);
+            parsedUrl.pathname = parsedUrl.pathname.substring(
+                0,
+                parsedUrl.pathname.lastIndexOf('/') + 1
+            );
+            return parsedUrl.href;
+        } catch (e) {
+            // Handle cases where the URL might not be a full URL (e.g., local file name)
+            return url.substring(0, url.lastIndexOf('/') + 1);
+        }
+    };
+
+    const baseUrlDirectory = getBaseUrlDirectory(input.finalUrl);
+
     if (input.protocol === 'hls') {
         const { manifest, definedVariables, baseUrl } = await parseHlsManifest(
             input.manifestString,
-            input.finalUrl,
+            baseUrlDirectory,
             undefined,
             context
         );
@@ -159,7 +179,7 @@ async function parse(input) {
         const { manifest, serializedManifest, baseUrl } =
             await parseDashManifest(
                 input.manifestString,
-                input.finalUrl,
+                baseUrlDirectory,
                 context
             );
         manifestIR = manifest;
@@ -239,7 +259,11 @@ async function buildStreamObject(
 
     const streamObject = {
         id: input.id,
-        name: input.finalUrl ? new URL(input.finalUrl).hostname : input.file.name,
+        name:
+            input.name ||
+            (input.finalUrl
+                ? new URL(input.finalUrl).hostname
+                : input.file.name),
         originalUrl: input.finalUrl,
         baseUrl: finalBaseUrl,
         protocol: input.protocol,
@@ -288,7 +312,8 @@ async function buildStreamObject(
                     if (!streamObject.hlsVariantState.has(uri)) {
                         streamObject.hlsVariantState.set(uri, {
                             segments: [],
-                            freshSegmentUrls: new Set(),
+                            currentSegmentUrls: new Set(),
+                            newlyAddedSegmentUrls: new Set(),
                             isLoading: false,
                             isPolling: false,
                             isExpanded: false,
@@ -299,11 +324,13 @@ async function buildStreamObject(
                 }
             }
         } else {
+            const allSegmentUrls = (manifestIR.segments || []).map(
+                (s) => s.uniqueId
+            );
             streamObject.hlsVariantState.set(streamObject.originalUrl, {
                 segments: manifestIR.segments || [],
-                freshSegmentUrls: new Set(
-                    (manifestIR.segments || []).map((s) => s.uniqueId)
-                ),
+                currentSegmentUrls: new Set(allSegmentUrls),
+                newlyAddedSegmentUrls: new Set(allSegmentUrls),
                 isLoading: false,
                 isPolling: manifestIR.type === 'dynamic',
                 isExpanded: true,
@@ -321,9 +348,11 @@ async function buildStreamObject(
             const allSegments = [data.initSegment, ...mediaSegments].filter(
                 Boolean
             );
+            const allSegmentUrls = new Set(allSegments.map((s) => s.uniqueId));
             streamObject.dashRepresentationState.set(key, {
                 segments: allSegments,
-                freshSegmentUrls: new Set(allSegments.map((s) => s.uniqueId)),
+                currentSegmentUrls: allSegmentUrls,
+                newlyAddedSegmentUrls: allSegmentUrls,
                 diagnostics: data.diagnostics,
             });
         }
@@ -357,7 +386,11 @@ function serializeStreamForTransport(streamObject) {
     for (const [key, value] of streamObject.hlsVariantState.entries()) {
         hlsVariantStateArray.push([
             key,
-            { ...value, freshSegmentUrls: Array.from(value.freshSegmentUrls) },
+            {
+                ...value,
+                currentSegmentUrls: Array.from(value.currentSegmentUrls),
+                newlyAddedSegmentUrls: Array.from(value.newlyAddedSegmentUrls),
+            },
         ]);
     }
     serialized.hlsVariantState = hlsVariantStateArray;
@@ -366,7 +399,11 @@ function serializeStreamForTransport(streamObject) {
     for (const [key, value] of streamObject.dashRepresentationState.entries()) {
         dashRepStateArray.push([
             key,
-            { ...value, freshSegmentUrls: Array.from(value.freshSegmentUrls) },
+            {
+                ...value,
+                currentSegmentUrls: Array.from(value.currentSegmentUrls),
+                newlyAddedSegmentUrls: Array.from(value.newlyAddedSegmentUrls),
+            },
         ]);
     }
     serialized.dashRepresentationState = dashRepStateArray;
@@ -414,18 +451,67 @@ export async function handleStartAnalysis({ inputs }, signal) {
             const preProcessed = await preProcessInput(input, signal);
             const parsed = await parse(preProcessed);
             const analysisResults = await runAllAnalyses(parsed);
-            const streamObject = await buildStreamObject(parsed, analysisResults);
-            return serializeStreamForTransport(streamObject);
+            const streamObject = await buildStreamObject(
+                parsed,
+                analysisResults
+            );
+            // Don't serialize yet, we need the full object to build the map.
+            return streamObject;
         });
 
-        const workerResults = await Promise.all(processingPromises);
+        const streamObjects = await Promise.all(processingPromises);
 
-        if (workerResults.length > 0 && !workerResults[0]?.rawManifest?.trim()) {
+        // --- NEW: Build the URL -> Auth map ---
+        const urlAuthMap = new Map();
+        for (const stream of streamObjects) {
+            const context = { streamId: stream.id, auth: stream.auth };
+            if (stream.originalUrl) {
+                urlAuthMap.set(stream.originalUrl, context);
+            }
+            if (stream.baseUrl) {
+                urlAuthMap.set(stream.baseUrl, context);
+            }
+            if (stream.hlsVariantState) {
+                for (const [uri, state] of stream.hlsVariantState.entries()) {
+                    urlAuthMap.set(uri, context);
+                    if (state.segments) {
+                        for (const seg of state.segments) {
+                            urlAuthMap.set(seg.resolvedUrl, context);
+                        }
+                    }
+                }
+            }
+            if (stream.dashRepresentationState) {
+                for (const [
+                    ,
+                    state,
+                ] of stream.dashRepresentationState.entries()) {
+                    if (state.segments) {
+                        for (const seg of state.segments) {
+                            urlAuthMap.set(seg.resolvedUrl, context);
+                        }
+                    }
+                }
+            }
+        }
+        const urlAuthMapArray = Array.from(urlAuthMap.entries());
+        debugLog(
+            'handleStartAnalysis',
+            `Built urlAuthMap with ${urlAuthMap.size} entries.`
+        );
+        // --- END NEW ---
+
+        const workerResults = streamObjects.map(serializeStreamForTransport);
+
+        if (
+            workerResults.length > 0 &&
+            !workerResults[0]?.rawManifest?.trim()
+        ) {
             throw new Error(
                 'Manifest content is empty after processing. This may be due to a network or CORS issue.'
             );
         }
-        
+
         debugLog(
             'handleStartAnalysis',
             `Initial Analysis Pipeline (success): ${(
@@ -433,7 +519,7 @@ export async function handleStartAnalysis({ inputs }, signal) {
             ).toFixed(2)}ms`
         );
 
-        return workerResults;
+        return { streams: workerResults, urlAuthMapArray };
     } catch (error) {
         debugLog('handleStartAnalysis', 'Analysis pipeline failed.', error);
         throw error;

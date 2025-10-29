@@ -178,7 +178,7 @@ export const segmentRowTemplate = (
     stream,
     segmentFormat,
     repId,
-    freshSegmentUrls,
+    currentSegmentUrls,
     cacheEntry,
     targetTime,
     shouldFlash = false
@@ -189,111 +189,243 @@ export const segmentRowTemplate = (
     );
     const isLoaded = cacheEntry && cacheEntry.status === 200;
 
-    const isInCurrentManifest = seg.type === 'Init' || freshSegmentUrls.has(seg.uniqueId);
-    const isStaleByTime = stream.protocol === 'dash' ? isDashSegmentStale(seg, stream) : false;
+    const isInCurrentManifest =
+        seg.type === 'Init' || currentSegmentUrls.has(seg.uniqueId);
+    const isStaleByTime =
+        stream.protocol === 'dash' ? isDashSegmentStale(seg, stream) : false;
 
     const getStatusIndicator = () => {
         if (seg.gap) {
-            return html`<span class="w-2.5 h-2.5 rounded-full bg-gray-700 border border-gray-600" data-tooltip="Status: GAP Segment"></span>`;
+            return html`<span
+                class="w-2.5 h-2.5 rounded-full bg-gray-700 border border-gray-600"
+                data-tooltip="Status: GAP Segment"
+            ></span>`;
         }
-    
-        if (cacheEntry?.status === -1) { // Loading
-            return html`<span class="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse" data-tooltip="Status: Loading"></span>`;
-        } else if (cacheEntry?.status !== 200 && cacheEntry) { // Error
-            const statusText = cacheEntry.status === 0 ? 'Network Error' : `HTTP ${cacheEntry.status}`;
-            return html`<span class="w-2.5 h-2.5 rounded-full bg-red-500" data-tooltip="Status: Error (${statusText})"></span>`;
-        } else if (cacheEntry?.status === 200) { // Loaded
+
+        if (cacheEntry?.status === -1) {
+            // Loading
+            return html`<span
+                class="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse"
+                data-tooltip="Status: Loading"
+            ></span>`;
+        } else if (cacheEntry?.status !== 200 && cacheEntry) {
+            // Error
+            const statusText =
+                cacheEntry.status === 0
+                    ? 'Network Error'
+                    : `HTTP ${cacheEntry.status}`;
+            return html`<span
+                class="w-2.5 h-2.5 rounded-full bg-red-500"
+                data-tooltip="Status: Error (${statusText})"
+            ></span>`;
+        } else if (cacheEntry?.status === 200) {
+            // Loaded
             if (!isInCurrentManifest) {
-                return html`<span class="w-2.5 h-2.5 rounded-full bg-gray-500" data-tooltip="Status: Loaded (Not in Manifest)"></span>`;
+                return html`<span
+                    class="w-2.5 h-2.5 rounded-full bg-gray-500"
+                    data-tooltip="Status: Loaded (Not in Manifest)"
+                ></span>`;
             }
             if (isStaleByTime) {
-                return html`<span class="w-2.5 h-2.5 rounded-full bg-yellow-500" data-tooltip="Status: Loaded (Stale)"></span>`;
+                return html`<span
+                    class="w-2.5 h-2.5 rounded-full bg-yellow-500"
+                    data-tooltip="Status: Loaded (Stale)"
+                ></span>`;
             }
-            return html`<span class="w-2.5 h-2.5 rounded-full bg-green-500" data-tooltip="Status: Loaded (Fresh)"></span>`;
-        } else { // Not Loaded
+            return html`<span
+                class="w-2.5 h-2.5 rounded-full bg-green-500"
+                data-tooltip="Status: Loaded (Fresh)"
+            ></span>`;
+        } else {
+            // Not Loaded
             if (!isInCurrentManifest) {
-                return html`<span class="w-2.5 h-2.5 rounded-full bg-gray-700 border border-gray-600" data-tooltip="Status: Not in Manifest"></span>`;
+                return html`<span
+                    class="w-2.5 h-2.5 rounded-full bg-gray-700 border border-gray-600"
+                    data-tooltip="Status: Not in Manifest"
+                ></span>`;
             }
             if (isStaleByTime) {
-                return html`<span class="w-2.5 h-2.5 rounded-full bg-yellow-700 border border-yellow-600" data-tooltip="Status: Stale"></span>`;
+                return html`<span
+                    class="w-2.5 h-2.5 rounded-full bg-yellow-700 border border-yellow-600"
+                    data-tooltip="Status: Stale"
+                ></span>`;
             }
             // Fresh but not loaded
-            return html`<span class="w-2.5 h-2.5 rounded-full border border-gray-500" data-tooltip="Status: Not Loaded"></span>`;
+            return html`<span
+                class="w-2.5 h-2.5 rounded-full border border-gray-500"
+                data-tooltip="Status: Not Loaded"
+            ></span>`;
         }
     };
 
     const getActions = () => {
         if (seg.gap) {
-            return html`<span class="text-xs text-gray-500 italic font-semibold">GAP Segment</span>`;
+            return html`<span class="text-xs text-gray-500 italic font-semibold"
+                >GAP Segment</span
+            >`;
         }
-    
-        const { contentType: inferredContentType } = inferMediaInfoFromExtension(seg.resolvedUrl);
-        const formatHint = inferredContentType === 'text' ? 'vtt' : (segmentFormat === 'unknown' ? null : segmentFormat);
-    
+
+        const { contentType: inferredContentType } =
+            inferMediaInfoFromExtension(seg.resolvedUrl);
+        const formatHint =
+            inferredContentType === 'text'
+                ? 'vtt'
+                : segmentFormat === 'unknown'
+                  ? null
+                  : segmentFormat;
+
         const analyzeHandler = (e) => {
-            const uniqueId = /** @type {HTMLElement} */ (e.currentTarget).dataset.uniqueId;
-            eventBus.dispatch('ui:show-segment-analysis-modal', { uniqueId, format: formatHint });
+            const uniqueId = /** @type {HTMLElement} */ (e.currentTarget)
+                .dataset.uniqueId;
+            eventBus.dispatch('ui:show-segment-analysis-modal', {
+                uniqueId,
+                format: formatHint,
+            });
         };
         const viewRawHandler = (e) => {
-            const uniqueId = /** @type {HTMLElement} */ (e.currentTarget).dataset.uniqueId;
+            const uniqueId = /** @type {HTMLElement} */ (e.currentTarget)
+                .dataset.uniqueId;
             uiActions.navigateToInteractiveSegment(uniqueId);
         };
         const loadHandler = (e) => {
-            const uniqueId = /** @type {HTMLElement} */ (e.currentTarget).dataset.uniqueId;
+            const uniqueId = /** @type {HTMLElement} */ (e.currentTarget)
+                .dataset.uniqueId;
             if (seg.encryptionInfo && seg.encryptionInfo.method === 'AES-128') {
-                keyManagerService.getKey(seg.encryptionInfo.uri).catch(() => {});
+                keyManagerService
+                    .getKey(seg.encryptionInfo.uri)
+                    .catch(() => {});
             }
-            eventBus.dispatch('segment:fetch', { uniqueId, streamId: useAnalysisStore.getState().activeStreamId, format: formatHint });
+            eventBus.dispatch('segment:fetch', {
+                uniqueId,
+                streamId: useAnalysisStore.getState().activeStreamId,
+                format: formatHint,
+            });
         };
-    
+
         const downloadHandler = (e) => {
             const button = /** @type {HTMLElement} */ (e.currentTarget);
             const uniqueId = button.dataset.uniqueId;
             const cacheEntry = useSegmentCacheStore.getState().get(uniqueId);
             if (cacheEntry && cacheEntry.data) {
-                const filename = (seg.type === 'Init' ? seg.resolvedUrl.split('/').pop() : seg.template) || seg.resolvedUrl.split('/').pop().split('?')[0];
+                const filename =
+                    (seg.type === 'Init'
+                        ? seg.resolvedUrl.split('/').pop()
+                        : seg.template) ||
+                    seg.resolvedUrl.split('/').pop().split('?')[0];
                 downloadBuffer(cacheEntry.data, filename);
             }
         };
-    
-        if (!cacheEntry) { // Not loaded
+
+        if (!cacheEntry) {
+            // Not loaded
             if (!isInCurrentManifest) {
-                return html`<button @click=${loadHandler} data-unique-id="${seg.uniqueId}" data-tooltip="This segment is no longer in the live manifest and may not be available on the server." class="text-xs bg-gray-600 hover:bg-gray-700 px-2 py-1 rounded">Load (Not in Manifest)</button>`;
+                return html`<button
+                    @click=${loadHandler}
+                    data-unique-id="${seg.uniqueId}"
+                    data-tooltip="This segment is no longer in the live manifest and may not be available on the server."
+                    class="text-xs bg-gray-600 hover:bg-gray-700 px-2 py-1 rounded"
+                >
+                    Load (Not in Manifest)
+                </button>`;
             }
             if (isStaleByTime) {
-                return html`<button @click=${loadHandler} data-unique-id="${seg.uniqueId}" data-tooltip="This segment is outside the current DVR window and may not be available." class="text-xs bg-yellow-600 hover:bg-yellow-700 text-yellow-900 px-2 py-1 rounded">Load (Stale)</button>`;
+                return html`<button
+                    @click=${loadHandler}
+                    data-unique-id="${seg.uniqueId}"
+                    data-tooltip="This segment is outside the current DVR window and may not be available."
+                    class="text-xs bg-yellow-600 hover:bg-yellow-700 text-yellow-900 px-2 py-1 rounded"
+                >
+                    Load (Stale)
+                </button>`;
             }
-            return html`<button @click=${loadHandler} data-unique-id="${seg.uniqueId}" class="text-xs bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded">Load</button>`;
+            return html`<button
+                @click=${loadHandler}
+                data-unique-id="${seg.uniqueId}"
+                class="text-xs bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded"
+            >
+                Load
+            </button>`;
         }
-    
-        if (cacheEntry.status === -1) { // Loading
-            return html`<button disabled class="text-xs bg-gray-600 px-2 py-1 rounded opacity-50 cursor-wait">Loading...</button>`;
+
+        if (cacheEntry.status === -1) {
+            // Loading
+            return html`<button
+                disabled
+                class="text-xs bg-gray-600 px-2 py-1 rounded opacity-50 cursor-wait"
+            >
+                Loading...
+            </button>`;
         }
-    
-        if (cacheEntry.status !== 200) { // Error
+
+        if (cacheEntry.status !== 200) {
+            // Error
             if (!isInCurrentManifest) {
-                return html`<span class="text-xs text-red-500/80 italic">Not in Manifest (Error)</span>`;
+                return html`<span class="text-xs text-red-500/80 italic"
+                    >Not in Manifest (Error)</span
+                >`;
             }
             if (isStaleByTime) {
-                return html`<span class="text-xs text-red-500/80 italic">Stale (Error)</span>`;
+                return html`<span class="text-xs text-red-500/80 italic"
+                    >Stale (Error)</span
+                >`;
             }
-            return html`<button @click=${loadHandler} data-unique-id="${seg.uniqueId}" class="text-xs bg-yellow-600 hover:bg-yellow-700 px-2 py-1 rounded">Reload</button>`;
+            return html`<button
+                @click=${loadHandler}
+                data-unique-id="${seg.uniqueId}"
+                class="text-xs bg-yellow-600 hover:bg-yellow-700 px-2 py-1 rounded"
+            >
+                Reload
+            </button>`;
         }
-    
+
         // Loaded successfully
         return html`
-            <button class="text-xs bg-gray-600 hover:bg-gray-700 px-2 py-1 rounded" data-unique-id="${seg.uniqueId}" @click=${viewRawHandler}>View Raw</button>
-            <button class="text-xs bg-purple-600 hover:bg-purple-700 px-2 py-1 rounded" data-unique-id="${seg.uniqueId}" @click=${analyzeHandler}>Analyze</button>
-            <button class="text-xs bg-green-600 hover:bg-green-700 px-2 py-1 rounded" data-unique-id="${seg.uniqueId}" title="Download segment" @click=${downloadHandler}>${icons.download}</button>
+            <button
+                class="text-xs bg-gray-600 hover:bg-gray-700 px-2 py-1 rounded"
+                data-unique-id="${seg.uniqueId}"
+                @click=${viewRawHandler}
+            >
+                View Raw
+            </button>
+            <button
+                class="text-xs bg-purple-600 hover:bg-purple-700 px-2 py-1 rounded"
+                data-unique-id="${seg.uniqueId}"
+                @click=${analyzeHandler}
+            >
+                Analyze
+            </button>
+            <button
+                class="text-xs bg-green-600 hover:bg-green-700 px-2 py-1 rounded"
+                data-unique-id="${seg.uniqueId}"
+                title="Download segment"
+                @click=${downloadHandler}
+            >
+                ${icons.download}
+            </button>
         `;
     };
 
     const isDisabled = seg.gap || !isLoaded;
 
     const statusIndicator = getStatusIndicator();
-    const hasParsingIssues = isDebugMode && (cacheEntry?.parsedData?.data?.issues?.length > 0 || cacheEntry?.parsedData?.error);
-    const issuesTooltip = hasParsingIssues ? (cacheEntry.parsedData.data?.issues || [{type: 'error', message: cacheEntry.parsedData.error}]).map(i => `[${i.type}] ${i.message}`).join('\n') : '';
-    const parsingWarningIcon = hasParsingIssues ? html`<span class="ml-1 text-yellow-400" data-tooltip=${issuesTooltip}>${icons.debug}</span>` : '';
+    const hasParsingIssues =
+        isDebugMode &&
+        (cacheEntry?.parsedData?.data?.issues?.length > 0 ||
+            cacheEntry?.parsedData?.error);
+    const issuesTooltip = hasParsingIssues
+        ? (
+              cacheEntry.parsedData.data?.issues || [
+                  { type: 'error', message: cacheEntry.parsedData.error },
+              ]
+          )
+              .map((i) => `[${i.type}] ${i.message}`)
+              .join('\n')
+        : '';
+    const parsingWarningIcon = hasParsingIssues
+        ? html`<span class="ml-1 text-yellow-400" data-tooltip=${issuesTooltip}
+              >${icons.debug}</span
+          >`
+        : '';
 
     const toggleCompare = () => {
         if (isChecked) {
@@ -377,7 +509,9 @@ export const segmentRowTemplate = (
                 ${compareButton}
             </div>
 
-            ${html`<div class="md:hidden font-semibold text-gray-400 text-xs">Status / Type</div>`}
+            ${html`<div class="md:hidden font-semibold text-gray-400 text-xs">
+                Status / Type
+            </div>`}
             <div
                 class="flex items-center space-x-3 md:px-3 md:py-1.5 md:border-r md:border-gray-700"
             >
@@ -393,24 +527,32 @@ export const segmentRowTemplate = (
                 ${parsingWarningIcon}
             </div>
 
-            ${html`<div class="md:hidden font-semibold text-gray-400 text-xs">Timing (s)</div>`}
+            ${html`<div class="md:hidden font-semibold text-gray-400 text-xs">
+                Timing (s)
+            </div>`}
             <div
                 class="text-xs font-mono md:px-3 md:py-1.5 md:border-r md:border-gray-700"
             >
                 ${timingContent}
             </div>
 
-            ${html`<div class="md:hidden font-semibold text-gray-400 text-xs">Flags</div>`}
+            ${html`<div class="md:hidden font-semibold text-gray-400 text-xs">
+                Flags
+            </div>`}
             <div class="md:px-3 md:py-1.5 md:border-r md:border-gray-700">
                 ${flagsTemplate(seg, cacheEntry)}
             </div>
 
-            ${html`<div class="md:hidden font-semibold text-gray-400 text-xs">Encryption</div>`}
+            ${html`<div class="md:hidden font-semibold text-gray-400 text-xs">
+                Encryption
+            </div>`}
             <div class="md:px-3 md:py-1.5 md:border-r md:border-gray-700">
                 ${encryptionTemplate(seg)}
             </div>
 
-            ${html`<div class="md:hidden font-semibold text-gray-400 text-xs">URL & Actions</div>`}
+            ${html`<div class="md:hidden font-semibold text-gray-400 text-xs">
+                URL & Actions
+            </div>`}
             <div
                 class="col-span-2 md:col-span-1 md:px-3 md:py-1.5 flex justify-between items-center w-full"
             >

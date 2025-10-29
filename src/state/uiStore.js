@@ -12,6 +12,7 @@ import { createStore } from 'zustand/vanilla';
  * @typedef {object} UiState
  * @property {'input' | 'results'} viewState
  * @property {string} activeTab
+ * @property {'event-log' | 'graphs' | 'controls'} multiPlayerActiveTab
  * @property {string | null} activeSegmentUrl
  * @property {'primary' | 'contextual' | null} activeSidebar
  * @property {ModalState} modalState
@@ -22,7 +23,7 @@ import { createStore } from 'zustand/vanilla';
  * @property {'inspector' | 'hex'} interactiveSegmentActiveTab
  * @property {{ item: any } | null} interactiveSegmentSelectedItem
  * @property {{ item: any; field: string } | null} interactiveSegmentHighlightedItem
- * @property {Map<number, object> | null} pagedByteMap
+ * @property {Map<number, object> | null} fullByteMap
  * @property {boolean} isByteMapLoading
  * @property {'all' | 'fail' | 'warn'} complianceActiveFilter
  * @property {number} complianceStandardVersion
@@ -45,6 +46,7 @@ import { createStore } from 'zustand/vanilla';
  * @typedef {object} UiActions
  * @property {(view: 'input' | 'results') => void} setViewState
  * @property {(tabName: string) => void} setActiveTab
+ * @property {(tab: 'event-log' | 'graphs' | 'controls') => void} setMultiPlayerActiveTab
  * @property {(sidebar: 'primary' | 'contextual' | null) => void} setActiveSidebar
  * @property {(modalState: Partial<ModalState>) => void} setModalState
  * @property {() => void} toggleCmafSummary
@@ -54,7 +56,7 @@ import { createStore } from 'zustand/vanilla';
  * @property {(tab: 'inspector' | 'hex') => void} setInteractiveSegmentActiveTab
  * @property {(item: any) => void} setInteractiveSegmentSelectedItem
  * @property {(item: any, field: string) => void} setInteractiveSegmentHighlightedItem
- * @property {(mapArray: [number, object][] | null) => void} setPagedByteMap
+ * @property {(mapArray: [number, object][] | null) => void} setFullByteMap
  * @property {(isLoading: boolean) => void} setIsByteMapLoading
  * @property {(filter: 'all' | 'fail' | 'warn') => void} setComplianceFilter
  * @property {(version: number) => void} setComplianceStandardVersion
@@ -79,6 +81,7 @@ import { createStore } from 'zustand/vanilla';
 const createInitialUiState = () => ({
     viewState: 'input',
     activeTab: 'summary',
+    multiPlayerActiveTab: 'event-log',
     activeSegmentUrl: null,
     activeSidebar: null,
     modalState: {
@@ -94,7 +97,7 @@ const createInitialUiState = () => ({
     interactiveSegmentActiveTab: 'inspector',
     interactiveSegmentSelectedItem: null,
     interactiveSegmentHighlightedItem: null,
-    pagedByteMap: null,
+    fullByteMap: null,
     isByteMapLoading: false,
     complianceActiveFilter: 'all',
     complianceStandardVersion: 13,
@@ -118,12 +121,12 @@ export const useUiStore = createStore((set) => ({
 
     setViewState: (view) => set({ viewState: view }),
     setActiveTab: (tabName) => set({ activeTab: tabName }),
+    setMultiPlayerActiveTab: (tab) => set({ multiPlayerActiveTab: tab }),
     setActiveSidebar: (sidebar) => set({ activeSidebar: sidebar }),
-    setModalState: (newModalState) => {
+    setModalState: (newModalState) =>
         set((state) => ({
             modalState: { ...state.modalState, ...newModalState },
-        }));
-    },
+        })),
     toggleCmafSummary: () =>
         set((state) => ({
             isCmafSummaryExpanded: !state.isCmafSummaryExpanded,
@@ -136,11 +139,7 @@ export const useUiStore = createStore((set) => ({
                 !state.interactiveManifestShowSubstituted,
         })),
     setInteractiveSegmentPage: (page) =>
-        set({
-            interactiveSegmentCurrentPage: page,
-            pagedByteMap: null,
-            isByteMapLoading: false,
-        }),
+        set({ interactiveSegmentCurrentPage: page }),
     setInteractiveSegmentActiveTab: (tab) =>
         set({ interactiveSegmentActiveTab: tab }),
     setInteractiveSegmentSelectedItem: (item) =>
@@ -149,8 +148,8 @@ export const useUiStore = createStore((set) => ({
         set({
             interactiveSegmentHighlightedItem: item ? { item, field } : null,
         }),
-    setPagedByteMap: (mapArray) =>
-        set({ pagedByteMap: mapArray ? new Map(mapArray) : null }),
+    setFullByteMap: (mapArray) =>
+        set({ fullByteMap: mapArray ? new Map(mapArray) : null }),
     setIsByteMapLoading: (isLoading) => set({ isByteMapLoading: isLoading }),
     setComplianceFilter: (filter) => set({ complianceActiveFilter: filter }),
     setComplianceStandardVersion: (version) =>
@@ -187,98 +186,34 @@ export const useUiStore = createStore((set) => ({
     toggleComparisonTable: (tableId) => {
         set((state) => {
             const newSet = new Set(state.expandedComparisonTables);
-            if (newSet.has(tableId)) {
-                newSet.delete(tableId);
-            } else {
-                newSet.add(tableId);
-            }
+            if (newSet.has(tableId)) newSet.delete(tableId);
+            else newSet.add(tableId);
             return { expandedComparisonTables: newSet };
         });
     },
     toggleComparisonFlags: (rowName) => {
         set((state) => {
             const newSet = new Set(state.expandedComparisonFlags);
-            if (newSet.has(rowName)) {
-                newSet.delete(rowName);
-            } else {
-                newSet.add(rowName);
-            }
+            if (newSet.has(rowName)) newSet.delete(rowName);
+            else newSet.add(rowName);
             return { expandedComparisonFlags: newSet };
         });
     },
     setPlayerControlMode: (mode) => set({ playerControlMode: mode }),
-    navigateToInteractiveSegment: (segmentUniqueId) => {
+    navigateToInteractiveSegment: (segmentUniqueId) =>
         set({
             activeSegmentUrl: segmentUniqueId,
             activeTab: 'interactive-segment',
-            interactiveSegmentCurrentPage: 1, // Reset page on new segment
-            pagedByteMap: null, // Reset byte map
-            isByteMapLoading: false, // Reset loading state
-            interactiveSegmentSelectedItem: null, // Reset selection
-            interactiveSegmentHighlightedItem: null, // Reset highlight
-        });
-    },
+            interactiveSegmentCurrentPage: 1,
+            fullByteMap: null,
+            isByteMapLoading: false,
+            interactiveSegmentSelectedItem: null,
+            interactiveSegmentHighlightedItem: null,
+        }),
     setStreamLibraryTab: (tab) => set({ streamLibraryActiveTab: tab }),
-    setStreamLibrarySearchTerm: (term) => set({ streamLibrarySearchTerm: term }),
+    setStreamLibrarySearchTerm: (term) =>
+        set({ streamLibrarySearchTerm: term }),
     reset: () => set(createInitialUiState()),
 }));
 
-export const uiActions = {
-    setViewState: (view) => useUiStore.getState().setViewState(view),
-    setActiveTab: (tabName) => useUiStore.getState().setActiveTab(tabName),
-    setActiveSidebar: (sidebar) =>
-        useUiStore.getState().setActiveSidebar(sidebar),
-    setModalState: (state) => useUiStore.getState().setModalState(state),
-    toggleCmafSummary: () => useUiStore.getState().toggleCmafSummary(),
-    setInteractiveManifestPage: (page) =>
-        useUiStore.getState().setInteractiveManifestPage(page),
-    toggleInteractiveManifestSubstitution: () =>
-        useUiStore.getState().toggleInteractiveManifestSubstitution(),
-    setInteractiveSegmentPage: (page) =>
-        useUiStore.getState().setInteractiveSegmentPage(page),
-    setInteractiveSegmentActiveTab: (tab) =>
-        useUiStore.getState().setInteractiveSegmentActiveTab(tab),
-    setInteractiveSegmentSelectedItem: (item) =>
-        useUiStore.getState().setInteractiveSegmentSelectedItem(item),
-    setInteractiveSegmentHighlightedItem: (item, field) =>
-        useUiStore.getState().setInteractiveSegmentHighlightedItem(item, field),
-    setPagedByteMap: (mapArray) =>
-        useUiStore.getState().setPagedByteMap(mapArray),
-    setIsByteMapLoading: (isLoading) =>
-        useUiStore.getState().setIsByteMapLoading(isLoading),
-    setComplianceFilter: (filter) =>
-        useUiStore.getState().setComplianceFilter(filter),
-    setComplianceStandardVersion: (version) =>
-        useUiStore.getState().setComplianceStandardVersion(version),
-    setFeatureAnalysisStandardVersion: (version) =>
-        useUiStore.getState().setFeatureAnalysisStandardVersion(version),
-    setSegmentExplorerDashMode: (mode) =>
-        useUiStore.getState().setSegmentExplorerDashMode(mode),
-    setSegmentExplorerActiveTab: (tab) =>
-        useUiStore.getState().setSegmentExplorerActiveTab(tab),
-    toggleSegmentExplorerSortOrder: () =>
-        useUiStore.getState().toggleSegmentExplorerSortOrder(),
-    setSegmentExplorerTargetTime: (target) =>
-        useUiStore.getState().setSegmentExplorerTargetTime(target),
-    clearSegmentExplorerTargetTime: () =>
-        useUiStore.getState().clearSegmentExplorerTargetTime(),
-    clearSegmentExplorerScrollTrigger: () =>
-        useUiStore.getState().clearSegmentExplorerScrollTrigger(),
-    setHighlightedCompliancePathId: (pathId) =>
-        useUiStore.getState().setHighlightedCompliancePathId(pathId),
-    toggleSegmentComparisonHideSame: () =>
-        useUiStore.getState().toggleSegmentComparisonHideSame(),
-    toggleComparisonTable: (tableId) =>
-        useUiStore.getState().toggleComparisonTable(tableId),
-    toggleComparisonFlags: (rowName) =>
-        useUiStore.getState().toggleComparisonFlags(rowName),
-    setPlayerControlMode: (mode) =>
-        useUiStore.getState().setPlayerControlMode(mode),
-    navigateToInteractiveSegment: (segmentUniqueId) =>
-        useUiStore.getState().navigateToInteractiveSegment(segmentUniqueId),
-    setStreamLibraryTab: (tab) =>
-        useUiStore.getState().setStreamLibraryTab(tab),
-    setStreamLibrarySearchTerm: (term) =>
-        useUiStore.getState().setStreamLibrarySearchTerm(term),
-    reset: () => useUiStore.getState().reset(),
-};
+export const uiActions = useUiStore.getState();

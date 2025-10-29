@@ -79,7 +79,13 @@ const renderHlsRendition = (stream, renditionInfo) => {
     const variantState = stream.hlsVariantState.get(uri);
     if (!variantState) return html``;
 
-    const { rawSegments, error, isLoading, freshSegmentUrls } = variantState;
+    const {
+        segments: rawSegments,
+        error,
+        isLoading,
+        currentSegmentUrls,
+        newlyAddedSegmentUrls,
+    } = variantState;
 
     // ARCHITECTURAL FIX: Guard against rendering before segments are loaded.
     const segments = rawSegments || [];
@@ -139,7 +145,8 @@ const renderHlsRendition = (stream, renditionInfo) => {
         title: title,
         segments: processedSegments,
         stream: stream,
-        freshSegmentUrls,
+        currentSegmentUrls,
+        newlyAddedSegmentUrls,
         segmentFormat: stream.manifest.segmentFormat,
         isLoading,
         error,

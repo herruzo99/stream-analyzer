@@ -8,8 +8,7 @@ export const bufferTimelineChartOptions = (videoEl, stream) => {
     const { buffered, duration, currentTime, seekable } = videoEl;
     const { adAvails, events: manifestEvents } = stream.manifest;
     const { eventLog } =
-        (typeof usePlayerStore !== 'undefined' &&
-            usePlayerStore.getState()) ||
+        (typeof usePlayerStore !== 'undefined' && usePlayerStore.getState()) ||
         {};
 
     let displayDuration = duration;

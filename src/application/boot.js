@@ -30,9 +30,12 @@ import { initializeSegmentExplorerFeature } from '@/features/segmentExplorer/ind
 import { initializeStreamInputFeature } from '@/features/streamInput/index';
 import { initializePlayerSimulationFeature } from '@/features/playerSimulation/index';
 import { initializeMemoryMonitorFeature } from '@/features/memoryMonitor/index';
+import { initializeMultiPlayerFeature } from '@/features/multiPlayer/index';
 
 // Side-effect driven imports for services that primarily listen to the event bus
 import '@/application/services/streamService';
+// Import the canonical shaka module to ensure it's initialized early.
+import { getShaka } from '@/infrastructure/player/shaka';
 
 /**
  * The main entry point for the application.
@@ -76,6 +79,10 @@ export async function startApp() {
     // --- INITIALIZATION SEQUENCE ---
     const { app } = container;
 
+    // Asynchronously get the configured shaka instance. This ensures the
+    // plugin is registered before any other code can possibly use it.
+    await getShaka();
+
     // --- Layer 1: Core Worker & Consent ---
     workerService.initialize();
     initializeConsentManager();
@@ -109,6 +116,7 @@ export async function startApp() {
     initializeStreamInputFeature();
     initializePlayerSimulationFeature();
     initializeMemoryMonitorFeature();
+    initializeMultiPlayerFeature();
 
     // --- Layer 5: Start Application Core ---
     app.start();

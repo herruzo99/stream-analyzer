@@ -22,7 +22,6 @@ import { inspectorLayoutTemplate } from './components/shared/inspector-layout.js
 import { hexViewTemplate } from './components/hex-view.js';
 import { getTooltipData as getIsobmffTooltipData } from '@/infrastructure/parsing/isobmff/index';
 import { getTooltipData as getTsTooltipData } from '@/infrastructure/parsing/ts/index';
-import { workerService } from '@/infrastructure/worker/workerService';
 
 let container = null;
 let uiUnsubscribe = null;
@@ -49,8 +48,7 @@ function renderInteractiveSegment() {
     const {
         activeSegmentUrl,
         interactiveSegmentCurrentPage: currentPage,
-        pagedByteMap,
-        isByteMapLoading,
+        fullByteMap,
     } = useUiStore.getState();
     const { get: getFromCache } = useSegmentCacheStore.getState();
 
@@ -60,6 +58,7 @@ function renderInteractiveSegment() {
     }
 
     const cachedSegment = getFromCache(activeSegmentUrl);
+    const startOffset = (currentPage - 1) * HEX_BYTES_PER_PAGE;
 
     let content;
 
@@ -77,65 +76,21 @@ function renderInteractiveSegment() {
         const format = cachedSegment.parsedData?.format;
         const isBinaryFormat = format === 'isobmff' || format === 'ts';
 
-        // --- DATA FETCHING SIDE-EFFECT ISOLATION ---
-        if (isBinaryFormat && !pagedByteMap && !isByteMapLoading) {
-            uiActions.setIsByteMapLoading(true);
-            workerService
-                .postTask('generate-paged-byte-map', {
-                    parsedData: cachedSegment.parsedData,
-                    page: currentPage,
-                    bytesPerPage: HEX_BYTES_PER_PAGE,
-                })
-                .then((mapArray) => {
-                    uiActions.setPagedByteMap(mapArray);
-                })
-                .finally(() => {
-                    uiActions.setIsByteMapLoading(false);
-                });
-
-            // Render a loading state and return immediately. State updates will trigger a re-render.
+        // --- ARCHITECTURAL REFACTOR: Load full byte map once ---
+        if (isBinaryFormat && !fullByteMap) {
+            if (cachedSegment.parsedData.byteMap) {
+                // The worker has provided the full map, store it in the UI state.
+                uiActions.setFullByteMap(cachedSegment.parsedData.byteMap);
+            }
+            // A re-render will be triggered by the state change, so we can return a loading state.
             content = inspectorLayoutTemplate({
-                inspectorContent: loadingTemplate('Generating paged view...'),
-                structureContent: loadingTemplate('Generating paged view...'),
-                hexContent: loadingTemplate('Generating paged view...'),
-            });
-            const loadingWrapperTemplate = html`
-                <div class="mb-6 shrink-0">
-                    <div class="flex justify-between items-center mb-2">
-                        <h3 class="text-xl font-bold text-white">
-                            🔍 Interactive Segment View
-                        </h3>
-                        <button
-                            @click=${() => uiActions.setActiveTab('explorer')}
-                            class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md transition duration-300 text-sm"
-                        >
-                            &larr; Back to Segment Explorer
-                        </button>
-                    </div>
-                    <p
-                        class="text-sm text-gray-400 mb-4 font-mono break-all bg-gray-800 p-2 rounded"
-                    >
-                        ${(activeSegmentUrl || '').split('@')[0]}
-                    </p>
-                </div>
-                <div class="grow min-h-0">${content}</div>
-            `;
-            render(loadingWrapperTemplate, container);
-            return;
-        }
-        // --- END ISOLATION ---
-
-        const isLoading = isByteMapLoading || (!pagedByteMap && isBinaryFormat);
-
-        if (isLoading) {
-            content = inspectorLayoutTemplate({
-                inspectorContent: loadingTemplate('Generating paged view...'),
-                structureContent: loadingTemplate('Generating paged view...'),
-                hexContent: loadingTemplate('Generating paged view...'),
+                inspectorContent: loadingTemplate('Initializing view...'),
+                structureContent: loadingTemplate('Initializing view...'),
+                hexContent: loadingTemplate('Initializing view...'),
             });
         } else if (format === 'vtt') {
             content = getInteractiveVttTemplate(cachedSegment.data);
-        } else if (isBinaryFormat) {
+        } else if (isBinaryFormat && fullByteMap) {
             let inspectorContent, structureContent;
             if (format === 'ts') {
                 inspectorContent = tsInspector(cachedSegment.parsedData);
@@ -159,6 +114,18 @@ function renderInteractiveSegment() {
                 }
             };
 
+            // Slice the current page's data from the full map
+            const pagedByteMap = new Map();
+            for (
+                let i = startOffset;
+                i < startOffset + HEX_BYTES_PER_PAGE;
+                i++
+            ) {
+                if (fullByteMap.has(i)) {
+                    pagedByteMap.set(i, fullByteMap.get(i));
+                }
+            }
+
             const hexContent = hexViewTemplate(
                 cachedSegment.data,
                 pagedByteMap,
@@ -174,8 +141,7 @@ function renderInteractiveSegment() {
                 hexContent,
             });
 
-            // After rendering, initialize the complex interaction logic only once.
-            if (!isLoading && !isViewInitialized) {
+            if (!isViewInitialized) {
                 const findFn =
                     cachedSegment.parsedData.format === 'isobmff'
                         ? findItemIsobmff
@@ -184,7 +150,7 @@ function renderInteractiveSegment() {
                     initializeSegmentViewInteractivity(
                         { mainContent: container },
                         cachedSegment.parsedData,
-                        pagedByteMap || new Map(),
+                        fullByteMap,
                         findFn,
                         cachedSegment.parsedData.format
                     );

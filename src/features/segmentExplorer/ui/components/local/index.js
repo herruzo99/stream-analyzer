@@ -15,7 +15,7 @@ export function getLocalExplorerForType(stream) {
         return html`<p class="text-gray-400">No segments were parsed.</p>`;
     }
 
-    const { segments, freshSegmentUrls } = repState;
+    const { segments, currentSegmentUrls, newlyAddedSegmentUrls } = repState;
     const title = 'Uploaded Segments';
 
     // The segment objects have been adapted to fit the segmentTableTemplate's expectations
@@ -42,7 +42,8 @@ export function getLocalExplorerForType(stream) {
                 title: title,
                 segments: adaptedSegments,
                 stream: stream,
-                freshSegmentUrls: freshSegmentUrls,
+                currentSegmentUrls: currentSegmentUrls,
+                newlyAddedSegmentUrls: newlyAddedSegmentUrls,
                 segmentFormat: stream.manifest.segmentFormat,
             })}
         </div>

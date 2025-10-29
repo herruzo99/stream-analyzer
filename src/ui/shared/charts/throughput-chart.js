@@ -6,9 +6,9 @@ export const throughputChartOptions = (data) => {
                 left: 'center',
                 top: 'center',
                 textStyle: {
-                    color: '#6b7280'
-                }
-            }
+                    color: '#6b7280',
+                },
+            },
         };
     }
 

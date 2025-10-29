@@ -18,17 +18,14 @@ const chevronRight = html`<svg
     ></path>
 </svg>`;
 
-// isSubItem flag adds indentation and adjusts padding
 const NavLink = (item, activeTab, isSubItem = false) => {
     if (!item.visible) return '';
-    const isActive = activeTab === item.key;
+    const isActive = item.isActive
+        ? item.isActive(activeTab)
+        : activeTab === item.key;
     const paddingClass = isSubItem ? 'pl-8' : 'px-4';
     const pyClass = isSubItem ? 'py-2' : 'py-3';
-    const classes = `flex items-center gap-3 ${paddingClass} ${pyClass} text-sm font-medium rounded-lg transition-colors ${
-        isActive
-            ? 'bg-blue-600 text-white'
-            : 'text-gray-400 hover:bg-gray-700 hover:text-white'
-    }`;
+    const classes = `flex items-center gap-3 ${paddingClass} ${pyClass} text-sm font-medium rounded-lg transition-colors ${isActive ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-gray-700 hover:text-white'}`;
 
     return html`
         <li>
@@ -52,10 +49,9 @@ const SubMenu = (item, activeTab) => {
     const isActive = item.isActive(activeTab);
     return html`
         <li>
-            <details class="group" open="">
+            <details class="group" ?open=${isActive}>
                 <summary
-                    class="flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg cursor-pointer list-none
-                    ${isActive
+                    class="flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg cursor-pointer list-none ${isActive
                         ? 'text-white'
                         : 'text-gray-400 hover:bg-gray-700 hover:text-white'}"
                 >
@@ -63,9 +59,8 @@ const SubMenu = (item, activeTab) => {
                     <span>${item.label}</span>
                     <span
                         class="ml-auto transition-transform duration-200 group-open:rotate-90"
+                        >${chevronRight}</span
                     >
-                        ${chevronRight}
-                    </span>
                 </summary>
                 <ul class="pl-4 mt-1 space-y-1">
                     ${item.items.map((subItem) =>
@@ -78,17 +73,13 @@ const SubMenu = (item, activeTab) => {
 };
 
 const NavGroup = (group, activeTab) => {
-    // Check if any item or sub-item in the group is visible
     const isGroupVisible = group.items.some((item) => {
         if (item.type === 'submenu') {
             return item.items.some((subItem) => subItem.visible);
         }
         return item.visible;
     });
-
-    if (!isGroupVisible) {
-        return '';
-    }
+    if (!isGroupVisible) return '';
 
     return html`
         <div class="mt-4 first:mt-0">
@@ -100,10 +91,8 @@ const NavGroup = (group, activeTab) => {
             <ul class="space-y-1">
                 ${group.items.map((item) => {
                     if (item.type === 'submenu') {
-                        // A submenu is visible if at least one of its children is visible
-                        if (item.items.some((sub) => sub.visible)) {
+                        if (item.items.some((sub) => sub.visible))
                             return SubMenu(item, activeTab);
-                        }
                     } else if (item.visible) {
                         return NavLink(item, activeTab);
                     }
@@ -120,6 +109,7 @@ export function getNavGroups() {
     const activeStream = streams.find(
         (s) => s.id === useAnalysisStore.getState().activeStreamId
     );
+    const isMultiStream = streams.length > 1;
 
     return [
         {
@@ -136,7 +126,7 @@ export function getNavGroups() {
                     key: 'comparison',
                     label: 'Manifest Comparison',
                     icon: icons.comparison,
-                    visible: streams.length > 1,
+                    visible: isMultiStream,
                     type: 'link',
                 },
                 {
@@ -155,7 +145,14 @@ export function getNavGroups() {
                     key: 'player-simulation',
                     label: 'Player Simulation',
                     icon: icons.play,
-                    visible: activeStream?.originalUrl,
+                    visible: !!activeStream?.originalUrl,
+                    type: 'link',
+                },
+                {
+                    key: 'multi-player',
+                    label: 'Multi-Player Dashboard',
+                    icon: icons.viewfinder,
+                    visible: isMultiStream,
                     type: 'link',
                 },
                 {
@@ -208,7 +205,7 @@ export function getNavGroups() {
                         {
                             key: 'interactive-manifest',
                             label: 'Interactive View',
-                            icon: icons.interactiveManifest,
+                            icon: html``,
                             visible: true,
                         },
                         {
@@ -233,7 +230,7 @@ export function getNavGroups() {
                         {
                             key: 'explorer',
                             label: 'Explorer',
-                            icon: icons.explorer,
+                            icon: html``,
                             visible: true,
                         },
                         {

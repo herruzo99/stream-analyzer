@@ -2,12 +2,14 @@ import { eventBus } from '@/application/event-bus';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { playerActions } from '@/state/playerStore';
 import { debugLog } from '@/shared/utils/debug';
-import { workerService } from '@/infrastructure/worker/workerService';
+import { getShaka } from '@/infrastructure/player/shaka';
 
 let player = null;
 let videoElement = null;
 let ui = null;
 let statsInterval = null;
+let activeStreamIds = new Set();
+let activeManifestVariants = [];
 
 async function fetchCertificate(url) {
     try {
@@ -27,18 +29,19 @@ async function fetchCertificate(url) {
 
 export const playerService = {
     isInitialized: false,
+    getActiveStreamIds: () => activeStreamIds,
 
     /**
      * Initializes the Shaka player instance and attaches it to the video element.
      * @param {HTMLVideoElement} videoEl The <video> element.
      * @param {HTMLElement} videoContainer The container for the UI controls.
-     * @param {object} shaka The shaka player library object.
      */
-    initialize(videoEl, videoContainer, shaka) {
+    async initialize(videoEl, videoContainer) {
         if (this.isInitialized) {
             return;
         }
 
+        const shaka = await getShaka();
         if (!shaka) {
             console.error('Shaka Player module not loaded correctly.');
             return;
@@ -50,65 +53,13 @@ export const playerService = {
             return;
         }
 
-        const shakaNetworkPlugin = (uri, request, requestType) => {
-            const { streams, activeStreamId } = useAnalysisStore.getState();
-            // The activeStreamId is the most reliable source of truth for the current context.
-            const stream = streams.find((s) => s.id === activeStreamId);
-            const { auth, id: streamId } = stream || {};
-
-            const serializableRequest = {
-                uris: request.uris,
-                method: request.method,
-                headers: { ...request.headers },
-                body: request.body,
-            };
-
-            const workerTask = workerService.postTask('shaka-fetch', {
-                request: serializableRequest,
-                requestType,
-                auth,
-                streamId,
-            });
-
-            const shakaPromise = workerTask.promise.catch((error) => {
-                // Convert generic worker errors into Shaka-compatible errors.
-                if (error.name === 'AbortError') {
-                    throw new shaka.util.Error(
-                        shaka.util.Error.Severity.RECOVERABLE,
-                        shaka.util.Error.Category.PLAYER,
-                        shaka.util.Error.Code.OPERATION_ABORTED
-                    );
-                }
-                // For other errors, wrap them as a generic network error.
-                throw new shaka.util.Error(
-                    shaka.util.Error.Severity.CRITICAL,
-                    shaka.util.Error.Category.NETWORK,
-                    shaka.util.Error.Code.NETWORK_ERROR,
-                    error.message
-                );
-            });
-
-            const abortableOp = new shaka.util.AbortableOperation(
-                shakaPromise,
-                () => {
-                    debugLog(
-                        'ShakaNetworkPlugin',
-                        `onAbort called for URI: ${uri}. Cancelling worker task.`
-                    );
-                    workerTask.cancel();
-                    return Promise.resolve();
-                }
-            );
-
-            return abortableOp;
-        };
-
-        shaka.net.NetworkingEngine.registerScheme('http', shakaNetworkPlugin);
-        shaka.net.NetworkingEngine.registerScheme('https', shakaNetworkPlugin);
-
         videoElement = videoEl;
         player = new shaka.Player();
-        player.attach(videoElement);
+        await player.attach(videoElement);
+
+        /** @type {any} */ (
+            player.getNetworkingEngine()
+        ).streamAnalyzerStreamId = null;
 
         ui = new shaka.ui.Overlay(player, videoContainer, videoElement);
         ui.getControls();
@@ -120,7 +71,6 @@ export const playerService = {
         );
         player.addEventListener('buffering', this.onBufferingEvent.bind(this));
 
-        // PiP Event Listeners
         videoElement.addEventListener('enterpictureinpicture', () =>
             eventBus.dispatch('player:pip-changed', { isInPiP: true })
         );
@@ -128,6 +78,10 @@ export const playerService = {
             eventBus.dispatch('player:pip-changed', { isInPiP: false })
         );
 
+        this.isInitialized = true;
+    },
+
+    startStatsCollection() {
         if (statsInterval) clearInterval(statsInterval);
         statsInterval = setInterval(() => {
             if (player && videoElement) {
@@ -165,8 +119,14 @@ export const playerService = {
                 });
             }
         }, 1000);
+    },
 
-        this.isInitialized = true;
+    stopStatsCollection() {
+        if (statsInterval) {
+            clearInterval(statsInterval);
+            statsInterval = null;
+        }
+        activeManifestVariants = [];
     },
 
     /**
@@ -177,6 +137,13 @@ export const playerService = {
     async load(stream, autoPlay = false) {
         if (!this.isInitialized || !player || !stream || !stream.drmAuth)
             return;
+
+        /** @type {any} */ (player).streamAnalyzerStreamId = stream.id;
+        /** @type {any} */ (
+            player.getNetworkingEngine()
+        ).streamAnalyzerStreamId = stream.id;
+        activeStreamIds.add(stream.id);
+        eventBus.dispatch('player:active-streams-changed', { activeStreamIds });
 
         const isEncrypted = stream.manifest?.summary?.security?.isEncrypted;
 
@@ -246,18 +213,19 @@ export const playerService = {
                 return;
             }
         } else {
-            // Explicitly clear DRM config for clear streams
             player.configure({ drm: { servers: {} } });
         }
 
         try {
-            debugLog(
-                'playerService.load',
-                'Loading instrumented URL:',
-                stream.originalUrl
-            );
+            debugLog('playerService.load', 'Loading URL:', stream.originalUrl);
+
             await player.load(stream.originalUrl);
             playerActions.setLoadedState(true);
+
+            // ARCHITECTURAL FIX: Cache variants on load, start stats collection
+            activeManifestVariants = player.getManifest()?.variants || [];
+            this.startStatsCollection();
+
             eventBus.dispatch('player:manifest-loaded');
 
             if (autoPlay && videoElement) {
@@ -269,25 +237,24 @@ export const playerService = {
         }
     },
 
-    /**
-     * Unloads the current content from the player.
-     */
     async unload() {
         if (this.isInitialized && player) {
+            const streamId = /** @type {any} */ (player).streamAnalyzerStreamId;
+            this.stopStatsCollection(); // Stop stats on unload
             await player.unload();
             playerActions.setLoadedState(false);
+            if (streamId !== undefined) {
+                activeStreamIds.delete(streamId);
+                eventBus.dispatch('player:active-streams-changed', {
+                    activeStreamIds,
+                });
+            }
         }
     },
 
-    /**
-     * Destroys the player instance and cleans up resources.
-     */
     destroy() {
         if (!this.isInitialized) return;
-        if (statsInterval) {
-            clearInterval(statsInterval);
-            statsInterval = null;
-        }
+        this.stopStatsCollection(); // Stop stats on destroy
         if (ui) {
             ui.destroy();
             ui = null;
@@ -298,18 +265,15 @@ export const playerService = {
         }
         videoElement = null;
         this.isInitialized = false;
+        activeStreamIds.clear();
+        eventBus.dispatch('player:active-streams-changed', { activeStreamIds });
         playerActions.setLoadedState(false);
     },
 
-    getPlayer() {
-        return player;
-    },
+    getPlayer: () => player,
+    getActiveManifestVariants: () => activeManifestVariants,
+    getConfiguration: () => player?.getConfiguration(),
 
-    getConfiguration() {
-        return player?.getConfiguration();
-    },
-
-    // --- New Control Methods ---
     async enterPictureInPicture() {
         if (
             videoElement &&
@@ -338,7 +302,6 @@ export const playerService = {
         if (player) {
             player.configure({ abr: { enabled } });
             if (enabled) {
-                // When re-enabling ABR, we must clear any manual track selection.
                 player.selectVariantTrack(null, false);
             }
         }
@@ -370,7 +333,6 @@ export const playerService = {
 
     selectVariantTrack(track, clearBuffer = true) {
         if (player) {
-            // Explicitly disable ABR when a manual selection is made.
             this.setAbrEnabled(false);
             player.selectVariantTrack(track, clearBuffer);
         }
@@ -384,7 +346,6 @@ export const playerService = {
         player?.selectAudioLanguage(lang);
     },
 
-    // --- Event Handlers ---
     onErrorEvent(event) {
         this.onError(event.detail);
     },
@@ -392,27 +353,20 @@ export const playerService = {
     onError(error) {
         console.error('Shaka Player Error:', error.code, error);
         playerActions.setLoadedState(false);
-
         let message = `Player error: ${error.code} - ${error.message}`;
         if (error.code === 6007) {
-            // LICENSE_REQUEST_FAILED
             const networkError = error.data[0];
             if (networkError && networkError.data) {
                 const httpStatus = networkError.data[1];
                 message = `License request failed: HTTP ${httpStatus}. Check Authentication settings.`;
             }
         }
-
-        eventBus.dispatch('player:error', {
-            message,
-            error,
-        });
+        eventBus.dispatch('player:error', { message, error });
     },
 
     onAdaptationEvent(event) {
         const { streams, activeStreamId } = useAnalysisStore.getState();
         const stream = streams.find((s) => s.id === activeStreamId);
-
         const newTrack = {
             ...event.newVariant,
             playheadTime: player.getMediaElement().currentTime,
@@ -425,11 +379,7 @@ export const playerService = {
             streamId: activeStreamId,
             stream,
         };
-
-        eventBus.dispatch('player:adaptation-internal', {
-            oldTrack,
-            newTrack,
-        });
+        eventBus.dispatch('player:adaptation-internal', { oldTrack, newTrack });
     },
 
     onBufferingEvent(event) {

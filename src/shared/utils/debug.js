@@ -34,7 +34,9 @@ function safeStringify(obj) {
 export function debugLog(component, ...args) {
     if (DEBUG_ENABLED) {
         const processedArgs = args.map((arg) =>
-            typeof arg === 'object' && arg !== null ? JSON.parse(safeStringify(arg)) : arg
+            typeof arg === 'object' && arg !== null
+                ? JSON.parse(safeStringify(arg))
+                : arg
         );
         console.debug(`[DEBUG - ${component}]`, ...processedArgs);
     }
