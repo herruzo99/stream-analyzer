@@ -21,6 +21,11 @@ export const play = i('play-circle');
 export const fileScan = i('file-scan');
 export const searchCode = i('search-code');
 
+// --- Input View Mobile Nav ---
+export const library = i('library');
+export const clipboardList = i('clipboard-list');
+export const slidersHorizontal = i('sliders-horizontal');
+
 // --- Global Control Icons ---
 export const share = i('share-2');
 export const debug = i('bug');
@@ -36,6 +41,7 @@ export const plusCircle = i('plus-circle');
 export const minusCircle = i('minus-circle');
 export const informationCircle = i('info');
 export const chevronDown = i('chevron-down', 'h-5 w-5');
+export const chevronUpDown = i('chevrons-up-down', 'h-4 w-4');
 export const menu = i('menu', 'h-6 w-6');
 export const clipboardCopy = i('clipboard-copy', 'h-4 w-4');
 export const download = i('download', 'h-4 w-4');
@@ -54,6 +60,8 @@ export const calendar = i('calendar');
 export const arrowLeft = i('chevron-left');
 export const arrowRight = i('chevron-right');
 export const viewfinder = i('scan-line');
+export const inbox = i('inbox', 'h-12 w-12 text-gray-600');
+export const eyeOff = i('eye-off');
 
 // --- Property Icons ---
 export const aligned = i('align-vertical-space-around', 'h-4 w-4');

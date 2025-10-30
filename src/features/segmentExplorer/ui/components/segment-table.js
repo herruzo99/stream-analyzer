@@ -86,8 +86,10 @@ export const segmentTableTemplate = ({
 
         const rowRenderer = (seg) => {
             const cacheEntry = getFromCache(seg.uniqueId);
+            // Defensive fallback for newlyAddedSegmentUrls. This handles arrays, sets, null, and undefined.
+            const safeNewlyAdded = new Set(newlyAddedSegmentUrls || []);
             const shouldFlash =
-                newlyAddedSegmentUrls.has(seg.uniqueId) &&
+                safeNewlyAdded.has(seg.uniqueId) &&
                 !thisTablesFlashed.has(seg.uniqueId);
 
             if (shouldFlash) {

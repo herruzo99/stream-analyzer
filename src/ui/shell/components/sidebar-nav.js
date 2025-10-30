@@ -3,29 +3,25 @@ import { useUiStore, uiActions } from '@/state/uiStore';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { isDebugMode } from '@/shared/utils/env';
 import * as icons from '@/ui/icons';
-
-const chevronRight = html`<svg
-    class="w-3 h-3"
-    fill="none"
-    stroke="currentColor"
-    viewBox="0 0 24 24"
->
-    <path
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        stroke-width="2"
-        d="M9 5l7 7-7 7"
-    ></path>
-</svg>`;
+import { hasMissingTooltips } from '@/features/parserCoverage/domain/tooltip-coverage-analyzer';
 
 const NavLink = (item, activeTab, isSubItem = false) => {
     if (!item.visible) return '';
-    const isActive = item.isActive
-        ? item.isActive(activeTab)
-        : activeTab === item.key;
-    const paddingClass = isSubItem ? 'pl-8' : 'px-4';
-    const pyClass = isSubItem ? 'py-2' : 'py-3';
-    const classes = `flex items-center gap-3 ${paddingClass} ${pyClass} text-sm font-medium rounded-lg transition-colors ${isActive ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-gray-700 hover:text-white'}`;
+    const isActive = activeTab === item.key;
+    const paddingClass = isSubItem ? 'pl-11' : 'px-4';
+    const classes = `flex items-center gap-3 ${paddingClass} py-2.5 text-sm font-medium rounded-lg transition-colors ${
+        isActive
+            ? 'bg-blue-600 text-white'
+            : 'text-gray-400 hover:bg-gray-700 hover:text-white'
+    }`;
+
+    const warningIcon = item.hasWarning
+        ? html`<span
+              class="ml-auto text-yellow-400"
+              title="This feature has warnings."
+              >${icons.debug}</span
+          >`
+        : '';
 
     return html`
         <li>
@@ -36,56 +32,13 @@ const NavLink = (item, activeTab, isSubItem = false) => {
                 @click=${(e) => {
                     e.preventDefault();
                     uiActions.setActiveTab(item.key);
+                    uiActions.setActiveSidebar(null); // Close sidebar on mobile after navigation
                 }}
             >
                 ${item.icon}
                 <span class="inline">${item.label}</span>
+                ${warningIcon}
             </a>
-        </li>
-    `;
-};
-
-const SubMenu = (item, activeTab) => {
-    const isActive = item.isActive(activeTab);
-    return html`
-        <li>
-            <details class="group" ?open=${isActive}>
-                <summary
-                    class="flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg cursor-pointer list-none ${isActive
-                        ? 'text-white'
-                        : 'text-gray-400 hover:bg-gray-700 hover:text-white'}"
-                >
-                    ${item.icon}
-                    <span>${item.label}</span>
-                    <span
-                        class="ml-auto transition-transform duration-200 group-open:rotate-90"
-                        >${chevronRight}</span
-                    >
-                </summary>
-                <ul class="pl-4 mt-1 space-y-1">
-                    ${item.items.map((subItem) =>
-                        NavLink(subItem, activeTab, true)
-                    )}
-                </ul>
-            </details>
-        </li>
-    `;
-};
-
-const StaticSubMenu = (item, activeTab) => {
-    return html`
-        <li>
-            <div
-                class="flex items-center gap-3 px-4 py-3 text-sm font-medium text-gray-400"
-            >
-                ${item.icon}
-                <span>${item.label}</span>
-            </div>
-            <ul class="pl-4 mt-1 space-y-1">
-                ${item.items.map((subItem) =>
-                    NavLink(subItem, activeTab, true)
-                )}
-            </ul>
         </li>
     `;
 };
@@ -99,33 +52,29 @@ const NavGroup = (group, activeTab) => {
     });
     if (!isGroupVisible) return '';
 
-    return html`
-        <div class="mt-4 first:mt-0">
-            <h3
-                class="px-4 mb-2 text-xs font-semibold tracking-wider text-gray-500 uppercase"
-            >
-                ${group.title}
-            </h3>
-            <ul class="space-y-1">
-                ${group.items.map((item) => {
-                    if (item.type === 'submenu') {
-                        if (!item.items.some((sub) => sub.visible)) return '';
+    const isGroupActive = group.items.some((item) =>
+        item.type === 'submenu'
+            ? item.items.some((sub) => sub.key === activeTab)
+            : item.key === activeTab
+    );
 
-                        // Render "Manifest" and "Segments" as always-open sections
-                        if (
-                            item.label === 'Manifest' ||
-                            item.label === 'Segments'
-                        ) {
-                            return StaticSubMenu(item, activeTab);
-                        }
-                        return SubMenu(item, activeTab);
-                    } else if (item.visible) {
-                        return NavLink(item, activeTab);
-                    }
-                    return '';
-                })}
+    return html`
+        <details class="group" ?open=${isGroupActive}>
+            <summary
+                class="flex items-center gap-3 px-4 py-2 text-sm font-semibold rounded-lg cursor-pointer list-none text-gray-300 hover:bg-gray-700/50"
+            >
+                ${group.icon}
+                <span>${group.title}</span>
+                <span
+                    class="ml-auto transition-transform duration-200 group-open:rotate-90"
+                >
+                    <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                </span>
+            </summary>
+            <ul class="pl-4 mt-1 space-y-1">
+                ${group.items.map((item) => NavLink(item, activeTab, true))}
             </ul>
-        </div>
+        </details>
     `;
 };
 
@@ -137,153 +86,130 @@ export function getNavGroups() {
     );
     const isMultiStream = streams.length > 1;
 
+    const showCoverageWarning =
+        isDebugMode && activeStream?.coverageReport?.length > 0;
+    const showManifestWarning = hasMissingTooltips(activeStream);
+
     return [
         {
             title: 'Overviews',
+            icon: icons.summary,
             items: [
                 {
                     key: 'summary',
                     label: 'Summary',
                     icon: icons.summary,
                     visible: true,
-                    type: 'link',
                 },
                 {
                     key: 'comparison',
                     label: 'Manifest Comparison',
                     icon: icons.comparison,
                     visible: isMultiStream,
-                    type: 'link',
                 },
                 {
                     key: 'integrators-report',
                     label: "Integrator's Report",
                     icon: icons.integrators,
                     visible: true,
-                    type: 'link',
                 },
             ],
         },
         {
-            title: 'Analysis & Validation',
+            title: 'Analysis',
+            icon: icons.play,
             items: [
                 {
                     key: 'player-simulation',
                     label: 'Player Simulation',
                     icon: icons.play,
                     visible: !!activeStream?.originalUrl,
-                    type: 'link',
                 },
                 {
                     key: 'multi-player',
                     label: 'Multi-Player Dashboard',
                     icon: icons.viewfinder,
-                    visible: isMultiStream,
-                    type: 'link',
+                    visible: true,
                 },
                 {
                     key: 'timeline-visuals',
                     label: 'Timeline',
                     icon: icons.timeline,
                     visible: true,
-                    type: 'link',
                 },
                 {
                     key: 'advertising',
                     label: 'Advertising',
                     icon: icons.advertising,
                     visible: true,
-                    type: 'link',
                 },
                 {
                     key: 'features',
                     label: 'Features',
                     icon: icons.features,
                     visible: true,
-                    type: 'link',
                 },
                 {
                     key: 'compliance',
                     label: 'Compliance',
                     icon: icons.compliance,
                     visible: true,
-                    type: 'link',
                 },
                 {
                     key: 'network',
                     label: 'Network',
                     icon: icons.network,
                     visible: true,
-                    type: 'link',
                 },
             ],
         },
         {
-            title: 'Interactive Exploration',
+            title: 'Exploration',
+            icon: icons.explorer,
             items: [
                 {
-                    type: 'submenu',
-                    label: 'Manifest',
+                    key: 'interactive-manifest',
+                    label: 'Interactive Manifest',
                     icon: icons.interactiveManifest,
-                    isActive: (activeTab) =>
-                        ['interactive-manifest', 'updates'].includes(activeTab),
-                    items: [
-                        {
-                            key: 'interactive-manifest',
-                            label: 'Interactive View',
-                            icon: icons.fileScan,
-                            visible: true,
-                        },
-                        {
-                            key: 'updates',
-                            label: 'Live Updates',
-                            icon: icons.updates,
-                            visible: true,
-                        },
-                    ],
+                    visible: true,
+                    hasWarning: showManifestWarning,
                 },
                 {
-                    type: 'submenu',
-                    label: 'Segments',
-                    icon: icons.explorer,
-                    isActive: (activeTab) =>
-                        [
-                            'explorer',
-                            'segment-comparison',
-                            'interactive-segment',
-                        ].includes(activeTab),
-                    items: [
-                        {
-                            key: 'explorer',
-                            label: 'Explorer',
-                            icon: icons.searchCode,
-                            visible: true,
-                        },
-                        {
-                            key: 'segment-comparison',
-                            label: 'Comparison',
-                            icon: icons.comparison,
-                            visible: segmentsForCompare.length > 1,
-                        },
-                        {
-                            key: 'interactive-segment',
-                            label: 'Inspector',
-                            icon: icons.interactiveSegment,
-                            visible: !!activeSegmentUrl,
-                        },
-                    ],
+                    key: 'updates',
+                    label: 'Live Updates',
+                    icon: icons.updates,
+                    visible: true,
+                },
+                {
+                    key: 'explorer',
+                    label: 'Segment Explorer',
+                    icon: icons.searchCode,
+                    visible: true,
+                },
+                {
+                    key: 'segment-comparison',
+                    label: 'Segment Comparison',
+                    icon: icons.comparison,
+                    visible: segmentsForCompare.length > 1,
+                },
+                {
+                    key: 'interactive-segment',
+                    label: 'Segment Inspector',
+                    icon: icons.interactiveSegment,
+                    visible: !!activeSegmentUrl,
                 },
             ],
         },
         {
-            title: 'Developer Tools',
+            title: 'Developer',
+            icon: icons.debug,
             items: [
                 {
                     key: 'parser-coverage',
                     label: 'Parser Coverage',
                     icon: icons.parserCoverage,
                     visible: isDebugMode,
-                    type: 'link',
+                    hasWarning: showCoverageWarning,
                 },
             ],
         },

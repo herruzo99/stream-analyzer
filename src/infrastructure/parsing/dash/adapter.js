@@ -13,6 +13,7 @@
  * @typedef {import('@/types.ts').ExtendedBandwidth} ExtendedBandwidth
  * @typedef {import('@/types.ts').ServiceDescription} ServiceDescription
  * @typedef {import('@/types.ts').InitializationSet} InitializationSet
+ * @typedef {import('@/types.ts').AdAvail} AdAvail
  */
 
 import { getDrmSystemName } from '@/infrastructure/parsing/utils/drm';
@@ -25,6 +26,18 @@ import {
 } from './recursive-parser.js';
 import { parseScte35 } from '@/infrastructure/parsing/scte35/parser';
 import { inferMediaInfoFromExtension } from '../utils/media-types.js';
+
+/**
+ * @constant {string[]}
+ * @description A list of known prefixes for Period IDs used by SSAI vendors.
+ * This is a heuristic-based fallback for detecting ad insertion periods.
+ */
+const KNOWN_SSAI_PREFIXES = [
+    'DAICONNECT', // Ad Insertion Platform (AIP)
+    'MEDIATAILOR', // AWS MediaTailor
+    'YOSPACE', // Yospace
+    'VMAP', // Common VAST/VMAP-based insertion
+];
 
 /**
  * Creates a deep copy of a parsed manifest object.
@@ -537,6 +550,8 @@ function parsePeriod(periodEl, parentMergedEl, previousPeriod = null) {
     const periodDuration = parseDuration(getAttr(periodEl, 'duration'));
 
     const allEvents = [];
+    const adAvails = [];
+
     const eventStreamIRs = eventStreams.map((esEl) => {
         const schemeIdUri = getAttr(esEl, 'schemeIdUri');
         const timescale = parseInt(getAttr(esEl, 'timescale') || '1', 10);
@@ -594,28 +609,60 @@ function parsePeriod(periodEl, parentMergedEl, previousPeriod = null) {
         };
     });
 
-    // --- HEURISTIC for SSAI ad periods ---
-    const isAdPeriod = periodId?.toUpperCase().startsWith('DAICONNECT');
+    // --- ARCHITECTURAL REFACTOR: REFINED AD DETECTION HEURISTICS ---
+    let isAdPeriod = false;
+
+    // Heuristic 1 (Strongest): AssetIdentifier changes between periods.
+    const currentAssetId = assetIdentifierEl
+        ? getAttr(assetIdentifierEl, 'value')
+        : null;
+    const prevAssetId = previousPeriod?.assetIdentifier?.value ?? null;
+    if (
+        currentAssetId !== null &&
+        prevAssetId !== null &&
+        currentAssetId !== prevAssetId
+    ) {
+        isAdPeriod = true;
+    }
+
+    // Heuristic 2 (Strong): Period ID matches known SSAI vendor prefixes.
+    if (!isAdPeriod && periodId) {
+        const upperPeriodId = periodId.toUpperCase();
+        if (
+            KNOWN_SSAI_PREFIXES.some((prefix) =>
+                upperPeriodId.startsWith(prefix)
+            )
+        ) {
+            isAdPeriod = true;
+        }
+    }
+
     if (isAdPeriod && periodDuration) {
+        // --- FIX: Robustly parse numeric ID from periodId ---
+        const idMatch = periodId.match(/\d+/g);
+        const numericId = idMatch ? parseInt(idMatch.join(''), 10) : null;
+        const spliceEventId = numericId !== null ? numericId : Date.now();
+        // --- END FIX ---
+
+        const adManifestUrl = null; // SSAI periods are server-stitched.
+
         /** @type {import('@/types.ts').Scte35SpliceCommand} */
         const splice_command = {
             type: 'Splice Insert',
-            splice_event_id: parseInt(periodId.replace(/[^0-9]/g, ''), 10) || 0,
+            splice_event_id: spliceEventId,
             duration_flag: 1,
             break_duration: {
                 auto_return: true,
-                duration: periodDuration * 90000, // Convert to 90kHz clock
+                duration: periodDuration * 90000,
             },
         };
 
-        const syntheticEvent = {
+        /** @type {AdAvail} */
+        const adAvail = {
+            id: String(spliceEventId),
             startTime: periodStart,
             duration: periodDuration,
-            message: `SSAI Ad Period: ${periodId}`,
-            messageData: null,
-            type: 'ssai-period',
-            cue: null,
-            scte35: {
+            scte35Signal: {
                 table_id: 0xfc,
                 protocol_version: 0,
                 pts_adjustment: 0,
@@ -626,10 +673,12 @@ function parsePeriod(periodEl, parentMergedEl, previousPeriod = null) {
                 splice_command,
                 descriptors: [],
             },
+            adManifestUrl: adManifestUrl,
+            creatives: [],
         };
-        allEvents.push(syntheticEvent);
+        adAvails.push(adAvail);
     }
-    // --- END HEURISTIC ---
+    // --- END REFACTOR ---
 
     /** @type {Period} */
     const periodIR = {
@@ -658,6 +707,7 @@ function parsePeriod(periodEl, parentMergedEl, previousPeriod = null) {
         ),
         eventStreams: eventStreamIRs,
         events: allEvents,
+        adAvails: adAvails,
         supplementalProperties: findChildren(
             periodEl,
             'SupplementalProperty'
@@ -794,6 +844,7 @@ export async function adaptDashToIr(manifestElement, baseUrl, context) {
         serializedManifest: manifestElement,
         metrics: [],
         events: [],
+        adAvails: [],
         summary: null,
         serverControl: null,
     };
@@ -806,6 +857,7 @@ export async function adaptDashToIr(manifestElement, baseUrl, context) {
     });
 
     manifestIR.events = manifestIR.periods.flatMap((p) => p.events);
+    manifestIR.adAvails = manifestIR.periods.flatMap((p) => p.adAvails);
 
     return manifestIR;
 }

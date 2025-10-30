@@ -31,6 +31,7 @@ import { debugLog } from '@/shared/utils/debug';
  * @property {(streamId: number) => void} setActiveStreamId
  * @property {(id: string) => void} setActiveSegmentUrl
  * @property {() => void} addStreamInput
+ * @property {(preset: Partial<StreamInput>) => void} addStreamInputFromPreset
  * @property {(id: number) => void} removeStreamInput
  * @property {() => void} clearAllStreamInputs
  * @property {(data: object[]) => void} setStreamInputs
@@ -146,7 +147,7 @@ export const useAnalysisStore = createStore((set, get) => ({
             newStream.wasStoppedByInactivity = false;
             newStream.activeMediaPlaylistUrl = null;
             newStream.inbandEvents = [];
-            newStream.adAvails = [];
+            newStream.adAvails = s.adAvails || [];
             newStream.mediaPlaylists =
                 s.protocol === 'hls' && s.manifest?.isMaster
                     ? new Map([
@@ -208,15 +209,38 @@ export const useAnalysisStore = createStore((set, get) => ({
         });
     },
 
+    addStreamInputFromPreset: (preset) => {
+        set((state) => {
+            const newId = state.streamIdCounter;
+            const newStreamInput = {
+                id: newId,
+                url: preset.url || '',
+                name: preset.name || '',
+                file: null,
+                auth: preset.auth || { headers: [], queryParams: [] },
+                drmAuth: preset.drmAuth || {
+                    licenseServerUrl: '',
+                    serverCertificate: null,
+                    headers: [],
+                    queryParams: [],
+                },
+            };
+            return {
+                streamInputs: [...state.streamInputs, newStreamInput],
+                streamIdCounter: newId + 1,
+                activeStreamInputId: newId,
+            };
+        });
+    },
+
     removeStreamInput: (id) => {
         set((state) => {
             const remaining = state.streamInputs.filter((i) => i.id !== id);
-            if (remaining.length === 0) {
-                return createInitialAnalysisState();
-            }
 
             let newActiveId = state.activeStreamInputId;
-            if (state.activeStreamInputId === id) {
+            if (remaining.length === 0) {
+                newActiveId = null;
+            } else if (state.activeStreamInputId === id) {
                 const removedIndex = state.streamInputs.findIndex(
                     (i) => i.id === id
                 );
@@ -231,11 +255,9 @@ export const useAnalysisStore = createStore((set, get) => ({
     },
 
     clearAllStreamInputs: () => {
-        const initialState = createInitialAnalysisState();
         set({
-            streamInputs: initialState.streamInputs,
-            streamIdCounter: initialState.streamIdCounter,
-            activeStreamInputId: initialState.activeStreamInputId,
+            streamInputs: [],
+            activeStreamInputId: null,
         });
     },
 
@@ -426,16 +448,40 @@ export const useAnalysisStore = createStore((set, get) => ({
         set((state) => ({
             streams: state.streams.map((s) => {
                 if (s.id === streamId) {
-                    // Create a new object and apply updates, preserving Map instances
-                    const newStream = { ...s, ...updatedStreamData };
-                    return newStream;
+                    const hydratedUpdate = { ...updatedStreamData };
+
+                    if (hydratedUpdate.dashRepresentationState) {
+                        const newDashState = new Map();
+                        for (const [key, value] of hydratedUpdate.dashRepresentationState.entries()) {
+                            newDashState.set(key, {
+                                ...value,
+                                currentSegmentUrls: new Set(value.currentSegmentUrls || []),
+                                newlyAddedSegmentUrls: new Set(value.newlyAddedSegmentUrls || []),
+                            });
+                        }
+                        hydratedUpdate.dashRepresentationState = newDashState;
+                    }
+
+                    if (hydratedUpdate.hlsVariantState) {
+                        const newHlsState = new Map();
+                        for (const [key, value] of hydratedUpdate.hlsVariantState.entries()) {
+                            const existingState = s.hlsVariantState.get(key) || {};
+                            newHlsState.set(key, {
+                                ...existingState,
+                                ...value,
+                                currentSegmentUrls: new Set(value.currentSegmentUrls || []),
+                                newlyAddedSegmentUrls: new Set(value.newlyAddedSegmentUrls || []),
+                            });
+                        }
+                        hydratedUpdate.hlsVariantState = newHlsState;
+                    }
+
+                    return { ...s, ...hydratedUpdate };
                 }
                 return s;
             }),
         }));
-        debugLog('AnalysisStore', `State updated for stream ${streamId}.`, {
-            updatedData: updatedStreamData,
-        });
+        debugLog('AnalysisStore', `State updated for stream ${streamId}.`, { updatedData: updatedStreamData });
         eventBus.dispatch('state:stream-updated', { streamId });
     },
 

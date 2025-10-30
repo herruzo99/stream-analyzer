@@ -15,6 +15,7 @@ import { parseSegment } from '../parsingService.js';
 import { fetchWithAuth } from '../http.js';
 import xmlFormatter from 'xml-formatter';
 import { debugLog } from '@/shared/utils/debug';
+import { resolveAdAvailsInWorker } from '@/features/advertising/application/resolveAdAvailWorker';
 
 async function fetchAndParseSegment(
     url,
@@ -168,6 +169,8 @@ async function buildStreamObject(
         hlsDefinedVariables: manifestIR.hlsDefinedVariables,
         semanticData: semanticData,
         coverageReport,
+        adAvails: manifestIR.adAvails || [], // Correctly propagate ad avails
+        inbandEvents: [],
         adaptationEvents: [],
     };
 
@@ -368,6 +371,19 @@ export async function handleStartAnalysis({ inputs }, signal) {
                 serializedManifestObject = serializedManifest;
                 finalBaseUrl = baseUrl;
             }
+
+            // --- ARCHITECTURAL FIX: VAST Enrichment Step ---
+            if (manifestIR.adAvails && manifestIR.adAvails.length > 0) {
+                debugLog(
+                    'analysisHandler',
+                    `Found ${manifestIR.adAvails.length} ad avails. Resolving VAST...`
+                );
+                const enrichedAdAvails = await resolveAdAvailsInWorker(
+                    manifestIR.adAvails
+                );
+                manifestIR.adAvails = enrichedAdAvails;
+            }
+            // --- END FIX ---
 
             // STEP 3: Run compliance and other sync analyses on PRISTINE IR
             const manifestObjectForChecks =

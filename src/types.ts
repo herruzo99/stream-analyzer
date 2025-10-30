@@ -325,6 +325,7 @@ export interface Period {
     serviceDescriptions: ServiceDescription[];
     eventStreams: EventStream[];
     events: Event[];
+    adAvails?: AdAvail[];
     supplementalProperties?: Descriptor[];
     serializedManifest: object;
 }
@@ -515,6 +516,7 @@ export interface Manifest {
     segmentFormat: 'isobmff' | 'ts' | 'unknown';
     periods: Period[];
     events: Event[];
+    adAvails?: AdAvail[];
     contentProtections?: ContentProtection[];
     serializedManifest: Element | object;
     summary: ManifestSummary | null;
@@ -689,27 +691,6 @@ export interface Stream {
     adaptationEvents: AdaptationEvent[];
 }
 
-export type SerializedStream = Omit<
-    Stream,
-    | 'mediaPlaylists'
-    | 'featureAnalysis'
-    | 'hlsVariantState'
-    | 'dashRepresentationState'
-    | 'hlsDefinedVariables'
-    | 'semanticData'
-> & {
-    mediaPlaylists: [string, MediaPlaylist][];
-    featureAnalysis: {
-        results: [string, FeatureAnalysisResult][];
-        manifestCount: number;
-    };
-    hlsVariantState: [string, HlsVariantState][];
-    dashRepresentationState: [string, DashRepresentationState][];
-    hlsDefinedVariables: [string, { value: string; source: string }][];
-    semanticData: [string, any][];
-    coverageReport: CoverageFinding[];
-};
-
 export interface CoverageFinding {
     status: 'unparsed' | 'drift';
     pathOrLine: string;
@@ -847,3 +828,25 @@ export interface PlayerInstance {
     error: string | null;
     stats: PlayerStats | null;
 }
+
+// --- FIX: Moved SerializedStream to after Stream is defined ---
+export type SerializedStream = Omit<
+    Stream,
+    | 'mediaPlaylists'
+    | 'featureAnalysis'
+    | 'hlsVariantState'
+    | 'dashRepresentationState'
+    | 'hlsDefinedVariables'
+    | 'semanticData'
+> & {
+    mediaPlaylists: [string, MediaPlaylist][];
+    featureAnalysis: {
+        results: [string, FeatureAnalysisResult][];
+        manifestCount: number;
+    };
+    hlsVariantState: [string, HlsVariantState][];
+    dashRepresentationState: [string, DashRepresentationState][];
+    hlsDefinedVariables: [string, { value: string; source: string }][];
+    semanticData: [string, any][];
+    coverageReport: CoverageFinding[];
+};

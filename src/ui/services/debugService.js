@@ -36,6 +36,7 @@ export function copyDebugInfoToClipboard() {
                     rawManifest:
                         latestUpdate?.rawManifest || stream.rawManifest,
                     manifestSummary: stream.manifest?.summary || null,
+                    adAvails: stream.adAvails || [], // Include ad avails in the debug output
                     latestComplianceResults:
                         latestUpdate?.complianceResults || [],
                     coverageReport: stream.coverageReport || [],
