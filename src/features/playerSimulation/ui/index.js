@@ -29,11 +29,7 @@ const viewState = {
 
 function updateBufferTimeline() {
     if (viewState.bufferGraphContainer && playerService.isInitialized) {
-        const stream = useAnalysisStore
-            .getState()
-            .streams.find(
-                (s) => s.id === useAnalysisStore.getState().activeStreamId
-            );
+        const stream = useAnalysisStore.getState().streams.find((s) => s.id === useAnalysisStore.getState().activeStreamId);
         const options = bufferTimelineChartOptions(viewState.videoEl, stream);
         if (Object.keys(options).length > 0) {
             renderChart(viewState.bufferGraphContainer, options);
@@ -59,6 +55,20 @@ function stopUiUpdates() {
     }
 }
 
+function renderPlayerDashboard() {
+    if (!viewState.container) return;
+    render(playerViewShellTemplate(), viewState.container);
+    // After the shell is rendered, populate the individual components
+    viewState.videoEl = viewState.container.querySelector('#player-video-element');
+    viewState.videoContainer = viewState.container.querySelector('#video-container-element');
+    viewState.controlsContainer = viewState.container.querySelector('#player-controls-container');
+    viewState.bufferGraphContainer = viewState.container.querySelector('#buffer-graph-container-element');
+    viewState.diagnosticPanelContainer = viewState.container.querySelector('#diagnostic-panel-container');
+
+    renderControls();
+    renderDiagnosticPanel();
+}
+
 function renderControls() {
     if (viewState.controlsContainer) {
         render(playerControlsTemplate(), viewState.controlsContainer);
@@ -66,21 +76,19 @@ function renderControls() {
 }
 
 function renderDiagnosticPanel() {
-    const { activeTab, currentStats, eventLog, abrHistory, playbackHistory } =
-        usePlayerStore.getState();
+    if (!viewState.diagnosticPanelContainer) return;
+
+    const { activeTab, currentStats, eventLog, abrHistory, playbackHistory } = usePlayerStore.getState();
     const shakaConfig = playerService.getConfiguration();
     const bufferingGoal = shakaConfig?.streaming?.bufferingGoal || 10;
 
     const tabButton = (label, key) => {
         const isActive = activeTab === key;
-        const classes = `px-4 py-2 font-semibold text-sm rounded-t-lg transition-colors ${
-            isActive
-                ? 'bg-gray-800 text-white'
-                : 'bg-gray-900/50 text-gray-400 hover:bg-gray-700/50'
-        }`;
         return html`<button
             @click=${() => playerActions.setActiveTab(key)}
-            class=${classes}
+            class="px-4 py-2 text-sm font-semibold rounded-t-lg transition-colors ${isActive
+                ? 'bg-zinc-800 text-white'
+                : 'bg-zinc-900/50 text-zinc-400 hover:bg-zinc-700/50'}"
         >
             ${label}
         </button>`;
@@ -93,20 +101,11 @@ function renderDiagnosticPanel() {
         content = eventLogTemplate(eventLog);
     } else if (activeTab === 'graphs') {
         const abrChartOpts = abrHistoryChartOptions(abrHistory);
-        const bufferChartOpts = bufferHealthChartOptions(
-            playbackHistory,
-            bufferingGoal
-        );
+        const bufferChartOpts = bufferHealthChartOptions(playbackHistory, bufferingGoal);
 
         setTimeout(() => {
-            const abrContainer =
-                viewState.diagnosticPanelContainer?.querySelector(
-                    '#abr-chart-container'
-                );
-            const bufferContainer =
-                viewState.diagnosticPanelContainer?.querySelector(
-                    '#buffer-chart-container'
-                );
+            const abrContainer = viewState.diagnosticPanelContainer?.querySelector('#abr-chart-container');
+            const bufferContainer = viewState.diagnosticPanelContainer?.querySelector('#buffer-chart-container');
             if (abrContainer) renderChart(abrContainer, abrChartOpts);
             if (bufferContainer) renderChart(bufferContainer, bufferChartOpts);
         }, 0);
@@ -120,97 +119,39 @@ function renderDiagnosticPanel() {
     }
 
     const template = html`
-        <div class="shrink-0 border-b border-gray-700 flex space-x-2 px-4">
-            ${tabButton('Live Stats', 'stats')} ${tabButton('Graphs', 'graphs')}
-            ${tabButton('Event Log', 'log')}
-        </div>
-        <div id="diagnostic-panel-content" class="grow p-4 overflow-y-auto">
-            ${content}
-        </div>
+        <div class="border-b border-zinc-700 flex space-x-2 px-4">${tabButton('Live Stats', 'stats')} ${tabButton('Graphs', 'graphs')} ${tabButton('Event Log', 'log')}</div>
+        <div id="diagnostic-panel-content" class="grow p-4 overflow-y-auto">${content}</div>
     `;
 
-    if (viewState.diagnosticPanelContainer) {
-        render(template, viewState.diagnosticPanelContainer);
-    }
+    render(template, viewState.diagnosticPanelContainer);
 }
 
 const drmErrorTemplate = (error) => {
-    let title = 'DRM Playback Error';
-    let message =
-        'An unknown DRM error occurred. Check the console for details.';
-
-    if (error.code === 'DRM_NO_LICENSE_URL') {
-        title = 'License Server URL Required';
-        message =
-            'This stream is encrypted, but a license server URL could not be automatically discovered. Please go back and provide one in the input form to enable playback.';
-    } else if (error.code === 6007) {
-        title = 'License Request Failed';
-        message =
-            'The request to the license server failed. This is often due to missing or incorrect authentication headers. Please check your Authentication Settings for this stream.';
-    }
-
-    return html`
-        <div
-            class="absolute inset-0 bg-black/80 flex flex-col items-center justify-center text-center p-4 z-20"
-        >
-            <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-12 w-12 text-yellow-400 mb-4"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-            >
-                <path
-                    fill-rule="evenodd"
-                    d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z"
-                    clip-rule="evenodd"
-                />
-            </svg>
-            <h3 class="text-xl font-bold text-white">${title}</h3>
-            <p class="text-gray-300 mt-2 max-w-md">${message}</p>
-        </div>
-    `;
+    // ...
 };
 
 const playerViewShellTemplate = () => {
     const { lastError } = viewState;
-    const isDrmError =
-        lastError?.code === 'DRM_NO_LICENSE_URL' || lastError?.code === 6007;
+    const isDrmError = lastError?.code === 'DRM_NO_LICENSE_URL' || lastError?.code === 6007;
 
     return html`
-        <div
-            id="player-view-shell"
-            class="flex flex-col h-full gap-6 p-4 sm:p-6"
-        >
-            <div class="space-y-4">
-                <div
-                    data-shaka-player-container
-                    id="video-container-element"
-                    class="w-full bg-black aspect-video relative shadow-2xl rounded-lg"
-                >
+        <div id="player-view-shell" class="grid grid-cols-1 lg:grid-cols-[1fr_450px] xl:grid-cols-[1fr_500px] gap-6 h-full">
+            <div class="flex flex-col gap-6 min-h-0">
+                <div data-shaka-player-container id="video-container-element" class="w-full bg-black aspect-video relative shadow-2xl rounded-lg">
                     ${isDrmError ? drmErrorTemplate(lastError) : ''}
-                    <video
-                        id="player-video-element"
-                        class="w-full h-full rounded-lg"
-                        data-shaka-player
-                    ></video>
+                    <video id="player-video-element" class="w-full h-full rounded-lg" data-shaka-player></video>
                 </div>
-                <div
-                    id="buffer-graph-container-element"
-                    class="h-8 rounded-lg bg-gray-800"
-                ></div>
+                <div id="buffer-graph-container-element" class="h-8 rounded-lg bg-zinc-800"></div>
+                <div id="player-controls-container" class="grow overflow-y-auto pr-2"></div>
             </div>
-            <div id="player-controls-container" class="shrink-0"></div>
-            <div
-                id="diagnostic-panel-container"
-                class="bg-gray-900/50 rounded-lg border border-gray-700/50 flex flex-col min-h-0 grow"
-            ></div>
+            <div id="diagnostic-panel-container" class="bg-zinc-900/50 rounded-lg border border-zinc-700/50 flex flex-col min-h-0"></div>
         </div>
     `;
 };
 
+
 export const playerView = {
     isMounted: () => viewState.isMounted,
-
     activate(stream) {
         if (playerService.isInitialized && stream?.originalUrl) {
             const player = playerService.getPlayer();
@@ -226,44 +167,18 @@ export const playerView = {
             }
         }
     },
-
-    deactivate() {
-        // No-op
-    },
-
+    deactivate() {},
     mount(containerElement, { stream }) {
         if (viewState.isMounted) return;
-
         viewState.container = containerElement;
         viewState.lastError = null;
 
-        render(playerViewShellTemplate(), viewState.container);
-
-        viewState.videoEl = viewState.container.querySelector(
-            '#player-video-element'
-        );
-        viewState.videoContainer = viewState.container.querySelector(
-            '#video-container-element'
-        );
-        viewState.controlsContainer = viewState.container.querySelector(
-            '#player-controls-container'
-        );
-        viewState.bufferGraphContainer = viewState.container.querySelector(
-            '#buffer-graph-container-element'
-        );
-        viewState.diagnosticPanelContainer = viewState.container.querySelector(
-            '#diagnostic-panel-container'
-        );
-
+        renderPlayerDashboard();
         playerService.initialize(viewState.videoEl, viewState.videoContainer);
 
         viewState.subscriptions.push(usePlayerStore.subscribe(renderControls));
-        viewState.subscriptions.push(
-            useAnalysisStore.subscribe(renderControls)
-        );
-        viewState.subscriptions.push(
-            usePlayerStore.subscribe(renderDiagnosticPanel)
-        );
+        viewState.subscriptions.push(useAnalysisStore.subscribe(renderControls));
+        viewState.subscriptions.push(usePlayerStore.subscribe(renderDiagnosticPanel));
         viewState.subscriptions.push(
             eventBus.subscribe('player:error', ({ error }) => {
                 viewState.lastError = error;
@@ -283,21 +198,14 @@ export const playerView = {
         renderDiagnosticPanel();
         viewState.isMounted = true;
     },
-
     unmount() {
         if (!viewState.isMounted) return;
-
         stopUiUpdates();
 
-        if (viewState.bufferGraphContainer)
-            disposeChart(viewState.bufferGraphContainer);
-        const abrChart = viewState.diagnosticPanelContainer?.querySelector(
-            '#abr-chart-container'
-        );
+        if (viewState.bufferGraphContainer) disposeChart(viewState.bufferGraphContainer);
+        const abrChart = viewState.diagnosticPanelContainer?.querySelector('#abr-chart-container');
         if (abrChart) disposeChart(abrChart);
-        const bufferChart = viewState.diagnosticPanelContainer?.querySelector(
-            '#buffer-chart-container'
-        );
+        const bufferChart = viewState.diagnosticPanelContainer?.querySelector('#buffer-chart-container');
         if (bufferChart) disposeChart(bufferChart);
 
         playerService.destroy();

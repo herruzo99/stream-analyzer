@@ -1,9 +1,11 @@
 import { showToast } from '@/ui/components/toast';
 import { workerService } from '@/infrastructure/worker/workerService';
+import { uiActions } from '@/state/uiStore';
 
 const HISTORY_KEY = 'stream-analyzer_history';
 const PRESETS_KEY = 'stream-analyzer_presets';
 const LAST_USED_KEY = 'stream-analyzer_last-used';
+const WORKSPACES_KEY = 'stream-analyzer_workspaces';
 const MAX_HISTORY_ITEMS = 10;
 const MAX_PRESETS = 50;
 
@@ -12,12 +14,10 @@ const MAX_PRESETS = 50;
  * @param {import('@/types').StreamInput} input The stream input object.
  * @returns {object} A serializable version of the input.
  */
-function prepareForStorage(input) {
+export function prepareForStorage(input) {
     const storableInput = JSON.parse(JSON.stringify(input)); // Deep clone to avoid mutation
     if (storableInput.drmAuth?.serverCertificate instanceof File) {
-        const file = /** @type {File} */ (
-            storableInput.drmAuth.serverCertificate
-        );
+        const file = /** @type {File} */ (storableInput.drmAuth.serverCertificate);
         storableInput.drmAuth.serverCertificate = {
             isFilePlaceholder: true,
             name: file.name,
@@ -32,7 +32,7 @@ function prepareForStorage(input) {
  * @param {object} storedInput The object from localStorage.
  * @returns {object} A restored stream input object.
  */
-function restoreFromStorage(storedInput) {
+export function restoreFromStorage(storedInput) {
     if (storedInput.drmAuth?.serverCertificate?.isFilePlaceholder) {
         const { name, type } = storedInput.drmAuth.serverCertificate;
         // Create a stub File object. The lack of content (size=0) will be our
@@ -43,14 +43,14 @@ function restoreFromStorage(storedInput) {
 }
 
 /**
- * Reads a list of streams from localStorage.
+ * Reads a list of items from localStorage.
  * @param {string} key The localStorage key.
  * @returns {Array<object>}
  */
-function getStreams(key) {
+function getItems(key) {
     try {
         const stored = JSON.parse(localStorage.getItem(key) || '[]');
-        return stored.map(restoreFromStorage);
+        return Array.isArray(stored) ? stored.map(restoreFromStorage) : [];
     } catch (e) {
         console.error(`Error reading from localStorage key "${key}":`, e);
         return [];
@@ -58,24 +58,24 @@ function getStreams(key) {
 }
 
 /**
- * Writes a list of streams to localStorage.
+ * Writes a list of items to localStorage.
  * @param {string} key The localStorage key.
- * @param {Array<object>} streams The array of streams to save.
+ * @param {Array<object>} items The array of items to save.
  */
-function setStreams(key, streams) {
+function setItems(key, items) {
     try {
-        const storableStreams = streams.map(prepareForStorage);
-        localStorage.setItem(key, JSON.stringify(storableStreams));
+        const storableItems = items.map(prepareForStorage);
+        localStorage.setItem(key, JSON.stringify(storableItems));
     } catch (e) {
         console.error(`Error writing to localStorage key "${key}":`, e);
     }
 }
 
-export const getHistory = () => getStreams(HISTORY_KEY);
-export const getPresets = () => getStreams(PRESETS_KEY);
-export const getLastUsedStreams = () => getStreams(LAST_USED_KEY);
-export const saveLastUsedStreams = (streams) =>
-    setStreams(LAST_USED_KEY, streams);
+export const getHistory = () => getItems(HISTORY_KEY);
+export const getPresets = () => getItems(PRESETS_KEY);
+export const getLastUsedStreams = () => getItems(LAST_USED_KEY);
+export const saveLastUsedStreams = (streams) => setItems(LAST_USED_KEY, streams);
+export const getWorkspaces = () => getItems(WORKSPACES_KEY);
 
 /**
  * Saves a stream object to the history.
@@ -89,9 +89,7 @@ export function saveToHistory(stream) {
     const isPreset = presets.some((p) => p.url === stream.originalUrl);
     if (isPreset) return; // Don't add presets to history
 
-    const newHistory = history.filter(
-        (item) => item.url !== stream.originalUrl
-    );
+    const newHistory = history.filter((item) => item.url !== stream.originalUrl);
     newHistory.unshift({
         name: stream.name,
         url: stream.originalUrl,
@@ -104,7 +102,7 @@ export function saveToHistory(stream) {
     if (newHistory.length > MAX_HISTORY_ITEMS) {
         newHistory.length = MAX_HISTORY_ITEMS;
     }
-    setStreams(HISTORY_KEY, newHistory);
+    setItems(HISTORY_KEY, newHistory);
 }
 
 /**
@@ -119,11 +117,24 @@ export function savePreset(preset) {
     if (newPresets.length > MAX_PRESETS) {
         newPresets.length = MAX_PRESETS;
     }
-    setStreams(PRESETS_KEY, newPresets);
+    setItems(PRESETS_KEY, newPresets);
     showToast({
         message: `Preset "${preset.name}" saved!`,
         type: 'pass',
     });
+}
+
+/**
+ * Saves a workspace configuration and triggers a UI update.
+ * @param {{name: string, inputs: import('@/types').StreamInput[]}} workspace The workspace to save.
+ */
+export function saveWorkspace(workspace) {
+    const workspaces = getWorkspaces();
+    const newWorkspaces = workspaces.filter((w) => w.name !== workspace.name);
+    newWorkspaces.unshift(workspace);
+    setItems(WORKSPACES_KEY, newWorkspaces);
+    uiActions.loadWorkspaces(); // Trigger UI refresh
+    showToast({ message: `Workspace "${workspace.name}" saved!`, type: 'pass' });
 }
 
 /**
@@ -133,7 +144,7 @@ export function savePreset(preset) {
 export function deleteHistoryItem(url) {
     const history = getHistory();
     const newHistory = history.filter((item) => item.url !== url);
-    setStreams(HISTORY_KEY, newHistory);
+    setItems(HISTORY_KEY, newHistory);
 }
 
 /**
@@ -143,7 +154,18 @@ export function deleteHistoryItem(url) {
 export function deletePreset(url) {
     const presets = getPresets();
     const newPresets = presets.filter((item) => item.url !== url);
-    setStreams(PRESETS_KEY, newPresets);
+    setItems(PRESETS_KEY, newPresets);
+}
+
+/**
+ * Deletes a workspace by its name and triggers a UI update.
+ * @param {string} name The name of the workspace to delete.
+ */
+export function deleteWorkspace(name) {
+    const workspaces = getWorkspaces();
+    const newWorkspaces = workspaces.filter((w) => w.name !== name);
+    setItems(WORKSPACES_KEY, newWorkspaces);
+    uiActions.loadWorkspaces(); // Trigger UI refresh
 }
 
 /**
@@ -160,7 +182,6 @@ export async function fetchStreamMetadata(url) {
         }
         const manifestString = await response.text();
 
-        // Use the centralized worker service with a promise-based API
         return await workerService.postTask('get-manifest-metadata', {
             manifestString,
         }).promise;

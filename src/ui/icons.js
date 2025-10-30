@@ -45,13 +45,13 @@ export const chevronUpDown = i('chevrons-up-down', 'h-4 w-4');
 export const menu = i('menu', 'h-6 w-6');
 export const clipboardCopy = i('clipboard-copy', 'h-4 w-4');
 export const download = i('download', 'h-4 w-4');
-export const checkCircle = i('check-circle-2', 'h-4 w-4 text-green-400');
+export const checkCircle = i('check-circle-2', 'h-4 w-4 text-success');
 export const xCircle = i('x-circle', 'h-5 w-5');
-export const xCircleRed = i('x-circle', 'h-5 w-5 text-red-500');
+export const xCircleRed = i('x-circle', 'h-5 w-5 text-danger');
 export const lockClosed = i('lock');
 export const lockOpen = i('unlock');
 export const spinner = i('loader-2', 'h-5 w-5 animate-spin');
-export const film = i('film', 'mx-auto h-12 w-12 text-gray-500');
+export const film = i('film', 'mx-auto h-12 w-12 text-neutral-500');
 export const sidebar = i('panel-left-close');
 export const sortAscending = i('arrow-up-a-z');
 export const sortDescending = i('arrow-down-z-a');
@@ -60,7 +60,7 @@ export const calendar = i('calendar');
 export const arrowLeft = i('chevron-left');
 export const arrowRight = i('chevron-right');
 export const viewfinder = i('scan-line');
-export const inbox = i('inbox', 'h-12 w-12 text-gray-600');
+export const inbox = i('inbox', 'h-12 w-12 text-neutral-600');
 export const eyeOff = i('eye-off');
 
 // --- Property Icons ---

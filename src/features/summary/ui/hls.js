@@ -6,173 +6,88 @@ import { hlsMediaPlaylistTemplate } from './components/hls-media-playlist.js';
 import { statCardTemplate, listCardTemplate } from './components/shared.js';
 
 export function getHlsSummaryTemplate(stream) {
-    // The stream object passed here now has its `manifest` property pointing
-    // to the currently active context (master or media playlist).
     const summary = stream.manifest.summary;
     const isLive = stream.manifest.type === 'dynamic';
 
     if (!summary) {
-        return html`<div class="text-yellow-400 p-4 text-center">
+        return html`<div class="text-warning p-4 text-center">
             <p class="font-bold">Summary data is incomplete for this view.</p>
-            <p>
-                This can happen if a media playlist was loaded in another view,
-                overwriting the master playlist context. Please start a new
-                analysis.
-            </p>
         </div>`;
     }
 
     return html`
         <div class="space-y-8">
-            <!-- General Section -->
             <div>
                 <h3 class="text-xl font-bold mb-4">General Properties</h3>
-                <dl
-                    class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(280px,1fr))]"
-                >
-                    ${statCardTemplate(
-                        'Stream Type',
-                        summary.general.streamType,
-                        'Indicates if the stream is live (EVENT) or on-demand (VOD).',
-                        'HLS: 4.3.3.5',
-                        `border-l-4 ${
-                            summary.general.streamTypeColor === 'text-red-400'
-                                ? 'border-red-500'
-                                : 'border-blue-500'
-                        }`
-                    )}
-                    ${statCardTemplate(
-                        'HLS Version',
-                        summary.hls.version,
-                        'Indicates the compatibility version of the Playlist file.',
-                        'HLS: 4.3.1.2'
-                    )}
-                    ${statCardTemplate(
-                        'Container Format',
-                        summary.general.segmentFormat,
-                        'The container format for media segments.',
-                        'HLS: 4.3.2.5'
-                    )}
-                    ${statCardTemplate(
-                        'Media Duration',
-                        summary.general.duration
-                            ? `${summary.general.duration.toFixed(2)}s`
-                            : null,
-                        'The total duration of the content.',
-                        'HLS: 4.3.3.5'
-                    )}
-                    ${statCardTemplate(
-                        'Target Duration',
-                        summary.hls.targetDuration
-                            ? `${summary.hls.targetDuration}s`
-                            : null,
-                        'The maximum Media Segment duration.',
-                        'HLS: 4.3.3.1'
-                    )}
-                    ${isLive
-                        ? statCardTemplate(
-                              'DVR Window',
-                              summary.hls.dvrWindow
-                                  ? `${summary.hls.dvrWindow.toFixed(2)}s`
-                                  : null,
-                              'The available duration for seeking backward in the live stream, estimated from segment durations.',
-                              'HLS: 6.3.3'
-                          )
-                        : ''}
-                </dl>
-            </div>
-
-            <!-- Low Latency Section -->
-            <div>
-                <h3 class="text-xl font-bold mb-4">Low-Latency Status</h3>
-                <dl
-                    class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(280px,1fr))]"
-                >
-                    ${statCardTemplate(
-                        'Low-Latency HLS',
-                        summary.lowLatency.isLowLatency,
-                        'Indicates if Low-Latency HLS features like PARTs and Preload Hints are in use.',
-                        'HLS 2nd Ed: Appx. B'
-                    )}
-                    ${statCardTemplate(
-                        'Part Target',
-                        summary.lowLatency.partTargetDuration
-                            ? `${summary.lowLatency.partTargetDuration}s`
-                            : null,
-                        'Target duration for LL-HLS Partial Segments.',
-                        'HLS 2nd Ed: 4.4.3.7'
-                    )}
-                    ${statCardTemplate(
-                        'Part Hold Back',
-                        summary.lowLatency.partHoldBack
-                            ? `${summary.lowLatency.partHoldBack}s`
-                            : null,
-                        'Server-recommended distance from the live edge for LL-HLS.',
-                        'HLS 2nd Ed: 4.4.3.8'
-                    )}
-                    ${statCardTemplate(
-                        'Can Block Reload',
-                        summary.lowLatency.isLowLatency
-                            ? summary.lowLatency.canBlockReload
-                            : null,
-                        'Indicates server support for blocking playlist reload requests for LL-HLS.',
-                        'HLS 2nd Ed: 4.4.3.8'
-                    )}
-                </dl>
-            </div>
-
-            <!-- Compliance Section -->
-            <div>${hlsComplianceSummaryTemplate(stream)}</div>
-
-            <!-- Content & Security Section -->
-            <div>
-                <h3 class="text-xl font-bold mb-4">Content & Security</h3>
-                <dl
-                    class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(280px,1fr))]"
-                >
-                    ${statCardTemplate(
-                        'I-Frame Playlists',
-                        summary.hls.iFramePlaylists > 0
-                            ? summary.hls.iFramePlaylists
-                            : 0,
-                        'Number of I-Frame only playlists for trick-play modes.',
-                        'HLS: 4.3.4.3'
-                    )}
-                    ${statCardTemplate(
-                        'Media Playlists',
-                        summary.content.mediaPlaylists,
-                        'Number of variant stream media playlists.',
-                        'HLS: 4.3.4.2'
-                    )}
-                    ${statCardTemplate(
-                        'Encryption',
-                        summary.security.isEncrypted,
-                        'Indicates if the stream uses encryption.',
-                        'HLS: 4.3.2.4'
-                    )}
-                    ${statCardTemplate(
-                        'HLS Encryption Method',
-                        summary.security.hlsEncryptionMethod,
-                        'The specific HLS encryption method used (AES-128 or SAMPLE-AES).',
-                        'HLS: 4.3.2.4'
-                    )}
-                    ${listCardTemplate({
-                        label: 'Key IDs (KIDs)',
-                        items: summary.security.kids,
-                        tooltip:
-                            'Key IDs found in the manifest, crucial for debugging decryption.',
+                <dl class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(280px,1fr))]">
+                    ${statCardTemplate({
+                        label: 'Stream Type',
+                        value: summary.general.streamType,
+                        tooltip: 'Indicates if the stream is live (EVENT) or on-demand (VOD).',
+                        isoRef: 'HLS: 4.3.3.5',
+                        customClasses: `border-l-4 ${isLive ? 'border-danger' : 'border-info'}`,
                     })}
+                    ${statCardTemplate({
+                        label: 'HLS Version',
+                        value: summary.hls.version,
+                        tooltip: 'Indicates the compatibility version of the Playlist file.',
+                        isoRef: 'HLS: 4.3.1.2',
+                    })}
+                    ${statCardTemplate({
+                        label: 'Container Format',
+                        value: summary.general.segmentFormat,
+                        tooltip: 'The container format for media segments.',
+                        isoRef: 'HLS: 4.3.2.5',
+                    })}
+                    ${statCardTemplate({
+                        label: 'Media Duration',
+                        value: summary.general.duration ? `${summary.general.duration.toFixed(2)}s` : null,
+                        tooltip: 'The total duration of the content.',
+                        isoRef: 'HLS: 4.3.3.5',
+                    })}
+                    ${statCardTemplate({
+                        label: 'Target Duration',
+                        value: summary.hls.targetDuration ? `${summary.hls.targetDuration}s` : null,
+                        tooltip: 'The maximum Media Segment duration.',
+                        isoRef: 'HLS: 4.3.3.1',
+                    })}
+                    ${isLive ? statCardTemplate({
+                        label: 'DVR Window',
+                        value: summary.hls.dvrWindow ? `${summary.hls.dvrWindow.toFixed(2)}s` : null,
+                        tooltip: 'The available duration for seeking backward in the live stream, estimated from segment durations.',
+                        isoRef: 'HLS: 6.3.3',
+                    }) : ''}
                 </dl>
             </div>
 
-            <!-- Media Playlist Details (if applicable) -->
-            ${hlsMediaPlaylistTemplate(summary)}
-
-            <!-- Stream Structure -->
-            ${hlsStructureTemplate(summary)}
-
-            <!-- Delivery Info (Steering) -->
-            ${deliveryInfoTemplate(stream)}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+                ${hlsComplianceSummaryTemplate(stream)}
+                <div>
+                    <h3 class="text-xl font-bold mb-4">Content & Security</h3>
+                    <dl class="grid gap-4 grid-cols-1">
+                        ${statCardTemplate({
+                            label: 'I-Frame Playlists',
+                            value: summary.hls.iFramePlaylists > 0 ? summary.hls.iFramePlaylists : 0,
+                            tooltip: 'Number of I-Frame only playlists for trick-play modes.',
+                            isoRef: 'HLS: 4.3.4.3',
+                        })}
+                        ${statCardTemplate({
+                            label: 'Encryption',
+                            value: summary.security.isEncrypted,
+                            tooltip: 'Indicates if the stream uses encryption.',
+                            isoRef: 'HLS: 4.3.2.4',
+                        })}
+                        ${statCardTemplate({
+                            label: 'HLS Encryption Method',
+                            value: summary.security.hlsEncryptionMethod,
+                            tooltip: 'The specific HLS encryption method used (AES-128 or SAMPLE-AES).',
+                            isoRef: 'HLS: 4.3.2.4',
+                        })}
+                    </dl>
+                </div>
+            </div>
+            
+            ${hlsMediaPlaylistTemplate(summary)} ${hlsStructureTemplate(summary)} ${deliveryInfoTemplate(stream)}
         </div>
     `;
 }

@@ -1,5 +1,5 @@
 import { saveToHistory } from '@/infrastructure/persistence/streamStorage';
-import { uiActions } from '@/state/uiStore';
+import { uiActions, useUiStore } from '@/state/uiStore';
 
 export class Application {
     /**
@@ -18,9 +18,12 @@ export class Application {
         this.eventBus.subscribe('state:analysis-complete', ({ streams }) => {
             if (streams.length > 0) {
                 saveToHistory(streams[0]);
-                const defaultTab =
-                    streams.length > 1 ? 'comparison' : 'summary';
-                uiActions.setActiveTab(defaultTab);
+                const defaultTab = streams.length > 1 ? 'comparison' : 'summary';
+                // Only set the default tab if a session isn't being restored, as the session
+                // will set its own active tab.
+                if (!useUiStore.getState().isRestoringSession) {
+                    uiActions.setActiveTab(defaultTab);
+                }
                 uiActions.setViewState('results');
             }
         });
@@ -44,8 +47,13 @@ export class Application {
 
     /**
      * Populates input fields from URL parameters or local storage.
+     * This logic is skipped if a session is being restored.
      */
     _populateInputs() {
+        if (useUiStore.getState().isRestoringSession) {
+            return; // Session restoration is in progress, do nothing.
+        }
+
         const urlParams = new URLSearchParams(window.location.search);
         const streamUrls = urlParams.getAll('url');
 

@@ -1,29 +1,26 @@
-import { useAnalysisStore } from '@/state/analysisStore';
 import { showToast } from '@/ui/components/toast';
+import { sessionService } from '@/application/services/sessionService';
 
 /**
- * Constructs a shareable URL from the current streams in the state and
+ * Constructs a shareable URL from the current application state and
  * copies it to the user's clipboard.
  */
 export function copyShareUrlToClipboard() {
-    const streams = useAnalysisStore.getState().streams;
+    const sessionHash = sessionService.serializeStateForUrl();
 
-    if (streams.length === 0) {
+    if (!sessionHash) {
+        showToast({ message: 'Nothing to share yet. Please add a stream.', type: 'warn' });
         return;
     }
 
     const url = new URL(window.location.origin + window.location.pathname);
-    streams.forEach((stream) => {
-        if (stream.originalUrl) {
-            url.searchParams.append('url', stream.originalUrl);
-        }
-    });
+    url.hash = `session=${sessionHash}`;
 
     navigator.clipboard
         .writeText(url.href)
         .then(() => {
             showToast({
-                message: 'Shareable URL copied to clipboard!',
+                message: 'Shareable session URL copied to clipboard!',
                 type: 'pass',
             });
         })

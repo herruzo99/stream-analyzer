@@ -1,7 +1,7 @@
 import { html } from 'lit-html';
-import { analysisActions, useAnalysisStore } from '@/state/analysisStore';
+import { analysisActions } from '@/state/analysisStore';
 import { useUiStore, uiActions } from '@/state/uiStore';
-import { getHistory, getPresets } from '@/infrastructure/persistence/streamStorage';
+import { getHistory, getPresets, deleteWorkspace } from '@/infrastructure/persistence/streamStorage';
 import { exampleStreams } from '@/data/example-streams';
 import * as icons from '@/ui/icons';
 
@@ -53,11 +53,51 @@ const renderStreamListItem = (stream) => {
     `;
 };
 
-const renderListSection = (items) => {
+const renderWorkspaceListItem = (workspace) => {
+    const handleLoad = (e) => {
+        e.stopPropagation();
+        analysisActions.setStreamInputs(workspace.inputs);
+        uiActions.setStreamInputActiveMobileTab('workspace');
+    };
+
+    const handleDelete = (e) => {
+        e.stopPropagation();
+        if (confirm(`Are you sure you want to delete the "${workspace.name}" workspace?`)) {
+            deleteWorkspace(workspace.name);
+        }
+    };
+
+    return html`
+        <li class="group p-3 hover:bg-gray-700/50 flex justify-between items-center">
+            <div class="flex flex-col min-w-0">
+                <span class="font-semibold text-gray-200 truncate" title="${workspace.name}">${workspace.name}</span>
+                <span class="text-xs text-gray-400 mt-1">${workspace.inputs.length} stream(s)</span>
+            </div>
+            <div class="shrink-0 flex items-center gap-2 ml-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                    @click=${handleLoad}
+                    class="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 bg-gray-900/50 hover:bg-blue-600 hover:text-white"
+                    title="Load Workspace"
+                >
+                    ${icons.play}
+                </button>
+                <button
+                    @click=${handleDelete}
+                    class="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 bg-gray-900/50 hover:bg-red-600 hover:text-white"
+                    title="Delete Workspace"
+                >
+                    ${icons.xCircle}
+                </button>
+            </div>
+        </li>
+    `;
+};
+
+const renderListSection = (items, itemTemplate) => {
     if (items.length === 0) {
-        return html`<p class="text-center text-sm text-gray-500 p-8">No streams found.</p>`;
+        return html`<p class="text-center text-sm text-gray-500 p-8">No items found.</p>`;
     }
-    return html`<ul class="divide-y divide-gray-700/50">${items.map((item) => renderStreamListItem(item))}</ul>`;
+    return html`<ul class="divide-y divide-gray-700/50">${items.map((item) => itemTemplate(item))}</ul>`;
 };
 
 const renderExampleSection = (searchTerm) => {
@@ -97,32 +137,35 @@ const renderExampleSection = (searchTerm) => {
 };
 
 export const libraryPanelTemplate = () => {
-    const { streamLibraryActiveTab, streamLibrarySearchTerm } = useUiStore.getState();
+    const { streamLibraryActiveTab, streamLibrarySearchTerm, workspaces } = useUiStore.getState();
     const lowerSearch = streamLibrarySearchTerm.toLowerCase();
 
     let content;
-    if (streamLibraryActiveTab === 'presets') {
+    if (streamLibraryActiveTab === 'workspaces') {
+        const filteredWorkspaces = workspaces.filter((w) => w.name.toLowerCase().includes(lowerSearch));
+        content = renderListSection(filteredWorkspaces, renderWorkspaceListItem);
+    } else if (streamLibraryActiveTab === 'presets') {
         const presets = getPresets().filter(
             (s) => s.name.toLowerCase().includes(lowerSearch) || s.url.toLowerCase().includes(lowerSearch)
         );
-        content = renderListSection(presets);
+        content = renderListSection(presets, renderStreamListItem);
     } else if (streamLibraryActiveTab === 'history') {
         const history = getHistory().filter(
             (s) => s.name.toLowerCase().includes(lowerSearch) || s.url.toLowerCase().includes(lowerSearch)
         );
-        content = renderListSection(history);
+        content = renderListSection(history, renderStreamListItem);
     } else {
         content = renderExampleSection(lowerSearch);
     }
 
-    const tabButton = (key, label) => html`
+    const tabButton = (key, label, count) => html`
         <button
             @click=${() => uiActions.setStreamLibraryTab(key)}
             class="px-3 py-1.5 text-sm font-semibold rounded-md transition-colors ${streamLibraryActiveTab === key
                 ? 'bg-blue-600 text-white'
                 : 'bg-gray-700/50 text-gray-300 hover:bg-gray-600/50'}"
         >
-            ${label}
+            ${label} ${count !== undefined ? html`(${count})` : ''}
         </button>
     `;
 
@@ -137,8 +180,9 @@ export const libraryPanelTemplate = () => {
                     @input=${(e) => uiActions.setStreamLibrarySearchTerm(e.target.value)}
                     class="w-full bg-gray-900 text-white rounded-md p-2 border border-gray-600 focus:ring-1 focus:ring-blue-500"
                 />
-                <div class="flex items-center gap-2">
-                    ${tabButton('presets', 'Presets')} ${tabButton('history', 'History')} ${tabButton('examples', 'Examples')}
+                <div class="flex items-center gap-2 flex-wrap">
+                    ${tabButton('workspaces', 'Workspaces', workspaces.length)} ${tabButton('presets', 'Presets')}
+                    ${tabButton('history', 'History')} ${tabButton('examples', 'Examples')}
                 </div>
             </div>
             <div class="grow overflow-y-auto">${content}</div>
