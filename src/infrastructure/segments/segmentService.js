@@ -10,12 +10,42 @@ export function getParsedSegment(uniqueId, streamId = null, formatHint = null) {
     const cachedEntry = get(uniqueId);
     const id = streamId ?? useAnalysisStore.getState().activeStreamId;
 
-    if (cachedEntry && cachedEntry.status !== -1 && cachedEntry.parsedData) {
+    // 1. If we have fully parsed data, return it immediately.
+    if (cachedEntry?.parsedData) {
         return cachedEntry.parsedData.error
             ? Promise.reject(new Error(cachedEntry.parsedData.error))
             : Promise.resolve(cachedEntry.parsedData);
     }
 
+    // --- ARCHITECTURAL REFACTOR: LAZY PARSING ---
+    // 2. If we have raw data but haven't parsed it yet, parse it now.
+    if (cachedEntry?.data) {
+        debugLog(
+            'SegmentService',
+            `Lazy parsing segment: ${uniqueId}. Data is already cached.`
+        );
+        return new Promise((resolve, reject) => {
+            workerService
+                .postTask('parse-segment-structure', {
+                    data: cachedEntry.data,
+                    url: uniqueId,
+                    formatHint: formatHint,
+                })
+                .promise.then((parsedData) => {
+                    const newEntry = { ...cachedEntry, parsedData };
+                    set(uniqueId, newEntry);
+                    if (parsedData.error) {
+                        reject(new Error(parsedData.error));
+                    } else {
+                        resolve(parsedData);
+                    }
+                })
+                .catch(reject);
+        });
+    }
+    // --- END REFACTOR ---
+
+    // 3. If we have nothing, fetch and parse from scratch.
     return new Promise((resolve, reject) => {
         const onSegmentLoaded = ({ uniqueId: loadedId, entry }) => {
             if (loadedId === uniqueId) {
@@ -136,14 +166,18 @@ export function initializeSegmentService() {
         });
     });
 
+    // --- ARCHITECTURAL REFACTOR: LAZY PARSING ---
+    // This handler now receives raw segment data from the player. It stores
+    // the ArrayBuffer in the cache but does NOT hold onto the large parsedData object.
+    // This prevents the main thread from being overwhelmed with object allocations during playback.
     eventBus.subscribe('worker:shaka-segment-loaded', (payload) => {
         debugLog(
             'SegmentService',
             'Handler for "worker:shaka-segment-loaded" triggered.',
-            payload
+            { uniqueId: payload.uniqueId, streamId: payload.streamId }
         );
 
-        const { uniqueId, status, data, parsedData, streamId } = payload;
+        const { uniqueId, status, data, streamId } = payload;
         const { set } = useSegmentCacheStore.getState();
         const stream = useAnalysisStore
             .getState()
@@ -157,14 +191,13 @@ export function initializeSegmentService() {
             return;
         }
 
-        const entry = { status, data, parsedData };
+        // Store only the raw data. Parsed data will be generated on-demand.
+        const entry = { status, data, parsedData: null };
         set(uniqueId, entry);
 
-        debugLog(
-            'SegmentService',
-            'Dispatching "segment:loaded" event to eventBus with canonical ID.'
-        );
-        eventBus.dispatch('segment:loaded', { uniqueId, entry });
+        // Dispatch a minimal event to notify that raw data is available.
+        // This is different from the full "segment:loaded" which implies parsing is complete.
+        eventBus.dispatch('segment:cached', { uniqueId, entry });
 
         if (stream.protocol === 'hls') {
             analysisActions.addHlsSegmentFromPlayer({
@@ -173,6 +206,7 @@ export function initializeSegmentService() {
             });
         }
     });
+    // --- END REFACTOR ---
 }
 
 function findHlsSegmentAndPlaylist(uniqueId) {

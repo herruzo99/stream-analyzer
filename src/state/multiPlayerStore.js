@@ -8,6 +8,7 @@ import { createStore } from 'zustand/vanilla';
 /**
  * @typedef {object} PlayerInstance
  * @property {number} streamId
+ * @property {number} sourceStreamId
  * @property {string} streamName
  * @property {string | null} manifestUrl
  * @property {'live' | 'vod'} streamType
@@ -16,6 +17,10 @@ import { createStore } from 'zustand/vanilla';
  * @property {PlayerStats | null} stats
  * @property {PlaybackHistoryEntry[]} playbackHistory
  * @property {PlayerHealth} health
+ * @property {boolean} selectedForAction
+ * @property {boolean | null} abrOverride
+ * @property {number | null} maxHeightOverride
+ * @property {number | null} bufferingGoalOverride
  */
 
 /**
@@ -28,21 +33,28 @@ import { createStore } from 'zustand/vanilla';
  * @property {boolean} globalAbrEnabled
  * @property {number} globalMaxHeight
  * @property {number} globalBufferingGoal
+ * @property {number} streamIdCounter
  */
 
 /**
  * @typedef {object} MultiPlayerActions
- * @property {(streamId: number, streamName: string, manifestUrl: string, streamType: 'live' | 'vod') => void} addPlayer
+ * @property {(sourceStreamId: number, streamName: string, manifestUrl: string, streamType: 'live' | 'vod') => number} addPlayer
  * @property {(streamId: number) => void} removePlayer
  * @property {(streamId: number, updates: Partial<PlayerInstance>) => void} updatePlayerState
  * @property {(event: Omit<PlayerEvent, 'id' | 'timestamp'>) => void} logEvent
  * @property {() => void} clearPlayers
+ * @property {(isMuted: boolean) => void} setMuteAll
  * @property {() => void} toggleMuteAll
  * @property {() => void} toggleSync
  * @property {() => void} toggleExpandAll
  * @property {(enabled: boolean) => void} setGlobalAbrEnabled
  * @property {(height: number) => void} setGlobalMaxHeight
  * @property {(goal: number) => void} setGlobalBufferingGoal
+ * @property {(streamId: number) => void} toggleStreamSelection
+ * @property {() => void} selectAllStreams
+ * @property {() => void} deselectAllStreams
+ * @property {(streamId: number, override: { abr?: boolean, maxHeight?: number, bufferingGoal?: number }) => void} setStreamOverride
+ * @property {(sourceStreamId: number) => number} duplicateStream
  * @property {() => void} reset
  */
 
@@ -56,14 +68,17 @@ const createInitialState = () => ({
     globalAbrEnabled: true,
     globalMaxHeight: Infinity,
     globalBufferingGoal: 10,
+    streamIdCounter: 0,
 });
 
 export const useMultiPlayerStore = createStore((set, get) => ({
     ...createInitialState(),
-    addPlayer: (streamId, streamName, manifestUrl, streamType) =>
+    addPlayer: (sourceStreamId, streamName, manifestUrl, streamType) => {
+        const newStreamId = get().streamIdCounter;
         set((state) => ({
-            players: new Map(state.players).set(streamId, {
-                streamId,
+            players: new Map(state.players).set(newStreamId, {
+                streamId: newStreamId,
+                sourceStreamId,
                 streamName,
                 manifestUrl,
                 streamType,
@@ -72,8 +87,15 @@ export const useMultiPlayerStore = createStore((set, get) => ({
                 stats: null,
                 playbackHistory: [],
                 health: 'healthy',
+                selectedForAction: true,
+                abrOverride: null,
+                maxHeightOverride: null,
+                bufferingGoalOverride: null,
             }),
-        })),
+            streamIdCounter: newStreamId + 1,
+        }));
+        return newStreamId;
+    },
     removePlayer: (streamId) =>
         set((state) => {
             const newPlayers = new Map(state.players);
@@ -95,6 +117,7 @@ export const useMultiPlayerStore = createStore((set, get) => ({
             ].slice(0, 100),
         })),
     clearPlayers: () => set({ players: new Map() }),
+    setMuteAll: (isMuted) => set({ isMutedAll: isMuted }),
     toggleMuteAll: () => set((state) => ({ isMutedAll: !state.isMutedAll })),
     toggleSync: () => set((state) => ({ isSyncEnabled: !state.isSyncEnabled })),
     toggleExpandAll: () =>
@@ -102,6 +125,83 @@ export const useMultiPlayerStore = createStore((set, get) => ({
     setGlobalAbrEnabled: (enabled) => set({ globalAbrEnabled: enabled }),
     setGlobalMaxHeight: (height) => set({ globalMaxHeight: height }),
     setGlobalBufferingGoal: (goal) => set({ globalBufferingGoal: goal }),
+    toggleStreamSelection: (streamId) => {
+        set((state) => {
+            const newPlayers = new Map(state.players);
+            const player = newPlayers.get(streamId);
+            if (player) {
+                newPlayers.set(streamId, {
+                    ...player,
+                    selectedForAction: !player.selectedForAction,
+                });
+            }
+            return { players: newPlayers };
+        });
+    },
+    selectAllStreams: () => {
+        set((state) => {
+            const newPlayers = new Map(state.players);
+            newPlayers.forEach((player) => {
+                player.selectedForAction = true;
+            });
+            return { players: newPlayers };
+        });
+    },
+    deselectAllStreams: () => {
+        set((state) => {
+            const newPlayers = new Map(state.players);
+            newPlayers.forEach((player) => {
+                player.selectedForAction = false;
+            });
+            return { players: newPlayers };
+        });
+    },
+    setStreamOverride: (streamId, override) => {
+        set((state) => {
+            const newPlayers = new Map(state.players);
+            const player = newPlayers.get(streamId);
+            if (player) {
+                newPlayers.set(streamId, {
+                    ...player,
+                    abrOverride:
+                        override.abr !== undefined
+                            ? override.abr
+                            : player.abrOverride,
+                    maxHeightOverride:
+                        override.maxHeight !== undefined
+                            ? override.maxHeight
+                            : player.maxHeightOverride,
+                    bufferingGoalOverride:
+                        override.bufferingGoal !== undefined
+                            ? override.bufferingGoal
+                            : player.bufferingGoalOverride,
+                });
+            }
+            return { players: newPlayers };
+        });
+    },
+    duplicateStream: (sourceStreamId) => {
+        const state = get();
+        const sourcePlayer = state.players.get(sourceStreamId);
+        if (!sourcePlayer) return -1;
+
+        const newId = state.streamIdCounter;
+        set({
+            players: new Map(state.players).set(newId, {
+                ...sourcePlayer,
+                streamId: newId,
+                streamName: `${sourcePlayer.streamName} (Copy)`,
+                state: 'idle',
+                error: null,
+                stats: null,
+                playbackHistory: [],
+                health: 'healthy',
+                selectedForAction: true, // Auto-select the new stream
+            }),
+            streamIdCounter: newId + 1,
+        });
+        return newId;
+    },
     reset: () => set(createInitialState()),
 }));
 

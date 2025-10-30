@@ -4,26 +4,32 @@ const DEBUG_ENABLED =
         : false;
 
 /**
- * Safely stringifies an object for logging, handling circular references.
+ * Safely stringifies an object for logging, handling circular references and BigInts.
  * @param {any} obj The object to stringify.
  * @returns {string}
  */
 function safeStringify(obj) {
     const cache = new Set();
-    return JSON.stringify(
-        obj,
-        (key, value) => {
-            if (typeof value === 'object' && value !== null) {
-                if (cache.has(value)) {
-                    // Circular reference found, discard key
-                    return '[Circular]';
-                }
-                cache.add(value);
+    const replacer = (key, value) => {
+        // --- ARCHITECTURAL FIX ---
+        // JSON.stringify cannot serialize BigInt values by default. This replacer
+        // detects them and converts them to a string representation suffixed with 'n'
+        // to clearly indicate their original type in the debug logs.
+        if (typeof value === 'bigint') {
+            return value.toString() + 'n';
+        }
+        // --- END FIX ---
+
+        if (typeof value === 'object' && value !== null) {
+            if (cache.has(value)) {
+                // Circular reference found, discard key
+                return '[Circular]';
             }
-            return value;
-        },
-        2
-    );
+            cache.add(value);
+        }
+        return value;
+    };
+    return JSON.stringify(obj, replacer, 2);
 }
 
 /**

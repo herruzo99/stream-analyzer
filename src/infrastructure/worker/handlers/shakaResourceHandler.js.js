@@ -109,31 +109,24 @@ export async function handleShakaResourceFetch(
 
         const data = await response.arrayBuffer();
 
+        // --- ARCHITECTURAL REFACTOR: LAZY PARSING ---
+        // During playback, we no longer perform an expensive deep parse on every segment.
+        // The worker's responsibility is now limited to fetching the raw data.
+        // The main thread will store this raw data. Parsing will only be triggered
+        // on-demand when a user interacts with a segment in the UI.
         if (requestType === SEGMENT_REQUEST_TYPE) {
-            try {
-                // Use the high-level parser that includes color decoration and other enrichment.
-                const parsedData = await parseAndDecorate({
-                    data: data.slice(0),
-                    url,
-                    formatHint: null,
-                });
-                self.postMessage({
-                    type: 'worker:shaka-segment-loaded',
-                    payload: {
-                        uniqueId: url,
-                        status: response.status,
-                        data,
-                        parsedData,
-                        streamId,
-                    },
-                });
-            } catch (e) {
-                console.error(
-                    `[Worker] Failed to parse Shaka-loaded segment ${url}:`,
-                    e
-                );
-            }
+            self.postMessage({
+                type: 'worker:shaka-segment-loaded',
+                payload: {
+                    uniqueId: url,
+                    status: response.status,
+                    data,
+                    parsedData: null, // Explicitly send null parsedData
+                    streamId,
+                },
+            });
         }
+        // --- END REFACTOR ---
 
         return {
             uri: response.url,

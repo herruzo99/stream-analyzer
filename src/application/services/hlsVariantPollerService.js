@@ -140,7 +140,10 @@ export function initializeHlsVariantPoller() {
                 eventBus.dispatch('hls:media-playlist-fetch-request', {
                     streamId: firstHlsStream.id,
                     variantUri: firstVariantUri,
-                    isBackground: false,
+                    // --- FIX ---
+                    // Always treat the initial, proactive fetch as a background task
+                    // to avoid showing a global, blocking loader.
+                    isBackground: true,
                 });
             }
         }

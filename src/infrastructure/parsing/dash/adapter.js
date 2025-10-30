@@ -17,7 +17,6 @@
 
 import { getDrmSystemName } from '@/infrastructure/parsing/utils/drm';
 import { parseDuration } from '@/shared/utils/time';
-import { generateDashSummary } from './summary-generator.js';
 import {
     getAttr,
     findChildren,
@@ -26,8 +25,6 @@ import {
 } from './recursive-parser.js';
 import { parseScte35 } from '@/infrastructure/parsing/scte35/parser';
 import { inferMediaInfoFromExtension } from '../utils/media-types.js';
-
-const getText = (el) => el?.['#text'] || null;
 
 /**
  * Creates a deep copy of a parsed manifest object.
@@ -520,6 +517,8 @@ const parseServiceDescription = (sdEl) => ({
     serializedManifest: sdEl,
 });
 
+const getText = (el) => el?.['#text'] || null;
+
 function parsePeriod(periodEl, parentMergedEl, previousPeriod = null) {
     const mergedPeriodEl = mergeElements(parentMergedEl, periodEl);
     const assetIdentifierEl = findChildren(periodEl, 'AssetIdentifier')[0];
@@ -684,7 +683,7 @@ export async function adaptDashToIr(manifestElement, baseUrl, context) {
         (as) => getAttr(as, 'mimeType') === 'video/mp2t'
     );
 
-    let segmentFormat = 'isobmff'; // Default to ISOBMFF
+    let segmentFormat = 'isobmff'; // Default to ISOBFF
     if (hasTsMimeType) {
         segmentFormat = 'ts';
     } else {
@@ -807,10 +806,6 @@ export async function adaptDashToIr(manifestElement, baseUrl, context) {
     });
 
     manifestIR.events = manifestIR.periods.flatMap((p) => p.events);
-    manifestIR.summary = await generateDashSummary(manifestIR, manifestCopy, {
-        ...context,
-        manifestUrl: baseUrl,
-    });
 
     return manifestIR;
 }

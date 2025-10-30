@@ -4,12 +4,8 @@ import { workerService } from '@/infrastructure/worker/workerService';
 import { debugLog } from '@/shared/utils/debug';
 import { getShaka } from '@/infrastructure/player/shaka';
 import shaka from 'shaka-player/dist/shaka-player.compiled';
+import { showToast } from '@/ui/components/toast';
 
-/**
- * Calculates stall metrics by analyzing the player's state history.
- * @param {shaka.extern.StateChange[]} stateHistory
- * @returns {{totalStalls: number, totalStallDuration: number}}
- */
 function calculateStallMetrics(stateHistory) {
     let totalStalls = 0;
     let totalStallDuration = 0;
@@ -49,12 +45,12 @@ async function fetchCertificate(url) {
 }
 
 class MultiPlayerService {
-    /** @type {Promise<void>} */
     #loadQueue = Promise.resolve();
 
     constructor() {
         /** @type {Map<number, shaka.Player>} */
         this.players = new Map();
+        /** @type {Map<number, HTMLVideoElement>} */
         this.videoElements = new Map();
         this.statsInterval = null;
     }
@@ -63,77 +59,100 @@ class MultiPlayerService {
         debugLog('MultiPlayerService.initialize', 'Service initialized.');
     }
 
-    async setupPlayersForStreams(streams) {
-        debugLog(
-            'MultiPlayerService.setupPlayersForStreams',
-            `Synchronizing ${streams.length} streams.`
-        );
-        const shaka = await getShaka();
-        if (!shaka) return;
-
-        const { addPlayer, removePlayer } = useMultiPlayerStore.getState();
-        const currentStreamIds = new Set(Array.from(this.players.keys()));
-        const newStreamIds = new Set(streams.map((s) => s.id));
-
-        for (const streamId of currentStreamIds) {
-            if (!newStreamIds.has(streamId)) {
-                debugLog(
-                    'MultiPlayerService.setupPlayersForStreams',
-                    `Destroying player for removed stream ID: ${streamId}`
-                );
-                const player = this.players.get(streamId);
-                if (player) await player.destroy();
-                this.players.delete(streamId);
-                this.videoElements.delete(streamId);
-                removePlayer(streamId);
-            }
+    createVideoElement(streamId) {
+        if (this.videoElements.has(streamId)) {
+            return this.videoElements.get(streamId);
         }
-
-        for (const stream of streams) {
-            if (!currentStreamIds.has(stream.id) && stream.originalUrl) {
-                debugLog(
-                    'MultiPlayerService.setupPlayersForStreams',
-                    `Creating new player for stream ID: ${stream.id}`
-                );
-                const player = new shaka.Player();
-                /** @type {any} */ (player).streamAnalyzerStreamId = stream.id;
-                /** @type {any} */ (
-                    player.getNetworkingEngine()
-                ).streamAnalyzerStreamId = stream.id;
-                player.addEventListener('error', (e) =>
-                    this._handlePlayerError(stream.id, e.detail)
-                );
-                this.players.set(stream.id, player);
-                const streamType =
-                    stream.manifest?.type === 'dynamic' ? 'live' : 'vod';
-                addPlayer(
-                    stream.id,
-                    stream.name,
-                    stream.originalUrl,
-                    streamType
-                );
-            }
-        }
+        const videoElement = document.createElement('video');
+        videoElement.className = 'w-full h-full';
+        videoElement.muted = useMultiPlayerStore.getState().isMutedAll;
+        this.videoElements.set(streamId, videoElement);
+        return videoElement;
     }
 
-    async loadStreamIntoPlayer(stream, player, videoElement) {
+    async createAndLoadPlayer(playerState) {
+        const serializedOperation = async () => {
+            const { streamId } = playerState;
+            debugLog(
+                'MultiPlayerService.createAndLoadPlayer',
+                `[START QUEUED] for stream ${streamId}`
+            );
+
+            if (!playerState || this.players.has(streamId)) {
+                debugLog(
+                    'MultiPlayerService.createAndLoadPlayer',
+                    `[ABORT QUEUED] Player for stream ${streamId} already exists or state is invalid.`
+                );
+                return;
+            }
+
+            const shaka = await getShaka();
+            const player = new shaka.Player();
+            this.players.set(streamId, player);
+            debugLog(
+                'MultiPlayerService.createAndLoadPlayer',
+                `Created new Shaka player for stream ${streamId}`
+            );
+
+            player.addEventListener('error', (e) =>
+                this._handlePlayerError(streamId, e.detail)
+            );
+
+            const { streams } = useAnalysisStore.getState();
+            const streamDef = streams.find(
+                (s) => s.id === playerState.sourceStreamId
+            );
+
+            if (streamDef) {
+                player.streamAnalyzerStreamId = streamDef.id;
+                player.getNetworkingEngine().streamAnalyzerStreamId =
+                    streamDef.id;
+
+                const videoElement = this.videoElements.get(streamId);
+                if (videoElement) {
+                    await player.attach(videoElement);
+                    this.addVideoElementListeners(videoElement, streamId);
+                    await this.loadStreamIntoPlayer(
+                        streamDef,
+                        player,
+                        streamId
+                    );
+                } else {
+                    debugLog(
+                        'MultiPlayerService.createAndLoadPlayer',
+                        `Video element for stream ${streamId} not found.`
+                    );
+                }
+            }
+            debugLog(
+                'MultiPlayerService.createAndLoadPlayer',
+                `[END QUEUED] for stream ${streamId}`
+            );
+        };
+
+        this.#loadQueue = this.#loadQueue.then(() => serializedOperation());
+        return this.#loadQueue;
+    }
+
+    async loadStreamIntoPlayer(streamDef, player, uniqueStreamId) {
         try {
-            useMultiPlayerStore
-                .getState()
-                .updatePlayerState(stream.id, { state: 'loading' });
-            const { security } = stream.manifest?.summary || {};
+            debugLog(
+                'MultiPlayerService.loadStreamIntoPlayer',
+                `[START LOAD] for stream ${uniqueStreamId}`
+            );
+            const { security } = streamDef.manifest?.summary || {};
             const drmConfig = { servers: {}, advanced: {} };
             if (security?.isEncrypted) {
                 const licenseServerUrl =
-                    stream.drmAuth.licenseServerUrl ||
+                    streamDef.drmAuth.licenseServerUrl ||
                     security.licenseServerUrls?.[0] ||
                     '';
                 const headers = {};
-                (stream.drmAuth?.headers || []).forEach((h) => {
+                (streamDef.drmAuth?.headers || []).forEach((h) => {
                     if (h.key) headers[h.key] = h.value;
                 });
                 const cert = await fetchCertificate(
-                    stream.drmAuth.serverCertificate
+                    streamDef.drmAuth.serverCertificate
                 );
                 for (const system of security.systems) {
                     if (system.systemId.includes('widevine')) {
@@ -152,40 +171,27 @@ class MultiPlayerService {
                 }
             }
 
-            const { globalAbrEnabled, globalMaxHeight, globalBufferingGoal } =
-                useMultiPlayerStore.getState();
-            player.configure({
-                abr: { enabled: globalAbrEnabled },
-                streaming: { bufferingGoal: globalBufferingGoal },
-            });
-            if (isFinite(globalMaxHeight)) {
-                player.configure({
-                    restrictions: { maxHeight: globalMaxHeight },
-                });
-            }
-            await player.load(stream.originalUrl, 0, undefined, {
+            this.applyStreamConfig(uniqueStreamId);
+
+            await player.load(streamDef.originalUrl, 0, undefined, {
                 drm: drmConfig,
             });
+            debugLog(
+                'MultiPlayerService.loadStreamIntoPlayer',
+                `[END LOAD] SUCCESS for stream ${uniqueStreamId}`
+            );
             useMultiPlayerStore
                 .getState()
-                .updatePlayerState(stream.id, { state: 'paused', error: null });
-            videoElement.muted = useMultiPlayerStore.getState().isMutedAll;
+                .updatePlayerState(uniqueStreamId, {
+                    state: 'paused',
+                    error: null,
+                });
         } catch (error) {
-            this._handlePlayerError(stream.id, error);
+            this._handlePlayerError(uniqueStreamId, error);
         }
     }
 
-    async handleVideoElementReady(streamId, videoElement) {
-        if (!videoElement || !this.players.has(streamId)) return;
-        const player = this.players.get(streamId);
-        const { streams } = useAnalysisStore.getState();
-        const stream = streams.find((s) => s.id === streamId);
-        if (!stream || this.videoElements.get(streamId) === videoElement)
-            return;
-
-        await player.attach(videoElement);
-        this.videoElements.set(streamId, videoElement);
-
+    addVideoElementListeners(videoElement, streamId) {
         videoElement.addEventListener('play', () =>
             useMultiPlayerStore
                 .getState()
@@ -211,16 +217,10 @@ class MultiPlayerService {
                 .getState()
                 .updatePlayerState(streamId, { state: 'buffering' })
         );
-
-        this.#loadQueue = this.#loadQueue.then(() => {
-            if (this.players.has(streamId)) {
-                return this.loadStreamIntoPlayer(stream, player, videoElement);
-            }
-        });
     }
 
     _handlePlayerError(streamId, error) {
-        if (error.code === 7000) {
+        if (error.code === 7000 || error.code === 7002) {
             debugLog(
                 'MultiPlayerService',
                 `Load interrupted for stream ${streamId}. Ignoring.`
@@ -355,7 +355,43 @@ class MultiPlayerService {
         if (this.statsInterval) clearInterval(this.statsInterval);
         this.statsInterval = null;
     }
+
+    async destroyPlayer(streamId) {
+        debugLog(
+            'MultiPlayerService.destroyPlayer',
+            `Destroying player for stream ${streamId}`
+        );
+        const player = this.players.get(streamId);
+        if (player) {
+            await player.destroy();
+            this.players.delete(streamId);
+        }
+        this.videoElements.delete(streamId);
+        useMultiPlayerStore.getState().removePlayer(streamId);
+    }
+
+    async removePlayer(streamId) {
+        const { players } = useMultiPlayerStore.getState();
+        const playerToRemove = players.get(streamId);
+        if (!playerToRemove) return;
+
+        const playersForSameSource = Array.from(players.values()).filter(
+            (p) => p.sourceStreamId === playerToRemove.sourceStreamId
+        );
+
+        if (playersForSameSource.length <= 1) {
+            showToast({
+                message: 'Cannot remove the last player for a stream.',
+                type: 'warn',
+            });
+            return;
+        }
+
+        this.destroyPlayer(streamId);
+    }
+
     async destroyAll() {
+        debugLog('MultiPlayerService.destroyAll', 'Destroying all players.');
         this.stopStatsCollection();
         this.#loadQueue = Promise.resolve();
         for (const player of this.players.values()) await player.destroy();
@@ -363,6 +399,7 @@ class MultiPlayerService {
         this.videoElements.clear();
         useMultiPlayerStore.getState().reset();
     }
+
     async playAll() {
         for (const [id, video] of this.videoElements.entries()) {
             try {
@@ -391,9 +428,6 @@ class MultiPlayerService {
     setGlobalAbr(enabled) {
         for (const p of this.players.values()) {
             p.configure({ abr: { enabled } });
-            if (enabled) {
-                p.selectVariantTrack(null, false);
-            }
         }
     }
     setGlobalRestrictions(restrictions) {
@@ -409,11 +443,72 @@ class MultiPlayerService {
         if (type === 'variant') {
             const track = player.getVariantTracks().find((t) => t.id === id);
             if (track) {
-                useMultiPlayerStore.getState().setGlobalAbrEnabled(false);
+                player.configure({ abr: { enabled: false } });
                 player.selectVariantTrack(track, true);
             }
         } else if (type === 'audio') {
             player.selectAudioLanguage(id);
+        }
+    }
+
+    applyStreamConfig(streamId) {
+        const {
+            players,
+            globalAbrEnabled,
+            globalMaxHeight,
+            globalBufferingGoal,
+        } = useMultiPlayerStore.getState();
+        const playerState = players.get(streamId);
+        const shakaPlayer = this.players.get(streamId);
+        if (!playerState || !shakaPlayer) return;
+
+        const abrEnabled =
+            playerState.abrOverride !== null
+                ? playerState.abrOverride
+                : globalAbrEnabled;
+        const maxHeight =
+            playerState.maxHeightOverride !== null
+                ? playerState.maxHeightOverride
+                : globalMaxHeight;
+        const bufferingGoal =
+            playerState.bufferingGoalOverride !== null
+                ? playerState.bufferingGoalOverride
+                : globalBufferingGoal;
+
+        shakaPlayer.configure({
+            abr: { enabled: abrEnabled },
+            restrictions: { maxHeight },
+            streaming: { bufferingGoal },
+        });
+    }
+
+    duplicateStream(sourceStreamId) {
+        // This action only updates the store. The UI component (`grid-view`)
+        // is responsible for detecting the new player in the state
+        // and triggering its creation via `createAndLoadPlayer`.
+        useMultiPlayerStore.getState().duplicateStream(sourceStreamId);
+    }
+
+    applyActionToSelected(action) {
+        const { players } = useMultiPlayerStore.getState();
+        const selectedPlayers = Array.from(players.values()).filter(
+            (p) => p.selectedForAction
+        );
+
+        for (const playerState of selectedPlayers) {
+            const videoEl = this.videoElements.get(playerState.streamId);
+            if (videoEl) {
+                if (action.type === 'seek') {
+                    videoEl.currentTime = Math.max(
+                        0,
+                        videoEl.currentTime + action.delta
+                    );
+                } else if (action.type === 'play') {
+                    videoEl.play();
+                } else if (action.type === 'pause') {
+                    videoEl.pause();
+                }
+            }
         }
     }
 }

@@ -10,11 +10,11 @@ export function initializeMultiPlayerController() {
         multiPlayerService.pauseAll()
     );
     eventBus.subscribe('ui:multi-player:mute-all', () => {
-        useMultiPlayerStore.getState().toggleMuteAll();
+        useMultiPlayerStore.getState().setMuteAll(true);
         multiPlayerService.muteAll();
     });
     eventBus.subscribe('ui:multi-player:unmute-all', () => {
-        useMultiPlayerStore.getState().toggleMuteAll();
+        useMultiPlayerStore.getState().setMuteAll(false);
         multiPlayerService.unmuteAll();
     });
     eventBus.subscribe('ui:multi-player:sync-toggled', () =>
@@ -55,4 +55,31 @@ export function initializeMultiPlayerController() {
             multiPlayerService.selectTrack(streamId, 'audio', language);
         }
     );
+
+    // --- NEW PER-STREAM AND GROUP ACTION LISTENERS ---
+    eventBus.subscribe('ui:multi-player:toggle-selection', ({ streamId }) => {
+        useMultiPlayerStore.getState().toggleStreamSelection(streamId);
+    });
+    eventBus.subscribe('ui:multi-player:select-all', () => {
+        useMultiPlayerStore.getState().selectAllStreams();
+    });
+    eventBus.subscribe('ui:multi-player:deselect-all', () => {
+        useMultiPlayerStore.getState().deselectAllStreams();
+    });
+    eventBus.subscribe(
+        'ui:multi-player:set-stream-override',
+        ({ streamId, override }) => {
+            useMultiPlayerStore.getState().setStreamOverride(streamId, override);
+            multiPlayerService.applyStreamConfig(streamId);
+        }
+    );
+    eventBus.subscribe('ui:multi-player:duplicate-stream', ({ streamId }) => {
+        multiPlayerService.duplicateStream(streamId);
+    });
+    eventBus.subscribe('ui:multi-player:apply-to-selected', ({ action }) => {
+        multiPlayerService.applyActionToSelected(action);
+    });
+    eventBus.subscribe('ui:multi-player:remove-stream', ({ streamId }) => {
+        multiPlayerService.removePlayer(streamId);
+    });
 }

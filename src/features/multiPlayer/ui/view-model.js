@@ -1,4 +1,5 @@
 import { formatBitrate } from '@/ui/shared/format';
+import { multiPlayerService } from '../application/multiPlayerService';
 
 /**
  * Creates the view model for the new multi-player grid view.
@@ -85,6 +86,9 @@ export function createMultiPlayerGridViewModel(playersMap) {
             stallDuration: (
                 stats?.playbackQuality?.totalStallDuration ?? 0
             ).toFixed(2),
+            videoElement: multiPlayerService.videoElements.get(
+                player.streamId
+            ),
         };
     });
 }
