@@ -87,7 +87,6 @@ const renderHlsRendition = (stream, renditionInfo) => {
         newlyAddedSegmentUrls,
     } = variantState;
 
-    // ARCHITECTURAL FIX: Guard against rendering before segments are loaded.
     const segments = rawSegments || [];
 
     let pdtAnchorTime = 0;
@@ -133,15 +132,9 @@ const renderHlsRendition = (stream, renditionInfo) => {
         return (a.number - b.number) * order;
     });
 
-    const onLoadClick = () => {
-        eventBus.dispatch('hls-explorer:load-segments', {
-            streamId: stream.id,
-            variantUri: uri,
-        });
-    };
-
     return segmentTableTemplate({
         id: uri.replace(/[^a-zA-Z0-9]/g, '-'),
+        rawId: uri,
         title: title,
         segments: processedSegments,
         stream: stream,
@@ -150,7 +143,6 @@ const renderHlsRendition = (stream, renditionInfo) => {
         segmentFormat: stream.manifest.segmentFormat,
         isLoading,
         error,
-        onLoadClick,
     });
 };
 

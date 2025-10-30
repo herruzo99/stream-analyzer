@@ -1,23 +1,32 @@
 import { html, render } from 'lit-html';
 import { useMultiPlayerStore } from '@/state/multiPlayerStore';
+import { eventBus } from '@/application/event-bus';
 
 export class EventLogComponent extends HTMLElement {
     constructor() {
         super();
-        this.unsubscribe = null;
+        this.unsubscribeStore = null;
+        this.unsubscribeEventBus = null;
         this.filter = 'all';
         this.streamIdFilter = 'all';
     }
 
     connectedCallback() {
         this.render();
-        this.unsubscribe = useMultiPlayerStore.subscribe(() => this.render());
+        this.unsubscribeStore = useMultiPlayerStore.subscribe(() =>
+            this.render()
+        );
+        this.unsubscribeEventBus = eventBus.subscribe(
+            'ui:multi-player:filter-log-to-stream',
+            ({ streamId }) => {
+                this.setStreamFilter(streamId);
+            }
+        );
     }
 
     disconnectedCallback() {
-        if (this.unsubscribe) {
-            this.unsubscribe();
-        }
+        if (this.unsubscribeStore) this.unsubscribeStore();
+        if (this.unsubscribeEventBus) this.unsubscribeEventBus();
     }
 
     setFilter(newFilter) {
@@ -26,7 +35,7 @@ export class EventLogComponent extends HTMLElement {
     }
 
     setStreamFilter(newStreamId) {
-        this.streamIdFilter = newStreamId;
+        this.streamIdFilter = String(newStreamId);
         this.render();
     }
 
@@ -78,6 +87,7 @@ export class EventLogComponent extends HTMLElement {
                     <div class="grow"></div>
                     <select
                         @change=${(e) => this.setStreamFilter(e.target.value)}
+                        .value=${this.streamIdFilter}
                         class="bg-gray-700 text-white rounded-md border-gray-600 p-1 text-xs"
                     >
                         <option value="all">All Streams</option>

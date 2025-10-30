@@ -456,6 +456,16 @@ export const hlsTooltipData = {
         category: 'Multivariant Playlist',
         ref: 'HLS 2nd Ed: 4.4.6.2.1',
     },
+    'EXT-X-STREAM-INF@PROGRAM-ID': {
+        text: 'A decimal-integer that uniquely identifies a program within the scope of the playlist. (Deprecated in protocol version 6).',
+        category: 'Multivariant Playlist',
+        ref: 'RFC 8216 (superseded)',
+    },
+    'EXT-X-STREAM-INF@NAME': {
+        text: 'A quoted-string containing a human-readable name for the rendition. While not in the IETF RFC, it is commonly used by players to label variants in UI.',
+        category: 'Multivariant Playlist',
+        ref: 'Vendor Specific / Common Practice',
+    },
     'EXT-X-I-FRAME-STREAM-INF': {
         text: 'Identifies a Media Playlist file containing the I-frames of a multimedia presentation. It is used to support client-side trick-play modes.',
         category: 'Multivariant Playlist',

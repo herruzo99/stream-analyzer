@@ -1,5 +1,6 @@
 import { eventBus } from '@/application/event-bus';
 import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
+import { debugLog } from '@/shared/utils/debug';
 
 const pollers = new Map();
 let managerInterval = null;
@@ -13,6 +14,11 @@ export async function pollHlsVariant(streamId, variantUri) {
         return;
     }
 
+    debugLog(
+        'HlsVariantPoller',
+        `Dispatching hls:media-playlist-fetch-request for stream ${streamId}`,
+        { variantUri }
+    );
     eventBus.dispatch('hls:media-playlist-fetch-request', {
         streamId,
         variantUri,
@@ -30,8 +36,6 @@ function startPoller(stream, variantUri) {
     const playlistTargetDuration = mediaPlaylist?.manifest?.targetDuration;
     const masterTargetDuration = stream.manifest?.targetDuration;
 
-    // The HLS spec recommends clients not re-request the playlist until at least one target duration has passed.
-    // We will use the specific media playlist's target duration if available, otherwise fall back to the master's.
     const pollIntervalSeconds =
         playlistTargetDuration || masterTargetDuration || 2;
     const pollInterval = Math.max(pollIntervalSeconds * 1000, 2000); // Enforce a minimum of 2 seconds.
@@ -59,9 +63,9 @@ export function manageHlsPollers() {
         );
 
     for (const stream of hlsStreams) {
-        for (const [variantUri, state] of stream.hlsVariantState.entries()) {
+        for (const [variantUri] of stream.hlsVariantState.entries()) {
             const pollerKey = `${stream.id}-${variantUri}`;
-            const shouldBePolling = stream.isPolling && state.isExpanded;
+            const shouldBePolling = stream.isPolling;
             const isCurrentlyPolling = pollers.has(pollerKey);
 
             if (shouldBePolling && !isCurrentlyPolling) {
@@ -93,29 +97,6 @@ export function initializeHlsVariantPoller() {
     if (managerInterval) clearInterval(managerInterval);
     managerInterval = setInterval(manageHlsPollers, 1000);
 
-    // --- State Update Listeners ---
-    eventBus.subscribe(
-        'hls-explorer:load-segments',
-        ({ streamId, variantUri }) => {
-            const stream = useAnalysisStore
-                .getState()
-                .streams.find((s) => s.id === streamId);
-            const variantState = stream?.hlsVariantState.get(variantUri);
-
-            if (variantState && !variantState.isLoading) {
-                updateVariantState(streamId, variantUri, {
-                    isLoading: true,
-                    isExpanded: true,
-                });
-                eventBus.dispatch('hls:media-playlist-fetch-request', {
-                    streamId,
-                    variantUri,
-                    isBackground: false,
-                });
-            }
-        }
-    );
-
     eventBus.subscribe(
         'hls-explorer:set-display-mode',
         ({ streamId, variantUri, mode }) => {
@@ -125,25 +106,32 @@ export function initializeHlsVariantPoller() {
 
     // --- Post-Analysis Initialization Logic ---
     eventBus.subscribe('state:analysis-complete', ({ streams }) => {
-        const firstHlsStream = streams.find(
+        const hlsStreams = streams.filter(
             (s) => s.protocol === 'hls' && s.manifest?.isMaster
         );
-        if (firstHlsStream) {
-            const firstVariantUri = firstHlsStream.hlsVariantState
-                .keys()
-                .next().value;
-            if (firstVariantUri) {
-                updateVariantState(firstHlsStream.id, firstVariantUri, {
-                    isLoading: true,
-                    isExpanded: true,
-                });
+
+        for (const stream of hlsStreams) {
+            const newVariantState = new Map(stream.hlsVariantState);
+            let updated = false;
+
+            for (const [uri, state] of newVariantState.entries()) {
+                newVariantState.set(uri, { ...state, isLoading: true });
+                debugLog(
+                    'HlsVariantPoller',
+                    `Dispatching initial hls:media-playlist-fetch-request for stream ${stream.id}`,
+                    { variantUri: uri }
+                );
                 eventBus.dispatch('hls:media-playlist-fetch-request', {
-                    streamId: firstHlsStream.id,
-                    variantUri: firstVariantUri,
-                    // --- FIX ---
-                    // Always treat the initial, proactive fetch as a background task
-                    // to avoid showing a global, blocking loader.
+                    streamId: stream.id,
+                    variantUri: uri,
                     isBackground: true,
+                });
+                updated = true;
+            }
+
+            if (updated) {
+                analysisActions.updateStream(stream.id, {
+                    hlsVariantState: newVariantState,
                 });
             }
         }

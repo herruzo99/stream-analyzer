@@ -8,6 +8,7 @@ import { multiPlayerService } from '../application/multiPlayerService';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { eventBus } from '@/application/event-bus';
 import { debugLog } from '@/shared/utils/debug';
+import { createMultiPlayerGridViewModel } from './view-model';
 
 import { GridViewComponent } from './components/grid-view.js';
 import { SidebarShellComponent } from './components/sidebar-shell.js';
@@ -24,15 +25,33 @@ if (!customElements.get('sidebar-shell-component'))
     customElements.define('sidebar-shell-component', SidebarShellComponent);
 
 const topBarControlsTemplate = () => {
-    const { isMutedAll, isSyncEnabled, isAllExpanded } =
+    const { isMutedAll, isSyncEnabled, isAllExpanded, activeLayout } =
         useMultiPlayerStore.getState();
     const isPlaying = selectIsPlayingAll();
 
     const buttonClasses =
         'px-3 py-1.5 text-sm font-semibold rounded-md transition-colors flex items-center gap-2';
+    const layoutOptions = [
+        { value: 'auto', label: 'Auto Grid' },
+        { value: 'grid-2', label: '2-Column' },
+        { value: 'grid-1', label: '1-Column' },
+    ];
 
     return html`
         <div class="flex items-center gap-2">
+            <select
+                @change=${(e) =>
+                    eventBus.dispatch('ui:multi-player:set-active-layout', {
+                        layout: e.target.value,
+                    })}
+                .value=${activeLayout}
+                class="bg-gray-700/50 hover:bg-gray-600/50 text-white font-semibold rounded-md p-2 text-sm border border-gray-600"
+            >
+                ${layoutOptions.map(
+                    (opt) =>
+                        html`<option value=${opt.value}>${opt.label}</option>`
+                )}
+            </select>
             <button
                 @click=${() =>
                     isPlaying
@@ -77,6 +96,40 @@ const topBarControlsTemplate = () => {
 
 function renderMultiPlayerDashboard() {
     if (!container) return;
+    const { players } = useMultiPlayerStore.getState();
+    const { averagePlayheadTime, maxDuration } =
+        createMultiPlayerGridViewModel(players);
+
+    const handleSeek = (e) => {
+        eventBus.dispatch('ui:multi-player:seek-all', {
+            time: parseFloat(e.target.value),
+        });
+    };
+
+    const masterSeekBar = html`
+        <div
+            class="flex items-center gap-4 bg-gray-900/50 p-2 rounded-lg border border-gray-700"
+        >
+            <span class="font-mono text-sm text-gray-400"
+                >${new Date(averagePlayheadTime * 1000)
+                    .toISOString()
+                    .slice(14, 19)}</span
+            >
+            <input
+                type="range"
+                min="0"
+                .max=${maxDuration}
+                .value=${averagePlayheadTime}
+                @input=${handleSeek}
+                class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+            />
+            <span class="font-mono text-sm text-gray-400"
+                >${new Date(maxDuration * 1000)
+                    .toISOString()
+                    .slice(14, 19)}</span
+            >
+        </div>
+    `;
 
     const template = html`
         <div class="flex flex-col h-full gap-y-4">
@@ -84,6 +137,7 @@ function renderMultiPlayerDashboard() {
                 <h3 class="text-xl font-bold">Multi-Player Dashboard</h3>
                 ${topBarControlsTemplate()}
             </div>
+            <div class="shrink-0">${masterSeekBar}</div>
             <div class="grow overflow-y-auto">
                 <grid-view-component></grid-view-component>
             </div>
@@ -141,7 +195,9 @@ export const multiPlayerView = {
         const contextualSidebar = document.getElementById('contextual-sidebar');
         if (contextualSidebar) {
             render(
-                html`<sidebar-shell-component></sidebar-shell-component>`,
+                html`<div class="h-full">
+                    <sidebar-shell-component></sidebar-shell-component>
+                </div>`,
                 contextualSidebar
             );
         }

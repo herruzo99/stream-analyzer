@@ -1,5 +1,5 @@
 import { compareIsobmffSegments } from './isobmffComparator.js';
-// import { compareTsSegments } from './tsComparator.js'; // Future import
+import { compareTsSegments } from './tsComparator.js';
 
 /**
  * The main comparison engine. It takes an array of enriched segment objects,
@@ -38,8 +38,8 @@ export function createComparisonModel(segments) {
             comparisonResult = compareIsobmffSegments(segments);
             break;
         case 'ts':
-            // return compareTsSegments(segments); // Future implementation
-            throw new Error('TS segment comparison is not yet implemented.');
+            comparisonResult = compareTsSegments(segments);
+            break;
         case 'vtt':
             // return compareVttSegments(segments); // Future implementation
             throw new Error('VTT segment comparison is not yet implemented.');

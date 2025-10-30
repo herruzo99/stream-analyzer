@@ -24,6 +24,7 @@
         "echarts": "^6.0.0",
         "fast-xml-parser": "^5.3.0",
         "lit-html": "^3.3.1",
+        "lucide": "^0.548.0",
         "serve": "^14.2.5",
         "shaka-player": "^4.16.6",
         "xml-formatter": "^3.6.7",

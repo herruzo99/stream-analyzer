@@ -6,6 +6,7 @@ import { createComparisonModel } from '../domain/comparisonEngine.js';
 import { comparisonHeaderTemplate } from './components/comparisonHeader.js';
 import { comparisonSectionTemplate } from './components/comparisonSection.js';
 import { semanticDiffTemplate } from './components/semanticDiff.js';
+import { debugLog } from '@/shared/utils/debug';
 
 let container = null;
 let analysisUnsubscribe = null;
@@ -30,13 +31,23 @@ function renderSegmentComparison() {
     } else {
         const enrichedSegments = segmentsForCompare
             .map((item) => {
+                debugLog(
+                    'SegmentComparison',
+                    `Processing item for comparison. Stream ID: ${item.streamId}, Rep ID: ${item.repId}, Segment ID: ${item.segmentUniqueId}`
+                );
                 const cachedEntry = getFromCache(item.segmentUniqueId);
                 if (
                     !cachedEntry ||
                     cachedEntry.status !== 200 ||
                     !cachedEntry.parsedData
-                )
+                ) {
+                    debugLog(
+                        'SegmentComparison',
+                        `Failed to enrich: No valid cache entry for ${item.segmentUniqueId}`,
+                        { cachedEntry }
+                    );
                     return null;
+                }
                 const stream = streams.find((s) => s.id === item.streamId);
                 const allSegments =
                     (stream.protocol === 'dash'
@@ -45,10 +56,24 @@ function renderSegmentComparison() {
                         : stream.hlsVariantState.get(item.repId)?.segments) ||
                     stream.segments ||
                     [];
+
+                if (!allSegments) {
+                    debugLog(
+                        'SegmentComparison',
+                        `Failed to enrich: Could not find segment list for repId ${item.repId}`
+                    );
+                }
+
                 const segment = allSegments.find(
                     (s) => s.uniqueId === item.segmentUniqueId
                 );
-                if (!stream || !segment) return null;
+                if (!stream || !segment) {
+                    debugLog(
+                        'SegmentComparison',
+                        `Failed to enrich: Could not find stream or segment object. Stream found: ${!!stream}, Segment found: ${!!segment}`
+                    );
+                    return null;
+                }
                 return { ...cachedEntry.parsedData, stream, segment };
             })
             .filter(Boolean);

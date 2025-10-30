@@ -26,10 +26,13 @@ export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
     const requester = /** @type {any} */ (request.requester);
     if (requester?.streamAnalyzerStreamId !== undefined) {
         streamId = requester.streamAnalyzerStreamId;
+        debugLog(
+            'shakaNetworkPlugin',
+            `[Stage 1] Lookup successful. Found stream ID: ${streamId} directly on networking engine.`
+        );
     }
 
     // Stage 2: Secondary. If primary fails, find stream whose base URL is a prefix of the request URI.
-    // This is now more reliable because the base URL is the directory.
     if (streamId === null) {
         const streamForAuth = streams.find(
             (s) => s.baseUrl && uri.startsWith(s.baseUrl)
@@ -100,10 +103,13 @@ export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
     if (requestType === MANIFEST_REQUEST_TYPE) {
         taskType = 'shaka-fetch-manifest';
         const currentStream = streams.find((s) => s.id === streamId);
+        const isPlayerLoad = !requester?.isLiveRequest();
+
         payload = {
             streamId,
             url: uri,
             auth,
+            isPlayerLoadRequest: isPlayerLoad, // CRITICAL FIX: Pass context to worker
             oldRawManifest: currentStream?.rawManifest || '',
             protocol: currentStream?.protocol,
             baseUrl: currentStream?.baseUrl,

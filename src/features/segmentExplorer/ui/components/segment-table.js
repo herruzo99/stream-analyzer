@@ -25,6 +25,7 @@ eventBus.subscribe('analysis:started', () => {
  *
  * @param {object} options
  * @param {string} options.id - A unique ID for the virtualized list. This is the composite key for the representation.
+ * @param {string} [options.rawId] - The raw, un-sanitized ID for state lookups (e.g., HLS media playlist URL).
  * @param {string} options.title - The title to display in the table header.
  * @param {object[]} options.segments - The array of segment objects to render.
  * @param {import('@/types').Stream} options.stream - The parent stream object.
@@ -33,11 +34,11 @@ eventBus.subscribe('analysis:started', () => {
  * @param {string} options.segmentFormat - The format of the segments (e.g., 'isobmff', 'ts').
  * @param {boolean} [options.isLoading=false] - If true, displays a loading indicator.
  * @param {string|null} [options.error=null] - If set, displays an error message.
- * @param {Function} [options.onLoadClick] - A handler for a "Load Segments" button.
  * @returns {import('lit-html').TemplateResult}
  */
 export const segmentTableTemplate = ({
     id,
+    rawId,
     title,
     segments,
     stream, // New parameter
@@ -46,7 +47,6 @@ export const segmentTableTemplate = ({
     segmentFormat,
     isLoading = false,
     error = null,
-    onLoadClick,
 }) => {
     const header = html`
         <div
@@ -57,14 +57,6 @@ export const segmentTableTemplate = ({
                     >${unsafeHTML(title)}</span
                 >
             </div>
-            ${onLoadClick && segments.length === 0 && !isLoading && !error
-                ? html`<button
-                      @click=${onLoadClick}
-                      class="text-xs bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded"
-                  >
-                      Load Segments
-                  </button>`
-                : ''}
         </div>
     `;
 
@@ -79,13 +71,9 @@ export const segmentTableTemplate = ({
             Error: ${error}
         </div>`;
     } else if (segments.length === 0) {
-        if (!onLoadClick) {
-            content = html`<div class="p-4 text-center text-gray-400 text-sm">
-                No segments found for this representation.
-            </div>`;
-        } else {
-            content = html``;
-        }
+        content = html`<div class="p-4 text-center text-gray-400 text-sm">
+            No segments found for this representation.
+        </div>`;
     } else {
         const getFromCache = useSegmentCacheStore.getState().get;
         const { segmentExplorerTargetTime, segmentExplorerScrollToTarget } =
@@ -110,7 +98,7 @@ export const segmentTableTemplate = ({
                 seg,
                 stream,
                 segmentFormat,
-                id,
+                rawId || id,
                 currentSegmentUrls,
                 cacheEntry,
                 segmentExplorerTargetTime,

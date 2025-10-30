@@ -72,6 +72,24 @@ const SubMenu = (item, activeTab) => {
     `;
 };
 
+const StaticSubMenu = (item, activeTab) => {
+    return html`
+        <li>
+            <div
+                class="flex items-center gap-3 px-4 py-3 text-sm font-medium text-gray-400"
+            >
+                ${item.icon}
+                <span>${item.label}</span>
+            </div>
+            <ul class="pl-4 mt-1 space-y-1">
+                ${item.items.map((subItem) =>
+                    NavLink(subItem, activeTab, true)
+                )}
+            </ul>
+        </li>
+    `;
+};
+
 const NavGroup = (group, activeTab) => {
     const isGroupVisible = group.items.some((item) => {
         if (item.type === 'submenu') {
@@ -91,8 +109,16 @@ const NavGroup = (group, activeTab) => {
             <ul class="space-y-1">
                 ${group.items.map((item) => {
                     if (item.type === 'submenu') {
-                        if (item.items.some((sub) => sub.visible))
-                            return SubMenu(item, activeTab);
+                        if (!item.items.some((sub) => sub.visible)) return '';
+
+                        // Render "Manifest" and "Segments" as always-open sections
+                        if (
+                            item.label === 'Manifest' ||
+                            item.label === 'Segments'
+                        ) {
+                            return StaticSubMenu(item, activeTab);
+                        }
+                        return SubMenu(item, activeTab);
                     } else if (item.visible) {
                         return NavLink(item, activeTab);
                     }
@@ -205,7 +231,7 @@ export function getNavGroups() {
                         {
                             key: 'interactive-manifest',
                             label: 'Interactive View',
-                            icon: html``,
+                            icon: icons.fileScan,
                             visible: true,
                         },
                         {
@@ -230,7 +256,7 @@ export function getNavGroups() {
                         {
                             key: 'explorer',
                             label: 'Explorer',
-                            icon: html``,
+                            icon: icons.searchCode,
                             visible: true,
                         },
                         {

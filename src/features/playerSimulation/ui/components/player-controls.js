@@ -1,4 +1,5 @@
 import { html } from 'lit-html';
+import { classMap } from 'lit-html/directives/class-map.js';
 import { playerService } from '../../application/playerService';
 import { usePlayerStore } from '@/state/playerStore';
 import { useAnalysisStore } from '@/state/analysisStore';
@@ -55,20 +56,26 @@ const pipButtonTemplate = () => {
     `;
 };
 
-const controlSectionTemplate = (title, content, disabled = false) => html`
-    <div
-        class="bg-gray-800 p-4 rounded-lg transition-opacity h-full ${disabled
-            ? 'opacity-50 pointer-events-none'
-            : ''}"
-    >
-        <h4
-            class="font-bold text-gray-300 mb-3 text-sm uppercase tracking-wider"
+const controlSectionTemplate = (title, content, disabled = false) => {
+    const classes = {
+        'opacity-50': disabled,
+        'pointer-events-none': disabled,
+    };
+    return html`
+        <div
+            class="bg-gray-800 p-4 rounded-lg transition-opacity h-full ${classMap(
+                classes
+            )}"
         >
-            ${title}
-        </h4>
-        <div ?disabled=${disabled}>${content}</div>
-    </div>
-`;
+            <h4
+                class="font-bold text-gray-300 mb-3 text-sm uppercase tracking-wider"
+            >
+                ${title}
+            </h4>
+            <div>${content}</div>
+        </div>
+    `;
+};
 
 const dropdownButton = (label, subtext, onClick, isActive = false) => html`
     <button
@@ -250,104 +257,107 @@ const advancedModeTemplate = (config, handleFormChange, isAbrEnabled) => html`
             <h5 class="text-xs font-bold text-gray-400 mb-2 uppercase">
                 ABR Fine-Tuning
             </h5>
-            <form
-                data-form-id="abr-config"
-                @change=${handleFormChange}
-                class="space-y-3"
-                ?disabled=${!isAbrEnabled}
-            >
-                <div class="${!isAbrEnabled ? 'opacity-50' : ''}">
-                    <label class="input-label" for="bw-upgrade"
-                        >Bandwidth Upgrade Target (fraction)</label
-                    >
-                    <input
-                        type="number"
-                        step="0.05"
-                        min="0"
-                        max="2"
-                        name="bandwidthUpgradeTarget"
-                        id="bw-upgrade"
-                        class="input-field"
-                        .value=${config.abr.bandwidthUpgradeTarget}
-                    />
-                    <p class="text-xs text-gray-500 mt-1">
-                        Higher = harder to upgrade.
-                    </p>
-                </div>
-                <div class="${!isAbrEnabled ? 'opacity-50' : ''}">
-                    <label class="input-label" for="bw-downgrade"
-                        >Bandwidth Downgrade Target (fraction)</label
-                    >
-                    <input
-                        type="number"
-                        step="0.05"
-                        min="0"
-                        max="2"
-                        name="bandwidthDowngradeTarget"
-                        id="bw-downgrade"
-                        class="input-field"
-                        .value=${config.abr.bandwidthDowngradeTarget}
-                    />
-                    <p class="text-xs text-gray-500 mt-1">
-                        Lower = easier to downgrade.
-                    </p>
-                </div>
-            </form>
+            <fieldset ?disabled=${!isAbrEnabled}>
+                <form
+                    data-form-id="abr-config"
+                    @change=${handleFormChange}
+                    class="space-y-3"
+                >
+                    <div class="${!isAbrEnabled ? 'opacity-50' : ''}">
+                        <label class="input-label" for="bw-upgrade"
+                            >Bandwidth Upgrade Target (fraction)</label
+                        >
+                        <input
+                            type="number"
+                            step="0.05"
+                            min="0"
+                            max="2"
+                            name="bandwidthUpgradeTarget"
+                            id="bw-upgrade"
+                            class="input-field"
+                            .value=${config.abr.bandwidthUpgradeTarget}
+                        />
+                        <p class="text-xs text-gray-500 mt-1">
+                            Higher = harder to upgrade.
+                        </p>
+                    </div>
+                    <div class="${!isAbrEnabled ? 'opacity-50' : ''}">
+                        <label class="input-label" for="bw-downgrade"
+                            >Bandwidth Downgrade Target (fraction)</label
+                        >
+                        <input
+                            type="number"
+                            step="0.05"
+                            min="0"
+                            max="2"
+                            name="bandwidthDowngradeTarget"
+                            id="bw-downgrade"
+                            class="input-field"
+                            .value=${config.abr.bandwidthDowngradeTarget}
+                        />
+                        <p class="text-xs text-gray-500 mt-1">
+                            Lower = easier to downgrade.
+                        </p>
+                    </div>
+                </form>
+            </fieldset>
         </div>
 
         <div>
             <h5 class="text-xs font-bold text-gray-400 mb-2 uppercase">
                 Explicit Restrictions
             </h5>
-            <form
-                data-form-id="abr-restrictions"
-                @change=${handleFormChange}
-                class="grid grid-cols-2 gap-3"
-                ?disabled=${!isAbrEnabled}
-            >
-                <div>
-                    <label class="input-label">Min Bitrate (bps)</label>
-                    <input
-                        type="number"
-                        name="minBandwidth"
-                        class="input-field"
-                        .value=${config.restrictions.minBandwidth}
-                    />
-                </div>
-                <div>
-                    <label class="input-label">Max Bitrate (bps)</label>
-                    <input
-                        type="number"
-                        name="maxBandwidth"
-                        class="input-field"
-                        .value=${config.restrictions.maxBandwidth === Infinity
-                            ? ''
-                            : config.restrictions.maxBandwidth}
-                        placeholder="Infinity"
-                    />
-                </div>
-                <div>
-                    <label class="input-label">Min Height (px)</label>
-                    <input
-                        type="number"
-                        name="minHeight"
-                        class="input-field"
-                        .value=${config.restrictions.minHeight}
-                    />
-                </div>
-                <div>
-                    <label class="input-label">Max Height (px)</label>
-                    <input
-                        type="number"
-                        name="maxHeight"
-                        class="input-field"
-                        .value=${config.restrictions.maxHeight === Infinity
-                            ? ''
-                            : config.restrictions.maxHeight}
-                        placeholder="Infinity"
-                    />
-                </div>
-            </form>
+            <fieldset ?disabled=${!isAbrEnabled}>
+                <form
+                    data-form-id="abr-restrictions"
+                    @change=${handleFormChange}
+                    class="grid grid-cols-2 gap-3"
+                >
+                    <div>
+                        <label class="input-label">Min Bitrate (bps)</label>
+                        <input
+                            type="number"
+                            name="minBandwidth"
+                            class="input-field"
+                            .value=${config.restrictions.minBandwidth}
+                        />
+                    </div>
+                    <div>
+                        <label class="input-label">Max Bitrate (bps)</label>
+                        <input
+                            type="number"
+                            name="maxBandwidth"
+                            class="input-field"
+                            .value=${config.restrictions.maxBandwidth ===
+                            Infinity
+                                ? ''
+                                : config.restrictions.maxBandwidth}
+                            placeholder="Infinity"
+                        />
+                    </div>
+                    <div>
+                        <label class="input-label">Min Height (px)</label>
+                        <input
+                            type="number"
+                            name="minHeight"
+                            class="input-field"
+                            .value=${config.restrictions.minHeight}
+                        />
+                    </div>
+                    <div>
+                        <label class="input-label">Max Height (px)</label>
+                        <input
+                            type="number"
+                            name="maxHeight"
+                            class="input-field"
+                            .value=${config.restrictions.maxHeight === Infinity
+                                ? ''
+                                : config.restrictions.maxHeight}
+                            placeholder="Infinity"
+                        />
+                    </div>
+                </form>
+            </fieldset>
         </div>
 
         <div>

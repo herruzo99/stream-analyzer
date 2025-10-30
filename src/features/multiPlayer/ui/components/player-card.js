@@ -2,6 +2,8 @@ import { html, render } from 'lit-html';
 import { multiPlayerService } from '../../application/multiPlayerService';
 import { useMultiPlayerStore } from '@/state/multiPlayerStore';
 import { debugLog } from '@/shared/utils/debug';
+import { eventBus } from '@/application/event-bus';
+import * as icons from '@/ui/icons';
 
 export class PlayerCardComponent extends HTMLElement {
     constructor() {
@@ -77,6 +79,7 @@ export class PlayerCardComponent extends HTMLElement {
             totalStalls,
             stallDuration,
             videoElement,
+            isHovered,
         } = this._viewModel;
 
         const stateColors = {
@@ -93,6 +96,7 @@ export class PlayerCardComponent extends HTMLElement {
             warning: 'border-yellow-500',
             critical: 'border-red-500',
         };
+        const hoverClass = isHovered ? 'ring-2 ring-purple-400' : '';
 
         const driftSeconds = (
             (syncDrift * (parseFloat(maxBuffer) || 1)) /
@@ -168,16 +172,37 @@ export class PlayerCardComponent extends HTMLElement {
             <div
                 class="player-card bg-gray-800 rounded-lg border-2 ${healthColors[
                     health
-                ]} flex flex-col transition-colors"
+                ]} ${hoverClass} flex flex-col transition-all"
             >
                 ${videoContainer}
                 <div class="p-3 space-y-3 text-xs">
                     <div class="flex items-start justify-between gap-2">
                         <h4
-                            class="font-bold text-gray-200 text-sm truncate"
+                            class="font-bold text-gray-200 text-sm truncate flex items-center gap-2"
                             title=${streamName}
                         >
-                            ${streamName}
+                            <button
+                                @click=${() =>
+                                    eventBus.dispatch(
+                                        'ui:multi-player:sync-all-to',
+                                        { streamId: this.streamId }
+                                    )}
+                                class="text-cyan-400 hover:text-cyan-200 transition-colors"
+                                title="Sync all other players to this player's current time"
+                            >
+                                ${icons.syncMaster}
+                            </button>
+                            <button
+                                @click=${() =>
+                                    eventBus.dispatch(
+                                        'ui:multi-player:filter-log-to-stream',
+                                        { streamId: this.streamId }
+                                    )}
+                                class="hover:underline"
+                                title="Click to filter event log to this stream"
+                            >
+                                ${streamName}
+                            </button>
                         </h4>
                         <div class="flex items-center gap-2 shrink-0">
                             <span

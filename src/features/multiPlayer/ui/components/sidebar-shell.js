@@ -58,13 +58,15 @@ export class SidebarShellComponent extends HTMLElement {
         const template = html`
             <div class="flex flex-col h-full">
                 <div
-                    class="shrink-0 border-b border-gray-700 flex space-x-2 px-2 pt-2"
+                    class="shrink-0 border-b border-gray-700 flex space-x-2 px-2 pt-2 sticky top-0 bg-gray-800/80 backdrop-blur-sm z-10"
                 >
                     ${tabButton('Event Log', 'event-log')}
                     ${tabButton('Graphs', 'graphs')}
                     ${tabButton('Controls', 'controls')}
                 </div>
-                <div class="grow overflow-y-auto p-4">${viewContent}</div>
+                <div class="grow p-4 overflow-y-auto min-h-0">
+                    ${viewContent}
+                </div>
             </div>
         `;
         render(template, this);

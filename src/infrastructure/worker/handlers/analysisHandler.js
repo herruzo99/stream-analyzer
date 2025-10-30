@@ -35,7 +35,6 @@ async function fetchAndParseSegment(
     return parseSegment({ data, formatHint, url });
 }
 
-// ... rest of the file is unchanged, no need to regenerate ...
 async function preProcessInput(input, signal) {
     let protocol, manifestString, finalUrl;
 
@@ -123,147 +122,11 @@ async function preProcessInput(input, signal) {
     return { ...input, protocol, manifestString, finalUrl };
 }
 
-async function parse(input) {
-    let manifestIR, serializedManifestObject, finalBaseUrl;
-    const context = {
-        fetchAndParseSegment: (url, format, range) =>
-            fetchAndParseSegment(url, format, range, input.auth),
-        manifestUrl: input.finalUrl,
-    };
-
-    // --- ARCHITECTURAL FIX ---
-    // The base URL for resolving relative paths should be the directory containing the manifest,
-    // not the manifest URL itself.
-    const getBaseUrlDirectory = (url) => {
-        try {
-            const parsedUrl = new URL(url);
-            parsedUrl.pathname = parsedUrl.pathname.substring(
-                0,
-                parsedUrl.pathname.lastIndexOf('/') + 1
-            );
-            return parsedUrl.href;
-        } catch (e) {
-            // Handle cases where the URL might not be a full URL (e.g., local file name)
-            return url.substring(0, url.lastIndexOf('/') + 1);
-        }
-    };
-
-    const baseUrlDirectory = getBaseUrlDirectory(input.finalUrl);
-
-    if (input.protocol === 'hls') {
-        const { manifest, definedVariables, baseUrl } = await parseHlsManifest(
-            input.manifestString,
-            baseUrlDirectory,
-            undefined,
-            context
-        );
-        manifestIR = manifest;
-        serializedManifestObject = manifest.serializedManifest;
-        manifestIR.hlsDefinedVariables = definedVariables;
-        finalBaseUrl = baseUrl;
-
-        // --- TYPE CORRECTION & SUMMARY GENERATION ---
-        if (manifestIR.isMaster && manifestIR.variants.length > 0) {
-            try {
-                const firstVariantUrl = manifestIR.variants[0].resolvedUri;
-                const response = await fetchWithAuth(
-                    firstVariantUrl,
-                    input.auth
-                );
-                const mediaPlaylistString = await response.text();
-                manifestIR.type =
-                    mediaPlaylistString.includes('#EXT-X-ENDLIST') ||
-                    mediaPlaylistString.includes('#EXT-X-PLAYLIST-TYPE:VOD')
-                        ? 'static'
-                        : 'dynamic';
-            } catch (_e) {
-                manifestIR.type = 'static';
-            }
-        }
-        manifestIR.summary = await generateHlsSummary(manifestIR, context);
-        // --- END ---
-    } else {
-        const { manifest, serializedManifest, baseUrl } =
-            await parseDashManifest(
-                input.manifestString,
-                baseUrlDirectory,
-                context
-            );
-        manifestIR = manifest;
-        serializedManifestObject = serializedManifest;
-        finalBaseUrl = baseUrl;
-
-        // --- SUMMARY GENERATION ---
-        manifestIR.summary = await generateDashSummary(
-            manifestIR,
-            serializedManifest,
-            {
-                ...context,
-                manifestUrl: baseUrl,
-            }
-        );
-        // --- END ---
-    }
-    return { input, manifestIR, serializedManifestObject, finalBaseUrl };
-}
-
-async function runAllAnalyses({
+async function buildStreamObject(
     input,
     manifestIR,
     serializedManifestObject,
     finalBaseUrl,
-}) {
-    const rawInitialAnalysis = generateFeatureAnalysis(
-        manifestIR,
-        input.protocol,
-        serializedManifestObject
-    );
-    const featureAnalysisResults = new Map(Object.entries(rawInitialAnalysis));
-    const semanticData = new Map();
-
-    const steeringTag =
-        input.protocol === 'hls' && manifestIR.isMaster
-            ? (manifestIR.tags || []).find(
-                  (t) => t.name === 'EXT-X-CONTENT-STEERING'
-              )
-            : null;
-    if (steeringTag) {
-        const steeringUri = new URL(
-            steeringTag.value['SERVER-URI'],
-            finalBaseUrl
-        ).href;
-        const validationResult = await validateSteeringManifest(steeringUri);
-        semanticData.set('steeringValidation', validationResult);
-    }
-
-    const manifestObjectForChecks =
-        input.protocol === 'hls' ? manifestIR : serializedManifestObject;
-    const complianceResults = runChecks(
-        manifestObjectForChecks,
-        input.protocol
-    );
-
-    let coverageReport = [];
-    if (input.isDebug) {
-        let findings =
-            input.protocol === 'dash'
-                ? analyzeDashCoverage(serializedManifestObject)
-                : [];
-        const drift = analyzeParserDrift(manifestIR);
-        coverageReport = [...findings, ...drift];
-    }
-
-    return {
-        featureAnalysisResults,
-        semanticData,
-        steeringTag,
-        complianceResults,
-        coverageReport,
-    };
-}
-
-async function buildStreamObject(
-    { input, manifestIR, serializedManifestObject, finalBaseUrl },
     analysisResults
 ) {
     debugLog('buildStreamObject', 'Building stream object from input:', input);
@@ -466,29 +329,147 @@ export async function handleStartAnalysis({ inputs }, signal) {
         );
 
         const processingPromises = workerInputs.map(async (input) => {
+            // STEP 1: Pre-process (fetch, detect protocol)
             const preProcessed = await preProcessInput(input, signal);
-            const parsed = await parse(preProcessed);
-            const analysisResults = await runAllAnalyses(parsed);
+
+            const getBaseUrlDirectory = (url) => {
+                try {
+                    const parsedUrl = new URL(url);
+                    parsedUrl.pathname = parsedUrl.pathname.substring(
+                        0,
+                        parsedUrl.pathname.lastIndexOf('/') + 1
+                    );
+                    return parsedUrl.href;
+                } catch (e) {
+                    return url.substring(0, url.lastIndexOf('/') + 1);
+                }
+            };
+            const baseUrlDirectory = getBaseUrlDirectory(preProcessed.finalUrl);
+
+            // STEP 2: Parse into initial IR
+            let manifestIR, serializedManifestObject, finalBaseUrl;
+            if (preProcessed.protocol === 'hls') {
+                const { manifest, definedVariables, baseUrl } =
+                    await parseHlsManifest(
+                        preProcessed.manifestString,
+                        baseUrlDirectory
+                    );
+                manifestIR = manifest;
+                serializedManifestObject = manifest.serializedManifest;
+                manifestIR.hlsDefinedVariables = definedVariables;
+                finalBaseUrl = baseUrl;
+            } else {
+                const { manifest, serializedManifest, baseUrl } =
+                    await parseDashManifest(
+                        preProcessed.manifestString,
+                        baseUrlDirectory
+                    );
+                manifestIR = manifest;
+                serializedManifestObject = serializedManifest;
+                finalBaseUrl = baseUrl;
+            }
+
+            // STEP 3: Run compliance and other sync analyses on PRISTINE IR
+            const manifestObjectForChecks =
+                preProcessed.protocol === 'hls'
+                    ? manifestIR
+                    : serializedManifestObject;
+            const complianceResults = runChecks(
+                manifestObjectForChecks,
+                preProcessed.protocol
+            );
+            const rawInitialAnalysis = generateFeatureAnalysis(
+                manifestIR,
+                preProcessed.protocol,
+                serializedManifestObject
+            );
+            const featureAnalysisResults = new Map(
+                Object.entries(rawInitialAnalysis)
+            );
+            const coverageReport = input.isDebug
+                ? [
+                      ...(preProcessed.protocol === 'dash'
+                          ? analyzeDashCoverage(serializedManifestObject)
+                          : []),
+                      ...analyzeParserDrift(manifestIR),
+                  ]
+                : [];
+            const semanticData = new Map();
+
+            // STEP 4: Asynchronously enrich the IR with summary data
+            const context = {
+                fetchAndParseSegment: (url, format, range) =>
+                    fetchAndParseSegment(url, format, range, input.auth),
+                manifestUrl: preProcessed.finalUrl,
+                fetchWithAuth: (url) => fetchWithAuth(url, input.auth),
+                parseHlsManifest: (manifestString, baseUrl, parentVars) =>
+                    parseHlsManifest(
+                        manifestString,
+                        baseUrl,
+                        parentVars,
+                        context
+                    ),
+            };
+
+            if (preProcessed.protocol === 'hls') {
+                manifestIR.summary = await generateHlsSummary(
+                    manifestIR,
+                    context
+                );
+            } else {
+                manifestIR.summary = await generateDashSummary(
+                    manifestIR,
+                    serializedManifestObject,
+                    {
+                        ...context,
+                        manifestUrl: finalBaseUrl,
+                    }
+                );
+            }
+
+            const steeringTag =
+                preProcessed.protocol === 'hls' && manifestIR.isMaster
+                    ? (manifestIR.tags || []).find(
+                          (t) => t.name === 'EXT-X-CONTENT-STEERING'
+                      )
+                    : null;
+            if (steeringTag) {
+                const steeringUri = new URL(
+                    steeringTag.value['SERVER-URI'],
+                    finalBaseUrl
+                ).href;
+                semanticData.set(
+                    'steeringValidation',
+                    await validateSteeringManifest(steeringUri)
+                );
+            }
+
+            const analysisResults = {
+                featureAnalysisResults,
+                semanticData,
+                steeringTag,
+                complianceResults,
+                coverageReport,
+            };
+
+            // STEP 5: Build the final stream object with enriched IR
             const streamObject = await buildStreamObject(
-                parsed,
+                preProcessed,
+                manifestIR,
+                serializedManifestObject,
+                finalBaseUrl,
                 analysisResults
             );
-            // Don't serialize yet, we need the full object to build the map.
             return streamObject;
         });
 
         const streamObjects = await Promise.all(processingPromises);
 
-        // --- NEW: Build the URL -> Auth map ---
         const urlAuthMap = new Map();
         for (const stream of streamObjects) {
             const context = { streamId: stream.id, auth: stream.auth };
-            if (stream.originalUrl) {
-                urlAuthMap.set(stream.originalUrl, context);
-            }
-            if (stream.baseUrl) {
-                urlAuthMap.set(stream.baseUrl, context);
-            }
+            if (stream.originalUrl) urlAuthMap.set(stream.originalUrl, context);
+            if (stream.baseUrl) urlAuthMap.set(stream.baseUrl, context);
             if (stream.hlsVariantState) {
                 for (const [uri, state] of stream.hlsVariantState.entries()) {
                     urlAuthMap.set(uri, context);
@@ -513,11 +494,6 @@ export async function handleStartAnalysis({ inputs }, signal) {
             }
         }
         const urlAuthMapArray = Array.from(urlAuthMap.entries());
-        debugLog(
-            'handleStartAnalysis',
-            `Built urlAuthMap with ${urlAuthMap.size} entries.`
-        );
-        // --- END NEW ---
 
         const workerResults = streamObjects.map(serializeStreamForTransport);
 

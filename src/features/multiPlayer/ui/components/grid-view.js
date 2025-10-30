@@ -23,26 +23,30 @@ export class GridViewComponent extends HTMLElement {
     }
 
     render() {
-        const { players } = useMultiPlayerStore.getState();
+        const { players, activeLayout } = useMultiPlayerStore.getState();
 
-        // --- NEW INITIALIZATION LOGIC ---
-        // The component is now responsible for triggering the creation of player instances
-        // if they exist in the store but not yet in the service.
+        // Orchestrate player creation if they exist in state but not in the service
         for (const playerState of players.values()) {
             if (!multiPlayerService.players.has(playerState.streamId)) {
-                // This creates the video element and queues the player creation.
                 multiPlayerService.createVideoElement(playerState.streamId);
                 multiPlayerService.createAndLoadPlayer(playerState);
             }
         }
-        // --- END ---
 
-        const viewModel = createMultiPlayerGridViewModel(players);
+        const { cards: viewModel } = createMultiPlayerGridViewModel(players);
+
+        const layoutClasses = {
+            auto: 'grid-cols-[repeat(auto-fill,minmax(320px,1fr))]',
+            'grid-2': 'grid-cols-1 md:grid-cols-2',
+            'grid-1': 'grid-cols-1',
+        };
 
         const template = html`
             <div
                 id="player-grid-container"
-                class="grow overflow-y-auto grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-4 content-start h-full p-1"
+                class="grow overflow-y-auto grid ${layoutClasses[
+                    activeLayout
+                ]} gap-4 content-start h-full p-1"
             >
                 ${viewModel.map(
                     (cardViewModel) =>

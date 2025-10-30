@@ -35,14 +35,16 @@ export function runChecks(manifest, protocol, context = {}) {
         );
         const results = [];
         const isLive = manifestIR.type === 'dynamic';
+        const isMaster = manifestIR.isMaster;
         const version = manifestIR.summary?.hls?.version || 1;
         const targetDuration = manifestIR.summary?.hls?.targetDuration || null;
         const hlsContext = {
             isLive,
+            isMaster, // Pass isMaster flag for correct scoping
             version,
             targetDuration,
-            hlsParsed: manifestIR, // Pass IR for context
-            standardVersion, // Pass the selected standard version
+            hlsParsed: manifestIR.serializedManifest, // Pass raw parsed object for checks
+            standardVersion,
             ...context,
         };
 
@@ -68,7 +70,7 @@ export function runChecks(manifest, protocol, context = {}) {
         };
 
         const playlistScopes = ['Playlist'];
-        if (manifestIR.isMaster) {
+        if (isMaster) {
             playlistScopes.push('MasterPlaylist');
         } else {
             playlistScopes.push('MediaPlaylist');
@@ -213,11 +215,10 @@ export function runChecks(manifest, protocol, context = {}) {
         ];
     }
 
-    // Extract profiles from the manifest
     const manifestProfilesString = (getAttr(mpd, 'profiles') || '')
         .toLowerCase()
         .replace(/urn:mpeg:dash:profile:/g, '')
-        .replace(/:20\d\d/g, ''); // Normalize profile strings
+        .replace(/:20\d\d/g, '');
     const manifestProfiles = new Set(
         manifestProfilesString
             .split(',')
@@ -225,12 +226,12 @@ export function runChecks(manifest, protocol, context = {}) {
             .filter(Boolean)
     );
     if (manifestProfiles.size === 0) {
-        manifestProfiles.add('common'); // Fallback to common if no profiles declared
+        manifestProfiles.add('common');
     }
 
     const results = [];
     const isDynamic = getAttr(mpd, 'type') === 'dynamic';
-    const dashContext = { isDynamic, profiles: Array.from(manifestProfiles) }; // Pass manifestProfiles in context as an array
+    const dashContext = { isDynamic, profiles: Array.from(manifestProfiles) };
 
     const getDetails = (detail, element, detailContext) => {
         return typeof detail === 'function'
@@ -240,8 +241,6 @@ export function runChecks(manifest, protocol, context = {}) {
 
     dashRules
         .filter((rule) => {
-            // A rule applies if it's a 'common' rule OR if its profiles array
-            // overlaps with the profiles declared in the manifest.
             if (rule.profiles.includes('common')) return true;
             return rule.profiles.some((p) =>
                 manifestProfiles.has(

@@ -14,7 +14,7 @@ let activeManifestVariants = [];
 async function fetchCertificate(url) {
     try {
         if (!url) {
-            return null; // No certificate URL provided, this is not an error.
+            return null;
         }
         const response = await fetch(url);
         if (!response.ok) {
@@ -31,11 +31,6 @@ export const playerService = {
     isInitialized: false,
     getActiveStreamIds: () => activeStreamIds,
 
-    /**
-     * Initializes the Shaka player instance and attaches it to the video element.
-     * @param {HTMLVideoElement} videoEl The <video> element.
-     * @param {HTMLElement} videoContainer The container for the UI controls.
-     */
     async initialize(videoEl, videoContainer) {
         if (this.isInitialized) {
             return;
@@ -57,6 +52,7 @@ export const playerService = {
         player = new shaka.Player();
         await player.attach(videoElement);
 
+        /** @type {any} */ (player).streamAnalyzerStreamId = null;
         /** @type {any} */ (
             player.getNetworkingEngine()
         ).streamAnalyzerStreamId = null;
@@ -129,19 +125,18 @@ export const playerService = {
         activeManifestVariants = [];
     },
 
-    /**
-     * Loads a new manifest into the player.
-     * @param {import('@/types').Stream} stream The stream object containing the manifest URL and DRM info.
-     * @param {boolean} [autoPlay=false] - Whether to start playback automatically after loading.
-     */
     async load(stream, autoPlay = false) {
         if (!this.isInitialized || !player || !stream || !stream.drmAuth)
             return;
 
+        // CRITICAL FIX: Tag the player instance BEFORE the load call.
+        const networkingEngine = player.getNetworkingEngine();
+        if (networkingEngine) {
+            /** @type {any} */ (networkingEngine).streamAnalyzerStreamId =
+                stream.id;
+        }
         /** @type {any} */ (player).streamAnalyzerStreamId = stream.id;
-        /** @type {any} */ (
-            player.getNetworkingEngine()
-        ).streamAnalyzerStreamId = stream.id;
+
         activeStreamIds.add(stream.id);
         eventBus.dispatch('player:active-streams-changed', { activeStreamIds });
 
@@ -222,7 +217,6 @@ export const playerService = {
             await player.load(stream.originalUrl);
             playerActions.setLoadedState(true);
 
-            // ARCHITECTURAL FIX: Cache variants on load, start stats collection
             activeManifestVariants = player.getManifest()?.variants || [];
             this.startStatsCollection();
 
@@ -240,7 +234,7 @@ export const playerService = {
     async unload() {
         if (this.isInitialized && player) {
             const streamId = /** @type {any} */ (player).streamAnalyzerStreamId;
-            this.stopStatsCollection(); // Stop stats on unload
+            this.stopStatsCollection();
             await player.unload();
             playerActions.setLoadedState(false);
             if (streamId !== undefined) {
@@ -254,7 +248,7 @@ export const playerService = {
 
     destroy() {
         if (!this.isInitialized) return;
-        this.stopStatsCollection(); // Stop stats on destroy
+        this.stopStatsCollection();
         if (ui) {
             ui.destroy();
             ui = null;

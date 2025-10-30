@@ -47,8 +47,6 @@ function renderComplianceView() {
     if (protocol === 'hls' && activeMediaPlaylistUrl) {
         const mediaPlaylist = mediaPlaylists.get(activeMediaPlaylistUrl);
         if (mediaPlaylist) {
-            // For HLS media playlists, we re-run checks on the fly as they are not part of the main update loop.
-            // This is an exception to the "all analysis in worker" rule for practicality.
             complianceResults = runChecks(mediaPlaylist.manifest, protocol, {
                 standardVersion: activeStandardVersion,
             });
@@ -57,7 +55,6 @@ function renderComplianceView() {
                 mediaPlaylist.manifest.serializedManifest;
         }
     } else {
-        // For DASH and HLS Master Playlist, we use the pre-computed results.
         currentUpdate = manifestUpdates[activeManifestUpdateIndex];
         complianceResults = currentUpdate?.complianceResults || [];
         if (currentUpdate) {
@@ -105,7 +102,7 @@ function renderComplianceView() {
             </div>
         </div>
         <div
-            class="bg-slate-800 rounded-lg p-2 sm:p-4 font-mono text-sm leading-relaxed overflow-auto h-full"
+            class="bg-slate-800 rounded-lg p-2 sm:p-4 font-mono text-sm leading-relaxed overflow-auto grow min-h-0"
         >
             ${manifestViewTemplate(
                 rawManifestToDisplay,
@@ -127,12 +124,10 @@ function renderComplianceView() {
         </div>
     `;
 
-    // Render main content and contextual sidebar
     render(mainTemplate, container);
     const contextualSidebar = document.getElementById('contextual-sidebar');
     if (contextualSidebar) {
         render(contextualTemplate, contextualSidebar);
-        // Visibility is now handled by mainRenderer, so we don't toggle classes here.
         document.body.classList.toggle(
             'contextual-sidebar-open',
             activeSidebar === 'contextual'

@@ -299,39 +299,44 @@ function renderParserCoverage() {
         copyTextToClipboard(debugString, 'Debug report copied to clipboard!');
     };
 
-    const template = html`
-        <div class="mb-4 shrink-0 flex justify-between items-center">
-            <div>
-                <h3 class="text-xl font-bold">Parser Coverage Analysis</h3>
-                <p class="text-sm text-gray-400 mt-1">
-                    Highlights elements not parsed from the manifest (unparsed)
-                    and properties created by the parser but not in the schema
-                    (drift).
-                </p>
-            </div>
-            <button
-                @click=${handleDebugCopy}
-                class="bg-yellow-600 hover:bg-yellow-700 text-black font-bold py-2 px-3 rounded-md transition-colors shrink-0"
-            >
-                Copy Debug Report
-            </button>
-        </div>
+    const sidebarContent = sidebarTemplate(stream.coverageReport);
 
-        <div class="lg:grid lg:grid-cols-[1fr_450px] lg:gap-6 relative h-full">
+    const mainTemplate = html`
+        <div class="flex flex-col h-full">
+            <div class="mb-4 shrink-0 flex justify-between items-center">
+                <div>
+                    <h3 class="text-xl font-bold">Parser Coverage Analysis</h3>
+                    <p class="text-sm text-gray-400 mt-1">
+                        Highlights elements not parsed from the manifest
+                        (unparsed) and properties created by the parser but not
+                        in the schema (drift).
+                    </p>
+                </div>
+                <button
+                    @click=${handleDebugCopy}
+                    class="bg-yellow-600 hover:bg-yellow-700 text-black font-bold py-2 px-3 rounded-md transition-colors shrink-0"
+                >
+                    Copy Debug Report
+                </button>
+            </div>
             <div
-                class="bg-slate-800 rounded-lg p-2 sm:p-4 font-mono text-sm leading-relaxed overflow-auto mb-6 lg:mb-0 h-full"
+                class="bg-slate-800 rounded-lg p-2 sm:p-4 font-mono text-sm leading-relaxed overflow-auto grow min-h-0"
             >
                 ${manifestViewTemplate(stream, stream.coverageReport)}
-            </div>
-            <div class="lg:sticky lg:top-4 h-fit">
-                <div class="flex flex-col h-96 lg:max-h-[calc(100vh-12rem)]">
-                    ${sidebarTemplate(stream.coverageReport)}
-                </div>
             </div>
         </div>
     `;
 
-    render(template, container);
+    const contextualTemplate = html`
+        <div class="flex flex-col p-4 h-full">${sidebarContent}</div>
+    `;
+
+    render(mainTemplate, container);
+
+    const contextualSidebar = document.getElementById('contextual-sidebar');
+    if (contextualSidebar) {
+        render(contextualTemplate, contextualSidebar);
+    }
 }
 
 export const parserCoverageView = {

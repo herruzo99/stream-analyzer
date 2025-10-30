@@ -1,4 +1,5 @@
 import { render, html } from 'lit-html';
+import { createIcons, icons } from 'lucide';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { useUiStore, uiActions } from '@/state/uiStore';
 import { inputViewTemplate } from '@/ui/views/input-view';
@@ -56,20 +57,7 @@ const appShellTemplate = () => html`
             id="sidebar-toggle-btn"
             class="text-gray-300 hover:text-white p-1"
         >
-            <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-6 w-6"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                stroke-width="2"
-            >
-                <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="M4 6h16M4 12h16M4 18h16"
-                />
-            </svg>
+            <i data-lucide="menu" class="h-6 w-6"></i>
         </button>
         <h2 id="mobile-page-title" class="text-lg font-bold text-white"></h2>
         <div class="w-7"></div>
@@ -84,7 +72,7 @@ const appShellTemplate = () => html`
         ></div>
         <aside
             id="sidebar-container"
-            class="bg-gray-900 border-r border-gray-800 flex-col fixed xl:relative xl:flex top-0 left-0 bottom-0 z-40 w-72 xl:w-auto -translate-x-full xl:translate-x-0 transition-transform duration-300 ease-in-out"
+            class="bg-gray-900 border-r border-gray-800 flex flex-col fixed xl:relative top-0 left-0 bottom-0 z-40 w-72 xl:w-auto -translate-x-full xl:translate-x-0 transition-transform duration-300 ease-in-out"
         >
             <header class="p-3">
                 <h2 class="text-xl font-bold text-white mb-4 px-2">
@@ -129,7 +117,7 @@ const appShellTemplate = () => html`
         </div>
         <aside
             id="contextual-sidebar"
-            class="bg-gray-800/80 backdrop-blur-sm border-l border-gray-700/50 fixed xl:relative top-0 right-0 bottom-0 z-40 w-96 max-w-[90vw] translate-x-full xl:translate-x-0 transition-transform duration-300 ease-in-out flex-col"
+            class="bg-gray-800/80 backdrop-blur-sm border-l border-gray-700/50 fixed xl:relative top-0 right-0 bottom-0 z-40 w-96 max-w-[90vw] translate-x-full xl:translate-x-0 transition-transform duration-300 ease-in-out flex flex-col min-h-0"
         ></aside>
     </div>
 `;
@@ -191,70 +179,79 @@ export function renderApp() {
         const streamIdChanged =
             activeStream && activeStream.id !== currentMountedStreamId;
 
-        if (currentViewKey === previousViewKey && !streamIdChanged) {
-            return;
-        }
+        if (currentViewKey !== previousViewKey || streamIdChanged) {
+            debugLog(
+                'MainRenderer',
+                `View change detected. From: ${previousViewKey}, To: ${currentViewKey}. Stream changed: ${streamIdChanged}`
+            );
+            const oldView = viewMap[previousViewKey];
+            const newView = viewMap[currentViewKey];
 
-        debugLog(
-            'MainRenderer',
-            `View change detected. From: ${previousViewKey}, To: ${currentViewKey}. Stream changed: ${streamIdChanged}`
-        );
-        const oldView = viewMap[previousViewKey];
-        const newView = viewMap[currentViewKey];
-
-        if (oldView) {
-            if (
-                previousViewKey === 'player-simulation' &&
-                newView !== playerView
-            ) {
-                debugLog(
-                    'MainRenderer',
-                    `Deactivating persistent player view: ${previousViewKey}`
-                );
-                oldView.deactivate?.();
-            } else if (oldView !== playerView) {
-                debugLog('MainRenderer', `Unmounting view: ${previousViewKey}`);
-                oldView.unmount?.();
-            }
-        }
-
-        if (newView) {
-            playerContainer?.classList.toggle('hidden', newView !== playerView);
-            tabViewContainer?.classList.toggle('hidden', newView === playerView);
-
-            if (newView === playerView) {
-                debugLog(
-                    'MainRenderer',
-                    `Activating persistent player view: ${currentViewKey}`
-                );
-                newView.activate?.(activeStream);
-            } else {
-                debugLog('MainRenderer', `Mounting view: ${currentViewKey}`);
-                newView.mount?.(appShellDomContext.mainContent, {
-                    stream: activeStream,
-                    streams,
-                });
-            }
-
-            const contextualSidebar =
-                document.getElementById('contextual-sidebar');
-            if (newView.hasContextualSidebar) {
-                if (contextualSidebar)
-                    contextualSidebar.classList.remove('hidden');
-                if (activeSidebar !== 'contextual') {
-                    uiActions.setActiveSidebar('contextual');
-                }
-            } else {
-                if (contextualSidebar)
-                    contextualSidebar.classList.add('hidden');
-                if (activeSidebar === 'contextual') {
-                    uiActions.setActiveSidebar(null);
+            if (oldView) {
+                if (
+                    previousViewKey === 'player-simulation' &&
+                    newView !== playerView
+                ) {
+                    debugLog(
+                        'MainRenderer',
+                        `Deactivating persistent player view: ${previousViewKey}`
+                    );
+                    oldView.deactivate?.();
+                } else if (oldView !== playerView) {
+                    debugLog(
+                        'MainRenderer',
+                        `Unmounting view: ${previousViewKey}`
+                    );
+                    oldView.unmount?.();
                 }
             }
-        }
 
-        currentMountedViewKey = currentViewKey;
-        currentMountedStreamId = activeStream?.id;
+            if (newView) {
+                playerContainer?.classList.toggle(
+                    'hidden',
+                    newView !== playerView
+                );
+                tabViewContainer?.classList.toggle(
+                    'hidden',
+                    newView === playerView
+                );
+
+                if (newView === playerView) {
+                    debugLog(
+                        'MainRenderer',
+                        `Activating persistent player view: ${currentViewKey}`
+                    );
+                    newView.activate?.(activeStream);
+                } else {
+                    debugLog(
+                        'MainRenderer',
+                        `Mounting view: ${currentViewKey}`
+                    );
+                    newView.mount?.(appShellDomContext.mainContent, {
+                        stream: activeStream,
+                        streams,
+                    });
+                }
+
+                const contextualSidebar =
+                    document.getElementById('contextual-sidebar');
+                if (newView.hasContextualSidebar) {
+                    if (contextualSidebar)
+                        contextualSidebar.classList.remove('hidden');
+                    // This is declarative. The 'renderAppShell' function will handle the class toggling based on state.
+                } else {
+                    if (contextualSidebar)
+                        contextualSidebar.classList.add('hidden');
+                    if (activeSidebar === 'contextual') {
+                        // If we switch to a tab without a sidebar, hide it.
+                        uiActions.setActiveSidebar(null);
+                    }
+                }
+            }
+
+            currentMountedViewKey = currentViewKey;
+            currentMountedStreamId = activeStream?.id;
+        }
     } else {
         if (isShellRendered) {
             debugLog(
@@ -271,4 +268,9 @@ export function renderApp() {
             render(html``, initialDomContext.appRoot);
         render(inputViewTemplate(renderApp), initialDomContext.inputSection);
     }
+
+    // After every render cycle, ask Lucide to process any new icon placeholders.
+    requestAnimationFrame(() => {
+        createIcons({ icons });
+    });
 }

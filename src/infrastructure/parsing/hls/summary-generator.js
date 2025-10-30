@@ -29,12 +29,46 @@ const findBoxRecursive = (boxes, predicateOrType) => {
  * @param {Manifest} manifestIR - The adapted manifest IR.
  * @param {object} [context] - Context for enrichment.
  * @param {string} [context.baseUrl] - The base URL for resolving relative segment paths.
- * @param {Function} [context.fetchAndParseSegment] - Function to fetch and parse a segment.
+ * @param {Function} [context.fetchWithAuth] - Function to fetch a URL with auth.
+ * @param {Function} [context.parseHlsManifest] - Function to parse an HLS manifest string.
  * @returns {Promise<import('@/types.ts').ManifestSummary>}
  */
 export async function generateHlsSummary(manifestIR, context) {
     const { serializedManifest: rawElement } = manifestIR;
     const isMaster = manifestIR.isMaster;
+
+    // --- ENRICHMENT STEP ---
+    if (isMaster && context?.fetchWithAuth && context?.parseHlsManifest) {
+        const firstVariant = manifestIR.variants?.[0];
+        if (firstVariant?.resolvedUri) {
+            try {
+                const response = await context.fetchWithAuth(
+                    firstVariant.resolvedUri
+                );
+                const mediaPlaylistString = await response.text();
+                const { manifest: mediaPlaylistIR } =
+                    await context.parseHlsManifest(
+                        mediaPlaylistString,
+                        firstVariant.resolvedUri,
+                        manifestIR.hlsDefinedVariables
+                    );
+
+                // Enrich the master manifest IR with data from the media playlist
+                manifestIR.duration = mediaPlaylistIR.duration;
+                manifestIR.minBufferTime = mediaPlaylistIR.minBufferTime; // This is targetDuration
+                (manifestIR.tags = manifestIR.tags || []).push(
+                    ...(mediaPlaylistIR.tags || [])
+                );
+                manifestIR.segments = mediaPlaylistIR.segments;
+                manifestIR.type = mediaPlaylistIR.type;
+            } catch (e) {
+                console.warn(
+                    `[HLS Summary Enrichment] Failed to fetch or parse media playlist: ${e.message}`
+                );
+            }
+        }
+    }
+    // --- END ENRICHMENT ---
 
     const allAdaptationSets = manifestIR.periods.flatMap(
         (p) => p.adaptationSets
@@ -67,72 +101,14 @@ export async function generateHlsSummary(manifestIR, context) {
                 scanType: null,
                 videoRange: rep.videoRange || null,
                 roles: [],
-                // @ts-ignore
                 __variantUri: rep.__variantUri,
             }))
         );
 
-    // --- ENRICHMENT STEP ---
-    if (context?.fetchAndParseSegment && isMaster) {
-        for (const track of videoTracks) {
-            // @ts-ignore
-            const variantUri = track.__variantUri;
-            if (track.resolutions.length === 0 && variantUri) {
-                try {
-                    const mediaPlaylistResponse = await fetch(variantUri);
-                    if (!mediaPlaylistResponse.ok) continue;
-                    const mediaPlaylistText =
-                        await mediaPlaylistResponse.text();
-
-                    const firstSegmentLine = mediaPlaylistText
-                        .split('\n')
-                        .find((line) => line.trim() && !line.startsWith('#'));
-
-                    if (firstSegmentLine) {
-                        const segmentUrl = new URL(
-                            firstSegmentLine.trim(),
-                            variantUri
-                        ).href;
-                        const parsedSegment =
-                            await context.fetchAndParseSegment(
-                                segmentUrl,
-                                'isobmff'
-                            );
-
-                        if (
-                            parsedSegment?.format === 'isobmff' &&
-                            parsedSegment.data?.boxes
-                        ) {
-                            const videoBox = findBoxRecursive(
-                                parsedSegment.data.boxes,
-                                (box) =>
-                                    ['avc1', 'hvc1', 'hev1'].includes(box.type)
-                            );
-                            if (
-                                videoBox &&
-                                videoBox.details.width &&
-                                videoBox.details.height
-                            ) {
-                                track.resolutions.push({
-                                    value: `${videoBox.details.width.value}x${videoBox.details.height.value}`,
-                                    source: 'segment',
-                                });
-                            }
-                        }
-                    }
-                } catch (e) {
-                    console.warn(
-                        `[HLS Enrichment] Failed to get resolution for ${variantUri}: ${e.message}`
-                    );
-                }
-            }
-        }
-    }
     videoTracks.forEach((track) => {
         // @ts-ignore
         delete track.__variantUri;
     });
-    // --- END ENRICHMENT ---
 
     const audioTracks = allAdaptationSets
         .filter((as) => as.contentType === 'audio')
@@ -200,7 +176,6 @@ export async function generateHlsSummary(manifestIR, context) {
             };
         });
 
-    // --- Enhanced Security Summary Generation ---
     const allContentProtection = allAdaptationSets.flatMap(
         (as) => as.contentProtection
     );
@@ -223,10 +198,9 @@ export async function generateHlsSummary(manifestIR, context) {
             security.hlsEncryptionMethod = 'AES-128';
         }
     }
-    // --- End Enhanced Security Summary ---
 
     let mediaPlaylistDetails = null;
-    if (!isMaster) {
+    if (!isMaster || manifestIR.segments?.length > 0) {
         const segmentCount = (manifestIR.segments || []).length;
         const totalDuration = (manifestIR.segments || []).reduce(
             (sum, seg) => sum + seg.duration,
@@ -271,7 +245,7 @@ export async function generateHlsSummary(manifestIR, context) {
         dash: null,
         hls: {
             version: /** @type {any} */ (rawElement).version,
-            targetDuration: /** @type {any} */ (rawElement).targetDuration,
+            targetDuration: /** @type {any} */ (manifestIR).minBufferTime,
             iFramePlaylists: iFramePlaylists,
             mediaPlaylistDetails,
             dvrWindow:

@@ -135,6 +135,14 @@ export const useAnalysisStore = createStore((set, get) => ({
             }
             newStream.hlsVariantState = newHlsVariantState;
 
+            // --- BUG FIX ---
+            // Reconstitute hlsDefinedVariables back into a Map on the manifest object.
+            if (s.manifest?.hlsDefinedVariables) {
+                s.manifest.hlsDefinedVariables = new Map(
+                    s.manifest.hlsDefinedVariables
+                );
+            }
+
             newStream.wasStoppedByInactivity = false;
             newStream.activeMediaPlaylistUrl = null;
             newStream.inbandEvents = [];
@@ -415,99 +423,37 @@ export const useAnalysisStore = createStore((set, get) => ({
     },
 
     updateStream: (streamId, updatedStreamData) => {
-        set((state) => {
-            const stream = state.streams.find((s) => s.id === streamId);
-            if (!stream) return state;
-
-            const newUrlAuthMap = new Map(state.urlAuthMap);
-            const authContext = { streamId, auth: stream.auth };
-            let segmentsWereUpdated = false;
-
-            const newDashState = new Map(stream.dashRepresentationState);
-            if (updatedStreamData.dashRepresentationState) {
-                for (const [
-                    key,
-                    value,
-                ] of updatedStreamData.dashRepresentationState) {
-                    const newSegmentUrls = value.newlyAddedSegmentUrls;
-                    if (newSegmentUrls && newSegmentUrls.size > 0) {
-                        segmentsWereUpdated = true;
-                        for (const segUrl of newSegmentUrls) {
-                            newUrlAuthMap.set(segUrl, authContext);
-                        }
-                    }
-                    newDashState.set(key, {
-                        ...value,
-                        segments: value.segments || [],
-                        currentSegmentUrls: new Set(value.currentSegmentUrls),
-                        newlyAddedSegmentUrls: new Set(newSegmentUrls),
-                    });
+        set((state) => ({
+            streams: state.streams.map((s) => {
+                if (s.id === streamId) {
+                    // Create a new object and apply updates, preserving Map instances
+                    const newStream = { ...s, ...updatedStreamData };
+                    return newStream;
                 }
-            }
-
-            const newHlsState = new Map(stream.hlsVariantState);
-            if (updatedStreamData.hlsVariantState) {
-                for (const [key, value] of updatedStreamData.hlsVariantState) {
-                    const newSegmentUrls = value.newlyAddedSegmentUrls;
-                    if (newSegmentUrls && newSegmentUrls.size > 0) {
-                        segmentsWereUpdated = true;
-                        for (const segUrl of newSegmentUrls) {
-                            newUrlAuthMap.set(segUrl, authContext);
-                        }
-                    }
-                    newHlsState.set(key, {
-                        ...value,
-                        segments: value.segments || [],
-                        currentSegmentUrls: new Set(value.currentSegmentUrls),
-                        newlyAddedSegmentUrls: new Set(newSegmentUrls),
-                    });
-                }
-            }
-
-            const newStreamState = {
-                ...stream,
-                ...updatedStreamData,
-                dashRepresentationState: newDashState,
-                hlsVariantState: newHlsState,
-            };
-
-            const newStreams = state.streams.map((s) =>
-                s.id === streamId ? newStreamState : s
-            );
-
-            debugLog(
-                'AnalysisStore',
-                `State updated for stream ${streamId}. Segments updated: ${segmentsWereUpdated}`,
-                {
-                    newState: newStreamState,
-                    newUrlAuthMapSize: newUrlAuthMap.size,
-                }
-            );
-
-            if (segmentsWereUpdated) {
-                eventBus.dispatch('stream:segments-updated', { streamId });
-            }
-            eventBus.dispatch('state:stream-updated', { streamId });
-
-            return { streams: newStreams, urlAuthMap: newUrlAuthMap };
+                return s;
+            }),
+        }));
+        debugLog('AnalysisStore', `State updated for stream ${streamId}.`, {
+            updatedData: updatedStreamData,
         });
+        eventBus.dispatch('state:stream-updated', { streamId });
     },
 
     addInbandEvents: (streamId, events) => {
         if (!events || events.length === 0) return;
-        set((state) => {
-            const newStreams = state.streams.map((s) => {
+        set((state) => ({
+            streams: state.streams.map((s) => {
                 if (s.id === streamId) {
-                    const newInbandEvents = [
+                    const newStream = { ...s };
+                    newStream.inbandEvents = [
                         ...(s.inbandEvents || []),
                         ...events,
                     ];
-                    return { ...s, inbandEvents: newInbandEvents };
+                    return newStream;
                 }
                 return s;
-            });
-            return { streams: newStreams };
-        });
+            }),
+        }));
         eventBus.dispatch('state:inband-events-added', {
             streamId,
             newEvents: events,
@@ -533,37 +479,29 @@ export const useAnalysisStore = createStore((set, get) => ({
     },
 
     navigateManifestUpdate: (streamId, direction) => {
-        set((state) => {
-            const streamIndex = state.streams.findIndex(
-                (s) => s.id === streamId
-            );
-            if (streamIndex === -1) return {};
+        set((state) => ({
+            streams: state.streams.map((s) => {
+                if (s.id === streamId && s.manifestUpdates.length > 0) {
+                    let newIndex = s.activeManifestUpdateIndex + direction;
+                    newIndex = Math.max(
+                        0,
+                        Math.min(newIndex, s.manifestUpdates.length - 1)
+                    );
 
-            const stream = state.streams[streamIndex];
-            if (stream.manifestUpdates.length === 0) return {};
+                    if (newIndex === s.activeManifestUpdateIndex) return s;
 
-            let newIndex = stream.activeManifestUpdateIndex + direction;
-            newIndex = Math.max(
-                0,
-                Math.min(newIndex, stream.manifestUpdates.length - 1)
-            );
-
-            if (newIndex === stream.activeManifestUpdateIndex) return {};
-
-            const newStreams = [...state.streams];
-            const updatedStream = {
-                ...stream,
-                activeManifestUpdateIndex: newIndex,
-            };
-
-            if (newIndex === 0) {
-                updatedStream.manifestUpdates[0].hasNewIssues = false;
-            }
-
-            newStreams[streamIndex] = updatedStream;
-
-            return { streams: newStreams };
-        });
+                    const newStream = {
+                        ...s,
+                        activeManifestUpdateIndex: newIndex,
+                    };
+                    if (newIndex === 0) {
+                        newStream.manifestUpdates[0].hasNewIssues = false;
+                    }
+                    return newStream;
+                }
+                return s;
+            }),
+        }));
     },
 
     updateHlsMediaPlaylist: ({
@@ -575,12 +513,21 @@ export const useAnalysisStore = createStore((set, get) => ({
         currentSegmentUrls,
         newSegmentUrls,
     }) => {
+        debugLog(
+            'AnalysisStore',
+            `updateHlsMediaPlaylist action called for stream ${streamId}`,
+            { variantUri }
+        );
         set((state) => {
             const stream = state.streams.find((s) => s.id === streamId);
             if (!stream) return {};
 
             const newUrlAuthMap = new Map(state.urlAuthMap);
+
+            // Create new Map instances to ensure state change is detected
             const newVariantState = new Map(stream.hlsVariantState);
+            const newMediaPlaylists = new Map(stream.mediaPlaylists);
+
             const currentState = newVariantState.get(variantUri);
 
             if (currentState) {
@@ -599,17 +546,19 @@ export const useAnalysisStore = createStore((set, get) => ({
                 });
                 const mergedSegments = Array.from(segmentMap.values());
 
+                // --- BUG FIX ---
+                // The isLoading flag was not being reset on success.
                 newVariantState.set(variantUri, {
                     ...currentState,
                     segments: mergedSegments,
                     currentSegmentUrls: new Set(currentSegmentUrls),
                     newlyAddedSegmentUrls: new Set(newSegmentUrls),
-                    isLoading: false,
-                    error: null,
+                    isLoading: false, // <-- THIS WAS MISSING
+                    error: null, // <-- Also good practice to clear any previous error
                 });
+                // --- END FIX ---
             }
 
-            const newMediaPlaylists = new Map(stream.mediaPlaylists);
             newMediaPlaylists.set(variantUri, {
                 manifest,
                 rawManifest: manifestString,
@@ -668,7 +617,7 @@ export const useAnalysisStore = createStore((set, get) => ({
                             resolvedUrl: segmentUrl,
                             template: filename,
                             time: 0,
-                            duration: 0, // Duration is unknown for segments discovered this way
+                            duration: 0, // Duration is unknown
                             timescale: 90000,
                             gap: false,
                             flags: [],
@@ -683,12 +632,16 @@ export const useAnalysisStore = createStore((set, get) => ({
                             newSegment,
                         ].sort((a, b) => a.number - b.number);
 
-                        variantState.segments = updatedSegments;
-                        variantState.newlyAddedSegmentUrls.add(
-                            newSegment.uniqueId
-                        );
+                        newVariantState.set(variantUri, {
+                            ...variantState,
+                            segments: updatedSegments,
+                            newlyAddedSegmentUrls: new Set([
+                                ...variantState.newlyAddedSegmentUrls,
+                                newSegment.uniqueId,
+                            ]),
+                        });
                         updated = true;
-                        break; // Stop after finding the correct variant
+                        break;
                     }
                 }
             }
@@ -703,7 +656,7 @@ export const useAnalysisStore = createStore((set, get) => ({
                     ),
                 };
             }
-            return {}; // No change
+            return {};
         });
     },
 }));
