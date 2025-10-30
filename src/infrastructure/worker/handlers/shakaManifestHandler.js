@@ -1,11 +1,14 @@
 import { parseManifest as parseDashManifest } from '@/infrastructure/parsing/dash/parser';
 import { parseManifest as parseHlsManifest } from '@/infrastructure/parsing/hls/index';
+import { generateDashSummary } from '@/infrastructure/parsing/dash/summary-generator';
+import { generateHlsSummary } from '@/infrastructure/parsing/hls/summary-generator';
 import { runChecks } from '@/features/compliance/domain/engine';
 import { diffManifest } from '@/ui/shared/diff';
 import xmlFormatter from 'xml-formatter';
 import { fetchWithAuth } from '../http.js';
 import { parseAllSegmentUrls as parseDashSegments } from '@/infrastructure/parsing/dash/segment-parser';
 import { debugLog } from '@/shared/utils/debug';
+import { resolveAdAvailsInWorker } from '@/features/advertising/application/resolveAdAvailWorker';
 
 function detectProtocol(manifestString, hint) {
     if (hint) return hint;
@@ -21,12 +24,13 @@ export async function handleShakaManifestFetch(payload, signal) {
         streamId,
         url,
         auth,
-        isPlayerLoadRequest, // CRITICAL FIX: Receive the context flag
+        isPlayerLoadRequest,
         oldRawManifest,
         protocol: protocolHint,
         baseUrl,
         hlsDefinedVariables,
         oldDashRepresentationState: oldDashRepStateArray,
+        oldAdAvails,
     } = payload;
 
     const startTime = performance.now();
@@ -61,7 +65,7 @@ export async function handleShakaManifestFetch(payload, signal) {
     });
 
     if (!response.ok) {
-        throw new Error(`HTTP ${response.status} fetching manifest for ${url}`);
+        throw new Error(`HTTP error ${response.status} fetching manifest for ${url}`);
     }
 
     const newManifestString = await response.text();
@@ -71,7 +75,6 @@ export async function handleShakaManifestFetch(payload, signal) {
     );
     const detectedProtocol = detectProtocol(newManifestString, protocolHint);
 
-    // --- ARCHITECTURAL FIX: Prevent player loads from corrupting state ---
     if (isPlayerLoadRequest) {
         debugLog(
             'shakaManifestHandler',
@@ -85,7 +88,6 @@ export async function handleShakaManifestFetch(payload, signal) {
             status: response.status,
         };
     }
-    // --- END FIX ---
 
     if (
         detectedProtocol === 'hls' &&
@@ -148,7 +150,7 @@ export async function handleShakaManifestFetch(payload, signal) {
                 (oldRepState?.segments || []).map((s) => s.uniqueId)
             );
             const currentSegmentUrls = allSegments.map((s) => s.uniqueId);
-            const newSegmentUrls = currentSegmentUrls.filter(
+            const newlyAddedSegmentUrls = currentSegmentUrls.filter(
                 (id) => !oldSegmentIds.has(id)
             );
             dashRepStateForUpdate.push([
@@ -156,7 +158,7 @@ export async function handleShakaManifestFetch(payload, signal) {
                 {
                     segments: allSegments,
                     currentSegmentUrls: currentSegmentUrls,
-                    newSegmentUrls: newSegmentUrls,
+                    newlyAddedSegmentUrls: newlyAddedSegmentUrls,
                     diagnostics: data.diagnostics,
                 },
             ]);
@@ -199,6 +201,39 @@ export async function handleShakaManifestFetch(payload, signal) {
         detectedProtocol
     );
 
+    // --- STATEFUL AD RESOLUTION LOGIC ---
+    const oldAvailsById = new Map((oldAdAvails || []).map((a) => [a.id, a]));
+    const potentialNewAvails = newManifestObject.adAvails || [];
+    const availsToResolve = potentialNewAvails.filter(
+        (a) => !oldAvailsById.has(a.id)
+    );
+
+    debugLog(
+        'shakaManifestHandler',
+        `Found ${potentialNewAvails.length} total avails in new manifest. ${availsToResolve.length} are new and require VAST resolution.`
+    );
+
+    const newlyResolvedAvails = await resolveAdAvailsInWorker(availsToResolve);
+    const newlyResolvedAvailsById = new Map(
+        newlyResolvedAvails.map((a) => [a.id, a])
+    );
+
+    // Reconstruct the final list based on the new manifest's periods,
+    // using already resolved data for old avails and newly resolved data for new ones.
+    const finalAdAvails = potentialNewAvails.map((avail) => {
+        if (oldAvailsById.has(avail.id)) {
+            return oldAvailsById.get(avail.id); // Return the memoized, already-resolved version
+        }
+        return newlyResolvedAvailsById.get(avail.id) || avail; // Return the newly resolved version, or the partial if resolution failed
+    });
+    // --- END STATEFUL AD RESOLUTION ---
+
+    if (detectedProtocol === 'dash') {
+        newManifestObject.summary = await generateDashSummary(newManifestObject, newSerializedObject);
+    } else {
+        newManifestObject.summary = await generateHlsSummary(newManifestObject);
+    }
+
     newManifestObject.serializedManifest = newSerializedObject;
 
     self.postMessage({
@@ -212,6 +247,7 @@ export async function handleShakaManifestFetch(payload, signal) {
             diffHtml,
             dashRepresentationState: dashRepStateForUpdate,
             hlsVariantState: hlsVariantStateForUpdate,
+            adAvails: finalAdAvails, // Send the final merged list
         },
     });
 

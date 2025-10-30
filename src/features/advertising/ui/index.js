@@ -92,6 +92,18 @@ const adCreativeTemplate = (creative) => {
 };
 
 const adAvailTemplate = (avail) => {
+    const noCreativesMessage = avail.adManifestUrl
+        ? html`<p class="text-sm text-yellow-300 italic">
+              Could not resolve any ad creatives from the provided VAST manifest.
+              This could be due to an empty VAST response, a network error, or an
+              unsupported ad format.
+          </p>`
+        : html`<p class="text-sm text-gray-400 italic">
+              This is a server-stitched ad period. Ad creatives are delivered as
+              part of the main media stream within this period's duration, not from a
+              separate VAST file.
+          </p>`;
+
     return html`
         <details
             class="bg-gray-800/50 rounded-lg border border-gray-700 details-animated"
@@ -107,9 +119,21 @@ const adAvailTemplate = (avail) => {
                 </span>
             </summary>
             <div class="p-4 border-t border-gray-700 space-y-4">
+                ${avail.adManifestUrl
+                    ? html`<div>
+                          <h4 class="text-md font-semibold text-gray-300 mb-2">
+                              Ad Manifest URL
+                          </h4>
+                          <p
+                              class="pl-4 font-mono text-xs text-cyan-400 break-all"
+                          >
+                              ${avail.adManifestUrl}
+                          </p>
+                      </div>`
+                    : ''}
                 <div>
                     <h4 class="text-md font-semibold text-gray-300 mb-2">
-                        SCTE-35 Signal Details
+                        SCTE-35 Signal Details (Heuristic)
                     </h4>
                     <div class="pl-4">
                         ${scte35DetailsTemplate(avail.scte35Signal)}
@@ -122,9 +146,7 @@ const adAvailTemplate = (avail) => {
                     <div class="pl-4 space-y-4">
                         ${avail.creatives.length > 0
                             ? avail.creatives.map(adCreativeTemplate)
-                            : html`<p class="text-sm text-gray-500 italic">
-                                  No creatives found in VAST response.
-                              </p>`}
+                            : noCreativesMessage}
                     </div>
                 </div>
             </div>
@@ -147,8 +169,8 @@ function renderAdvertisingReport() {
                         No Ad Avails Detected
                     </h3>
                     <p class="mt-1 text-sm text-gray-500">
-                        This stream does not contain any SCTE-35 signals with
-                        resolvable VAST ad manifests.
+                        This stream does not contain any SCTE-35 signals or ad
+                        periods that could be identified.
                     </p>
                 </div>
             `,

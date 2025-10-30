@@ -3,7 +3,6 @@ import { useUiStore } from '@/state/uiStore';
 import { closeModal } from '@/ui/services/modalService';
 import { getSegmentAnalysisTemplate } from '@/features/segmentAnalysis/ui/index';
 import { scte35DetailsTemplate } from '@/ui/shared/scte35-details';
-import { streamLibraryModalTemplate } from '@/features/streamInput/ui/components/stream-library-modal';
 import { aboutModalTemplate } from './about-modal.js';
 
 let dom;
@@ -28,8 +27,6 @@ function getContentTemplate(modalContent) {
             return scte35DetailsTemplate(modalContent.data.scte35);
         case 'about':
             return aboutModalTemplate();
-        case 'streamLibrary':
-            return streamLibraryModalTemplate();
         default:
             return html`<p class="text-red-400">
                 Unknown modal content type: ${modalContent.type}

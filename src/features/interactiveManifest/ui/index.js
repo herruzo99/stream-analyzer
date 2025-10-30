@@ -5,83 +5,13 @@ import { dashManifestTemplate } from './components/dash/renderer.js';
 import { hlsManifestTemplate } from './components/hls/renderer.js';
 import { debugLog } from '@/shared/utils/debug';
 import { copyTextToClipboard } from '@/ui/shared/clipboard';
-import { dashTooltipData } from './components/dash/tooltip-data.js';
-import { hlsTooltipData } from './components/hls/tooltip-data.js';
 import { isDebugMode } from '@/shared/utils/env';
+import { generateMissingTooltipsReport } from '@/features/parserCoverage/domain/tooltip-coverage-analyzer';
 
 let container = null;
 let currentStreamId = null;
 let uiUnsubscribe = null;
 let analysisUnsubscribe = null;
-
-function findDashMissingTooltips(serializedManifest) {
-    const missing = [];
-    const seen = new Set();
-    const walk = (node, tagName) => {
-        if (!node || typeof node !== 'object') return;
-        if (!dashTooltipData[tagName] && !seen.has(tagName)) {
-            missing.push({ type: 'Element', name: tagName });
-            seen.add(tagName);
-        }
-        const attrs = node[':@'] || {};
-        for (const attrName in attrs) {
-            const attrKey = `${tagName}@${attrName}`;
-            const isIgnored = [
-                'xmlns',
-                'xmlns:xsi',
-                'xsi:schemaLocation',
-            ].includes(attrName);
-            if (!dashTooltipData[attrKey] && !isIgnored && !seen.has(attrKey)) {
-                missing.push({ type: 'Attribute', name: attrKey });
-                seen.add(attrKey);
-            }
-        }
-        for (const childName in node) {
-            if (childName === ':@' || childName === '#text') continue;
-            const children = Array.isArray(node[childName])
-                ? node[childName]
-                : [node[childName]];
-            children.forEach((childNode) => {
-                walk(childNode, childName);
-            });
-        }
-    };
-    if (serializedManifest) {
-        walk(serializedManifest, 'MPD');
-    }
-    return missing;
-}
-
-function findHlsMissingTooltips(serializedManifest) {
-    const missing = [];
-    const seen = new Set();
-    const checkAttributes = (tagName, attributesObject) => {
-        if (attributesObject && typeof attributesObject === 'object') {
-            for (const attrName in attributesObject) {
-                const attrKey = `${tagName}@${attrName}`;
-                if (!hlsTooltipData[attrKey] && !seen.has(attrKey)) {
-                    missing.push({ type: 'Attribute', name: attrKey });
-                    seen.add(attrKey);
-                }
-            }
-        }
-    };
-    (serializedManifest.tags || []).forEach((tag) => {
-        const tagName = tag.name;
-        if (!hlsTooltipData[tagName] && !seen.has(tagName)) {
-            missing.push({ type: 'Tag', name: tagName });
-            seen.add(tagName);
-        }
-        checkAttributes(tagName, tag.value);
-    });
-    (serializedManifest.media || []).forEach((mediaTag) => {
-        checkAttributes('EXT-X-MEDIA', mediaTag);
-    });
-    (serializedManifest.variants || []).forEach((variant) => {
-        checkAttributes('EXT-X-STREAM-INF', variant.attributes);
-    });
-    return missing;
-}
 
 function renderInteractiveManifest() {
     if (!container || currentStreamId === null) return;
@@ -114,31 +44,22 @@ function renderInteractiveManifest() {
 
     const handleDebugCopy = () => {
         let manifestToCopy = stream.rawManifest;
-        let manifestObjectForAnalysis = stream.manifest.serializedManifest;
-
         if (stream.protocol === 'hls' && stream.activeMediaPlaylistUrl) {
             const mediaPlaylist = stream.mediaPlaylists.get(
                 stream.activeMediaPlaylistUrl
             );
             if (mediaPlaylist) {
                 manifestToCopy = mediaPlaylist.rawManifest;
-                manifestObjectForAnalysis =
-                    mediaPlaylist.manifest.serializedManifest;
             }
         }
 
-        let missing = [];
-        if (stream.protocol === 'dash') {
-            missing = findDashMissingTooltips(manifestObjectForAnalysis);
-        } else if (stream.protocol === 'hls') {
-            missing = findHlsMissingTooltips(manifestObjectForAnalysis);
-        }
+        const report = generateMissingTooltipsReport(stream);
+        const missingCount =
+            report === 'No missing tooltips found.'
+                ? 0
+                : report.split('\n').length;
 
-        const report =
-            missing.length > 0
-                ? missing.map((m) => `[${m.type}] ${m.name}`).join('\n')
-                : 'No missing tooltips found.';
-        const debugString = `--- MANIFEST ---\n${manifestToCopy}\n\n--- MISSING TOOLTIPS (${missing.length}) ---\n${report}`;
+        const debugString = `--- MANIFEST ---\n${manifestToCopy}\n\n--- MISSING TOOLTIPS (${missingCount}) ---\n${report}`;
         copyTextToClipboard(debugString, 'Debug report copied to clipboard!');
     };
 

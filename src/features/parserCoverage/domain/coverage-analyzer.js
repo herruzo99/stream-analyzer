@@ -345,6 +345,8 @@ const irSchema = {
         'eventStreams',
         'events',
         'serializedManifest',
+        'supplementalProperties',
+        'adAvails',
     ],
     Manifest: [
         'id',
@@ -379,6 +381,8 @@ const irSchema = {
         'renditionReports',
         'partInf',
         'mediaSequence',
+        'contentProtections',
+        'adAvails',
     ],
 };
 

@@ -41,11 +41,12 @@ async function monitorStream(streamId) {
             baseUrl: stream.baseUrl,
             hlsDefinedVariables: stream.hlsDefinedVariables,
             oldManifestObjectForDelta: stream.manifest?.serializedManifest,
-            // Pass current segment state to the worker for diffing
+            // Pass current segment and ad state to the worker for diffing
             oldDashRepresentationState: Array.from(
                 stream.dashRepresentationState.entries()
             ),
             oldHlsVariantState: Array.from(stream.hlsVariantState.entries()),
+            oldAdAvails: stream.adAvails || [],
         };
 
         // This task now triggers a 'livestream:manifest-updated' message on the main thread,

@@ -1,4 +1,5 @@
 import { html } from 'lit-html';
+import { eventBus } from '@/application/event-bus';
 
 const detailRow = (label, value) => {
     if (value === undefined || value === null) return '';
@@ -133,3 +134,18 @@ export const scte35DetailsTemplate = (scte35) => {
         </div>
     `;
 };
+
+// Initialize event listener for showing the modal
+eventBus.subscribe('ui:show-scte35-details', async ({ scte35, startTime }) => {
+    const { openModalWithContent } = await import('@/ui/services/modalService');
+    openModalWithContent({
+        title: `SCTE-35 Details (${
+            scte35.splice_command?.type || 'Unknown'
+        })`,
+        url: `Event at ${startTime.toFixed(3)}s`,
+        content: {
+            type: 'scte35',
+            data: { scte35 },
+        },
+    });
+});

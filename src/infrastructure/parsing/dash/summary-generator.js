@@ -78,18 +78,39 @@ export async function generateDashSummary(
         }
     }
 
-    const periodSummaries = manifestIR.periods.map((period) => {
-        const videoTracks = period.adaptationSets.filter(
-            (as) => as.contentType === 'video'
-        );
-        const audioTracks = period.adaptationSets.filter(
-            (as) => as.contentType === 'audio'
-        );
-        const textTracks = period.adaptationSets.filter(
-            (as) =>
-                as.contentType === 'text' || as.contentType === 'application'
-        );
+    const allAdaptationSets = manifestIR.periods.flatMap(
+        (p) => p.adaptationSets
+    );
+    // --- BUG FIX: Deduplicate AdaptationSets for summary ---
+    const uniqueAdaptationSets = new Map();
+    allAdaptationSets.forEach((as) => {
+        if (as.id && !uniqueAdaptationSets.has(as.id)) {
+            uniqueAdaptationSets.set(as.id, as);
+        } else if (!as.id) {
+            // For AdaptationSets without an ID, create a composite key to attempt deduplication
+            const key = `${as.contentType}-${as.lang}-${as.representations
+                .map((r) => r.id)
+                .join(',')}`;
+            if (!uniqueAdaptationSets.has(key)) {
+                uniqueAdaptationSets.set(key, as);
+            }
+        }
+    });
 
+    const allVideoAdaptationSets = Array.from(
+        uniqueAdaptationSets.values()
+    ).filter((as) => as.contentType === 'video');
+    const allAudioAdaptationSets = Array.from(
+        uniqueAdaptationSets.values()
+    ).filter((as) => as.contentType === 'audio');
+    const allTextAdaptationSets = Array.from(
+        uniqueAdaptationSets.values()
+    ).filter(
+        (as) => as.contentType === 'text' || as.contentType === 'application'
+    );
+    // --- END BUG FIX ---
+
+    for (const period of manifestIR.periods) {
         for (const as of period.adaptationSets) {
             for (const cp of as.contentProtection) {
                 const schemeId = cp.schemeIdUri;
@@ -109,34 +130,13 @@ export async function generateDashSummary(
                     ) {
                         existing.kids.push(cp.defaultKid);
                     }
-                    // Prioritize getting a PSSH box if one wasn't found before for this scheme
                     if (!existing.pssh && cp.pssh && cp.pssh.length > 0) {
                         existing.pssh = cp.pssh[0];
                     }
                 }
             }
-        }
 
-        return {
-            id: period.id,
-            start: period.start,
-            duration: period.duration,
-            videoTracks,
-            audioTracks,
-            textTracks,
-        };
-    });
-
-    const serviceDescription = findChildrenRecursive(
-        serializedManifest,
-        'ServiceDescription'
-    )[0];
-    const latencyEl = serviceDescription
-        ? findChildrenRecursive(serviceDescription, 'Latency')[0]
-        : null;
-
-    for (const period of manifestIR.periods) {
-        for (const as of period.adaptationSets) {
+            // Enrichment
             for (const rep of as.representations) {
                 if (context?.fetchAndParseSegment) {
                     const repBaseUrl = resolveBaseUrl(
@@ -166,7 +166,6 @@ export async function generateDashSummary(
                                     initInfo.range
                                 );
                             if (parsedSegment?.data?.boxes) {
-                                // Enrich Resolution
                                 if (!rep.width.value || !rep.height.value) {
                                     const avc1 = findBoxRecursive(
                                         parsedSegment.data.boxes,
@@ -187,7 +186,6 @@ export async function generateDashSummary(
                                         };
                                     }
                                 }
-                                // Enrich Bandwidth
                                 const btrt = findBoxRecursive(
                                     parsedSegment.data.boxes,
                                     (b) => b.type === 'btrt'
@@ -199,8 +197,6 @@ export async function generateDashSummary(
                                     rep.bandwidth =
                                         btrt.details.maxBitrate.value;
                                 }
-
-                                // Enrich PSSH data with license URLs
                                 const psshBoxes =
                                     parsedSegment.data.boxes.filter(
                                         (b) => b.type === 'pssh'
@@ -237,103 +233,108 @@ export async function generateDashSummary(
         }
     }
 
-    const allVideoTracks = periodSummaries
-        .flatMap((p) => p.videoTracks)
-        .map((as) => {
-            const bitrates = as.representations
-                .map((r) => r.bandwidth)
-                .filter(Boolean);
-            const codecs = [
+    const allVideoTracks = allVideoAdaptationSets.map((as) => {
+        const bitrates = as.representations
+            .map((r) => r.bandwidth)
+            .filter(Boolean);
+        const codecs = [
+            ...new Set(
+                as.representations.map((r) => r.codecs).filter((c) => c.value)
+            ),
+        ];
+        return {
+            id: as.id || 'N/A',
+            profiles: as.profiles,
+            bitrateRange:
+                bitrates.length > 0
+                    ? `${formatBitrate(Math.min(...bitrates))} - ${formatBitrate(Math.max(...bitrates))}`
+                    : 'N/A',
+            resolutions: [
                 ...new Set(
-                    as.representations
-                        .map((r) => r.codecs)
-                        .filter((c) => c.value)
+                    as.representations.map((r) => ({
+                        value: `${r.width.value}x${r.height.value}`,
+                        source: r.width.source,
+                    }))
                 ),
-            ];
-            return {
-                id: as.id || 'N/A',
-                profiles: as.profiles,
-                bitrateRange:
-                    bitrates.length > 0
-                        ? `${formatBitrate(Math.min(...bitrates))} - ${formatBitrate(Math.max(...bitrates))}`
-                        : 'N/A',
-                resolutions: [
-                    ...new Set(
-                        as.representations.map((r) => ({
-                            value: `${r.width.value}x${r.height.value}`,
-                            source: r.width.source,
-                        }))
-                    ),
-                ],
-                codecs: codecs.map((c) => ({
-                    value: c.value,
-                    source: c.source,
-                    supported: isCodecSupported(c.value),
-                })),
-                scanType: as.representations[0]?.scanType || null,
-                videoRange: null,
-                roles: as.roles.map((r) => r.value).filter(Boolean),
-            };
-        });
+            ],
+            codecs: codecs.map((c) => ({
+                value: c.value,
+                source: c.source,
+                supported: isCodecSupported(c.value),
+            })),
+            scanType: as.representations[0]?.scanType || null,
+            videoRange: null,
+            roles: as.roles.map((r) => r.value).filter(Boolean),
+        };
+    });
 
-    const allAudioTracks = periodSummaries
-        .flatMap((p) => p.audioTracks)
-        .map((as) => {
-            const codecs = [
-                ...new Set(
-                    as.representations
-                        .map((r) => r.codecs)
-                        .filter((c) => c.value)
-                ),
-            ];
-            const channels = [
-                ...new Set(
-                    as.audioChannelConfigurations
-                        .map((c) => c.value)
-                        .filter(Boolean)
-                ),
-            ];
-            return {
-                id: as.id || 'N/A',
-                lang: as.lang,
-                codecs: codecs.map((c) => ({
-                    value: c.value,
-                    source: c.source,
-                    supported: isCodecSupported(c.value),
-                })),
-                channels: channels.join(', ') || null,
-                isDefault: as.roles.some((r) => r.value === 'main'),
-                isForced: false,
-                roles: as.roles.map((r) => r.value).filter(Boolean),
-            };
-        });
+    const allAudioTracks = allAudioAdaptationSets.map((as) => {
+        const codecs = [
+            ...new Set(
+                as.representations.map((r) => r.codecs).filter((c) => c.value)
+            ),
+        ];
+        const channels = [
+            ...new Set(
+                as.audioChannelConfigurations.map((c) => c.value).filter(Boolean)
+            ),
+        ];
+        return {
+            id: as.id || 'N/A',
+            lang: as.lang,
+            codecs: codecs.map((c) => ({
+                value: c.value,
+                source: c.source,
+                supported: isCodecSupported(c.value),
+            })),
+            channels: channels.join(', ') || null,
+            isDefault: as.roles.some((r) => r.value === 'main'),
+            isForced: false,
+            roles: as.roles.map((r) => r.value).filter(Boolean),
+        };
+    });
 
-    const allTextTracks = periodSummaries
-        .flatMap((p) => p.textTracks)
-        .map((as) => {
-            const mimeTypes = [
-                ...new Set(
-                    as.representations
-                        .map((r) => r.codecs?.value || r.mimeType)
-                        .filter(Boolean)
-                ),
-            ];
-            return {
-                id: as.id || 'N/A',
-                lang: as.lang,
-                codecsOrMimeTypes: mimeTypes.map(
-                    (v) =>
-                        /** @type {import('@/types').CodecInfo} */ ({
-                            value: v,
-                            source: 'manifest',
-                            supported: isCodecSupported(v),
-                        })
-                ),
-                isDefault: as.roles.some((r) => r.value === 'main'),
-                isForced: as.roles.some((r) => r.value === 'forced'),
-                roles: as.roles.map((r) => r.value).filter(Boolean),
-            };
-        });
+    const allTextTracks = allTextAdaptationSets.map((as) => {
+        const mimeTypes = [
+            ...new Set(
+                as.representations
+                    .map((r) => r.codecs?.value || r.mimeType)
+                    .filter(Boolean)
+            ),
+        ];
+        return {
+            id: as.id || 'N/A',
+            lang: as.lang,
+            codecsOrMimeTypes: mimeTypes.map(
+                (v) =>
+                    /** @type {import('@/types').CodecInfo} */ ({
+                        value: v,
+                        source: 'manifest',
+                        supported: isCodecSupported(v),
+                    })
+            ),
+            isDefault: as.roles.some((r) => r.value === 'main'),
+            isForced: as.roles.some((r) => r.value === 'forced'),
+            roles: as.roles.map((r) => r.value).filter(Boolean),
+        };
+    });
+
+    const periodSummaries = manifestIR.periods.map((period) => ({
+        id: period.id,
+        start: period.start,
+        duration: period.duration,
+        videoTracks: period.adaptationSets.filter(as => as.contentType === 'video'),
+        audioTracks: period.adaptationSets.filter(as => as.contentType === 'audio'),
+        textTracks: period.adaptationSets.filter(as => as.contentType === 'text' || as.contentType === 'application'),
+    }));
+
+    const serviceDescription = findChildrenRecursive(
+        serializedManifest,
+        'ServiceDescription'
+    )[0];
+    const latencyEl = serviceDescription
+        ? findChildrenRecursive(serviceDescription, 'Latency')[0]
+        : null;
 
     /** @type {SecuritySummary} */
     const security = {
@@ -388,9 +389,9 @@ export async function generateDashSummary(
         },
         content: {
             totalPeriods: manifestIR.periods.length,
-            totalVideoTracks: allVideoTracks.length,
-            totalAudioTracks: allAudioTracks.length,
-            totalTextTracks: allTextTracks.length,
+            totalVideoTracks: allVideoAdaptationSets.length,
+            totalAudioTracks: allAudioAdaptationSets.length,
+            totalTextTracks: allTextAdaptationSets.length,
             mediaPlaylists: 0,
             periods: periodSummaries,
         },

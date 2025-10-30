@@ -41,6 +41,7 @@ async function processLiveUpdate(updateData) {
         manifest: updateData.newManifestObject,
         rawManifest: updateData.newManifestString,
         manifestUpdates: [newUpdate, ...stream.manifestUpdates].slice(0, 20),
+        adAvails: updateData.adAvails, // The worker now provides the complete, diffed list
         // Pass the new states directly to the store action, which will handle merging
         dashRepresentationState: new Map(
             updateData.dashRepresentationState || []

@@ -2,7 +2,7 @@ import { render, html } from 'lit-html';
 import { createIcons, icons } from 'lucide';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { useUiStore, uiActions } from '@/state/uiStore';
-import { inputViewTemplate } from '@/ui/views/input-view';
+import { inputViewTemplate } from '@/features/streamInput/ui/input-view';
 import { renderAppShell } from './components/app-shell.js';
 import { debugLog } from '@/shared/utils/debug';
 

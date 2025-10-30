@@ -52,6 +52,17 @@
     }
 }
 
+@keyframes slideInUp {
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
 @keyframes slideInRight {
     from {
         transform: translateX(100%);
@@ -81,6 +92,10 @@
 #input-section:not(.hidden),
 #app-root:not(.hidden) > div {
     animation: fadeIn 0.3s ease-out forwards;
+}
+
+.animate-slideInUp {
+    animation: slideInUp 0.3s ease-out forwards;
 }
 
 .modal-enter {
@@ -148,6 +163,9 @@ details.details-animated[open] > *:not(summary) {
 .is-inspector-field-highlighted {
     @apply bg-purple-500/20;
 }
+.dropzone-active {
+    @apply ring-4 ring-blue-500/50 ring-offset-4 ring-offset-gray-900;
+}
 
 /* --- Sidebar State Management --- */
 body.primary-sidebar-open #sidebar-overlay,
@@ -164,4 +182,18 @@ body.primary-sidebar-open #sidebar-container {
 /* Contextual (Right) Sidebar - All sizes */
 body.contextual-sidebar-open #contextual-sidebar {
     @apply translate-x-0;
+}
+
+/* --- Comparison View --- */
+.comparison-status-same::before {
+    content: '✓';
+    @apply text-green-400 font-bold mr-2;
+}
+.comparison-status-different::before {
+    content: '≠';
+    @apply text-yellow-400 font-bold mr-2;
+}
+.comparison-status-missing::before {
+    content: '✗';
+    @apply text-red-400 font-bold mr-2;
 }

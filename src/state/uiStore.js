@@ -37,9 +37,11 @@ import { createStore } from 'zustand/vanilla';
  * @property {boolean} segmentComparisonHideSame
  * @property {Set<string>} expandedComparisonTables
  * @property {Set<string>} expandedComparisonFlags
+ * @property {boolean} comparisonHideSameRows
  * @property {'standard' | 'advanced'} playerControlMode
  * @property {'presets' | 'history' | 'examples'} streamLibraryActiveTab
  * @property {string} streamLibrarySearchTerm
+ * @property {'library' | 'workspace' | 'inspector'} streamInputActiveMobileTab
  */
 
 /**
@@ -71,10 +73,12 @@ import { createStore } from 'zustand/vanilla';
  * @property {() => void} toggleSegmentComparisonHideSame
  * @property {(tableId: string) => void} toggleComparisonTable
  * @property {(rowName: string) => void} toggleComparisonFlags
+ * @property {() => void} toggleComparisonHideSameRows
  * @property {(mode: 'standard' | 'advanced') => void} setPlayerControlMode
  * @property {(segmentUniqueId: string) => void} navigateToInteractiveSegment
  * @property {(tab: 'presets' | 'history' | 'examples') => void} setStreamLibraryTab
  * @property {(term: string) => void} setStreamLibrarySearchTerm
+ * @property {(tab: 'library' | 'workspace' | 'inspector') => void} setStreamInputActiveMobileTab
  * @property {() => void} reset
  */
 
@@ -111,9 +115,11 @@ const createInitialUiState = () => ({
     segmentComparisonHideSame: false,
     expandedComparisonTables: new Set(),
     expandedComparisonFlags: new Set(),
+    comparisonHideSameRows: false,
     playerControlMode: 'standard',
     streamLibraryActiveTab: 'presets',
     streamLibrarySearchTerm: '',
+    streamInputActiveMobileTab: 'workspace',
 });
 
 export const useUiStore = createStore((set) => ({
@@ -199,6 +205,10 @@ export const useUiStore = createStore((set) => ({
             return { expandedComparisonFlags: newSet };
         });
     },
+    toggleComparisonHideSameRows: () =>
+        set((state) => ({
+            comparisonHideSameRows: !state.comparisonHideSameRows,
+        })),
     setPlayerControlMode: (mode) => set({ playerControlMode: mode }),
     navigateToInteractiveSegment: (segmentUniqueId) =>
         set({
@@ -213,6 +223,8 @@ export const useUiStore = createStore((set) => ({
     setStreamLibraryTab: (tab) => set({ streamLibraryActiveTab: tab }),
     setStreamLibrarySearchTerm: (term) =>
         set({ streamLibrarySearchTerm: term }),
+    setStreamInputActiveMobileTab: (tab) =>
+        set({ streamInputActiveMobileTab: tab }),
     reset: () => set(createInitialUiState()),
 }));
 
