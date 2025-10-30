@@ -5,7 +5,6 @@
  * @typedef {import('@/types.ts').Representation} Representation
  */
 
-import { generateHlsSummary } from './summary-generator.js';
 import { parseScte35 } from '@/infrastructure/parsing/scte35/parser';
 import { getDrmSystemName } from '../utils/drm.js';
 import { inferMediaInfoFromExtension } from '../utils/media-types.js';
@@ -576,7 +575,6 @@ export async function adaptHlsToIr(hlsParsed, context) {
     }
 
     manifestIR.periods.push(periodIR);
-    manifestIR.summary = await generateHlsSummary(manifestIR, context);
 
     return manifestIR;
 }

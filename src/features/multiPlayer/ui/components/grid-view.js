@@ -1,6 +1,7 @@
 import { html, render } from 'lit-html';
 import { useMultiPlayerStore } from '@/state/multiPlayerStore';
 import { createMultiPlayerGridViewModel } from '../view-model.js';
+import { multiPlayerService } from '../../application/multiPlayerService.js';
 import './player-card.js';
 import './event-log.js';
 
@@ -23,6 +24,19 @@ export class GridViewComponent extends HTMLElement {
 
     render() {
         const { players } = useMultiPlayerStore.getState();
+
+        // --- NEW INITIALIZATION LOGIC ---
+        // The component is now responsible for triggering the creation of player instances
+        // if they exist in the store but not yet in the service.
+        for (const playerState of players.values()) {
+            if (!multiPlayerService.players.has(playerState.streamId)) {
+                // This creates the video element and queues the player creation.
+                multiPlayerService.createVideoElement(playerState.streamId);
+                multiPlayerService.createAndLoadPlayer(playerState);
+            }
+        }
+        // --- END ---
+
         const viewModel = createMultiPlayerGridViewModel(players);
 
         const template = html`

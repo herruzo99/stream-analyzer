@@ -7,6 +7,7 @@ import { useUiStore, uiActions } from '@/state/uiStore';
 import { multiPlayerService } from '../application/multiPlayerService';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { eventBus } from '@/application/event-bus';
+import { debugLog } from '@/shared/utils/debug';
 
 import { GridViewComponent } from './components/grid-view.js';
 import { SidebarShellComponent } from './components/sidebar-shell.js';
@@ -95,34 +96,46 @@ export const multiPlayerView = {
     hasContextualSidebar: true,
 
     async mount(containerElement) {
+        debugLog('MultiPlayerView', '[LIFECYCLE] mount() called.');
         container = containerElement;
 
-        // Clean up any previous subscriptions to prevent memory leaks.
+        await multiPlayerService.destroyAll();
+
         if (multiPlayerUnsubscribe) multiPlayerUnsubscribe();
         if (uiUnsubscribe) uiUnsubscribe();
         if (analysisUnsubscribe) analysisUnsubscribe();
 
-        // Establish subscriptions to relevant stores.
         multiPlayerUnsubscribe = useMultiPlayerStore.subscribe(
             renderMultiPlayerDashboard
         );
         uiUnsubscribe = useUiStore.subscribe(renderMultiPlayerDashboard);
-        analysisUnsubscribe = useAnalysisStore.subscribe(
-            async (state, prevState) => {
-                // The service now handles intelligent synchronization.
-                if (state.streams !== prevState.streams) {
-                    await multiPlayerService.setupPlayersForStreams(
-                        state.streams
-                    );
-                }
-            }
+
+        const { streams } = useAnalysisStore.getState();
+        const { addPlayer, players } = useMultiPlayerStore.getState();
+
+        debugLog(
+            'MultiPlayerView',
+            `Mounting. Current player count: ${players.size}. Streams to process: ${streams.length}`
         );
 
-        // Perform initial setup using the current state.
-        const { streams } = useAnalysisStore.getState();
-        await multiPlayerService.setupPlayersForStreams(streams);
-        multiPlayerService.startStatsCollection();
+        if (players.size === 0 && streams.length > 0) {
+            streams.forEach((stream) => {
+                const streamType =
+                    stream.manifest?.type === 'dynamic' ? 'live' : 'vod';
+                addPlayer(
+                    stream.id,
+                    stream.name,
+                    stream.originalUrl,
+                    streamType
+                );
+            });
+            debugLog(
+                'MultiPlayerView',
+                'Populated player state in store. GridView will now initialize players.'
+            );
+        }
 
+        multiPlayerService.startStatsCollection();
         renderMultiPlayerDashboard();
 
         const contextualSidebar = document.getElementById('contextual-sidebar');
@@ -134,6 +147,7 @@ export const multiPlayerView = {
         }
     },
     unmount() {
+        debugLog('MultiPlayerView', '[LIFECYCLE] unmount() called.');
         multiPlayerService.destroyAll();
         if (multiPlayerUnsubscribe) multiPlayerUnsubscribe();
         if (uiUnsubscribe) uiUnsubscribe();

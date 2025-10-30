@@ -2,9 +2,10 @@ import { html, render } from 'lit-html';
 import { useMultiPlayerStore } from '@/state/multiPlayerStore';
 import { eventBus } from '@/application/event-bus';
 import { multiPlayerService } from '../../application/multiPlayerService';
+import * as icons from '@/ui/icons';
 
 const RESOLUTION_OPTIONS = [
-    { label: 'Auto (Unlimited)', value: Infinity },
+    { label: 'Auto', value: Infinity },
     { label: '1080p', value: 1080 },
     { label: '720p', value: 720 },
     { label: '480p', value: 480 },
@@ -17,74 +18,128 @@ const BUFFER_GOAL_OPTIONS = [
     { label: 'Stable (30s)', value: 30 },
 ];
 
-const TrackSelectionRow = (player) => {
+const OverrideSelect = ({ options, value, onchange, nullLabel }) => {
+    return html`
+        <select
+            class="bg-gray-700 text-white rounded-md p-1 text-xs w-full"
+            @change=${onchange}
+            .value=${value === null ? 'global' : String(value)}
+        >
+            <option value="global">${nullLabel}</option>
+            ${options.map(
+                (opt) => html`<option value=${opt.value}>${opt.label}</option>`
+            )}
+        </select>
+    `;
+};
+
+const StreamConfigRow = (player, isLast) => {
     const shakaPlayer = multiPlayerService.players.get(player.streamId);
     if (!shakaPlayer) return html``;
 
-    const videoTracks = shakaPlayer.getVariantTracks();
-    const audioTracks = shakaPlayer.getAudioLanguagesAndRoles();
-    const activeVideo = videoTracks.find((t) => t.active);
-    const activeAudio = audioTracks.find((t) => t.active);
-
-    const handleVideoTrackChange = (e) => {
-        const value = e.target.value;
-        if (value === '') {
-            // This is the "Auto (ABR)" option.
-            eventBus.dispatch('ui:multi-player:set-global-abr', {
-                enabled: true,
-            });
-        } else {
-            // This is a specific track selection.
-            eventBus.dispatch('ui:multi-player:select-video-track', {
-                streamId: player.streamId,
-                trackId: parseInt(value, 10),
-            });
-        }
-    };
-
     return html`
-        <tr class="border-b border-gray-700">
+        <tr class="border-b border-gray-700 hover:bg-gray-700/50">
+            <td class="p-2 text-center">
+                <input
+                    type="checkbox"
+                    .checked=${player.selectedForAction}
+                    @change=${() =>
+                        eventBus.dispatch('ui:multi-player:toggle-selection', {
+                            streamId: player.streamId,
+                        })}
+                    class="rounded bg-gray-600 border-gray-500 text-blue-500 focus:ring-blue-600"
+                />
+            </td>
             <td class="p-2 font-semibold text-gray-300">
                 ${player.streamName}
             </td>
             <td class="p-2">
-                <select
-                    class="bg-gray-700 text-white rounded-md p-1 text-xs w-full"
-                    @change=${handleVideoTrackChange}
-                    .value=${useMultiPlayerStore.getState().globalAbrEnabled
-                        ? ''
-                        : activeVideo?.id || ''}
-                >
-                    <option value="">Auto (ABR)</option>
-                    ${videoTracks.map(
-                        (t) =>
-                            html`<option value=${t.id}>
-                                ${t.height}p @
-                                ${(t.bandwidth / 1000000).toFixed(2)}Mbps
-                            </option>`
-                    )}
-                </select>
-            </td>
-            <td class="p-2">
-                <select
-                    class="bg-gray-700 text-white rounded-md p-1 text-xs w-full"
-                    @change=${(e) =>
+                ${OverrideSelect({
+                    options: [
+                        { label: 'Enabled', value: 'true' },
+                        { label: 'Disabled', value: 'false' },
+                    ],
+                    value: player.abrOverride,
+                    onchange: (e) =>
                         eventBus.dispatch(
-                            'ui:multi-player:select-audio-track',
+                            'ui:multi-player:set-stream-override',
                             {
                                 streamId: player.streamId,
-                                language: e.target.value,
+                                override: {
+                                    abr:
+                                        e.target.value === 'global'
+                                            ? null
+                                            : e.target.value === 'true',
+                                },
                             }
-                        )}
-                    .value=${activeAudio?.language || ''}
+                        ),
+                    nullLabel: 'Global ABR',
+                })}
+            </td>
+            <td class="p-2">
+                ${OverrideSelect({
+                    options: RESOLUTION_OPTIONS,
+                    value: player.maxHeightOverride,
+                    onchange: (e) =>
+                        eventBus.dispatch(
+                            'ui:multi-player:set-stream-override',
+                            {
+                                streamId: player.streamId,
+                                override: {
+                                    maxHeight:
+                                        e.target.value === 'global'
+                                            ? null
+                                            : parseInt(e.target.value),
+                                },
+                            }
+                        ),
+                    nullLabel: 'Global Max Res',
+                })}
+            </td>
+            <td class="p-2">
+                ${OverrideSelect({
+                    options: BUFFER_GOAL_OPTIONS,
+                    value: player.bufferingGoalOverride,
+                    onchange: (e) =>
+                        eventBus.dispatch(
+                            'ui:multi-player:set-stream-override',
+                            {
+                                streamId: player.streamId,
+                                override: {
+                                    bufferingGoal:
+                                        e.target.value === 'global'
+                                            ? null
+                                            : parseInt(e.target.value),
+                                },
+                            }
+                        ),
+                    nullLabel: 'Global Buffer',
+                })}
+            </td>
+            <td class="p-2 text-center">
+                <button
+                    @click=${() =>
+                        eventBus.dispatch('ui:multi-player:duplicate-stream', {
+                            streamId: player.streamId,
+                        })}
+                    class="text-blue-400 hover:text-blue-300 px-1"
+                    title="Duplicate Stream"
                 >
-                    ${audioTracks.map(
-                        (t) =>
-                            html`<option value=${t.language}>
-                                ${t.label || t.language}
-                            </option>`
-                    )}
-                </select>
+                    ${icons.clipboardCopy}
+                </button>
+                <button
+                    @click=${() =>
+                        eventBus.dispatch('ui:multi-player:remove-stream', {
+                            streamId: player.streamId,
+                        })}
+                    class="text-red-400 hover:text-red-300 px-1 disabled:text-gray-600 disabled:cursor-not-allowed"
+                    title=${isLast
+                        ? 'Cannot remove the last player for this stream'
+                        : 'Remove Player'}
+                    ?disabled=${isLast}
+                >
+                    ${icons.xCircle}
+                </button>
             </td>
         </tr>
     `;
@@ -113,19 +168,47 @@ export class ControlsViewComponent extends HTMLElement {
             globalBufferingGoal,
         } = useMultiPlayerStore.getState();
 
+        const playersArray = Array.from(players.values());
+        const isAllSelected = playersArray.every((p) => p.selectedForAction);
+
+        const groupedPlayers = playersArray.reduce((acc, player) => {
+            const key = player.sourceStreamId;
+            if (!acc[key]) {
+                acc[key] = [];
+            }
+            acc[key].push(player);
+            return acc;
+        }, {});
+
+        const handleToggleAll = () => {
+            if (isAllSelected) {
+                eventBus.dispatch('ui:multi-player:deselect-all');
+            } else {
+                eventBus.dispatch('ui:multi-player:select-all');
+            }
+        };
+
+        const handleSeek = (delta) => {
+            eventBus.dispatch('ui:multi-player:apply-to-selected', {
+                action: { type: 'seek', delta },
+            });
+        };
+
         const template = html`
+            <style>
+                .control-button {
+                    @apply bg-gray-700/50 hover:bg-gray-600/50 text-white font-bold p-2 rounded-md transition-colors flex-1 text-sm;
+                }
+            </style>
             <div class="space-y-8">
                 <div>
-                    <h4 class="text-lg font-bold mb-3">
-                        Global Player Controls
-                    </h4>
+                    <h4 class="text-lg font-bold mb-3">Global Defaults</h4>
                     <div
                         class="grid grid-cols-1 md:grid-cols-3 gap-6 bg-gray-800 p-4 rounded-lg border border-gray-700"
                     >
+                        <!-- Global Controls -->
                         <div class="flex items-center justify-between">
-                            <label
-                                for="global-abr-toggle"
-                                class="font-semibold text-gray-300"
+                            <label class="font-semibold text-gray-300"
                                 >Enable ABR</label
                             >
                             <button
@@ -134,9 +217,6 @@ export class ControlsViewComponent extends HTMLElement {
                                         'ui:multi-player:set-global-abr',
                                         { enabled: !globalAbrEnabled }
                                     )}
-                                role="switch"
-                                aria-checked=${globalAbrEnabled}
-                                id="global-abr-toggle"
                                 class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${globalAbrEnabled
                                     ? 'bg-blue-600'
                                     : 'bg-gray-600'}"
@@ -149,13 +229,10 @@ export class ControlsViewComponent extends HTMLElement {
                             </button>
                         </div>
                         <div>
-                            <label
-                                for="global-resolution-cap"
-                                class="block font-semibold text-gray-300 mb-1"
+                            <label class="block font-semibold text-gray-300 mb-1"
                                 >Max Resolution</label
                             >
                             <select
-                                id="global-resolution-cap"
                                 @change=${(e) =>
                                     eventBus.dispatch(
                                         'ui:multi-player:set-global-max-height',
@@ -173,13 +250,10 @@ export class ControlsViewComponent extends HTMLElement {
                             </select>
                         </div>
                         <div>
-                            <label
-                                for="global-buffer-goal"
-                                class="block font-semibold text-gray-300 mb-1"
+                            <label class="block font-semibold text-gray-300 mb-1"
                                 >Buffer Goal</label
                             >
                             <select
-                                id="global-buffer-goal"
                                 @change=${(e) =>
                                     eventBus.dispatch(
                                         'ui:multi-player:set-global-buffer-goal',
@@ -198,9 +272,54 @@ export class ControlsViewComponent extends HTMLElement {
                         </div>
                     </div>
                 </div>
+
+                <div>
+                    <h4 class="text-lg font-bold mb-3">Group Time Controls</h4>
+                    <div
+                        class="bg-gray-800 p-4 rounded-lg border border-gray-700 flex items-center justify-center gap-4"
+                    >
+                        <button
+                            @click=${() => handleSeek(-10)}
+                            class="control-button"
+                        >
+                            -10s
+                        </button>
+                        <button
+                            @click=${() =>
+                                eventBus.dispatch(
+                                    'ui:multi-player:apply-to-selected',
+                                    {
+                                        action: { type: 'pause' },
+                                    }
+                                )}
+                            class="control-button"
+                        >
+                            ${icons.pause}
+                        </button>
+                        <button
+                            @click=${() =>
+                                eventBus.dispatch(
+                                    'ui:multi-player:apply-to-selected',
+                                    {
+                                        action: { type: 'play' },
+                                    }
+                                )}
+                            class="control-button"
+                        >
+                            ${icons.play}
+                        </button>
+                        <button
+                            @click=${() => handleSeek(10)}
+                            class="control-button"
+                        >
+                            +10s
+                        </button>
+                    </div>
+                </div>
+
                 <div>
                     <h4 class="text-lg font-bold mb-3">
-                        Per-Stream Track Selection
+                        Per-Stream Configuration
                     </h4>
                     <div
                         class="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden"
@@ -208,14 +327,28 @@ export class ControlsViewComponent extends HTMLElement {
                         <table class="w-full text-left text-sm">
                             <thead class="bg-gray-900/50">
                                 <tr>
+                                    <th class="p-2 text-center w-12">
+                                        <input
+                                            type="checkbox"
+                                            .checked=${isAllSelected}
+                                            @change=${handleToggleAll}
+                                            class="rounded bg-gray-600 border-gray-500 text-blue-500 focus:ring-blue-600"
+                                            title="Select/Deselect All"
+                                        />
+                                    </th>
                                     <th class="p-2">Stream</th>
-                                    <th class="p-2">Video Track</th>
-                                    <th class="p-2">Audio Track</th>
+                                    <th class="p-2">ABR</th>
+                                    <th class="p-2">Max Res</th>
+                                    <th class="p-2">Buffer</th>
+                                    <th class="p-2 text-center">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                ${Array.from(players.values()).map((p) =>
-                                    TrackSelectionRow(p)
+                                ${Object.values(groupedPlayers).map(
+                                    (group) =>
+                                        group.map((p) =>
+                                            StreamConfigRow(p, group.length <= 1)
+                                        )
                                 )}
                             </tbody>
                         </table>

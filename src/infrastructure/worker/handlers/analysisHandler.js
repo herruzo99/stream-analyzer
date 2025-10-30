@@ -1,5 +1,7 @@
 import { parseManifest as parseDashManifest } from '@/infrastructure/parsing/dash/parser';
 import { parseManifest as parseHlsManifest } from '@/infrastructure/parsing/hls/index';
+import { generateDashSummary } from '@/infrastructure/parsing/dash/summary-generator';
+import { generateHlsSummary } from '@/infrastructure/parsing/hls/summary-generator';
 import { runChecks } from '@/features/compliance/domain/engine';
 import { validateSteeringManifest } from '@/features/compliance/domain/hls/steering-validator';
 import {
@@ -160,6 +162,7 @@ async function parse(input) {
         manifestIR.hlsDefinedVariables = definedVariables;
         finalBaseUrl = baseUrl;
 
+        // --- TYPE CORRECTION & SUMMARY GENERATION ---
         if (manifestIR.isMaster && manifestIR.variants.length > 0) {
             try {
                 const firstVariantUrl = manifestIR.variants[0].resolvedUri;
@@ -168,13 +171,17 @@ async function parse(input) {
                     input.auth
                 );
                 const mediaPlaylistString = await response.text();
-                manifestIR.type = mediaPlaylistString.includes('#EXT-X-ENDLIST')
-                    ? 'static'
-                    : 'dynamic';
+                manifestIR.type =
+                    mediaPlaylistString.includes('#EXT-X-ENDLIST') ||
+                    mediaPlaylistString.includes('#EXT-X-PLAYLIST-TYPE:VOD')
+                        ? 'static'
+                        : 'dynamic';
             } catch (_e) {
                 manifestIR.type = 'static';
             }
         }
+        manifestIR.summary = await generateHlsSummary(manifestIR, context);
+        // --- END ---
     } else {
         const { manifest, serializedManifest, baseUrl } =
             await parseDashManifest(
@@ -185,6 +192,17 @@ async function parse(input) {
         manifestIR = manifest;
         serializedManifestObject = serializedManifest;
         finalBaseUrl = baseUrl;
+
+        // --- SUMMARY GENERATION ---
+        manifestIR.summary = await generateDashSummary(
+            manifestIR,
+            serializedManifest,
+            {
+                ...context,
+                manifestUrl: baseUrl,
+            }
+        );
+        // --- END ---
     }
     return { input, manifestIR, serializedManifestObject, finalBaseUrl };
 }

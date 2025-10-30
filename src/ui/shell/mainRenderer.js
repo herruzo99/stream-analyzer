@@ -3,6 +3,7 @@ import { useAnalysisStore } from '@/state/analysisStore';
 import { useUiStore, uiActions } from '@/state/uiStore';
 import { inputViewTemplate } from '@/ui/views/input-view';
 import { renderAppShell } from './components/app-shell.js';
+import { debugLog } from '@/shared/utils/debug';
 
 import { summaryView } from '@/features/summary/ui/index';
 import { comparisonView } from '@/features/comparison/ui/index';
@@ -187,62 +188,79 @@ export function renderApp() {
 
         const previousViewKey = currentMountedViewKey;
         const currentViewKey = activeTab;
+        const streamIdChanged =
+            activeStream && activeStream.id !== currentMountedStreamId;
 
-        if (
-            currentViewKey !== previousViewKey ||
-            (activeStream && activeStream.id !== currentMountedStreamId)
-        ) {
-            const oldView = viewMap[previousViewKey];
-            const newView = viewMap[currentViewKey];
+        if (currentViewKey === previousViewKey && !streamIdChanged) {
+            return;
+        }
 
-            if (oldView) {
-                if (
-                    previousViewKey === 'player-simulation' &&
-                    newView !== playerView
-                )
-                    oldView.deactivate?.();
-                else if (oldView !== playerView) oldView.unmount?.();
+        debugLog(
+            'MainRenderer',
+            `View change detected. From: ${previousViewKey}, To: ${currentViewKey}. Stream changed: ${streamIdChanged}`
+        );
+        const oldView = viewMap[previousViewKey];
+        const newView = viewMap[currentViewKey];
+
+        if (oldView) {
+            if (
+                previousViewKey === 'player-simulation' &&
+                newView !== playerView
+            ) {
+                debugLog(
+                    'MainRenderer',
+                    `Deactivating persistent player view: ${previousViewKey}`
+                );
+                oldView.deactivate?.();
+            } else if (oldView !== playerView) {
+                debugLog('MainRenderer', `Unmounting view: ${previousViewKey}`);
+                oldView.unmount?.();
+            }
+        }
+
+        if (newView) {
+            playerContainer?.classList.toggle('hidden', newView !== playerView);
+            tabViewContainer?.classList.toggle('hidden', newView === playerView);
+
+            if (newView === playerView) {
+                debugLog(
+                    'MainRenderer',
+                    `Activating persistent player view: ${currentViewKey}`
+                );
+                newView.activate?.(activeStream);
+            } else {
+                debugLog('MainRenderer', `Mounting view: ${currentViewKey}`);
+                newView.mount?.(appShellDomContext.mainContent, {
+                    stream: activeStream,
+                    streams,
+                });
             }
 
-            if (newView) {
-                playerContainer?.classList.toggle(
-                    'hidden',
-                    newView !== playerView
-                );
-                tabViewContainer?.classList.toggle(
-                    'hidden',
-                    newView === playerView
-                );
-
-                if (newView === playerView) newView.activate?.(activeStream);
-                else
-                    newView.mount?.(appShellDomContext.mainContent, {
-                        stream: activeStream,
-                        streams,
-                    });
-
-                const contextualSidebar =
-                    document.getElementById('contextual-sidebar');
-                if (newView.hasContextualSidebar) {
-                    if (contextualSidebar)
-                        contextualSidebar.classList.remove('hidden');
-                    if (activeSidebar !== 'contextual') {
-                        uiActions.setActiveSidebar('contextual');
-                    }
-                } else {
-                    if (contextualSidebar)
-                        contextualSidebar.classList.add('hidden');
-                    if (activeSidebar === 'contextual') {
-                        uiActions.setActiveSidebar(null);
-                    }
+            const contextualSidebar =
+                document.getElementById('contextual-sidebar');
+            if (newView.hasContextualSidebar) {
+                if (contextualSidebar)
+                    contextualSidebar.classList.remove('hidden');
+                if (activeSidebar !== 'contextual') {
+                    uiActions.setActiveSidebar('contextual');
+                }
+            } else {
+                if (contextualSidebar)
+                    contextualSidebar.classList.add('hidden');
+                if (activeSidebar === 'contextual') {
+                    uiActions.setActiveSidebar(null);
                 }
             }
-
-            currentMountedViewKey = currentViewKey;
-            currentMountedStreamId = activeStream?.id;
         }
+
+        currentMountedViewKey = currentViewKey;
+        currentMountedStreamId = activeStream?.id;
     } else {
         if (isShellRendered) {
+            debugLog(
+                'MainRenderer',
+                'Transitioning from results to input view. Unmounting player.'
+            );
             playerView.unmount();
         }
         isShellRendered = false;

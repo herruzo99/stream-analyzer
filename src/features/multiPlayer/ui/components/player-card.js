@@ -1,7 +1,7 @@
 import { html, render } from 'lit-html';
-import { ref } from 'lit-html/directives/ref.js';
 import { multiPlayerService } from '../../application/multiPlayerService';
 import { useMultiPlayerStore } from '@/state/multiPlayerStore';
+import { debugLog } from '@/shared/utils/debug';
 
 export class PlayerCardComponent extends HTMLElement {
     constructor() {
@@ -9,7 +9,6 @@ export class PlayerCardComponent extends HTMLElement {
         this.streamId = -1;
         this._viewModel = null;
         this._isExpanded = false;
-        this._lastVideoElement = null;
     }
 
     static get observedAttributes() {
@@ -34,19 +33,18 @@ export class PlayerCardComponent extends HTMLElement {
     }
 
     connectedCallback() {
+        debugLog(
+            'PlayerCard',
+            `[LIFECYCLE] connectedCallback for stream ${this.streamId}`
+        );
         this.render();
     }
-    disconnectedCallback() {
-        this._lastVideoElement = null;
-    }
 
-    handleVideoElement(element) {
-        if (element && element !== this._lastVideoElement) {
-            multiPlayerService.handleVideoElementReady(this.streamId, element);
-            this._lastVideoElement = element;
-        } else if (!element) {
-            this._lastVideoElement = null;
-        }
+    disconnectedCallback() {
+        debugLog(
+            'PlayerCard',
+            `[LIFECYCLE] disconnectedCallback for stream ${this.streamId}`
+        );
     }
 
     toggleExpand(e) {
@@ -57,7 +55,6 @@ export class PlayerCardComponent extends HTMLElement {
 
     render() {
         if (this.streamId === -1 || !this._viewModel) {
-            // Render a placeholder or nothing until viewModel is set
             render(html``, this);
             return;
         }
@@ -79,6 +76,7 @@ export class PlayerCardComponent extends HTMLElement {
             droppedFrames,
             totalStalls,
             stallDuration,
+            videoElement,
         } = this._viewModel;
 
         const stateColors = {
@@ -134,6 +132,27 @@ export class PlayerCardComponent extends HTMLElement {
             </div>
         </div>`;
 
+        const videoContainer = html`
+            <div
+                class="relative aspect-video bg-black rounded-t-lg overflow-hidden"
+            >
+                ${videoElement}
+                ${error
+                    ? html`<div
+                          class="absolute inset-0 bg-red-900/80 text-red-200 p-2 text-xs flex items-center justify-center text-center"
+                      >
+                          ${error}
+                      </div>`
+                    : ''}
+                ${streamType === 'live'
+                    ? html`<span
+                          class="absolute top-2 right-2 text-xs font-bold px-2 py-1 bg-red-600 text-white rounded-md animate-pulse"
+                          >LIVE</span
+                      >`
+                    : ''}
+            </div>
+        `;
+
         const template = html` <style>
                 :host {
                     display: contents;
@@ -151,28 +170,7 @@ export class PlayerCardComponent extends HTMLElement {
                     health
                 ]} flex flex-col transition-colors"
             >
-                <div
-                    class="relative aspect-video bg-black rounded-t-lg overflow-hidden"
-                >
-                    <video
-                        ${ref(this.handleVideoElement.bind(this))}
-                        class="w-full h-full"
-                        muted
-                    ></video>
-                    ${error
-                        ? html`<div
-                              class="absolute inset-0 bg-red-900/80 text-red-200 p-2 text-xs flex items-center justify-center text-center"
-                          >
-                              ${error}
-                          </div>`
-                        : ''}
-                    ${streamType === 'live'
-                        ? html`<span
-                              class="absolute top-2 right-2 text-xs font-bold px-2 py-1 bg-red-600 text-white rounded-md animate-pulse"
-                              >LIVE</span
-                          >`
-                        : ''}
-                </div>
+                ${videoContainer}
                 <div class="p-3 space-y-3 text-xs">
                     <div class="flex items-start justify-between gap-2">
                         <h4
