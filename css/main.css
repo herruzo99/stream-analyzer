@@ -2,198 +2,93 @@
 @import 'shaka-player/dist/controls.css';
 @reference "tailwindcss";
 
+/* --- CSS Custom Properties for Theming --- */
+:root {
+    --color-bg-base: var(--tw-color-zinc-950);
+    --color-bg-app: var(--tw-color-zinc-900);
+    --color-bg-panel: var(--tw-color-zinc-800);
+    --color-bg-inset: var(--tw-color-zinc-900);
+    --color-border-primary: var(--tw-color-zinc-700);
+    --color-border-secondary: var(--tw-color-zinc-800);
+    --color-text-primary: var(--tw-color-zinc-200);
+    --color-text-secondary: var(--tw-color-zinc-400);
+    --color-text-heading: var(--tw-color-white);
+
+    --color-success: var(--tw-color-success);
+    --color-warning: var(--tw-color-warning);
+    --color-danger: var(--tw-color-danger);
+    --color-info: var(--tw-color-info);
+}
+
+/* --- Global Styles --- */
+body {
+    background-color: var(--color-bg-base);
+    color: var(--color-text-primary);
+}
+
+/* --- ARCHITECTURAL FIX: New Background --- */
+/* Apply the gradient to the main content area, not the body,
+   so it doesn't get covered by opaque sidebars. */
+#content-area {
+    background-image: radial-gradient(ellipse 80% 50% at 50% 0%, rgba(120, 119, 198, 0.15), transparent);
+    background-repeat: no-repeat;
+}
+
+
+/* --- Custom Scrollbar --- */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-border-primary); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--tw-color-zinc-600); }
+
 /* --- Tailwind CSS Safelist --- */
-/* By using @source inline, we instruct the Tailwind compiler to generate and include all of these utility classes
-   in the final CSS file, even if they aren't statically present in the source code. This is essential for
-   our dynamically generated color-coding system for ISOBMFF boxes and TS packets. */
-@source inline('bg-{red,orange,amber,yellow,lime,green,emerald,teal,cyan,sky,blue,indigo,violet,purple,fuchsia,pink,rose,slate}-{400,500,600,700,800,900}');
-@source inline('bg-{red,orange,amber,yellow,lime,green,emerald,teal,cyan,sky,blue,indigo,violet,purple,fuchsia,pink,rose,slate}-{400,500,600,700,800,900}/{20,30,40,50,60,70,80,90}');
-@source inline('border-{red,orange,amber,yellow,lime,green,emerald,teal,cyan,sky,blue,indigo,violet,purple,fuchsia,pink,rose,slate}-{400,500,600,700,800,900}');
-@source inline('border-{red,orange,amber,yellow,lime,green,emerald,teal,cyan,sky,blue,indigo,violet,purple,fuchsia,pink,rose,slate}-{400,500,600,700,800,900}/{80}');
+@source inline('bg-{red,orange,amber,yellow,lime,green,emerald,teal,cyan,sky,blue,indigo,violet,purple,fuchsia,pink,rose,slate,zinc}-{400,500,600,700,800,900}');
+@source inline('bg-{red,orange,amber,yellow,lime,green,emerald,teal,cyan,sky,blue,indigo,violet,purple,fuchsia,pink,rose,slate,zinc}-{400,500,600,700,800,900}/{20,30,40,50,60,70,80,90}');
+@source inline('border-{red,orange,amber,yellow,lime,green,emerald,teal,cyan,sky,blue,indigo,violet,purple,fuchsia,pink,rose,slate,zinc}-{400,500,600,700,800,900}');
+@source inline('border-{red,orange,amber,yellow,lime,green,emerald,teal,cyan,sky,blue,indigo,violet,purple,fuchsia,pink,rose,slate,zinc}-{400,500,600,700,800,900}/{80}');
 
-/* --- Keyframe Animations (Cannot be replaced by Tailwind) --- */
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-    }
-    to {
-        opacity: 1;
-    }
-}
+/* --- Keyframe Animations --- */
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+@keyframes scaleIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes scaleOut { from { transform: scale(1); opacity: 1; } to { transform: scale(0.95); opacity: 0; } }
+@keyframes slideInUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes slideInRight { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes flash-green { 0% { background-color: rgba(74, 222, 128, 0.5); } 100% { background-color: transparent; } }
 
-@keyframes fadeOut {
-    from {
-        opacity: 1;
-    }
-    to {
-        opacity: 0;
-    }
-}
+/* --- Animation Utilities --- */
+.animate-fadeIn { animation: fadeIn 0.3s ease-out forwards; }
+#input-section:not(.hidden), #app-root:not(.hidden) > div { animation: fadeIn 0.3s ease-out forwards; }
+.animate-slideInUp { animation: slideInUp 0.3s ease-out forwards; }
+.modal-enter { display: flex; animation: fadeIn 0.2s ease-out forwards; }
+.modal-enter > div { animation: scaleIn 0.2s ease-out forwards; }
+.modal-leave { animation: fadeOut 0.2s ease-in forwards; pointer-events: none; }
+.modal-leave > div { animation: scaleOut 0.2s ease-in forwards; }
+.dropdown-panel { transform-origin: top right; animation: scaleIn 0.15s ease-out forwards; }
+details.details-animated[open] > *:not(summary) { animation: fadeIn 0.3s ease-out; }
+.flash-new-segment { animation: flash-green 1.5s ease-out forwards; }
 
-@keyframes scaleIn {
-    from {
-        transform: scale(0.95);
-        opacity: 0;
-    }
-    to {
-        transform: scale(1);
-        opacity: 1;
-    }
-}
+/* --- Loader Styles --- */
+.loader-animation span { animation: streaming-bars 1.2s ease-in-out infinite; }
+.loader-animation span:nth-child(1) { animation-delay: 0s; }
+.loader-animation span:nth-child(2) { animation-delay: 0.1s; }
+.loader-animation span:nth-child(3) { animation-delay: 0.2s; }
+.loader-animation span:nth-child(4) { animation-delay: 0.3s; }
+.loader-animation span:nth-child(5) { animation-delay: 0.4s; }
+@keyframes streaming-bars { 0%, 100% { transform: scaleY(0.2); } 50% { transform: scaleY(1); } }
 
-@keyframes scaleOut {
-    from {
-        transform: scale(1);
-        opacity: 1;
-    }
-    to {
-        transform: scale(0.95);
-        opacity: 0;
-    }
-}
+/* --- Custom Effects --- */
+.is-box-hover-highlighted { @apply bg-blue-500/20; }
+.is-field-hover-highlighted { @apply bg-purple-500/40; }
+.is-inspector-field-highlighted { @apply bg-purple-500/20; }
+.dropzone-active { @apply ring-4 ring-blue-500/50 ring-offset-4 ring-offset-zinc-900; }
 
-@keyframes slideInUp {
-    from {
-        transform: translateY(20px);
-        opacity: 0;
-    }
-    to {
-        transform: translateY(0);
-        opacity: 1;
-    }
-}
-
-@keyframes slideInRight {
-    from {
-        transform: translateX(100%);
-        opacity: 0;
-    }
-    to {
-        transform: translateX(0);
-        opacity: 1;
-    }
-}
-
-@keyframes flash-green {
-    0% {
-        background-color: rgba(74, 222, 128, 0.5); /* bg-green-400/50 */
-    }
-    100% {
-        background-color: transparent;
-    }
-}
-
-/* --- Animation Utilities (Complex selectors or effects) --- */
-
-.animate-fadeIn {
-    animation: fadeIn 0.3s ease-out forwards;
-}
-
-#input-section:not(.hidden),
-#app-root:not(.hidden) > div {
-    animation: fadeIn 0.3s ease-out forwards;
-}
-
-.animate-slideInUp {
-    animation: slideInUp 0.3s ease-out forwards;
-}
-
-.modal-enter {
-    display: flex;
-    animation: fadeIn 0.2s ease-out forwards;
-}
-.modal-enter > div {
-    animation: scaleIn 0.2s ease-out forwards;
-}
-.modal-leave {
-    animation: fadeOut 0.2s ease-in forwards;
-    pointer-events: none;
-}
-.modal-leave > div {
-    animation: scaleOut 0.2s ease-in forwards;
-}
-.dropdown-panel {
-    transform-origin: top right;
-    animation: scaleIn 0.15s ease-out forwards;
-}
-details.details-animated[open] > *:not(summary) {
-    animation: fadeIn 0.3s ease-out;
-}
-.flash-new-segment {
-    animation: flash-green 1.5s ease-out forwards;
-}
-
-/* --- Loader Styles (Uses custom animation properties) --- */
-.loader-animation span {
-    animation: streaming-bars 1.2s ease-in-out infinite;
-}
-.loader-animation span:nth-child(1) {
-    animation-delay: 0s;
-}
-.loader-animation span:nth-child(2) {
-    animation-delay: 0.1s;
-}
-.loader-animation span:nth-child(3) {
-    animation-delay: 0.2s;
-}
-.loader-animation span:nth-child(4) {
-    animation-delay: 0.3s;
-}
-.loader-animation span:nth-child(5) {
-    animation-delay: 0.4s;
-}
-
-@keyframes streaming-bars {
-    0%,
-    100% {
-        transform: scaleY(0.2);
-    }
-    50% {
-        transform: scaleY(1);
-    }
-}
-
-/* --- Custom Effects (Hover highlights) --- */
-.is-box-hover-highlighted {
-    @apply bg-blue-500/20;
-}
-.is-field-hover-highlighted {
-    @apply bg-purple-500/40;
-}
-.is-inspector-field-highlighted {
-    @apply bg-purple-500/20;
-}
-.dropzone-active {
-    @apply ring-4 ring-blue-500/50 ring-offset-4 ring-offset-gray-900;
-}
-
-/* --- Sidebar State Management --- */
-body.primary-sidebar-open #sidebar-overlay,
-body.contextual-sidebar-open #sidebar-overlay {
-    @apply block;
-    animation: fadeIn 0.3s ease;
-}
-
-/* Primary (Left) Sidebar - Mobile */
-body.primary-sidebar-open #sidebar-container {
-    @apply translate-x-0;
-}
-
-/* Contextual (Right) Sidebar - All sizes */
-body.contextual-sidebar-open #contextual-sidebar {
-    @apply translate-x-0;
-}
+/* --- Sidebar State --- */
+body.primary-sidebar-open #sidebar-overlay, body.contextual-sidebar-open #sidebar-overlay { @apply block; animation: fadeIn 0.3s ease; }
+body.primary-sidebar-open #sidebar-container { @apply translate-x-0; }
+body.contextual-sidebar-open #contextual-sidebar { @apply translate-x-0; }
 
 /* --- Comparison View --- */
-.comparison-status-same::before {
-    content: '✓';
-    @apply text-green-400 font-bold mr-2;
-}
-.comparison-status-different::before {
-    content: '≠';
-    @apply text-yellow-400 font-bold mr-2;
-}
-.comparison-status-missing::before {
-    content: '✗';
-    @apply text-red-400 font-bold mr-2;
-}
+.comparison-status-same::before { content: '✓'; @apply text-green-400 font-bold mr-2; }
+.comparison-status-different::before { content: '≠'; @apply text-yellow-400 font-bold mr-2; }
+.comparison-status-missing::before { content: '✗'; @apply text-red-400 font-bold mr-2; }

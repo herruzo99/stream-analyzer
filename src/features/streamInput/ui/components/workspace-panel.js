@@ -3,6 +3,7 @@ import { analysisActions, useAnalysisStore } from '@/state/analysisStore';
 import { eventBus } from '@/application/event-bus';
 import { uiActions } from '@/state/uiStore';
 import * as icons from '@/ui/icons';
+import { saveWorkspace } from '@/infrastructure/persistence/streamStorage';
 
 const workspaceCardTemplate = (input, isActive) => {
     const handleRemove = (e) => {
@@ -59,6 +60,21 @@ export const workspacePanelTemplate = () => {
         form.reset();
     };
 
+    const handlePaste = (e) => {
+        e.preventDefault();
+        const pastedText = e.clipboardData.getData('text');
+        const urls = pastedText.split(/[\s,]+/).filter((u) => u.trim() !== '');
+
+        if (urls.length === 0) return;
+
+        if (urls.length === 1) {
+            e.target.value = urls[0];
+            analysisActions.addStreamInputFromPreset({ url: urls[0] });
+        } else {
+            urls.forEach((url) => analysisActions.addStreamInputFromPreset({ url }));
+        }
+    };
+
     const handleStreamAnalysis = () => {
         eventBus.dispatch('ui:stream-analysis-requested', { inputs: streamInputs });
     };
@@ -84,6 +100,13 @@ export const workspacePanelTemplate = () => {
         const files = e.dataTransfer?.files;
         if (files) {
             handleFiles(files);
+        }
+    };
+
+    const handleSaveWorkspace = () => {
+        const name = prompt('Enter a name for this workspace:', 'My Workspace');
+        if (name) {
+            saveWorkspace({ name, inputs: streamInputs });
         }
     };
 
@@ -117,7 +140,8 @@ export const workspacePanelTemplate = () => {
                         type="url"
                         name="url"
                         class="w-full bg-gray-700 text-white rounded-md p-4 pl-12 text-lg border border-gray-600 focus:ring-2 focus:ring-blue-500"
-                        placeholder="Enter Manifest URL to add a stream..."
+                        placeholder="Paste one or more manifest URLs..."
+                        @paste=${handlePaste}
                     />
                     <div class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">${icons.newAnalysis}</div>
                 </div>
@@ -156,6 +180,15 @@ export const workspacePanelTemplate = () => {
                     ?disabled=${streamInputs.length === 0}
                 >
                     ${streamInputs.length > 1 ? `Analyze & Compare (${streamInputs.length})` : 'Analyze Stream'}
+                </button>
+            </div>
+            <div class="shrink-0">
+                <button
+                    @click=${handleSaveWorkspace}
+                    class="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-md disabled:bg-gray-600 disabled:opacity-50"
+                    ?disabled=${streamInputs.length === 0}
+                >
+                    Save Workspace
                 </button>
             </div>
         </div>

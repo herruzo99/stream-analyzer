@@ -13,6 +13,8 @@ import { initializeModalComponent } from '@/ui/components/modal';
 import { setupGlobalTooltipListener } from '@/ui/components/tooltip';
 import { initializeDropdownService } from '@/ui/services/dropdownService';
 import { initializeInbandEventMonitor } from './services/inbandEventMonitorService.js';
+import { sessionService } from './services/sessionService.js';
+import { uiActions } from '@/state/uiStore';
 
 // Relocated Service Initializers
 import { keyManagerService } from '@/infrastructure/decryption/keyManagerService';
@@ -79,14 +81,23 @@ export async function startApp() {
     // --- INITIALIZATION SEQUENCE ---
     const { app } = container;
 
-    // Asynchronously get the configured shaka instance. This ensures the
-    // plugin is registered before any other code can possibly use it.
     await getShaka();
 
-    // --- Layer 1: Core Worker & Consent ---
+    // --- Layer 1: Core Worker, Consent & Session Handling ---
     workerService.initialize();
     initializeConsentManager();
     initializeRenderer(dom);
+
+    // --- ARCHITECTURAL FIX: One-time data load ---
+    // Load persisted workspaces into the reactive state store at boot time.
+    // This prevents the recursive render loop caused by loading data inside a component.
+    uiActions.loadWorkspaces();
+    // --- END FIX ---
+
+    const isRestoringSession = sessionService.applySessionOnBoot();
+    if (isRestoringSession) {
+        uiActions.setIsRestoringSession(true);
+    }
 
     // --- Layer 2: Low-Level UI Components & Global Services ---
     initializeToastManager(dom);
@@ -104,7 +115,7 @@ export async function startApp() {
     streamInitializationService.initialize();
     keyManagerService.initialize();
     initializeInbandEventMonitor();
-    initializeNetworkEnrichmentService(); // Initialize the new service
+    initializeNetworkEnrichmentService();
 
     // --- Layer 4: Feature Initialization & UI Orchestration ---
     initializeUiOrchestration();
