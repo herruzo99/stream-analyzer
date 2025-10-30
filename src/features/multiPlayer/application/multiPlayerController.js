@@ -26,8 +26,17 @@ export function initializeMultiPlayerController() {
     eventBus.subscribe('ui:multi-player:seek-all', ({ time }) =>
         multiPlayerService.seekAll(time)
     );
+    eventBus.subscribe('ui:multi-player:sync-all-to', ({ streamId }) =>
+        multiPlayerService.syncAllTo(streamId)
+    );
+    eventBus.subscribe('ui:multi-player:reset-all', () =>
+        multiPlayerService.resetAllPlayers()
+    );
+    eventBus.subscribe('ui:multi-player:clear-all', () =>
+        multiPlayerService.clearAndResetPlayers()
+    );
 
-    // New Global Control Listeners
+    // Global Control Listeners
     eventBus.subscribe('ui:multi-player:set-global-abr', ({ enabled }) => {
         useMultiPlayerStore.getState().setGlobalAbrEnabled(enabled);
         multiPlayerService.setGlobalAbr(enabled);
@@ -44,6 +53,19 @@ export function initializeMultiPlayerController() {
         multiPlayerService.setGlobalBufferingGoal(goal);
     });
     eventBus.subscribe(
+        'ui:multi-player:set-global-bandwidth-cap',
+        ({ bps }) => {
+            useMultiPlayerStore.getState().setGlobalBandwidthCap(bps);
+            multiPlayerService.setGlobalBandwidthCap(bps);
+        }
+    );
+    eventBus.subscribe('ui:multi-player:set-global-audio-track', ({ lang }) => {
+        multiPlayerService.setGlobalAudioTrack(lang);
+    });
+    eventBus.subscribe('ui:multi-player:set-active-layout', ({ layout }) => {
+        useMultiPlayerStore.getState().setActiveLayout(layout);
+    });
+    eventBus.subscribe(
         'ui:multi-player:select-video-track',
         ({ streamId, trackId }) => {
             multiPlayerService.selectTrack(streamId, 'variant', trackId);
@@ -56,7 +78,7 @@ export function initializeMultiPlayerController() {
         }
     );
 
-    // --- NEW PER-STREAM AND GROUP ACTION LISTENERS ---
+    // Per-stream and Group Action Listeners
     eventBus.subscribe('ui:multi-player:toggle-selection', ({ streamId }) => {
         useMultiPlayerStore.getState().toggleStreamSelection(streamId);
     });
@@ -69,7 +91,9 @@ export function initializeMultiPlayerController() {
     eventBus.subscribe(
         'ui:multi-player:set-stream-override',
         ({ streamId, override }) => {
-            useMultiPlayerStore.getState().setStreamOverride(streamId, override);
+            useMultiPlayerStore
+                .getState()
+                .setStreamOverride(streamId, override);
             multiPlayerService.applyStreamConfig(streamId);
         }
     );

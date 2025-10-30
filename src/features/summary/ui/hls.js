@@ -11,6 +11,17 @@ export function getHlsSummaryTemplate(stream) {
     const summary = stream.manifest.summary;
     const isLive = stream.manifest.type === 'dynamic';
 
+    if (!summary) {
+        return html`<div class="text-yellow-400 p-4 text-center">
+            <p class="font-bold">Summary data is incomplete for this view.</p>
+            <p>
+                This can happen if a media playlist was loaded in another view,
+                overwriting the master playlist context. Please start a new
+                analysis.
+            </p>
+        </div>`;
+    }
+
     return html`
         <div class="space-y-8">
             <!-- General Section -->

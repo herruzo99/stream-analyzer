@@ -6,6 +6,8 @@ import { getShaka } from '@/infrastructure/player/shaka';
 import shaka from 'shaka-player/dist/shaka-player.compiled';
 import { showToast } from '@/ui/components/toast';
 
+const FRAME_DURATION = 1 / 30; // Assume 30fps for frame-stepping
+
 function calculateStallMetrics(stateHistory) {
     let totalStalls = 0;
     let totalStallDuration = 0;
@@ -66,6 +68,7 @@ class MultiPlayerService {
         const videoElement = document.createElement('video');
         videoElement.className = 'w-full h-full';
         videoElement.muted = useMultiPlayerStore.getState().isMutedAll;
+        videoElement.disablePictureInPicture = true;
         this.videoElements.set(streamId, videoElement);
         return videoElement;
     }
@@ -115,7 +118,8 @@ class MultiPlayerService {
                     await this.loadStreamIntoPlayer(
                         streamDef,
                         player,
-                        streamId
+                        streamId,
+                        playerState.initialState
                     );
                 } else {
                     debugLog(
@@ -134,7 +138,12 @@ class MultiPlayerService {
         return this.#loadQueue;
     }
 
-    async loadStreamIntoPlayer(streamDef, player, uniqueStreamId) {
+    async loadStreamIntoPlayer(
+        streamDef,
+        player,
+        uniqueStreamId,
+        initialState
+    ) {
         try {
             debugLog(
                 'MultiPlayerService.loadStreamIntoPlayer',
@@ -180,12 +189,21 @@ class MultiPlayerService {
                 'MultiPlayerService.loadStreamIntoPlayer',
                 `[END LOAD] SUCCESS for stream ${uniqueStreamId}`
             );
-            useMultiPlayerStore
-                .getState()
-                .updatePlayerState(uniqueStreamId, {
-                    state: 'paused',
-                    error: null,
-                });
+
+            const videoEl = this.videoElements.get(uniqueStreamId);
+            let finalState = 'paused';
+            if (initialState && videoEl) {
+                videoEl.currentTime = initialState.currentTime;
+                if (!initialState.paused) {
+                    videoEl.play();
+                    finalState = 'playing';
+                }
+            }
+
+            useMultiPlayerStore.getState().updatePlayerState(uniqueStreamId, {
+                state: finalState,
+                error: null,
+            });
         } catch (error) {
             this._handlePlayerError(uniqueStreamId, error);
         }
@@ -397,7 +415,7 @@ class MultiPlayerService {
         for (const player of this.players.values()) await player.destroy();
         this.players.clear();
         this.videoElements.clear();
-        useMultiPlayerStore.getState().reset();
+        useMultiPlayerStore.getState().clearPlayersAndLogs();
     }
 
     async playAll() {
@@ -412,17 +430,62 @@ class MultiPlayerService {
             }
         }
     }
+
     pauseAll() {
         for (const v of this.videoElements.values()) v.pause();
     }
+
     muteAll() {
         for (const v of this.videoElements.values()) v.muted = true;
     }
+
     unmuteAll() {
         for (const v of this.videoElements.values()) v.muted = false;
     }
+
     seekAll(time) {
         for (const v of this.videoElements.values()) v.currentTime = time;
+    }
+
+    syncAllTo(sourceStreamId) {
+        const sourceVideo = this.videoElements.get(sourceStreamId);
+        if (!sourceVideo) return;
+
+        const targetTime = sourceVideo.currentTime;
+        showToast({
+            message: `Syncing all players to ${targetTime.toFixed(2)}s`,
+            type: 'info',
+        });
+
+        for (const [id, video] of this.videoElements.entries()) {
+            if (id !== sourceStreamId) {
+                video.currentTime = targetTime;
+            }
+        }
+    }
+
+    resetAllPlayers() {
+        for (const video of this.videoElements.values()) {
+            video.pause();
+            video.currentTime = 0;
+        }
+        showToast({ message: 'All players reset.', type: 'info' });
+    }
+
+    async clearAndResetPlayers() {
+        const { players } = useMultiPlayerStore.getState();
+        const copyIds = Array.from(players.values())
+            .filter((p) => p.streamName.includes('(Copy)'))
+            .map((p) => p.streamId);
+
+        for (const id of copyIds) {
+            await this.destroyPlayer(id);
+        }
+        this.resetAllPlayers();
+        showToast({
+            message: 'Duplicate players cleared and originals reset.',
+            type: 'pass',
+        });
     }
 
     setGlobalAbr(enabled) {
@@ -430,13 +493,37 @@ class MultiPlayerService {
             p.configure({ abr: { enabled } });
         }
     }
+
+    setGlobalBandwidthCap(bps) {
+        for (const p of this.players.values()) {
+            p.configure({ restrictions: { maxBandwidth: bps } });
+        }
+    }
+
+    setGlobalAudioTrack(lang) {
+        let appliedCount = 0;
+        for (const p of this.players.values()) {
+            const availableLangs = p.getAudioLanguages();
+            if (availableLangs.includes(lang)) {
+                p.selectAudioLanguage(lang);
+                appliedCount++;
+            }
+        }
+        showToast({
+            message: `Audio language '${lang}' applied to ${appliedCount} player(s).`,
+            type: 'info',
+        });
+    }
+
     setGlobalRestrictions(restrictions) {
         for (const p of this.players.values()) p.configure({ restrictions });
     }
+
     setGlobalBufferingGoal(goal) {
         for (const p of this.players.values())
             p.configure({ streaming: { bufferingGoal: goal } });
     }
+
     selectTrack(streamId, type, id) {
         const player = this.players.get(streamId);
         if (!player) return;
@@ -457,6 +544,7 @@ class MultiPlayerService {
             globalAbrEnabled,
             globalMaxHeight,
             globalBufferingGoal,
+            globalBandwidthCap,
         } = useMultiPlayerStore.getState();
         const playerState = players.get(streamId);
         const shakaPlayer = this.players.get(streamId);
@@ -477,16 +565,25 @@ class MultiPlayerService {
 
         shakaPlayer.configure({
             abr: { enabled: abrEnabled },
-            restrictions: { maxHeight },
+            restrictions: {
+                maxHeight: maxHeight,
+                maxBandwidth: globalBandwidthCap,
+            },
             streaming: { bufferingGoal },
         });
     }
 
     duplicateStream(sourceStreamId) {
-        // This action only updates the store. The UI component (`grid-view`)
-        // is responsible for detecting the new player in the state
-        // and triggering its creation via `createAndLoadPlayer`.
-        useMultiPlayerStore.getState().duplicateStream(sourceStreamId);
+        const sourceVideo = this.videoElements.get(sourceStreamId);
+        if (!sourceVideo) return;
+
+        const initialState = {
+            currentTime: sourceVideo.currentTime,
+            paused: sourceVideo.paused,
+        };
+        useMultiPlayerStore
+            .getState()
+            .duplicateStream(sourceStreamId, initialState);
     }
 
     applyActionToSelected(action) {
@@ -498,15 +595,31 @@ class MultiPlayerService {
         for (const playerState of selectedPlayers) {
             const videoEl = this.videoElements.get(playerState.streamId);
             if (videoEl) {
-                if (action.type === 'seek') {
-                    videoEl.currentTime = Math.max(
-                        0,
-                        videoEl.currentTime + action.delta
-                    );
-                } else if (action.type === 'play') {
-                    videoEl.play();
-                } else if (action.type === 'pause') {
+                if (action.type !== 'play') {
                     videoEl.pause();
+                }
+                switch (action.type) {
+                    case 'seek':
+                        videoEl.currentTime = Math.max(
+                            0,
+                            videoEl.currentTime + action.delta
+                        );
+                        break;
+                    case 'seek-frame-forward':
+                        videoEl.currentTime += FRAME_DURATION;
+                        break;
+                    case 'seek-frame-backward':
+                        videoEl.currentTime = Math.max(
+                            0,
+                            videoEl.currentTime - FRAME_DURATION
+                        );
+                        break;
+                    case 'play':
+                        videoEl.play();
+                        break;
+                    case 'pause':
+                        // Already paused
+                        break;
                 }
             }
         }

@@ -70,7 +70,7 @@ export const statsCardsTemplate = (stats) => {
         )}
         ${statCard(
             'TTFF',
-            (playbackQuality.timeToFirstFrame * 1000).toFixed(0),
+            playbackQuality.timeToFirstFrame.toFixed(0),
             'ms',
             'text-white',
             'Time To First Frame: From load start to first frame rendered.'

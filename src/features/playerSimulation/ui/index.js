@@ -9,7 +9,6 @@ import { eventBus } from '@/application/event-bus';
 import shaka from 'shaka-player/dist/shaka-player.ui.js';
 import 'shaka-player/dist/controls.css';
 
-// New ECharts integration
 import { renderChart, disposeChart } from '@/ui/shared/charts/chart-renderer';
 import { bufferTimelineChartOptions } from '@/ui/shared/charts/buffer-timeline-chart';
 import { abrHistoryChartOptions } from '@/ui/shared/charts/abr-history-chart';
@@ -67,7 +66,7 @@ function renderControls() {
 }
 
 function renderDiagnosticPanel() {
-    const { activeTab, currentStats, eventLog, playbackHistory } =
+    const { activeTab, currentStats, eventLog, abrHistory, playbackHistory } =
         usePlayerStore.getState();
     const shakaConfig = playerService.getConfiguration();
     const bufferingGoal = shakaConfig?.streaming?.bufferingGoal || 10;
@@ -93,13 +92,12 @@ function renderDiagnosticPanel() {
     } else if (activeTab === 'log') {
         content = eventLogTemplate(eventLog);
     } else if (activeTab === 'graphs') {
-        const abrChartOpts = abrHistoryChartOptions(playbackHistory);
+        const abrChartOpts = abrHistoryChartOptions(abrHistory);
         const bufferChartOpts = bufferHealthChartOptions(
             playbackHistory,
             bufferingGoal
         );
 
-        // Defer chart rendering until after lit-html has created the container div
         setTimeout(() => {
             const abrContainer =
                 viewState.diagnosticPanelContainer?.querySelector(
@@ -146,7 +144,6 @@ const drmErrorTemplate = (error) => {
         message =
             'This stream is encrypted, but a license server URL could not be automatically discovered. Please go back and provide one in the input form to enable playback.';
     } else if (error.code === 6007) {
-        // LICENSE_REQUEST_FAILED
         title = 'License Request Failed';
         message =
             'The request to the license server failed. This is often due to missing or incorrect authentication headers. Please check your Authentication Settings for this stream.';
@@ -218,13 +215,10 @@ export const playerView = {
         if (playerService.isInitialized && stream?.originalUrl) {
             const player = playerService.getPlayer();
             const currentAsset = player?.getAssetUri();
-            // Only load if not already loaded or if the stream is different
             if (currentAsset !== stream.originalUrl) {
                 viewState.lastError = null;
-                // Explicitly request autoplay when activating the view
                 playerService.load(stream, true);
             } else {
-                // If the same stream is already loaded, just play it
                 const videoElement = player?.getMediaElement();
                 if (videoElement && videoElement.paused) {
                     videoElement.play();
@@ -234,9 +228,7 @@ export const playerView = {
     },
 
     deactivate() {
-        // No-op. We no longer want to pause playback when leaving the view.
-        // Playback state is now managed solely by the user via player controls
-        // or by the browser (e.g., when the tab becomes inactive).
+        // No-op
     },
 
     mount(containerElement, { stream }) {
@@ -264,7 +256,6 @@ export const playerView = {
         );
 
         playerService.initialize(viewState.videoEl, viewState.videoContainer);
-        // DO NOT load stream here. Loading is now managed by the mainRenderer via activate().
 
         viewState.subscriptions.push(usePlayerStore.subscribe(renderControls));
         viewState.subscriptions.push(

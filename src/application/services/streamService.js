@@ -1,8 +1,14 @@
 import { eventBus } from '@/application/event-bus';
 import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
 import { workerService } from '@/infrastructure/worker/workerService';
+import { debugLog } from '@/shared/utils/debug';
 
 async function fetchHlsMediaPlaylist({ streamId, variantUri }) {
+    debugLog(
+        'StreamService',
+        `fetchHlsMediaPlaylist invoked for stream ${streamId}`,
+        { variantUri }
+    );
     const stream = useAnalysisStore
         .getState()
         .streams.find((s) => s.id === streamId);
@@ -17,8 +23,15 @@ async function fetchHlsMediaPlaylist({ streamId, variantUri }) {
                 streamId,
                 variantUri,
                 hlsDefinedVariables: stream.hlsDefinedVariables,
+                auth: stream.auth, // BUG FIX: Pass authentication details
                 oldSegments,
             }
+        ).promise; // <-- BUG FIX: Correctly await the promise property
+
+        debugLog(
+            'StreamService',
+            `Received result from worker for stream ${streamId}`,
+            result
         );
 
         if (result.streamId === streamId) {
@@ -28,7 +41,8 @@ async function fetchHlsMediaPlaylist({ streamId, variantUri }) {
                 manifest: result.manifest,
                 manifestString: result.manifestString,
                 segments: result.segments,
-                freshSegmentUrls: result.freshSegmentUrls,
+                currentSegmentUrls: result.currentSegmentUrls,
+                newSegmentUrls: result.newSegmentUrls,
             });
 
             eventBus.dispatch('hls-media-playlist-fetched', {

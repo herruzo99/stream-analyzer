@@ -1,15 +1,22 @@
 import { formatBitrate } from '@/ui/shared/format';
 import { multiPlayerService } from '../application/multiPlayerService';
+import { useMultiPlayerStore } from '@/state/multiPlayerStore';
 
 /**
  * Creates the view model for the new multi-player grid view.
  * @param {Map<number, import('@/state/multiPlayerStore').PlayerInstance>} playersMap
- * @returns {Array<object>} An array of view model objects, one for each player card.
+ * @returns {{
+ *   cards: Array<object>,
+ *   averagePlayheadTime: number,
+ *   maxDuration: number
+ * }} An object containing card view models and aggregate data.
  */
 export function createMultiPlayerGridViewModel(playersMap) {
     const players = Array.from(playersMap.values());
+    const { hoveredStreamId } = useMultiPlayerStore.getState();
+
     if (players.length === 0) {
-        return [];
+        return { cards: [], averagePlayheadTime: 0, maxDuration: 0 };
     }
 
     const playingPlayers = players.filter(
@@ -19,14 +26,14 @@ export function createMultiPlayerGridViewModel(playersMap) {
         playingPlayers.length > 0
             ? playingPlayers.reduce((sum, p) => sum + p.stats.playheadTime, 0) /
               playingPlayers.length
-            : 0;
+            : players[0]?.stats?.playheadTime || 0;
 
     const maxDuration = Math.max(
         ...players.map((p) => p.stats?.manifestTime || 1),
         1
     );
 
-    return players.map((player) => {
+    const cards = players.map((player) => {
         const {
             stats,
             streamName,
@@ -45,7 +52,11 @@ export function createMultiPlayerGridViewModel(playersMap) {
             maxDuration > 0
         ) {
             const driftSeconds = stats.playheadTime - averagePlayheadTime;
-            syncDrift = (driftSeconds / maxDuration) * 100;
+            // Calculate drift as a percentage of a smaller, more relevant window (e.g., 60s)
+            // to make the visualization more sensitive.
+            const syncWindow = 60;
+            syncDrift = (driftSeconds / syncWindow) * 100 * 2; // Scale by 2 for visibility
+            syncDrift = Math.max(-50, Math.min(50, syncDrift)); // Clamp to [-50, 50]
         }
 
         const bufferHistory = playbackHistory
@@ -65,6 +76,7 @@ export function createMultiPlayerGridViewModel(playersMap) {
 
         return {
             streamId: player.streamId,
+            isHovered: player.streamId === hoveredStreamId,
             streamName,
             state,
             error,
@@ -86,9 +98,9 @@ export function createMultiPlayerGridViewModel(playersMap) {
             stallDuration: (
                 stats?.playbackQuality?.totalStallDuration ?? 0
             ).toFixed(2),
-            videoElement: multiPlayerService.videoElements.get(
-                player.streamId
-            ),
+            videoElement: multiPlayerService.videoElements.get(player.streamId),
         };
     });
+
+    return { cards, averagePlayheadTime, maxDuration };
 }

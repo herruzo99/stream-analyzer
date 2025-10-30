@@ -21,6 +21,7 @@ import { createStore } from 'zustand/vanilla';
  * @property {boolean | null} abrOverride
  * @property {number | null} maxHeightOverride
  * @property {number | null} bufferingGoalOverride
+ * @property {{currentTime: number, paused: boolean} | null} initialState
  */
 
 /**
@@ -33,7 +34,10 @@ import { createStore } from 'zustand/vanilla';
  * @property {boolean} globalAbrEnabled
  * @property {number} globalMaxHeight
  * @property {number} globalBufferingGoal
+ * @property {number} globalBandwidthCap
+ * @property {'auto' | 'grid-2' | 'grid-1'} activeLayout
  * @property {number} streamIdCounter
+ * @property {number | null} hoveredStreamId
  */
 
 /**
@@ -42,7 +46,7 @@ import { createStore } from 'zustand/vanilla';
  * @property {(streamId: number) => void} removePlayer
  * @property {(streamId: number, updates: Partial<PlayerInstance>) => void} updatePlayerState
  * @property {(event: Omit<PlayerEvent, 'id' | 'timestamp'>) => void} logEvent
- * @property {() => void} clearPlayers
+ * @property {() => void} clearPlayersAndLogs
  * @property {(isMuted: boolean) => void} setMuteAll
  * @property {() => void} toggleMuteAll
  * @property {() => void} toggleSync
@@ -50,11 +54,14 @@ import { createStore } from 'zustand/vanilla';
  * @property {(enabled: boolean) => void} setGlobalAbrEnabled
  * @property {(height: number) => void} setGlobalMaxHeight
  * @property {(goal: number) => void} setGlobalBufferingGoal
+ * @property {(bps: number) => void} setGlobalBandwidthCap
+ * @property {(layout: 'auto' | 'grid-2' | 'grid-1') => void} setActiveLayout
  * @property {(streamId: number) => void} toggleStreamSelection
  * @property {() => void} selectAllStreams
  * @property {() => void} deselectAllStreams
  * @property {(streamId: number, override: { abr?: boolean, maxHeight?: number, bufferingGoal?: number }) => void} setStreamOverride
- * @property {(sourceStreamId: number) => number} duplicateStream
+ * @property {(sourceStreamId: number, initialState?: {currentTime: number, paused: boolean}) => number} duplicateStream
+ * @property {(streamId: number | null) => void} setHoveredStreamId
  * @property {() => void} reset
  */
 
@@ -68,7 +75,10 @@ const createInitialState = () => ({
     globalAbrEnabled: true,
     globalMaxHeight: Infinity,
     globalBufferingGoal: 10,
+    globalBandwidthCap: Infinity,
+    activeLayout: 'auto',
     streamIdCounter: 0,
+    hoveredStreamId: null,
 });
 
 export const useMultiPlayerStore = createStore((set, get) => ({
@@ -91,6 +101,7 @@ export const useMultiPlayerStore = createStore((set, get) => ({
                 abrOverride: null,
                 maxHeightOverride: null,
                 bufferingGoalOverride: null,
+                initialState: null,
             }),
             streamIdCounter: newStreamId + 1,
         }));
@@ -116,7 +127,13 @@ export const useMultiPlayerStore = createStore((set, get) => ({
                 ...state.eventLog,
             ].slice(0, 100),
         })),
-    clearPlayers: () => set({ players: new Map() }),
+    clearPlayersAndLogs: () =>
+        set({
+            players: new Map(),
+            streamIdCounter: 0,
+            eventLog: [],
+            hoveredStreamId: null,
+        }),
     setMuteAll: (isMuted) => set({ isMutedAll: isMuted }),
     toggleMuteAll: () => set((state) => ({ isMutedAll: !state.isMutedAll })),
     toggleSync: () => set((state) => ({ isSyncEnabled: !state.isSyncEnabled })),
@@ -125,6 +142,8 @@ export const useMultiPlayerStore = createStore((set, get) => ({
     setGlobalAbrEnabled: (enabled) => set({ globalAbrEnabled: enabled }),
     setGlobalMaxHeight: (height) => set({ globalMaxHeight: height }),
     setGlobalBufferingGoal: (goal) => set({ globalBufferingGoal: goal }),
+    setGlobalBandwidthCap: (bps) => set({ globalBandwidthCap: bps }),
+    setActiveLayout: (layout) => set({ activeLayout: layout }),
     toggleStreamSelection: (streamId) => {
         set((state) => {
             const newPlayers = new Map(state.players);
@@ -180,7 +199,7 @@ export const useMultiPlayerStore = createStore((set, get) => ({
             return { players: newPlayers };
         });
     },
-    duplicateStream: (sourceStreamId) => {
+    duplicateStream: (sourceStreamId, initialState = null) => {
         const state = get();
         const sourcePlayer = state.players.get(sourceStreamId);
         if (!sourcePlayer) return -1;
@@ -196,12 +215,14 @@ export const useMultiPlayerStore = createStore((set, get) => ({
                 stats: null,
                 playbackHistory: [],
                 health: 'healthy',
-                selectedForAction: true, // Auto-select the new stream
+                selectedForAction: true,
+                initialState,
             }),
             streamIdCounter: newId + 1,
         });
         return newId;
     },
+    setHoveredStreamId: (streamId) => set({ hoveredStreamId: streamId }),
     reset: () => set(createInitialState()),
 }));
 

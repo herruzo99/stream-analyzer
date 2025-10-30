@@ -78,9 +78,6 @@ export function renderAppShell(domContext) {
     render(renderContextSwitcher(), dom.sidebarContextSwitchers);
     render(mainContentControlsTemplate(), dom.contextHeader);
 
-    // Main content rendering is now handled by the lifecycle manager in mainRenderer.js
-    // This function is only responsible for rendering the "chrome" of the app shell.
-
     if (
         activeStream &&
         activeStream.manifest.type === 'dynamic' &&

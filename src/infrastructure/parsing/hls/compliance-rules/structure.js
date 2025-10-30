@@ -28,9 +28,8 @@ export const structureRules = [
         severity: 'fail',
         scope: 'Playlist',
         category: 'HLS Structure',
-        check: (hls) =>
-            hls.serializedManifest.raw &&
-            hls.serializedManifest.raw.trim().startsWith('#EXTM3U'),
+        check: (hls, { hlsParsed }) =>
+            hlsParsed.raw && hlsParsed.raw.trim().startsWith('#EXTM3U'),
         passDetails: 'OK',
         failDetails: 'The playlist must begin with the #EXTM3U tag.',
     },
@@ -42,8 +41,9 @@ export const structureRules = [
         severity: 'fail',
         scope: 'Playlist',
         category: 'HLS Structure',
-        check: (hls) =>
-            hls.tags.filter((t) => t.name === 'EXT-X-VERSION').length <= 1,
+        check: (hls, { hlsParsed }) =>
+            hlsParsed.tags.filter((t) => t.name === 'EXT-X-VERSION').length <=
+            1,
         passDetails: 'OK',
         failDetails:
             'A playlist MUST NOT contain more than one EXT-X-VERSION tag.',
@@ -56,7 +56,8 @@ export const structureRules = [
         severity: 'fail',
         scope: 'Playlist',
         category: 'HLS Structure',
-        check: (hls) => !(hls.isMaster && hls.segments.length > 0),
+        check: (hls, { hlsParsed }) =>
+            !(hlsParsed.isMaster && hlsParsed.segments.length > 0),
         passDetails: 'OK',
         failDetails:
             'A playlist cannot be both a Media Playlist (with segments) and a Multivariant Playlist (with variants). It must be one or the other.',
@@ -69,8 +70,8 @@ export const structureRules = [
         severity: 'fail',
         scope: 'MediaPlaylist',
         category: 'HLS Structure',
-        check: (hls, { targetDuration }) =>
-            targetDuration !== undefined && targetDuration !== null,
+        check: (hls, { hlsParsed }) =>
+            hlsParsed.tags.some((t) => t.name === 'EXT-X-TARGETDURATION'),
         passDetails: 'OK',
         failDetails:
             'The EXT-X-TARGETDURATION tag is REQUIRED for Media Playlists.',
@@ -83,9 +84,9 @@ export const structureRules = [
         severity: 'fail',
         scope: 'MediaPlaylist',
         category: 'HLS Structure',
-        check: (hls, { isLive }) => {
+        check: (hls, { isLive, hlsParsed }) => {
             if (!isLive) {
-                return hls.tags.some((t) => t.name === 'EXT-X-ENDLIST');
+                return hlsParsed.tags.some((t) => t.name === 'EXT-X-ENDLIST');
             }
             return 'skip';
         },
@@ -101,7 +102,8 @@ export const structureRules = [
         severity: 'fail',
         scope: 'MasterPlaylist',
         category: 'HLS Structure',
-        check: (hls) => hls.variants && hls.variants.length > 0,
+        check: (hls, { hlsParsed }) =>
+            hlsParsed.variants && hlsParsed.variants.length > 0,
         passDetails: 'OK',
         failDetails:
             'A Multivariant Playlist must list at least one Variant Stream.',
@@ -115,7 +117,7 @@ export const structureRules = [
         scope: 'MasterPlaylist',
         category: 'HLS Structure',
         check: (hls, context) => {
-            const hasAdvancedInstreamId = (hls.tags || []).some(
+            const hasAdvancedInstreamId = (context.hlsParsed.tags || []).some(
                 (t) =>
                     t.name === 'EXT-X-MEDIA' &&
                     t.value['INSTREAM-ID'] &&

@@ -21,6 +21,7 @@ export async function handleShakaManifestFetch(payload, signal) {
         streamId,
         url,
         auth,
+        isPlayerLoadRequest, // CRITICAL FIX: Receive the context flag
         oldRawManifest,
         protocol: protocolHint,
         baseUrl,
@@ -29,8 +30,8 @@ export async function handleShakaManifestFetch(payload, signal) {
     } = payload;
 
     const startTime = performance.now();
-    const now = Date.now(); // Capture wall-clock time for calculations
-    debugLog('shakaManifestHandler', `Fetching live update for ${url}`);
+    const now = Date.now();
+    debugLog('shakaManifestHandler', `Fetching manifest for ${url}`);
 
     const response = await fetchWithAuth(url, auth, null, {}, null, signal);
 
@@ -60,9 +61,7 @@ export async function handleShakaManifestFetch(payload, signal) {
     });
 
     if (!response.ok) {
-        throw new Error(
-            `HTTP ${response.status} fetching live update for ${url}`
-        );
+        throw new Error(`HTTP ${response.status} fetching manifest for ${url}`);
     }
 
     const newManifestString = await response.text();
@@ -72,6 +71,39 @@ export async function handleShakaManifestFetch(payload, signal) {
     );
     const detectedProtocol = detectProtocol(newManifestString, protocolHint);
 
+    // --- ARCHITECTURAL FIX: Prevent player loads from corrupting state ---
+    if (isPlayerLoadRequest) {
+        debugLog(
+            'shakaManifestHandler',
+            'Request is for initial player load. Bypassing analysis and returning raw manifest to player.'
+        );
+        return {
+            uri: response.url,
+            originalUri: url,
+            data: new TextEncoder().encode(newManifestString).buffer,
+            headers: response.headers,
+            status: response.status,
+        };
+    }
+    // --- END FIX ---
+
+    if (
+        detectedProtocol === 'hls' &&
+        !newManifestString.includes('#EXT-X-STREAM-INF')
+    ) {
+        debugLog(
+            'shakaManifestHandler',
+            'Detected HLS Media Playlist during non-player-load. Returning to player without updating main state.'
+        );
+        return {
+            uri: response.url,
+            originalUri: url,
+            data: new TextEncoder().encode(newManifestString).buffer,
+            headers: response.headers,
+            status: response.status,
+        };
+    }
+
     let formattedOld = oldRawManifest;
     let formattedNew = newManifestString;
     if (detectedProtocol === 'dash') {
@@ -80,10 +112,9 @@ export async function handleShakaManifestFetch(payload, signal) {
         formattedNew = xmlFormatter(newManifestString || '', formatOptions);
     }
 
-    // Always process the update to recalculate time-based segments, even if text is same
     debugLog(
         'shakaManifestHandler',
-        'Processing update. Posting to main thread.'
+        'Processing master/main manifest update. Posting to main thread.'
     );
     const diffHtml = diffManifest(formattedOld, formattedNew, detectedProtocol);
 
@@ -103,7 +134,7 @@ export async function handleShakaManifestFetch(payload, signal) {
             newSerializedObject,
             baseUrl,
             { now }
-        ); // Pass time context
+        );
         dashRepStateForUpdate = [];
         const oldDashRepState = new Map(oldDashRepStateArray);
 
@@ -112,7 +143,6 @@ export async function handleShakaManifestFetch(payload, signal) {
                 data.initSegment,
                 ...(data.segments || []),
             ].filter(Boolean);
-
             const oldRepState = oldDashRepState.get(key);
             const oldSegmentIds = new Set(
                 (oldRepState?.segments || []).map((s) => s.uniqueId)
@@ -121,13 +151,12 @@ export async function handleShakaManifestFetch(payload, signal) {
             const newSegmentUrls = currentSegmentUrls.filter(
                 (id) => !oldSegmentIds.has(id)
             );
-
             dashRepStateForUpdate.push([
                 key,
                 {
-                    segments: allSegments, // Segments from the *current* manifest
-                    currentSegmentUrls: currentSegmentUrls, // All URLs in the current manifest
-                    newSegmentUrls: newSegmentUrls, // Only newly appeared URLs
+                    segments: allSegments,
+                    currentSegmentUrls: currentSegmentUrls,
+                    newSegmentUrls: newSegmentUrls,
                     diagnostics: data.diagnostics,
                 },
             ]);
@@ -140,10 +169,8 @@ export async function handleShakaManifestFetch(payload, signal) {
         );
         newManifestObject = manifest;
         newSerializedObject = manifest.serializedManifest;
-
         const oldHlsVariantState = new Map(payload.oldHlsVariantState || []);
         hlsVariantStateForUpdate = [];
-
         for (const variant of newManifestObject.variants || []) {
             const variantUri = variant.resolvedUri;
             if (variantUri) {
@@ -151,9 +178,9 @@ export async function handleShakaManifestFetch(payload, signal) {
                 hlsVariantStateForUpdate.push([
                     variantUri,
                     {
-                        segments: oldState.segments || [], // Keep old segments until media playlist is reloaded
+                        segments: oldState.segments || [],
                         currentSegmentUrls: oldState.currentSegmentUrls || [],
-                        newlyAddedSegmentUrls: [], // A master update doesn't add media segments directly
+                        newlyAddedSegmentUrls: [],
                         isLoading: false,
                         isPolling: false,
                         isExpanded: oldState.isExpanded || false,

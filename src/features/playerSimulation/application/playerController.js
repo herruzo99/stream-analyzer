@@ -16,7 +16,6 @@ function onStatsChanged({ stats: shakaStats }) {
             .getVariantTracks()
             .find((t) => t.active);
 
-        // ARCHITECTURAL FIX: Use cached variants instead of getManifest()
         const variants = playerService.getActiveManifestVariants();
 
         if (activeVariantTrack && variants) {
@@ -49,7 +48,6 @@ function onStatsChanged({ stats: shakaStats }) {
         );
 
         if (firstPlayIndex > -1) {
-            // Calculate TTFF only once
             if (timeToFirstFrame === 0) {
                 const loadingState = shakaStats.stateHistory.find(
                     (s) => s.state === 'loading'
@@ -61,7 +59,6 @@ function onStatsChanged({ stats: shakaStats }) {
                 }
             }
 
-            // Calculate stalls and stall duration that happen *after* initial playback starts
             for (
                 let i = firstPlayIndex + 1;
                 i < shakaStats.stateHistory.length;
@@ -114,7 +111,7 @@ function onStatsChanged({ stats: shakaStats }) {
             droppedFrames: shakaStats.droppedFrames || 0,
             corruptedFrames: shakaStats.corruptedFrames || 0,
             totalStalls: totalStalls,
-            totalStallDuration: totalStallDuration,
+            totalStallDuration: totalStallDuration / 1000, // to seconds
             timeToFirstFrame: timeToFirstFrame,
         },
         abr: {
@@ -144,7 +141,6 @@ function onAdaptation({ oldTrack, newTrack }) {
     ).toFixed(0)}k | Resolution: ${oldTrack.height}p → ${newTrack.height}p`;
     playerActions.logEvent({ timestamp: time, type: 'adaptation', details });
 
-    // The stream object is now passed directly with the event, no need for a global lookup.
     if (newTrack.stream) {
         analysisActions.updateStream(newTrack.streamId, {
             adaptationEvents: [
@@ -179,9 +175,6 @@ function onPipChanged({ isInPiP }) {
     playerActions.setPictureInPicture(isInPiP);
 
     if (!isInPiP) {
-        // This is a user-initiated action to close PiP.
-        // If we are not on the player tab, the player instance is now "orphaned"
-        // and should be destroyed to free up resources.
         const { activeTab } = useUiStore.getState();
         if (activeTab !== 'player-simulation') {
             playerService.destroy();
@@ -196,6 +189,5 @@ export function initializePlayerController() {
     eventBus.subscribe('player:error', onPlayerError);
     eventBus.subscribe('player:pip-changed', onPipChanged);
 
-    // Reset store when a new analysis starts
     eventBus.subscribe('analysis:started', playerActions.reset);
 }

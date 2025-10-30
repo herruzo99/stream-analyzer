@@ -117,6 +117,7 @@ export interface Representation {
     supplementalCodecs: string | null;
     reqVideoLayout: string | null;
     serializedManifest: object;
+    __variantUri?: string; // Internal property for HLS enrichment
 }
 
 export interface PsshInfo {
@@ -315,7 +316,7 @@ export interface ServiceDescription {
 export interface Period {
     id: string;
     start: number;
-    duration: number;
+    duration: number | null;
     bitstreamSwitching: boolean | null;
     assetIdentifier: AssetIdentifier | null;
     adaptationSets: AdaptationSet[];
@@ -788,15 +789,15 @@ export interface PlayerStats {
         resolution: string;
         droppedFrames: number;
         corruptedFrames: number;
-        totalStalls: number; // Derived from stateHistory
+        totalStalls: number;
         totalStallDuration: number;
         timeToFirstFrame: number;
     };
     abr: {
         currentVideoBitrate: number;
         estimatedBandwidth: number;
-        switchesUp: number; // Derived from switchHistory
-        switchesDown: number; // Derived from switchHistory
+        switchesUp: number;
+        switchesDown: number;
     };
     buffer: {
         bufferHealth: number;
