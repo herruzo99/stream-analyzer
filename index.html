@@ -86,11 +86,11 @@
             rel="stylesheet"
         />
     </head>
-    <body class="bg-gray-900 text-gray-200 min-h-screen font-sans">
+    <body class="bg-slate-950 text-slate-200 min-h-screen font-sans">
         <!-- The initial view shown on page load -->
         <div
             id="input-section"
-            class="fixed inset-0 bg-gray-900 z-50 flex items-center justify-center p-4"
+            class="fixed inset-0 bg-slate-950 z-50 flex items-center justify-center p-4"
         >
             <!-- This container will be populated by the new three-panel input-view renderer -->
         </div>
@@ -105,7 +105,7 @@
         ></div>
         <div
             id="global-loader"
-            class="hidden fixed inset-0 bg-gray-900/70 flex-col items-center justify-center z-200 space-y-4"
+            class="hidden fixed inset-0 bg-slate-950/70 flex-col items-center justify-center z-200 space-y-4"
         >
             <div class="loader-animation flex items-end justify-center h-12">
                 <span class="w-2 h-3 mx-0.5 bg-blue-400 origin-bottom"></span
@@ -114,29 +114,29 @@
                 ><span class="w-2 h-3 mx-0.5 bg-blue-400 origin-bottom"></span
                 ><span class="w-2 h-3 mx-0.5 bg-blue-400 origin-bottom"></span>
             </div>
-            <p id="loader-message" class="text-lg text-gray-300"></p>
+            <p id="loader-message" class="text-lg text-slate-300"></p>
         </div>
 
         <!-- Global Modal -->
         <div
             id="segment-modal"
-            class="fixed inset-0 bg-gray-900/80 hidden items-center justify-center z-60"
+            class="fixed inset-0 bg-slate-950/80 hidden items-center justify-center z-60"
         >
             <div
-                class="bg-gray-800 p-6 rounded-lg max-h-[90vh] overflow-y-auto w-11/12 max-w-4xl border border-gray-700"
+                class="bg-slate-800 p-6 rounded-lg max-h-[90vh] overflow-y-auto w-11/12 max-w-4xl border border-slate-700"
             >
                 <div class="flex justify-between items-center mb-4">
-                    <h3 id="modal-title" class="text-xl font-bold"></h3>
+                    <h3 id="modal-title" class="text-xl font-bold text-white"></h3>
                     <button
                         id="close-modal-btn"
-                        class="text-2xl text-gray-400 hover:text-white"
+                        class="text-2xl text-slate-400 hover:text-white"
                     >
                         &times;
                     </button>
                 </div>
                 <p
                     id="modal-segment-url"
-                    class="font-mono text-xs bg-gray-900 p-2 rounded break-all mb-4"
+                    class="font-mono text-xs bg-slate-900 p-2 rounded break-all mb-4"
                 ></p>
                 <div
                     id="modal-content-area"
@@ -148,7 +148,7 @@
         <!-- Global Tooltip -->
         <div
             id="global-tooltip"
-            class="fixed z-100 p-2.5 rounded-md bg-gray-900 text-white text-left text-xs leading-relaxed border border-gray-700 min-w-[200px] max-w-sm pointer-events-none invisible opacity-0 transition-opacity"
+            class="fixed z-100 p-2.5 rounded-md bg-slate-900 text-white text-left text-xs leading-relaxed border border-slate-700 min-w-[200px] max-w-sm pointer-events-none invisible opacity-0 transition-opacity"
         ></div>
 
         <!-- Global Dropdown Container -->

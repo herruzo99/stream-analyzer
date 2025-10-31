@@ -13,12 +13,12 @@ const programInfoTemplate = (stream) => {
     }
 
     return html`
-        <div class="mb-8 p-4 bg-zinc-800 rounded-lg border border-zinc-700">
-            <h3 class="text-xl font-bold mb-3">Program Information</h3>
+        <div class="mb-8 p-4 bg-slate-900 rounded-lg border border-slate-700">
+            <h3 class="text-xl font-bold mb-3 text-slate-100">Program Information</h3>
             <dl class="grid gap-x-4 gap-y-2 grid-cols-[auto_1fr] text-sm">
-                ${programInfo.title ? html`<dt class="text-zinc-400 font-semibold">Title:</dt><dd class="text-zinc-200">${programInfo.title}</dd>` : ''}
-                ${programInfo.source ? html`<dt class="text-zinc-400 font-semibold">Source:</dt><dd class="text-zinc-200">${programInfo.source}</dd>` : ''}
-                ${programInfo.copyright ? html`<dt class="text-zinc-400 font-semibold">Copyright:</dt><dd class="text-zinc-200">${programInfo.copyright}</dd>` : ''}
+                ${programInfo.title ? html`<dt class="text-slate-400 font-semibold">Title:</dt><dd class="text-slate-200">${programInfo.title}</dd>` : ''}
+                ${programInfo.source ? html`<dt class="text-slate-400 font-semibold">Source:</dt><dd class="text-slate-200">${programInfo.source}</dd>` : ''}
+                ${programInfo.copyright ? html`<dt class="text-slate-400 font-semibold">Copyright:</dt><dd class="text-slate-200">${programInfo.copyright}</dd>` : ''}
             </dl>
         </div>
     `;
@@ -34,7 +34,7 @@ export function getDashSummaryTemplate(stream) {
         <div class="space-y-8">
             ${programInfoTemplate(stream)}
             <div>
-                <h3 class="text-xl font-bold mb-4">General Properties</h3>
+                <h3 class="text-xl font-bold mb-4 text-slate-100">General Properties</h3>
                 <dl class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(280px,1fr))]">
                     ${statCardTemplate({
                         label: 'Stream Type',

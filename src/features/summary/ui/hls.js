@@ -18,7 +18,7 @@ export function getHlsSummaryTemplate(stream) {
     return html`
         <div class="space-y-8">
             <div>
-                <h3 class="text-xl font-bold mb-4">General Properties</h3>
+                <h3 class="text-xl font-bold mb-4 text-slate-100">General Properties</h3>
                 <dl class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(280px,1fr))]">
                     ${statCardTemplate({
                         label: 'Stream Type',
@@ -63,7 +63,7 @@ export function getHlsSummaryTemplate(stream) {
             <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
                 ${hlsComplianceSummaryTemplate(stream)}
                 <div>
-                    <h3 class="text-xl font-bold mb-4">Content & Security</h3>
+                    <h3 class="text-xl font-bold mb-4 text-slate-100">Content & Security</h3>
                     <dl class="grid gap-4 grid-cols-1">
                         ${statCardTemplate({
                             label: 'I-Frame Playlists',

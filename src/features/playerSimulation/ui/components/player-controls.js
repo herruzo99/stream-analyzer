@@ -48,7 +48,7 @@ const pipButtonTemplate = () => {
     return html`
         <button
             @click=${handleClick}
-            class="bg-neutral-700/50 hover:bg-neutral-600/50 text-white font-bold p-2 rounded-md transition duration-300 h-full aspect-square flex items-center justify-center"
+            class="bg-slate-700/50 hover:bg-slate-600/50 text-white font-bold p-2 rounded-md transition duration-300 h-full aspect-square flex items-center justify-center"
             title=${label}
         >
             ${icon}
@@ -59,25 +59,25 @@ const pipButtonTemplate = () => {
 const dropdownButton = (label, subtext, onClick, isActive = false) => html`
     <button
         @click=${onClick}
-        class="input-field text-left flex items-center justify-between w-full hover:bg-neutral-600 transition-colors ${isActive
+        class="input-field text-left flex items-center justify-between w-full hover:bg-slate-600 transition-colors ${isActive
             ? 'ring-1 ring-blue-500 border-blue-500'
             : ''}"
     >
         <span class="truncate grid grid-cols-1">
-            <span class="font-semibold text-neutral-200 truncate">${label}</span>
-            ${subtext ? html`<span class="text-xs text-neutral-400 truncate">${subtext}</span>` : ''}
+            <span class="font-semibold text-slate-200 truncate">${label}</span>
+            ${subtext ? html`<span class="text-xs text-slate-400 truncate">${subtext}</span>` : ''}
         </span>
-        <span class="text-neutral-400 shrink-0 ml-2">${icons.chevronDown}</span>
+        <span class="text-slate-400 shrink-0 ml-2">${icons.chevronDown}</span>
     </button>
 `;
 
 const modeToggleTemplate = (currentMode) => html`
-    <div class="flex bg-neutral-900/50 p-1 rounded-lg border border-neutral-700/50 w-fit">
+    <div class="flex bg-slate-900/50 p-1 rounded-lg border border-slate-700/50 w-fit">
         <button
             @click=${() => uiActions.setPlayerControlMode('standard')}
             class="px-3 py-1.5 text-xs font-bold rounded-md transition-colors ${currentMode === 'standard'
                 ? 'bg-blue-600 text-white shadow-sm'
-                : 'text-neutral-400 hover:text-neutral-200'}"
+                : 'text-slate-400 hover:text-slate-200'}"
         >
             Standard
         </button>
@@ -85,7 +85,7 @@ const modeToggleTemplate = (currentMode) => html`
             @click=${() => uiActions.setPlayerControlMode('advanced')}
             class="px-3 py-1.5 text-xs font-bold rounded-md transition-colors ${currentMode === 'advanced'
                 ? 'bg-blue-600 text-white shadow-sm'
-                : 'text-neutral-400 hover:text-neutral-200'}"
+                : 'text-slate-400 hover:text-slate-200'}"
         >
             Advanced
         </button>
@@ -139,24 +139,24 @@ const standardModeTemplate = (config) => {
 const advancedModeTemplate = (config, handleFormChange, isAbrEnabled) => html`
     <div class="space-y-6">
         <div>
-            <h5 class="text-xs font-bold text-neutral-400 mb-2 uppercase">ABR Fine-Tuning</h5>
+            <h5 class="text-xs font-bold text-slate-400 mb-2 uppercase">ABR Fine-Tuning</h5>
             <fieldset ?disabled=${!isAbrEnabled}>
                 <form data-form-id="abr-config" @change=${handleFormChange} class="space-y-3">
                     <div class="${!isAbrEnabled ? 'opacity-50' : ''}">
                         <label class="input-label" for="bw-upgrade">Bandwidth Upgrade Target (fraction)</label>
                         <input type="number" step="0.05" min="0" max="2" name="bandwidthUpgradeTarget" id="bw-upgrade" class="input-field" .value=${config.abr.bandwidthUpgradeTarget} />
-                        <p class="text-xs text-neutral-500 mt-1">Higher = harder to upgrade.</p>
+                        <p class="text-xs text-slate-500 mt-1">Higher = harder to upgrade.</p>
                     </div>
                     <div class="${!isAbrEnabled ? 'opacity-50' : ''}">
                         <label class="input-label" for="bw-downgrade">Bandwidth Downgrade Target (fraction)</label>
                         <input type="number" step="0.05" min="0" max="2" name="bandwidthDowngradeTarget" id="bw-downgrade" class="input-field" .value=${config.abr.bandwidthDowngradeTarget} />
-                        <p class="text-xs text-neutral-500 mt-1">Lower = easier to downgrade.</p>
+                        <p class="text-xs text-slate-500 mt-1">Lower = easier to downgrade.</p>
                     </div>
                 </form>
             </fieldset>
         </div>
         <div>
-            <h5 class="text-xs font-bold text-neutral-400 mb-2 uppercase">Explicit Restrictions</h5>
+            <h5 class="text-xs font-bold text-slate-400 mb-2 uppercase">Explicit Restrictions</h5>
             <fieldset ?disabled=${!isAbrEnabled}>
                 <form data-form-id="abr-restrictions" @change=${handleFormChange} class="grid grid-cols-2 gap-3">
                     <div>
@@ -179,7 +179,7 @@ const advancedModeTemplate = (config, handleFormChange, isAbrEnabled) => html`
             </fieldset>
         </div>
         <div>
-            <h5 class="text-xs font-bold text-neutral-400 mb-2 uppercase">Buffering Engine</h5>
+            <h5 class="text-xs font-bold text-slate-400 mb-2 uppercase">Buffering Engine</h5>
             <form data-form-id="buffering" @change=${handleFormChange} class="space-y-3">
                 <div class="grid grid-cols-2 gap-3">
                     <div>
@@ -196,8 +196,8 @@ const advancedModeTemplate = (config, handleFormChange, isAbrEnabled) => html`
                     <input type="number" step="1" name="bufferBehind" id="buffer-behind" class="input-field" .value=${config.streaming.bufferBehind} />
                 </div>
                 <div class="flex items-center gap-2 pt-1">
-                    <input type="checkbox" name="ignoreTextStreamFailures" id="ignore-text-failures" .checked=${config.streaming.ignoreTextStreamFailures} class="rounded bg-neutral-700 border-neutral-600 text-blue-600 focus:ring-offset-neutral-800" />
-                    <label for="ignore-text-failures" class="input-label !mb-0 cursor-pointer">Ignore Text Stream Failures</label>
+                    <input type="checkbox" name="ignoreTextStreamFailures" id="ignore-text-failures" .checked=${config.streaming.ignoreTextStreamFailures} class="rounded bg-slate-700 border-slate-600 text-blue-600 focus:ring-offset-slate-800" />
+                    <label for="ignore-text-failures" class="input-label mb-0! cursor-pointer">Ignore Text Stream Failures</label>
                 </div>
             </form>
         </div>
@@ -211,12 +211,12 @@ export const playerControlsTemplate = () => {
     const player = playerService.getPlayer();
 
     if (!stream || !player) {
-        return html`<div class="text-center text-neutral-500 py-4">Player not initialized.</div>`;
+        return html`<div class="text-center text-slate-500 py-4">Player not initialized.</div>`;
     }
 
     const config = playerService.getConfiguration();
     if (!config) {
-        return html`<div class="text-center text-neutral-500 py-4">Loading configuration...</div>`;
+        return html`<div class="text-center text-slate-500 py-4">Loading configuration...</div>`;
     }
 
     const isAbrEnabled = config.abr.enabled;
@@ -321,13 +321,13 @@ export const playerControlsTemplate = () => {
         </style>
         <div class="space-y-6">
             ${playerStatusDisplayTemplate()}
-            <div class="bg-neutral-800 p-4 rounded-lg border border-neutral-700">
-                <h4 class="font-bold text-neutral-300 mb-3 text-sm uppercase tracking-wider">Track Selection</h4>
+            <div class="bg-slate-800 p-4 rounded-lg border border-slate-700">
+                <h4 class="font-bold text-slate-300 mb-3 text-sm uppercase tracking-wider">Track Selection</h4>
                 ${trackSelectionContent}
             </div>
-            <div class="bg-neutral-800 p-4 rounded-lg border border-neutral-700">
+            <div class="bg-slate-800 p-4 rounded-lg border border-slate-700">
                 <div class="flex justify-between items-center mb-3">
-                    <h4 class="font-bold text-neutral-300 text-sm uppercase tracking-wider">
+                    <h4 class="font-bold text-slate-300 text-sm uppercase tracking-wider">
                         ${playerControlMode === 'standard' ? 'Playback Experience' : 'Advanced Configuration'}
                     </h4>
                     ${modeToggleTemplate(playerControlMode)}

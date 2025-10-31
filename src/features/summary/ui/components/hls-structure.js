@@ -26,8 +26,8 @@ export const hlsStructureTemplate = (summary) => {
 
     if (!hasVideo && !hasAudio && !hasText && !hasIFrame) {
         return html`<div>
-            <h3 class="text-xl font-bold mb-4">Stream Structure</h3>
-            <p class="text-xs text-gray-500">
+            <h3 class="text-xl font-bold mb-4 text-slate-100">Stream Structure</h3>
+            <p class="text-xs text-slate-500">
                 This media playlist does not contain explicit track information.
             </p>
         </div>`;
@@ -35,17 +35,17 @@ export const hlsStructureTemplate = (summary) => {
 
     return html`
         <div>
-            <h3 class="text-xl font-bold mb-4">Stream Structure</h3>
+            <h3 class="text-xl font-bold mb-4 text-slate-100">Stream Structure</h3>
             <div class="space-y-4">
                 ${hasVideo
                     ? html`<div>
-                          <h4 class="text-lg font-bold mb-2">Video Tracks</h4>
+                          <h4 class="text-lg font-bold mb-2 text-slate-200">Video Tracks</h4>
                           ${trackTableTemplate(summary.videoTracks, 'video')}
                       </div>`
                     : ''}
                 ${hasAudio
                     ? html`<div class="mt-4">
-                          <h4 class="text-lg font-bold mb-2">
+                          <h4 class="text-lg font-bold mb-2 text-slate-200">
                               Audio Renditions
                           </h4>
                           ${trackTableTemplate(summary.audioTracks, 'audio')}
@@ -53,7 +53,7 @@ export const hlsStructureTemplate = (summary) => {
                     : ''}
                 ${hasText
                     ? html`<div class="mt-4">
-                          <h4 class="text-lg font-bold mb-2">
+                          <h4 class="text-lg font-bold mb-2 text-slate-200">
                               Text Renditions
                           </h4>
                           ${trackTableTemplate(summary.textTracks, 'text')}
@@ -61,7 +61,7 @@ export const hlsStructureTemplate = (summary) => {
                     : ''}
                 ${hasIFrame
                     ? html`<div class="mt-4">
-                          <h4 class="text-lg font-bold mb-2">
+                          <h4 class="text-lg font-bold mb-2 text-slate-200">
                               I-Frame Playlists (for Trick Play)
                           </h4>
                           ${trackTableTemplate(iFramePlaylists, 'video')}

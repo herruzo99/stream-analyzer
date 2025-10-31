@@ -9,9 +9,9 @@ const contentComponentsTemplate = (as) => {
     }
 
     return html`
-        <div class="mt-2 p-2 bg-gray-900/50 rounded-md">
+        <div class="mt-2 p-2 bg-slate-900/50 rounded-md">
             <h6
-                class="text-xs font-semibold text-gray-400 ${tooltipTriggerClasses}"
+                class="text-xs font-semibold text-slate-400 ${tooltipTriggerClasses}"
                 data-tooltip="This AdaptationSet contains multiple multiplexed media components. All Representations below apply to each of these components."
                 data-iso="DASH: 5.3.4"
             >
@@ -21,7 +21,7 @@ const contentComponentsTemplate = (as) => {
                 ${as.contentComponents.map(
                     (comp) => html`
                         <div
-                            class="text-xs font-mono text-gray-300 bg-gray-800/50 p-1 rounded"
+                            class="text-xs font-mono text-slate-300 bg-slate-800/50 p-1 rounded"
                         >
                             <strong>ID:</strong> ${comp.id || 'N/A'} |
                             <strong>Lang:</strong> ${comp.lang || 'N/A'} |
@@ -51,8 +51,8 @@ const advancedPropertiesTemplate = (as) => {
         return '';
 
     return html`
-        <div class="mt-2 p-2 bg-gray-900/50 rounded-md">
-            <h6 class="text-xs font-semibold text-gray-400">
+        <div class="mt-2 p-2 bg-slate-900/50 rounded-md">
+            <h6 class="text-xs font-semibold text-slate-400">
                 Advanced Properties
             </h6>
             <dl
@@ -60,16 +60,16 @@ const advancedPropertiesTemplate = (as) => {
             >
                 ${failover
                     ? html`
-                          <dt class="text-gray-500">Failover:</dt>
-                          <dd class="text-gray-300">
+                          <dt class="text-slate-500">Failover:</dt>
+                          <dd class="text-slate-300">
                               ${failover.valid ? 'Valid' : 'Not Valid'}
                           </dd>
                       `
                     : ''}
                 ${resyncs && resyncs.length > 0
                     ? html`
-                          <dt class="text-gray-500">Resync:</dt>
-                          <dd class="text-gray-300">
+                          <dt class="text-slate-500">Resync:</dt>
+                          <dd class="text-slate-300">
                               Type ${resyncs[0].type}
                               ${resyncs[0].dT ? `| dT=${resyncs[0].dT}` : ''}
                           </dd>
@@ -77,8 +77,8 @@ const advancedPropertiesTemplate = (as) => {
                     : ''}
                 ${switchingProperty
                     ? html`
-                          <dt class="text-gray-500">Switching:</dt>
-                          <dd class="text-gray-300">
+                          <dt class="text-slate-500">Switching:</dt>
+                          <dd class="text-slate-300">
                               &#8660; ${switchingProperty[':@'].value}
                           </dd>
                       `
@@ -89,7 +89,7 @@ const advancedPropertiesTemplate = (as) => {
 };
 
 const propertyItemTemplate = ({ isEnabled, icon, label, tooltip, isoRef }) => {
-    const stateClasses = isEnabled ? 'text-green-300' : 'text-gray-500';
+    const stateClasses = isEnabled ? 'text-green-300' : 'text-slate-500';
     return html`
         <div
             class="flex items-center gap-1.5 ${tooltipTriggerClasses} ${stateClasses}"
@@ -133,7 +133,7 @@ const adaptationSetPropertiesTemplate = (as) => {
 
     return html`
         <div
-            class="flex items-center gap-4 text-xs bg-gray-900/50 border border-gray-700 rounded-md px-3 py-1"
+            class="flex items-center gap-4 text-xs bg-slate-800/50 border border-slate-700 rounded-md px-3 py-1"
         >
             ${properties.map((prop) => propertyItemTemplate(prop))}
         </div>
@@ -144,7 +144,7 @@ const adaptationSetTemplate = (as, type) => {
     return html`
         <div class="space-y-2">
             <h5
-                class="font-semibold text-gray-300 flex items-center justify-between flex-wrap gap-y-2"
+                class="font-semibold text-slate-200 flex items-center justify-between flex-wrap gap-y-2"
             >
                 <div class="flex items-center gap-2">
                     <span
@@ -154,7 +154,7 @@ const adaptationSetTemplate = (as, type) => {
                     <span class="font-mono text-sm">${as.id || 'N/A'}</span>
                     ${as.group !== null
                         ? html`<span
-                              class="text-xs font-mono bg-gray-700 text-gray-300 px-2 py-0.5 rounded-full"
+                              class="text-xs font-mono bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full"
                               >Group: ${as.group}</span
                           >`
                         : ''}
@@ -176,8 +176,8 @@ const subsetTemplate = (period) => {
     if (!period.subsets || period.subsets.length === 0) return '';
     return html`
         <div class="mt-4">
-            <h5 class="font-semibold text-gray-300">Subsets</h5>
-            <div class="text-xs font-mono text-gray-400 pl-4">
+            <h5 class="font-semibold text-slate-200">Subsets</h5>
+            <div class="text-xs font-mono text-slate-400 pl-4">
                 ${period.subsets.map(
                     (s) =>
                         html`<div>
@@ -195,7 +195,7 @@ const preselectionsTemplate = (period) => {
     return html`
         <div class="mt-4">
             <h5
-                class="font-semibold text-gray-300 ${tooltipTriggerClasses}"
+                class="font-semibold text-slate-200 ${tooltipTriggerClasses}"
                 data-tooltip="A Preselection defines a curated set of Adaptation Sets that form a specific, complete user experience (e.g., for immersive audio)."
                 data-iso="DASH: 5.3.11"
             >
@@ -205,9 +205,9 @@ const preselectionsTemplate = (period) => {
                 ${period.preselections.map(
                     (p) => html`
                         <div
-                            class="text-xs font-mono text-gray-400 bg-gray-900/50 p-2 rounded"
+                            class="text-xs font-mono text-slate-400 bg-slate-900/50 p-2 rounded"
                         >
-                            <div class="text-gray-200">
+                            <div class="text-slate-200">
                                 <strong>ID:</strong> ${p.id} |
                                 <strong>Lang:</strong> ${p.lang || 'N/A'} |
                                 <strong>Roles:</strong> ${p.roles
@@ -228,24 +228,24 @@ const preselectionsTemplate = (period) => {
 
 const periodTemplate = (period, index) => html`
     <details
-        class="bg-gray-800 rounded-lg border border-gray-700 details-animated"
+        class="bg-slate-900 rounded-lg border border-slate-700 details-animated"
         open
     >
         <summary
-            class="font-bold text-lg p-3 cursor-pointer hover:bg-gray-700/50"
+            class="font-bold text-lg p-3 cursor-pointer hover:bg-slate-700/50 text-slate-100"
         >
             Period: ${period.id || `(index ${index})`}
-            <span class="font-normal font-mono text-sm text-gray-400"
+            <span class="font-normal font-mono text-sm text-slate-400"
                 >(Start: ${period.start}s, Duration:
                 ${period.duration ? period.duration + 's' : 'N/A'})</span
             >
         </summary>
-        <div class="p-4 border-t border-gray-700 space-y-4">
+        <div class="p-4 border-t border-slate-700 space-y-4">
             ${period.videoTracks.length > 0
                 ? period.videoTracks.map((as) =>
                       adaptationSetTemplate(as, 'video')
                   )
-                : html`<p class="text-xs text-gray-500">
+                : html`<p class="text-xs text-slate-500">
                       No video Adaptation Sets in this period.
                   </p>`}
             ${period.audioTracks.length > 0
@@ -267,7 +267,7 @@ export const dashStructureTemplate = (summary) => {
     return summary.content.periods.length > 0
         ? html`
               <div>
-                  <h3 class="text-xl font-bold mb-4">Stream Structure</h3>
+                  <h3 class="text-xl font-bold mb-4 text-slate-100">Stream Structure</h3>
                   <div class="space-y-4">
                       ${summary.content.periods.map((p, i) =>
                           periodTemplate(p, i)

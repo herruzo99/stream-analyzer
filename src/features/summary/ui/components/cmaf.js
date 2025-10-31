@@ -7,7 +7,7 @@ const getOverallStatus = (results) => {
     if (!results || results.length === 0) {
         return {
             text: 'Not Run',
-            color: 'text-gray-400',
+            color: 'text-slate-400',
             errors: 0,
             warnings: 0,
         };
@@ -39,16 +39,16 @@ const resultRowTemplate = (result) => {
         info: 'ℹ',
     };
     return html`
-        <tr class="hover:bg-gray-700/50">
-            <td class="p-2 border-t border-gray-700 w-16 text-center">
+        <tr class="hover:bg-slate-700/50">
+            <td class="p-2 border-t border-slate-700 w-16 text-center">
                 <span class="${statusClasses[result.status]} font-bold"
                     >${icon[result.status]}</span
                 >
             </td>
-            <td class="p-2 border-t border-gray-700 text-gray-300">
+            <td class="p-2 border-t border-slate-700 text-slate-300">
                 ${result.text}
             </td>
-            <td class="p-2 border-t border-gray-700 text-gray-400 break-words">
+            <td class="p-2 border-t border-slate-700 text-slate-400 wrap-break-word">
                 ${result.details}
             </td>
         </tr>
@@ -66,18 +66,18 @@ export const cmafValidationSummaryTemplate = (stream) => {
     if (notCmafResult) {
         return html`
             <div>
-                <h3 class="text-xl font-bold mb-4">CMAF Conformance</h3>
-                <div class="bg-gray-800 p-4 rounded-lg border border-gray-700">
+                <h3 class="text-xl font-bold mb-4 text-slate-100">CMAF Conformance</h3>
+                <div class="bg-slate-800 p-4 rounded-lg border border-slate-700">
                     <div class="flex justify-between items-center mb-2">
-                        <span class="text-sm font-medium text-gray-400"
+                        <span class="text-sm font-medium text-slate-400"
                             >Overall Status</span
                         >
-                        <span class="text-lg font-bold text-gray-500"
+                        <span class="text-lg font-bold text-slate-500"
                             >Not Applicable</span
                         >
                     </div>
                     <div
-                        class="text-center text-sm text-gray-400 p-4 bg-gray-900/50 rounded-md"
+                        class="text-center text-sm text-slate-400 p-4 bg-slate-900/50 rounded-md"
                     >
                         <p>${notCmafResult.details}</p>
                     </div>
@@ -101,7 +101,7 @@ export const cmafValidationSummaryTemplate = (stream) => {
     if (status === 'pending') {
         mainAction = html`<button
             disabled
-            class="w-full bg-gray-600 text-white font-bold py-2 px-4 rounded-md flex items-center justify-center gap-2"
+            class="w-full bg-slate-600 text-white font-bold py-2 px-4 rounded-md flex items-center justify-center gap-2"
         >
             ${icons.spinner} Running Check...
         </button>`;
@@ -123,10 +123,10 @@ export const cmafValidationSummaryTemplate = (stream) => {
 
     return html`
         <div>
-            <h3 class="text-xl font-bold mb-4">CMAF Conformance</h3>
-            <div class="bg-gray-800 p-4 rounded-lg border border-gray-700">
+            <h3 class="text-xl font-bold mb-4 text-slate-100">CMAF Conformance</h3>
+            <div class="bg-slate-800 p-4 rounded-lg border border-slate-700">
                 <div class="flex justify-between items-center mb-4">
-                    <span class="text-sm font-medium text-gray-400"
+                    <span class="text-sm font-medium text-slate-400"
                         >Overall Status</span
                     >
                     <span class="text-lg font-bold ${overallStatus.color}"
@@ -139,36 +139,36 @@ export const cmafValidationSummaryTemplate = (stream) => {
                         <div class="text-2xl font-bold text-red-400">
                             ${overallStatus.errors}
                         </div>
-                        <div class="text-xs text-gray-400">Errors</div>
+                        <div class="text-xs text-slate-400">Errors</div>
                     </div>
                     <div>
                         <div class="text-2xl font-bold text-yellow-400">
                             ${overallStatus.warnings}
                         </div>
-                        <div class="text-xs text-gray-400">Warnings</div>
+                        <div class="text-xs text-slate-400">Warnings</div>
                     </div>
                 </div>
 
                 ${mainAction}
                 ${isCmafSummaryExpanded && results
                     ? html` <div
-                          class="bg-gray-900/50 rounded border border-gray-700/50 overflow-hidden mt-4"
+                          class="bg-slate-900/50 rounded border border-slate-700/50 overflow-hidden mt-4"
                       >
                           <table class="w-full text-left text-xs table-auto">
-                              <thead class="bg-gray-800/50">
+                              <thead class="bg-slate-800/50">
                                   <tr>
                                       <th
-                                          class="p-2 font-semibold text-gray-400"
+                                          class="p-2 font-semibold text-slate-400"
                                       >
                                           Status
                                       </th>
                                       <th
-                                          class="p-2 font-semibold text-gray-400"
+                                          class="p-2 font-semibold text-slate-400"
                                       >
                                           Check
                                       </th>
                                       <th
-                                          class="p-2 font-semibold text-gray-400"
+                                          class="p-2 font-semibold text-slate-400"
                                       >
                                           Details
                                       </th>

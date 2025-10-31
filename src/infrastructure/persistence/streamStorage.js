@@ -1,6 +1,7 @@
 import { showToast } from '@/ui/components/toast';
 import { workerService } from '@/infrastructure/worker/workerService';
 import { uiActions } from '@/state/uiStore';
+import { useAnalysisStore } from '@/state/analysisStore';
 
 const HISTORY_KEY = 'stream-analyzer_history';
 const PRESETS_KEY = 'stream-analyzer_presets';
@@ -82,21 +83,26 @@ export const getWorkspaces = () => getItems(WORKSPACES_KEY);
  * @param {import('@/types.ts').Stream} stream The stream object to save.
  */
 export function saveToHistory(stream) {
-    if (!stream || !stream.originalUrl) return;
+    const { streamInputs } = useAnalysisStore.getState();
+    const streamInput = streamInputs.find(input => input.id === stream.id);
+
+    const canonicalUrl = streamInput?.url || stream.originalUrl;
+    if (!canonicalUrl) return;
 
     const history = getHistory();
     const presets = getPresets();
-    const isPreset = presets.some((p) => p.url === stream.originalUrl);
-    if (isPreset) return; // Don't add presets to history
+    const isPreset = presets.some((p) => p.url === canonicalUrl);
+    if (isPreset) return;
 
-    const newHistory = history.filter((item) => item.url !== stream.originalUrl);
+    const newHistory = history.filter((item) => item.url !== canonicalUrl);
+
     newHistory.unshift({
         name: stream.name,
-        url: stream.originalUrl,
+        url: canonicalUrl,
         protocol: stream.protocol,
         type: stream.manifest?.type === 'dynamic' ? 'live' : 'vod',
-        auth: stream.auth, // Persist auth info
-        drmAuth: stream.drmAuth, // Persist DRM auth info
+        auth: streamInput?.auth || stream.auth,
+        drmAuth: streamInput?.drmAuth || stream.drmAuth,
     });
 
     if (newHistory.length > MAX_HISTORY_ITEMS) {
@@ -104,6 +110,7 @@ export function saveToHistory(stream) {
     }
     setItems(HISTORY_KEY, newHistory);
 }
+
 
 /**
  * Saves a stream object as a preset.
