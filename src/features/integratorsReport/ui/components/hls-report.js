@@ -3,7 +3,7 @@ import { statCardTemplate, listCardTemplate } from '../../../summary/ui/componen
 
 const sectionTemplate = (title, content) => html`
     <div>
-        <h3 class="text-xl font-bold text-zinc-100 mb-4">${title}</h3>
+        <h3 class="text-xl font-bold text-slate-100 mb-4">${title}</h3>
         <dl class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(320px,1fr))]">
             ${content}
         </dl>
@@ -70,7 +70,7 @@ export const hlsReportTemplate = (viewModel) => {
                     })
                   : ''}
           `
-        : html`<div class="col-span-full text-sm text-zinc-400">
+        : html`<div class="col-span-full text-sm text-slate-400">
               Timing report is only applicable for Live streams.
           </div>`;
 

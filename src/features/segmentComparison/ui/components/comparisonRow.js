@@ -130,7 +130,7 @@ export const comparisonRowTemplate = (rowData, numColumns) => {
             ${values.map(
                 (value) => html`
                     <div
-                        class="p-3 font-mono text-xs border-r border-gray-700 break-words ${getCellClass(
+                        class="p-3 font-mono text-xs border-r border-gray-700 wrap-break-word ${getCellClass(
                             value
                         )}"
                     >

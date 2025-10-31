@@ -5,7 +5,7 @@ const getOverallStatus = (results) => {
     if (!results || results.length === 0) {
         return {
             text: 'Not Run',
-            color: 'text-gray-400',
+            color: 'text-slate-400',
             errors: 0,
             warnings: 0,
         };
@@ -33,10 +33,10 @@ export const hlsComplianceSummaryTemplate = (stream) => {
 
     return html`
         <div>
-            <h3 class="text-xl font-bold mb-4">HLS Compliance</h3>
-            <div class="bg-gray-800 p-4 rounded-lg border border-gray-700">
+            <h3 class="text-xl font-bold mb-4 text-slate-100">HLS Compliance</h3>
+            <div class="bg-slate-800 p-4 rounded-lg border border-slate-700">
                 <div class="flex justify-between items-center mb-4">
-                    <span class="text-sm font-medium text-gray-400"
+                    <span class="text-sm font-medium text-slate-400"
                         >Overall Status</span
                     >
                     <span class="text-lg font-bold ${overallStatus.color}"
@@ -49,13 +49,13 @@ export const hlsComplianceSummaryTemplate = (stream) => {
                         <div class="text-2xl font-bold text-red-400">
                             ${overallStatus.errors}
                         </div>
-                        <div class="text-xs text-gray-400">Errors</div>
+                        <div class="text-xs text-slate-400">Errors</div>
                     </div>
                     <div>
                         <div class="text-2xl font-bold text-yellow-400">
                             ${overallStatus.warnings}
                         </div>
-                        <div class="text-xs text-gray-400">Warnings</div>
+                        <div class="text-xs text-slate-400">Warnings</div>
                     </div>
                 </div>
 

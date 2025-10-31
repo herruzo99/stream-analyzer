@@ -32,7 +32,7 @@ export const comparisonRowTemplate = (comparisonPoint, numColumns) => {
             </div>
             ${values.map(
                 (value) => html`
-                    <div class="p-2 font-mono text-xs border-r border-gray-700 break-words ${getCellClass(status, value)}">
+                    <div class="p-2 font-mono text-xs border-r border-gray-700 wrap-break-word ${getCellClass(status, value)}">
                         ${unsafeHTML(value ?? '')}
                     </div>
                 `

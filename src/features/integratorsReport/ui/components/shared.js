@@ -20,7 +20,7 @@ export const statCardTemplate = ({
                 ${label}
             </dt>
             <dd
-                class="text-base text-left text-white mt-1 break-words ${valueClass}"
+                class="text-base text-left text-white mt-1 wrap-break-word ${valueClass}"
             >
                 ${value}
             </dd>

@@ -3,7 +3,7 @@ import { tooltipTriggerClasses } from '@/ui/shared/constants';
 
 const steeringValidationResultTemplate = (result) => {
     if (!result) {
-        return html`<p class="text-xs text-gray-400">Not validated.</p>`;
+        return html`<p class="text-xs text-slate-400">Not validated.</p>`;
     }
     if (result.isValid) {
         return html`<div class="flex items-center gap-2">
@@ -62,11 +62,11 @@ export const deliveryInfoTemplate = (stream) => {
 
     return html`
         <div>
-            <h3 class="text-xl font-bold mb-4">Delivery & Steering</h3>
-            <div class="bg-gray-800 p-4 rounded-lg border border-gray-700">
+            <h3 class="text-xl font-bold mb-4 text-slate-100">Delivery & Steering</h3>
+            <div class="bg-slate-800 p-4 rounded-lg border border-slate-700">
                 <dl class="grid gap-x-4 gap-y-2 grid-cols-[auto_1fr]">
                     <dt
-                        class="text-sm font-medium text-gray-400 ${tooltipTriggerClasses}"
+                        class="text-sm font-medium text-slate-400 ${tooltipTriggerClasses}"
                         data-tooltip="The URI of the Content Steering manifest."
                         data-iso="HLS: 4.4.6.6"
                     >
@@ -77,7 +77,7 @@ export const deliveryInfoTemplate = (stream) => {
                     </dd>
 
                     <dt
-                        class="text-sm font-medium text-gray-400 ${tooltipTriggerClasses}"
+                        class="text-sm font-medium text-slate-400 ${tooltipTriggerClasses}"
                         data-tooltip="The initial Pathway to apply until the steering manifest is loaded."
                         data-iso="HLS: 4.4.6.6"
                     >
@@ -88,7 +88,7 @@ export const deliveryInfoTemplate = (stream) => {
                     </dd>
 
                     <dt
-                        class="text-sm font-medium text-gray-400 ${tooltipTriggerClasses}"
+                        class="text-sm font-medium text-slate-400 ${tooltipTriggerClasses}"
                         data-tooltip="The result of fetching and validating the steering manifest against the HLS specification."
                         data-iso="HLS: 7.2"
                     >

@@ -25,7 +25,7 @@ const playbackControlsTemplate = ({ selectedCount }) => {
         justify-center disabled:opacity-50 disabled:cursor-not-allowed
     `;
     const smallButtonClasses = `${buttonClasses} text-sm`;
-    const primaryButtonClasses = `!bg-blue-600/80 hover:!bg-blue-700/80`;
+    const primaryButtonClasses = `bg-blue-600/80! hover:bg-blue-700/80!`;
 
     return html`
         <div

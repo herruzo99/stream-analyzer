@@ -90,11 +90,11 @@ export function renderAppShell(domContext) {
 export const appShellTemplate = () => html`
     <header
         id="mobile-header"
-        class="hidden xl:hidden shrink-0 bg-zinc-900/80 backdrop-blur-sm border-b border-zinc-800 p-3 flex items-center justify-between gap-4 fixed top-0 left-0 right-0 z-20"
+        class="hidden xl:hidden shrink-0 bg-slate-900/80 backdrop-blur-sm border-b border-slate-800 p-3 flex items-center justify-between gap-4 fixed top-0 left-0 right-0 z-20"
     >
         <button
             id="sidebar-toggle-btn"
-            class="text-zinc-300 hover:text-white p-1"
+            class="text-slate-300 hover:text-white p-1"
         >
             <i data-lucide="menu" class="h-6 w-6"></i>
         </button>
@@ -111,7 +111,7 @@ export const appShellTemplate = () => html`
         ></div>
         <aside
             id="sidebar-container"
-            class="bg-zinc-950 border-r border-zinc-800 flex flex-col fixed xl:relative top-0 left-0 bottom-0 z-40 w-72 xl:w-auto -translate-x-full xl:translate-x-0 transition-transform duration-300 ease-in-out"
+            class="bg-slate-950 border-r border-slate-800 flex flex-col fixed xl:relative top-0 left-0 bottom-0 z-40 w-72 xl:w-auto -translate-x-full xl:translate-x-0 transition-transform duration-300 ease-in-out"
         >
             <header class="p-3">
                 <h2 class="text-xl font-bold text-white mb-4 px-2">
@@ -128,21 +128,21 @@ export const appShellTemplate = () => html`
             ></nav>
             <footer id="sidebar-footer" class="shrink-0 p-3 space-y-4"></footer>
         </aside>
-        <div id="app-shell" class="h-full flex flex-col min-h-0 bg-zinc-950">
+        <div id="app-shell" class="h-full flex flex-col min-h-0 bg-slate-900">
             <div
                 id="main-content-wrapper"
                 class="flex flex-col overflow-y-auto grow pt-[60px] xl:pt-0"
             >
                 <header
                     id="main-header"
-                    class="shrink-0 bg-zinc-950/80 backdrop-blur-sm border-b border-zinc-800 p-3 flex items-center justify-between gap-4"
+                    class="shrink-0 bg-slate-900/80 backdrop-blur-sm border-b border-slate-800 p-3 flex items-center justify-between gap-4"
                 >
                     <div
                         id="context-header"
                         class="flex items-center gap-2 sm:gap-4 flex-wrap justify-start w-full"
                     ></div>
                 </header>
-                <main id="content-area" class="grow flex flex-col relative">
+                <main id="content-area" class="grow flex flex-col relative bg-slate-900 ">
                     <div
                         id="tab-view-container"
                         class="grow flex flex-col p-4 sm:p-6"
@@ -156,7 +156,7 @@ export const appShellTemplate = () => html`
         </div>
         <aside
             id="contextual-sidebar"
-            class="bg-zinc-800/80 backdrop-blur-sm border-l border-zinc-700/50 fixed xl:relative top-0 right-0 bottom-0 z-40 w-96 max-w-[90vw] translate-x-full xl:translate-x-0 transition-transform duration-300 ease-in-out flex flex-col min-h-0"
+            class="bg-slate-800/80 backdrop-blur-sm border-l border-slate-700/50 fixed xl:relative top-0 right-0 bottom-0 z-40 w-96 max-w-[90vw] translate-x-full xl:translate-x-0 transition-transform duration-300 ease-in-out flex flex-col min-h-0"
         ></aside>
     </div>
 `;

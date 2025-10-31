@@ -5,12 +5,13 @@ import {
 } from '@/infrastructure/persistence/streamStorage';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { showToast } from '@/ui/components/toast';
+import { uiActions, useUiStore } from '@/state/uiStore';
 
-function handleSavePresetRequest({ name, url, button }) {
+function handleSavePresetRequest({ name, url, button, isPreset }) {
     button.disabled = true;
+    const originalButtonText = button.textContent;
     button.textContent = 'Saving...';
 
-    // Find the full input object to get auth details
     const streamInput = useAnalysisStore
         .getState()
         .streamInputs.find((i) => i.url === url);
@@ -19,7 +20,7 @@ function handleSavePresetRequest({ name, url, button }) {
             message: 'Could not find stream input to save.',
             type: 'fail',
         });
-        button.textContent = 'Save as Preset';
+        button.textContent = originalButtonText;
         button.disabled = false;
         return;
     }
@@ -34,14 +35,22 @@ function handleSavePresetRequest({ name, url, button }) {
                 auth: streamInput.auth,
                 drmAuth: streamInput.drmAuth,
             });
-            // Optionally clear the name field or give other UI feedback
-            button.textContent = 'Saved!';
-            eventBus.dispatch('use-case:preset-saved-successfully');
+
+            button.textContent = isPreset ? 'Updated!' : 'Saved!';
+            setTimeout(() => {
+                // The component will re-render and update the button state,
+                // so we don't need to reset the text here, just re-enable.
+                button.disabled = false;
+            }, 1500);
+
+            // Trigger a re-render of the library panel to show the new/updated preset
+            uiActions.setStreamLibraryTab(
+                useUiStore.getState().streamLibraryActiveTab
+            );
         })
         .catch((err) => {
             console.error('Failed to save preset:', err);
-            // Error toast is already shown by fetchStreamMetadata
-            button.textContent = 'Save as Preset';
+            button.textContent = originalButtonText;
             button.disabled = false;
         });
 }

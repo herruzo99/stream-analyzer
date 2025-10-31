@@ -18,11 +18,11 @@ const renderSourcedValue = (sourcedData) => {
     if (typeof sourcedData === 'boolean') {
         return sourcedData
             ? html`<span class="text-success font-semibold">Yes</span>`
-            : html`<span class="text-zinc-400">No</span>`;
+            : html`<span class="text-slate-400">No</span>`;
     }
 
     if (sourcedData === null || sourcedData === undefined || sourcedData === '') {
-        return html`<span class="text-zinc-500">N/A</span>`;
+        return html`<span class="text-slate-500">N/A</span>`;
     }
 
     return sourcedData;
@@ -42,15 +42,15 @@ export const statCardTemplate = ({ label, value, tooltip, isoRef = null, customC
     }
 
     return html`
-        <div class="bg-zinc-800 p-3 rounded-lg border border-zinc-700 ${customClasses}">
+        <div class="bg-slate-900 p-3 rounded-lg border border-slate-700 ${customClasses}">
             <dt
-                class="text-xs font-medium text-zinc-400 ${tooltipTriggerClasses}"
+                class="text-xs font-medium text-slate-400 ${tooltipTriggerClasses}"
                 data-tooltip="${tooltip}"
                 data-iso="${isoRef}"
             >
                 ${label}
             </dt>
-            <dd class="text-base text-left font-mono text-white mt-1 break-words">
+            <dd class="text-base text-left font-mono text-white mt-1 wrap-break-word">
                 ${renderSourcedValue(value)}
             </dd>
         </div>
@@ -60,9 +60,9 @@ export const statCardTemplate = ({ label, value, tooltip, isoRef = null, customC
 export const listCardTemplate = ({ label, items, tooltip, isoRef = null }) => {
     if (!items || items.length === 0) return '';
     return html`
-        <div class="bg-zinc-800 p-3 rounded-lg border border-zinc-700">
+        <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
             <dt
-                class="text-xs font-medium text-zinc-400 ${tooltipTriggerClasses}"
+                class="text-xs font-medium text-slate-400 ${tooltipTriggerClasses}"
                 data-tooltip="${tooltip}"
                 data-iso="${isoRef || ''}"
             >
@@ -70,7 +70,7 @@ export const listCardTemplate = ({ label, items, tooltip, isoRef = null }) => {
             </dt>
             <dd class="text-sm text-left font-mono text-white mt-2 space-y-1">
                 ${items.map(
-                    (item) => html`<div class="bg-zinc-900/50 p-1 rounded">${renderSourcedValue(item)}</div>`
+                    (item) => html`<div class="bg-slate-900/50 p-1 rounded">${renderSourcedValue(item)}</div>`
                 )}
             </dd>
         </div>
@@ -123,7 +123,7 @@ export const trackTableTemplate = (tracks, type) => {
                           &#9432;
                       </span>
                   </div>`
-                : html`<span class="text-zinc-400">CBR</span>`;
+                : html`<span class="text-slate-400">CBR</span>`;
 
             const relationshipsCell = html`
                 <div class="flex items-center gap-2">
@@ -156,15 +156,15 @@ export const trackTableTemplate = (tracks, type) => {
 
             return html`
                 <tr>
-                    <td class="p-2 font-mono">${track.id}</td>
-                    <td class="p-2 font-mono">${track.bitrateRange || formatBitrate(track.bandwidth)}</td>
-                    <td class="p-2 font-mono">${bandwidthModelCell}</td>
-                    <td class="p-2 font-mono">
+                    <td class="p-2 font-mono text-slate-300">${track.id}</td>
+                    <td class="p-2 font-mono text-slate-300">${track.bitrateRange || formatBitrate(track.bandwidth)}</td>
+                    <td class="p-2 font-mono text-slate-300">${bandwidthModelCell}</td>
+                    <td class="p-2 font-mono text-slate-300">
                         ${resolutions.length > 0 ? resolutions.map((res, i) => html`${i > 0 ? ', ' : ''}${renderSourcedValue(res)}`) : 'N/A'}
                     </td>
-                    <td class="p-2 font-mono">${codecs.map((codec) => renderCodecInfo(codec)) || 'N/A'}</td>
-                    <td class="p-2 font-mono">${track.roles?.join(', ') || 'N/A'}</td>
-                    <td class="p-2 font-mono">${relationshipsCell}</td>
+                    <td class="p-2 font-mono text-slate-300">${codecs.map((codec) => renderCodecInfo(codec)) || 'N/A'}</td>
+                    <td class="p-2 font-mono text-slate-300">${track.roles?.join(', ') || 'N/A'}</td>
+                    <td class="p-2 font-mono text-slate-300">${relationshipsCell}</td>
                 </tr>
             `;
         });
@@ -180,11 +180,11 @@ export const trackTableTemplate = (tracks, type) => {
 
             return html`
                 <tr>
-                    <td class="p-2 font-mono">${track.id}</td>
-                    <td class="p-2 font-mono">${track.lang || 'N/A'}</td>
-                    <td class="p-2 font-mono">${codecs.map((codec) => renderCodecInfo(codec)) || 'N/A'}</td>
-                    <td class="p-2 font-mono">${track.channels || 'N/A'}</td>
-                    <td class="p-2 font-mono">${track.roles?.join(', ') || 'N/A'}</td>
+                    <td class="p-2 font-mono text-slate-300">${track.id}</td>
+                    <td class="p-2 font-mono text-slate-300">${track.lang || 'N/A'}</td>
+                    <td class="p-2 font-mono text-slate-300">${codecs.map((codec) => renderCodecInfo(codec)) || 'N/A'}</td>
+                    <td class="p-2 font-mono text-slate-300">${track.channels || 'N/A'}</td>
+                    <td class="p-2 font-mono text-slate-300">${track.roles?.join(', ') || 'N/A'}</td>
                 </tr>
             `;
         });
@@ -199,23 +199,23 @@ export const trackTableTemplate = (tracks, type) => {
 
             return html`
                 <tr>
-                    <td class="p-2 font-mono">${track.id}</td>
-                    <td class="p-2 font-mono">${track.lang || 'N/A'}</td>
-                    <td class="p-2 font-mono">${codecsOrMimeTypes.map((item) => renderCodecInfo(item)) || 'N/A'}</td>
-                    <td class="p-2 font-mono">${track.roles?.join(', ') || 'N/A'}</td>
+                    <td class="p-2 font-mono text-slate-300">${track.id}</td>
+                    <td class="p-2 font-mono text-slate-300">${track.lang || 'N/A'}</td>
+                    <td class="p-2 font-mono text-slate-300">${codecsOrMimeTypes.map((item) => renderCodecInfo(item)) || 'N/A'}</td>
+                    <td class="p-2 font-mono text-slate-300">${track.roles?.join(', ') || 'N/A'}</td>
                 </tr>
             `;
         });
     }
 
     return html`
-        <div class="bg-zinc-900/50 rounded border border-zinc-700/50 overflow-x-auto">
+        <div class="bg-slate-950/50 rounded border border-slate-700/50 overflow-x-auto">
             <table class="w-full text-left text-xs min-w-[600px]">
-                <thead class="bg-zinc-800/50">
+                <thead class="bg-slate-800/50">
                     <tr>
                         ${headers.map(
                             (h) => html`<th
-                                class="p-2 font-semibold text-zinc-400 ${h.tooltip ? tooltipTriggerClasses : ''}"
+                                class="p-2 font-semibold text-slate-400 ${h.tooltip ? tooltipTriggerClasses : ''}"
                                 data-tooltip="${h.tooltip || ''}"
                             >
                                 ${h.text}
@@ -223,7 +223,7 @@ export const trackTableTemplate = (tracks, type) => {
                         )}
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-zinc-700/50">${rows}</tbody>
+                <tbody class="divide-y divide-slate-700/50">${rows}</tbody>
             </table>
         </div>
     `;

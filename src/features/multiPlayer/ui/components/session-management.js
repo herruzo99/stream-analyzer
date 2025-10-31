@@ -18,14 +18,14 @@ const sessionManagementTemplate = () => {
                 <button
                     @click=${() =>
                         eventBus.dispatch('ui:multi-player:reset-all')}
-                    class="${buttonClasses} !bg-blue-600/80 hover:!bg-blue-700/80"
+                    class="${buttonClasses} bg-blue-600/80! hover:bg-blue-700/80!"
                 >
                     ${icons.sync} Reset All Players
                 </button>
                 <button
                     @click=${() =>
                         eventBus.dispatch('ui:multi-player:clear-all')}
-                    class="${buttonClasses} !bg-red-600/80 hover:!bg-red-700/80"
+                    class="${buttonClasses} bg-red-600/80! hover:bg-red-700/80!"
                 >
                     ${icons.xCircle} Clear Duplicates
                 </button>

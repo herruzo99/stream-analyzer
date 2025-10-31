@@ -16,14 +16,15 @@ const workspaceCardTemplate = (input, isActive) => {
         uiActions.setStreamInputActiveMobileTab('inspector');
     };
 
-    const urlPath = input.url ? new URL(input.url).pathname.split('/').pop() : 'No URL';
+    const urlPath = input.url ? (input.url.split('/').pop() || input.url) : 'No URL';
+
 
     return html`
         <div
             @click=${handleSetActive}
-            class="animate-slideInUp bg-gray-800 rounded-lg border-2 p-4 cursor-pointer transition-colors hover:border-blue-400 ${isActive
+            class="animate-slideInUp bg-slate-800 rounded-lg border-2 p-4 cursor-pointer transition-colors hover:border-blue-400 ${isActive
                 ? 'border-blue-500 ring-2 ring-blue-500/50'
-                : 'border-gray-700'}"
+                : 'border-slate-700'}"
             style="animation-delay: ${input.id * 50}ms;"
         >
             <div class="flex justify-between items-start">
@@ -31,9 +32,9 @@ const workspaceCardTemplate = (input, isActive) => {
                     <p class="font-bold text-white truncate" title=${input.name || 'Unnamed Stream'}>
                         ${input.name || `Stream ${input.id + 1}`}
                     </p>
-                    <p class="text-xs text-gray-400 font-mono truncate" title=${input.url}>${urlPath}</p>
+                    <p class="text-xs text-slate-400 font-mono truncate" title=${input.url}>${urlPath}</p>
                 </div>
-                <button @click=${handleRemove} class="text-gray-500 hover:text-red-400 shrink-0 ml-2">${icons.xCircle}</button>
+                <button @click=${handleRemove} class="text-slate-500 hover:text-red-400 shrink-0 ml-2">${icons.xCircle}</button>
             </div>
         </div>
     `;
@@ -112,10 +113,10 @@ export const workspacePanelTemplate = () => {
 
     const emptyStateTemplate = html`
         <div
-            class="h-full flex flex-col items-center justify-center text-center text-gray-500 p-6 border-2 border-dashed border-gray-700 rounded-lg"
+            class="h-full flex flex-col items-center justify-center text-center text-slate-500 p-6 border-2 border-dashed border-slate-700 rounded-lg"
         >
             ${icons.inbox}
-            <p class="mt-4 font-semibold text-lg text-gray-400">Workspace is Empty</p>
+            <p class="mt-4 font-semibold text-lg text-slate-400">Workspace is Empty</p>
             <p class="text-sm mt-1">Add streams by pasting a URL above or dragging files here.</p>
         </div>
     `;
@@ -129,7 +130,7 @@ export const workspacePanelTemplate = () => {
         >
             <div>
                 <h2 class="text-2xl font-bold text-white mb-2">Analysis Workspace</h2>
-                <p class="text-gray-400">
+                <p class="text-slate-400">
                     Add remote streams via URL, or drag & drop local segment files to start an analysis.
                 </p>
             </div>
@@ -139,11 +140,11 @@ export const workspacePanelTemplate = () => {
                     <input
                         type="url"
                         name="url"
-                        class="w-full bg-gray-700 text-white rounded-md p-4 pl-12 text-lg border border-gray-600 focus:ring-2 focus:ring-blue-500"
+                        class="w-full bg-slate-800 text-white rounded-md p-4 pl-12 text-lg border border-slate-700 focus:ring-2 focus:ring-blue-500"
                         placeholder="Paste one or more manifest URLs..."
                         @paste=${handlePaste}
                     />
-                    <div class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">${icons.newAnalysis}</div>
+                    <div class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">${icons.newAnalysis}</div>
                 </div>
                 <button
                     type="submit"
@@ -159,7 +160,7 @@ export const workspacePanelTemplate = () => {
                     : emptyStateTemplate}
             </div>
 
-            <div class="flex gap-4 pt-4 border-t border-gray-700">
+            <div class="flex gap-4 pt-4 border-t border-slate-700">
                 <input
                     type="file"
                     id="local-file-input"
@@ -169,14 +170,14 @@ export const workspacePanelTemplate = () => {
                 />
                 <button
                     @click=${handleFilePicker}
-                    class="w-full bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-4 rounded-md transition duration-300 flex items-center justify-center gap-2"
+                    class="w-full bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold py-3 px-4 rounded-md transition duration-300 flex items-center justify-center gap-2"
                 >
                     ${icons.fileScan}
                     Analyze Local Files
                 </button>
                 <button
                     @click=${handleStreamAnalysis}
-                    class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-md transition duration-300 disabled:bg-gray-700/50 disabled:cursor-not-allowed"
+                    class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-md transition duration-300 disabled:bg-slate-700/50 disabled:cursor-not-allowed"
                     ?disabled=${streamInputs.length === 0}
                 >
                     ${streamInputs.length > 1 ? `Analyze & Compare (${streamInputs.length})` : 'Analyze Stream'}
@@ -185,7 +186,7 @@ export const workspacePanelTemplate = () => {
             <div class="shrink-0">
                 <button
                     @click=${handleSaveWorkspace}
-                    class="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-md disabled:bg-gray-600 disabled:opacity-50"
+                    class="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-md disabled:bg-slate-600 disabled:opacity-50"
                     ?disabled=${streamInputs.length === 0}
                 >
                     Save Workspace
