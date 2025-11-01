@@ -231,14 +231,18 @@ function parseRepresentation(repEl, parentMergedEl) {
         },
         frameRate: getAttr(mergedRepEl, 'frameRate'),
         sar: getAttr(mergedRepEl, 'sar'),
+        audioSamplingRate: getAttr(mergedRepEl, 'audioSamplingRate'),
         scanType: getAttr(mergedRepEl, 'scanType'),
-        segmentProfiles: getAttr(mergedRepEl, 'segmentProfiles'),
+        startWithSAP: getAttr(mergedRepEl, 'startWithSAP')
+            ? parseInt(getAttr(mergedRepEl, 'startWithSAP'), 10)
+            : null,
+        selectionPriority: getAttr(mergedRepEl, 'selectionPriority')
+            ? parseInt(getAttr(mergedRepEl, 'selectionPriority'), 10)
+            : 0,
+        tag: getAttr(mergedRepEl, 'tag'),
         mediaStreamStructureId: getAttr(mergedRepEl, 'mediaStreamStructureId'),
         maximumSAPPeriod: getAttr(mergedRepEl, 'maximumSAPPeriod')
             ? parseFloat(getAttr(mergedRepEl, 'maximumSAPPeriod'))
-            : null,
-        startWithSAP: getAttr(mergedRepEl, 'startWithSAP')
-            ? parseInt(getAttr(mergedRepEl, 'startWithSAP'), 10)
             : null,
         maxPlayoutRate: getAttr(mergedRepEl, 'maxPlayoutRate')
             ? parseFloat(getAttr(mergedRepEl, 'maxPlayoutRate'))
@@ -249,10 +253,6 @@ function parseRepresentation(repEl, parentMergedEl) {
                 : getAttr(mergedRepEl, 'codingDependency') === 'false'
                   ? false
                   : null,
-        selectionPriority: getAttr(mergedRepEl, 'selectionPriority')
-            ? parseInt(getAttr(mergedRepEl, 'selectionPriority'), 10)
-            : 0,
-        tag: getAttr(mergedRepEl, 'tag'),
         eptDelta: null,
         pdDelta: null,
         representationIndex: null,
@@ -281,6 +281,10 @@ function parseRepresentation(repEl, parentMergedEl) {
                 };
             }
         ),
+        audioChannelConfigurations: findChildren(
+            mergedRepEl,
+            'AudioChannelConfiguration'
+        ).map(parseGenericDescriptor),
         framePackings: findChildren(mergedRepEl, 'FramePacking').map(
             parseGenericDescriptor
         ),
@@ -307,6 +311,7 @@ function parseRepresentation(repEl, parentMergedEl) {
         supplementalCodecs: null,
         reqVideoLayout: null,
         serializedManifest: repEl,
+        segmentProfiles: getAttr(mergedRepEl, 'segmentProfiles'),
     };
 
     return repIR;
@@ -446,10 +451,7 @@ function parseAdaptationSet(asEl, parentMergedEl) {
         audioChannelConfigurations: findChildren(
             mergedAsEl,
             'AudioChannelConfiguration'
-        ).map((el) => ({
-            schemeIdUri: getAttr(el, 'schemeIdUri'),
-            value: getAttr(el, 'value'),
-        })),
+        ).map(parseGenericDescriptor),
         framePackings: findChildren(mergedAsEl, 'FramePacking').map(
             parseGenericDescriptor
         ),

@@ -8,11 +8,11 @@ import { hasMissingTooltips } from '@/features/parserCoverage/domain/tooltip-cov
 const NavLink = (item, activeTab, isSubItem = false) => {
     if (!item.visible) return '';
     const isActive = activeTab === item.key;
-    const paddingClass = isSubItem ? 'pl-11' : 'px-4';
-    const classes = `flex items-center gap-3 ${paddingClass} py-2.5 text-sm font-medium rounded-lg transition-colors ${
+    const paddingClass = isSubItem ? 'pl-6' : 'px-4';
+    const classes = `w-full flex items-center gap-3 ${paddingClass} py-2.5 text-sm font-medium rounded-lg transition-colors ${
         isActive
             ? 'bg-blue-600 text-white'
-            : 'text-gray-400 hover:bg-gray-700 hover:text-white'
+            : 'text-gray-300 hover:bg-gray-700 hover:text-white'
     }`;
 
     const warningIcon = item.hasWarning
@@ -36,7 +36,7 @@ const NavLink = (item, activeTab, isSubItem = false) => {
                 }}
             >
                 ${item.icon}
-                <span class="inline">${item.label}</span>
+                <span class="inline truncate min-w-0">${item.label}</span>
                 ${warningIcon}
             </a>
         </li>
@@ -59,19 +59,19 @@ const NavGroup = (group, activeTab) => {
     );
 
     return html`
-        <details class="group" ?open=${isGroupActive}>
+        <details class="group" open="">
             <summary
-                class="flex items-center gap-3 px-4 py-2 text-sm font-semibold rounded-lg cursor-pointer list-none text-gray-300 hover:bg-gray-700/50"
+                class="flex items-center gap-3 px-4 py-2 text-xs font-semibold uppercase tracking-wider rounded-lg cursor-pointer list-none text-gray-400 hover:bg-gray-700/50"
             >
                 ${group.icon}
-                <span>${group.title}</span>
+                <span class="truncate min-w-0">${group.title}</span>
                 <span
                     class="ml-auto transition-transform duration-200 group-open:rotate-90"
                 >
                     <i data-lucide="chevron-right" class="w-4 h-4"></i>
                 </span>
             </summary>
-            <ul class="pl-4 mt-1 space-y-1">
+            <ul class="pl-2 mt-1 space-y-1">
                 ${group.items.map((item) => NavLink(item, activeTab, true))}
             </ul>
         </details>

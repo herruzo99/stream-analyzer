@@ -488,8 +488,16 @@ export const dashTooltipData = {
 
     // Descriptors
     Accessibility: {
-        text: 'Provides information about accessibility features for the content, such as audio descriptions or closed captions for the hard-of-hearing.',
+        text: 'Provides information about accessibility features for the content, such as audio descriptions or closed captions for the hard-of-hearing. It consists of a scheme and a value.',
         isoRef: 'Clause 5.8.4.3',
+    },
+    'Accessibility@schemeIdUri': {
+        text: 'A URI that identifies the classification scheme for the accessibility feature. For example, "urn:tva:metadata:cs:AudioPurposeCS:2007" for audio descriptions.',
+        isoRef: 'Clause 5.8.2, Table 32',
+    },
+    'Accessibility@value': {
+        text: 'A value whose meaning is defined by the scheme. For the audio purpose scheme, "6" indicates audio description for the visually impaired.',
+        isoRef: 'Clause 5.8.2, Table 32 & TV-Anytime Content Referencing',
     },
     AudioChannelConfiguration: {
         text: 'Specifies the audio channel layout (e.g., stereo, 5.1 surround sound), allowing a client to select tracks compatible with its output hardware.',

@@ -14,7 +14,9 @@ export const aboutModalTemplate = () => html`
             <h3 class="text-lg font-semibold text-white mb-2">Key Features</h3>
             <ul class="space-y-2 list-disc pl-5">
                 <li>
-                    <strong class="text-slate-200">Multi-Stream Comparison:</strong>
+                    <strong class="text-slate-200"
+                        >Multi-Stream Comparison:</strong
+                    >
                     Analyze and compare multiple DASH & HLS manifests
                     side-by-side.
                 </li>
@@ -26,16 +28,23 @@ export const aboutModalTemplate = () => html`
                     the byte-level structure of segments with a hex/tree viewer.
                 </li>
                 <li>
-                    <strong class="text-slate-200">Compliance & Validation:</strong>
-                    Check manifests against industry standards (DASH-IF, HLS) and best practices to identify issues.
+                    <strong class="text-slate-200"
+                        >Compliance & Validation:</strong
+                    >
+                    Check manifests against industry standards (DASH-IF, HLS)
+                    and best practices to identify issues.
                 </li>
                 <li>
-                    <strong class="text-slate-200">Live Stream Monitoring:</strong>
+                    <strong class="text-slate-200"
+                        >Live Stream Monitoring:</strong
+                    >
                     Automatically fetch and diff manifest updates for live
                     streams, highlighting changes in real-time.
                 </li>
                 <li>
-                    <strong class="text-slate-200">Timeline Visualization:</strong>
+                    <strong class="text-slate-200"
+                        >Timeline Visualization:</strong
+                    >
                     Visualize segment and ad break timing on an interactive
                     timeline.
                 </li>
@@ -43,14 +52,12 @@ export const aboutModalTemplate = () => html`
         </div>
 
         <div class="pt-4 border-t border-slate-700">
-            <h3 class="text-lg font-semibold text-white mb-2">
-                Disclaimer
-            </h3>
+            <h3 class="text-lg font-semibold text-white mb-2">Disclaimer</h3>
             <p class="text-slate-400">
-                This software is provided "as is", without warranty of any
-                kind, express or implied, including but not limited to the
-                warranties of merchantability, fitness for a particular purpose
-                and noninfringement. In no event shall the authors or copyright
+                This software is provided "as is", without warranty of any kind,
+                express or implied, including but not limited to the warranties
+                of merchantability, fitness for a particular purpose and
+                noninfringement. In no event shall the authors or copyright
                 holders be liable for any claim, damages or other liability,
                 whether in an action of contract, tort or otherwise, arising
                 from, out of or in connection with the software or the use or
@@ -58,9 +65,7 @@ export const aboutModalTemplate = () => html`
             </p>
         </div>
 
-        <div
-            class="pt-4 border-t border-slate-700 text-center text-slate-400"
-        >
+        <div class="pt-4 border-t border-slate-700 text-center text-slate-400">
             <p>
                 Created by
                 <strong class="text-white">Juan Herruzo Herrero</strong>

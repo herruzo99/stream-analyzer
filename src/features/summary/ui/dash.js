@@ -2,24 +2,41 @@ import { html } from 'lit-html';
 import { cmafValidationSummaryTemplate } from './components/cmaf.js';
 import { dashComplianceSummaryTemplate } from './components/dash-compliance.js';
 import { dashStructureTemplate } from './components/dash-structure.js';
-import { statCardTemplate, listCardTemplate } from './components/shared.js';
-import { useAnalysisStore } from '@/state/analysisStore';
-import { findChildrenRecursive, getAttr } from '@/infrastructure/parsing/dash/recursive-parser';
+import { statCardTemplate } from './components/shared.js';
+import {
+    findChildrenRecursive,
+    getAttr,
+} from '@/infrastructure/parsing/dash/recursive-parser';
+import * as icons from '@/ui/icons';
 
 const programInfoTemplate = (stream) => {
     const programInfo = stream.manifest.programInformations?.[0];
-    if (!programInfo || (!programInfo.title && !programInfo.source && !programInfo.copyright)) {
+    if (
+        !programInfo ||
+        (!programInfo.title && !programInfo.source && !programInfo.copyright)
+    ) {
         return '';
     }
 
     return html`
-        <div class="mb-8 p-4 bg-slate-900 rounded-lg border border-slate-700">
-            <h3 class="text-xl font-bold mb-3 text-slate-100">Program Information</h3>
-            <dl class="grid gap-x-4 gap-y-2 grid-cols-[auto_1fr] text-sm">
-                ${programInfo.title ? html`<dt class="text-slate-400 font-semibold">Title:</dt><dd class="text-slate-200">${programInfo.title}</dd>` : ''}
-                ${programInfo.source ? html`<dt class="text-slate-400 font-semibold">Source:</dt><dd class="text-slate-200">${programInfo.source}</dd>` : ''}
-                ${programInfo.copyright ? html`<dt class="text-slate-400 font-semibold">Copyright:</dt><dd class="text-slate-200">${programInfo.copyright}</dd>` : ''}
-            </dl>
+        <div>
+            <h3 class="text-xl font-bold mb-4 text-slate-100">
+                Program Information
+            </h3>
+            <div
+                class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(250px,1fr))]"
+            >
+                ${statCardTemplate({
+                    label: 'Title',
+                    value: programInfo.title,
+                    icon: icons.film,
+                })}
+                ${statCardTemplate({
+                    label: 'Source',
+                    value: programInfo.source,
+                    icon: icons.server,
+                })}
+            </div>
         </div>
     `;
 };
@@ -27,58 +44,96 @@ const programInfoTemplate = (stream) => {
 export function getDashSummaryTemplate(stream) {
     const summary = stream.manifest.summary;
     const isLive = stream.manifest.type === 'dynamic';
-    const utcTimingEl = findChildrenRecursive(stream.manifest.serializedManifest, 'UTCTiming')[0];
-    const utcTimingValue = utcTimingEl ? `${getAttr(utcTimingEl, 'schemeIdUri')?.split(':').pop()} @ ${getAttr(utcTimingEl, 'value')}` : null;
+    const utcTimingEl = findChildrenRecursive(
+        stream.manifest.serializedManifest,
+        'UTCTiming'
+    )[0];
+    const utcTimingValue = utcTimingEl
+        ? `${getAttr(utcTimingEl, 'schemeIdUri')?.split(':').pop()} @ ${getAttr(utcTimingEl, 'value')}`
+        : null;
 
     return html`
         <div class="space-y-8">
             ${programInfoTemplate(stream)}
             <div>
-                <h3 class="text-xl font-bold mb-4 text-slate-100">General Properties</h3>
-                <dl class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(280px,1fr))]">
+                <h3 class="text-xl font-bold mb-4 text-slate-100">
+                    General Properties
+                </h3>
+                <dl
+                    class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(250px,1fr))]"
+                >
                     ${statCardTemplate({
                         label: 'Stream Type',
                         value: summary.general.streamType,
-                        tooltip: 'Indicates if the stream is live or on-demand.',
+                        tooltip:
+                            'Indicates if the stream is live or on-demand.',
                         isoRef: 'DASH: 5.3.1.2',
                         customClasses: `border-l-4 ${isLive ? 'border-danger' : 'border-info'}`,
+                        icon: isLive ? icons.play : icons.fileText,
+                        iconBgClass: isLive
+                            ? 'bg-red-900/30 text-red-300'
+                            : 'bg-blue-900/30 text-blue-300',
                     })}
                     ${statCardTemplate({
                         label: 'Container Format',
                         value: summary.general.segmentFormat,
                         tooltip: 'The container format for media segments.',
                         isoRef: 'DASH: 5.3.7',
+                        icon: icons.box,
                     })}
                     ${statCardTemplate({
                         label: 'Media Duration',
-                        value: summary.general.duration ? `${summary.general.duration.toFixed(2)}s` : null,
+                        value: summary.general.duration
+                            ? `${summary.general.duration.toFixed(2)}s`
+                            : null,
                         tooltip: 'The total duration of the content.',
                         isoRef: 'DASH: 5.3.1.2',
+                        icon: icons.timer,
                     })}
                     ${statCardTemplate({
                         label: 'Max Segment Duration',
-                        value: summary.dash.maxSegmentDuration ? `${summary.dash.maxSegmentDuration.toFixed(2)}s` : null,
-                        tooltip: 'The maximum duration of any segment in the presentation.',
+                        value: summary.dash.maxSegmentDuration
+                            ? `${summary.dash.maxSegmentDuration.toFixed(2)}s`
+                            : null,
+                        tooltip:
+                            'The maximum duration of any segment in the presentation.',
                         isoRef: 'DASH: 5.3.1.2',
+                        icon: icons.timer,
                     })}
-                    ${isLive ? statCardTemplate({
-                        label: 'DVR Window',
-                        value: summary.dash.timeShiftBufferDepth ? `${summary.dash.timeShiftBufferDepth.toFixed(2)}s` : null,
-                        tooltip: 'The duration of the time-shifting buffer (DVR window).',
-                        isoRef: 'DASH: 5.3.1.2',
-                    }) : ''}
-                    ${isLive ? statCardTemplate({
-                        label: 'Min Update Period',
-                        value: summary.dash.minimumUpdatePeriod ? `${summary.dash.minimumUpdatePeriod.toFixed(2)}s` : null,
-                        tooltip: 'Minimum time a client should wait before requesting an updated MPD.',
-                        isoRef: 'DASH: 5.3.1.2',
-                    }) : ''}
-                    ${isLive ? statCardTemplate({
-                        label: 'UTC Timing Source',
-                        value: utcTimingValue,
-                        tooltip: 'Provides a clock synchronization source for clients.',
-                        isoRef: 'DASH: 5.8.4.11',
-                    }) : ''}
+                    ${isLive
+                        ? statCardTemplate({
+                              label: 'DVR Window',
+                              value: summary.dash.timeShiftBufferDepth
+                                  ? `${summary.dash.timeShiftBufferDepth.toFixed(2)}s`
+                                  : null,
+                              tooltip:
+                                  'The duration of the time-shifting buffer (DVR window).',
+                              isoRef: 'DASH: 5.3.1.2',
+                              icon: icons.history,
+                          })
+                        : ''}
+                    ${isLive
+                        ? statCardTemplate({
+                              label: 'Min Update Period',
+                              value: summary.dash.minimumUpdatePeriod
+                                  ? `${summary.dash.minimumUpdatePeriod.toFixed(2)}s`
+                                  : null,
+                              tooltip:
+                                  'Minimum time a client should wait before requesting an updated MPD.',
+                              isoRef: 'DASH: 5.3.1.2',
+                              icon: icons.updates,
+                          })
+                        : ''}
+                    ${isLive
+                        ? statCardTemplate({
+                              label: 'UTC Timing Source',
+                              value: utcTimingValue,
+                              tooltip:
+                                  'Provides a clock synchronization source for clients.',
+                              isoRef: 'DASH: 5.8.4.11',
+                              icon: icons.clock,
+                          })
+                        : ''}
                 </dl>
             </div>
 

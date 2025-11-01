@@ -18,7 +18,9 @@ const MAX_PRESETS = 50;
 export function prepareForStorage(input) {
     const storableInput = JSON.parse(JSON.stringify(input)); // Deep clone to avoid mutation
     if (storableInput.drmAuth?.serverCertificate instanceof File) {
-        const file = /** @type {File} */ (storableInput.drmAuth.serverCertificate);
+        const file = /** @type {File} */ (
+            storableInput.drmAuth.serverCertificate
+        );
         storableInput.drmAuth.serverCertificate = {
             isFilePlaceholder: true,
             name: file.name,
@@ -75,7 +77,8 @@ function setItems(key, items) {
 export const getHistory = () => getItems(HISTORY_KEY);
 export const getPresets = () => getItems(PRESETS_KEY);
 export const getLastUsedStreams = () => getItems(LAST_USED_KEY);
-export const saveLastUsedStreams = (streams) => setItems(LAST_USED_KEY, streams);
+export const saveLastUsedStreams = (streams) =>
+    setItems(LAST_USED_KEY, streams);
 export const getWorkspaces = () => getItems(WORKSPACES_KEY);
 
 /**
@@ -84,7 +87,7 @@ export const getWorkspaces = () => getItems(WORKSPACES_KEY);
  */
 export function saveToHistory(stream) {
     const { streamInputs } = useAnalysisStore.getState();
-    const streamInput = streamInputs.find(input => input.id === stream.id);
+    const streamInput = streamInputs.find((input) => input.id === stream.id);
 
     const canonicalUrl = streamInput?.url || stream.originalUrl;
     if (!canonicalUrl) return;
@@ -110,7 +113,6 @@ export function saveToHistory(stream) {
     }
     setItems(HISTORY_KEY, newHistory);
 }
-
 
 /**
  * Saves a stream object as a preset.
@@ -141,7 +143,10 @@ export function saveWorkspace(workspace) {
     newWorkspaces.unshift(workspace);
     setItems(WORKSPACES_KEY, newWorkspaces);
     uiActions.loadWorkspaces(); // Trigger UI refresh
-    showToast({ message: `Workspace "${workspace.name}" saved!`, type: 'pass' });
+    showToast({
+        message: `Workspace "${workspace.name}" saved!`,
+        type: 'pass',
+    });
 }
 
 /**

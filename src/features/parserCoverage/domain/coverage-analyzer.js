@@ -252,6 +252,7 @@ const irSchema = {
         'height',
         'frameRate',
         'sar',
+        'audioSamplingRate',
         'mimeType',
         'profiles',
         'qualityRanking',

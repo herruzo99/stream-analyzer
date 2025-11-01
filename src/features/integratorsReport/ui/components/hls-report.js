@@ -1,135 +1,228 @@
 import { html } from 'lit-html';
-import { statCardTemplate, listCardTemplate } from '../../../summary/ui/components/shared.js';
+import {
+    statCardTemplate,
+    listCardTemplate,
+} from '../../../summary/ui/components/shared.js';
+import * as icons from '@/ui/icons';
+import { isCodecSupported } from '@/infrastructure/parsing/utils/codec-support';
 
-const sectionTemplate = (title, content) => html`
-    <div>
-        <h3 class="text-xl font-bold text-slate-100 mb-4">${title}</h3>
-        <dl class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(320px,1fr))]">
-            ${content}
-        </dl>
-    </div>
-`;
+const getStatusColorClass = (status) => {
+    switch (status) {
+        case 'pass':
+            return 'text-green-400';
+        case 'fail':
+            return 'text-red-400';
+        case 'info':
+            return 'text-blue-400';
+        default:
+            return 'text-white';
+    }
+};
+
+const requirementItem = ({
+    icon,
+    label,
+    value,
+    status,
+    tooltip = '',
+    isoRef = '',
+}) => {
+    const statusIcon = {
+        pass: icons.checkCircle,
+        fail: icons.xCircleRed,
+        info: icons.informationCircle,
+    }[status];
+
+    return html`
+        <div
+            class="flex items-center justify-between p-3 border-b border-slate-800 last:border-b-0"
+            data-tooltip=${tooltip}
+            data-iso=${isoRef}
+        >
+            <div class="flex items-center gap-3">
+                <span class="text-slate-300">${icon}</span>
+                <span class="font-semibold text-slate-300">${label}</span>
+            </div>
+            <div class="flex items-center gap-2 font-mono text-sm">
+                <span class="font-semibold text-white">${value}</span>
+                <span class="w-5 h-5 ${getStatusColorClass(status)}"
+                    >${statusIcon}</span
+                >
+            </div>
+        </div>
+    `;
+};
+
+const codecChecklist = (codecs) => {
+    if (!codecs || codecs.length === 0) {
+        return html`<p class="text-sm text-slate-500 px-4 py-2">
+            No codecs specified.
+        </p>`;
+    }
+    return html`
+        <div class="divide-y divide-slate-800">
+            ${codecs.map((codec) => {
+                const isSupported = isCodecSupported(codec);
+                return requirementItem({
+                    icon: icons.clapperboard,
+                    label: 'Codec',
+                    value: codec,
+                    status: isSupported ? 'pass' : 'fail',
+                    tooltip: isSupported
+                        ? `Codec "${codec}" is supported by internal parsers.`
+                        : `Codec "${codec}" is not supported by internal parsers. Playback may fail.`,
+                });
+            })}
+        </div>
+    `;
+};
 
 export const hlsReportTemplate = (viewModel) => {
     const { network, timing, security, integration } = viewModel;
 
-    const networkContent = html`
-        ${listCardTemplate({
-            label: 'Manifest/Playlist Hostnames',
-            items: network.manifestHostnames,
-            tooltip: 'All servers that will be contacted to fetch manifest or playlist files. Required for firewall rules.',
-        })}
-        ${listCardTemplate({
-            label: 'Media Segment Hostnames',
-            items: network.mediaSegmentHostnames,
-            tooltip: 'All servers from which media segments will be fetched. This can differ from manifest hostnames.',
-        })}
-        ${listCardTemplate({
-            label: 'Key/License Hostnames',
-            items: network.keyLicenseHostnames,
-            tooltip: 'All servers contacted for decryption keys. These are high-priority endpoints for network configuration.',
-        })}
-        ${statCardTemplate({
-            label: 'Avg. Segment Request Rate',
-            value: network.avgSegmentRequestRate ? `1 every ${network.avgSegmentRequestRate.toFixed(2)}s` : 'N/A',
-            tooltip: 'The average frequency of media segment requests from the client.',
-        })}
-        ${network.contentSteering
-            ? statCardTemplate({
-                  label: 'Content Steering Server',
-                  value: network.contentSteering.serverUri,
-                  tooltip:
-                      'The URI of the Content Steering manifest for server-side CDN redundancy and load balancing.',
-                  isoRef: 'HLS: 4.4.6.6',
-              })
-            : ''}
+    const securityCard = html`
+        <div class="bg-slate-900 rounded-lg border border-slate-700">
+            <h4
+                class="font-bold text-lg p-3 border-b border-slate-700 text-slate-100 flex items-center gap-2"
+            >
+                ${security.isEncrypted ? icons.lockClosed : icons.lockOpen}
+                Security & Encryption
+            </h4>
+            <div class="divide-y divide-slate-800">
+                ${requirementItem({
+                    icon: icons.shieldCheck,
+                    label: 'Encrypted',
+                    value: security.isEncrypted ? 'Yes' : 'No',
+                    status: security.isEncrypted ? 'fail' : 'pass',
+                    tooltip:
+                        'Indicates if the stream is encrypted and requires a decryption pipeline.',
+                })}
+                ${security.isEncrypted
+                    ? html`
+                          <div class="p-3">
+                              ${statCardTemplate({
+                                  label: 'HLS Encryption Method',
+                                  value: security.hlsEncryptionMethod,
+                                  tooltip:
+                                      'The specific HLS encryption method used (e.g., SAMPLE-AES, AES-128).',
+                                  isoRef: 'HLS: 4.3.2.4',
+                                  icon: icons.key,
+                              })}
+                          </div>
+                          <div class="p-3">
+                              ${listCardTemplate({
+                                  label: 'DRM Systems (KEYFORMAT)',
+                                  items: security.drmSystems.map((s) => s.name),
+                                  tooltip:
+                                      'Detected DRM systems and their unique schemeIdUris, needed for EME APIs.',
+                                  isoRef: 'HLS: 4.4.4.4',
+                                  icon: icons.key,
+                              })}
+                          </div>
+                      `
+                    : ''}
+            </div>
+        </div>
     `;
 
-    const timingContent = timing
-        ? html`
-              ${statCardTemplate({
-                  label: 'Recommended Polling Interval',
-                  value: timing.pollingInterval ? `${timing.pollingInterval}s` : 'N/A',
-                  tooltip:
-                      'The safe interval for a client to reload the manifest for updates without overloading the server.',
-                  isoRef: 'HLS: 6.3.4',
-              })}
-              ${statCardTemplate({
-                  label: 'Low-Latency Mode',
-                  value: timing.lowLatency.active,
-                  tooltip:
-                      'Indicates if low-latency streaming features are active, requiring a different player configuration.',
-              })}
-              ${timing.lowLatency.active
-                  ? statCardTemplate({
-                        label: 'Target Latency',
-                        value: timing.targetLatency ? `${timing.targetLatency}s` : 'Not Specified',
-                        tooltip:
-                            "The server-advertised target latency (PART-HOLD-BACK), providing a concrete goal for player tuning.",
-                        isoRef: 'HLS: 4.4.3.8',
-                    })
-                  : ''}
-          `
-        : html`<div class="col-span-full text-sm text-slate-400">
-              Timing report is only applicable for Live streams.
-          </div>`;
-
-    const securityContent = html`
-        ${statCardTemplate({
-            label: 'Encryption Status',
-            value: security.isEncrypted,
-            tooltip: 'Indicates if the stream is encrypted and requires a decryption pipeline.',
-        })}
-        ${listCardTemplate({
-            label: 'DRM Systems (KEYFORMAT)',
-            items: security.drmSystems.map((s) => s.name),
-            tooltip: 'Detected DRM systems and their unique schemeIdUris, needed for EME APIs.',
-            isoRef: 'HLS: 4.4.4.4',
-        })}
-        ${statCardTemplate({
-            label: 'HLS Encryption Method',
-            value: security.hlsEncryptionMethod,
-            tooltip: 'The specific HLS encryption method used (e.g., SAMPLE-AES, AES-128).',
-            isoRef: 'HLS: 4.3.2.4',
-        })}
+    const supportCard = html`
+        <div class="bg-slate-900 rounded-lg border border-slate-700">
+            <h4
+                class="font-bold text-lg p-3 border-b border-slate-700 text-slate-100 flex items-center gap-2"
+            >
+                ${icons.puzzle} Codec & Version Support
+            </h4>
+            <div class="p-3">
+                <h5 class="font-semibold text-slate-300 text-sm mb-2">
+                    Required Codecs
+                </h5>
+                ${codecChecklist(integration.requiredCodecs)}
+            </div>
+            <div class="p-3 border-t border-slate-800">
+                ${requirementItem({
+                    icon: icons.fileText,
+                    label: 'Required HLS Version',
+                    value: `v${integration.requiredHlsVersion}`,
+                    status: 'info',
+                    tooltip:
+                        'The minimum HLS protocol version the player must support.',
+                    isoRef: 'HLS: 4.3.1.2',
+                })}
+            </div>
+        </div>
     `;
 
-    const integrationContent = html`
-        ${statCardTemplate({
-            label: 'Required HLS Version',
-            value: integration.requiredHlsVersion,
-            tooltip: 'The minimum HLS version required to support all features in the manifest.',
-            isoRef: 'HLS: 4.3.1.2',
-        })}
-        ${statCardTemplate({
-            label: 'Segment Container Format',
-            value: integration.segmentContainerFormat,
-            tooltip: 'The container format of media segments (e.g., ISOBMFF, MPEG-2 TS).',
-        })}
-        ${statCardTemplate({
-            label: 'Trick Play Support',
-            value: integration.trickPlaySupport,
-            tooltip: 'Indicates if dedicated I-Frame playlists are available for fast-forward/rewind.',
-            isoRef: 'HLS: 4.3.4.3',
-        })}
-        ${listCardTemplate({
-            label: 'Subtitle Formats',
-            items: integration.subtitleFormats,
-            tooltip: 'The specific formats used for subtitles or captions (e.g., WebVTT, IMSC1).',
-        })}
-        ${listCardTemplate({
-            label: 'Required Codecs',
-            items: integration.requiredCodecs,
-            tooltip: 'A consolidated list of all unique codecs the player must support.',
-        })}
+    const networkCard = html`
+        <div class="bg-slate-900 rounded-lg border border-slate-700">
+            <h4
+                class="font-bold text-lg p-3 border-b border-slate-700 text-slate-100 flex items-center gap-2"
+            >
+                ${icons.network} Network & Delivery
+            </h4>
+            <div class="p-3 space-y-4">
+                ${listCardTemplate({
+                    label: 'Manifest/Playlist Hostnames',
+                    items: network.manifestHostnames,
+                    icon: icons.server,
+                })}
+                ${listCardTemplate({
+                    label: 'Media Segment Hostnames',
+                    items: network.mediaSegmentHostnames,
+                    icon: icons.server,
+                })}
+                ${listCardTemplate({
+                    label: 'Key/License Hostnames',
+                    items: network.keyLicenseHostnames,
+                    icon: icons.key,
+                })}
+            </div>
+        </div>
     `;
+
+    const timingCard = timing
+        ? html` <div class="bg-slate-900 rounded-lg border border-slate-700">
+              <h4
+                  class="font-bold text-lg p-3 border-b border-slate-700 text-slate-100 flex items-center gap-2"
+              >
+                  ${icons.timer} Timing & Update Strategy (Live)
+              </h4>
+              <div class="p-3 space-y-4">
+                  ${statCardTemplate({
+                      label: 'Recommended Polling Interval',
+                      value: timing.pollingInterval
+                          ? `${timing.pollingInterval.toFixed(2)}s`
+                          : 'N/A',
+                      isoRef: 'HLS: 6.3.4',
+                      icon: icons.updates,
+                  })}
+                  ${statCardTemplate({
+                      label: 'Low-Latency Mode',
+                      value: timing.lowLatency.active ? 'Yes' : 'No',
+                      icon: icons.rabbit,
+                      iconBgClass: timing.lowLatency.active
+                          ? 'bg-blue-900/30 text-blue-300'
+                          : 'bg-slate-800 text-slate-400',
+                  })}
+                  ${timing.lowLatency.active
+                      ? statCardTemplate({
+                            label: 'Target Latency (Part Hold Back)',
+                            value: timing.targetLatency
+                                ? `${timing.targetLatency}s`
+                                : 'Not Specified',
+                            isoRef: 'HLS: 4.4.3.8',
+                            icon: icons.target,
+                        })
+                      : ''}
+              </div>
+          </div>`
+        : html``;
 
     return html`
-        <div class="space-y-8">
-            ${sectionTemplate('Network & Delivery Profile', networkContent)}
-            ${sectionTemplate('Timing & Update Strategy (Live)', timingContent)}
-            ${sectionTemplate('Security & Encryption', securityContent)}
-            ${sectionTemplate('Player Integration Requirements', integrationContent)}
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+            <div class="lg:col-span-2 space-y-6">
+                ${securityCard} ${supportCard}
+            </div>
+            <div class="space-y-6">${networkCard} ${timingCard}</div>
         </div>
     `;
 };

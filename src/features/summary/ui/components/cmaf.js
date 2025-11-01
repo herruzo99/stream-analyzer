@@ -48,7 +48,9 @@ const resultRowTemplate = (result) => {
             <td class="p-2 border-t border-slate-700 text-slate-300">
                 ${result.text}
             </td>
-            <td class="p-2 border-t border-slate-700 text-slate-400 wrap-break-word">
+            <td
+                class="p-2 border-t border-slate-700 text-slate-400 wrap-break-word"
+            >
                 ${result.details}
             </td>
         </tr>
@@ -66,8 +68,12 @@ export const cmafValidationSummaryTemplate = (stream) => {
     if (notCmafResult) {
         return html`
             <div>
-                <h3 class="text-xl font-bold mb-4 text-slate-100">CMAF Conformance</h3>
-                <div class="bg-slate-800 p-4 rounded-lg border border-slate-700">
+                <h3 class="text-xl font-bold mb-4 text-slate-100">
+                    CMAF Conformance
+                </h3>
+                <div
+                    class="bg-slate-800 p-4 rounded-lg border border-slate-700"
+                >
                     <div class="flex justify-between items-center mb-2">
                         <span class="text-sm font-medium text-slate-400"
                             >Overall Status</span
@@ -123,7 +129,9 @@ export const cmafValidationSummaryTemplate = (stream) => {
 
     return html`
         <div>
-            <h3 class="text-xl font-bold mb-4 text-slate-100">CMAF Conformance</h3>
+            <h3 class="text-xl font-bold mb-4 text-slate-100">
+                CMAF Conformance
+            </h3>
             <div class="bg-slate-800 p-4 rounded-lg border border-slate-700">
                 <div class="flex justify-between items-center mb-4">
                     <span class="text-sm font-medium text-slate-400"

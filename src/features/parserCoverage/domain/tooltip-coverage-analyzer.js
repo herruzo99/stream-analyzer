@@ -95,8 +95,8 @@ export function hasMissingTooltips(stream) {
 
     if (stream.protocol === 'dash') {
         return (
-            findDashMissingTooltips(stream.manifest.serializedManifest)
-                .length > 0
+            findDashMissingTooltips(stream.manifest.serializedManifest).length >
+            0
         );
     } else if (stream.protocol === 'hls') {
         return (

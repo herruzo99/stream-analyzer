@@ -32,7 +32,9 @@ function renderComparison() {
             <div class="flex justify-between items-center mb-4 shrink-0">
                 <h3 class="text-xl font-bold">Manifest Comparison</h3>
                 <div class="flex items-center gap-2">
-                    <label for="hide-same-toggle" class="text-sm text-gray-400">Hide identical rows</label>
+                    <label for="hide-same-toggle" class="text-sm text-gray-400"
+                        >Hide identical rows</label
+                    >
                     <button
                         @click=${() => uiActions.toggleComparisonHideSameRows()}
                         role="switch"
@@ -53,19 +55,30 @@ function renderComparison() {
 
             <div class="overflow-auto grow">
                 <div class="min-w-[1024px]">
-                    <div class="sticky top-0 bg-gray-900/80 backdrop-blur-sm z-10 py-2">
+                    <div
+                        class="sticky top-0 bg-gray-900/80 backdrop-blur-sm z-10 py-2"
+                    >
                         <div class="grid" style="${headerGridStyle}">
-                            <div class="font-semibold text-gray-400 p-2">Property</div>
+                            <div class="font-semibold text-gray-400 p-2">
+                                Property
+                            </div>
                             ${streams.map(
                                 (stream) =>
-                                    html`<div class="font-semibold text-gray-300 p-2 truncate" title="${stream.name}">
+                                    html`<div
+                                        class="font-semibold text-gray-300 p-2 truncate"
+                                        title="${stream.name}"
+                                    >
                                         ${stream.name}
                                     </div>`
                             )}
                         </div>
                     </div>
                     ${groupedComparisonPoints.map((group) =>
-                        comparisonSectionTemplate(group, streams.length, comparisonHideSameRows)
+                        comparisonSectionTemplate(
+                            group,
+                            streams.length,
+                            comparisonHideSameRows
+                        )
                     )}
                 </div>
             </div>

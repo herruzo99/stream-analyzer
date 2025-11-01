@@ -29,6 +29,16 @@ export function parseMdhd(box, view) {
         p.readUint32('duration');
     }
 
+    const timescale = box.details['timescale']?.value;
+    const duration = box.details['duration']?.value;
+    if (timescale > 0 && duration > 0) {
+        box.details['duration_seconds'] = {
+            value: `${(duration / timescale).toFixed(3)}s`,
+            offset: box.details['duration'].offset,
+            length: 0, // This is a derived field, no physical length
+        };
+    }
+
     const langBits = p.readUint16('language_bits');
     if (langBits !== null) {
         const langValue = String.fromCharCode(
@@ -72,6 +82,10 @@ export const mdhdTooltip = {
     'mdhd@duration': {
         text: "The duration of this track's media in the media's own timescale units. This represents the raw, unedited duration.",
         ref: 'ISO/IEC 14496-12, 8.4.2.3',
+    },
+    'mdhd@duration_seconds': {
+        text: 'The calculated duration in seconds, derived by dividing the raw duration by the timescale. This is a non-standard, informational field.',
+        ref: 'Derived',
     },
     'mdhd@language': {
         text: 'An ISO-639-2/T 3-character code that declares the primary language of the media in this track.',

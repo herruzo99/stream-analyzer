@@ -1,15 +1,15 @@
 import { usePlayerStore } from '@/state/playerStore';
+import { useAnalysisStore } from '@/state/analysisStore';
+import { formatBitrate } from '../format';
 
-export const bufferTimelineChartOptions = (videoEl, stream) => {
-    if (!videoEl || !stream) {
+export const bufferTimelineChartOptions = (videoEl, eventLog, abrHistory) => {
+    if (!videoEl) {
         return {};
     }
 
     const { buffered, duration, currentTime, seekable } = videoEl;
-    const { adAvails, events: manifestEvents } = stream.manifest;
-    const { eventLog } =
-        (typeof usePlayerStore !== 'undefined' && usePlayerStore.getState()) ||
-        {};
+    const { streams, activeStreamId } = useAnalysisStore.getState();
+    const stream = streams.find((s) => s.id === activeStreamId);
 
     let displayDuration = duration;
     let timeOffset = 0;
@@ -23,17 +23,16 @@ export const bufferTimelineChartOptions = (videoEl, stream) => {
         displayDuration = seekable.end(seekable.length - 1) - timeOffset;
     }
 
-    if (!buffered || !isFinite(displayDuration) || displayDuration <= 0) {
+    if (!isFinite(displayDuration) || displayDuration <= 0) {
         return {};
     }
 
-    // --- Data Series ---
     const bufferData = [];
     for (let i = 0; i < buffered.length; i++) {
         bufferData.push({
             name: 'Buffered',
             value: [
-                0, // All on the same y-axis category
+                0,
                 buffered.start(i),
                 buffered.end(i),
                 buffered.end(i) - buffered.start(i),
@@ -41,64 +40,91 @@ export const bufferTimelineChartOptions = (videoEl, stream) => {
         });
     }
 
-    // --- Markings ---
-    const markAreas = [];
-    const markLines = [
+    const adAvailMarkAreas = (stream?.adAvails || []).map((avail) => [
         {
-            name: 'Playhead',
-            xAxis: currentTime,
-            lineStyle: { color: '#f87171', width: 2, type: 'solid' },
-            label: { show: false },
+            name: `Ad Avail: ${avail.id}`,
+            itemStyle: { color: 'rgba(168, 85, 247, 0.5)' },
+            xAxis: avail.startTime,
         },
-    ];
+        { xAxis: avail.startTime + avail.duration },
+    ]);
 
-    (adAvails || []).forEach((avail) => {
-        markAreas.push([
-            {
-                name: `Ad Avail: ${avail.id}`,
-                itemStyle: { color: 'rgba(168, 85, 247, 0.5)' },
-                xAxis: avail.startTime,
-            },
-            {
-                xAxis: avail.startTime + avail.duration,
-            },
-        ]);
-    });
+    const abrEvents = (abrHistory || []).map((entry) => ({
+        time: entry.time,
+        type: 'abr',
+        tooltip: `<b>ABR Switch</b><br/>Time: ${entry.time.toFixed(
+            2
+        )}s<br/>Quality: ${entry.height}p @ ${formatBitrate(entry.bitrate)}`,
+    }));
 
-    (eventLog || [])
+    const bufferingEvents = (eventLog || [])
         .filter((e) => e.type === 'buffering' && e.details.includes('started'))
-        .forEach((event) => {
-            const eventTime = parseFloat(
-                event.details.match(/at (\d+\.\d+)s/)?.[1] || '0'
-            );
-            if (eventTime > 0) {
-                markLines.push({
-                    name: 'Buffering Event',
-                    xAxis: eventTime,
-                    lineStyle: { color: '#fbbf24', type: 'dotted', width: 2 },
-                    label: { show: false },
-                });
-            }
-        });
+        .map((event) => {
+            const timeMatch = event.details.match(/at (\d+\.\d+)s/);
+            const eventTime = timeMatch ? parseFloat(timeMatch[1]) : 0;
+            if (eventTime === 0) return null;
+
+            return {
+                time: eventTime,
+                type: 'buffering',
+                tooltip: `<b>Rebuffering Event</b><br/>Time: ${eventTime.toFixed(
+                    2
+                )}s`,
+            };
+        })
+        .filter(Boolean);
+
+    const allEvents = [...abrEvents, ...bufferingEvents];
 
     return {
         tooltip: {
-            trigger: 'item',
-            // Tooltip is now handled by our global system via chart-renderer.js
-            // This native formatter is a fallback.
+            trigger: 'axis',
+            axisPointer: {
+                type: 'shadow',
+            },
             formatter: (params) => {
+                // --- ARCHITECTURAL FIX ---
+                // Based on ECharts documentation, for an axis trigger, params is an array.
+                // params[0] contains the info for the first series at the hovered point.
+                // params[0].axisValue is the raw numerical value for the x-axis.
                 if (
-                    params.seriesName === 'Buffered' &&
-                    Array.isArray(params.value)
+                    !params ||
+                    params.length === 0 ||
+                    params[0].axisValue === undefined ||
+                    typeof params[0].axisValue !== 'number'
                 ) {
-                    const [_, start, end, dur] = params.value;
-                    return `<b>Buffered Range</b><br/>Start: ${start.toFixed(
-                        2
-                    )}s<br/>End: ${end.toFixed(
-                        2
-                    )}s<br/>Duration: ${dur.toFixed(2)}s`;
+                    return '';
                 }
-                return '';
+                const hoverTime = params[0].axisValue;
+                // --- END FIX ---
+
+                const timeRemaining = duration - hoverTime;
+
+                let bufferStart = 0,
+                    bufferEnd = 0,
+                    bufferRemaining = 0;
+                for (let i = 0; i < buffered.length; i++) {
+                    if (
+                        hoverTime >= buffered.start(i) &&
+                        hoverTime <= buffered.end(i)
+                    ) {
+                        bufferStart = buffered.start(i);
+                        bufferEnd = buffered.end(i);
+                        bufferRemaining = bufferEnd - hoverTime;
+                        break;
+                    }
+                }
+
+                return `
+                    <div class="echarts-timeline-tooltip">
+                        <b>Time:</b> ${hoverTime.toFixed(2)}s<br/>
+                        <b>Remaining:</b> ${timeRemaining.toFixed(2)}s<br/>
+                        <b>Buffer Ahead:</b> ${bufferRemaining.toFixed(2)}s<br/>
+                        <span style="color: #9ca3af;">Buffer Range: ${bufferStart.toFixed(
+                            2
+                        )}s - ${bufferEnd.toFixed(2)}s</span>
+                    </div>
+                `;
             },
         },
         grid: { top: 0, bottom: 0, left: 0, right: 0 },
@@ -108,37 +134,91 @@ export const bufferTimelineChartOptions = (videoEl, stream) => {
             show: false,
             type: 'value',
         },
-        yAxis: { show: false, type: 'category' },
+        yAxis: { show: false, type: 'category', data: ['timeline'] },
         series: [
+            {
+                name: 'Timeline Background',
+                type: 'custom',
+                renderItem: (params, api) => ({
+                    type: 'rect',
+                    shape: {
+                        x: api.coord([api.value(1), 0])[0],
+                        y: api.coord([0, 0])[1] - api.size([0, 1])[1] * 0.4,
+                        width:
+                            api.coord([api.value(2), 0])[0] -
+                            api.coord([api.value(1), 0])[0],
+                        height: api.size([0, 1])[1] * 0.8,
+                    },
+                    style: { fill: '#0f172a' },
+                }),
+                data: [[0, timeOffset, timeOffset + displayDuration]],
+                silent: true,
+            },
             {
                 name: 'Buffered',
                 type: 'custom',
-                renderItem: (params, api) => {
-                    const categoryIndex = api.value(0);
-                    const start = api.coord([api.value(1), categoryIndex]);
-                    const end = api.coord([api.value(2), categoryIndex]);
-                    const height = api.size([0, 1])[1]; // Use full height
-                    return {
-                        type: 'rect',
-                        shape: {
-                            x: start[0],
-                            y: api.coord([0, categoryIndex])[1] - height / 2,
-                            width: end[0] - start[0],
-                            height: height,
-                        },
-                        style: { fill: '#3b82f6' },
-                    };
-                },
-                itemStyle: { opacity: 0.8 },
-                encode: { x: [1, 2], y: 0 },
+                renderItem: (params, api) => ({
+                    type: 'rect',
+                    shape: {
+                        x: api.coord([api.value(1), 0])[0],
+                        y: api.coord([0, 0])[1] - api.size([0, 1])[1] * 0.4,
+                        width:
+                            api.coord([api.value(2), 0])[0] -
+                            api.coord([api.value(1), 0])[0],
+                        height: api.size([0, 1])[1] * 0.8,
+                    },
+                    style: { fill: '#3b82f6' },
+                }),
                 data: bufferData,
-                markArea: { data: markAreas, silent: false },
+                markArea: { data: adAvailMarkAreas, silent: true },
+            },
+            {
+                name: 'Playhead',
+                type: 'line',
+                data: [],
                 markLine: {
-                    data: markLines,
-                    silent: false,
+                    data: [{ xAxis: currentTime }],
                     symbol: 'none',
+                    lineStyle: { color: '#f87171', width: 2 },
+                    label: { show: false },
                     animation: false,
+                    silent: true,
                 },
+            },
+            {
+                name: 'Events',
+                type: 'custom',
+                renderItem: (params, api) => {
+                    const event = allEvents[params.dataIndex];
+                    const pos = api.coord([event.time, 0]);
+                    let symbol;
+                    if (event.type === 'abr') {
+                        symbol = {
+                            type: 'path',
+                            shape: {
+                                path: 'M -6 -4 L 6 -4 L 0 6 z',
+                                x: pos[0],
+                                y: pos[1] + 4,
+                            },
+                            style: { fill: '#f59e0b' },
+                        };
+                    } else {
+                        // buffering
+                        symbol = {
+                            type: 'circle',
+                            shape: { cx: pos[0], cy: pos[1], r: 5 },
+                            style: { fill: '#ef4444' },
+                        };
+                    }
+                    return symbol;
+                },
+                data: allEvents,
+                tooltip: {
+                    position: 'top',
+                    formatter: (params) =>
+                        `<div class="echarts-timeline-tooltip">${allEvents[params.dataIndex].tooltip}</div>`,
+                },
+                z: 10,
             },
         ],
     };

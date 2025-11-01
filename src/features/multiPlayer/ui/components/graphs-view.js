@@ -46,9 +46,15 @@ export class GraphsViewComponent extends HTMLElement {
 
     disconnectedCallback() {
         if (this.unsubscribe) this.unsubscribe();
-        disposeChart(this.querySelector('#buffer-chart'));
-        disposeChart(this.querySelector('#bandwidth-chart'));
-        disposeChart(this.querySelector('#bitrate-chart'));
+        disposeChart(
+            /** @type {HTMLElement} */ (this.querySelector('#buffer-chart'))
+        );
+        disposeChart(
+            /** @type {HTMLElement} */ (this.querySelector('#bandwidth-chart'))
+        );
+        disposeChart(
+            /** @type {HTMLElement} */ (this.querySelector('#bitrate-chart'))
+        );
     }
 
     renderCharts() {
@@ -62,7 +68,7 @@ export class GraphsViewComponent extends HTMLElement {
             data: p.playbackHistory.map((h) => [h.time, h.buffer]),
         }));
         renderChart(
-            this.querySelector('#buffer-chart'),
+            /** @type {HTMLElement} */ (this.querySelector('#buffer-chart')),
             createChartOptions(
                 'Forward Buffer',
                 'Seconds',
@@ -81,7 +87,7 @@ export class GraphsViewComponent extends HTMLElement {
             ]),
         }));
         renderChart(
-            this.querySelector('#bandwidth-chart'),
+            /** @type {HTMLElement} */ (this.querySelector('#bandwidth-chart')),
             createChartOptions(
                 'Estimated Bandwidth',
                 'Bitrate',
@@ -101,7 +107,7 @@ export class GraphsViewComponent extends HTMLElement {
             ]),
         }));
         renderChart(
-            this.querySelector('#bitrate-chart'),
+            /** @type {HTMLElement} */ (this.querySelector('#bitrate-chart')),
             createChartOptions(
                 'Video Bitrate',
                 'Bitrate',

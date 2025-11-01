@@ -62,7 +62,9 @@ export const deliveryInfoTemplate = (stream) => {
 
     return html`
         <div>
-            <h3 class="text-xl font-bold mb-4 text-slate-100">Delivery & Steering</h3>
+            <h3 class="text-xl font-bold mb-4 text-slate-100">
+                Delivery & Steering
+            </h3>
             <div class="bg-slate-800 p-4 rounded-lg border border-slate-700">
                 <dl class="grid gap-x-4 gap-y-2 grid-cols-[auto_1fr]">
                     <dt

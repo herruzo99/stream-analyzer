@@ -2,7 +2,7 @@ import { initializeLiveStreamMonitor } from '@/application/services/primaryStrea
 import { initializeViewManager } from '@/ui/shell/view-manager';
 import { initializeLiveUpdateProcessor } from '@/application/services/liveUpdateProcessor';
 import { initializeHlsVariantPoller } from '@/application/services/hlsVariantPollerService';
-import { initializeRenderer } from '@/ui/shell/mainRenderer';
+import { initializeRenderer, renderApp } from '@/ui/shell/mainRenderer';
 import { initializeConsentManager } from './consent-manager.js';
 import { container } from './container.js';
 import { workerService } from '@/infrastructure/worker/workerService';

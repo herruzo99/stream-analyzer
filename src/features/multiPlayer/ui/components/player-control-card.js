@@ -2,7 +2,7 @@ import { html, render } from 'lit-html';
 import { eventBus } from '@/application/event-bus';
 import { useMultiPlayerStore } from '@/state/multiPlayerStore';
 import * as icons from '@/ui/icons';
-import './labeled-control.js';
+import '@/ui/components/labeled-control';
 
 const RESOLUTION_OPTIONS = [
     { label: '1080p', value: 1080 },

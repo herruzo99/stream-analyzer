@@ -33,6 +33,7 @@ export const newAnalysis = i('plus-circle');
 export const pause = i('pause-circle');
 export const moon = i('moon');
 export const volumeUp = i('volume-2');
+export const volume1 = i('volume-1');
 export const volumeOff = i('volume-x');
 export const sync = i('sync');
 
@@ -45,13 +46,13 @@ export const chevronUpDown = i('chevrons-up-down', 'h-4 w-4');
 export const menu = i('menu', 'h-6 w-6');
 export const clipboardCopy = i('clipboard-copy', 'h-4 w-4');
 export const download = i('download', 'h-4 w-4');
-export const checkCircle = i('check-circle-2', 'h-4 w-4 text-success');
+export const checkCircle = i('check-circle-2', 'h-5 w-5');
 export const xCircle = i('x-circle', 'h-5 w-5');
-export const xCircleRed = i('x-circle', 'h-5 w-5 text-danger');
+export const xCircleRed = i('x-circle', 'h-5 w-5');
 export const lockClosed = i('lock');
 export const lockOpen = i('unlock');
 export const spinner = i('loader-2', 'h-5 w-5 animate-spin');
-export const film = i('film', 'mx-auto h-12 w-12 text-neutral-500');
+export const film = i('film');
 export const sidebar = i('panel-left-close');
 export const sortAscending = i('arrow-up-a-z');
 export const sortDescending = i('arrow-down-z-a');
@@ -62,15 +63,31 @@ export const arrowRight = i('chevron-right');
 export const viewfinder = i('scan-line');
 export const inbox = i('inbox', 'h-12 w-12 text-neutral-600');
 export const eyeOff = i('eye-off');
+export const box = i('box');
+export const key = i('key');
+export const history = i('history');
+export const rabbit = i('rabbit');
+export const target = i('target');
+export const clock = i('clock');
+export const fastForward = i('fast-forward');
+export const timer = i('timer');
+export const shieldCheck = i('shield-check');
+export const puzzle = i('puzzle');
 
 // --- Property Icons ---
 export const aligned = i('align-vertical-space-around', 'h-4 w-4');
 export const seamless = i('refresh-cw', 'h-4 w-4');
 export const hdcp = i('lock', 'h-4 w-4');
+export const gauge = i('gauge-circle');
+export const rectangleHorizontal = i('rectangle-horizontal');
+export const clapperboard = i('clapperboard');
+export const audioLines = i('audio-lines');
+export const fileText = i('file-text');
+export const server = i('server');
 
 // --- PiP Icons ---
-export const pipEnter = i('pip', 'h-5 w-5');
-export const pipExit = i('pip', 'h-5 w-5');
+export const pipEnter = i('picture-in-picture-2');
+export const pipExit = i('picture-in-picture');
 
 // --- Player Control Icons ---
 export const syncMaster = i('crosshair');

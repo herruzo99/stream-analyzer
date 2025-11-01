@@ -1,4 +1,37 @@
-import * as echarts from 'echarts';
+import {
+    getInstanceByDom,
+    init as initChart,
+    use as useEchartsModules,
+} from 'echarts/core';
+import { LineChart, BarChart, CustomChart } from 'echarts/charts';
+import {
+    GridComponent,
+    TooltipComponent,
+    LegendComponent,
+    DataZoomComponent,
+    MarkLineComponent,
+    MarkAreaComponent,
+    TitleComponent,
+} from 'echarts/components';
+import { CanvasRenderer } from 'echarts/renderers';
+
+// --- ARCHITECTURAL FIX: ECharts Tree-Shaking ---
+// ECharts is a tree-shakable library. We must explicitly import and register
+// the components and renderers we intend to use. This single registration
+// will apply to all charts created via this utility.
+useEchartsModules([
+    CanvasRenderer,
+    LineChart,
+    BarChart,
+    CustomChart,
+    GridComponent,
+    TooltipComponent,
+    LegendComponent,
+    DataZoomComponent,
+    MarkLineComponent,
+    MarkAreaComponent,
+    TitleComponent,
+]);
 
 const chartInstances = new Map();
 const resizeObservers = new Map();
@@ -59,14 +92,15 @@ function hideCustomTooltip() {
  * Renders or updates an ECharts chart in a given container.
  * @param {HTMLElement} container - The DOM element to render the chart into.
  * @param {object} options - The ECharts option object.
+ * @param {Function} [onClick] - An optional callback to handle clicks on the chart's grid.
  */
-export function renderChart(container, options) {
+export function renderChart(container, options, onClick) {
     if (!container) return;
 
     let chart = chartInstances.get(container);
 
     if (!chart) {
-        chart = echarts.init(container);
+        chart = initChart(container);
         chartInstances.set(container, chart);
 
         const resizeObserver = new ResizeObserver(() => {
@@ -78,6 +112,18 @@ export function renderChart(container, options) {
         // Integrate custom tooltip system
         chart.on('mouseover', (params) => showCustomTooltip(params, container));
         chart.on('mouseout', hideCustomTooltip);
+
+        if (onClick) {
+            chart.getZr().on('click', (params) => {
+                const pointInGrid = chart.convertFromPixel('grid', [
+                    params.offsetX,
+                    params.offsetY,
+                ]);
+                if (pointInGrid) {
+                    onClick(pointInGrid[0]);
+                }
+            });
+        }
     }
 
     chart.setOption(options, { notMerge: true });
@@ -85,20 +131,31 @@ export function renderChart(container, options) {
 
 /**
  * Disposes of a chart instance and cleans up resources.
- * @param {HTMLElement} container - The container of the chart to dispose.
+ * @param {HTMLElement | echarts.ECharts} chartOrContainer - The container or the chart instance to dispose.
  */
-export function disposeChart(container) {
-    if (!container) return;
+export function disposeChart(chartOrContainer) {
+    if (!chartOrContainer) return;
 
-    const chart = chartInstances.get(container);
+    const isContainer = chartOrContainer instanceof HTMLElement;
+    const container = isContainer
+        ? chartOrContainer
+        : chartOrContainer.getDom();
+    const chart = isContainer
+        ? chartInstances.get(container)
+        : chartOrContainer;
+
     if (chart) {
         chart.dispose();
-        chartInstances.delete(container);
+        if (isContainer) {
+            chartInstances.delete(container);
+        }
     }
 
-    const observer = resizeObservers.get(container);
-    if (observer) {
-        observer.disconnect();
-        resizeObservers.delete(container);
+    if (isContainer) {
+        const observer = resizeObservers.get(container);
+        if (observer) {
+            observer.disconnect();
+            resizeObservers.delete(container);
+        }
     }
 }

@@ -18,7 +18,8 @@ export class Application {
         this.eventBus.subscribe('state:analysis-complete', ({ streams }) => {
             if (streams.length > 0) {
                 saveToHistory(streams[0]);
-                const defaultTab = streams.length > 1 ? 'comparison' : 'summary';
+                const defaultTab =
+                    streams.length > 1 ? 'comparison' : 'summary';
                 // Only set the default tab if a session isn't being restored, as the session
                 // will set its own active tab.
                 if (!useUiStore.getState().isRestoringSession) {

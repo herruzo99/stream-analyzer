@@ -1,6 +1,6 @@
 import { html, render } from 'lit-html';
 import { playerService } from '../../application/playerService.js';
-import { usePlayerStore } from '@/state/playerStore';
+import { usePlayerStore, playerActions } from '@/state/playerStore';
 import * as icons from '@/ui/icons';
 import { showToast } from '@/ui/components/toast';
 import { toggleDropdown } from '@/ui/services/dropdownService';
@@ -89,14 +89,21 @@ class PlayerControlsComponent extends HTMLElement {
         const formId = form.dataset.formId;
 
         const actions = {
-            'abr-config': () =>
-                playerService.setAbrConfiguration({
+            'abr-config': () => {
+                const newConfig = {
                     bandwidthUpgradeTarget:
                         Number(formData.get('bandwidthUpgradeTarget')) || 0.85,
                     bandwidthDowngradeTarget:
                         Number(formData.get('bandwidthDowngradeTarget')) ||
                         0.95,
-                }),
+                };
+                playerService.setAbrConfiguration(newConfig);
+                playerActions.logEvent({
+                    timestamp: new Date().toLocaleTimeString(),
+                    type: 'interaction',
+                    details: `ABR config updated: Upgrade Target=${newConfig.bandwidthUpgradeTarget}, Downgrade Target=${newConfig.bandwidthDowngradeTarget}`,
+                });
+            },
             'abr-restrictions': () => {
                 const maxBw = formData.get('maxBandwidth');
                 const maxH = formData.get('maxHeight');
@@ -271,6 +278,12 @@ class PlayerControlsComponent extends HTMLElement {
                                         playerService.setAbrConfiguration(
                                             preset.config
                                         );
+                                        playerActions.logEvent({
+                                            timestamp:
+                                                new Date().toLocaleTimeString(),
+                                            type: 'interaction',
+                                            details: `ABR preset changed to: ${preset.label}`,
+                                        });
                                         showToast({
                                             message: `ABR strategy set to ${preset.label}`,
                                             type: 'pass',
@@ -536,7 +549,6 @@ class PlayerControlsComponent extends HTMLElement {
         const videoTracks = player
             .getVariantTracks()
             .filter((t) => t.type === 'variant' && t.videoCodec);
-        videoTracks.sort((a, b) => (b.height || 0) - (a.height || 0));
         const audioTracks = player.getAudioLanguagesAndRoles();
         const textTracks = player.getTextTracks();
 
@@ -557,6 +569,9 @@ class PlayerControlsComponent extends HTMLElement {
     }
 }
 
-if (!customElements.get('player-controls-component')) {
-    customElements.define('player-controls-component', PlayerControlsComponent);
+if (!customElements.get('primary-controls-component')) {
+    customElements.define(
+        'primary-controls-component',
+        PlayerControlsComponent
+    );
 }

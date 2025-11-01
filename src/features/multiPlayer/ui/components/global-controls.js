@@ -1,6 +1,6 @@
 import { html, render } from 'lit-html';
 import { eventBus } from '@/application/event-bus';
-import './labeled-control.js';
+import '@/ui/components/labeled-control';
 
 const RESOLUTION_OPTIONS = [
     { label: 'Auto', value: Infinity },

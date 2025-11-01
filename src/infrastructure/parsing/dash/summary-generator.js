@@ -194,8 +194,13 @@ export async function generateDashSummary(
                                     btrt &&
                                     btrt.details.maxBitrate?.value > 0
                                 ) {
+                                    // --- ARCHITECTURAL IMPROVEMENT ---
+                                    // Preserve the original manifest bandwidth and store the enriched
+                                    // `btrt` value as the primary bandwidth property.
+                                    rep.manifestBandwidth = rep.bandwidth;
                                     rep.bandwidth =
                                         btrt.details.maxBitrate.value;
+                                    // --- END IMPROVEMENT ---
                                 }
                                 const psshBoxes =
                                     parsedSegment.data.boxes.filter(
@@ -237,11 +242,35 @@ export async function generateDashSummary(
         const bitrates = as.representations
             .map((r) => r.bandwidth)
             .filter(Boolean);
-        const codecs = [
-            ...new Set(
-                as.representations.map((r) => r.codecs).filter((c) => c.value)
-            ),
-        ];
+
+        // --- REFACTOR: Correct deduplication logic ---
+        const resolutionsMap = new Map();
+        as.representations.forEach((r) => {
+            if (r.width.value && r.height.value) {
+                const resValue = `${r.width.value}x${r.height.value}`;
+                if (!resolutionsMap.has(resValue)) {
+                    resolutionsMap.set(resValue, {
+                        value: resValue,
+                        source: r.width.source,
+                    });
+                }
+            }
+        });
+        const resolutions = Array.from(resolutionsMap.values());
+
+        const codecsMap = new Map();
+        as.representations.forEach((r) => {
+            if (r.codecs.value && !codecsMap.has(r.codecs.value)) {
+                codecsMap.set(r.codecs.value, {
+                    value: r.codecs.value,
+                    source: r.codecs.source,
+                    supported: isCodecSupported(r.codecs.value),
+                });
+            }
+        });
+        const codecs = Array.from(codecsMap.values());
+        // --- END REFACTOR ---
+
         return {
             id: as.id || 'N/A',
             profiles: as.profiles,
@@ -249,19 +278,8 @@ export async function generateDashSummary(
                 bitrates.length > 0
                     ? `${formatBitrate(Math.min(...bitrates))} - ${formatBitrate(Math.max(...bitrates))}`
                     : 'N/A',
-            resolutions: [
-                ...new Set(
-                    as.representations.map((r) => ({
-                        value: `${r.width.value}x${r.height.value}`,
-                        source: r.width.source,
-                    }))
-                ),
-            ],
-            codecs: codecs.map((c) => ({
-                value: c.value,
-                source: c.source,
-                supported: isCodecSupported(c.value),
-            })),
+            resolutions,
+            codecs,
             scanType: as.representations[0]?.scanType || null,
             videoRange: null,
             roles: as.roles.map((r) => r.value).filter(Boolean),
@@ -269,24 +287,39 @@ export async function generateDashSummary(
     });
 
     const allAudioTracks = allAudioAdaptationSets.map((as) => {
-        const codecs = [
-            ...new Set(
-                as.representations.map((r) => r.codecs).filter((c) => c.value)
-            ),
-        ];
-        const channels = [
-            ...new Set(
-                as.audioChannelConfigurations.map((c) => c.value).filter(Boolean)
-            ),
-        ];
+        // --- REFACTOR: Aggregate channel configs from both AdaptationSet and Representations ---
+        const codecsMap = new Map();
+        const channelsSet = new Set();
+
+        as.representations.forEach((r) => {
+            if (r.codecs.value && !codecsMap.has(r.codecs.value)) {
+                codecsMap.set(r.codecs.value, {
+                    value: r.codecs.value,
+                    source: r.codecs.source,
+                    supported: isCodecSupported(r.codecs.value),
+                });
+            }
+            if (r.audioChannelConfigurations) {
+                r.audioChannelConfigurations.forEach((c) => {
+                    if (c.value) channelsSet.add(c.value);
+                });
+            }
+        });
+
+        if (as.audioChannelConfigurations) {
+            as.audioChannelConfigurations.forEach((c) => {
+                if (c.value) channelsSet.add(c.value);
+            });
+        }
+
+        const codecs = Array.from(codecsMap.values());
+        const channels = Array.from(channelsSet);
+        // --- END REFACTOR ---
+
         return {
             id: as.id || 'N/A',
             lang: as.lang,
-            codecs: codecs.map((c) => ({
-                value: c.value,
-                source: c.source,
-                supported: isCodecSupported(c.value),
-            })),
+            codecs: codecs,
             channels: channels.join(', ') || null,
             isDefault: as.roles.some((r) => r.value === 'main'),
             isForced: false,
@@ -323,9 +356,16 @@ export async function generateDashSummary(
         id: period.id,
         start: period.start,
         duration: period.duration,
-        videoTracks: period.adaptationSets.filter(as => as.contentType === 'video'),
-        audioTracks: period.adaptationSets.filter(as => as.contentType === 'audio'),
-        textTracks: period.adaptationSets.filter(as => as.contentType === 'text' || as.contentType === 'application'),
+        videoTracks: period.adaptationSets.filter(
+            (as) => as.contentType === 'video'
+        ),
+        audioTracks: period.adaptationSets.filter(
+            (as) => as.contentType === 'audio'
+        ),
+        textTracks: period.adaptationSets.filter(
+            (as) =>
+                as.contentType === 'text' || as.contentType === 'application'
+        ),
     }));
 
     const serviceDescription = findChildrenRecursive(

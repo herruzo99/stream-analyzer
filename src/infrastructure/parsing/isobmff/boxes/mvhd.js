@@ -20,6 +20,16 @@ export function parseMvhd(box, view) {
         p.readUint32('duration');
     }
 
+    const timescale = box.details['timescale']?.value;
+    const duration = box.details['duration']?.value;
+    if (timescale > 0 && duration > 0) {
+        box.details['duration_seconds'] = {
+            value: `${(duration / timescale).toFixed(3)}s`,
+            offset: box.details['duration'].offset,
+            length: 0, // This is a derived field, no physical length
+        };
+    }
+
     p.readInt32('rate'); // Actually a 16.16 fixed point
     p.readInt16('volume'); // Actually a 8.8 fixed point
     p.skip(10, 'reserved');
@@ -64,6 +74,10 @@ export const mvhdTooltip = {
     'mvhd@duration': {
         text: "The duration of the presentation in the movie's timescale units. This value is derived from the duration of the longest track.",
         ref: 'ISO/IEC 14496-12, 8.2.2.3',
+    },
+    'mvhd@duration_seconds': {
+        text: 'The calculated duration in seconds, derived by dividing the raw duration by the timescale. This is a non-standard, informational field.',
+        ref: 'Derived',
     },
     'mvhd@rate': {
         text: 'A 16.16 fixed-point number that specifies the preferred playback rate. A value of 0x00010000 (1.0) represents normal forward playback.',

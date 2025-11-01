@@ -9,9 +9,21 @@ export const abrHistoryChartOptions = (history) => {
         tooltip: {
             trigger: 'axis',
             formatter: (params) => {
+                if (!params || params.length === 0) {
+                    return '';
+                }
                 const time = params[0].value[0].toFixed(2);
-                const bandwidth = (params[0].value[1] / 1000000).toFixed(2);
-                const bitrate = (params[1].value[2] / 1000000).toFixed(2);
+                let bandwidth = 'N/A';
+                let bitrate = 'N/A';
+
+                params.forEach((param) => {
+                    if (param.seriesName === 'Est. Bandwidth') {
+                        bandwidth = (param.value[1] / 1000000).toFixed(2);
+                    } else if (param.seriesName === 'Video Bitrate') {
+                        bitrate = (param.value[1] / 1000000).toFixed(2);
+                    }
+                });
+
                 return `Time: ${time}s<br/>Est. Bandwidth: ${bandwidth} Mbps<br/>Video Bitrate: ${bitrate} Mbps`;
             },
         },

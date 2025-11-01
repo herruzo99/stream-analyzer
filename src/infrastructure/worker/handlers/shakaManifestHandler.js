@@ -65,7 +65,9 @@ export async function handleShakaManifestFetch(payload, signal) {
     });
 
     if (!response.ok) {
-        throw new Error(`HTTP error ${response.status} fetching manifest for ${url}`);
+        throw new Error(
+            `HTTP error ${response.status} fetching manifest for ${url}`
+        );
     }
 
     const newManifestString = await response.text();
@@ -229,7 +231,10 @@ export async function handleShakaManifestFetch(payload, signal) {
     // --- END STATEFUL AD RESOLUTION ---
 
     if (detectedProtocol === 'dash') {
-        newManifestObject.summary = await generateDashSummary(newManifestObject, newSerializedObject);
+        newManifestObject.summary = await generateDashSummary(
+            newManifestObject,
+            newSerializedObject
+        );
     } else {
         newManifestObject.summary = await generateHlsSummary(newManifestObject);
     }

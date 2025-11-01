@@ -44,11 +44,16 @@ export const inputViewTemplate = () => {
 
     return html`
         <div class="w-full h-full flex flex-col p-4 sm:p-6 lg:p-8">
-            <header class="flex items-start justify-between gap-4 mb-6 shrink-0">
+            <header
+                class="flex items-start justify-between gap-4 mb-6 shrink-0"
+            >
                 <div>
-                    <h1 class="text-3xl sm:text-4xl font-bold text-white">Stream Analyzer</h1>
+                    <h1 class="text-3xl sm:text-4xl font-bold text-white">
+                        Stream Analyzer
+                    </h1>
                     <p class="text-slate-400 mt-2 text-sm sm:text-base">
-                        An advanced, in-browser tool for analyzing DASH & HLS streams.
+                        An advanced, in-browser tool for analyzing DASH & HLS
+                        streams.
                     </p>
                 </div>
                 <button
@@ -64,7 +69,10 @@ export const inputViewTemplate = () => {
             <div
                 class="grow hidden lg:grid lg:grid-cols-[25%_1.5rem_auto_1.5rem_30%] min-h-0"
             >
-                <div class="flex flex-col min-h-0 animate-slideInUp" style="animation-delay: 100ms;">
+                <div
+                    class="flex flex-col min-h-0 animate-slideInUp"
+                    style="animation-delay: 100ms;"
+                >
                     ${libraryPanelTemplate()}
                 </div>
                 <div></div>
@@ -93,8 +101,16 @@ export const inputViewTemplate = () => {
                     class="fixed bottom-0 left-0 right-0 h-16 bg-slate-800/80 backdrop-blur-sm border-t border-slate-700 flex items-stretch z-10"
                 >
                     ${mobileTabButton('library', 'Library', appIcons.library)}
-                    ${mobileTabButton('workspace', 'Workspace', appIcons.clipboardList)}
-                    ${mobileTabButton('inspector', 'Inspector', appIcons.slidersHorizontal)}
+                    ${mobileTabButton(
+                        'workspace',
+                        'Workspace',
+                        appIcons.clipboardList
+                    )}
+                    ${mobileTabButton(
+                        'inspector',
+                        'Inspector',
+                        appIcons.slidersHorizontal
+                    )}
                 </div>
             </div>
         </div>

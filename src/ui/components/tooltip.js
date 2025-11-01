@@ -1,14 +1,16 @@
 export function setupGlobalTooltipListener(dom) {
     document.body.addEventListener('mouseover', (e) => {
         const target = /** @type {HTMLElement} */ (e.target);
-
         const tooltipTrigger = /** @type {HTMLElement} */ (
             target.closest('[data-tooltip], [data-tooltip-html-b64]')
         );
 
+        // Always hide the tooltip first. If we're moving to a new trigger,
+        // it will be re-shown. If not, it will remain hidden.
+        dom.globalTooltip.style.visibility = 'hidden';
+        dom.globalTooltip.style.opacity = '0';
+
         if (!tooltipTrigger) {
-            dom.globalTooltip.style.visibility = 'hidden';
-            dom.globalTooltip.style.opacity = '0';
             return;
         }
 
@@ -38,8 +40,6 @@ export function setupGlobalTooltipListener(dom) {
         }
 
         if (!tooltipContent.trim()) {
-            dom.globalTooltip.style.visibility = 'hidden';
-            dom.globalTooltip.style.opacity = '0';
             return;
         }
 
@@ -49,17 +49,17 @@ export function setupGlobalTooltipListener(dom) {
         const MARGIN = 10; // 10px margin from viewport edges
         const SPACING = 8; // 8px spacing from the target element
 
-        const targetRect = tooltipTrigger.getBoundingClientRect();
+        const triggerRect = tooltipTrigger.getBoundingClientRect();
         const tooltipRect = dom.globalTooltip.getBoundingClientRect();
 
         // 1. Calculate initial desired position (centered above target)
-        let top = targetRect.top - tooltipRect.height - SPACING;
+        let top = triggerRect.top - tooltipRect.height - SPACING;
         let left =
-            targetRect.left + targetRect.width / 2 - tooltipRect.width / 2;
+            triggerRect.left + triggerRect.width / 2 - tooltipRect.width / 2;
 
         // 2. Check for vertical clipping and flip if necessary
         if (top < MARGIN) {
-            top = targetRect.bottom + SPACING;
+            top = triggerRect.bottom + SPACING;
         }
         // Ensure it doesn't clip at the bottom after flipping
         if (top + tooltipRect.height > window.innerHeight - MARGIN) {
@@ -78,16 +78,6 @@ export function setupGlobalTooltipListener(dom) {
         dom.globalTooltip.style.opacity = '1';
     });
 
-    document.body.addEventListener('mouseout', (e) => {
-        const target = /** @type {HTMLElement} */ (e.target);
-        const relatedTarget = /** @type {HTMLElement} */ (e.relatedTarget);
-        const tooltipTrigger = target.closest(
-            '[data-tooltip], [data-tooltip-html-b64]'
-        );
-
-        if (tooltipTrigger && !tooltipTrigger.contains(relatedTarget)) {
-            dom.globalTooltip.style.visibility = 'hidden';
-            dom.globalTooltip.style.opacity = '0';
-        }
-    });
+    // The 'mouseout' listener is removed as its logic is now consolidated
+    // into the 'mouseover' handler for improved reliability.
 }
