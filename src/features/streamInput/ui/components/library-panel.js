@@ -14,7 +14,10 @@ import { connectedTabBar } from '@/ui/components/tabs';
 
 const getBadge = (text, colorClasses) => {
     if (!text) return '';
-    return html`<span class="text-xs font-semibold px-2 py-0.5 rounded-full ${colorClasses}">${text.toUpperCase()}</span>`;
+    return html`<span
+        class="text-xs font-semibold px-2 py-0.5 rounded-full ${colorClasses}"
+        >${text.toUpperCase()}</span
+    >`;
 };
 
 const renderStreamListItem = (stream, context) => {
@@ -55,10 +58,20 @@ const renderStreamListItem = (stream, context) => {
     const canDelete = context === 'history' || context === 'presets';
 
     return html`
-        <li class="group p-3 hover:bg-slate-700/50 flex justify-between items-center">
+        <li
+            class="group p-3 hover:bg-slate-700/50 flex justify-between items-center"
+        >
             <div class="flex flex-col min-w-0">
-                <span class="font-semibold text-slate-200 truncate" title="${stream.name}">${stream.name}</span>
-                <span class="text-xs text-slate-400 font-mono truncate" title="${stream.url}">${stream.url}</span>
+                <span
+                    class="font-semibold text-slate-200 truncate"
+                    title="${stream.name}"
+                    >${stream.name}</span
+                >
+                <span
+                    class="text-xs text-slate-400 font-mono truncate"
+                    title="${stream.url}"
+                    >${stream.url}</span
+                >
                 <div class="shrink-0 flex items-center gap-2 mt-2">
                     ${protocolBadge} ${typeBadge}
                 </div>
@@ -94,18 +107,32 @@ const renderWorkspaceListItem = (workspace) => {
 
     const handleDelete = (e) => {
         e.stopPropagation();
-        if (confirm(`Are you sure you want to delete the "${workspace.name}" workspace?`)) {
+        if (
+            confirm(
+                `Are you sure you want to delete the "${workspace.name}" workspace?`
+            )
+        ) {
             deleteWorkspace(workspace.name);
         }
     };
 
     return html`
-        <li class="group p-3 hover:bg-slate-700/50 flex justify-between items-center">
+        <li
+            class="group p-3 hover:bg-slate-700/50 flex justify-between items-center"
+        >
             <div class="flex flex-col min-w-0">
-                <span class="font-semibold text-slate-200 truncate" title="${workspace.name}">${workspace.name}</span>
-                <span class="text-xs text-slate-400 mt-1">${workspace.inputs.length} stream(s)</span>
+                <span
+                    class="font-semibold text-slate-200 truncate"
+                    title="${workspace.name}"
+                    >${workspace.name}</span
+                >
+                <span class="text-xs text-slate-400 mt-1"
+                    >${workspace.inputs.length} stream(s)</span
+                >
             </div>
-            <div class="shrink-0 flex items-center gap-2 ml-4 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div
+                class="shrink-0 flex items-center gap-2 ml-4 opacity-0 group-hover:opacity-100 transition-opacity"
+            >
                 <button
                     @click=${handleLoad}
                     class="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 bg-slate-900/50 hover:bg-blue-600 hover:text-white"
@@ -127,32 +154,45 @@ const renderWorkspaceListItem = (workspace) => {
 
 const renderListSection = (title, items, itemTemplate, context) => {
     if (items.length === 0) {
-        return html`<p class="text-center text-sm text-slate-500 p-8">No items found.</p>`;
+        return html`<p class="text-center text-sm text-slate-500 p-8">
+            No items found.
+        </p>`;
     }
     return html`
         <div>
-            <h4 class="font-bold text-slate-400 text-sm tracking-wider uppercase px-3 pt-3 pb-2 sticky top-0 bg-slate-900 z-10">
+            <h4
+                class="font-bold text-slate-400 text-sm tracking-wider uppercase px-3 pt-3 pb-2 sticky top-0 bg-slate-900 z-10"
+            >
                 ${title} (${items.length})
             </h4>
-            <ul class="divide-y divide-slate-700/50">${items.map((item) => itemTemplate(item, context))}</ul>
+            <ul class="divide-y divide-slate-700/50">
+                ${items.map((item) => itemTemplate(item, context))}
+            </ul>
         </div>
     `;
 };
 
 export const libraryPanelTemplate = () => {
-    const { streamLibraryActiveTab, streamLibrarySearchTerm, workspaces } = useUiStore.getState();
+    const { streamLibraryActiveTab, streamLibrarySearchTerm, workspaces } =
+        useUiStore.getState();
     const lowerSearch = streamLibrarySearchTerm.toLowerCase();
 
     let content;
 
     if (streamLibrarySearchTerm) {
         // Global search view
-        const filteredWorkspaces = workspaces.filter((w) => w.name.toLowerCase().includes(lowerSearch));
+        const filteredWorkspaces = workspaces.filter((w) =>
+            w.name.toLowerCase().includes(lowerSearch)
+        );
         const filteredPresets = getPresets().filter(
-            (s) => s.name.toLowerCase().includes(lowerSearch) || s.url.toLowerCase().includes(lowerSearch)
+            (s) =>
+                s.name.toLowerCase().includes(lowerSearch) ||
+                s.url.toLowerCase().includes(lowerSearch)
         );
         const filteredHistory = getHistory().filter(
-            (s) => s.name.toLowerCase().includes(lowerSearch) || s.url.toLowerCase().includes(lowerSearch)
+            (s) =>
+                s.name.toLowerCase().includes(lowerSearch) ||
+                s.url.toLowerCase().includes(lowerSearch)
         );
         const filteredExamples = exampleStreams.filter(
             (s) =>
@@ -168,27 +208,68 @@ export const libraryPanelTemplate = () => {
             filteredExamples.length;
 
         if (totalResults === 0) {
-            content = html`<p class="text-center text-sm text-slate-500 p-8">No items match your search.</p>`;
+            content = html`<p class="text-center text-sm text-slate-500 p-8">
+                No items match your search.
+            </p>`;
         } else {
             content = html`
                 <div class="space-y-4">
-                    ${renderListSection('Workspaces', filteredWorkspaces, renderWorkspaceListItem)}
-                    ${renderListSection('Presets', filteredPresets, renderStreamListItem, 'presets')}
-                    ${renderListSection('History', filteredHistory, renderStreamListItem, 'history')}
-                    ${renderListSection('Examples', filteredExamples, renderStreamListItem, 'examples')}
+                    ${renderListSection(
+                        'Workspaces',
+                        filteredWorkspaces,
+                        renderWorkspaceListItem
+                    )}
+                    ${renderListSection(
+                        'Presets',
+                        filteredPresets,
+                        renderStreamListItem,
+                        'presets'
+                    )}
+                    ${renderListSection(
+                        'History',
+                        filteredHistory,
+                        renderStreamListItem,
+                        'history'
+                    )}
+                    ${renderListSection(
+                        'Examples',
+                        filteredExamples,
+                        renderStreamListItem,
+                        'examples'
+                    )}
                 </div>
             `;
         }
     } else {
         // Tabbed view
         if (streamLibraryActiveTab === 'workspaces') {
-            content = renderListSection('Workspaces', workspaces, renderWorkspaceListItem, 'workspaces');
+            content = renderListSection(
+                'Workspaces',
+                workspaces,
+                renderWorkspaceListItem,
+                'workspaces'
+            );
         } else if (streamLibraryActiveTab === 'presets') {
-            content = renderListSection('Presets', getPresets(), renderStreamListItem, 'presets');
+            content = renderListSection(
+                'Presets',
+                getPresets(),
+                renderStreamListItem,
+                'presets'
+            );
         } else if (streamLibraryActiveTab === 'history') {
-            content = renderListSection('History', getHistory(), renderStreamListItem, 'history');
+            content = renderListSection(
+                'History',
+                getHistory(),
+                renderStreamListItem,
+                'history'
+            );
         } else {
-            content = renderListSection('Examples', exampleStreams, renderStreamListItem, 'examples');
+            content = renderListSection(
+                'Examples',
+                exampleStreams,
+                renderStreamListItem,
+                'examples'
+            );
         }
     }
 
@@ -200,17 +281,24 @@ export const libraryPanelTemplate = () => {
     ];
 
     return html`
-        <div class="flex flex-col h-full bg-slate-900 rounded-lg border border-slate-700">
+        <div
+            class="flex flex-col h-full bg-slate-900 rounded-lg border border-slate-700"
+        >
             <div class="p-3 space-y-3 shrink-0">
                 <h3 class="text-lg font-bold text-white">Stream Library</h3>
                 <input
                     type="search"
                     placeholder="Search library..."
                     .value=${streamLibrarySearchTerm}
-                    @input=${(e) => uiActions.setStreamLibrarySearchTerm(e.target.value)}
+                    @input=${(e) =>
+                        uiActions.setStreamLibrarySearchTerm(e.target.value)}
                     class="w-full bg-slate-800 text-white rounded-md p-2 border border-slate-600 focus:ring-1 focus:ring-blue-500"
                 />
-                ${connectedTabBar(tabs, streamLibraryActiveTab, uiActions.setStreamLibraryTab)}
+                ${connectedTabBar(
+                    tabs,
+                    streamLibraryActiveTab,
+                    uiActions.setStreamLibraryTab
+                )}
             </div>
             <div class="grow overflow-y-auto">${content}</div>
         </div>

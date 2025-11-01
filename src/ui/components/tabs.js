@@ -33,7 +33,8 @@ export const tabBar = (tabs, activeKey, clickHandler) => {
         <div class="flex items-center gap-2 flex-wrap">
             ${tabs.map((tab) =>
                 tabButton(
-                    html`${tab.label} ${tab.count !== undefined ? `(${tab.count})` : ''}`,
+                    html`${tab.label}
+                    ${tab.count !== undefined ? `(${tab.count})` : ''}`,
                     tab.key,
                     activeKey,
                     clickHandler
@@ -48,7 +49,12 @@ export const connectedTabBar = (tabs, activeKey, clickHandler) => {
         <div>
             <nav class="flex space-x-2 border-b border-slate-700 px-2">
                 ${tabs.map((tab) =>
-                    connectedTabButton(tab.label, tab.key, activeKey, clickHandler)
+                    connectedTabButton(
+                        tab.label,
+                        tab.key,
+                        activeKey,
+                        clickHandler
+                    )
                 )}
             </nav>
         </div>

@@ -12,10 +12,20 @@ import './abr-ladder-chart.js';
  * @param {boolean} hideSameRows - Whether to hide identical rows.
  * @returns {import('lit-html').TemplateResult}
  */
-export const comparisonSectionTemplate = (sectionData, numColumns, hideSameRows) => {
-    const rowsToRender = hideSameRows ? sectionData.points.filter((p) => p.status !== 'same') : sectionData.points;
+export const comparisonSectionTemplate = (
+    sectionData,
+    numColumns,
+    hideSameRows
+) => {
+    const rowsToRender = hideSameRows
+        ? sectionData.points.filter((p) => p.status !== 'same')
+        : sectionData.points;
 
-    if (rowsToRender.length === 0 && (!sectionData.abrData || sectionData.abrData.every(d => d.tracks.length === 0))) {
+    if (
+        rowsToRender.length === 0 &&
+        (!sectionData.abrData ||
+            sectionData.abrData.every((d) => d.tracks.length === 0))
+    ) {
         return html``;
     }
 
@@ -32,16 +42,22 @@ export const comparisonSectionTemplate = (sectionData, numColumns, hideSameRows)
 
     return html`
         <div class="bg-gray-800 rounded-lg border border-gray-700 mt-6">
-            <h3 class="text-xl font-bold p-4 border-b border-gray-700 flex items-center">
+            <h3
+                class="text-xl font-bold p-4 border-b border-gray-700 flex items-center"
+            >
                 ${sectionData.title} ${genericWarningIcon}
             </h3>
             ${sectionData.abrData
                 ? html`<div class="p-4 h-80">
-                      <abr-ladder-chart .data=${sectionData.abrData}></abr-ladder-chart>
+                      <abr-ladder-chart
+                          .data=${sectionData.abrData}
+                      ></abr-ladder-chart>
                   </div>`
                 : ''}
             <div class="divide-y divide-gray-700">
-                ${rowsToRender.map((point) => comparisonRowTemplate(point, numColumns))}
+                ${rowsToRender.map((point) =>
+                    comparisonRowTemplate(point, numColumns)
+                )}
             </div>
         </div>
     `;

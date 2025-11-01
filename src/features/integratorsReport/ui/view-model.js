@@ -326,7 +326,9 @@ function getIntegrationRequirements(activeManifest) {
         .some((as) => as.segmentAlignment === true);
 
     return {
-        requiredDashProfiles: summary.dash?.profiles || null,
+        requiredDashProfiles: (summary.dash?.profiles || '')
+            .split(/, */)
+            .filter(Boolean),
         requiredHlsVersion: summary.hls?.version || null,
         segmentContainerFormat: summary.general.segmentFormat,
         trickPlaySupport:

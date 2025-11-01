@@ -3,7 +3,8 @@ import { deliveryInfoTemplate } from './components/delivery.js';
 import { hlsComplianceSummaryTemplate } from './components/hls-compliance.js';
 import { hlsStructureTemplate } from './components/hls-structure.js';
 import { hlsMediaPlaylistTemplate } from './components/hls-media-playlist.js';
-import { statCardTemplate, listCardTemplate } from './components/shared.js';
+import { statCardTemplate } from './components/shared.js';
+import * as icons from '@/ui/icons';
 
 export function getHlsSummaryTemplate(stream) {
     const summary = stream.manifest.summary;
@@ -18,76 +19,116 @@ export function getHlsSummaryTemplate(stream) {
     return html`
         <div class="space-y-8">
             <div>
-                <h3 class="text-xl font-bold mb-4 text-slate-100">General Properties</h3>
-                <dl class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(280px,1fr))]">
+                <h3 class="text-xl font-bold mb-4 text-slate-100">
+                    General Properties
+                </h3>
+                <dl
+                    class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(250px,1fr))]"
+                >
                     ${statCardTemplate({
                         label: 'Stream Type',
                         value: summary.general.streamType,
-                        tooltip: 'Indicates if the stream is live (EVENT) or on-demand (VOD).',
+                        tooltip:
+                            'Indicates if the stream is live (EVENT) or on-demand (VOD).',
                         isoRef: 'HLS: 4.3.3.5',
                         customClasses: `border-l-4 ${isLive ? 'border-danger' : 'border-info'}`,
+                        icon: isLive ? icons.play : icons.fileText,
+                        iconBgClass: isLive
+                            ? 'bg-red-900/30 text-red-300'
+                            : 'bg-blue-900/30 text-blue-300',
                     })}
                     ${statCardTemplate({
                         label: 'HLS Version',
                         value: summary.hls.version,
-                        tooltip: 'Indicates the compatibility version of the Playlist file.',
+                        tooltip:
+                            'Indicates the compatibility version of the Playlist file.',
                         isoRef: 'HLS: 4.3.1.2',
+                        icon: icons.fileText,
                     })}
                     ${statCardTemplate({
                         label: 'Container Format',
                         value: summary.general.segmentFormat,
                         tooltip: 'The container format for media segments.',
                         isoRef: 'HLS: 4.3.2.5',
+                        icon: icons.box,
                     })}
                     ${statCardTemplate({
                         label: 'Media Duration',
-                        value: summary.general.duration ? `${summary.general.duration.toFixed(2)}s` : null,
+                        value: summary.general.duration
+                            ? `${summary.general.duration.toFixed(2)}s`
+                            : null,
                         tooltip: 'The total duration of the content.',
                         isoRef: 'HLS: 4.3.3.5',
+                        icon: icons.timer,
                     })}
                     ${statCardTemplate({
                         label: 'Target Duration',
-                        value: summary.hls.targetDuration ? `${summary.hls.targetDuration}s` : null,
+                        value: summary.hls.targetDuration
+                            ? `${summary.hls.targetDuration}s`
+                            : null,
                         tooltip: 'The maximum Media Segment duration.',
                         isoRef: 'HLS: 4.3.3.1',
+                        icon: icons.timer,
                     })}
-                    ${isLive ? statCardTemplate({
-                        label: 'DVR Window',
-                        value: summary.hls.dvrWindow ? `${summary.hls.dvrWindow.toFixed(2)}s` : null,
-                        tooltip: 'The available duration for seeking backward in the live stream, estimated from segment durations.',
-                        isoRef: 'HLS: 6.3.3',
-                    }) : ''}
+                    ${isLive
+                        ? statCardTemplate({
+                              label: 'DVR Window',
+                              value: summary.hls.dvrWindow
+                                  ? `${summary.hls.dvrWindow.toFixed(2)}s`
+                                  : null,
+                              tooltip:
+                                  'The available duration for seeking backward in the live stream, estimated from segment durations.',
+                              isoRef: 'HLS: 6.3.3',
+                              icon: icons.history,
+                          })
+                        : ''}
                 </dl>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
                 ${hlsComplianceSummaryTemplate(stream)}
                 <div>
-                    <h3 class="text-xl font-bold mb-4 text-slate-100">Content & Security</h3>
+                    <h3 class="text-xl font-bold mb-4 text-slate-100">
+                        Content & Security
+                    </h3>
                     <dl class="grid gap-4 grid-cols-1">
                         ${statCardTemplate({
                             label: 'I-Frame Playlists',
-                            value: summary.hls.iFramePlaylists > 0 ? summary.hls.iFramePlaylists : 0,
-                            tooltip: 'Number of I-Frame only playlists for trick-play modes.',
+                            value:
+                                summary.hls.iFramePlaylists > 0
+                                    ? summary.hls.iFramePlaylists
+                                    : 0,
+                            tooltip:
+                                'Number of I-Frame only playlists for trick-play modes.',
                             isoRef: 'HLS: 4.3.4.3',
+                            icon: icons.fastForward,
                         })}
                         ${statCardTemplate({
                             label: 'Encryption',
                             value: summary.security.isEncrypted,
                             tooltip: 'Indicates if the stream uses encryption.',
                             isoRef: 'HLS: 4.3.2.4',
+                            icon: summary.security.isEncrypted
+                                ? icons.lockClosed
+                                : icons.lockOpen,
+                            iconBgClass: summary.security.isEncrypted
+                                ? 'bg-yellow-900/30 text-yellow-300'
+                                : 'bg-green-900/30 text-green-300',
                         })}
                         ${statCardTemplate({
                             label: 'HLS Encryption Method',
                             value: summary.security.hlsEncryptionMethod,
-                            tooltip: 'The specific HLS encryption method used (AES-128 or SAMPLE-AES).',
+                            tooltip:
+                                'The specific HLS encryption method used (AES-128 or SAMPLE-AES).',
                             isoRef: 'HLS: 4.3.2.4',
+                            icon: icons.shieldCheck,
                         })}
                     </dl>
                 </div>
             </div>
-            
-            ${hlsMediaPlaylistTemplate(summary)} ${hlsStructureTemplate(summary)} ${deliveryInfoTemplate(stream)}
+
+            ${hlsMediaPlaylistTemplate(summary)}
+            ${hlsStructureTemplate(summary)} ${deliveryInfoTemplate(stream)}
         </div>
     `;
 }

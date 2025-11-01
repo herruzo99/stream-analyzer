@@ -5,7 +5,11 @@ import { formatBitrate } from '@/ui/shared/format';
 import * as icons from '@/ui/icons';
 
 const renderSourcedValue = (sourcedData) => {
-    if (typeof sourcedData === 'object' && sourcedData !== null && 'source' in sourcedData) {
+    if (
+        typeof sourcedData === 'object' &&
+        sourcedData !== null &&
+        'source' in sourcedData
+    ) {
         return html`${sourcedData.value}${sourcedData.source === 'segment'
             ? html`<span
                   class="ml-1 text-cyan-400 ${tooltipTriggerClasses}"
@@ -21,210 +25,314 @@ const renderSourcedValue = (sourcedData) => {
             : html`<span class="text-slate-400">No</span>`;
     }
 
-    if (sourcedData === null || sourcedData === undefined || sourcedData === '') {
+    if (
+        sourcedData === null ||
+        sourcedData === undefined ||
+        sourcedData === ''
+    ) {
         return html`<span class="text-slate-500">N/A</span>`;
     }
 
     return sourcedData;
 };
 
-const renderCodecInfo = (codecInfo) => {
-    const supportedIcon = codecInfo.supported ? icons.checkCircle : icons.xCircleRed;
+export const renderCodecInfo = (codecInfo) => {
+    const supportedIcon = codecInfo.supported
+        ? icons.checkCircle
+        : icons.xCircleRed;
+    const colorClass = codecInfo.supported ? 'text-green-400' : 'text-red-400';
+    const tooltip = codecInfo.supported
+        ? 'Codec is supported by internal parsers.'
+        : 'Codec is not supported by internal parsers. Playback may fail.';
 
     return html`<div class="flex items-center">
-        ${renderSourcedValue(codecInfo)}${html`<span class="inline-block ml-2 shrink-0">${supportedIcon}</span>`}
+        ${renderSourcedValue(codecInfo)}${html`<span
+            class="inline-block ml-2 shrink-0 ${colorClass} ${tooltipTriggerClasses}"
+            data-tooltip=${tooltip}
+            >${supportedIcon}</span
+        >`}
     </div>`;
 };
 
-export const statCardTemplate = ({ label, value, tooltip, isoRef = null, customClasses = '' }) => {
+export const statCardTemplate = ({
+    label,
+    value,
+    tooltip = '',
+    isoRef = null,
+    customClasses = '',
+    icon = null,
+    iconBgClass = 'bg-slate-800 text-slate-400',
+}) => {
     if (value === null || value === undefined) {
         return '';
     }
 
     return html`
-        <div class="bg-slate-900 p-3 rounded-lg border border-slate-700 ${customClasses}">
-            <dt
-                class="text-xs font-medium text-slate-400 ${tooltipTriggerClasses}"
-                data-tooltip="${tooltip}"
-                data-iso="${isoRef}"
-            >
-                ${label}
-            </dt>
-            <dd class="text-base text-left font-mono text-white mt-1 wrap-break-word">
-                ${renderSourcedValue(value)}
-            </dd>
+        <div
+            class="bg-slate-900 p-3 rounded-lg border border-slate-700 flex items-center gap-4 ${customClasses}"
+        >
+            ${icon
+                ? html`<div
+                      class="shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${iconBgClass}"
+                  >
+                      ${icon}
+                  </div>`
+                : ''}
+            <div class="grow">
+                <dt
+                    class="text-xs font-medium text-slate-400 ${tooltipTriggerClasses}"
+                    data-tooltip="${tooltip}"
+                    data-iso="${isoRef}"
+                >
+                    ${label}
+                </dt>
+                <dd
+                    class="text-base text-left font-mono text-white mt-1 wrap-break-word"
+                >
+                    ${renderSourcedValue(value)}
+                </dd>
+            </div>
         </div>
     `;
 };
 
-export const listCardTemplate = ({ label, items, tooltip, isoRef = null }) => {
+export const listCardTemplate = ({
+    label,
+    items,
+    tooltip = '',
+    isoRef = null,
+    icon = null,
+}) => {
     if (!items || items.length === 0) return '';
     return html`
         <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
             <dt
-                class="text-xs font-medium text-slate-400 ${tooltipTriggerClasses}"
+                class="text-xs font-medium text-slate-400 flex items-center gap-2 ${tooltipTriggerClasses}"
                 data-tooltip="${tooltip}"
                 data-iso="${isoRef || ''}"
             >
-                ${label}
+                ${icon || ''}
+                <span>${label}</span>
             </dt>
             <dd class="text-sm text-left font-mono text-white mt-2 space-y-1">
                 ${items.map(
-                    (item) => html`<div class="bg-slate-900/50 p-1 rounded">${renderSourcedValue(item)}</div>`
+                    (item) =>
+                        html`<div
+                            class="bg-slate-800/50 p-2 rounded flex items-center justify-between"
+                        >
+                            <span
+                                >${typeof item === 'object' && item.strings
+                                    ? item
+                                    : renderSourcedValue(item)}</span
+                            >
+                        </div>`
                 )}
             </dd>
         </div>
     `;
 };
 
-export const trackTableTemplate = (tracks, type) => {
-    if (!tracks || tracks.length === 0) return '';
-    let headers;
-    let rows;
+const trackCardTemplate = (track, type, gridColumns) => {
+    const icon = {
+        video: icons.clapperboard,
+        audio: icons.audioLines,
+        text: icons.fileText,
+        application: icons.fileText,
+    }[type];
+
+    const roles = track.roles?.join(', ') || 'N/A';
+
+    const codecsToRender = [];
+    if (type === 'text' || type === 'application') {
+        if (Array.isArray(track.codecsOrMimeTypes)) {
+            codecsToRender.push(...track.codecsOrMimeTypes);
+        } else if (track.mimeType) {
+            codecsToRender.push({
+                value: track.mimeType,
+                source: 'manifest',
+                supported: isCodecSupported(track.mimeType),
+            });
+        }
+    } else {
+        if (Array.isArray(track.codecs)) {
+            codecsToRender.push(...track.codecs);
+        } else if (track.codecs && track.codecs.value) {
+            codecsToRender.push({
+                value: track.codecs.value,
+                source: track.codecs.source,
+                supported: isCodecSupported(track.codecs.value),
+            });
+        }
+    }
+
+    let contentTemplate;
 
     if (type === 'video') {
-        headers = [
-            { text: 'ID' },
-            { text: 'Declared Bitrate' },
-            { text: 'Bandwidth Model' },
-            { text: 'Resolution' },
-            { text: 'Codecs' },
-            { text: 'Roles' },
-            { text: 'Relationships' },
-        ];
-        rows = tracks.map((track) => {
-            let resolutions = track.resolutions;
-            if (!resolutions && track.width && track.height) {
-                resolutions =
-                    track.width.value && track.height.value
-                        ? [{ value: `${track.width.value}x${track.height.value}`, source: track.width.source }]
-                        : [];
-            } else if (!resolutions) {
-                resolutions = [];
-            }
+        // --- ARCHITECTURAL IMPROVEMENT ---
+        // Display both effective (from btrt) and manifest bandwidth if they differ.
+        const effectiveBitrate = formatBitrate(track.bandwidth);
+        const manifestBitrate = formatBitrate(track.manifestBandwidth);
+        let bitrate;
+        if (
+            track.manifestBandwidth &&
+            track.bandwidth !== track.manifestBandwidth
+        ) {
+            bitrate = html`${effectiveBitrate}
+                <span
+                    class="block text-[10px] text-yellow-400 ${tooltipTriggerClasses}"
+                    data-tooltip="The manifest @bandwidth is ${manifestBitrate}, but the effective max bitrate from the 'btrt' box in the init segment is ${effectiveBitrate}. The effective rate is shown."
+                    >(Manifest: ${manifestBitrate})</span
+                >`;
+        } else {
+            bitrate = effectiveBitrate;
+        }
+        // --- END IMPROVEMENT ---
 
-            let codecs = track.codecs;
-            if (codecs && !Array.isArray(codecs)) {
-                codecs = codecs.value ? [{ value: codecs.value, source: codecs.source, supported: isCodecSupported(codecs.value) }] : [];
-            } else if (!codecs) {
-                codecs = [];
-            }
-
-            const extendedBw = track.extendedBandwidth;
-            const bandwidthModelCell = extendedBw
-                ? html` <div class="flex items-center">
-                      <span class="font-semibold text-warning">VBR</span>
-                      <span
-                          class="${tooltipTriggerClasses} ml-2 text-cyan-400 cursor-help"
-                          data-tooltip="VBR Model Pairs: ${extendedBw.modelPairs
-                              .map((p) => `[${p.bufferTime}s: ${formatBitrate(p.bandwidth)}]`)
-                              .join(', ')}"
-                      >
-                          &#9432;
-                      </span>
-                  </div>`
-                : html`<span class="text-slate-400">CBR</span>`;
-
-            const relationshipsCell = html`
-                <div class="flex items-center gap-2">
-                    ${track.dependencyId
-                        ? html`<span
-                              class="bg-red-800 text-red-200 px-2 py-0.5 rounded-full text-xs ${tooltipTriggerClasses}"
-                              data-tooltip="Depends on Rep(s): ${track.dependencyId}"
-                              data-iso="DASH: 5.3.5.2"
-                              >Dep</span
-                          >`
-                        : ''}
-                    ${track.associationId
-                        ? html`<span
-                              class="bg-purple-800 text-purple-200 px-2 py-0.5 rounded-full text-xs ${tooltipTriggerClasses}"
-                              data-tooltip="Associated with Rep(s): ${track.associationId}"
-                              data-iso="DASH: 5.3.5.2"
-                              >Assoc</span
-                          >`
-                        : ''}
-                    ${track.mediaStreamStructureId
-                        ? html`<span
-                              class="bg-teal-800 text-teal-200 px-2 py-0.5 rounded-full text-xs ${tooltipTriggerClasses}"
-                              data-tooltip="Shares structure with Rep(s): ${track.mediaStreamStructureId}"
-                              data-iso="DASH: 5.3.5.2"
-                              >Struct</span
-                          >`
-                        : ''}
-                </div>
-            `;
-
-            return html`
-                <tr>
-                    <td class="p-2 font-mono text-slate-300">${track.id}</td>
-                    <td class="p-2 font-mono text-slate-300">${track.bitrateRange || formatBitrate(track.bandwidth)}</td>
-                    <td class="p-2 font-mono text-slate-300">${bandwidthModelCell}</td>
-                    <td class="p-2 font-mono text-slate-300">
-                        ${resolutions.length > 0 ? resolutions.map((res, i) => html`${i > 0 ? ', ' : ''}${renderSourcedValue(res)}`) : 'N/A'}
-                    </td>
-                    <td class="p-2 font-mono text-slate-300">${codecs.map((codec) => renderCodecInfo(codec)) || 'N/A'}</td>
-                    <td class="p-2 font-mono text-slate-300">${track.roles?.join(', ') || 'N/A'}</td>
-                    <td class="p-2 font-mono text-slate-300">${relationshipsCell}</td>
-                </tr>
-            `;
-        });
+        let resolution = 'N/A';
+        if (track.resolutions && track.resolutions.length > 0) {
+            resolution = track.resolutions.map((r) => r.value).join(', ');
+        } else if (track.width?.value && track.height?.value) {
+            resolution = `${track.width.value}x${track.height.value}`;
+        }
+        contentTemplate = html`
+            <div
+                class="p-2 border-r border-slate-700 font-mono text-slate-200 truncate flex items-center gap-2"
+                title=${track.id}
+            >
+                ${icon} <span>${track.id}</span>
+            </div>
+            <div class="p-2 border-r border-slate-700 font-mono text-slate-200">
+                ${bitrate}
+            </div>
+            <div class="p-2 border-r border-slate-700 font-mono text-slate-200">
+                ${resolution}
+            </div>
+            <div
+                class="p-2 border-r border-slate-700 font-mono text-slate-200 space-y-1"
+            >
+                ${codecsToRender.map(
+                    (c) => html`<div>${renderCodecInfo(c)}</div>`
+                )}
+            </div>
+            <div class="p-2 font-mono text-slate-400">${roles}</div>
+        `;
     } else if (type === 'audio') {
-        headers = [{ text: 'ID' }, { text: 'Language' }, { text: 'Codecs' }, { text: 'Channels' }, { text: 'Roles', tooltip: 'Describes the purpose of a track (e.g., "main", "alternate", "commentary").' }];
-        rows = tracks.map((track) => {
-            let codecs = track.codecs;
-            if (codecs && !Array.isArray(codecs)) {
-                codecs = codecs.value ? [{ value: codecs.value, source: codecs.source, supported: isCodecSupported(codecs.value) }] : [];
-            } else if (!codecs) {
-                codecs = [];
-            }
-
-            return html`
-                <tr>
-                    <td class="p-2 font-mono text-slate-300">${track.id}</td>
-                    <td class="p-2 font-mono text-slate-300">${track.lang || 'N/A'}</td>
-                    <td class="p-2 font-mono text-slate-300">${codecs.map((codec) => renderCodecInfo(codec)) || 'N/A'}</td>
-                    <td class="p-2 font-mono text-slate-300">${track.channels || 'N/A'}</td>
-                    <td class="p-2 font-mono text-slate-300">${track.roles?.join(', ') || 'N/A'}</td>
-                </tr>
-            `;
-        });
+        contentTemplate = html`
+            <div
+                class="p-2 border-r border-slate-700 font-mono text-slate-200 truncate flex items-center gap-2"
+                title=${track.id}
+            >
+                ${icon} <span>${track.id}</span>
+            </div>
+            <div class="p-2 border-r border-slate-700 font-mono text-slate-200">
+                ${track.lang || 'N/A'}
+            </div>
+            <div class="p-2 border-r border-slate-700 font-mono text-slate-200">
+                ${track.channels || 'N/A'}
+            </div>
+            <div
+                class="p-2 border-r border-slate-700 font-mono text-slate-200 space-y-1"
+            >
+                ${codecsToRender.map(
+                    (c) => html`<div>${renderCodecInfo(c)}</div>`
+                )}
+            </div>
+            <div class="p-2 font-mono text-slate-400">${roles}</div>
+        `;
     } else {
-        headers = [{ text: 'ID' }, { text: 'Language' }, { text: 'Format' }, { text: 'Roles', tooltip: 'Describes the purpose of a track (e.g., "caption", "subtitle", "forced").' }];
-        rows = tracks.map((track) => {
-            let codecsOrMimeTypes = track.codecsOrMimeTypes;
-            if (codecsOrMimeTypes === undefined) {
-                const value = track.codecs?.value || track.mimeType;
-                codecsOrMimeTypes = value ? [{ value: value, source: 'manifest', supported: isCodecSupported(value) }] : [];
-            }
-
-            return html`
-                <tr>
-                    <td class="p-2 font-mono text-slate-300">${track.id}</td>
-                    <td class="p-2 font-mono text-slate-300">${track.lang || 'N/A'}</td>
-                    <td class="p-2 font-mono text-slate-300">${codecsOrMimeTypes.map((item) => renderCodecInfo(item)) || 'N/A'}</td>
-                    <td class="p-2 font-mono text-slate-300">${track.roles?.join(', ') || 'N/A'}</td>
-                </tr>
-            `;
-        });
+        // text or application
+        contentTemplate = html`
+            <div
+                class="p-2 border-r border-slate-700 font-mono text-slate-200 truncate flex items-center gap-2"
+                title=${track.id}
+            >
+                ${icon} <span>${track.id}</span>
+            </div>
+            <div class="p-2 border-r border-slate-700 font-mono text-slate-200">
+                ${track.lang || 'N/A'}
+            </div>
+            <div
+                class="p-2 border-r border-slate-700 font-mono text-slate-200 space-y-1"
+            >
+                ${codecsToRender.map(
+                    (c) => html`<div>${renderCodecInfo(c)}</div>`
+                )}
+            </div>
+            <div class="p-2 font-mono text-slate-400">${roles}</div>
+        `;
     }
 
     return html`
-        <div class="bg-slate-950/50 rounded border border-slate-700/50 overflow-x-auto">
-            <table class="w-full text-left text-xs min-w-[600px]">
-                <thead class="bg-slate-800/50">
-                    <tr>
-                        ${headers.map(
-                            (h) => html`<th
-                                class="p-2 font-semibold text-slate-400 ${h.tooltip ? tooltipTriggerClasses : ''}"
-                                data-tooltip="${h.tooltip || ''}"
-                            >
-                                ${h.text}
-                            </th>`
-                        )}
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-700/50">${rows}</tbody>
-            </table>
+        <div class="grid ${gridColumns} items-center">${contentTemplate}</div>
+    `;
+};
+
+export const trackTableTemplate = (tracks, type) => {
+    if (!tracks || tracks.length === 0) return '';
+
+    // --- ARCHITECTURAL REFINEMENT: Sort video tracks by resolution ---
+    const sortedTracks = [...tracks];
+    if (type === 'video') {
+        sortedTracks.sort((a, b) => {
+            const heightA = a.height?.value || 0;
+            const heightB = b.height?.value || 0;
+            if (heightA !== heightB) {
+                return heightA - heightB;
+            }
+            // If heights are the same, sort by width
+            const widthA = a.width?.value || 0;
+            const widthB = b.width?.value || 0;
+            return widthA - widthB;
+        });
+    }
+    // --- END REFINEMENT ---
+
+    let gridColumns;
+    let headerTemplate;
+
+    if (type === 'video') {
+        gridColumns = 'grid-cols-[minmax(200px,1fr)_150px_150px_1fr_100px]';
+        headerTemplate = html`
+            <div class="p-2 border-r border-slate-700">Representation ID</div>
+            <div class="p-2 border-r border-slate-700">Bitrate</div>
+            <div class="p-2 border-r border-slate-700">Resolution</div>
+            <div class="p-2 border-r border-slate-700">Codecs</div>
+            <div class="p-2">Roles</div>
+        `;
+    } else if (type === 'audio') {
+        gridColumns = 'grid-cols-[minmax(200px,1fr)_100px_100px_1fr_100px]';
+        headerTemplate = html`
+            <div class="p-2 border-r border-slate-700">Representation ID</div>
+            <div class="p-2 border-r border-slate-700">Language</div>
+            <div class="p-2 border-r border-slate-700">Channels</div>
+            <div class="p-2 border-r border-slate-700">Codecs</div>
+            <div class="p-2">Roles</div>
+        `;
+    } else {
+        // text or application
+        gridColumns = 'grid-cols-[minmax(200px,1fr)_100px_1fr_100px]';
+        headerTemplate = html`
+            <div class="p-2 border-r border-slate-700">Representation ID</div>
+            <div class="p-2 border-r border-slate-700">Language</div>
+            <div class="p-2 border-r border-slate-700">Formats</div>
+            <div class="p-2">Roles</div>
+        `;
+    }
+
+    return html`
+        <div class="border border-slate-700 rounded-lg overflow-hidden">
+            <!-- Header -->
+            <div
+                class="grid ${gridColumns} bg-slate-800/50 font-semibold text-xs text-slate-400"
+            >
+                ${headerTemplate}
+            </div>
+            <!-- Rows -->
+            <div class="divide-y divide-slate-700">
+                ${sortedTracks.map((track) =>
+                    trackCardTemplate(track, type, gridColumns)
+                )}
+            </div>
         </div>
     `;
 };

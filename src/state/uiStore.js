@@ -145,28 +145,39 @@ export const useUiStore = createStore((set, get) => ({
         set((state) => ({
             isCmafSummaryExpanded: !state.isCmafSummaryExpanded,
         })),
-    setInteractiveManifestPage: (page) => set({ interactiveManifestCurrentPage: page }),
+    setInteractiveManifestPage: (page) =>
+        set({ interactiveManifestCurrentPage: page }),
     toggleInteractiveManifestSubstitution: () =>
         set((state) => ({
-            interactiveManifestShowSubstituted: !state.interactiveManifestShowSubstituted,
+            interactiveManifestShowSubstituted:
+                !state.interactiveManifestShowSubstituted,
         })),
-    setInteractiveSegmentPage: (page) => set({ interactiveSegmentCurrentPage: page }),
-    setInteractiveSegmentActiveTab: (tab) => set({ interactiveSegmentActiveTab: tab }),
-    setInteractiveSegmentSelectedItem: (item) => set({ interactiveSegmentSelectedItem: item ? { item } : null }),
+    setInteractiveSegmentPage: (page) =>
+        set({ interactiveSegmentCurrentPage: page }),
+    setInteractiveSegmentActiveTab: (tab) =>
+        set({ interactiveSegmentActiveTab: tab }),
+    setInteractiveSegmentSelectedItem: (item) =>
+        set({ interactiveSegmentSelectedItem: item ? { item } : null }),
     setInteractiveSegmentHighlightedItem: (item, field) =>
         set({
             interactiveSegmentHighlightedItem: item ? { item, field } : null,
         }),
-    setFullByteMap: (mapArray) => set({ fullByteMap: mapArray ? new Map(mapArray) : null }),
+    setFullByteMap: (mapArray) =>
+        set({ fullByteMap: mapArray ? new Map(mapArray) : null }),
     setIsByteMapLoading: (isLoading) => set({ isByteMapLoading: isLoading }),
     setComplianceFilter: (filter) => set({ complianceActiveFilter: filter }),
-    setComplianceStandardVersion: (version) => set({ complianceStandardVersion: version }),
-    setFeatureAnalysisStandardVersion: (version) => set({ featureAnalysisStandardVersion: version }),
-    setSegmentExplorerDashMode: (mode) => set({ segmentExplorerDashMode: mode }),
-    setSegmentExplorerActiveTab: (tab) => set({ segmentExplorerActiveTab: tab }),
+    setComplianceStandardVersion: (version) =>
+        set({ complianceStandardVersion: version }),
+    setFeatureAnalysisStandardVersion: (version) =>
+        set({ featureAnalysisStandardVersion: version }),
+    setSegmentExplorerDashMode: (mode) =>
+        set({ segmentExplorerDashMode: mode }),
+    setSegmentExplorerActiveTab: (tab) =>
+        set({ segmentExplorerActiveTab: tab }),
     toggleSegmentExplorerSortOrder: () =>
         set((state) => ({
-            segmentExplorerSortOrder: state.segmentExplorerSortOrder === 'asc' ? 'desc' : 'asc',
+            segmentExplorerSortOrder:
+                state.segmentExplorerSortOrder === 'asc' ? 'desc' : 'asc',
         })),
     setSegmentExplorerTargetTime: (target) =>
         set({
@@ -178,8 +189,10 @@ export const useUiStore = createStore((set, get) => ({
             segmentExplorerTargetTime: null,
             segmentExplorerScrollToTarget: false,
         }),
-    clearSegmentExplorerScrollTrigger: () => set({ segmentExplorerScrollToTarget: false }),
-    setHighlightedCompliancePathId: (pathId) => set({ highlightedCompliancePathId: pathId }),
+    clearSegmentExplorerScrollTrigger: () =>
+        set({ segmentExplorerScrollToTarget: false }),
+    setHighlightedCompliancePathId: (pathId) =>
+        set({ highlightedCompliancePathId: pathId }),
     toggleSegmentComparisonHideSame: () =>
         set((state) => ({
             segmentComparisonHideSame: !state.segmentComparisonHideSame,
@@ -200,7 +213,10 @@ export const useUiStore = createStore((set, get) => ({
             return { expandedComparisonFlags: newSet };
         });
     },
-    toggleComparisonHideSameRows: () => set((state) => ({ comparisonHideSameRows: !state.comparisonHideSameRows })),
+    toggleComparisonHideSameRows: () =>
+        set((state) => ({
+            comparisonHideSameRows: !state.comparisonHideSameRows,
+        })),
     setPlayerControlMode: (mode) => set({ playerControlMode: mode }),
     navigateToInteractiveSegment: (segmentUniqueId) =>
         set({
@@ -213,11 +229,14 @@ export const useUiStore = createStore((set, get) => ({
             interactiveSegmentHighlightedItem: null,
         }),
     setStreamLibraryTab: (tab) => set({ streamLibraryActiveTab: tab }),
-    setStreamLibrarySearchTerm: (term) => set({ streamLibrarySearchTerm: term }),
-    setStreamInputActiveMobileTab: (tab) => set({ streamInputActiveMobileTab: tab }),
+    setStreamLibrarySearchTerm: (term) =>
+        set({ streamLibrarySearchTerm: term }),
+    setStreamInputActiveMobileTab: (tab) =>
+        set({ streamInputActiveMobileTab: tab }),
     loadWorkspaces: () => set({ workspaces: getWorkspaces() }),
     setWorkspaces: (workspaces) => set({ workspaces }),
-    setIsRestoringSession: (isRestoring) => set({ isRestoringSession: isRestoring }),
+    setIsRestoringSession: (isRestoring) =>
+        set({ isRestoringSession: isRestoring }),
     reset: () => set(createInitialUiState()),
 }));
 

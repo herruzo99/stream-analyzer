@@ -1,5 +1,6 @@
 import { html } from 'lit-html';
 import { closeDropdown } from '@/ui/services/dropdownService';
+import { tooltipTriggerClasses } from '@/ui/shared/constants';
 
 /**
  * Renders a single option card within the dropdown.
@@ -21,9 +22,13 @@ const optionCardTemplate = ({ label, description, isActive, onClick }) => {
                 ? activeClasses
                 : ''}"
             @click=${onClick}
+            data-tooltip=${description || ''}
         >
             <div class="flex justify-between items-center">
-                <span class="font-semibold text-gray-200 truncate"
+                <span
+                    class="font-semibold text-gray-200 truncate ${description
+                        ? tooltipTriggerClasses
+                        : ''}"
                     >${label}</span
                 >
                 ${isActive

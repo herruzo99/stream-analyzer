@@ -9,7 +9,10 @@ export function copyShareUrlToClipboard() {
     const sessionHash = sessionService.serializeStateForUrl();
 
     if (!sessionHash) {
-        showToast({ message: 'Nothing to share yet. Please add a stream.', type: 'warn' });
+        showToast({
+            message: 'Nothing to share yet. Please add a stream.',
+            type: 'warn',
+        });
         return;
     }
 

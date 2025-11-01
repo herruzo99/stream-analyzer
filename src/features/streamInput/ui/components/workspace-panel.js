@@ -16,8 +16,9 @@ const workspaceCardTemplate = (input, isActive) => {
         uiActions.setStreamInputActiveMobileTab('inspector');
     };
 
-    const urlPath = input.url ? (input.url.split('/').pop() || input.url) : 'No URL';
-
+    const urlPath = input.url
+        ? input.url.split('/').pop() || input.url
+        : 'No URL';
 
     return html`
         <div
@@ -29,12 +30,25 @@ const workspaceCardTemplate = (input, isActive) => {
         >
             <div class="flex justify-between items-start">
                 <div class="min-w-0">
-                    <p class="font-bold text-white truncate" title=${input.name || 'Unnamed Stream'}>
+                    <p
+                        class="font-bold text-white truncate"
+                        title=${input.name || 'Unnamed Stream'}
+                    >
                         ${input.name || `Stream ${input.id + 1}`}
                     </p>
-                    <p class="text-xs text-slate-400 font-mono truncate" title=${input.url}>${urlPath}</p>
+                    <p
+                        class="text-xs text-slate-400 font-mono truncate"
+                        title=${input.url}
+                    >
+                        ${urlPath}
+                    </p>
                 </div>
-                <button @click=${handleRemove} class="text-slate-500 hover:text-red-400 shrink-0 ml-2">${icons.xCircle}</button>
+                <button
+                    @click=${handleRemove}
+                    class="text-slate-500 hover:text-red-400 shrink-0 ml-2"
+                >
+                    ${icons.xCircle}
+                </button>
             </div>
         </div>
     `;
@@ -45,7 +59,9 @@ export const workspacePanelTemplate = () => {
 
     const handleFiles = (files) => {
         if (files.length > 0) {
-            eventBus.dispatch('ui:segment-analysis-requested', { files: Array.from(files) });
+            eventBus.dispatch('ui:segment-analysis-requested', {
+                files: Array.from(files),
+            });
         }
     };
 
@@ -72,12 +88,16 @@ export const workspacePanelTemplate = () => {
             e.target.value = urls[0];
             analysisActions.addStreamInputFromPreset({ url: urls[0] });
         } else {
-            urls.forEach((url) => analysisActions.addStreamInputFromPreset({ url }));
+            urls.forEach((url) =>
+                analysisActions.addStreamInputFromPreset({ url })
+            );
         }
     };
 
     const handleStreamAnalysis = () => {
-        eventBus.dispatch('ui:stream-analysis-requested', { inputs: streamInputs });
+        eventBus.dispatch('ui:stream-analysis-requested', {
+            inputs: streamInputs,
+        });
     };
 
     const handleFilePicker = () => {
@@ -116,8 +136,12 @@ export const workspacePanelTemplate = () => {
             class="h-full flex flex-col items-center justify-center text-center text-slate-500 p-6 border-2 border-dashed border-slate-700 rounded-lg"
         >
             ${icons.inbox}
-            <p class="mt-4 font-semibold text-lg text-slate-400">Workspace is Empty</p>
-            <p class="text-sm mt-1">Add streams by pasting a URL above or dragging files here.</p>
+            <p class="mt-4 font-semibold text-lg text-slate-400">
+                Workspace is Empty
+            </p>
+            <p class="text-sm mt-1">
+                Add streams by pasting a URL above or dragging files here.
+            </p>
         </div>
     `;
 
@@ -129,9 +153,22 @@ export const workspacePanelTemplate = () => {
             @drop=${handleDrop}
         >
             <div>
-                <h2 class="text-2xl font-bold text-white mb-2">Analysis Workspace</h2>
+                <div class="flex justify-between items-center mb-2">
+                    <h2 class="text-2xl font-bold text-white">
+                        Analysis Workspace
+                    </h2>
+                    <button
+                        @click=${handleSaveWorkspace}
+                        class="bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-md text-sm disabled:bg-slate-600 disabled:opacity-50"
+                        ?disabled=${streamInputs.length === 0}
+                        title="Save the current set of streams as a workspace"
+                    >
+                        Save Workspace
+                    </button>
+                </div>
                 <p class="text-slate-400">
-                    Add remote streams via URL, or drag & drop local segment files to start an analysis.
+                    Add remote streams via URL, or drag & drop local segment
+                    files to start an analysis.
                 </p>
             </div>
 
@@ -144,7 +181,11 @@ export const workspacePanelTemplate = () => {
                         placeholder="Paste one or more manifest URLs..."
                         @paste=${handlePaste}
                     />
-                    <div class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">${icons.newAnalysis}</div>
+                    <div
+                        class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+                    >
+                        ${icons.newAnalysis}
+                    </div>
                 </div>
                 <button
                     type="submit"
@@ -156,7 +197,12 @@ export const workspacePanelTemplate = () => {
 
             <div class="grow overflow-y-auto space-y-4 pr-2">
                 ${streamInputs.length > 0
-                    ? streamInputs.map((input) => workspaceCardTemplate(input, input.id === activeStreamInputId))
+                    ? streamInputs.map((input) =>
+                          workspaceCardTemplate(
+                              input,
+                              input.id === activeStreamInputId
+                          )
+                      )
                     : emptyStateTemplate}
             </div>
 
@@ -172,24 +218,16 @@ export const workspacePanelTemplate = () => {
                     @click=${handleFilePicker}
                     class="w-full bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold py-3 px-4 rounded-md transition duration-300 flex items-center justify-center gap-2"
                 >
-                    ${icons.fileScan}
-                    Analyze Local Files
+                    ${icons.fileScan} Analyze Local Files
                 </button>
                 <button
                     @click=${handleStreamAnalysis}
                     class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-md transition duration-300 disabled:bg-slate-700/50 disabled:cursor-not-allowed"
                     ?disabled=${streamInputs.length === 0}
                 >
-                    ${streamInputs.length > 1 ? `Analyze & Compare (${streamInputs.length})` : 'Analyze Stream'}
-                </button>
-            </div>
-            <div class="shrink-0">
-                <button
-                    @click=${handleSaveWorkspace}
-                    class="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-md disabled:bg-slate-600 disabled:opacity-50"
-                    ?disabled=${streamInputs.length === 0}
-                >
-                    Save Workspace
+                    ${streamInputs.length > 1
+                        ? `Analyze & Compare (${streamInputs.length})`
+                        : 'Analyze Stream'}
                 </button>
             </div>
         </div>

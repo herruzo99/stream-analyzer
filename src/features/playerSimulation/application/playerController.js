@@ -4,151 +4,54 @@ import { analysisActions } from '@/state/analysisStore';
 import { playerService } from './playerService.js';
 import { useUiStore } from '@/state/uiStore';
 
-function onStatsChanged({ stats: shakaStats }) {
-    const { abrHistory, currentStats } = usePlayerStore.getState();
-    const lastBitrate = abrHistory[0]?.bitrate;
-
-    const player = playerService.getPlayer();
-    let videoOnlyBitrate = shakaStats.streamBandwidth || 0;
-
-    if (player) {
-        const activeVariantTrack = player
-            .getVariantTracks()
-            .find((t) => t.active);
-
-        const variants = playerService.getActiveManifestVariants();
-
-        if (activeVariantTrack && variants) {
-            const activeVariant = variants.find(
-                (v) => v.id === activeVariantTrack.id
-            );
-            if (activeVariant && activeVariant.video) {
-                videoOnlyBitrate =
-                    activeVariant.video.bandwidth || videoOnlyBitrate;
-            }
-        }
-    }
-
-    if (videoOnlyBitrate && videoOnlyBitrate !== lastBitrate) {
-        playerActions.logAbrSwitch({
-            time: shakaStats.displayTime || 0,
-            bitrate: videoOnlyBitrate,
-            width: shakaStats.width || 0,
-            height: shakaStats.height || 0,
-        });
-    }
-
-    let totalStalls = 0;
-    let totalStallDuration = 0;
-    let timeToFirstFrame = currentStats?.playbackQuality.timeToFirstFrame || 0;
-
-    if (shakaStats.stateHistory && shakaStats.stateHistory.length > 1) {
-        const firstPlayIndex = shakaStats.stateHistory.findIndex(
-            (s) => s.state === 'playing'
-        );
-
-        if (firstPlayIndex > -1) {
-            if (timeToFirstFrame === 0) {
-                const loadingState = shakaStats.stateHistory.find(
-                    (s) => s.state === 'loading'
-                );
-                if (loadingState) {
-                    timeToFirstFrame =
-                        shakaStats.stateHistory[firstPlayIndex].timestamp -
-                        loadingState.timestamp;
-                }
-            }
-
-            for (
-                let i = firstPlayIndex + 1;
-                i < shakaStats.stateHistory.length;
-                i++
-            ) {
-                const currentState = shakaStats.stateHistory[i];
-                const prevState = shakaStats.stateHistory[i - 1];
-                if (
-                    currentState.state === 'buffering' &&
-                    prevState.state !== 'buffering'
-                ) {
-                    totalStalls++;
-                }
-                if (prevState.state === 'buffering') {
-                    totalStallDuration +=
-                        currentState.timestamp - prevState.timestamp;
-                }
-            }
-        }
-    }
-
-    let switchesUp = 0;
-    let switchesDown = 0;
-    if (shakaStats.switchHistory) {
-        const variantSwitches = shakaStats.switchHistory.filter(
-            (s) => s.type === 'variant' && s.bandwidth
-        );
-        for (let i = 1; i < variantSwitches.length; i++) {
-            if (
-                variantSwitches[i].bandwidth > variantSwitches[i - 1].bandwidth
-            ) {
-                switchesUp++;
-            } else if (
-                variantSwitches[i].bandwidth < variantSwitches[i - 1].bandwidth
-            ) {
-                switchesDown++;
-            }
-        }
-    }
-
-    const seekRange = player ? player.seekRange() : { start: 0, end: 0 };
-    const manifestTime = seekRange.end - seekRange.start;
-
-    /** @type {import('@/types').PlayerStats} */
-    const newStats = {
-        playheadTime: shakaStats.displayTime || 0,
-        manifestTime: manifestTime,
-        playbackQuality: {
-            resolution: `${shakaStats.width || 0}x${shakaStats.height || 0}`,
-            droppedFrames: shakaStats.droppedFrames || 0,
-            corruptedFrames: shakaStats.corruptedFrames || 0,
-            totalStalls: totalStalls,
-            totalStallDuration: totalStallDuration / 1000, // to seconds
-            timeToFirstFrame: timeToFirstFrame,
-        },
-        abr: {
-            currentVideoBitrate: videoOnlyBitrate,
-            estimatedBandwidth: shakaStats.estimatedBandwidth || 0,
-            switchesUp: switchesUp,
-            switchesDown: switchesDown,
-        },
-        buffer: {
-            bufferHealth: shakaStats.bufferHealth || 0,
-            liveLatency: shakaStats.liveLatency || 0,
-            totalGaps: shakaStats.gapCount || 0,
-        },
-        session: {
-            totalPlayTime: shakaStats.playTime || 0,
-            totalBufferingTime: shakaStats.bufferingTime || 0,
-        },
-    };
-
-    playerActions.updateStats(newStats);
-}
-
 function onAdaptation({ oldTrack, newTrack }) {
     const time = new Date().toLocaleTimeString();
-    const details = `Bitrate: ${(oldTrack.bandwidth / 1000).toFixed(0)}k → ${(
-        newTrack.bandwidth / 1000
-    ).toFixed(0)}k | Resolution: ${oldTrack.height}p → ${newTrack.height}p`;
+    let details = '';
+
+    // If both are null, the event is malformed or irrelevant. Do nothing.
+    if (!newTrack && !oldTrack) {
+        return;
+    }
+
+    const newType = newTrack?.type;
+    const oldType = oldTrack?.type;
+
+    // Case 1: A video track adaptation (bitrate/resolution change).
+    if (newType === 'variant') {
+        const oldBw = (oldTrack?.bandwidth || 0) / 1000;
+        const newBw = (newTrack.bandwidth || 0) / 1000;
+        details = `Bitrate: ${oldBw.toFixed(0)}k → ${newBw.toFixed(0)}k`;
+        if (newTrack.height) {
+            details += ` | Resolution: ${oldTrack?.height || '?'}p → ${
+                newTrack.height
+            }p`;
+        } else {
+            details += ` | (Audio-only variant)`;
+        }
+        // Case 2: A text track was enabled, disabled, or changed.
+    } else if (newType === 'text' || oldType === 'text') {
+        details = `Text track changed: ${oldTrack?.language || 'Off'} → ${
+            newTrack?.language || 'Off'
+        }`;
+        // Case 3: A generic adaptation to a new track where we don't have special formatting.
+    } else if (newTrack) {
+        details = `Selected ${newType} track (ID: ${newTrack.id})`;
+        // Case 4: A track was deselected and no new one was chosen.
+    } else if (oldTrack) {
+        details = `Deselected ${oldTrack.type} track (ID: ${oldTrack.id})`;
+    }
+
     playerActions.logEvent({ timestamp: time, type: 'adaptation', details });
 
-    if (newTrack.stream) {
+    // Only log adaptation events with resolution changes to the stream state for the timeline visual.
+    if (newTrack?.stream && newTrack.type === 'variant' && newTrack.height) {
         analysisActions.updateStream(newTrack.streamId, {
             adaptationEvents: [
                 ...(newTrack.stream.adaptationEvents || []),
                 {
                     time: newTrack.playheadTime,
-                    oldWidth: oldTrack.width,
-                    oldHeight: oldTrack.height,
+                    oldWidth: oldTrack?.width,
+                    oldHeight: oldTrack?.height,
                     newWidth: newTrack.width,
                     newHeight: newTrack.height,
                 },
@@ -183,11 +86,52 @@ function onPipChanged({ isInPiP }) {
 }
 
 export function initializePlayerController() {
-    eventBus.subscribe('player:stats-changed', onStatsChanged);
     eventBus.subscribe('player:adaptation-internal', onAdaptation);
     eventBus.subscribe('player:buffering', onBuffering);
     eventBus.subscribe('player:error', onPlayerError);
     eventBus.subscribe('player:pip-changed', onPipChanged);
+    eventBus.subscribe('player:loading', () => {
+        playerActions.logEvent({
+            timestamp: new Date().toLocaleTimeString(),
+            type: 'lifecycle',
+            details: 'Player is loading new content.',
+        });
+    });
+    eventBus.subscribe('player:loaded', () => {
+        playerActions.logEvent({
+            timestamp: new Date().toLocaleTimeString(),
+            type: 'lifecycle',
+            details: 'Content loaded successfully.',
+        });
+    });
+    eventBus.subscribe('player:streaming', (e) => {
+        playerActions.logEvent({
+            timestamp: new Date().toLocaleTimeString(),
+            type: 'lifecycle',
+            details: `Streaming has ${e.streaming ? 'begun' : 'ended'}.`,
+        });
+    });
+    eventBus.subscribe('player:ratechange', ({ rate }) => {
+        playerActions.logEvent({
+            timestamp: new Date().toLocaleTimeString(),
+            type: 'interaction',
+            details: `Playback rate changed to ${rate}x.`,
+        });
+    });
+    eventBus.subscribe('player:emsg', (emsg) => {
+        playerActions.logEvent({
+            timestamp: new Date().toLocaleTimeString(),
+            type: 'metadata',
+            details: `Received EMSG event. Scheme: ${emsg.schemeIdUri}, Timescale: ${emsg.timescale}.`,
+        });
+    });
+    eventBus.subscribe('player:texttrackvisibility', () => {
+        playerActions.logEvent({
+            timestamp: new Date().toLocaleTimeString(),
+            type: 'interaction',
+            details: `Text track visibility changed.`,
+        });
+    });
 
     eventBus.subscribe('analysis:started', playerActions.reset);
 }

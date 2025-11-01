@@ -3,6 +3,7 @@ import { playerService } from '../../application/playerService.js';
 import { closeDropdown } from '@/ui/services/dropdownService';
 import { formatBitrate } from '@/ui/shared/format';
 import * as icons from '@/ui/icons';
+import { tooltipTriggerClasses } from '@/ui/shared/constants';
 
 const trackCardTemplate = ({
     label,
@@ -13,39 +14,42 @@ const trackCardTemplate = ({
 }) => {
     const activeClasses = 'bg-blue-800 border-blue-600 ring-2 ring-blue-500';
     const baseClasses =
-        'bg-gray-900/50 p-3 rounded-lg border border-gray-700 cursor-pointer transition-all duration-150 ease-in-out';
-    const hoverClasses = 'hover:bg-gray-700 hover:border-gray-500';
+        'bg-slate-900/50 p-3 rounded-lg border border-slate-700 cursor-pointer transition-all duration-150 ease-in-out text-left w-full';
+    const hoverClasses = 'hover:bg-slate-700 hover:border-slate-500';
+    const tooltipText = `${details}${subDetails ? ` | ${subDetails}` : ''}`;
 
     return html`
-        <div class="group contents" @click=${onClick}>
-            <div
-                class="${baseClasses} ${hoverClasses} ${isActive
-                    ? activeClasses
-                    : ''}"
-            >
-                <div class="flex justify-between items-center">
-                    <span class="font-semibold text-gray-200 truncate"
-                        >${label}</span
-                    >
-                    ${isActive
-                        ? html`<span
-                              class="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-600 text-white"
-                              >ACTIVE</span
-                          >`
-                        : ''}
-                </div>
-                <div class="text-xs text-gray-400 font-mono truncate mt-1">
-                    ${details}
-                </div>
-                ${subDetails
-                    ? html`<div
-                          class="text-xs text-gray-500 font-mono truncate mt-1"
-                      >
-                          ${subDetails}
-                      </div>`
+        <button
+            class="${baseClasses} ${hoverClasses} ${isActive
+                ? activeClasses
+                : ''}"
+            @click=${onClick}
+            data-tooltip=${tooltipText}
+        >
+            <div class="flex justify-between items-center">
+                <span class="font-semibold text-slate-200 truncate"
+                    >${label}</span
+                >
+                ${isActive
+                    ? html`<span
+                          class="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-600 text-white"
+                          >ACTIVE</span
+                      >`
                     : ''}
             </div>
-        </div>
+            <div
+                class="text-xs text-slate-400 font-mono truncate mt-1 ${tooltipTriggerClasses}"
+            >
+                ${details}
+            </div>
+            ${subDetails
+                ? html`<div
+                      class="text-xs text-slate-500 font-mono truncate mt-1"
+                  >
+                      ${subDetails}
+                  </div>`
+                : ''}
+        </button>
     `;
 };
 
@@ -56,8 +60,9 @@ export const videoSelectionPanelTemplate = (
 ) => {
     const handleSelect = (track) => {
         const isAuto = track === null;
-        playerService.setAbrEnabled(isAuto);
-        if (!isAuto) {
+        if (isAuto) {
+            playerService.setAbrEnabled(true);
+        } else {
             playerService.selectVariantTrack(track);
         }
         closeDropdown();
@@ -65,7 +70,7 @@ export const videoSelectionPanelTemplate = (
 
     return html`
         <div
-            class="dropdown-panel bg-gray-800 border border-gray-700 rounded-lg shadow-xl w-80 p-2 space-y-2"
+            class="dropdown-panel bg-slate-800 border border-slate-700 rounded-lg shadow-xl w-80 p-2 space-y-2"
         >
             ${trackCardTemplate({
                 label: 'Auto (ABR)',
@@ -97,12 +102,14 @@ export const audioSelectionPanelTemplate = (audioTracks) => {
 
     return html`
         <div
-            class="dropdown-panel bg-gray-800 border border-gray-700 rounded-lg shadow-xl w-80 p-2 space-y-2"
+            class="dropdown-panel bg-slate-800 border border-slate-700 rounded-lg shadow-xl w-80 p-2 space-y-2"
         >
             ${audioTracks.map((track) =>
                 trackCardTemplate({
                     label: track.label || track.language,
-                    details: `Role: ${track.roles.join(', ') || 'main'}`,
+                    details: `Role: ${
+                        (track.roles || []).join(', ') || 'main'
+                    }`,
                     subDetails: track.codec,
                     isActive: track.active,
                     onClick: () => handleSelect(track),
@@ -120,7 +127,7 @@ export const textSelectionPanelTemplate = (textTracks) => {
 
     return html`
         <div
-            class="dropdown-panel bg-gray-800 border border-gray-700 rounded-lg shadow-xl w-80 p-2 space-y-2"
+            class="dropdown-panel bg-slate-800 border border-slate-700 rounded-lg shadow-xl w-80 p-2 space-y-2"
         >
             ${trackCardTemplate({
                 label: 'Text Tracks Off',
@@ -133,7 +140,9 @@ export const textSelectionPanelTemplate = (textTracks) => {
                 trackCardTemplate({
                     label: track.label || track.language,
                     details: `Kind: ${track.kind || 'subtitle'}`,
-                    subDetails: `Role: ${track.roles.join(', ') || 'main'}`,
+                    subDetails: `Role: ${
+                        (track.roles || []).join(', ') || 'main'
+                    }`,
                     isActive: track.active,
                     onClick: () => handleSelect(track),
                 })

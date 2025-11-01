@@ -75,32 +75,33 @@ export interface ExtendedBandwidth {
 
 export interface Representation {
     id: string;
-    codecs: SourcedData<string | null>;
     bandwidth: number;
+    manifestBandwidth?: number; // Store original manifest value
+    qualityRanking: number | null;
+    dependencyId: string | null;
+    associationId: string | null;
+    associationType: string | null;
+    codecs: SourcedData<string | null>;
+    mimeType: string | null;
+    profiles: string | null;
     width: SourcedData<number | null>;
     height: SourcedData<number | null>;
     frameRate: string | null;
     sar: string | null;
-    mimeType: string | null;
-    profiles: string | null;
-    qualityRanking: number | null;
-    selectionPriority: number;
-    codingDependency: boolean | null;
+    audioSamplingRate: string | null;
     scanType: 'progressive' | 'interlaced' | 'unknown' | null;
-    dependencyId: string | null;
-    associationId: string | null;
-    associationType: string | null;
-    segmentProfiles: string | null;
+    startWithSAP: number | null;
+    selectionPriority: number;
     mediaStreamStructureId: string | null;
     maximumSAPPeriod: number | null;
-    startWithSAP: number | null;
     maxPlayoutRate: number | null;
-    tag: string | null;
+    codingDependency: boolean | null;
     eptDelta: number | null;
     pdDelta: number | null;
     representationIndex: URLType | null;
     failoverContent: FailoverContent | null;
     contentProtection: ContentProtection[];
+    audioChannelConfigurations: AudioChannelConfiguration[];
     framePackings: Descriptor[];
     ratings: Descriptor[];
     viewpoints: Descriptor[];
@@ -118,6 +119,10 @@ export interface Representation {
     reqVideoLayout: string | null;
     serializedManifest: object;
     __variantUri?: string; // Internal property for HLS enrichment
+    // --- ARCHITECTURAL FIX: Add missing properties ---
+    tag: string | null;
+    segmentProfiles: string | null;
+    // --- END FIX ---
 }
 
 export interface PsshInfo {
@@ -781,8 +786,8 @@ export interface PlayerStats {
         switchesDown: number;
     };
     buffer: {
-        bufferHealth: number;
-        liveLatency: number;
+        label: 'Buffer Health' | 'Live Latency';
+        seconds: number;
         totalGaps: number;
     };
     session: {
@@ -793,7 +798,15 @@ export interface PlayerStats {
 
 export interface PlayerEvent {
     timestamp: string;
-    type: 'adaptation' | 'buffering' | 'seek' | 'error' | 'stall';
+    type:
+        | 'adaptation'
+        | 'buffering'
+        | 'seek'
+        | 'error'
+        | 'stall'
+        | 'lifecycle'
+        | 'interaction'
+        | 'metadata';
     details: string;
 }
 

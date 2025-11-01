@@ -22,17 +22,22 @@ function renderIntegratorsReport() {
     }
 
     const viewModel = createIntegratorsReportViewModel(stream);
-    let template;
+    let reportTemplate;
 
     if (stream.protocol === 'dash') {
-        template = dashReportTemplate(viewModel);
+        reportTemplate = dashReportTemplate(viewModel);
     } else if (stream.protocol === 'hls') {
-        template = hlsReportTemplate(viewModel);
+        reportTemplate = hlsReportTemplate(viewModel);
     } else {
-        template = html`<p class="warn">
+        reportTemplate = html`<p class="warn">
             Integrator's Report not available for unknown protocol.
         </p>`;
     }
+
+    const template = html`
+        <h3 class="text-xl text-white font-bold mb-4">Integrator's Report</h3>
+        ${reportTemplate}
+    `;
 
     render(template, container);
 }

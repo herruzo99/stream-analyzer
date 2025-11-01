@@ -94,14 +94,14 @@ const adCreativeTemplate = (creative) => {
 const adAvailTemplate = (avail) => {
     const noCreativesMessage = avail.adManifestUrl
         ? html`<p class="text-sm text-yellow-300 italic">
-              Could not resolve any ad creatives from the provided VAST manifest.
-              This could be due to an empty VAST response, a network error, or an
-              unsupported ad format.
+              Could not resolve any ad creatives from the provided VAST
+              manifest. This could be due to an empty VAST response, a network
+              error, or an unsupported ad format.
           </p>`
         : html`<p class="text-sm text-gray-400 italic">
               This is a server-stitched ad period. Ad creatives are delivered as
-              part of the main media stream within this period's duration, not from a
-              separate VAST file.
+              part of the main media stream within this period's duration, not
+              from a separate VAST file.
           </p>`;
 
     return html`

@@ -33,7 +33,9 @@ export const hlsComplianceSummaryTemplate = (stream) => {
 
     return html`
         <div>
-            <h3 class="text-xl font-bold mb-4 text-slate-100">HLS Compliance</h3>
+            <h3 class="text-xl font-bold mb-4 text-slate-100">
+                HLS Compliance
+            </h3>
             <div class="bg-slate-800 p-4 rounded-lg border border-slate-700">
                 <div class="flex justify-between items-center mb-4">
                     <span class="text-sm font-medium text-slate-400"

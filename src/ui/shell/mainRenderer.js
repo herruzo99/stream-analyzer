@@ -3,8 +3,10 @@ import { createIcons, icons } from 'lucide';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { useUiStore, uiActions } from '@/state/uiStore';
 import { inputViewTemplate } from '@/features/streamInput/ui/input-view';
-import { renderAppShell } from './components/app-shell.js';
 import { debugLog } from '@/shared/utils/debug';
+
+// Import the component class for its side-effect (registration)
+import './components/app-shell.js';
 
 import { summaryView } from '@/features/summary/ui/index';
 import { comparisonView } from '@/features/comparison/ui/index';
@@ -43,84 +45,9 @@ const viewMap = {
 };
 
 let initialDomContext;
-let appShellDomContext;
 let isShellRendered = false;
 let currentMountedViewKey = null;
 let currentMountedStreamId = null;
-
-const appShellTemplate = () => html`
-    <header
-        id="mobile-header"
-        class="hidden xl:hidden shrink-0 bg-slate-900/80 backdrop-blur-sm border-b border-slate-800 p-3 flex items-center justify-between gap-4 fixed top-0 left-0 right-0 z-20"
-    >
-        <button
-            id="sidebar-toggle-btn"
-            class="text-slate-300 hover:text-white p-1"
-        >
-            <i data-lucide="menu" class="h-6 w-6"></i>
-        </button>
-        <h2 id="mobile-page-title" class="text-lg font-bold text-white"></h2>
-        <div class="w-7"></div>
-    </header>
-    <div
-        id="app-root-inner"
-        class="h-screen xl:grid xl:grid-cols-[auto_1fr_auto]"
-    >
-        <div
-            id="sidebar-overlay"
-            class="fixed inset-0 bg-black/50 z-30 hidden xl:hidden"
-        ></div>
-        <aside
-            id="sidebar-container"
-            class="bg-slate-950 border-r border-slate-800 flex flex-col fixed xl:relative top-0 left-0 bottom-0 z-40 w-72 xl:w-auto -translate-x-full xl:translate-x-0 transition-transform duration-300 ease-in-out"
-        >
-            <header class="p-3">
-                <h2 class="text-xl font-bold text-white mb-4 px-2">
-                    Stream Analyzer
-                </h2>
-                <div
-                    id="sidebar-context-switchers"
-                    class="space-y-2 px-2"
-                ></div>
-            </header>
-            <nav
-                id="sidebar-nav"
-                class="flex flex-col grow overflow-y-auto p-3"
-            ></nav>
-            <footer id="sidebar-footer" class="shrink-0 p-3 space-y-4"></footer>
-        </aside>
-        <div id="app-shell" class="h-full flex flex-col min-h-0 bg-slate-900">
-            <div
-                id="main-content-wrapper"
-                class="flex flex-col overflow-y-auto grow pt-[60px] xl:pt-0"
-            >
-                <header
-                    id="main-header"
-                    class="shrink-0 bg-slate-900/80 backdrop-blur-sm border-b border-slate-800 p-3 flex items-center justify-between gap-4"
-                >
-                    <div
-                        id="context-header"
-                        class="flex items-center gap-2 sm:gap-4 flex-wrap justify-start w-full"
-                    ></div>
-                </header>
-                <main class="grow flex flex-col relative bg-slate-900 ">
-                    <div
-                        id="tab-view-container"
-                        class="grow flex flex-col p-4 sm:p-6"
-                    ></div>
-                    <div
-                        id="persistent-player-container"
-                        class="grow flex flex-col hidden"
-                    ></div>
-                </main>
-            </div>
-        </div>
-        <aside
-            id="contextual-sidebar"
-            class="bg-slate-800/80 backdrop-blur-sm border-l border-slate-700/50 fixed xl:relative top-0 right-0 bottom-0 z-40 w-96 max-w-[90vw] translate-x-full xl:translate-x-0 transition-transform duration-300 ease-in-out flex flex-col min-h-0"
-        ></aside>
-    </div>
-`;
 
 export function initializeRenderer(domContext) {
     initialDomContext = domContext;
@@ -141,24 +68,10 @@ export function renderApp() {
 
     if (isResultsView) {
         if (!isShellRendered) {
-            render(appShellTemplate(), initialDomContext.appRoot);
-            appShellDomContext = {
-                ...initialDomContext,
-                mainContent: document.body.querySelector('#tab-view-container'),
-                sidebarNav: document.body.querySelector('#sidebar-nav'),
-                sidebarFooter: document.body.querySelector('#sidebar-footer'),
-                sidebarContextSwitchers: document.body.querySelector(
-                    '#sidebar-context-switchers'
-                ),
-                contextHeader: document.body.querySelector('#context-header'),
-                mobileHeader: document.body.querySelector('#mobile-header'),
-                sidebarOverlay: document.body.querySelector('#sidebar-overlay'),
-                sidebarToggleBtn: document.body.querySelector(
-                    '#sidebar-toggle-btn'
-                ),
-                mobilePageTitle:
-                    document.body.querySelector('#mobile-page-title'),
-            };
+            render(
+                html`<app-shell-component></app-shell-component>`,
+                initialDomContext.appRoot
+            );
             isShellRendered = true;
             const playerContainer = document.getElementById(
                 'persistent-player-container'
@@ -167,7 +80,12 @@ export function renderApp() {
                 playerView.mount(playerContainer, { stream: activeStream });
         }
 
-        renderAppShell(appShellDomContext);
+        const appShellComponent = document.querySelector('app-shell-component');
+        const mainContentContainer = appShellComponent?.querySelector(
+            '#tab-view-container'
+        );
+
+        if (!mainContentContainer) return;
 
         const playerContainer = document.getElementById(
             'persistent-player-container'
@@ -227,7 +145,7 @@ export function renderApp() {
                         'MainRenderer',
                         `Mounting view: ${currentViewKey}`
                     );
-                    newView.mount?.(appShellDomContext.mainContent, {
+                    newView.mount?.(mainContentContainer, {
                         stream: activeStream,
                         streams,
                     });
@@ -238,12 +156,10 @@ export function renderApp() {
                 if (newView.hasContextualSidebar) {
                     if (contextualSidebar)
                         contextualSidebar.classList.remove('hidden');
-                    // This is declarative. The 'renderAppShell' function will handle the class toggling based on state.
                 } else {
                     if (contextualSidebar)
                         contextualSidebar.classList.add('hidden');
                     if (activeSidebar === 'contextual') {
-                        // If we switch to a tab without a sidebar, hide it.
                         uiActions.setActiveSidebar(null);
                     }
                 }
@@ -266,17 +182,19 @@ export function renderApp() {
         isShellRendered = false;
         currentMountedViewKey = null;
         currentMountedStreamId = null;
-        appShellDomContext = null;
+
         if (initialDomContext.appRoot.innerHTML)
             render(html``, initialDomContext.appRoot);
 
-        // The renderApp function is now the single subscription handler.
-        // It's safe to call the template directly.
         render(inputViewTemplate(), initialDomContext.inputSection);
     }
 
-    // After every render cycle, ask Lucide to process any new icon placeholders.
     requestAnimationFrame(() => {
+        // --- ARCHITECTURAL FIX ---
+        // The `createIcons` function from lucide is an imperative DOM manipulation.
+        // It must be called *after* every render pass to ensure newly added icons
+        // are initialized. It now correctly receives the icon data object.
         createIcons({ icons });
+        // --- END FIX ---
     });
 }

@@ -4,7 +4,9 @@ import { formatBitrate } from '@/ui/shared/format';
 
 const abrLadderChartOptions = (abrData) => {
     // 1. Get all unique categories (heights) from all streams and sort them numerically.
-    const allHeights = [...new Set(abrData.flatMap((d) => d.tracks.map((t) => t.height)))].sort((a, b) => a - b);
+    const allHeights = [
+        ...new Set(abrData.flatMap((d) => d.tracks.map((t) => t.height))),
+    ].sort((a, b) => a - b);
 
     // 2. Create one series object per stream.
     const series = abrData.map((streamData) => {
@@ -117,9 +119,15 @@ class AbrLadderChart extends HTMLElement {
     render() {
         if (!this.chartContainer) return;
 
-        if (!this._data || this._data.length === 0 || this._data.every((d) => d.tracks.length === 0)) {
+        if (
+            !this._data ||
+            this._data.length === 0 ||
+            this._data.every((d) => d.tracks.length === 0)
+        ) {
             render(
-                html`<div class="flex items-center justify-center h-full text-center text-gray-500">
+                html`<div
+                    class="flex items-center justify-center h-full text-center text-gray-500"
+                >
                     No comparable video tracks found.
                 </div>`,
                 this

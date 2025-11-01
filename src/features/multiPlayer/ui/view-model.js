@@ -74,6 +74,14 @@ export function createMultiPlayerGridViewModel(playersMap) {
                       .join(' ')
                 : '0,50 100,50';
 
+        // --- ARCHITECTURAL FIX: Use the correct, unambiguous buffer property ---
+        const forwardBuffer = (stats?.buffer?.seconds ?? 0).toFixed(2);
+        const liveLatencyValue =
+            streamType === 'live' && (stats?.buffer?.seconds ?? 0) > 0
+                ? stats.buffer.seconds.toFixed(2)
+                : 'N/A';
+        // --- END FIX ---
+
         return {
             streamId: player.streamId,
             isHovered: player.streamId === hoveredStreamId,
@@ -84,15 +92,12 @@ export function createMultiPlayerGridViewModel(playersMap) {
             health,
             resolution: stats?.playbackQuality?.resolution || 'N/A',
             videoBitrate: formatBitrate(stats?.abr?.currentVideoBitrate),
-            forwardBuffer: (stats?.buffer?.bufferHealth ?? 0).toFixed(2),
+            forwardBuffer: forwardBuffer,
             syncDrift,
             bufferSparklinePoints,
             maxBuffer: maxBuffer.toFixed(2),
             estBandwidth: formatBitrate(stats?.abr?.estimatedBandwidth),
-            liveLatency:
-                stats?.buffer?.liveLatency > 0
-                    ? stats.buffer.liveLatency.toFixed(2)
-                    : 'N/A',
+            liveLatency: liveLatencyValue,
             droppedFrames: stats?.playbackQuality?.droppedFrames ?? 'N/A',
             totalStalls: stats?.playbackQuality?.totalStalls ?? 'N/A',
             stallDuration: (

@@ -1,7 +1,10 @@
 import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
 import { useUiStore, uiActions } from '@/state/uiStore';
 import { eventBus } from '@/application/event-bus';
-import { prepareForStorage, restoreFromStorage } from '@/infrastructure/persistence/streamStorage';
+import {
+    prepareForStorage,
+    restoreFromStorage,
+} from '@/infrastructure/persistence/streamStorage';
 
 /**
  * @typedef {import('@/state/analysisStore').StreamInput} StreamInput
@@ -30,7 +33,8 @@ class SessionService {
      * @returns {string | null} A Base64-encoded JSON string of the session state, or null.
      */
     serializeStateForUrl() {
-        const { streams, streamInputs, activeStreamId, segmentsForCompare } = useAnalysisStore.getState();
+        const { streams, streamInputs, activeStreamId, segmentsForCompare } =
+            useAnalysisStore.getState();
         const { activeTab, activeSegmentUrl } = useUiStore.getState();
         const activeStream = streams.find((s) => s.id === activeStreamId);
 
@@ -45,7 +49,8 @@ class SessionService {
             ui: {
                 activeTab: activeTab,
                 activeStreamUrl: activeStream?.originalUrl || null,
-                activeMediaPlaylistUrl: activeStream?.activeMediaPlaylistUrl || null,
+                activeMediaPlaylistUrl:
+                    activeStream?.activeMediaPlaylistUrl || null,
                 activeSegmentUrl: activeSegmentUrl,
                 segmentsForCompare: segmentsForCompare,
             },
@@ -54,7 +59,10 @@ class SessionService {
         try {
             const jsonString = JSON.stringify(sessionState);
             // Use base64url encoding (RFC 4648) to be safe for URLs
-            return btoa(jsonString).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+            return btoa(jsonString)
+                .replace(/\+/g, '-')
+                .replace(/\//g, '_')
+                .replace(/=+$/, '');
         } catch (e) {
             console.error('Failed to serialize session state:', e);
             return null;
@@ -108,42 +116,53 @@ class SessionService {
         analysisActions.setStreamInputs(sessionState.inputs);
 
         // 2. Listen ONCE for the analysis to complete.
-        const unsubscribe = eventBus.subscribe('state:analysis-complete', ({ streams }) => {
-            unsubscribe(); // Clean up listener immediately
+        const unsubscribe = eventBus.subscribe(
+            'state:analysis-complete',
+            ({ streams }) => {
+                unsubscribe(); // Clean up listener immediately
 
-            // 3. After analysis, apply the UI state.
-            const { ui } = sessionState;
-            const targetStream = streams.find((s) => s.originalUrl === ui.activeStreamUrl);
+                // 3. After analysis, apply the UI state.
+                const { ui } = sessionState;
+                const targetStream = streams.find(
+                    (s) => s.originalUrl === ui.activeStreamUrl
+                );
 
-            uiActions.setActiveTab(ui.activeTab);
+                uiActions.setActiveTab(ui.activeTab);
 
-            if (targetStream) {
-                analysisActions.setActiveStreamId(targetStream.id);
-                if (ui.activeMediaPlaylistUrl) {
-                    eventBus.dispatch('hls:media-playlist-activate', {
-                        streamId: targetStream.id,
-                        url: ui.activeMediaPlaylistUrl,
+                if (targetStream) {
+                    analysisActions.setActiveStreamId(targetStream.id);
+                    if (ui.activeMediaPlaylistUrl) {
+                        eventBus.dispatch('hls:media-playlist-activate', {
+                            streamId: targetStream.id,
+                            url: ui.activeMediaPlaylistUrl,
+                        });
+                    }
+                }
+
+                if (ui.segmentsForCompare) {
+                    analysisActions.clearSegmentsToCompare();
+                    ui.segmentsForCompare.forEach((item) => {
+                        analysisActions.addSegmentToCompare(item);
                     });
                 }
-            }
 
-            if (ui.segmentsForCompare) {
-                analysisActions.clearSegmentsToCompare();
-                ui.segmentsForCompare.forEach((item) => {
-                    analysisActions.addSegmentToCompare(item);
-                });
-            }
+                if (ui.activeSegmentUrl) {
+                    uiActions.navigateToInteractiveSegment(ui.activeSegmentUrl);
+                }
 
-            if (ui.activeSegmentUrl) {
-                uiActions.navigateToInteractiveSegment(ui.activeSegmentUrl);
+                // Clear the hash so a page refresh doesn't re-trigger analysis.
+                history.replaceState(
+                    null,
+                    '',
+                    window.location.pathname + window.location.search
+                );
             }
-
-            // Clear the hash so a page refresh doesn't re-trigger analysis.
-            history.replaceState(null, '', window.location.pathname + window.location.search);
-        });
+        );
 
         // 4. Trigger the analysis.
-        eventBus.dispatch('ui:stream-analysis-requested', { inputs: sessionState.inputs });
+        eventBus.dispatch('ui:stream-analysis-requested', {
+            inputs: sessionState.inputs,
+        });
 
         return true; // Signal that a session is being restored.
     }

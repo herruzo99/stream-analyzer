@@ -287,6 +287,8 @@ export async function adaptHlsToIr(hlsParsed, context) {
                                     ? new URL(media.URI, hlsParsed.baseUrl).href
                                     : null,
                             },
+                            audioSamplingRate: null,
+                            audioChannelConfigurations: [],
                         };
 
                         /** @type {AdaptationSet} */
@@ -421,6 +423,8 @@ export async function adaptHlsToIr(hlsParsed, context) {
                 serializedManifest: variant,
                 // @ts-ignore - internal property for enrichment
                 __variantUri: variant.resolvedUri,
+                audioSamplingRate: null,
+                audioChannelConfigurations: [],
             };
 
             /** @type {AdaptationSet} */
@@ -542,6 +546,8 @@ export async function adaptHlsToIr(hlsParsed, context) {
                     supplementalCodecs: null,
                     reqVideoLayout: null,
                     serializedManifest: hlsParsed,
+                    audioSamplingRate: null,
+                    audioChannelConfigurations: [],
                 },
             ],
             contentProtection: contentProtectionIRs,

@@ -33,17 +33,17 @@ export class LabeledControlComponent extends HTMLElement {
                 .flex-col {
                     flex-direction: column;
                 }
-                .sm:flex-row {
+                .sm\\:flex-row {
                     @media (min-width: 640px) {
                         flex-direction: row;
                     }
                 }
-                .sm:items-center {
+                .sm\\:items-center {
                     @media (min-width: 640px) {
                         align-items: center;
                     }
                 }
-                .sm:justify-between {
+                .sm\\:justify-between {
                     @media (min-width: 640px) {
                         justify-content: space-between;
                     }

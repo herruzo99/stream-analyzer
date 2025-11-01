@@ -1,7 +1,8 @@
 import { formatBitrate } from '@/ui/shared/format';
 import { debugLog } from '@/shared/utils/debug';
 
-const valueOrNA = (value) => (value !== null && value !== undefined ? value : 'N/A');
+const valueOrNA = (value) =>
+    value !== null && value !== undefined ? value : 'N/A';
 
 const renderList = (items) =>
     items && items.length > 0
@@ -22,7 +23,9 @@ const createRow = (label, tooltip, isoRef, values) => {
         label,
         tooltip,
         isoRef,
-        values: values.map((v) => String(v === null || v === undefined || v === '' ? 'N/A' : v)),
+        values: values.map((v) =>
+            String(v === null || v === undefined || v === '' ? 'N/A' : v)
+        ),
         status,
     };
 };
@@ -33,7 +36,7 @@ export function createComparisonViewModel(streams) {
             'Type',
             'static (VOD) vs dynamic (live)',
             'DASH: 5.3.1.2 / HLS: 4.3.3.5',
-            streams.map((s) => (s.manifest?.type ?? 'N/A'))
+            streams.map((s) => s.manifest?.type ?? 'N/A')
         ),
         createRow(
             'Profiles / Version',
@@ -45,13 +48,21 @@ export function createComparisonViewModel(streams) {
             'Min Buffer / Target Duration',
             'Minimum client buffer time (DASH) or max segment duration (HLS).',
             'DASH: 5.3.1.2 / HLS: 4.3.3.1',
-            streams.map((s) => (s.manifest?.minBufferTime ? `${s.manifest.minBufferTime}s` : 'N/A'))
+            streams.map((s) =>
+                s.manifest?.minBufferTime
+                    ? `${s.manifest.minBufferTime}s`
+                    : 'N/A'
+            )
         ),
         createRow(
             'Live Window (DVR)',
             'DVR window for live streams.',
             'DASH: 5.3.1.2',
-            streams.map((s) => (s.manifest?.timeShiftBufferDepth ? `${s.manifest.timeShiftBufferDepth}s` : 'N/A'))
+            streams.map((s) =>
+                s.manifest?.timeShiftBufferDepth
+                    ? `${s.manifest.timeShiftBufferDepth}s`
+                    : 'N/A'
+            )
         ),
         createRow(
             'Segment Format',
@@ -87,7 +98,9 @@ export function createComparisonViewModel(streams) {
             '# Video Quality Levels',
             'Total number of video tracks or variants.',
             'DASH: 5.3.5 / HLS: 4.3.4.2',
-            streams.map((s) => valueOrNA(s.manifest?.summary?.content.totalVideoTracks))
+            streams.map((s) =>
+                valueOrNA(s.manifest?.summary?.content.totalVideoTracks)
+            )
         ),
         createRow(
             'Bitrate Range',
@@ -99,7 +112,9 @@ export function createComparisonViewModel(streams) {
 
                 const bitrates = tracks
                     .flatMap((track) => {
-                        const parts = track.bitrateRange.split('-').map((p) => parseInt(p.replace(/[^0-9]/g, ''), 10));
+                        const parts = track.bitrateRange
+                            .split('-')
+                            .map((p) => parseInt(p.replace(/[^0-9]/g, ''), 10));
                         return parts;
                     })
                     .filter((b) => !isNaN(b));
@@ -118,7 +133,13 @@ export function createComparisonViewModel(streams) {
             'List of unique video resolutions.',
             'DASH: 5.3.7.2 / HLS: 4.3.4.2',
             streams.map((s) =>
-                renderList([...new Set(s.manifest?.summary?.videoTracks.flatMap((vt) => vt.resolutions.map((r) => r.value)) || [])])
+                renderList([
+                    ...new Set(
+                        s.manifest?.summary?.videoTracks.flatMap((vt) =>
+                            vt.resolutions.map((r) => r.value)
+                        ) || []
+                    ),
+                ])
             )
         ),
         createRow(
@@ -126,7 +147,13 @@ export function createComparisonViewModel(streams) {
             'Unique video codecs found.',
             'DASH: 5.3.7.2 / HLS: 4.3.4.2',
             streams.map((s) =>
-                renderList([...new Set(s.manifest?.summary?.videoTracks.flatMap((vt) => vt.codecs.map((c) => c.value)) || [])])
+                renderList([
+                    ...new Set(
+                        s.manifest?.summary?.videoTracks.flatMap((vt) =>
+                            vt.codecs.map((c) => c.value)
+                        ) || []
+                    ),
+                ])
             )
         ),
     ];
@@ -136,14 +163,22 @@ export function createComparisonViewModel(streams) {
             '# Audio Tracks',
             'Groups of audio tracks, often by language.',
             'DASH: 5.3.3 / HLS: 4.3.4.1',
-            streams.map((s) => valueOrNA(s.manifest?.summary?.content.totalAudioTracks))
+            streams.map((s) =>
+                valueOrNA(s.manifest?.summary?.content.totalAudioTracks)
+            )
         ),
         createRow(
             'Audio Languages',
             'Declared languages for audio tracks.',
             'DASH: 5.3.3.2 / HLS: 4.3.4.1',
             streams.map((s) =>
-                renderList([...new Set(s.manifest?.summary?.audioTracks.map((at) => at.lang).filter(Boolean) || [])])
+                renderList([
+                    ...new Set(
+                        s.manifest?.summary?.audioTracks
+                            .map((at) => at.lang)
+                            .filter(Boolean) || []
+                    ),
+                ])
             )
         ),
         createRow(
@@ -151,7 +186,13 @@ export function createComparisonViewModel(streams) {
             'Unique audio codecs.',
             'DASH: 5.3.7.2 / HLS: 4.3.4.2',
             streams.map((s) =>
-                renderList([...new Set(s.manifest?.summary?.audioTracks.flatMap((at) => at.codecs.map((c) => c.value)) || [])])
+                renderList([
+                    ...new Set(
+                        s.manifest?.summary?.audioTracks.flatMap((at) =>
+                            at.codecs.map((c) => c.value)
+                        ) || []
+                    ),
+                ])
             )
         ),
     ];
@@ -162,7 +203,13 @@ export function createComparisonViewModel(streams) {
             'Detected DRM systems.',
             'DASH: 5.8.4.1 / HLS: 4.3.2.4',
             streams.map((s) =>
-                s.manifest?.summary?.security?.isEncrypted ? renderList(s.manifest.summary.security.systems.map(sys => sys.systemId)) : 'No'
+                s.manifest?.summary?.security?.isEncrypted
+                    ? renderList(
+                          s.manifest.summary.security.systems.map(
+                              (sys) => sys.systemId
+                          )
+                      )
+                    : 'No'
             )
         ),
     ];

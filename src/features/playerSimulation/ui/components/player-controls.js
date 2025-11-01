@@ -1,12 +1,8 @@
-import { html } from 'lit-html';
-import { classMap } from 'lit-html/directives/class-map.js';
-import { playerService } from '../../application/playerService';
+import { html, render } from 'lit-html';
+import { playerService } from '../../application/playerService.js';
 import { usePlayerStore } from '@/state/playerStore';
-import { useAnalysisStore } from '@/state/analysisStore';
-import { useUiStore, uiActions } from '@/state/uiStore';
 import * as icons from '@/ui/icons';
 import { showToast } from '@/ui/components/toast';
-import { playerStatusDisplayTemplate } from './player-status-display.js';
 import { toggleDropdown } from '@/ui/services/dropdownService';
 import {
     videoSelectionPanelTemplate,
@@ -20,218 +16,87 @@ import {
     BUFFERING_PRESETS,
     RESOLUTION_PRESETS,
 } from '../../domain/control-presets.js';
+import '@/ui/components/labeled-control';
+import { tooltipTriggerClasses } from '@/ui/shared/constants';
 
-// --- Helper Components ---
+// --- Utility Functions ---
 
-/**
- * Identifies the active preset from a list based on the current player configuration.
- * Uses shallow equality check on the config object.
- * @param {Array<object>} presets The list of presets to check against.
- * @param {object} currentConfigSubset The relevant subset of the current player config.
- * @returns {object | undefined} The active preset object or undefined if no match.
- */
 const findActivePreset = (presets, currentConfigSubset) => {
-    return presets.find((preset) => {
-        return Object.entries(preset.config).every(
+    const activePreset = presets.find((preset) =>
+        Object.entries(preset.config).every(
             ([key, value]) => currentConfigSubset[key] === value
-        );
-    });
+        )
+    );
+    return activePreset || { id: 'custom', label: 'Custom' };
 };
 
-const pipButtonTemplate = () => {
-    const { isPictureInPicture } = usePlayerStore.getState();
-    const isPipSupported = typeof document !== 'undefined' && document.pictureInPictureEnabled;
-    if (!isPipSupported) return html``;
-    const handleClick = () => isPictureInPicture ? playerService.exitPictureInPicture() : playerService.enterPictureInPicture();
-    const icon = isPictureInPicture ? icons.pipExit : icons.pipEnter;
-    const label = isPictureInPicture ? 'Exit Picture-in-Picture' : 'Enter Picture-in-Picture';
+// --- UI Components ---
+
+const dropdownButton = (
+    label,
+    subtext,
+    onClick,
+    { isActive = false, fullWidth = true, tooltip = '' } = {}
+) => {
+    const widthClass = fullWidth ? 'w-full' : 'w-auto min-w-[150px]';
     return html`
         <button
-            @click=${handleClick}
-            class="bg-slate-700/50 hover:bg-slate-600/50 text-white font-bold p-2 rounded-md transition duration-300 h-full aspect-square flex items-center justify-center"
-            title=${label}
+            type="button"
+            @click=${onClick}
+            class="flex items-center justify-between rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-left transition-colors duration-150 hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50 ${widthClass} ${isActive
+                ? 'ring-2 ring-blue-500 border-transparent'
+                : ''}"
+            data-tooltip=${tooltip}
         >
-            ${icon}
+            <span class="grid flex-1 grid-cols-1 overflow-hidden">
+                <span class="truncate text-sm font-semibold text-slate-100"
+                    >${label}</span
+                >
+                ${subtext
+                    ? html`<span class="truncate text-xs text-slate-400"
+                          >${subtext}</span
+                      >`
+                    : ''}
+            </span>
+            <span class="ml-3 flex-shrink-0 text-slate-400"
+                >${icons.chevronDown}</span
+            >
         </button>
     `;
 };
 
-const dropdownButton = (label, subtext, onClick, isActive = false) => html`
-    <button
-        @click=${onClick}
-        class="input-field text-left flex items-center justify-between w-full hover:bg-slate-600 transition-colors ${isActive
-            ? 'ring-1 ring-blue-500 border-blue-500'
-            : ''}"
-    >
-        <span class="truncate grid grid-cols-1">
-            <span class="font-semibold text-slate-200 truncate">${label}</span>
-            ${subtext ? html`<span class="text-xs text-slate-400 truncate">${subtext}</span>` : ''}
-        </span>
-        <span class="text-slate-400 shrink-0 ml-2">${icons.chevronDown}</span>
-    </button>
-`;
+// --- Main Web Component ---
 
-const modeToggleTemplate = (currentMode) => html`
-    <div class="flex bg-slate-900/50 p-1 rounded-lg border border-slate-700/50 w-fit">
-        <button
-            @click=${() => uiActions.setPlayerControlMode('standard')}
-            class="px-3 py-1.5 text-xs font-bold rounded-md transition-colors ${currentMode === 'standard'
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'}"
-        >
-            Standard
-        </button>
-        <button
-            @click=${() => uiActions.setPlayerControlMode('advanced')}
-            class="px-3 py-1.5 text-xs font-bold rounded-md transition-colors ${currentMode === 'advanced'
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'}"
-        >
-            Advanced
-        </button>
-    </div>
-`;
-
-const standardModeTemplate = (config) => {
-    const activeAbrPreset = findActivePreset(ABR_STRATEGY_PRESETS, config.abr) || { id: 'custom', label: 'Custom' };
-    const activeBufferPreset = findActivePreset(BUFFERING_PRESETS, config.streaming) || { id: 'custom', label: 'Custom' };
-    const activeResPreset = findActivePreset(RESOLUTION_PRESETS, config.restrictions) || { id: 'custom', label: 'Custom' };
-
-    return html`
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-                <label class="input-label mb-1">ABR Strategy</label>
-                ${dropdownButton(
-                    activeAbrPreset.label,
-                    activeAbrPreset.description || 'Custom config',
-                    (e) => toggleDropdown(e.currentTarget, formattedOptionsDropdownTemplate(ABR_STRATEGY_PRESETS, activeAbrPreset.id, (preset) => {
-                        playerService.setAbrConfiguration(preset.config);
-                        showToast({ message: `ABR strategy set to ${preset.label}`, type: 'pass' });
-                    }))
-                )}
-            </div>
-            <div>
-                <label class="input-label mb-1">Max Resolution</label>
-                ${dropdownButton(
-                    activeResPreset.label,
-                    activeResPreset.description || 'Custom restrictions',
-                    (e) => toggleDropdown(e.currentTarget, formattedOptionsDropdownTemplate(RESOLUTION_PRESETS, activeResPreset.id, (preset) => {
-                        playerService.setRestrictions({ minWidth: 0, minHeight: 0, minBandwidth: 0, maxBandwidth: Infinity, ...preset.config });
-                        showToast({ message: `Resolution capped at ${preset.label}`, type: 'pass' });
-                    }))
-                )}
-            </div>
-            <div>
-                <label class="input-label mb-1">Buffering Profile</label>
-                ${dropdownButton(
-                    activeBufferPreset.label,
-                    activeBufferPreset.description || 'Custom config',
-                    (e) => toggleDropdown(e.currentTarget, formattedOptionsDropdownTemplate(BUFFERING_PRESETS, activeBufferPreset.id, (preset) => {
-                        playerService.setBufferConfiguration({ ...config.streaming, ...preset.config });
-                        showToast({ message: `Buffering profile set to ${preset.label}`, type: 'pass' });
-                    }))
-                )}
-            </div>
-        </div>
-    `;
-};
-
-const advancedModeTemplate = (config, handleFormChange, isAbrEnabled) => html`
-    <div class="space-y-6">
-        <div>
-            <h5 class="text-xs font-bold text-slate-400 mb-2 uppercase">ABR Fine-Tuning</h5>
-            <fieldset ?disabled=${!isAbrEnabled}>
-                <form data-form-id="abr-config" @change=${handleFormChange} class="space-y-3">
-                    <div class="${!isAbrEnabled ? 'opacity-50' : ''}">
-                        <label class="input-label" for="bw-upgrade">Bandwidth Upgrade Target (fraction)</label>
-                        <input type="number" step="0.05" min="0" max="2" name="bandwidthUpgradeTarget" id="bw-upgrade" class="input-field" .value=${config.abr.bandwidthUpgradeTarget} />
-                        <p class="text-xs text-slate-500 mt-1">Higher = harder to upgrade.</p>
-                    </div>
-                    <div class="${!isAbrEnabled ? 'opacity-50' : ''}">
-                        <label class="input-label" for="bw-downgrade">Bandwidth Downgrade Target (fraction)</label>
-                        <input type="number" step="0.05" min="0" max="2" name="bandwidthDowngradeTarget" id="bw-downgrade" class="input-field" .value=${config.abr.bandwidthDowngradeTarget} />
-                        <p class="text-xs text-slate-500 mt-1">Lower = easier to downgrade.</p>
-                    </div>
-                </form>
-            </fieldset>
-        </div>
-        <div>
-            <h5 class="text-xs font-bold text-slate-400 mb-2 uppercase">Explicit Restrictions</h5>
-            <fieldset ?disabled=${!isAbrEnabled}>
-                <form data-form-id="abr-restrictions" @change=${handleFormChange} class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="input-label">Min Bitrate (bps)</label>
-                        <input type="number" name="minBandwidth" class="input-field" .value=${config.restrictions.minBandwidth} />
-                    </div>
-                    <div>
-                        <label class="input-label">Max Bitrate (bps)</label>
-                        <input type="number" name="maxBandwidth" class="input-field" .value=${config.restrictions.maxBandwidth === Infinity ? '' : config.restrictions.maxBandwidth} placeholder="Infinity" />
-                    </div>
-                    <div>
-                        <label class="input-label">Min Height (px)</label>
-                        <input type="number" name="minHeight" class="input-field" .value=${config.restrictions.minHeight} />
-                    </div>
-                    <div>
-                        <label class="input-label">Max Height (px)</label>
-                        <input type="number" name="maxHeight" class="input-field" .value=${config.restrictions.maxHeight === Infinity ? '' : config.restrictions.maxHeight} placeholder="Infinity" />
-                    </div>
-                </form>
-            </fieldset>
-        </div>
-        <div>
-            <h5 class="text-xs font-bold text-slate-400 mb-2 uppercase">Buffering Engine</h5>
-            <form data-form-id="buffering" @change=${handleFormChange} class="space-y-3">
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="input-label" for="rebuffer-goal">Rebuffer Goal (s)</label>
-                        <input type="number" step="0.5" name="rebufferingGoal" id="rebuffer-goal" class="input-field" .value=${config.streaming.rebufferingGoal} />
-                    </div>
-                    <div>
-                        <label class="input-label" for="buffer-goal">Buffer Goal (s)</label>
-                        <input type="number" step="1" name="bufferingGoal" id="buffer-goal" class="input-field" .value=${config.streaming.bufferingGoal} />
-                    </div>
-                </div>
-                <div>
-                    <label class="input-label" for="buffer-behind">Buffer Behind (s)</label>
-                    <input type="number" step="1" name="bufferBehind" id="buffer-behind" class="input-field" .value=${config.streaming.bufferBehind} />
-                </div>
-                <div class="flex items-center gap-2 pt-1">
-                    <input type="checkbox" name="ignoreTextStreamFailures" id="ignore-text-failures" .checked=${config.streaming.ignoreTextStreamFailures} class="rounded bg-slate-700 border-slate-600 text-blue-600 focus:ring-offset-slate-800" />
-                    <label for="ignore-text-failures" class="input-label mb-0! cursor-pointer">Ignore Text Stream Failures</label>
-                </div>
-            </form>
-        </div>
-    </div>
-`;
-
-export const playerControlsTemplate = () => {
-    const { streams, activeStreamId } = useAnalysisStore.getState();
-    const { playerControlMode } = useUiStore.getState();
-    const stream = streams.find((s) => s.id === activeStreamId);
-    const player = playerService.getPlayer();
-
-    if (!stream || !player) {
-        return html`<div class="text-center text-slate-500 py-4">Player not initialized.</div>`;
+class PlayerControlsComponent extends HTMLElement {
+    constructor() {
+        super();
+        this.unsubscribe = null;
     }
 
-    const config = playerService.getConfiguration();
-    if (!config) {
-        return html`<div class="text-center text-slate-500 py-4">Loading configuration...</div>`;
+    connectedCallback() {
+        this.render();
+        this.unsubscribe = usePlayerStore.subscribe(() => this.render());
     }
 
-    const isAbrEnabled = config.abr.enabled;
+    disconnectedCallback() {
+        if (this.unsubscribe) this.unsubscribe();
+    }
 
-    const handleFormChange = (e) => {
+    handleFormChange(e) {
         const form = e.target.closest('form');
         if (!form) return;
         const formData = new FormData(form);
         const formId = form.dataset.formId;
 
         const actions = {
-            'abr-config': () => playerService.setAbrConfiguration({
-                bandwidthUpgradeTarget: Number(formData.get('bandwidthUpgradeTarget')) || 0.85,
-                bandwidthDowngradeTarget: Number(formData.get('bandwidthDowngradeTarget')) || 0.95,
-            }),
+            'abr-config': () =>
+                playerService.setAbrConfiguration({
+                    bandwidthUpgradeTarget:
+                        Number(formData.get('bandwidthUpgradeTarget')) || 0.85,
+                    bandwidthDowngradeTarget:
+                        Number(formData.get('bandwidthDowngradeTarget')) ||
+                        0.95,
+                }),
             'abr-restrictions': () => {
                 const maxBw = formData.get('maxBandwidth');
                 const maxH = formData.get('maxHeight');
@@ -244,96 +109,454 @@ export const playerControlsTemplate = () => {
                     maxBandwidth: maxBw === '' ? Infinity : Number(maxBw),
                 });
             },
-            buffering: () => playerService.setBufferConfiguration({
-                rebufferingGoal: Number(formData.get('rebufferingGoal')) || 2,
-                bufferingGoal: Number(formData.get('bufferingGoal')) || 10,
-                bufferBehind: Number(formData.get('bufferBehind')) || 30,
-                ignoreTextStreamFailures: formData.has('ignoreTextStreamFailures'),
-            }),
+            buffering: () =>
+                playerService.setBufferConfiguration({
+                    rebufferingGoal:
+                        Number(formData.get('rebufferingGoal')) || 2,
+                    bufferingGoal: Number(formData.get('bufferingGoal')) || 10,
+                    bufferBehind: Number(formData.get('bufferBehind')) || 30,
+                    ignoreTextStreamFailures: formData.has(
+                        'ignoreTextStreamFailures'
+                    ),
+                }),
         };
 
         if (actions[formId]) {
             actions[formId]();
             showToast({ message: 'Advanced config updated.', type: 'pass' });
         }
-    };
-
-    const manifest = player.getManifest();
-    const videoTracks = player.getVariantTracks().filter((t) => t.type === 'variant' && t.videoCodec);
-    const audioTracks = player.getAudioLanguagesAndRoles();
-    const textTracks = player.getTextTracks();
-
-    const videoBandwidthMap = new Map();
-    if (manifest && manifest.variants) {
-        for (const variant of manifest.variants) {
-            if (variant.video && variant.video.bandwidth) {
-                videoBandwidthMap.set(variant.id, variant.video.bandwidth);
-            }
-        }
     }
 
-    const activeVideoTrack = videoTracks.find((t) => t.active);
-    const activeAudioTrack = audioTracks.find((t) => t.active);
-    const activeTextTrack = textTracks.find((t) => t.active);
+    // --- Render Helpers ---
 
-    const videoButtonLabel = isAbrEnabled ? 'Auto (ABR)' : (activeVideoTrack ? `${activeVideoTrack.height}p` : 'Video');
-    const videoButtonSubtext = isAbrEnabled
-        ? 'Adapting to network'
-        : activeVideoTrack
-          ? formatBitrate(videoBandwidthMap.get(activeVideoTrack.id) ?? activeVideoTrack.bandwidth)
-          : 'N/A';
-
-    const audioButtonLabel = activeAudioTrack ? activeAudioTrack.label || activeAudioTrack.language : 'Audio';
-    const audioButtonSubtext = activeAudioTrack ? `Role: ${activeAudioTrack.roles.join(', ') || 'main'}` : 'N/A';
-
-    const textButtonLabel = activeTextTrack ? activeTextTrack.label || activeTextTrack.language : 'Text Tracks Off';
-    const textButtonSubtext = activeTextTrack ? `Kind: ${activeTextTrack.kind || 'subtitle'}` : '';
-
-    const trackSelectionContent = html`
-        <div class="flex items-stretch gap-2">
-            <div class="grow space-y-2 text-sm">
-                ${dropdownButton(
-                    videoButtonLabel,
-                    videoButtonSubtext,
-                    (e) => toggleDropdown(e.currentTarget, videoSelectionPanelTemplate(videoTracks, isAbrEnabled, videoBandwidthMap)),
-                    !isAbrEnabled
-                )}
-                ${dropdownButton(audioButtonLabel, audioButtonSubtext, (e) =>
-                    toggleDropdown(e.currentTarget, audioSelectionPanelTemplate(audioTracks))
-                )}
-                ${dropdownButton(textButtonLabel, textButtonSubtext, (e) =>
-                    toggleDropdown(e.currentTarget, textSelectionPanelTemplate(textTracks))
-                )}
-            </div>
-            <div class="shrink-0">${pipButtonTemplate()}</div>
-        </div>
-    `;
-
-    const configContent = playerControlMode === 'standard'
-        ? standardModeTemplate(config)
-        : advancedModeTemplate(config, handleFormChange, isAbrEnabled);
-
-    return html`
-        <style>
-            .input-field { background-color: var(--color-bg-inset); color: var(--color-text-primary); border-radius: 0.375rem; padding: 0.5rem 0.75rem; border: 1px solid var(--color-border-primary); }
-            .input-field:focus { outline: none; border-color: var(--color-info); }
-            .input-label { font-size: 0.75rem; font-weight: 600; color: var(--color-text-secondary); display: block; margin-bottom: 0.25rem; }
-        </style>
-        <div class="space-y-6">
-            ${playerStatusDisplayTemplate()}
-            <div class="bg-slate-800 p-4 rounded-lg border border-slate-700">
-                <h4 class="font-bold text-slate-300 mb-3 text-sm uppercase tracking-wider">Track Selection</h4>
-                ${trackSelectionContent}
-            </div>
-            <div class="bg-slate-800 p-4 rounded-lg border border-slate-700">
-                <div class="flex justify-between items-center mb-3">
-                    <h4 class="font-bold text-slate-300 text-sm uppercase tracking-wider">
-                        ${playerControlMode === 'standard' ? 'Playback Experience' : 'Advanced Configuration'}
+    _renderSection(title, content, isOpen = true) {
+        return html`
+            <details class="group" ?open=${isOpen}>
+                <summary
+                    class="list-none cursor-pointer flex items-center justify-between py-3"
+                >
+                    <h4
+                        class="font-bold text-slate-400 text-xs uppercase tracking-wider"
+                    >
+                        ${title}
                     </h4>
-                    ${modeToggleTemplate(playerControlMode)}
-                </div>
-                <div>${configContent}</div>
+                    <span
+                        class="text-slate-400 transition-transform duration-200 group-open:rotate-180"
+                        >${icons.chevronDown}</span
+                    >
+                </summary>
+                <div class="pb-2">${content}</div>
+            </details>
+        `;
+    }
+
+    _renderTrackSelection({
+        videoTracks,
+        audioTracks,
+        textTracks,
+        isAbrEnabled,
+        manifest,
+    }) {
+        const videoBandwidthMap = new Map();
+        if (manifest?.variants) {
+            for (const variant of manifest.variants) {
+                if (variant.video && variant.video.bandwidth) {
+                    videoBandwidthMap.set(variant.id, variant.video.bandwidth);
+                }
+            }
+        }
+        const activeVideoTrack = videoTracks.find((t) => t.active);
+        const activeAudioTrack = audioTracks.find((t) => t.active);
+        const activeTextTrack = textTracks.find((t) => t.active);
+
+        const videoLabel = isAbrEnabled
+            ? 'Auto (ABR)'
+            : activeVideoTrack
+              ? `${activeVideoTrack.height}p`
+              : 'Video';
+        const videoSubtext = isAbrEnabled
+            ? 'Adapting to network'
+            : activeVideoTrack
+              ? formatBitrate(
+                    videoBandwidthMap.get(activeVideoTrack.id) ??
+                        activeVideoTrack.bandwidth
+                )
+              : 'N/A';
+        const audioLabel =
+            activeAudioTrack?.label || activeAudioTrack?.language || 'Audio';
+        const audioSubtext = activeAudioTrack
+            ? `Role: ${activeAudioTrack.roles.join(', ') || 'main'}`
+            : 'N/A';
+        const textLabel =
+            activeTextTrack?.label ||
+            activeTextTrack?.language ||
+            'Text Tracks Off';
+        const textSubtext = activeTextTrack
+            ? `Kind: ${activeTextTrack.kind || 'subtitle'}`
+            : '';
+
+        const content = html`
+            <div class="space-y-2">
+                ${dropdownButton(
+                    videoLabel,
+                    videoSubtext,
+                    (e) =>
+                        toggleDropdown(
+                            e.currentTarget,
+                            videoSelectionPanelTemplate(
+                                videoTracks,
+                                isAbrEnabled,
+                                videoBandwidthMap
+                            )
+                        ),
+                    {
+                        isActive: !isAbrEnabled,
+                        tooltip:
+                            'Select the video track. "Auto" enables Adaptive Bitrate (ABR).',
+                    }
+                )}
+                ${dropdownButton(
+                    audioLabel,
+                    audioSubtext,
+                    (e) =>
+                        toggleDropdown(
+                            e.currentTarget,
+                            audioSelectionPanelTemplate(audioTracks)
+                        ),
+                    { tooltip: 'Select the active audio language track.' }
+                )}
+                ${dropdownButton(
+                    textLabel,
+                    textSubtext,
+                    (e) =>
+                        toggleDropdown(
+                            e.currentTarget,
+                            textSelectionPanelTemplate(textTracks)
+                        ),
+                    { tooltip: 'Select the active subtitle or caption track.' }
+                )}
             </div>
-        </div>
-    `;
-};
+        `;
+        return this._renderSection('Track Selection', content);
+    }
+
+    _renderExperiencePresets(config) {
+        const activeAbrPreset = findActivePreset(
+            ABR_STRATEGY_PRESETS,
+            config.abr
+        );
+        const activeBufferPreset = findActivePreset(
+            BUFFERING_PRESETS,
+            config.streaming
+        );
+        const activeResPreset = findActivePreset(
+            RESOLUTION_PRESETS,
+            config.restrictions
+        );
+
+        const content = html`
+            <div class="space-y-2">
+                <div class="flex justify-between items-center">
+                    <span class="text-sm text-slate-300">ABR Strategy</span>
+                    ${dropdownButton(
+                        activeAbrPreset.label,
+                        '',
+                        (e) =>
+                            toggleDropdown(
+                                e.currentTarget,
+                                formattedOptionsDropdownTemplate(
+                                    ABR_STRATEGY_PRESETS,
+                                    activeAbrPreset.id,
+                                    (preset) => {
+                                        playerService.setAbrConfiguration(
+                                            preset.config
+                                        );
+                                        showToast({
+                                            message: `ABR strategy set to ${preset.label}`,
+                                            type: 'pass',
+                                        });
+                                    }
+                                )
+                            ),
+                        {
+                            fullWidth: false,
+                            tooltip:
+                                'Select a preset for Adaptive Bitrate switching behavior.',
+                        }
+                    )}
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-sm text-slate-300">Max Resolution</span>
+                    ${dropdownButton(
+                        activeResPreset.label,
+                        '',
+                        (e) =>
+                            toggleDropdown(
+                                e.currentTarget,
+                                formattedOptionsDropdownTemplate(
+                                    RESOLUTION_PRESETS,
+                                    activeResPreset.id,
+                                    (preset) => {
+                                        playerService.setRestrictions({
+                                            minWidth: 0,
+                                            minHeight: 0,
+                                            minBandwidth: 0,
+                                            maxBandwidth: Infinity,
+                                            ...preset.config,
+                                        });
+                                        showToast({
+                                            message: `Resolution capped at ${preset.label}`,
+                                            type: 'pass',
+                                        });
+                                    }
+                                )
+                            ),
+                        {
+                            fullWidth: false,
+                            tooltip:
+                                'Set a maximum resolution cap for the player.',
+                        }
+                    )}
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-sm text-slate-300"
+                        >Buffering Profile</span
+                    >
+                    ${dropdownButton(
+                        activeBufferPreset.label,
+                        '',
+                        (e) =>
+                            toggleDropdown(
+                                e.currentTarget,
+                                formattedOptionsDropdownTemplate(
+                                    BUFFERING_PRESETS,
+                                    activeBufferPreset.id,
+                                    (preset) => {
+                                        playerService.setBufferConfiguration({
+                                            ...config.streaming,
+                                            ...preset.config,
+                                        });
+                                        showToast({
+                                            message: `Buffering profile set to ${preset.label}`,
+                                            type: 'pass',
+                                        });
+                                    }
+                                )
+                            ),
+                        {
+                            fullWidth: false,
+                            tooltip:
+                                "Select a preset for the player's buffering strategy.",
+                        }
+                    )}
+                </div>
+            </div>
+        `;
+        return this._renderSection('Playback Experience Presets', content);
+    }
+
+    _renderAdvancedControls(config, isAbrEnabled) {
+        const inputBaseClasses =
+            'rounded-md bg-slate-800 border border-slate-700 text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50';
+
+        const content = html`
+            <div class="space-y-4">
+                <div>
+                    <h5
+                        class="font-bold text-slate-400 text-xs uppercase tracking-wider mb-3"
+                    >
+                        ABR Fine-Tuning
+                    </h5>
+                    <fieldset ?disabled=${!isAbrEnabled} class="space-y-3">
+                        <form
+                            data-form-id="abr-config"
+                            @change=${this.handleFormChange}
+                        >
+                            <div class="flex justify-between items-center">
+                                <div>
+                                    <label
+                                        for="bwUpgrade"
+                                        class="text-sm font-semibold text-slate-200 ${tooltipTriggerClasses}"
+                                        data-tooltip="The fraction of the estimated bandwidth which must be exceeded to upgrade. A lower value is more aggressive (upgrades faster)."
+                                        >Bandwidth Upgrade Target</label
+                                    >
+                                    <p class="text-xs text-slate-400">
+                                        Fraction of est. bandwidth to upgrade.
+                                        Higher = conservative.
+                                    </p>
+                                </div>
+                                <input
+                                    id="bwUpgrade"
+                                    type="number"
+                                    step="0.05"
+                                    min="0"
+                                    max="2"
+                                    name="bandwidthUpgradeTarget"
+                                    class="${inputBaseClasses} w-24 text-center py-1.5"
+                                    .value=${config.abr.bandwidthUpgradeTarget}
+                                />
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <div>
+                                    <label
+                                        for="bwDowngrade"
+                                        class="text-sm font-semibold text-slate-200 ${tooltipTriggerClasses}"
+                                        data-tooltip="The fraction of the estimated bandwidth below which the player will downgrade. A higher value is more conservative (downgrades faster)."
+                                        >Bandwidth Downgrade Target</label
+                                    >
+                                    <p class="text-xs text-slate-400">
+                                        Fraction of est. bandwidth to downgrade.
+                                        Lower = aggressive.
+                                    </p>
+                                </div>
+                                <input
+                                    id="bwDowngrade"
+                                    type="number"
+                                    step="0.05"
+                                    min="0"
+                                    max="2"
+                                    name="bandwidthDowngradeTarget"
+                                    class="${inputBaseClasses} w-24 text-center py-1.5"
+                                    .value=${config.abr
+                                        .bandwidthDowngradeTarget}
+                                />
+                            </div>
+                        </form>
+                    </fieldset>
+                </div>
+                <div>
+                    <h5
+                        class="font-bold text-slate-400 text-xs uppercase tracking-wider mb-3"
+                    >
+                        Explicit Restrictions
+                    </h5>
+                    <fieldset ?disabled=${!isAbrEnabled}>
+                        <form
+                            data-form-id="abr-restrictions"
+                            @change=${this.handleFormChange}
+                            class="grid grid-cols-2 gap-x-4 gap-y-3"
+                        >
+                            <div>
+                                <label class="block text-sm text-slate-300 mb-1"
+                                    >Min Bitrate
+                                    <span class="text-slate-400"
+                                        >(bps)</span
+                                    ></label
+                                >
+                                <input
+                                    type="number"
+                                    name="minBandwidth"
+                                    class="${inputBaseClasses} w-full px-2 py-1.5"
+                                    .value=${config.restrictions.minBandwidth}
+                                />
+                            </div>
+                            <div>
+                                <label class="block text-sm text-slate-300 mb-1"
+                                    >Max Bitrate
+                                    <span class="text-slate-400"
+                                        >(bps)</span
+                                    ></label
+                                >
+                                <input
+                                    type="number"
+                                    name="maxBandwidth"
+                                    class="${inputBaseClasses} w-full px-2 py-1.5"
+                                    .value=${config.restrictions
+                                        .maxBandwidth === Infinity
+                                        ? ''
+                                        : config.restrictions.maxBandwidth}
+                                    placeholder="Infinity"
+                                />
+                            </div>
+                            <div>
+                                <label class="block text-sm text-slate-300 mb-1"
+                                    >Min Height
+                                    <span class="text-slate-400"
+                                        >(px)</span
+                                    ></label
+                                >
+                                <input
+                                    type="number"
+                                    name="minHeight"
+                                    class="${inputBaseClasses} w-full px-2 py-1.5"
+                                    .value=${config.restrictions.minHeight}
+                                />
+                            </div>
+                            <div>
+                                <label class="block text-sm text-slate-300 mb-1"
+                                    >Max Height
+                                    <span class="text-slate-400"
+                                        >(px)</span
+                                    ></label
+                                >
+                                <input
+                                    type="number"
+                                    name="maxHeight"
+                                    class="${inputBaseClasses} w-full px-2 py-1.5"
+                                    .value=${config.restrictions.maxHeight ===
+                                    Infinity
+                                        ? ''
+                                        : config.restrictions.maxHeight}
+                                    placeholder="Infinity"
+                                />
+                            </div>
+                        </form>
+                    </fieldset>
+                </div>
+            </div>
+        `;
+        return this._renderSection('Advanced Configuration', content, true);
+    }
+
+    render() {
+        const player = playerService.getPlayer();
+        if (!player) {
+            render(
+                html`<div class="p-4 text-center text-slate-500">
+                    Player not initialized.
+                </div>`,
+                this
+            );
+            return;
+        }
+
+        const config = playerService.getConfiguration();
+        if (!config) {
+            render(
+                html`<div class="p-4 text-center text-slate-500">
+                    Loading configuration...
+                </div>`,
+                this
+            );
+            return;
+        }
+
+        const isAbrEnabled = config.abr.enabled;
+        const manifest = player.getManifest();
+        const videoTracks = player
+            .getVariantTracks()
+            .filter((t) => t.type === 'variant' && t.videoCodec);
+        videoTracks.sort((a, b) => (b.height || 0) - (a.height || 0));
+        const audioTracks = player.getAudioLanguagesAndRoles();
+        const textTracks = player.getTextTracks();
+
+        const template = html`
+            <div class="bg-slate-900 text-white px-4">
+                ${this._renderTrackSelection({
+                    videoTracks,
+                    audioTracks,
+                    textTracks,
+                    isAbrEnabled,
+                    manifest,
+                })}
+                ${this._renderExperiencePresets(config)}
+                ${this._renderAdvancedControls(config, isAbrEnabled)}
+            </div>
+        `;
+        render(template, this);
+    }
+}
+
+if (!customElements.get('player-controls-component')) {
+    customElements.define('player-controls-component', PlayerControlsComponent);
+}
