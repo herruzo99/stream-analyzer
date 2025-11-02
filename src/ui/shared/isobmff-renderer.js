@@ -116,7 +116,7 @@ const entriesTableTemplate = (box) => {
 
     const rowHeight = 32;
 
-    const rowRenderer = (entry) => {
+    const rowRenderer = (entry, index) => {
         const rowTooltip = `Sample #${entry.index} located at file offset ${entry.offset}.`;
         const rowBgClass = box.color?.bgClass
             ? `${box.color.bgClass.replace(/-\d{2,3}/, '-900')}/30`
@@ -132,7 +132,7 @@ const entriesTableTemplate = (box) => {
                 <div
                     class="p-1 font-mono text-gray-500 w-12 text-right pr-2 border-r border-gray-700/50 self-stretch flex items-center justify-end"
                 >
-                    ${entry.index + 1}
+                    ${index + 1}
                 </div>
                 ${headers.map(
                     (header) => html`
@@ -153,10 +153,10 @@ const entriesTableTemplate = (box) => {
                 Entries / Samples (${entries.length})
             </h4>
             <div
-                class="bg-gray-900/50 rounded border border-gray-700/50 overflow-hidden"
+                class="bg-gray-900/50 text-white  rounded border border-gray-700/50 overflow-hidden"
             >
                 <div
-                    class="flex bg-gray-800 z-10 font-semibold text-xs text-gray-400"
+                    class="flex bg-gray-800 z-10 font-semibold text-xs text-slate-400"
                 >
                     <div
                         class="p-1 w-12 text-right pr-2 border-r border-gray-700/50"
@@ -174,7 +174,7 @@ const entriesTableTemplate = (box) => {
                 </div>
                 <virtualized-list
                     .items=${entries}
-                    .rowTemplate=${(item) => rowRenderer(item)}
+                    .rowTemplate=${(item, index) => rowRenderer(item, index)}
                     .rowHeight=${rowHeight}
                     .itemId=${(item) => item.index}
                     style="height: ${Math.min(
@@ -206,7 +206,6 @@ export const inspectorDetailsTemplate = (
         if (key.endsWith('_raw') && box.details[key.replace('_raw', '')]) {
             return '';
         }
-
         const fieldInfo = allIsoTooltipData[`${box.type}@${key}`];
         const highlightClass =
             fieldForDisplay === key ? 'is-inspector-field-highlighted' : '';
@@ -324,11 +323,12 @@ export const isoBoxTreeTemplate = (box) => {
                       <tbody>
                           ${Object.entries(box.details).map(([key, field]) => {
                               if (key.endsWith('_raw')) return ''; // Hide raw values if decoded ones exist
+                              
                               const fieldTooltip =
                                   allIsoTooltipData[`${box.type}@${key}`];
                               return html`<tr>
                                   <td
-                                      class="border border-gray-700 p-2 text-gray-400 w-1/3 ${fieldTooltip
+                                      class="border border-gray-700 p-2 text-slate-400 w-1/3 ${fieldTooltip
                                           ? tooltipTriggerClasses
                                           : ''}"
                                       data-tooltip="${fieldTooltip?.text || ''}"
@@ -337,7 +337,7 @@ export const isoBoxTreeTemplate = (box) => {
                                       ${key}
                                   </td>
                                   <td
-                                      class="border border-gray-700 p-2 text-gray-200 font-mono break-all"
+                                      class="border border-gray-700 p-2 text-slate-200 font-mono break-all"
                                   >
                                       ${renderCellContent(field.value)}
                                   </td>

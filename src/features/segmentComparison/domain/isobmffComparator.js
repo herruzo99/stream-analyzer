@@ -2,6 +2,9 @@
  * @typedef {import('@/types').Box} Box
  */
 
+import { getTooltipData as getAllIsoTooltipData } from '@/infrastructure/parsing/isobmff/index';
+const allIsoTooltipData = getAllIsoTooltipData();
+
 /**
  * Recursively finds a box of a given type within a list of boxes.
  * @param {Box[] | undefined} boxes - The list of boxes to search.
@@ -24,9 +27,10 @@ const findBox = (boxes, type) => {
  * Creates a comparison row object for the tabular view.
  * @param {string} name - The name/label of the property.
  * @param {any[]} values - The array of values from each segment.
+ * @param {object} [tooltipData={}] - The tooltip data for the row.
  * @returns {object}
  */
-const createRow = (name, values) => {
+const createRow = (name, values, tooltipData = {}) => {
     const firstValue = values[0];
     const isSame = values.every(
         (v) => JSON.stringify(v) === JSON.stringify(firstValue)
@@ -40,7 +44,7 @@ const createRow = (name, values) => {
         status = 'missing';
     }
 
-    return { name, values, status };
+    return { name, values, status, ...tooltipData };
 };
 
 /**
@@ -96,7 +100,7 @@ const createTableData = (segments, boxType, headers) => {
 /**
  * Creates a generic, field-by-field comparator for any box type.
  * @param {string} boxType - The type of the box to compare.
- * @returns {(segments: object[]) => {title: string, rows: object[], isGeneric: boolean}}
+ * @returns {(segments: object[]) => {title: string, fullName: string, rows: object[], isGeneric: boolean}}
  */
 const createGenericComparator = (boxType) => {
     return (segments) => {
@@ -131,10 +135,21 @@ const createGenericComparator = (boxType) => {
                     }
                     return value ?? '---';
                 });
-                return createRow(field, values);
+                const tooltipInfo =
+                    allIsoTooltipData[`${boxType}@${field}`] || {};
+                return createRow(field, values, {
+                    tooltip: tooltipInfo.text,
+                    isoRef: tooltipInfo.ref,
+                });
             });
 
-        return { title: boxType, rows, isGeneric: true };
+        const boxInfo = allIsoTooltipData[boxType] || {};
+        return {
+            title: boxType,
+            fullName: boxInfo.name,
+            rows,
+            isGeneric: true,
+        };
     };
 };
 
@@ -145,6 +160,7 @@ const boxComparators = {
     // This is a pseudo-box for the overall chunk
     'CMAF Chunk': (segments) => ({
         title: 'CMAF Chunk',
+        fullName: 'CMAF Chunk',
         rows: [
             createRow(
                 'Total Size',
@@ -159,20 +175,34 @@ const boxComparators = {
         isGeneric: false,
     }),
     ftyp: (s) => ({
-        title: 'ftyp (File Type)',
+        title: 'ftyp',
+        fullName: allIsoTooltipData.ftyp?.name,
         rows: [
             createRow(
                 'Major Brand',
-                s.map((seg) => getBoxField(seg, ['ftyp'], 'majorBrand'))
+                s.map((seg) => getBoxField(seg, ['ftyp'], 'majorBrand')),
+                allIsoTooltipData['ftyp@majorBrand']
+                    ? {
+                          tooltip: allIsoTooltipData['ftyp@majorBrand'].text,
+                          isoRef: allIsoTooltipData['ftyp@majorBrand'].ref,
+                      }
+                    : {}
             ),
         ],
     }),
     styp: (s) => ({
-        title: 'styp (Segment Type)',
+        title: 'styp',
+        fullName: allIsoTooltipData.styp?.name,
         rows: [
             createRow(
                 'Major Brand',
-                s.map((seg) => getBoxField(seg, ['styp'], 'majorBrand'))
+                s.map((seg) => getBoxField(seg, ['styp'], 'majorBrand')),
+                allIsoTooltipData['styp@majorBrand']
+                    ? {
+                          tooltip: allIsoTooltipData['styp@majorBrand'].text,
+                          isoRef: allIsoTooltipData['styp@majorBrand'].ref,
+                      }
+                    : {}
             ),
         ],
     }),
@@ -181,7 +211,8 @@ const boxComparators = {
             seg ? findBox(seg.data.boxes, 'sidx') : null
         );
         return {
-            title: 'sidx (Segment Index)',
+            title: 'sidx',
+            fullName: allIsoTooltipData.sidx?.name,
             rows: [
                 createRow(
                     'Reference ID',
@@ -215,7 +246,8 @@ const boxComparators = {
             seg ? findBox(seg.data.boxes, 'tfra') : null
         );
         return {
-            title: 'tfra (Track Fragment Random Access)',
+            title: 'tfra',
+            fullName: allIsoTooltipData.tfra?.name,
             rows: [
                 createRow(
                     'Track ID',
@@ -245,7 +277,8 @@ const boxComparators = {
             seg ? findBox(seg.data.boxes, 'ctts') : null
         );
         return {
-            title: 'ctts (Composition Time to Sample)',
+            title: 'ctts',
+            fullName: allIsoTooltipData.ctts?.name,
             rows: [
                 createRow(
                     'Entry Count',
@@ -265,7 +298,8 @@ const boxComparators = {
             seg ? findBox(seg.data.boxes, 'sbgp') : null
         );
         return {
-            title: 'sbgp (Sample to Group)',
+            title: 'sbgp',
+            fullName: allIsoTooltipData.sbgp?.name,
             rows: [
                 createRow(
                     'Grouping Type',
@@ -291,7 +325,8 @@ const boxComparators = {
             seg ? findBox(seg.data.boxes, 'sdtp') : null
         );
         return {
-            title: 'sdtp (Sample Dependency Type)',
+            title: 'sdtp',
+            fullName: allIsoTooltipData.sdtp?.name,
             rows: [
                 createRow(
                     'Sample Count',
@@ -313,7 +348,8 @@ const boxComparators = {
             seg ? findBox(seg.data.boxes, 'subs') : null
         );
         return {
-            title: 'subs (Sub-Sample Information)',
+            title: 'subs',
+            fullName: allIsoTooltipData.subs?.name,
             rows: [
                 createRow(
                     'Entry Count',
@@ -329,7 +365,8 @@ const boxComparators = {
         };
     },
     moof: (s) => ({
-        title: 'moof (Movie Fragment)',
+        title: 'moof',
+        fullName: allIsoTooltipData.moof?.name,
         rows: [
             createRow(
                 'Sequence Number',
@@ -340,7 +377,8 @@ const boxComparators = {
         ],
     }),
     tfhd: (s) => ({
-        title: 'tfhd (Track Fragment Header)',
+        title: 'tfhd',
+        fullName: allIsoTooltipData.tfhd?.name,
         rows: [
             createRow(
                 'Track ID',
@@ -355,7 +393,8 @@ const boxComparators = {
         ],
     }),
     tfdt: (s) => ({
-        title: 'tfdt (Track Fragment Decode Time)',
+        title: 'tfdt',
+        fullName: allIsoTooltipData.tfdt?.name,
         rows: [
             createRow(
                 'Base Media Decode Time',
@@ -539,7 +578,8 @@ const boxComparators = {
             });
 
         return {
-            title: 'trun (Track Fragment Run)',
+            title: 'trun',
+            fullName: allIsoTooltipData.trun?.name,
             rows,
             isGeneric: false,
             tableData:
@@ -574,7 +614,8 @@ const boxComparators = {
         };
     },
     pssh: (s) => ({
-        title: 'pssh (Protection System Specific Header)',
+        title: 'pssh',
+        fullName: allIsoTooltipData.pssh?.name,
         rows: [
             createRow(
                 'System ID',
@@ -583,7 +624,8 @@ const boxComparators = {
         ],
     }),
     tenc: (s) => ({
-        title: 'tenc (Track Encryption)',
+        title: 'tenc',
+        fullName: allIsoTooltipData.tenc?.name,
         rows: [
             createRow(
                 'Default IV Size',
@@ -609,7 +651,8 @@ const boxComparators = {
         ],
     }),
     elst: (s) => ({
-        title: 'elst (Edit List)',
+        title: 'elst',
+        fullName: allIsoTooltipData.elst?.name,
         rows: [
             createRow(
                 'Entry Count',
@@ -624,7 +667,8 @@ const boxComparators = {
         ],
     }),
     trex: (s) => ({
-        title: 'trex (Track Extends)',
+        title: 'trex',
+        fullName: allIsoTooltipData.trex?.name,
         rows: [
             createRow(
                 'Track ID',
@@ -655,7 +699,8 @@ const boxComparators = {
         );
 
         return {
-            title: 'stts (Time-to-Sample)',
+            title: 'stts',
+            fullName: allIsoTooltipData.stts?.name,
             rows: [
                 createRow(
                     'Entry Count',
@@ -678,7 +723,8 @@ const boxComparators = {
         );
 
         return {
-            title: 'stsc (Sample-to-Chunk)',
+            title: 'stsc',
+            fullName: allIsoTooltipData.stsc?.name,
             rows: [
                 createRow(
                     'Entry Count',
@@ -741,7 +787,12 @@ const boxComparators = {
             ]);
         }
 
-        return { title: 'stsz (Sample Size)', rows, tableData };
+        return {
+            title: 'stsz',
+            fullName: allIsoTooltipData.stsz?.name,
+            rows,
+            tableData,
+        };
     },
     stco: (segments) => {
         const stcoBoxes = segments.map((seg) =>
@@ -749,7 +800,8 @@ const boxComparators = {
         );
 
         return {
-            title: 'stco (Chunk Offset)',
+            title: 'stco',
+            fullName: allIsoTooltipData.stco?.name,
             rows: [
                 createRow(
                     'Entry Count',
@@ -769,7 +821,8 @@ const boxComparators = {
         );
 
         return {
-            title: 'stss (Sync Sample)',
+            title: 'stss',
+            fullName: allIsoTooltipData.stss?.name,
             rows: [
                 createRow(
                     'Sync Sample Count',

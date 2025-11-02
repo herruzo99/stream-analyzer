@@ -7,6 +7,8 @@ import { comparisonHeaderTemplate } from './components/comparisonHeader.js';
 import { comparisonSectionTemplate } from './components/comparisonSection.js';
 import { semanticDiffTemplate } from './components/semanticDiff.js';
 import { debugLog } from '@/shared/utils/debug';
+import { connectedTabBar } from '@/ui/components/tabs';
+import * as icons from '@/ui/icons';
 
 let container = null;
 let analysisUnsubscribe = null;
@@ -16,13 +18,14 @@ function renderSegmentComparison() {
     if (!container) return;
 
     const { streams, segmentsForCompare } = useAnalysisStore.getState();
-    const { segmentComparisonHideSame } = useUiStore.getState();
+    const { comparisonHideSameRows, segmentComparisonActiveTab } =
+        useUiStore.getState();
     const { get: getFromCache } = useSegmentCacheStore.getState();
 
     let template;
 
     if (segmentsForCompare.length < 2) {
-        template = html`<div class="text-center py-12 text-gray-400">
+        template = html`<div class="text-center py-12 text-slate-400">
             <p>
                 Select at least two segments from the Segment Explorer to
                 compare.
@@ -31,49 +34,45 @@ function renderSegmentComparison() {
     } else {
         const enrichedSegments = segmentsForCompare
             .map((item) => {
-                debugLog(
-                    'SegmentComparison',
-                    `Processing item for comparison. Stream ID: ${item.streamId}, Rep ID: ${item.repId}, Segment ID: ${item.segmentUniqueId}`
-                );
                 const cachedEntry = getFromCache(item.segmentUniqueId);
                 if (
                     !cachedEntry ||
                     cachedEntry.status !== 200 ||
                     !cachedEntry.parsedData
                 ) {
-                    debugLog(
-                        'SegmentComparison',
-                        `Failed to enrich: No valid cache entry for ${item.segmentUniqueId}`,
-                        { cachedEntry }
-                    );
                     return null;
                 }
                 const stream = streams.find((s) => s.id === item.streamId);
-                const allSegments =
-                    (stream.protocol === 'dash'
-                        ? stream.dashRepresentationState.get(item.repId)
-                              ?.segments
-                        : stream.hlsVariantState.get(item.repId)?.segments) ||
-                    stream.segments ||
-                    [];
+                if (!stream) return null;
 
-                if (!allSegments) {
-                    debugLog(
-                        'SegmentComparison',
-                        `Failed to enrich: Could not find segment list for repId ${item.repId}`
-                    );
-                }
+                let segment = null;
 
-                const segment = allSegments.find(
-                    (s) => s.uniqueId === item.segmentUniqueId
-                );
-                if (!stream || !segment) {
-                    debugLog(
-                        'SegmentComparison',
-                        `Failed to enrich: Could not find stream or segment object. Stream found: ${!!stream}, Segment found: ${!!segment}`
-                    );
-                    return null;
+                // --- ARCHITECTURAL FIX: Robust Segment Lookup ---
+                if (stream.protocol === 'dash') {
+                    for (const repState of stream.dashRepresentationState.values()) {
+                        const foundSegment = repState.segments.find(
+                            (s) => s.uniqueId === item.segmentUniqueId
+                        );
+                        if (foundSegment) {
+                            segment = foundSegment;
+                            break;
+                        }
+                    }
+                } else if (stream.protocol === 'hls') {
+                    for (const variantState of stream.hlsVariantState.values()) {
+                        const foundSegment = variantState.segments.find(
+                            (s) => s.uniqueId === item.segmentUniqueId
+                        );
+                        if (foundSegment) {
+                            segment = foundSegment;
+                            break;
+                        }
+                    }
                 }
+                // --- END FIX ---
+
+                if (!segment) return null;
+
                 return { ...cachedEntry.parsedData, stream, segment };
             })
             .filter(Boolean);
@@ -89,20 +88,60 @@ function renderSegmentComparison() {
             try {
                 const { headers, sections, structuralDiff } =
                     createComparisonModel(enrichedSegments);
-                const filteredSections = sections
-                    .map((section) => ({
-                        ...section,
-                        rows: segmentComparisonHideSame
-                            ? section.rows.filter(
-                                  (row) => row.status !== 'same'
-                              )
-                            : section.rows,
-                        tableData: section.tableData,
-                    }))
-                    .filter(
-                        (section) =>
-                            section.rows.length > 0 || section.tableData
-                    );
+
+                const hasStructuralDiff =
+                    structuralDiff && structuralDiff.length > 0;
+                const tabs = [
+                    { key: 'tabular', label: 'Tabular Comparison' },
+                    ...(hasStructuralDiff
+                        ? [
+                              {
+                                  key: 'structural',
+                                  label: 'Structural Diff',
+                              },
+                          ]
+                        : []),
+                ];
+
+                let tabContent;
+                if (segmentComparisonActiveTab === 'structural') {
+                    tabContent = html`<div class="mt-6">
+                        <p class="text-sm text-slate-400 mb-2">
+                            Visual comparison of the ISOBMFF box tree. Only the
+                            first two selected segments are used for this view.
+                        </p>
+                        ${semanticDiffTemplate(structuralDiff)}
+                    </div>`;
+                } else {
+                    const filteredSections = sections
+                        .map((section) => ({
+                            ...section,
+                            rows: comparisonHideSameRows
+                                ? section.rows.filter(
+                                      (row) => row.status !== 'same'
+                                  )
+                                : section.rows,
+                            tableData: section.tableData,
+                        }))
+                        .filter(
+                            (section) =>
+                                section.rows.length > 0 || section.tableData
+                        );
+
+                    tabContent = html`
+                        <div class="overflow-auto grow mt-6">
+                            <div class="min-w-[1024px]">
+                                ${comparisonHeaderTemplate(headers)}
+                                ${filteredSections.map((section) =>
+                                    comparisonSectionTemplate(
+                                        section,
+                                        headers.length
+                                    )
+                                )}
+                            </div>
+                        </div>
+                    `;
+                }
 
                 template = html`
                     <div class="flex flex-col h-full">
@@ -116,21 +155,21 @@ function renderSegmentComparison() {
                                 <div class="flex items-center gap-2">
                                     <label
                                         for="hide-same-toggle"
-                                        class="text-sm text-gray-400"
+                                        class="text-sm text-slate-400"
                                         >Hide identical rows</label
                                     >
                                     <button
                                         @click=${() =>
-                                            uiActions.toggleSegmentComparisonHideSame()}
+                                            uiActions.toggleComparisonHideSameRows()}
                                         role="switch"
-                                        aria-checked="${segmentComparisonHideSame}"
+                                        aria-checked="${comparisonHideSameRows}"
                                         id="hide-same-toggle"
-                                        class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${segmentComparisonHideSame
+                                        class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${comparisonHideSameRows
                                             ? 'bg-blue-600'
-                                            : 'bg-gray-600'}"
+                                            : 'bg-slate-600'}"
                                     >
                                         <span
-                                            class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${segmentComparisonHideSame
+                                            class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${comparisonHideSameRows
                                                 ? 'translate-x-6'
                                                 : 'translate-x-1'}"
                                         ></span>
@@ -145,39 +184,13 @@ function renderSegmentComparison() {
                                 </button>
                             </div>
                         </div>
-                        <div class="overflow-auto grow">
-                            <div class="min-w-[1024px]">
-                                ${comparisonHeaderTemplate(headers)}
-                                ${structuralDiff
-                                    ? html`
-                                          <div class="mt-6">
-                                              <h3
-                                                  class="text-xl font-bold text-gray-200 mb-2"
-                                              >
-                                                  Structural Diff
-                                              </h3>
-                                              <p
-                                                  class="text-sm text-gray-400 mb-2"
-                                              >
-                                                  Visual comparison of the
-                                                  ISOBMFF box tree. Only the
-                                                  first two selected segments
-                                                  are used for this view.
-                                              </p>
-                                              ${semanticDiffTemplate(
-                                                  structuralDiff
-                                              )}
-                                          </div>
-                                      `
-                                    : ''}
-                                ${filteredSections.map((section) =>
-                                    comparisonSectionTemplate(
-                                        section,
-                                        headers.length
-                                    )
-                                )}
-                            </div>
-                        </div>
+
+                        ${connectedTabBar(
+                            tabs,
+                            segmentComparisonActiveTab,
+                            uiActions.setSegmentComparisonActiveTab
+                        )}
+                        ${tabContent}
                     </div>
                 `;
             } catch (e) {

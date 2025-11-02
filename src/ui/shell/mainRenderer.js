@@ -51,6 +51,7 @@ let currentMountedStreamId = null;
 
 export function initializeRenderer(domContext) {
     initialDomContext = domContext;
+    uiActions.injectViewMap(viewMap); // Inject viewMap for state actions
     useAnalysisStore.subscribe(renderApp);
     useUiStore.subscribe(renderApp);
 }
@@ -59,7 +60,8 @@ export function renderApp() {
     if (!initialDomContext) return;
 
     const { streams, activeStreamId } = useAnalysisStore.getState();
-    const { viewState, activeTab, activeSidebar } = useUiStore.getState();
+    const { viewState, activeTab, activeSidebar, segmentExplorerActiveRepId, segmentExplorerActiveTab } =
+        useUiStore.getState();
     const isResultsView = viewState === 'results' && streams.length > 0;
     const activeStream = streams.find((s) => s.id === activeStreamId);
 
@@ -102,8 +104,27 @@ export function renderApp() {
                 'MainRenderer',
                 `View change detected. From: ${previousViewKey}, To: ${currentViewKey}. Stream changed: ${streamIdChanged}`
             );
+
+            // --- ARCHITECTURAL FIX: Prevent re-entrant unmount loop ---
+            // Update the current view key *before* unmounting. This ensures that if
+            // the unmount logic triggers a state change and a re-render, this
+            // block will not execute again for the same view transition, breaking
+            // the infinite recursion.
+            currentMountedViewKey = currentViewKey;
+            currentMountedStreamId = activeStream?.id;
+            // --- END FIX ---
+
             const oldView = viewMap[previousViewKey];
             const newView = viewMap[currentViewKey];
+
+            if (streamIdChanged) {
+                if (segmentExplorerActiveRepId) {
+                    uiActions.setSegmentExplorerActiveRepId(null);
+                }
+                if (segmentExplorerActiveTab !== 'video') {
+                    uiActions.setSegmentExplorerActiveTab('video');
+                }
+            }
 
             if (oldView) {
                 if (
@@ -153,20 +174,13 @@ export function renderApp() {
 
                 const contextualSidebar =
                     document.getElementById('contextual-sidebar');
-                if (newView.hasContextualSidebar) {
-                    if (contextualSidebar)
-                        contextualSidebar.classList.remove('hidden');
-                } else {
-                    if (contextualSidebar)
-                        contextualSidebar.classList.add('hidden');
-                    if (activeSidebar === 'contextual') {
-                        uiActions.setActiveSidebar(null);
-                    }
+                if (contextualSidebar) {
+                    contextualSidebar.classList.toggle(
+                        'hidden',
+                        !newView.hasContextualSidebar
+                    );
                 }
             }
-
-            currentMountedViewKey = currentViewKey;
-            currentMountedStreamId = activeStream?.id;
         }
     } else {
         if (isShellRendered) {
@@ -190,11 +204,6 @@ export function renderApp() {
     }
 
     requestAnimationFrame(() => {
-        // --- ARCHITECTURAL FIX ---
-        // The `createIcons` function from lucide is an imperative DOM manipulation.
-        // It must be called *after* every render pass to ensure newly added icons
-        // are initialized. It now correctly receives the icon data object.
         createIcons({ icons });
-        // --- END FIX ---
     });
 }

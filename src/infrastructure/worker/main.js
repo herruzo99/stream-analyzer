@@ -1,11 +1,11 @@
 import { handleStartAnalysis } from './handlers/analysisHandler.js';
 import { handleGetManifestMetadata } from './handlers/metadataHandler.js';
-import { handleGeneratePagedByteMap } from './handlers/segmentCacheHandler.js';
 import {
     handleParseSegmentStructure,
     handleFetchAndParseSegment,
     handleDecryptAndParseSegment,
     handleFetchKey,
+    handleFullSegmentAnalysis,
 } from './parsingService.js';
 import { handleShakaResourceFetch } from './handlers/shakaResourceHandler.js.js';
 import { handleShakaManifestFetch } from './handlers/shakaManifestHandler.js';
@@ -59,8 +59,8 @@ const handlers = {
         handleStartAnalysis({ ...payload, now: Date.now() }, signal),
     'get-manifest-metadata': handleGetManifestMetadata,
     'parse-segment-structure': handleParseSegmentStructure,
+    'full-segment-analysis': handleFullSegmentAnalysis,
     'segment-fetch-and-parse': handleFetchAndParseSegment,
-    'generate-paged-byte-map': handleGeneratePagedByteMap,
     'fetch-hls-media-playlist': handleFetchHlsMediaPlaylist,
     'fetch-key': handleFetchKey,
     'decrypt-and-parse-segment': handleDecryptAndParseSegment,

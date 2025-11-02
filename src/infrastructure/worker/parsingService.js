@@ -133,119 +133,7 @@ function assignTsPacketColors(packets) {
 
 // --- End Color Logic ---
 
-const findBoxRecursive = (boxes, predicate) => {
-    if (!boxes) return null;
-    for (const box of boxes) {
-        if (predicate(box)) return box;
-        if (box.children?.length > 0) {
-            const found = findBoxRecursive(box.children, predicate);
-            if (found) return found;
-        }
-    }
-    return null;
-};
-
-function buildCanonicalSampleList(parsedData) {
-    const samples = [];
-    let sampleIndex = 0;
-    const moofBoxes = parsedData.data.boxes.filter((b) => b.type === 'moof');
-    moofBoxes.forEach((moofBox) => {
-        const trafBoxes = moofBox.children.filter((c) => c.type === 'traf');
-        trafBoxes.forEach((traf) => {
-            const tfhd = findBoxRecursive(
-                traf.children,
-                (b) => b.type === 'tfhd'
-            );
-            const trun = findBoxRecursive(
-                traf.children,
-                (b) => b.type === 'trun'
-            );
-            const tfdt = findBoxRecursive(
-                traf.children,
-                (b) => b.type === 'tfdt'
-            );
-            if (!trun || !tfhd) return;
-            const baseDataOffset =
-                tfhd.details.base_data_offset?.value || moofBox.offset || 0;
-            const dataOffset = trun.details.data_offset?.value || 0;
-            let currentOffset = baseDataOffset + dataOffset;
-
-            (trun.samples || []).forEach((sampleInfo) => {
-                const sample = {
-                    isSample: true,
-                    index: sampleIndex,
-                    offset: currentOffset,
-                    size: sampleInfo.size,
-                    duration: sampleInfo.duration,
-                    compositionTimeOffset: sampleInfo.compositionTimeOffset,
-                    flags: sampleInfo.flags,
-                    baseMediaDecodeTime:
-                        tfdt?.details.baseMediaDecodeTime?.value,
-                    trackId: tfhd.details.track_ID?.value,
-                    color: { bgClass: 'bg-gray-700/20' },
-                };
-
-                sampleInfo.offset = currentOffset;
-                sampleInfo.index = sampleIndex;
-
-                samples.push(sample);
-                currentOffset += sampleInfo.size;
-                sampleIndex++;
-            });
-        });
-    });
-    return samples;
-}
-
-function decorateSamples(samples, parsedData) {
-    const sdtp = findBoxRecursive(
-        parsedData.data.boxes,
-        (b) => b.type === 'sdtp'
-    );
-    const stdp = findBoxRecursive(
-        parsedData.data.boxes,
-        (b) => b.type === 'stdp'
-    );
-    const sbgp = findBoxRecursive(
-        parsedData.data.boxes,
-        (b) => b.type === 'sbgp'
-    );
-    const senc = findBoxRecursive(
-        parsedData.data.boxes,
-        (b) => b.type === 'senc'
-    );
-    let sbgpSampleCounter = 0;
-    let sbgpEntryIndex = 0;
-    samples.forEach((sample, i) => {
-        if (sdtp?.entries?.[i]) {
-            sample.dependsOn = sdtp.entries[i].sample_depends_on;
-        }
-        if (stdp?.entries?.[i]) {
-            sample.degradationPriority = stdp.entries[i];
-        }
-        if (sbgp?.entries) {
-            if (sbgpSampleCounter === 0) {
-                if (sbgp.entries[sbgpEntryIndex]) {
-                    sbgpSampleCounter =
-                        sbgp.entries[sbgpEntryIndex].sample_count;
-                }
-            }
-            if (sbgpSampleCounter > 0) {
-                sample.sampleGroup =
-                    sbgp.entries[sbgpEntryIndex].group_description_index;
-                sbgpSampleCounter--;
-                if (sbgpSampleCounter === 0) {
-                    sbgpEntryIndex++;
-                }
-            }
-        }
-        if (senc?.samples?.[i]) {
-            sample.encryption = senc.samples[i];
-        }
-    });
-}
-
-function generateFullByteMap(parsedData) {
+export function generateFullByteMap(parsedData) {
     const byteMap = new Map();
 
     if (parsedData.format === 'isobmff') {
@@ -273,6 +161,23 @@ function generateFullByteMap(parsedData) {
                             });
                         }
                     }
+                    // --- ARCHITECTURAL FIX: Map samples inside their parent box (e.g., trun) ---
+                    if (box.samples) {
+                        box.samples.forEach((sample) => {
+                            for (
+                                let i = sample.offset;
+                                i < sample.offset + sample.size;
+                                i++
+                            ) {
+                                byteMap.set(i, {
+                                    box: box,
+                                    color: { bgClass: 'bg-gray-700/20' },
+                                    fieldName: `Sample ${sample.index}`,
+                                });
+                            }
+                        });
+                    }
+                    // --- END FIX ---
                 } else {
                     for (
                         let i = box.contentOffset;
@@ -410,11 +315,15 @@ export async function parseSegment({ data, formatHint, url }) {
 
 export async function handleParseSegmentStructure({ url, data, formatHint }) {
     const parsedData = await parseSegment({ data, formatHint, url });
+
+    // --- ARCHITECTURAL FIX: CONSOLIDATE L2 ANALYSIS & DECORATE FOR UI ---
     if (parsedData.format === 'isobmff' && parsedData.data.boxes) {
+        // The `parseISOBMFF` function now reliably builds the canonical sample list.
+        // This handler is now only responsible for UI-specific decoration (colors)
+        // and event extraction.
         assignBoxColors(parsedData.data.boxes);
-        const samples = buildCanonicalSampleList(parsedData);
-        decorateSamples(samples, parsedData);
-        parsedData.samples = samples;
+        parsedData.data.size = data.byteLength; // Add total size
+
         if (parsedData.data.events && parsedData.data.events.length > 0) {
             const canonicalEvents = parsedData.data.events
                 .map((emsgBox) => {
@@ -445,13 +354,24 @@ export async function handleParseSegmentStructure({ url, data, formatHint }) {
     } else if (parsedData.format === 'ts' && parsedData.data.packets) {
         assignTsPacketColors(parsedData.data.packets);
     }
-
-    // --- ARCHITECTURAL CHANGE ---
-    // Generate the full byte map here, co-located with the parsing logic.
-    parsedData.byteMap = generateFullByteMap(parsedData);
-    // --- END CHANGE ---
+    // --- END FIX ---
 
     return parsedData;
+}
+
+export async function handleFullSegmentAnalysis({ parsedData }) {
+    debugLog('parsingService', 'Performing full L2 analysis on segment.');
+    if (parsedData.format === 'isobmff' && parsedData.data.boxes) {
+        // The sample list is now reliably attached by parseISOBMFF.
+        // No further action is needed here to generate it.
+    }
+    // For TS, the initial parse is already the full analysis.
+
+    const byteMap = generateFullByteMap(parsedData);
+    return {
+        samples: parsedData.samples || [],
+        byteMap: byteMap,
+    };
 }
 
 export async function handleFetchAndParseSegment(

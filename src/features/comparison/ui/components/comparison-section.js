@@ -1,17 +1,15 @@
 import { html } from 'lit-html';
 import { comparisonRowTemplate } from './comparison-row.js';
-import { useUiStore } from '@/state/uiStore';
 import * as icons from '@/ui/icons';
-import { tooltipTriggerClasses } from '@/ui/shared/constants';
 import './abr-ladder-chart.js';
 
-/**
- * Renders a section of comparison rows with a title.
- * @param {object} sectionData - The data for the section.
- * @param {number} numColumns - The total number of segment columns.
- * @param {boolean} hideSameRows - Whether to hide identical rows.
- * @returns {import('lit-html').TemplateResult}
- */
+const categoryIcons = {
+    General: icons.summary,
+    'Video Details': icons.clapperboard,
+    'Audio Details': icons.audioLines,
+    Security: icons.shieldCheck,
+};
+
 export const comparisonSectionTemplate = (
     sectionData,
     numColumns,
@@ -21,33 +19,43 @@ export const comparisonSectionTemplate = (
         ? sectionData.points.filter((p) => p.status !== 'same')
         : sectionData.points;
 
-    if (
-        rowsToRender.length === 0 &&
-        (!sectionData.abrData ||
-            sectionData.abrData.every((d) => d.tracks.length === 0))
-    ) {
+    const hasContent =
+        rowsToRender.length > 0 ||
+        (sectionData.abrData &&
+            !sectionData.abrData.every((d) => d.tracks.length === 0));
+
+    if (!hasContent) {
         return html``;
     }
 
+    const icon = categoryIcons[sectionData.title] || icons.puzzle;
+    const gridStyle = `grid-template-columns: 250px repeat(${numColumns}, minmax(200px, 1fr));`;
+
     return html`
-        <div class="bg-gray-800 rounded-lg border border-gray-700 mt-6">
+        <div class="bg-slate-800 rounded-lg border border-slate-700 mt-6">
             <h3
-                class="text-xl font-bold p-4 border-b border-gray-700 flex items-center"
+                class="text-lg font-bold p-4 border-b border-slate-700 flex items-center gap-3 text-slate-200"
             >
-                ${sectionData.title}
+                ${icon}
+                <span>${sectionData.title}</span>
             </h3>
             ${sectionData.abrData
-                ? html`<div class="p-4 h-80">
+                ? html`<div class="p-4 h-80 border-b border-slate-700">
                       <abr-ladder-chart
                           .data=${sectionData.abrData}
                       ></abr-ladder-chart>
                   </div>`
                 : ''}
-            <div class="divide-y divide-gray-700">
-                ${rowsToRender.map((point) =>
-                    comparisonRowTemplate(point, numColumns)
-                )}
-            </div>
+            ${rowsToRender.length > 0
+                ? html` <div
+                      class="grid divide-y divide-slate-700"
+                      style=${gridStyle}
+                  >
+                      ${rowsToRender.map((point) =>
+                          comparisonRowTemplate(point, numColumns)
+                      )}
+                  </div>`
+                : ''}
         </div>
     `;
 };

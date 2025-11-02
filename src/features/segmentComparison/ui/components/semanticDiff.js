@@ -1,4 +1,7 @@
 import { html } from 'lit-html';
+import { getTooltipData as getAllIsoTooltipData } from '@/infrastructure/parsing/isobmff/index';
+
+const allIsoTooltipData = getAllIsoTooltipData();
 
 /**
  * Renders a table of modified fields within a box.
@@ -32,7 +35,7 @@ const renderModifiedDetails = (boxA, boxB) => {
                             ${Object.entries(val).map(
                                 ([k, v]) => html`
                                     <div class="flex justify-between">
-                                        <span class="text-gray-500 mr-2"
+                                        <span class="text-slate-500 mr-2"
                                             >${k}:</span
                                         >
                                         <span>${String(v)}</span>
@@ -47,7 +50,7 @@ const renderModifiedDetails = (boxA, boxB) => {
 
             diffRows.push(html`
                 <tr>
-                    <td class="pr-2 py-0.5 text-gray-400 font-normal">
+                    <td class="pr-2 py-0.5 text-slate-400 font-normal">
                         ${key}
                     </td>
                     <td class="pr-2 py-0.5 text-red-400">${renderVal(valA)}</td>
@@ -60,17 +63,17 @@ const renderModifiedDetails = (boxA, boxB) => {
     if (diffRows.length === 0) return '';
 
     return html`
-        <div class="mt-1 ml-4 pl-2 border-l border-dashed border-gray-500">
+        <div class="mt-1 ml-4 pl-2 border-l border-dashed border-slate-500">
             <table class="text-xs font-mono">
                 <thead>
                     <tr>
-                        <th class="text-left font-semibold text-gray-500 pr-2">
+                        <th class="text-left font-semibold text-slate-500 pr-2">
                             Field
                         </th>
-                        <th class="text-left font-semibold text-gray-500 pr-2">
+                        <th class="text-left font-semibold text-slate-500 pr-2">
                             From
                         </th>
-                        <th class="text-left font-semibold text-gray-500">
+                        <th class="text-left font-semibold text-slate-500">
                             To
                         </th>
                     </tr>
@@ -90,7 +93,7 @@ const renderModifiedDetails = (boxA, boxB) => {
  */
 const renderDiffNode = (node) => {
     const statusClasses = {
-        same: 'border-gray-700',
+        same: 'border-slate-700',
         modified: 'border-yellow-600 bg-yellow-900/20',
         added: 'border-green-600 bg-green-900/30',
         removed: 'border-red-600 bg-red-900/30',
@@ -114,24 +117,33 @@ const renderDiffNode = (node) => {
         node.children && node.children.some((c) => c.status !== 'same');
     const detailsOpen = node.status !== 'same' || hasChildrenWithDiffs;
 
+    const boxInfo = allIsoTooltipData[node.type] || {};
+
     return html`
         <details class="diff-node" ?open=${detailsOpen}>
             <summary
-                class="flex items-center gap-2 p-1 rounded cursor-pointer hover:bg-gray-700/50 ${statusClasses[
+                class="flex items-center gap-2 p-1 rounded cursor-pointer hover:bg-slate-700/50 ${statusClasses[
                     node.status
                 ]} border-l-4"
             >
                 <span class="font-mono text-sm font-bold text-white"
                     >${node.type}</span
                 >
-                <span class="text-xs text-gray-400">(${sizeDisplay})</span>
+                ${boxInfo.name
+                    ? html`<span class="text-xs text-slate-400"
+                          >(${boxInfo.name})</span
+                      >`
+                    : ''}
+                <span class="text-xs text-slate-400 ml-auto"
+                    >(${sizeDisplay})</span
+                >
             </summary>
             ${node.status === 'modified'
                 ? renderModifiedDetails(valueA, valueB)
                 : ''}
             ${node.children && node.children.length > 0
                 ? html`
-                      <div class="pl-6 border-l border-gray-600 ml-2">
+                      <div class="pl-6 border-l border-slate-600 ml-2">
                           ${node.children.map(renderDiffNode)}
                       </div>
                   `
@@ -148,14 +160,14 @@ const renderDiffNode = (node) => {
 export const semanticDiffTemplate = (diffTree) => {
     if (!diffTree || diffTree.every((node) => node.status === 'same')) {
         return html`
-            <div class="p-4 bg-gray-800 rounded-lg text-center text-green-400">
+            <div class="p-4 bg-slate-800 rounded-lg text-center text-green-400">
                 <p class="font-semibold">✓ Structures are Identical</p>
             </div>
         `;
     }
 
     return html`
-        <div class="bg-gray-800 p-3 rounded-lg border border-gray-700">
+        <div class="bg-slate-800 p-3 rounded-lg border border-slate-700">
             ${diffTree.map(renderDiffNode)}
         </div>
     `;
