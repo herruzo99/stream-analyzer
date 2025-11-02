@@ -1,18 +1,24 @@
 import { html, render } from 'lit-html';
-import { dashTimelineTemplate } from './components/dash/index.js';
-import { hlsTimelineTemplate } from './components/hls/index.js';
-import { createDashTimelineViewModel } from './view-model.js';
-import { useSegmentCacheStore } from '@/state/segmentCacheStore';
+import { createTimelineViewModel } from './view-model.js';
 import { useAnalysisStore } from '@/state/analysisStore';
+import './components/timeline-chart.js';
+import { eventListTemplate } from './components/event-list.js';
+import '@/features/comparison/ui/components/abr-ladder-chart';
 
 let container = null;
 let analysisUnsubscribe = null;
-let segmentCacheUnsubscribe = null;
+let currentStreamId = null;
 
 function renderTimelineView() {
     if (!container) return;
 
     const { streams, activeStreamId } = useAnalysisStore.getState();
+    if (activeStreamId !== currentStreamId) {
+        // Stream has changed, force re-render of components
+        if (container) render(html``, container);
+        currentStreamId = activeStreamId;
+    }
+
     const stream = streams.find((s) => s.id === activeStreamId);
 
     if (!stream || !stream.manifest) {
@@ -23,64 +29,75 @@ function renderTimelineView() {
         return;
     }
 
-    const loadingTemplate = html`<div class="text-center py-8 text-gray-400">
-        Loading timeline data...
-    </div>`;
-    render(loadingTemplate, container);
+    const viewModel = createTimelineViewModel(stream);
+    const hasEvents = viewModel.events.length > 0;
+    const hasAbrLadder = viewModel.abrLadder.tracks.length > 0;
 
-    if (stream.protocol === 'hls') {
-        render(hlsTimelineTemplate(stream.manifest), container);
-    } else {
-        const { cache } = useSegmentCacheStore.getState();
-        createDashTimelineViewModel(stream, cache)
-            .then((viewModel) => {
-                if (container) {
-                    render(dashTimelineTemplate(viewModel), container);
-                }
-            })
-            .catch((err) => {
-                console.error(
-                    'Failed to create DASH timeline view model:',
-                    err
-                );
-                if (container) {
-                    render(
-                        html`<div class="text-red-400 p-4 text-center">
-                            <p class="font-bold">
-                                Error loading timeline visualization.
-                            </p>
-                            <p class="text-sm font-mono mt-2">${err.message}</p>
-                        </div>`,
-                        container
-                    );
-                }
-            });
-    }
+    const template = html`
+        <div class="space-y-8">
+            <div>
+                <h3 class="text-xl text-white font-bold mb-4">
+                    Media Timeline Visualization
+                </h3>
+                <div
+                    class="bg-slate-800 p-4 rounded-lg border border-slate-700"
+                >
+                    <timeline-chart
+                        .viewModel=${viewModel}
+                    ></timeline-chart>
+                </div>
+            </div>
+
+            <div
+                class="grid gap-8 ${hasEvents && hasAbrLadder
+                    ? 'lg:grid-cols-2'
+                    : ''}"
+            >
+                ${hasAbrLadder
+                    ? html`<div>
+                          <h3 class="text-xl text-white font-bold mb-4">
+                              ABR Bitrate Ladder
+                          </h3>
+                          <div
+                              class="bg-slate-800 p-4 rounded-lg border border-slate-700 h-80"
+                          >
+                              <abr-ladder-chart
+                                  .data=${[viewModel.abrLadder]}
+                              ></abr-ladder-chart>
+                          </div>
+                      </div>`
+                    : ''}
+                ${hasEvents
+                    ? html`<div>
+                          <h3 class="text-xl text-white font-bold mb-4">Timed Events</h3>
+                          <div
+                              class="bg-slate-800 p-4 rounded-lg border border-slate-700"
+                          >
+                              ${eventListTemplate(viewModel.events)}
+                          </div>
+                      </div>`
+                    : ''}
+            </div>
+        </div>
+    `;
+    render(template, container);
 }
 
 export const timelineView = {
-    mount(containerElement) {
+    mount(containerElement, { stream }) {
         container = containerElement;
+        currentStreamId = stream?.id;
 
         if (analysisUnsubscribe) analysisUnsubscribe();
-        if (segmentCacheUnsubscribe) segmentCacheUnsubscribe();
-
         analysisUnsubscribe = useAnalysisStore.subscribe(renderTimelineView);
-        segmentCacheUnsubscribe =
-            useSegmentCacheStore.subscribe(renderTimelineView);
-
-        renderTimelineView(); // Render immediately with current state
+        renderTimelineView();
     },
 
     unmount() {
         if (analysisUnsubscribe) analysisUnsubscribe();
-        if (segmentCacheUnsubscribe) segmentCacheUnsubscribe();
         analysisUnsubscribe = null;
-        segmentCacheUnsubscribe = null;
-
-        if (container) {
-            render(html``, container);
-        }
+        if (container) render(html``, container);
         container = null;
+        currentStreamId = null;
     },
 };

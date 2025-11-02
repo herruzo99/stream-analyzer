@@ -63,6 +63,16 @@ export async function handleShakaResourceFetch(
 
         const body = /** @type {BodyInit | null} */ (request.body || null);
 
+        // --- BUG FIX: Correctly assemble request headers for logging ---
+        const requestHeadersForLogging = { ...request.headers };
+        if (auth?.headers) {
+            for (const header of auth.headers) {
+                if (header.key) {
+                    requestHeadersForLogging[header.key] = header.value;
+                }
+            }
+        }
+
         const response = await fetchWithAuth(
             url,
             auth,
@@ -79,7 +89,10 @@ export async function handleShakaResourceFetch(
                 url: response.url,
                 resourceType: mapShakaRequestType(request, requestType),
                 streamId,
-                request: { method: request.method, headers: request.headers },
+                request: {
+                    method: request.method,
+                    headers: requestHeadersForLogging,
+                },
                 response: {
                     status: response.status,
                     statusText: response.statusText,
@@ -92,10 +105,11 @@ export async function handleShakaResourceFetch(
                     startTime,
                     endTime: performance.now(),
                     duration: performance.now() - startTime,
-                    breakdown: null,
+                    breakdown: null, // This will be enriched by the main thread
                 },
             },
         });
+        // --- END BUG FIX ---
 
         if (!response.ok) {
             return {
@@ -109,11 +123,6 @@ export async function handleShakaResourceFetch(
 
         const data = await response.arrayBuffer();
 
-        // --- ARCHITECTURAL REFACTOR: LAZY PARSING ---
-        // During playback, we no longer perform an expensive deep parse on every segment.
-        // The worker's responsibility is now limited to fetching the raw data.
-        // The main thread will store this raw data. Parsing will only be triggered
-        // on-demand when a user interacts with a segment in the UI.
         if (requestType === SEGMENT_REQUEST_TYPE) {
             self.postMessage({
                 type: 'worker:shaka-segment-loaded',
@@ -121,12 +130,11 @@ export async function handleShakaResourceFetch(
                     uniqueId: url,
                     status: response.status,
                     data,
-                    parsedData: null, // Explicitly send null parsedData
+                    parsedData: null,
                     streamId,
                 },
             });
         }
-        // --- END REFACTOR ---
 
         return {
             uri: response.url,

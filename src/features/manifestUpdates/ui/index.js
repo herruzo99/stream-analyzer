@@ -1,8 +1,10 @@
 import { html, render } from 'lit-html';
+import { classMap } from 'lit-html/directives/class-map.js';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
 import { copyTextToClipboard } from '@/ui/shared/clipboard';
 import { debugLog } from '@/shared/utils/debug';
+import * as icons from '@/ui/icons';
 
 let container = null;
 let currentStreamId = null;
@@ -11,9 +13,113 @@ let keyboardListener = null;
 
 function navigate(direction) {
     if (currentStreamId !== null) {
-        analysisActions.navigateManifestUpdate(currentStreamId, direction);
+        // Direction is inverted: Up arrow (-1) moves to a newer update (lower index).
+        analysisActions.navigateManifestUpdate(currentStreamId, -direction);
     }
 }
+
+const changeIndicator = (
+    count,
+    label,
+    icon,
+    colorClasses
+) => {
+    if (count === undefined || count === 0) return '';
+    return html`<span class="text-xs font-semibold flex items-center gap-1 ${colorClasses}">
+        ${icon}
+        <span>${count} ${label}${count > 1 ? 's' : ''}</span>
+    </span>`;
+};
+
+const updateCardTemplate = (update, isActive) => {
+    const { timestamp, changes, hasNewIssues, sequenceNumber } = update;
+    const cardClasses = {
+        'bg-slate-800': !isActive,
+        'border-slate-700': !isActive,
+        'hover:border-blue-400': !isActive,
+        'bg-blue-900/50': isActive,
+        'border-blue-500': isActive,
+        'ring-2': isActive,
+        'ring-blue-500/30': isActive,
+    };
+
+    const handleClick = () => {
+        analysisActions.setActiveManifestUpdate(currentStreamId, update.id);
+    };
+
+    return html`
+        <div class="block p-3 rounded-lg border-2 transition-all cursor-pointer ${classMap(cardClasses)}" @click=${handleClick}>
+            <div class="flex justify-between items-center">
+                <div class="font-bold text-slate-200">
+                    Update #${sequenceNumber}
+                </div>
+                <div class="text-xs text-slate-400 font-mono">${timestamp}</div>
+            </div>
+            <div class="mt-2 flex items-center gap-3">
+                ${changeIndicator(changes.additions, 'addition', icons.plusCircle, 'text-green-400')}
+                ${changeIndicator(changes.removals, 'removal', icons.minusCircle, 'text-red-400')}
+                ${changeIndicator(changes.modifications, 'modification', icons.updates, 'text-yellow-400')}
+                ${hasNewIssues ? html`<span class="text-xs font-semibold text-red-400 animate-pulse">New Issues!</span>` : ''}
+            </div>
+        </div>
+    `;
+};
+
+const detailsTemplate = (update) => {
+    if (!update) return html`<div class="text-center p-8 text-slate-500">Select an update from the timeline to view details.</div>`;
+
+    const {
+        diffHtml,
+        rawManifest,
+        timestamp,
+        changes
+    } = update;
+    const lines = diffHtml.split('\n');
+
+    const handleCopyClick = () => copyTextToClipboard(rawManifest, 'Manifest version copied to clipboard!');
+
+    return html`
+        <header class="p-3 border-b border-slate-700 flex justify-between items-center shrink-0">
+            <div>
+                <h4 class="font-bold text-slate-200">Update Details</h4>
+                <div class="text-xs text-slate-400 font-mono">${timestamp}</div>
+            </div>
+            <button @click=${handleCopyClick} class="bg-slate-700 hover:bg-slate-600 text-white font-semibold text-xs py-1.5 px-3 rounded-md transition-colors flex items-center gap-2">
+                ${icons.clipboardCopy} Copy Raw
+            </button>
+        </header>
+        <div class="p-3 flex items-center gap-4 text-sm border-b border-slate-700 shrink-0">
+            <span class="font-semibold text-slate-400">Changes:</span>
+            ${changeIndicator(changes.additions, 'Addition', icons.plusCircle, 'text-green-300')}
+            ${changeIndicator(changes.removals, 'Removal', icons.minusCircle, 'text-red-300')}
+            ${changeIndicator(changes.modifications, 'Modification', icons.updates, 'text-yellow-300')}
+        </div>
+        <div class="grow overflow-auto font-mono text-sm leading-relaxed p-2">
+            ${lines.map((line, i) => html`
+                <div class="flex">
+                    <span class="text-right text-slate-500 pr-4 select-none shrink-0 w-10">${i + 1}</span>
+                    <span class="grow whitespace-pre-wrap break-all">${unsafeHTML(line)}</span>
+                </div>
+            `)}
+        </div>
+    `;
+};
+
+
+const sidebarTemplate = (manifestUpdates, activeManifestUpdateId) => {
+    return html`
+        <div class="flex flex-col h-full">
+             <header class="p-3 border-b border-slate-700 shrink-0">
+                <h4 class="font-bold text-slate-200">Update Timeline</h4>
+            </header>
+            <div id="update-timeline" class="flex flex-col gap-2 overflow-y-auto p-2">
+                ${manifestUpdates.map((update) =>
+                    updateCardTemplate(update, update.id === activeManifestUpdateId)
+                )}
+            </div>
+        </div>
+    `;
+};
 
 function renderManifestUpdates() {
     if (!container || currentStreamId === null) return;
@@ -22,139 +128,72 @@ function renderManifestUpdates() {
         .getState()
         .streams.find((s) => s.id === currentStreamId);
 
-    debugLog('ManifestUpdatesUI', 'renderManifestUpdates called.', { stream });
-
     if (!stream) {
         manifestUpdatesView.unmount();
         return;
     }
 
-    let template;
+    let mainContent;
+    const contextualSidebar = document.getElementById('contextual-sidebar');
+
     if (stream.protocol === 'hls' && stream.activeMediaPlaylistUrl) {
-        const mediaPlaylist = stream.mediaPlaylists.get(
-            stream.activeMediaPlaylistUrl
-        );
-        template = html`
-            <div
-                class="bg-yellow-900/30 border border-yellow-700 text-yellow-200 text-sm p-4 rounded-lg mb-4"
-            >
-                <p class="font-bold">Displaying Initial Media Playlist</p>
-                <p>
-                    Live manifest updates are currently displayed for the Master
-                    Playlist only. Select "Master Playlist" from the HLS View
-                    dropdown to see live updates.
-                </p>
-            </div>
-            <div
-                class="bg-slate-800 rounded-lg p-4 font-mono text-sm leading-relaxed overflow-x-auto"
-            >
-                ${mediaPlaylist.rawManifest
-                    .split('\n')
-                    .map((line) => html`<div>${line}</div>`)}
-            </div>
-        `;
+        mainContent = html`<div class="bg-yellow-900/30 border border-yellow-700 text-yellow-200 text-sm p-4 rounded-lg m-4">
+            <p class="font-bold">Displaying Media Playlist</p>
+            <p>Live manifest updates are only tracked for the Master Playlist. Select "Master Playlist" from the context menu to see the live monitor.</p>
+        </div>`;
+        if (contextualSidebar) render(html``, contextualSidebar);
     } else if (stream.manifest.type !== 'dynamic') {
-        template = html`<p class="info">
-            This is a VOD/static manifest. No updates are expected.
-        </p>`;
+        mainContent = html`<div class="h-full flex items-center justify-center text-center text-slate-500">
+            <div>
+                ${icons.fileText}
+                <h3 class="mt-2 text-lg font-medium text-slate-300">Static Manifest</h3>
+                <p class="mt-1 text-sm">This is a VOD stream and is not expected to have updates.</p>
+            </div>
+        </div>`;
+        if (contextualSidebar) render(html``, contextualSidebar);
     } else {
-        const { manifestUpdates, activeManifestUpdateIndex } = stream;
-        const updateCount = manifestUpdates.length;
-
-        debugLog(
-            'ManifestUpdatesUI',
-            `Rendering ${updateCount} updates. Active index: ${activeManifestUpdateIndex}`
-        );
-
-        if (updateCount === 0) {
-            template = html`<p class="info">
-                Awaiting first manifest update...
-            </p>`;
+        const { manifestUpdates, activeManifestUpdateId } = stream;
+        
+        if (manifestUpdates.length === 0) {
+            mainContent = html`<div class="h-full flex items-center justify-center text-center text-slate-500">
+                <div>
+                    <div class="animate-spin mx-auto">${icons.spinner}</div>
+                    <h3 class="mt-2 text-lg font-medium text-slate-300">Awaiting first manifest update...</h3>
+                </div>
+            </div>`;
+            if (contextualSidebar) render(html``, contextualSidebar);
         } else {
-            const currentIndex = updateCount - activeManifestUpdateIndex;
-            const currentUpdate = manifestUpdates[activeManifestUpdateIndex];
-            const lines = currentUpdate.diffHtml.split('\n');
-            const updateLabel =
-                activeManifestUpdateIndex === manifestUpdates.length - 1
-                    ? 'Initial Manifest loaded:'
-                    : 'Update received at:';
-
-            const handleCopyClick = () => {
-                if (currentUpdate) {
-                    copyTextToClipboard(
-                        currentUpdate.rawManifest,
-                        'Manifest version copied to clipboard!'
-                    );
-                }
-            };
-
-            const currentDisplay = html`
-                <div class="text-sm text-gray-400 mb-2">
-                    ${updateLabel}
-                    <span class="font-semibold text-gray-200"
-                        >${currentUpdate.timestamp}</span
-                    >
-                </div>
-                <div
-                    class="bg-slate-800 rounded-lg p-4 font-mono text-sm leading-relaxed overflow-x-auto"
-                >
-                    ${lines.map(
-                        (line, i) =>
-                            html`<div class="flex">
-                                <span
-                                    class="text-right text-gray-500 pr-4 select-none shrink-0 w-10"
-                                    >${i + 1}</span
-                                >
-                                <span class="grow whitespace-pre-wrap break-all"
-                                    >${unsafeHTML(line)}</span
-                                >
-                            </div>`
-                    )}
+            const currentUpdate = manifestUpdates.find(u => u.id === activeManifestUpdateId);
+            
+            mainContent = html`
+                <div class="bg-slate-800 rounded-lg border border-slate-700 flex flex-col h-full">
+                    ${detailsTemplate(currentUpdate)}
                 </div>
             `;
-
-            template = html`
-                <div
-                    class="flex flex-col sm:flex-row justify-between items-center mb-4 space-y-2 sm:space-y-0"
-                >
-                    <button
-                        @click=${handleCopyClick}
-                        class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-3 rounded-md transition-colors"
-                    >
-                        Copy This Version
-                    </button>
-                    <div class="flex items-center space-x-2">
-                        <button
-                            class="px-4 py-2 rounded-md font-bold transition duration-300 text-white bg-gray-600 hover:bg-gray-700 disabled:opacity-50"
-                            title="Previous Update (Right Arrow)"
-                            ?disabled=${activeManifestUpdateIndex >=
-                            updateCount - 1}
-                            @click=${() => navigate(1)}
-                        >
-                            &lt;
-                        </button>
-                        <span
-                            class="text-gray-400 font-semibold w-16 text-center"
-                            >${currentIndex}/${updateCount}</span
-                        >
-                        <button
-                            class="px-4 py-2 rounded-md font-bold transition duration-300 text-white bg-gray-600 hover:bg-gray-700 disabled:opacity-50"
-                            title="Next Update (Left Arrow)"
-                            ?disabled=${activeManifestUpdateIndex <= 0}
-                            @click=${() => navigate(-1)}
-                        >
-                            &gt;
-                        </button>
-                    </div>
-                </div>
-                <div>${currentDisplay}</div>
-            `;
+            
+            if (contextualSidebar) {
+                render(sidebarTemplate(manifestUpdates, activeManifestUpdateId), contextualSidebar);
+            }
         }
     }
-    render(template, container);
+    
+    const finalTemplate = html`
+        <header class="shrink-0 mb-4">
+            <h3 class="text-xl font-bold text-white">Live Manifest Monitor</h3>
+            <p class="text-sm text-slate-400 mt-1">
+                Showing real-time updates for the ${stream.protocol === 'dash' ? 'MPD' : 'Master Playlist'}. Use Up/Down arrow keys to navigate.
+            </p>
+        </header>
+        <div class="grow min-h-0">
+            ${mainContent}
+        </div>
+    `;
+
+    render(finalTemplate, container);
 }
 
 export const manifestUpdatesView = {
+    hasContextualSidebar: true,
     mount(containerElement, { stream }) {
         container = containerElement;
         currentStreamId = stream.id;
@@ -163,8 +202,8 @@ export const manifestUpdatesView = {
         analysisUnsubscribe = useAnalysisStore.subscribe(renderManifestUpdates);
 
         keyboardListener = (event) => {
-            if (event.key === 'ArrowRight') navigate(1);
-            if (event.key === 'ArrowLeft') navigate(-1);
+            if (event.key === 'ArrowUp') navigate(1);
+            if (event.key === 'ArrowDown') navigate(-1);
         };
         document.addEventListener('keydown', keyboardListener);
 
@@ -180,6 +219,10 @@ export const manifestUpdatesView = {
         }
         if (container) {
             render(html``, container);
+        }
+        const contextualSidebar = document.getElementById('contextual-sidebar');
+        if (contextualSidebar) {
+            render(html``, contextualSidebar);
         }
         container = null;
         currentStreamId = null;

@@ -1,33 +1,64 @@
-import { diffWords } from 'diff';
+import { diffLines, diffWords } from 'diff';
 import { highlightDash, highlightHls } from '@/ui/shared/syntax-highlighter';
 
 /**
- * Diffs two pre-formatted manifest strings and returns an HTML string showing the new version,
- * with word-level additions highlighted and syntax highlighting applied.
+ * A sophisticated diffing engine that uses line-based comparison and then
+ * word-based comparison to highlight specific changes within modified lines.
  * @param {string} oldManifest The original manifest string.
  * @param {string} newManifest The new manifest string.
  * @param {'dash' | 'hls' | 'unknown'} protocol The protocol of the manifest.
- * @returns {string} An HTML string representing the new state with highlights.
+ * @returns {{diffHtml: string, changes: {additions: number, removals: number, modifications: number}}}
  */
 export function diffManifest(oldManifest, newManifest, protocol) {
-    const changes = diffWords(oldManifest, newManifest);
+    const changes = { additions: 0, removals: 0, modifications: 0 };
+    const lineDiffs = diffLines(oldManifest, newManifest);
     let html = '';
 
     const highlightFn = protocol === 'dash' ? highlightDash : highlightHls;
 
-    changes.forEach((part) => {
-        if (part.removed) {
-            return; // Skip removed parts entirely
+    for (let i = 0; i < lineDiffs.length; i++) {
+        const part = lineDiffs[i];
+        const nextPart = lineDiffs[i + 1];
+
+        // --- Modification Detection Logic (Word-level Diff) ---
+        if (part.removed && nextPart && nextPart.added) {
+            changes.modifications += 1;
+            const wordDiffs = diffWords(part.value.trim(), nextPart.value.trim());
+
+            let lineHtml = '';
+            wordDiffs.forEach((wordPart) => {
+                const highlightedValue = highlightFn(wordPart.value);
+                if (wordPart.added) {
+                    lineHtml += `<ins class="bg-yellow-700/60 text-yellow-100 rounded-sm px-1 no-underline">${highlightedValue}</ins>`;
+                } else if (!wordPart.removed) {
+                    lineHtml += highlightedValue;
+                }
+            });
+            html += `<span>${lineHtml}</span>\n`;
+            i++; // Skip the next part since we've processed it
+            continue;
         }
 
-        const highlightedValue = highlightFn(part.value);
-
+        // --- Standard Addition/Removal/Common Logic ---
         if (part.added) {
-            html += `<span class="bg-emerald-500/40 text-green-50 rounded-sm font-medium">${highlightedValue}</span>`;
+            changes.additions += part.count;
+            const lines = part.value.trimEnd().split('\n');
+            lines.forEach((line) => {
+                html += `<span class="bg-green-900/40 text-green-200">${highlightFn(
+                    line
+                )}</span>\n`;
+            });
+        } else if (part.removed) {
+            changes.removals += part.count;
+            // Do not render removed lines, as per user requirement.
         } else {
-            html += highlightedValue;
+            // Unchanged lines
+            const lines = part.value.trimEnd().split('\n');
+            lines.forEach((line) => {
+                html += `<span>${highlightFn(line)}</span>\n`;
+            });
         }
-    });
+    }
 
-    return html;
+    return { diffHtml: html.trimEnd(), changes };
 }

@@ -17,7 +17,6 @@ const viewState = {
     videoContainer: null,
     subscriptions: [],
     lastError: null,
-    isMounted: false,
 };
 
 function renderPlayerView() {
@@ -69,7 +68,6 @@ const playerViewShellTemplate = () => {
 
 export const playerView = {
     hasContextualSidebar: true,
-    isMounted: () => viewState.isMounted,
 
     activate(stream) {
         if (playerService.isInitialized && stream?.originalUrl) {
@@ -85,17 +83,37 @@ export const playerView = {
                 }
             }
         }
+        // --- FIX START ---
+        // When this view is activated (navigated to), ensure its contextual
+        // sidebar content is re-rendered.
+        const contextualSidebar = document.getElementById('contextual-sidebar');
+        if (contextualSidebar) {
+            render(html`<player-sidebar></player-sidebar>`, contextualSidebar);
+        }
+        // --- FIX END ---
     },
 
     deactivate() {
         // This is called when switching away from the tab but PiP might be active.
         // The player is not destroyed here, only on full unmount.
+
+        // --- FIX START ---
+        // When this view is deactivated, its sidebar content must be cleared to
+        // make way for the next view's sidebar.
+        const contextualSidebar = document.getElementById('contextual-sidebar');
+        if (contextualSidebar) {
+            render(html``, contextualSidebar);
+        }
+        // --- FIX END ---
     },
 
     mount(containerElement, { stream }) {
-        if (viewState.isMounted) return;
         viewState.container = containerElement;
         viewState.lastError = null;
+
+        // Clean up any previous subscriptions before re-subscribing
+        viewState.subscriptions.forEach((unsub) => unsub());
+        viewState.subscriptions = [];
 
         renderPlayerView(); // Renders the shell and finds the video element
         playerService.initialize(viewState.videoEl, viewState.videoContainer);
@@ -122,24 +140,22 @@ export const playerView = {
         if (contextualSidebar) {
             render(html`<player-sidebar></player-sidebar>`, contextualSidebar);
         }
-
-        viewState.isMounted = true;
     },
 
     unmount() {
-        if (!viewState.isMounted) return;
-
         playerService.destroy();
         viewState.subscriptions.forEach((unsub) => unsub());
+        viewState.subscriptions = [];
 
+        document.body.classList.remove('contextual-sidebar-open');
         const contextualSidebar = document.getElementById('contextual-sidebar');
         if (contextualSidebar) render(html``, contextualSidebar);
 
         if (viewState.container) render(html``, viewState.container);
 
-        Object.keys(viewState).forEach((key) => {
-            viewState[key] = Array.isArray(viewState[key]) ? [] : null;
-        });
-        viewState.isMounted = false;
+        viewState.container = null;
+        viewState.videoEl = null;
+        viewState.videoContainer = null;
+        viewState.lastError = null;
     },
 };

@@ -1,6 +1,6 @@
 import { eventBus } from '@/application/event-bus';
 import { playerActions, usePlayerStore } from '@/state/playerStore';
-import { analysisActions } from '@/state/analysisStore';
+import { analysisActions, useAnalysisStore } from '@/state/analysisStore';
 import { playerService } from './playerService.js';
 import { useUiStore } from '@/state/uiStore';
 
@@ -134,4 +134,20 @@ export function initializePlayerController() {
     });
 
     eventBus.subscribe('analysis:started', playerActions.reset);
+
+    // --- ARCHITECTURAL FIX: Reset player state on stream context change ---
+    useAnalysisStore.subscribe((state, prevState) => {
+        if (
+            state.activeStreamId !== null &&
+            state.activeStreamId !== prevState.activeStreamId
+        ) {
+            const { isLoaded } = usePlayerStore.getState();
+            if (isLoaded) {
+                // If a stream was loaded, destroy the player and reset state
+                // to ensure a clean slate for the new stream context.
+                playerService.destroy();
+                playerActions.reset();
+            }
+        }
+    });
 }

@@ -16,17 +16,6 @@ export const comparisonSectionTemplate = (sectionData, numColumns) => {
         useUiStore.getState();
     const isTableExpanded = expandedComparisonTables.has(sectionData.title);
 
-    const genericWarningIcon = sectionData.isGeneric
-        ? html`
-              <span
-                  class="ml-2 text-yellow-400 ${tooltipTriggerClasses}"
-                  data-tooltip="This is a basic, field-by-field comparison. No deep semantic analysis was performed for this box type."
-              >
-                  ${icons.debug}
-              </span>
-          `
-        : '';
-
     const expandButton = sectionData.tableData
         ? html`
               <button
@@ -59,7 +48,7 @@ export const comparisonSectionTemplate = (sectionData, numColumns) => {
         <div class="mt-4">
             <div class="flex justify-between items-center mb-2">
                 <h3 class="text-xl font-bold text-gray-200 flex items-center">
-                    ${sectionData.title} ${genericWarningIcon} ${expandButton}
+                    ${sectionData.title} ${expandButton}
                 </h3>
             </div>
             <div class="border border-gray-700 rounded-lg overflow-hidden">

@@ -10,8 +10,7 @@ function calculateSummaryStats(events) {
         return {
             totalRequests: 0,
             failedRequests: 0,
-            avgTtfb: 0,
-            avgDownload: 0,
+            avgLatency: 0,
             totalBytes: 0,
             totalTime: 0,
             avgThroughput: 0,
@@ -19,10 +18,8 @@ function calculateSummaryStats(events) {
     }
 
     let failedRequests = 0;
-    let totalTtfb = 0;
-    let totalDownload = 0;
+    let totalLatency = 0;
     let totalBytes = 0;
-    let timingBreakdownCount = 0;
 
     const firstStartTime = Math.min(...events.map((e) => e.timing.startTime));
     const lastEndTime = Math.max(...events.map((e) => e.timing.endTime));
@@ -33,11 +30,7 @@ function calculateSummaryStats(events) {
             failedRequests++;
         }
         totalBytes += event.response.contentLength || 0;
-        if (event.timing.breakdown) {
-            totalTtfb += event.timing.breakdown.ttfb;
-            totalDownload += event.timing.breakdown.download;
-            timingBreakdownCount++;
-        }
+        totalLatency += event.timing.duration;
     }
 
     const avgThroughput = totalTime > 0 ? (totalBytes * 8) / totalTime : 0;
@@ -45,10 +38,7 @@ function calculateSummaryStats(events) {
     return {
         totalRequests: events.length,
         failedRequests,
-        avgTtfb:
-            timingBreakdownCount > 0 ? totalTtfb / timingBreakdownCount : 0,
-        avgDownload:
-            timingBreakdownCount > 0 ? totalDownload / timingBreakdownCount : 0,
+        avgLatency: events.length > 0 ? totalLatency / events.length : 0,
         totalBytes,
         totalTime,
         avgThroughput,

@@ -157,7 +157,7 @@ async function buildStreamObject(
         licenseServerUrl: input.drmAuth.licenseServerUrl,
         steeringInfo: steeringTag,
         manifestUpdates: [],
-        activeManifestUpdateIndex: 0,
+        activeManifestUpdateId: null,
         mediaPlaylists: new Map(),
         activeMediaPlaylistUrl: null,
         featureAnalysis: {
@@ -249,15 +249,17 @@ async function buildStreamObject(
             lineSeparator: '\n',
         });
     }
-    const diffHtml = diffManifest('', formattedInitial, streamObject.protocol);
+    const { diffHtml, changes } = diffManifest('', formattedInitial, streamObject.protocol);
 
     streamObject.manifestUpdates.push({
+        id: `${streamObject.id}-${Date.now()}`,
         timestamp: new Date().toLocaleTimeString(),
         diffHtml,
         rawManifest: streamObject.rawManifest,
         complianceResults,
         hasNewIssues: false,
         serializedManifest: serializedManifestObject,
+        changes: changes,
     });
 
     return streamObject;

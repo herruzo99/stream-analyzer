@@ -1,14 +1,18 @@
 import { html } from 'lit-html';
 import { analysisActions, useAnalysisStore } from '@/state/analysisStore';
 import { eventBus } from '@/application/event-bus';
-import { uiActions } from '@/state/uiStore';
+import { uiActions, useUiStore } from '@/state/uiStore';
 import * as icons from '@/ui/icons';
-import { saveWorkspace } from '@/infrastructure/persistence/streamStorage';
+import {
+    saveWorkspace,
+    prepareForStorage,
+} from '@/infrastructure/persistence/streamStorage';
 
 const workspaceCardTemplate = (input, isActive) => {
     const handleRemove = (e) => {
         e.stopPropagation();
         analysisActions.removeStreamInput(input.id);
+        uiActions.setLoadedWorkspaceName(null); // Removing an item invalidates the saved workspace state
     };
 
     const handleSetActive = () => {
@@ -56,9 +60,11 @@ const workspaceCardTemplate = (input, isActive) => {
 
 export const workspacePanelTemplate = () => {
     const { streamInputs, activeStreamInputId } = useAnalysisStore.getState();
+    const { workspaces, loadedWorkspaceName } = useUiStore.getState();
 
     const handleFiles = (files) => {
         if (files.length > 0) {
+            uiActions.setLoadedWorkspaceName(null);
             eventBus.dispatch('ui:segment-analysis-requested', {
                 files: Array.from(files),
             });
@@ -73,6 +79,7 @@ export const workspacePanelTemplate = () => {
 
         if (url) {
             analysisActions.addStreamInputFromPreset({ url });
+            uiActions.setLoadedWorkspaceName(null);
         }
         form.reset();
     };
@@ -83,6 +90,7 @@ export const workspacePanelTemplate = () => {
         const urls = pastedText.split(/[\s,]+/).filter((u) => u.trim() !== '');
 
         if (urls.length === 0) return;
+        uiActions.setLoadedWorkspaceName(null);
 
         if (urls.length === 1) {
             e.target.value = urls[0];
@@ -131,6 +139,29 @@ export const workspacePanelTemplate = () => {
         }
     };
 
+    const handleUpdateWorkspace = () => {
+        if (loadedWorkspaceName) {
+            saveWorkspace({ name: loadedWorkspaceName, inputs: streamInputs });
+        }
+    };
+
+    let isWorkspaceModified = false;
+    if (loadedWorkspaceName) {
+        const savedWorkspace = workspaces.find(
+            (w) => w.name === loadedWorkspaceName
+        );
+        if (savedWorkspace) {
+            // Compare stringified versions to detect changes
+            const currentInputsStr = JSON.stringify(
+                streamInputs.map(prepareForStorage)
+            );
+            const savedInputsStr = JSON.stringify(
+                savedWorkspace.inputs.map(prepareForStorage)
+            );
+            isWorkspaceModified = currentInputsStr !== savedInputsStr;
+        }
+    }
+
     const emptyStateTemplate = html`
         <div
             class="h-full flex flex-col items-center justify-center text-center text-slate-500 p-6 border-2 border-dashed border-slate-700 rounded-lg"
@@ -157,14 +188,26 @@ export const workspacePanelTemplate = () => {
                     <h2 class="text-2xl font-bold text-white">
                         Analysis Workspace
                     </h2>
-                    <button
-                        @click=${handleSaveWorkspace}
-                        class="bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-md text-sm disabled:bg-slate-600 disabled:opacity-50"
-                        ?disabled=${streamInputs.length === 0}
-                        title="Save the current set of streams as a workspace"
-                    >
-                        Save Workspace
-                    </button>
+                    <div class="flex items-center gap-2">
+                        ${loadedWorkspaceName
+                            ? html`<button
+                                  @click=${handleUpdateWorkspace}
+                                  class="bg-amber-600 hover:bg-amber-700 text-white font-bold py-2 px-3 rounded-md text-sm disabled:bg-slate-600 disabled:opacity-50"
+                                  ?disabled=${!isWorkspaceModified}
+                                  title="Save changes to the '${loadedWorkspaceName}' workspace"
+                              >
+                                  Update Workspace
+                              </button>`
+                            : ''}
+                        <button
+                            @click=${handleSaveWorkspace}
+                            class="bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-md text-sm disabled:bg-slate-600 disabled:opacity-50"
+                            ?disabled=${streamInputs.length === 0}
+                            title="Save the current set of streams as a new workspace"
+                        >
+                            Save New Workspace
+                        </button>
+                    </div>
                 </div>
                 <p class="text-slate-400">
                     Add remote streams via URL, or drag & drop local segment

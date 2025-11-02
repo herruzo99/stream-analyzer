@@ -1,311 +1,199 @@
-import { getParsedSegment } from '@/infrastructure/segments/segmentService';
-import {
-    findInitSegmentUrl,
-    parseAllSegmentUrls,
-} from '@/infrastructure/parsing/dash/segment-parser';
-import {
-    resolveBaseUrl,
-    findChildrenRecursive,
-} from '@/infrastructure/parsing/dash/recursive-parser';
+import { formatBitrate } from '@/ui/shared/format';
+
+const EVENT_COLORS = {
+    'scte35-inband': '#a855f7', // purple
+    'hls-daterange': '#f59e0b', // amber
+    adaptation: '#3b82f6', // blue
+};
 
 /**
- * Recursively finds the first occurrence of a box of a given type.
- * @param {import('@/infrastructure/parsing/isobmff/parser.js').Box[]} boxes
- * @param {(box: import('@/infrastructure/parsing/isobmff/parser.js').Box) => boolean} predicate The predicate function to match a box.
- * @returns {import('@/infrastructure/parsing/isobmff/parser.js').Box | null}
+ * Extracts and transforms all relevant timed events from a stream object.
+ * @param {import('@/types').Stream} stream
+ * @returns {Array<{time: number, type: string, details: string, color: string, scte35?: object}>}
  */
-function findBoxRecursive(boxes, predicate) {
-    if (!boxes) return null;
-    for (const box of boxes) {
-        if (predicate(box)) return box;
-        if (box.children?.length > 0) {
-            const found = findBoxRecursive(box.children, predicate);
-            if (found) return found;
+function getEvents(stream) {
+    const events = [];
+
+    // SCTE-35 from in-band emsg boxes
+    (stream.inbandEvents || []).forEach((event) => {
+        if (event.scte35) {
+            events.push({
+                time: event.startTime,
+                type: 'SCTE-35 (in-band)',
+                details: `Splice Command: ${event.scte35.splice_command?.type || 'Unknown'}`,
+                color: EVENT_COLORS['scte35-inband'],
+                scte35: event.scte35,
+            });
         }
-    }
-    return null;
+    });
+
+    // SCTE-35 from HLS DATERANGE tags
+    (stream.manifest?.events || [])
+        .filter((e) => e.scte35)
+        .forEach((event) => {
+            events.push({
+                time: event.startTime,
+                type: 'SCTE-35 (DATERANGE)',
+                details: `Splice Command: ${event.scte35.splice_command?.type || 'Unknown'}`,
+                color: EVENT_COLORS['hls-daterange'],
+                scte35: event.scte35,
+            });
+        });
+
+    // Adaptation events (bitrate switches)
+    (stream.adaptationEvents || []).forEach((event) => {
+        events.push({
+            time: event.time,
+            type: 'ABR Switch',
+            details: `Resolution changed from ${event.oldHeight || '?'}p to ${
+                event.newHeight
+            }p`,
+            color: EVENT_COLORS.adaptation,
+        });
+    });
+
+    return events;
 }
 
 /**
- * Creates a view model for the DASH timeline visualization by leveraging the central segment parser
- * and asynchronously fetching initialization segments for edit list and random access point data.
- * @param {import('@/types.ts').Stream} stream
- * @param {import('@/application/lru-cache.js').LRUCache} segmentCache
- * @returns {Promise<object[]>} A promise that resolves to an array of switching set view models.
+ * Creates a unified view model for the timeline visualization from a stream object.
+ * This function is synchronous and protocol-agnostic.
+ * @param {import('@/types').Stream} stream
+ * @returns {{
+ *   tracks: {id: string, label: string}[],
+ *   segments: {trackIndex: number, startTime: number, endTime: number, duration: number, number: number, type: string, isPartial: boolean}[],
+ *   events: {time: number, type: string, details: string, color: string, scte35?: object}[],
+ *   adAvails: import('@/types').AdAvail[],
+ *   duration: number,
+ *   isLive: boolean,
+ *   abrLadder: {name: string, tracks: {width: number, height: number, bandwidth: number}[]}
+ * }}
  */
-export async function createDashTimelineViewModel(stream, segmentCache) {
-    if (!stream || !stream.manifest) return [];
+export function createTimelineViewModel(stream) {
+    const tracks = [];
+    const segments = [];
+    const isLive = stream.manifest?.type === 'dynamic';
 
-    const segmentsByRepId = await parseAllSegmentUrls(
-        stream.manifest.serializedManifest,
-        stream.baseUrl
-    );
+    if (stream.protocol === 'dash') {
+        stream.dashRepresentationState.forEach((repState, compositeKey) => {
+            const parts = compositeKey.split('-');
+            const periodIdentifier = parts[0];
+            const repId = parts.slice(1).join('-');
 
-    const switchingSetsPromises = stream.manifest.periods.map(async (period) =>
-        Promise.all(
-            period.adaptationSets
-                .filter((as) => as.contentType === 'video')
-                .map(async (as) => {
-                    const firstRep = as.representations[0];
-                    let elstData = null;
-                    let trackTimescale = 1;
+            const period =
+                stream.manifest.periods.find(
+                    (p) => p.id === periodIdentifier
+                ) || stream.manifest.periods[parseInt(periodIdentifier, 10)];
 
-                    if (firstRep) {
-                        const baseUrl = resolveBaseUrl(
-                            stream.baseUrl,
-                            stream.manifest.serializedManifest,
-                            period.serializedManifest,
-                            as.serializedManifest,
-                            firstRep.serializedManifest
-                        );
-                        const initUrl = findInitSegmentUrl(
-                            firstRep,
-                            as,
-                            period,
-                            baseUrl
-                        );
-                        if (initUrl) {
-                            try {
-                                const initSegment = await getParsedSegment(
-                                    initUrl.url
-                                );
-                                if (initSegment?.data?.boxes) {
-                                    elstData = findBoxRecursive(
-                                        initSegment.data.boxes,
-                                        (b) => b.type === 'elst'
-                                    );
-                                    const mdhd = findBoxRecursive(
-                                        initSegment.data.boxes,
-                                        (b) => b.type === 'mdhd'
-                                    );
-                                    if (mdhd?.details?.timescale) {
-                                        trackTimescale =
-                                            mdhd.details.timescale.value;
-                                    }
-                                }
-                            } catch (e) {
-                                console.warn(
-                                    `Could not fetch or parse init segment for timeline: ${initUrl.url}`,
-                                    e
-                                );
-                            }
-                        }
-                    }
+            if (!period) return;
 
-                    const representationsPromises = as.representations.map(
-                        async (rep) => {
-                            const compositeKey = `${period.id}-${rep.id}`;
-                            const repState =
-                                segmentsByRepId[compositeKey] || {};
-                            const mediaSegments =
-                                repState.segmentsByStrategy?.get(
-                                    'Strategy C (UTCTiming Source)'
-                                ) ||
-                                repState.segmentsByStrategy?.get(
-                                    'Strategy A (Wall-Clock)'
-                                ) ||
-                                repState.segmentsByStrategy?.get('default') ||
-                                [];
+            const as = period.adaptationSets.find((a) =>
+                a.representations.some((r) => r.id === repId)
+            );
+            const rep = as?.representations.find((r) => r.id === repId);
+            if (!rep) return;
 
-                            const baseUrl = resolveBaseUrl(
-                                stream.baseUrl,
-                                stream.manifest.serializedManifest,
-                                period.serializedManifest,
-                                as.serializedManifest,
-                                rep.serializedManifest
-                            );
-                            const initUrl = findInitSegmentUrl(
-                                rep,
-                                as,
-                                period,
-                                baseUrl
-                            );
+            const trackIndex = tracks.length;
+            tracks.push({
+                id: rep.id,
+                label: `[DASH] ${rep.id} (${rep.height?.value || '?'}p)`,
+            });
 
-                            let tfraData = null;
-                            if (initUrl) {
-                                try {
-                                    const initSegment = await getParsedSegment(
-                                        initUrl.url
-                                    );
-                                    if (initSegment?.data?.boxes) {
-                                        tfraData = findBoxRecursive(
-                                            initSegment.data.boxes,
-                                            (b) => b.type === 'tfra'
-                                        );
-                                    }
-                                } catch (e) {
-                                    // Warning already logged
-                                }
-                            }
+            repState.segments.forEach((seg) => {
+                if (seg.type !== 'Media' || !seg.duration) return;
+                const startTime = seg.time / seg.timescale;
+                const duration = seg.duration / seg.timescale;
+                segments.push({
+                    ...seg,
+                    trackIndex,
+                    startTime,
+                    endTime: startTime + duration,
+                    duration: duration,
+                    isPartial: false,
+                });
+            });
+        });
+    } else if (stream.protocol === 'hls') {
+        stream.hlsVariantState.forEach((variantState, uri) => {
+            const variant = stream.manifest.variants.find(
+                (v) => v.resolvedUri === uri
+            );
+            if (!variant) return;
 
-                            let presentationTimeOffset = 0;
-                            let mediaTimelineOffset = 0;
+            const trackIndex = tracks.length;
+            const bw = (variant.attributes.BANDWIDTH / 1000).toFixed(0);
+            tracks.push({
+                id: uri,
+                label: `[HLS] ${bw}k (${
+                    variant.attributes.RESOLUTION || '?'
+                })`,
+            });
 
-                            if (elstData?.details?.entry_count?.value > 0) {
-                                const mediaTime =
-                                    elstData.details.entry_1_media_time?.value;
-                                if (mediaTime > 0) {
-                                    mediaTimelineOffset =
-                                        mediaTime / trackTimescale;
-                                    presentationTimeOffset =
-                                        -mediaTimelineOffset;
-                                }
-                            }
+            let cumulativeTime = 0;
+            variantState.segments.forEach((seg) => {
+                const startTime = cumulativeTime;
+                const duration = seg.duration;
+                segments.push({
+                    ...seg,
+                    trackIndex,
+                    startTime,
+                    endTime: startTime + duration,
+                    duration,
+                    isPartial: false,
+                });
 
-                            const fragments = mediaSegments.map((seg) => {
-                                const fragment = {
-                                    number: /** @type {any} */ (seg).number,
-                                    mediaStartTime:
-                                        /** @type {any} */ (seg).time /
-                                        /** @type {any} */ (seg).timescale,
-                                    presentationStartTime:
-                                        /** @type {any} */ (seg).time /
-                                            /** @type {any} */ (seg).timescale +
-                                        presentationTimeOffset,
-                                    duration:
-                                        /** @type {any} */ (seg).duration /
-                                        /** @type {any} */ (seg).timescale,
-                                    startTimeUTC: /** @type {any} */ (seg)
-                                        .startTimeUTC,
-                                    url: /** @type {any} */ (seg).resolvedUrl,
-                                    chunks: [], // Placeholder for chunk data
-                                };
+                let partialStartTime = startTime;
+                (seg.parts || []).forEach((part) => {
+                    const partDuration = part.DURATION;
+                    segments.push({
+                        ...part,
+                        trackIndex,
+                        startTime: partialStartTime,
+                        endTime: partialStartTime + partDuration,
+                        duration: partDuration,
+                        number: seg.number,
+                        type: 'Partial',
+                        isPartial: true,
+                    });
+                    partialStartTime += partDuration;
+                });
 
-                                const cachedSegment = segmentCache.get(
-                                    fragment.url
-                                );
-                                if (
-                                    cachedSegment?.parsedData?.format ===
-                                        'isobmff' &&
-                                    cachedSegment.parsedData.data.boxes
-                                ) {
-                                    const parsedChunks =
-                                        cachedSegment.parsedData.data.boxes.filter(
-                                            (b) => b.isChunk
-                                        );
-                                    if (parsedChunks.length > 0) {
-                                        fragment.chunks = parsedChunks.map(
-                                            (chunk, index) => {
-                                                const chunkDuration =
-                                                    chunk.timing.duration /
-                                                    trackTimescale;
-                                                const chunkStartTime =
-                                                    chunk.timing.baseTime /
-                                                    trackTimescale;
-                                                return {
-                                                    index,
-                                                    relativeStartTime:
-                                                        chunkStartTime -
-                                                        fragment.mediaStartTime,
-                                                    duration: chunkDuration,
-                                                    tooltip: `Chunk #${index}\nTime: ${chunkStartTime.toFixed(
-                                                        3
-                                                    )}s\nDuration: ${chunkDuration.toFixed(
-                                                        3
-                                                    )}s\nSamples: ${
-                                                        chunk.timing.sampleCount
-                                                    }`,
-                                                };
-                                            }
-                                        );
-                                    }
-                                }
-                                return fragment;
-                            });
+                cumulativeTime += duration;
+            });
+        });
+    }
 
-                            let randomAccessPoints = [];
-                            if (tfraData) {
-                                const timescale =
-                                    tfraData.details.timescale.value;
-                                randomAccessPoints = Array.from(
-                                    {
-                                        length: tfraData.details
-                                            .number_of_entries.value,
-                                    },
-                                    (_, i) => ({
-                                        time:
-                                            tfraData.details[
-                                                `entry_${i + 1}_time`
-                                            ].value / timescale,
-                                        moofOffset:
-                                            tfraData.details[
-                                                `entry_${i + 1}_moof_offset`
-                                            ].value,
-                                    })
-                                );
-                            } else if (rep.startWithSAP) {
-                                randomAccessPoints = fragments.map((f) => ({
-                                    time: f.presentationStartTime,
-                                    moofOffset: 0,
-                                }));
-                            }
+    const maxSegmentTime =
+        segments.length > 0
+            ? Math.max(...segments.map((s) => s.endTime))
+            : 0;
+    const duration = isLive
+        ? stream.manifest.timeShiftBufferDepth || maxSegmentTime
+        : stream.manifest.duration || maxSegmentTime;
 
-                            return {
-                                id: rep.id,
-                                bandwidth: rep.bandwidth,
-                                resolution: `${rep.width.value}x${rep.height.value}`,
-                                fragments,
-                                events: [],
-                                randomAccessPoints,
-                                mediaTimelineOffset,
-                            };
-                        }
-                    );
+    const allVideoReps = stream.manifest.periods
+        .flatMap((p) => p.adaptationSets)
+        .filter((as) => as.contentType === 'video')
+        .flatMap((as) => as.representations);
 
-                    const representations = await Promise.all(
-                        representationsPromises
-                    );
+    const abrLadder = {
+        name: stream.name,
+        tracks: allVideoReps
+            .map((rep) => ({
+                width: rep.width.value,
+                height: rep.height.value,
+                bandwidth: rep.bandwidth,
+            }))
+            .filter((t) => t.width && t.height && t.bandwidth),
+    };
 
-                    let mediaDuration;
-                    if (stream.manifest.type === 'dynamic') {
-                        mediaDuration =
-                            stream.manifest.timeShiftBufferDepth || 0;
-                        // Fallback for live streams that might not have buffer depth but do have segments
-                        if (
-                            mediaDuration === 0 &&
-                            representations[0]?.fragments.length > 0
-                        ) {
-                            const fragments = representations[0].fragments;
-                            const firstFrag = fragments[0];
-                            const lastFrag = fragments[fragments.length - 1];
-                            mediaDuration =
-                                lastFrag.mediaStartTime +
-                                lastFrag.duration -
-                                firstFrag.mediaStartTime;
-                        }
-                    } else {
-                        mediaDuration =
-                            stream.manifest.duration ??
-                            period.duration ??
-                            representations[0]?.fragments
-                                .map((f) => f.duration)
-                                .reduce((acc, f) => acc + f, 0) ??
-                            0;
-                    }
-
-                    let presentationDuration = mediaDuration;
-                    if (elstData?.details?.entry_1_segment_duration) {
-                        const movieTimescale =
-                            findChildrenRecursive(
-                                stream.manifest.serializedManifest,
-                                'mvhd'
-                            )[0]?.details?.timescale?.value || 1;
-                        presentationDuration =
-                            elstData.details.entry_1_segment_duration.value /
-                            movieTimescale;
-                    }
-
-                    return {
-                        id: as.id || 'video-set',
-                        mediaDuration: mediaDuration,
-                        presentationDuration,
-                        adAvails: stream.adAvails || [],
-                        representations,
-                    };
-                })
-        )
-    );
-
-    const switchingSets = (await Promise.all(switchingSetsPromises)).flat();
-    return switchingSets;
+    return {
+        tracks,
+        segments,
+        events: getEvents(stream),
+        adAvails: stream.adAvails || [],
+        duration: duration || 1,
+        isLive,
+        abrLadder,
+    };
 }

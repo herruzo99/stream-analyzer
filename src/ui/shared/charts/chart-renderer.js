@@ -14,6 +14,7 @@ import {
     TitleComponent,
 } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
+import { formatBitrate } from '@/ui/shared/format';
 
 // --- ARCHITECTURAL FIX: ECharts Tree-Shaking ---
 // ECharts is a tree-shakable library. We must explicitly import and register
@@ -49,27 +50,72 @@ function createTooltipProxy() {
 
 function showCustomTooltip(chartEvent, chartContainer) {
     if (!tooltipProxyEl) createTooltipProxy();
-    if (!chartEvent.componentType || chartEvent.componentType === 'markLine')
-        return;
 
     let tooltipContent = '';
-    const { seriesName, value, name, componentType, data } = chartEvent;
+    const { seriesName, value, name, componentType, data, seriesType } =
+        chartEvent;
 
-    // Custom formatter logic based on chart type
-    if (seriesName === 'Buffered' && Array.isArray(value)) {
-        const [_, start, end, dur] = value;
-        tooltipContent = `<b>Buffered Range</b><br/>Start: ${start.toFixed(
-            2
-        )}s<br/>End: ${end.toFixed(2)}s<br/>Duration: ${dur.toFixed(2)}s`;
-    } else if (componentType === 'markArea') {
-        tooltipContent = `<b>${data.name}</b><br/>Range: ${data.xAxis[0].toFixed(
-            2
-        )}s - ${data.xAxis[1].toFixed(2)}s`;
+    // --- ENHANCED TOOLTIP LOGIC ---
+    if (data && data.segment) {
+        // Timeline Chart Tooltip
+        const { segment } = data;
+        const {
+            type,
+            number,
+            duration,
+            startTime,
+            endTime,
+            isPartial,
+            resolvedUrl,
+            encryptionInfo,
+            flags,
+        } = segment;
+
+        let flagHtml = '';
+        if (flags && flags.length > 0) {
+            flagHtml = `<p class="mt-1"><b>Flags:</b> ${flags.join(', ')}</p>`;
+        }
+
+        let encryptionHtml = '';
+        if (encryptionInfo && encryptionInfo.method !== 'NONE') {
+            encryptionHtml = `<p class="mt-1"><b>Encryption:</b> ${encryptionInfo.method}</p>`;
+        }
+
+        const urlFilename = resolvedUrl
+            ? resolvedUrl.split('/').pop().split('?')[0]
+            : 'N/A';
+
+        tooltipContent = `
+            <div class="text-left">
+                <p class="font-bold text-slate-100">${
+                    isPartial ? 'Partial Segment' : type
+                } #${number}</p>
+                <p class="text-xs text-slate-400 mt-1 font-mono">${urlFilename}</p>
+                <hr class="border-slate-600 my-2">
+                <p><b>Time:</b> ${startTime.toFixed(3)}s - ${endTime.toFixed(
+                    3
+                )}s</p>
+                <p><b>Duration:</b> ${duration.toFixed(3)}s</p>
+                ${flagHtml}
+                ${encryptionHtml}
+            </div>`;
+    } else if (data && data.trackInfo) {
+        // ABR Ladder Chart Tooltip
+        const { trackInfo } = data;
+        tooltipContent = `
+            <div class="text-left">
+                <p class="font-bold text-slate-100">${seriesName}</p>
+                <hr class="border-slate-600 my-2">
+                <p><b>Bitrate:</b> ${formatBitrate(trackInfo.bandwidth)}</p>
+                <p><b>Resolution:</b> ${trackInfo.width}x${trackInfo.height}</p>
+            </div>`;
     }
+    // --- END ENHANCED TOOLTIP LOGIC ---
 
     if (tooltipContent) {
-        tooltipProxyEl.setAttribute('data-tooltip', tooltipContent);
-        tooltipProxyEl.setAttribute('data-iso', ''); // Clear ISO ref for chart tooltips
+        tooltipProxyEl.setAttribute('data-tooltip-html-b64', btoa(tooltipContent));
+        tooltipProxyEl.removeAttribute('data-tooltip');
+        tooltipProxyEl.removeAttribute('data-iso');
 
         // Position the proxy element at the mouse cursor
         tooltipProxyEl.style.left = `${chartEvent.event.event.clientX}px`;
@@ -96,6 +142,13 @@ function hideCustomTooltip() {
  */
 export function renderChart(container, options, onClick) {
     if (!container) return;
+
+    // --- ARCHITECTURAL FIX: Defer initialization if container has no dimensions ---
+    if (container.clientWidth === 0 || container.clientHeight === 0) {
+        requestAnimationFrame(() => renderChart(container, options, onClick));
+        return;
+    }
+    // --- END FIX ---
 
     let chart = chartInstances.get(container);
 

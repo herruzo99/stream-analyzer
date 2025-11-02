@@ -1,6 +1,7 @@
 import { html } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { highlightDash, highlightHls } from '@/ui/shared/syntax-highlighter';
+import { useUiStore } from '@/state/uiStore';
 
 const highlightColors = {
     fail: 'bg-red-900/60',
@@ -52,7 +53,8 @@ const renderDashNode = (
     path,
     depth,
     lineCounter,
-    activeFilter
+    activeFilter,
+    highlightedCompliancePathId
 ) => {
     if (typeof node !== 'object' || node === null) {
         return [];
@@ -66,6 +68,8 @@ const renderDashNode = (
     let highestSeverityResult = null;
     let highlightClass = '';
     const elementId = `loc-path-${path.replace(/[[].]/g, '-')}`;
+    const isHoverHighlighted = highlightedCompliancePathId === elementId;
+    const hoverHighlightClass = isHoverHighlighted ? 'bg-purple-500/30' : '';
 
     if (resultsForPath.length > 0) {
         const severityOrder = { fail: 0, warn: 1, info: 2, pass: 3 };
@@ -124,7 +128,7 @@ const renderDashNode = (
                 id=${elementId}
                 data-status=${highestSeverityResult?.status}
                 data-tooltip-html-b64=${b64TooltipHtml}
-                class="compliance-highlight grow whitespace-pre-wrap break-all ${highlightClass}"
+                class="compliance-highlight text-white grow whitespace-pre-wrap break-all ${highlightClass} ${hoverHighlightClass}"
                 >${unsafeHTML(indent)}${unsafeHTML(highlightedOpeningTag)}</span
             >
         </div>`
@@ -158,7 +162,8 @@ const renderDashNode = (
                             `${path}.${childTagName}[${index}]`,
                             depth + 1,
                             lineCounter,
-                            activeFilter
+                            activeFilter,
+                            highlightedCompliancePathId
                         )
                     );
                 });
@@ -171,7 +176,8 @@ const renderDashNode = (
                         `${path}.${childTagName}[0]`,
                         depth + 1,
                         lineCounter,
-                        activeFilter
+                        activeFilter,
+                        highlightedCompliancePathId
                     )
                 );
             }
@@ -201,6 +207,8 @@ export const manifestViewTemplate = (
     serializedManifest,
     activeFilter
 ) => {
+    const { highlightedCompliancePathId } = useUiStore.getState();
+
     if (protocol === 'hls') {
         const lines = rawManifest.split('\n');
         const lineResults = new Map();
@@ -239,6 +247,10 @@ export const manifestViewTemplate = (
                     : '';
 
             const locationId = `loc-line-${lineNumber}`;
+            const isHoverHighlighted = highlightedCompliancePathId === locationId;
+            const hoverHighlightClass = isHoverHighlighted
+                ? 'bg-purple-500/30'
+                : '';
 
             return html`<div class="flex">
                 <span class="text-right text-gray-500 pr-4 select-none w-12"
@@ -248,7 +260,7 @@ export const manifestViewTemplate = (
                     id=${locationId}
                     data-status=${highestSeverityResult?.status}
                     data-tooltip-html-b64=${b64TooltipHtml}
-                    class="compliance-highlight grow whitespace-pre-wrap break-all ${highlightClass}"
+                    class="compliance-highlight grow whitespace-pre-wrap break-all ${highlightClass} ${hoverHighlightClass}"
                     >${unsafeHTML(highlightHls(line))}</span
                 >
             </div>`;
@@ -272,7 +284,8 @@ export const manifestViewTemplate = (
         'MPD[0]',
         0,
         lineCounter,
-        activeFilter
+        activeFilter,
+        highlightedCompliancePathId
     );
 
     return html`
@@ -281,7 +294,7 @@ export const manifestViewTemplate = (
                   <span class="text-right text-gray-500 pr-4 select-none w-12"
                       >${lineCounter.count++}</span
                   >
-                  <span class="grow whitespace-pre-wrap break-all"
+                  <span class="grow text-white whitespace-pre-wrap break-all"
                       >${unsafeHTML(highlightDash(xmlDeclaration[0]))}</span
                   >
               </div>`
