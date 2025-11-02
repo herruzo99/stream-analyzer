@@ -59,7 +59,8 @@ const renderStreamListItem = (stream, context) => {
 
     return html`
         <li
-            class="group p-3 hover:bg-slate-700/50 flex justify-between items-center"
+            @click=${handleAdd}
+            class="group p-3 hover:bg-slate-700/50 flex justify-between items-center cursor-pointer"
         >
             <div class="flex flex-col min-w-0">
                 <span
@@ -86,13 +87,6 @@ const renderStreamListItem = (stream, context) => {
                           ${icons.xCircle}
                       </button>`
                     : ''}
-                <button
-                    @click=${handleAdd}
-                    class="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 bg-slate-900/50 hover:bg-blue-600 hover:text-white opacity-0 group-hover:opacity-100 transition-all"
-                    title="Add to Workspace"
-                >
-                    ${icons.plusCircle}
-                </button>
             </div>
         </li>
     `;
@@ -102,6 +96,7 @@ const renderWorkspaceListItem = (workspace) => {
     const handleLoad = (e) => {
         e.stopPropagation();
         analysisActions.setStreamInputs(workspace.inputs);
+        uiActions.setLoadedWorkspaceName(workspace.name);
         uiActions.setStreamInputActiveMobileTab('workspace');
     };
 
@@ -118,7 +113,8 @@ const renderWorkspaceListItem = (workspace) => {
 
     return html`
         <li
-            class="group p-3 hover:bg-slate-700/50 flex justify-between items-center"
+            @click=${handleLoad}
+            class="group p-3 hover:bg-slate-700/50 flex justify-between items-center cursor-pointer"
         >
             <div class="flex flex-col min-w-0">
                 <span
@@ -133,13 +129,6 @@ const renderWorkspaceListItem = (workspace) => {
             <div
                 class="shrink-0 flex items-center gap-2 ml-4 opacity-0 group-hover:opacity-100 transition-opacity"
             >
-                <button
-                    @click=${handleLoad}
-                    class="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 bg-slate-900/50 hover:bg-blue-600 hover:text-white"
-                    title="Load Workspace"
-                >
-                    ${icons.play}
-                </button>
                 <button
                     @click=${handleDelete}
                     class="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 bg-slate-900/50 hover:bg-red-600 hover:text-white"

@@ -240,8 +240,7 @@ details.details-animated[open] > *:not(summary) {
 }
 
 /* --- Sidebar State (NO @apply) --- */
-body.primary-sidebar-open #sidebar-overlay,
-body.contextual-sidebar-open #sidebar-overlay {
+body.primary-sidebar-open #sidebar-overlay {
     display: block; /* Replaced @apply block */
     animation: fadeIn 0.3s ease;
 }

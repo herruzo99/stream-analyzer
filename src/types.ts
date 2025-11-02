@@ -582,12 +582,19 @@ export interface ComplianceResult {
 }
 
 export interface ManifestUpdate {
+    id: string;
+    sequenceNumber: number;
     timestamp: string;
     diffHtml: string;
     rawManifest: string;
     complianceResults: ComplianceResult[];
     hasNewIssues: boolean;
     serializedManifest: object;
+    changes: {
+        additions: number;
+        removals: number;
+        modifications: number;
+    };
 }
 
 export interface DecodedNalUnit {
@@ -678,7 +685,7 @@ export interface Stream {
     rawManifest: string;
     steeringInfo: object | null;
     manifestUpdates: ManifestUpdate[];
-    activeManifestUpdateIndex: number;
+    activeManifestUpdateId: string | null;
     mediaPlaylists: Map<string, MediaPlaylist>;
     activeMediaPlaylistUrl: string | null;
     featureAnalysis: FeatureAnalysisState;

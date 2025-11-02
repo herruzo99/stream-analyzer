@@ -12,14 +12,24 @@ class AppShellComponent extends HTMLElement {
     constructor() {
         super();
         this.dom = {};
+        this.uiUnsubscribe = null;
+        this.analysisUnsubscribe = null;
     }
 
     connectedCallback() {
         this.render();
+        // --- ARCHITECTURAL FIX: Subscribe to stores for reactivity ---
+        this.uiUnsubscribe = useUiStore.subscribe(() => this.updateDOM());
+        this.analysisUnsubscribe = useAnalysisStore.subscribe(() =>
+            this.updateDOM()
+        );
     }
 
     disconnectedCallback() {
         this.removeEventListeners();
+        // --- ARCHITECTURAL FIX: Unsubscribe to prevent memory leaks ---
+        if (this.uiUnsubscribe) this.uiUnsubscribe();
+        if (this.analysisUnsubscribe) this.analysisUnsubscribe();
     }
 
     removeEventListeners() {
@@ -134,7 +144,7 @@ class AppShellComponent extends HTMLElement {
                                 class="flex items-center gap-2 sm:gap-4 flex-wrap justify-start w-full"
                             ></div>
                         </header>
-                        <main class="grow flex flex-col relative bg-slate-900 ">
+                        <main class="grow flex text-white flex-col relative bg-slate-900 ">
                             <div
                                 id="tab-view-container"
                                 class="grow flex flex-col p-4 sm:p-6"

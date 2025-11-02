@@ -2,9 +2,8 @@ import { html } from 'lit-html';
 import { useUiStore, uiActions } from '@/state/uiStore';
 import { eventBus } from '@/application/event-bus';
 
-// The logic for highlighting is now moved to the main renderer/controller
-// which can subscribe to the uiStore and apply classes more efficiently.
-// This component now only dispatches events.
+// The logic for highlighting is now correctly handled by the manifest renderer,
+// which subscribes to the uiStore. This component now only dispatches events.
 
 export function handleCommentClick(e) {
     const card = /** @type {HTMLElement} */ (e.currentTarget);
@@ -18,8 +17,6 @@ export function handleCommentClick(e) {
 }
 
 const commentCard = (result) => {
-    const { highlightedCompliancePathId } = useUiStore.getState();
-
     const statusClasses = {
         fail: 'border-red-500',
         warn: 'border-yellow-500',
@@ -31,14 +28,11 @@ const commentCard = (result) => {
         ? `loc-path-${result.location.path.replace(/[[].]/g, '-')}`
         : `loc-line-${result.location.startLine}`;
 
-    const isHighlighted = highlightedCompliancePathId === locationId;
-    const highlightClass = isHighlighted ? 'bg-purple-500/30' : '';
-
     return html`
         <div
             class="compliance-comment-card bg-gray-800 p-3 rounded-lg border-l-4 ${statusClasses[
                 result.status
-            ]} ${highlightClass} status-${result.status} cursor-pointer hover:bg-gray-700/50"
+            ]} status-${result.status} cursor-pointer hover:bg-gray-700/50"
             data-location-id="${locationId}"
             @mouseover=${() =>
                 eventBus.dispatch('ui:compliance:path-hovered', {

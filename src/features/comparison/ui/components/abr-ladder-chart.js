@@ -37,28 +37,9 @@ const abrLadderChartOptions = (abrData) => {
     });
 
     return {
-        tooltip: {
-            trigger: 'axis',
-            axisPointer: {
-                type: 'shadow',
-            },
-            formatter: (params) => {
-                const category = params[0].axisValue;
-                let tooltipHtml = `<b>${category}</b><br/>`;
-                params.forEach((param) => {
-                    if (param.value) {
-                        const { trackInfo } = param.data;
-                        tooltipHtml += `${param.marker} ${param.seriesName}: ${formatBitrate(
-                            param.value
-                        )} (${trackInfo.width}x${trackInfo.height})<br/>`;
-                    }
-                });
-                return tooltipHtml;
-            },
-        },
         legend: {
             data: abrData.map((d) => d.name),
-            textStyle: { color: '#9ca3af' },
+            textStyle: { color: '#e5e7eb' },
             bottom: 0,
             type: 'scroll',
         },
@@ -70,6 +51,7 @@ const abrLadderChartOptions = (abrData) => {
             nameGap: 30,
             nameTextStyle: { color: '#9ca3af' },
             axisLine: { lineStyle: { color: '#4b5563' } },
+            axisLabel: { color: '#9ca3af' },
             data: allHeights.map((h) => `${h}p`),
         },
         yAxis: {
@@ -77,7 +59,10 @@ const abrLadderChartOptions = (abrData) => {
             name: 'Bitrate',
             nameTextStyle: { color: '#9ca3af' },
             axisLine: { lineStyle: { color: '#4b5563' } },
-            axisLabel: { formatter: (value) => formatBitrate(value) },
+            axisLabel: {
+                formatter: (value) => formatBitrate(value),
+                color: '#9ca3af',
+            },
             splitLine: { lineStyle: { color: '#374151' } },
         },
         series,

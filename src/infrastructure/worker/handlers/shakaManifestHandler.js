@@ -39,6 +39,16 @@ export async function handleShakaManifestFetch(payload, signal) {
 
     const response = await fetchWithAuth(url, auth, null, {}, null, signal);
 
+    // --- BUG FIX: Correctly assemble request headers for logging ---
+    const requestHeadersForLogging = {};
+    if (auth?.headers) {
+        for (const header of auth.headers) {
+            if (header.key) {
+                requestHeadersForLogging[header.key] = header.value;
+            }
+        }
+    }
+
     self.postMessage({
         type: 'worker:network-event',
         payload: {
@@ -46,7 +56,7 @@ export async function handleShakaManifestFetch(payload, signal) {
             url: response.url,
             resourceType: 'manifest',
             streamId,
-            request: { method: 'GET', headers: {} },
+            request: { method: 'GET', headers: requestHeadersForLogging },
             response: {
                 status: response.status,
                 statusText: response.statusText,
@@ -59,10 +69,11 @@ export async function handleShakaManifestFetch(payload, signal) {
                 startTime,
                 endTime: performance.now(),
                 duration: performance.now() - startTime,
-                breakdown: null,
+                breakdown: null, // This will be enriched by the main thread
             },
         },
     });
+    // --- END BUG FIX ---
 
     if (!response.ok) {
         throw new Error(

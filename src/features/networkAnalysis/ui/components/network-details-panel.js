@@ -1,62 +1,42 @@
 import { html } from 'lit-html';
-
-const headerTableTemplate = (headers) => {
-    if (Object.keys(headers).length === 0) {
-        return html`<p class="text-xs text-gray-500 italic">No headers.</p>`;
-    }
-    return html`
-        <table class="w-full text-left text-xs table-auto">
-            <tbody>
-                ${Object.entries(headers).map(
-                    ([key, value]) => html`
-                        <tr class="border-b border-gray-700/50">
-                            <td
-                                class="p-2 font-semibold text-gray-400 align-top w-1/3"
-                            >
-                                ${key}
-                            </td>
-                            <td class="p-2 font-mono text-gray-300 break-all">
-                                ${value}
-                            </td>
-                        </tr>
-                    `
-                )}
-            </tbody>
-        </table>
-    `;
-};
+import * as icons from '@/ui/icons';
+import { headerDetailsTemplate } from './header-details.js';
 
 export const networkDetailsPanelTemplate = (event) => {
     if (!event) {
         return html`
             <div
-                class="h-full flex items-center justify-center text-center text-gray-500"
+                class="h-full flex flex-col items-center justify-center text-center text-slate-500 p-6 border-2 border-dashed border-slate-700 rounded-lg"
             >
-                <p>Select a request from the table to view its details.</p>
+                ${icons.searchCode}
+                <p class="mt-2 font-semibold">No Request Selected</p>
+                <p class="text-sm">
+                    Select a request from the waterfall to view its details.
+                </p>
             </div>
         `;
     }
 
     return html`
         <div
-            class="flex flex-col h-full bg-gray-900 border border-gray-700 rounded-lg"
+            class="flex flex-col h-full bg-slate-900 border border-slate-700 rounded-lg"
         >
-            <div class="p-3 border-b border-gray-700">
-                <h4 class="font-bold text-gray-200">Request Details</h4>
+            <div class="p-3 border-b border-slate-700">
+                <h4 class="font-bold text-slate-200">Request Details</h4>
             </div>
-            <div class="grow overflow-y-auto">
+            <div class="grow overflow-y-auto p-3 space-y-4">
                 <details class="details-animated" open>
                     <summary
-                        class="font-semibold text-gray-300 p-3 cursor-pointer hover:bg-gray-800/50 border-b border-gray-700"
+                        class="font-semibold text-slate-300 cursor-pointer hover:bg-slate-800/50"
                     >
                         General
                     </summary>
                     <div class="p-2">
                         <table class="w-full text-left text-xs table-auto">
-                            <tbody>
-                                <tr class="border-b border-gray-700/50">
+                            <tbody class="divide-y divide-slate-700/50">
+                                <tr class="border-b border-slate-700/50">
                                     <td
-                                        class="p-2 font-semibold text-gray-400 w-1/3"
+                                        class="p-2 font-semibold text-slate-400 w-1/3"
                                     >
                                         Request URL
                                     </td>
@@ -66,16 +46,16 @@ export const networkDetailsPanelTemplate = (event) => {
                                         ${event.url}
                                     </td>
                                 </tr>
-                                <tr class="border-b border-gray-700/50">
-                                    <td class="p-2 font-semibold text-gray-400">
-                                        Request Method
+                                <tr class="border-b border-slate-700/50">
+                                    <td class="p-2 font-semibold text-slate-400">
+                                        Method
                                     </td>
                                     <td class="p-2 font-mono">
                                         ${event.request.method}
                                     </td>
                                 </tr>
-                                <tr class="border-b border-gray-700/50">
-                                    <td class="p-2 font-semibold text-gray-400">
+                                <tr class="border-b border-slate-700/50">
+                                    <td class="p-2 font-semibold text-slate-400">
                                         Status Code
                                     </td>
                                     <td class="p-2 font-mono">
@@ -83,8 +63,8 @@ export const networkDetailsPanelTemplate = (event) => {
                                         ${event.response.statusText}
                                     </td>
                                 </tr>
-                                <tr class="border-b border-gray-700/50">
-                                    <td class="p-2 font-semibold text-gray-400">
+                                <tr class="border-b border-slate-700/50">
+                                    <td class="p-2 font-semibold text-slate-400">
                                         Total Time
                                     </td>
                                     <td class="p-2 font-mono">
@@ -97,22 +77,22 @@ export const networkDetailsPanelTemplate = (event) => {
                 </details>
                 <details class="details-animated" open>
                     <summary
-                        class="font-semibold text-gray-300 p-3 cursor-pointer hover:bg-gray-800/50 border-b border-gray-700"
+                        class="font-semibold text-slate-300 cursor-pointer hover:bg-slate-800/50"
                     >
                         Response Headers
                     </summary>
                     <div class="p-2">
-                        ${headerTableTemplate(event.response.headers)}
+                        ${headerDetailsTemplate(event.response.headers)}
                     </div>
                 </details>
                 <details class="details-animated" open>
                     <summary
-                        class="font-semibold text-gray-300 p-3 cursor-pointer hover:bg-gray-800/50 border-b border-gray-700"
+                        class="font-semibold text-slate-300 cursor-pointer hover:bg-slate-800/50"
                     >
                         Request Headers
                     </summary>
                     <div class="p-2">
-                        ${headerTableTemplate(event.request.headers)}
+                        ${headerDetailsTemplate(event.request.headers)}
                     </div>
                 </details>
             </div>

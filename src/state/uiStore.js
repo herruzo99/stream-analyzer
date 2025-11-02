@@ -10,16 +10,26 @@ import { getWorkspaces } from '@/infrastructure/persistence/streamStorage';
  */
 
 /**
+ * @typedef {object} InteractiveManifestHoverItem
+ * @property {'tag' | 'attribute'} type - The type of the hovered element.
+ * @property {string} name - The name of the tag or attribute (e.g., 'MPD' or 'MPD@type').
+ * @property {object} info - The tooltip/metadata object for the item.
+ * @property {string} path - The unique path identifier for the element.
+ */
+
+/**
  * @typedef {object} UiState
  * @property {'input' | 'results'} viewState
  * @property {string} activeTab
+ * @property {'primary' | 'contextual' | null} activeSidebar
  * @property {'event-log' | 'graphs' | 'controls'} multiPlayerActiveTab
  * @property {string | null} activeSegmentUrl
- * @property {'primary' | 'contextual' | null} activeSidebar
  * @property {ModalState} modalState
  * @property {boolean} isCmafSummaryExpanded
  * @property {number} interactiveManifestCurrentPage
  * @property {boolean} interactiveManifestShowSubstituted
+ * @property {InteractiveManifestHoverItem | null} interactiveManifestHoveredItem
+ * @property {InteractiveManifestHoverItem | null} interactiveManifestSelectedItem
  * @property {number} interactiveSegmentCurrentPage
  * @property {'inspector' | 'hex'} interactiveSegmentActiveTab
  * @property {{ item: any } | null} interactiveSegmentSelectedItem
@@ -44,6 +54,7 @@ import { getWorkspaces } from '@/infrastructure/persistence/streamStorage';
  * @property {string} streamLibrarySearchTerm
  * @property {'library' | 'workspace' | 'inspector'} streamInputActiveMobileTab
  * @property {any[]} workspaces
+ * @property {string | null} loadedWorkspaceName
  * @property {boolean} isRestoringSession
  */
 
@@ -51,12 +62,14 @@ import { getWorkspaces } from '@/infrastructure/persistence/streamStorage';
  * @typedef {object} UiActions
  * @property {(view: 'input' | 'results') => void} setViewState
  * @property {(tabName: string) => void} setActiveTab
- * @property {(tab: 'event-log' | 'graphs' | 'controls') => void} setMultiPlayerActiveTab
  * @property {(sidebar: 'primary' | 'contextual' | null) => void} setActiveSidebar
+ * @property {(tab: 'event-log' | 'graphs' | 'controls') => void} setMultiPlayerActiveTab
  * @property {(modalState: Partial<ModalState>) => void} setModalState
  * @property {() => void} toggleCmafSummary
  * @property {(page: number) => void} setInteractiveManifestPage
  * @property {() => void} toggleInteractiveManifestSubstitution
+ * @property {(item: InteractiveManifestHoverItem | null) => void} setInteractiveManifestHoveredItem
+ * @property {(item: InteractiveManifestHoverItem | null) => void} setInteractiveManifestSelectedItem
  * @property {(page: number) => void} setInteractiveSegmentPage
  * @property {(tab: 'inspector' | 'hex') => void} setInteractiveSegmentActiveTab
  * @property {(item: any) => void} setInteractiveSegmentSelectedItem
@@ -84,6 +97,7 @@ import { getWorkspaces } from '@/infrastructure/persistence/streamStorage';
  * @property {(tab: 'library' | 'workspace' | 'inspector') => void} setStreamInputActiveMobileTab
  * @property {() => void} loadWorkspaces
  * @property {(workspaces: any[]) => void} setWorkspaces
+ * @property {(name: string | null) => void} setLoadedWorkspaceName
  * @property {(isRestoring: boolean) => void} setIsRestoringSession
  * @property {() => void} reset
  */
@@ -91,9 +105,9 @@ import { getWorkspaces } from '@/infrastructure/persistence/streamStorage';
 const createInitialUiState = () => ({
     viewState: 'input',
     activeTab: 'summary',
+    activeSidebar: null,
     multiPlayerActiveTab: 'event-log',
     activeSegmentUrl: null,
-    activeSidebar: null,
     modalState: {
         isModalOpen: false,
         modalTitle: '',
@@ -103,6 +117,8 @@ const createInitialUiState = () => ({
     isCmafSummaryExpanded: false,
     interactiveManifestCurrentPage: 1,
     interactiveManifestShowSubstituted: true,
+    interactiveManifestHoveredItem: null,
+    interactiveManifestSelectedItem: null,
     interactiveSegmentCurrentPage: 1,
     interactiveSegmentActiveTab: 'inspector',
     interactiveSegmentSelectedItem: null,
@@ -127,6 +143,7 @@ const createInitialUiState = () => ({
     streamLibrarySearchTerm: '',
     streamInputActiveMobileTab: 'workspace',
     workspaces: [],
+    loadedWorkspaceName: null,
     isRestoringSession: false,
 });
 
@@ -134,9 +151,15 @@ export const useUiStore = createStore((set, get) => ({
     ...createInitialUiState(),
 
     setViewState: (view) => set({ viewState: view }),
-    setActiveTab: (tabName) => set({ activeTab: tabName }),
-    setMultiPlayerActiveTab: (tab) => set({ multiPlayerActiveTab: tab }),
+    setActiveTab: (tabName) =>
+        set({
+            activeTab: tabName,
+            interactiveManifestCurrentPage: 1,
+            interactiveManifestHoveredItem: null,
+            interactiveManifestSelectedItem: null,
+        }),
     setActiveSidebar: (sidebar) => set({ activeSidebar: sidebar }),
+    setMultiPlayerActiveTab: (tab) => set({ multiPlayerActiveTab: tab }),
     setModalState: (newModalState) =>
         set((state) => ({
             modalState: { ...state.modalState, ...newModalState },
@@ -152,6 +175,10 @@ export const useUiStore = createStore((set, get) => ({
             interactiveManifestShowSubstituted:
                 !state.interactiveManifestShowSubstituted,
         })),
+    setInteractiveManifestHoveredItem: (item) =>
+        set({ interactiveManifestHoveredItem: item }),
+    setInteractiveManifestSelectedItem: (item) =>
+        set({ interactiveManifestSelectedItem: item }),
     setInteractiveSegmentPage: (page) =>
         set({ interactiveSegmentCurrentPage: page }),
     setInteractiveSegmentActiveTab: (tab) =>
@@ -235,6 +262,7 @@ export const useUiStore = createStore((set, get) => ({
         set({ streamInputActiveMobileTab: tab }),
     loadWorkspaces: () => set({ workspaces: getWorkspaces() }),
     setWorkspaces: (workspaces) => set({ workspaces }),
+    setLoadedWorkspaceName: (name) => set({ loadedWorkspaceName: name }),
     setIsRestoringSession: (isRestoring) =>
         set({ isRestoringSession: isRestoring }),
     reset: () => set(createInitialUiState()),

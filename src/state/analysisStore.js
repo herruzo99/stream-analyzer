@@ -33,6 +33,7 @@ import {
  * @property {() => void} startAnalysis
  * @property {(streams: Stream[], urlAuthMapArray: [string, {streamId: number, auth: AuthInfo}][]) => void} completeAnalysis
  * @property {(streamId: number) => void} setActiveStreamId
+ * @property {(updateId: string) => void} setActiveManifestUpdate
  * @property {(id: string) => void} setActiveSegmentUrl
  * @property {() => void} addStreamInput
  * @property {(preset: Partial<StreamInput>) => void} addStreamInputFromPreset
@@ -163,6 +164,7 @@ export const useAnalysisStore = createStore((set, get) => ({
                           ],
                       ])
                     : new Map();
+            newStream.activeManifestUpdateId = s.manifestUpdates[0]?.id || null;
             return newStream;
         });
 
@@ -177,6 +179,16 @@ export const useAnalysisStore = createStore((set, get) => ({
     },
 
     setActiveStreamId: (streamId) => set({ activeStreamId: streamId }),
+    setActiveManifestUpdate: (streamId, updateId) => {
+        set((state) => ({
+            streams: state.streams.map((s) => {
+                if (s.id === streamId) {
+                    return { ...s, activeManifestUpdateId: updateId };
+                }
+                return s;
+            }),
+        }));
+    },
     setActiveStreamInputId: (id) => set({ activeStreamInputId: id }),
     setActiveSegmentUrl: (id) => {
         console.warn(
@@ -500,8 +512,18 @@ export const useAnalysisStore = createStore((set, get) => ({
                         }
                         hydratedUpdate.hlsVariantState = newHlsState;
                     }
+                    
+                    const newStream = { ...s, ...hydratedUpdate };
 
-                    return { ...s, ...hydratedUpdate };
+                    // --- ARCHITECTURAL FIX: "Follow Live" Mode ---
+                    const oldLatestUpdateId = s.manifestUpdates[0]?.id;
+                    const newLatestUpdateId = newStream.manifestUpdates[0]?.id;
+                    if (s.activeManifestUpdateId === oldLatestUpdateId) {
+                        newStream.activeManifestUpdateId = newLatestUpdateId;
+                    }
+                    // --- END FIX ---
+                    
+                    return newStream;
                 }
                 return s;
             }),
@@ -555,18 +577,20 @@ export const useAnalysisStore = createStore((set, get) => ({
         set((state) => ({
             streams: state.streams.map((s) => {
                 if (s.id === streamId && s.manifestUpdates.length > 0) {
-                    let newIndex = s.activeManifestUpdateIndex + direction;
+                    const currentIndex = s.manifestUpdates.findIndex(
+                        (u) => u.id === s.activeManifestUpdateId
+                    );
+                    let newIndex = currentIndex + direction;
                     newIndex = Math.max(
                         0,
                         Math.min(newIndex, s.manifestUpdates.length - 1)
                     );
 
-                    if (newIndex === s.activeManifestUpdateIndex) return s;
+                    if (newIndex === currentIndex) return s;
 
-                    const newStream = {
-                        ...s,
-                        activeManifestUpdateIndex: newIndex,
-                    };
+                    const newActiveId = s.manifestUpdates[newIndex].id;
+                    const newStream = { ...s, activeManifestUpdateId: newActiveId };
+                    
                     if (newIndex === 0) {
                         newStream.manifestUpdates[0].hasNewIssues = false;
                     }

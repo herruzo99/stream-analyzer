@@ -2,7 +2,10 @@ import { html } from 'lit-html';
 import { analysisActions, useAnalysisStore } from '@/state/analysisStore';
 import { eventBus } from '@/application/event-bus';
 import { showToast } from '@/ui/components/toast';
-import { getPresets } from '@/infrastructure/persistence/streamStorage';
+import {
+    getPresets,
+    prepareForStorage,
+} from '@/infrastructure/persistence/streamStorage';
 import * as icons from '@/ui/icons';
 import { useUiStore, uiActions } from '@/state/uiStore';
 import { exampleStreams } from '@/data/example-streams';
@@ -208,8 +211,22 @@ export const inspectorPanelTemplate = () => {
     }
 
     const presets = getPresets();
-    const isPreset = presets.some((p) => p.url === activeInput.url);
+    const savedPreset = presets.find((p) => p.url === activeInput.url);
+    const isPreset = !!savedPreset;
     const isExample = exampleStreams.some((s) => s.url === activeInput.url);
+
+    let isPresetModified = false;
+    if (isPreset) {
+        const currentStorableInput = {
+            name: activeInput.name,
+            url: activeInput.url,
+            auth: activeInput.auth,
+            drmAuth: activeInput.drmAuth,
+        };
+        isPresetModified =
+            JSON.stringify(prepareForStorage(currentStorableInput)) !==
+            JSON.stringify(prepareForStorage(savedPreset));
+    }
 
     const handleSavePreset = (e) => {
         const button = e.target;
@@ -230,13 +247,11 @@ export const inspectorPanelTemplate = () => {
     };
 
     let saveButtonLabel = 'Save as Preset';
-    let saveButtonDisabled = !activeInput.url || !activeInput.name;
-
-    if (isExample) {
-        saveButtonLabel = 'Cannot Save Example';
-        saveButtonDisabled = true;
-    } else if (isPreset) {
+    let saveButtonDisabled =
+        !activeInput.url || !activeInput.name || isExample;
+    if (isPreset) {
         saveButtonLabel = 'Update Preset';
+        saveButtonDisabled = !isPresetModified;
     }
 
     const tabs = [

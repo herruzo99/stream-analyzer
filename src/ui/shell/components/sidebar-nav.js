@@ -32,7 +32,7 @@ const NavLink = (item, activeTab, isSubItem = false) => {
                 @click=${(e) => {
                     e.preventDefault();
                     uiActions.setActiveTab(item.key);
-                    uiActions.setActiveSidebar(null); // Close sidebar on mobile after navigation
+                    document.body.classList.remove('primary-sidebar-open');
                 }}
             >
                 ${item.icon}

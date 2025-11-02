@@ -199,6 +199,14 @@ export const dashTooltipData = {
         text: 'A string identifying the codec(s) common to all Representations in this set, as per RFC 6381. This is a critical parameter for a client to determine if it can decode the content.',
         isoRef: 'Clause 5.3.7.2, Table 14',
     },
+    'AdaptationSet@width': {
+        text: 'The width of the video display area in pixels, common to all Representations in this set. It may differ from the coded resolution if a non-square Picture Aspect Ratio (@par) is used.',
+        isoRef: 'Clause 5.3.3.2, Table 5',
+    },
+    'AdaptationSet@height': {
+        text: 'The height of the video display area in pixels, common to all Representations in this set.',
+        isoRef: 'Clause 5.3.3.2, Table 5',
+    },
     'AdaptationSet@minBandwidth': {
         text: 'The minimum bandwidth of any Representation in this set, in bits per second. Informs the client of the range of bitrates available.',
         isoRef: 'Clause 5.3.3.2, Table 5',

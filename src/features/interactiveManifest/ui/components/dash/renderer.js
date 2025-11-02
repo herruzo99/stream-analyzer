@@ -1,19 +1,9 @@
 import { html } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
-import { dashTooltipData } from './tooltip-data.js';
-import { tooltipTriggerClasses } from '@/ui/shared/constants';
-import { useUiStore, uiActions } from '@/state/uiStore';
-import { debugLog } from '@/shared/utils/debug';
-
-const linesPerPage = 500;
-
-const onPageChange = (offset, totalPages) => {
-    const { interactiveManifestCurrentPage } = useUiStore.getState();
-    const newPage = interactiveManifestCurrentPage + offset;
-    if (newPage >= 1 && newPage <= totalPages) {
-        uiActions.setInteractiveManifestPage(newPage);
-    }
-};
+import { useUiStore } from '@/state/uiStore';
+import { eventBus } from '@/application/event-bus';
+import '@/ui/components/virtualized-list';
+import { isDebugMode } from '@/shared/utils/env';
 
 const escapeHtml = (str) => {
     if (!str) return '';
@@ -24,301 +14,218 @@ const escapeHtml = (str) => {
         .replace(/"/g, '&quot;');
 };
 
-const getTagHTML = (tagName) => {
-    const isClosing = tagName.startsWith('/');
+const flattenManifest = (node, path, depth, lines) => {
+    if (typeof node !== 'object' || node === null) return;
+
+    const tagName = path.split('.').pop().replace(/\[\d+\]$/, '');
+    const attributes = node[':@'] || {};
+    const textContent = node['#text'] || null;
+    const childKeys = Object.keys(node).filter(
+        (key) => key !== ':@' && key !== '#text'
+    );
+    const hasChildren = childKeys.length > 0 || textContent;
+
+    lines.push({
+        id: `${path}-open`,
+        depth,
+        type: 'open',
+        tagName,
+        path,
+        attributes,
+        hasChildren,
+    });
+
+    if (textContent) {
+        lines.push({
+            id: `${path}-text`,
+            depth: depth + 1,
+            type: 'text',
+            content: textContent,
+            path, // Text belongs to the parent path
+        });
+    }
+
+    let childCounts = {};
+    childKeys.forEach((childTagName) => {
+        const children = Array.isArray(node[childTagName])
+            ? node[childTagName]
+            : [node[childTagName]];
+        children.forEach((child) => {
+            const index = childCounts[childTagName] || 0;
+            flattenManifest(
+                child,
+                `${path}.${childTagName}[${index}]`,
+                depth + 1,
+                lines
+            );
+            childCounts[childTagName] = index + 1;
+        });
+    });
+
+    if (hasChildren) {
+        lines.push({
+            id: `${path}-close`,
+            depth,
+            type: 'close',
+            tagName,
+            path,
+        });
+    }
+};
+
+const renderTagHTML = (tagName, path, isClosing, hoveredItem, selectedItem, missingTooltips) => {
     const cleanTagName = isClosing ? tagName.substring(1) : tagName;
-    const tagInfo = dashTooltipData[cleanTagName];
     const [prefix, localName] = cleanTagName.includes(':')
         ? cleanTagName.split(':')
         : [null, cleanTagName];
     const displayPrefix = prefix
         ? `<span class="text-gray-400">${prefix}:</span>`
         : '';
-    const tagClass =
-        'text-blue-300 rounded-sm px-1 -mx-1 transition-colors hover:bg-slate-700';
+    const tagClass = 'text-blue-300';
+    const isHovered = hoveredItem && hoveredItem.path === path;
+    const isSelected = selectedItem && selectedItem.path === path;
+    const isMissing = isDebugMode && missingTooltips.has(cleanTagName);
 
-    let dynamicClasses = '';
-    let tooltipAttrs = '';
-
-    if (tagInfo) {
-        dynamicClasses = tooltipTriggerClasses;
-        tooltipAttrs = `data-tooltip="${escapeHtml(
-            tagInfo.text
-        )}" data-iso="${escapeHtml(tagInfo.isoRef)}"`;
-    } else {
-        dynamicClasses =
-            'cursor-help bg-red-900/50 border-b border-dotted border-red-400/70';
-        tooltipAttrs = `data-tooltip="No definition for &lt;${cleanTagName}&gt;"`;
+    let highlightClass = '';
+    if (isSelected) {
+        highlightClass = 'bg-blue-900/80';
+    } else if (isHovered) {
+        highlightClass = 'bg-slate-700/80';
+    } else if (isMissing) {
+        highlightClass = 'bg-red-900/50 underline decoration-red-400 decoration-dotted';
     }
+
 
     return `&lt;${
         isClosing ? '/' : ''
-    }<span class="${dynamicClasses}" ${tooltipAttrs}>${displayPrefix}<span class="${tagClass}">${localName}</span></span>`;
+    }<span class="interactive-dash-token ${highlightClass}" data-type="tag" data-name="${cleanTagName}" data-path="${path}">${displayPrefix}<span class="${tagClass}">${localName}</span></span>`;
 };
 
-const getAttributeHTML = (tagName, attr) => {
-    const attrKey = `${tagName}@${attr.name}`;
-    const attrInfo = dashTooltipData[attrKey];
-    const nameClass =
-        'text-emerald-300 rounded-sm px-1 -mx-1 transition-colors hover:bg-slate-700';
+const renderAttributeHTML = (
+    tagName,
+    attrName,
+    attrValue,
+    tagPath,
+    hoveredItem,
+    selectedItem,
+    missingTooltips
+) => {
+    const attrKey = `${tagName}@${attrName}`;
+    const attrPath = `${tagPath}@${attrName}`;
+    const nameClass = 'text-emerald-300';
     const valueClass = 'text-yellow-300';
+    const isHovered = hoveredItem && hoveredItem.path === attrPath;
+    const isSelected = selectedItem && selectedItem.path === attrPath;
+    const isMissing = isDebugMode && missingTooltips.has(attrKey);
 
-    let dynamicClasses = '';
-    let tooltipAttrs = '';
-
-    if (attrInfo) {
-        // Specific tooltip found, use it.
-        dynamicClasses = tooltipTriggerClasses;
-        tooltipAttrs = `data-tooltip="${escapeHtml(
-            attrInfo.text
-        )}" data-iso="${escapeHtml(attrInfo.isoRef)}"`;
-    } else if (attr.name.startsWith('xmlns')) {
-        // No specific tooltip, but it's an xmlns attribute, so provide a generic one.
-        const isDefault = attr.name === 'xmlns';
-        const prefix = isDefault
-            ? 'Default'
-            : `Prefixed ('${attr.name.split(':')[1]}')`;
-        const tooltipText = `XML Namespace Declaration (${prefix}). This attribute associates a prefix (or the default) with a unique URI ('${attr.value}') to prevent naming conflicts between elements from different XML vocabularies.`;
-        const isoRef = 'W3C XML Namespaces';
-        dynamicClasses = tooltipTriggerClasses;
-        tooltipAttrs = `data-tooltip="${escapeHtml(
-            tooltipText
-        )}" data-iso="${escapeHtml(isoRef)}"`;
-    } else {
-        // No specific tooltip and not an xmlns attribute, show "missing" warning.
-        dynamicClasses =
-            'cursor-help bg-red-900/50 border-b border-dotted border-red-400/70';
-        tooltipAttrs = `data-tooltip="Tooltip definition missing for '${attr.name}' on &lt;${tagName}&gt;"`;
+    let highlightClass = '';
+    if (isSelected) {
+        highlightClass = 'bg-blue-900/80';
+    } else if (isHovered) {
+        highlightClass = 'bg-slate-700/80';
+    } else if (isMissing) {
+        highlightClass = 'bg-red-900/50 underline decoration-red-400 decoration-dotted';
     }
 
-    return `<span class="${nameClass} ${dynamicClasses}" ${tooltipAttrs}>${
-        attr.name
-    }</span>="<span class="${valueClass}">${escapeHtml(attr.value)}</span>"`;
+    return `<span class="interactive-dash-token ${nameClass} ${highlightClass}" data-type="attribute" data-name="${attrKey}" data-path="${attrPath}">${attrName}</span>="<span class="${valueClass}">${escapeHtml(
+        attrValue
+    )}</span>"`;
 };
 
-const countLinesRecursive = (node) => {
-    if (
-        !node ||
-        (node.nodeType !== Node.ELEMENT_NODE &&
-            node.nodeType !== Node.TEXT_NODE &&
-            node.nodeType !== Node.COMMENT_NODE)
-    )
-        return 0;
-    if (node.nodeType === Node.TEXT_NODE && !node.textContent.trim()) return 0;
-    if (node.nodeType !== Node.ELEMENT_NODE) return 1;
+const rowRenderer = (line, index, hoveredItem, selectedItem, missingTooltips) => {
+    const indent = '  '.repeat(line.depth);
+    let lineHtml = '';
 
-    let count = 1; // Opening tag
-    const el = /** @type {Element} */ (node);
-    const childNodes = Array.from(el.childNodes).filter(
-        (n) =>
-            n.nodeType === Node.ELEMENT_NODE ||
-            n.nodeType === Node.COMMENT_NODE ||
-            (n.nodeType === Node.TEXT_NODE && n.textContent.trim())
-    );
-
-    if (childNodes.length > 0) {
-        count += childNodes.reduce(
-            (sum, child) => sum + countLinesRecursive(child),
-            0
-        );
-        count += 1; // Closing tag
-    }
-    return count;
-};
-
-const generatePageLinesRecursive = (node, depth, context) => {
-    if (
-        !node ||
-        (node.nodeType !== Node.ELEMENT_NODE &&
-            node.nodeType !== Node.TEXT_NODE &&
-            node.nodeType !== Node.COMMENT_NODE)
-    )
-        return;
-    if (node.nodeType === Node.TEXT_NODE && !node.textContent.trim()) return;
-
-    if (context.lines.length >= linesPerPage) return;
-
-    const indent = '  '.repeat(depth);
-
-    switch (node.nodeType) {
-        case Node.ELEMENT_NODE: {
-            const el = /** @type {Element} */ (node);
-            const childNodes = Array.from(el.childNodes).filter(
-                (n) =>
-                    n.nodeType === Node.ELEMENT_NODE ||
-                    n.nodeType === Node.COMMENT_NODE ||
-                    (n.nodeType === Node.TEXT_NODE && n.textContent.trim())
-            );
-            const hasChildren = childNodes.length > 0;
-            const attrs = Array.from(el.attributes)
-                .map((a) => ` ${getAttributeHTML(el.tagName, a)}`)
+    switch (line.type) {
+        case 'open': {
+            const attrs = Object.entries(line.attributes)
+                .map(
+                    ([key, value]) =>
+                        ` ${renderAttributeHTML(
+                            line.tagName,
+                            key,
+                            value,
+                            line.path,
+                            hoveredItem,
+                            selectedItem,
+                            missingTooltips
+                        )}`
+                )
                 .join('');
-
-            context.currentLine++;
-            if (
-                context.currentLine > context.startLine &&
-                context.currentLine <= context.endLine
-            ) {
-                const openingTag = `${indent}${getTagHTML(el.tagName)}${attrs}${
-                    !hasChildren ? ' /' : ''
-                }&gt;`;
-                context.lines.push(openingTag);
-            }
-
-            if (hasChildren) {
-                for (const child of childNodes) {
-                    if (context.lines.length >= linesPerPage) break;
-                    generatePageLinesRecursive(child, depth + 1, context);
-                }
-
-                if (context.lines.length < linesPerPage) {
-                    context.currentLine++;
-                    if (
-                        context.currentLine > context.startLine &&
-                        context.currentLine <= context.endLine
-                    ) {
-                        const closingTag = `${indent}${getTagHTML(
-                            `/${el.tagName}`
-                        )}&gt;`;
-                        context.lines.push(closingTag);
-                    }
-                }
-            }
+            lineHtml = `${indent}${renderTagHTML(
+                line.tagName,
+                line.path,
+                false,
+                hoveredItem,
+                selectedItem,
+                missingTooltips
+            )}${attrs}${line.hasChildren ? '' : ' /'}&gt;`;
             break;
         }
-        case Node.TEXT_NODE:
-        case Node.COMMENT_NODE: {
-            context.currentLine++;
-            if (
-                context.currentLine > context.startLine &&
-                context.currentLine <= context.endLine
-            ) {
-                let line;
-                if (node.nodeType === Node.TEXT_NODE) {
-                    line = `${indent}<span class="text-gray-200">${escapeHtml(
-                        node.textContent.trim()
-                    )}</span>`;
-                } else {
-                    line = `${indent}<span class="text-gray-500 italic">&lt;!--${escapeHtml(
-                        node.textContent
-                    )}--&gt;</span>`;
-                }
-                context.lines.push(line);
-            }
+        case 'close':
+            lineHtml = `${indent}${renderTagHTML(
+                `/${line.tagName}`,
+                line.path,
+                true,
+                hoveredItem,
+                selectedItem,
+                missingTooltips
+            )}&gt;`;
             break;
-        }
+        case 'text':
+            lineHtml = `${indent}<span class="text-gray-200">${escapeHtml(
+                line.content
+            )}</span>`;
+            break;
     }
+
+    return html`
+        <div class="flex">
+            <span
+                class="text-right text-gray-500 pr-4 select-none shrink-0 w-12"
+                >${line.lineNumber}</span
+            >
+            <span class="grow whitespace-pre-wrap break-all"
+                >${unsafeHTML(lineHtml)}</span
+            >
+        </div>
+    `;
 };
 
-export const dashManifestTemplate = (stream, currentPage) => {
-    const hasUpdates =
-        stream.manifestUpdates && stream.manifestUpdates.length > 0;
-    const manifestStringToDisplay = hasUpdates
-        ? stream.manifestUpdates[stream.activeManifestUpdateIndex].rawManifest
-        : stream.rawManifest;
+export const dashManifestTemplate = (stream, hoveredItem, selectedItem, missingTooltips) => {
+    const activeUpdate = stream.manifestUpdates.find(u => u.id === stream.activeManifestUpdateId);
+    
+    const manifestObject = activeUpdate
+        ? activeUpdate.serializedManifest
+        : stream.manifest.serializedManifest;
 
-    debugLog(
-        'DashRenderer',
-        'dashManifestTemplate called.',
-        'Stream has updates:',
-        hasUpdates,
-        'Active update index:',
-        stream.activeManifestUpdateIndex,
-        'Manifest string length:',
-        manifestStringToDisplay.length
-    );
-
-    const parser = new DOMParser();
-    const xmlDoc = parser.parseFromString(
-        manifestStringToDisplay,
-        'application/xml'
-    );
-    const parserError = xmlDoc.querySelector('parsererror');
-
-    if (parserError) {
-        debugLog(
-            'DashRenderer',
-            'XML parsing failed.',
-            parserError.textContent
-        );
-        console.error('XML Parsing Error:', parserError.textContent);
-        return html`<div class="text-red-400 p-4 font-mono">
-            <p class="font-bold">Failed to parse manifest XML.</p>
-            <pre class="mt-2 bg-gray-900 p-2 rounded">
-${parserError.textContent}</pre
-            >
-        </div>`;
-    }
-
-    const manifestElement = xmlDoc.querySelector('MPD');
-
-    if (!manifestElement) {
-        debugLog('DashRenderer', '<MPD> element not found.');
+    if (!manifestObject) {
         return html`<div class="text-red-400 p-4">
-            Error: &lt;MPD&gt; root element not found in the manifest.
+            Error: Manifest object not available for rendering.
         </div>`;
     }
 
-    const totalLines = countLinesRecursive(manifestElement);
-    const totalPages = Math.ceil(totalLines / linesPerPage);
-    const startLine = (currentPage - 1) * linesPerPage;
-    const endLine = startLine + linesPerPage;
+    const flatLines = [];
+    flattenManifest(manifestObject, 'MPD[0]', 0, flatLines);
+    const linesWithNumbers = flatLines.map((line, index) => ({
+        ...line,
+        lineNumber: index + 1,
+    }));
 
-    const renderContext = {
-        lines: [],
-        currentLine: 0,
-        startLine,
-        endLine,
-    };
-    generatePageLinesRecursive(manifestElement, 0, renderContext);
-    const visibleLines = renderContext.lines;
-    debugLog(
-        'DashRenderer',
-        `Total lines: ${totalLines}. Generated ${visibleLines.length} lines for page ${currentPage}.`
-    );
-
-    const paginationControls =
-        totalPages > 1
-            ? html` <div class="text-center text-sm text-gray-400 mt-4">
-                  <button
-                      @click=${() => onPageChange(-1, totalPages)}
-                      ?disabled=${currentPage === 1}
-                      class="px-3 py-1 rounded bg-gray-600 hover:bg-gray-500 disabled:opacity-50 mx-2"
-                  >
-                      &larr; Previous
-                  </button>
-                  <span
-                      >Page ${currentPage} of ${totalPages} (Lines
-                      ${startLine + 1}-${Math.min(endLine, totalLines)})</span
-                  >
-                  <button
-                      @click=${() => onPageChange(1, totalPages)}
-                      ?disabled=${currentPage === totalPages}
-                      class="px-3 py-1 rounded bg-gray-600 hover:bg-gray-500 disabled:opacity-50 mx-2"
-                  >
-                      Next &rarr;
-                  </button>
-              </div>`
-            : '';
+    const renderer = (item, index) =>
+        rowRenderer(item, index, hoveredItem, selectedItem, missingTooltips);
 
     return html`
         <div
-            class="bg-slate-800 rounded-lg p-4 font-mono text-sm leading-relaxed overflow-x-auto"
+            class="bg-slate-800 rounded-lg p-2 font-mono text-sm leading-relaxed overflow-x-auto"
         >
-            ${visibleLines.map(
-                (line, i) => html`
-                    <div class="flex">
-                        <span
-                            class="text-right text-gray-500 pr-4 select-none shrink-0 w-12"
-                            >${startLine + i + 1}</span
-                        >
-                        <span class="grow whitespace-pre-wrap break-all"
-                            >${unsafeHTML(line)}</span
-                        >
-                    </div>
-                `
-            )}
+            <virtualized-list
+                .items=${linesWithNumbers}
+                .rowTemplate=${renderer}
+                .rowHeight=${22}
+                .itemId=${(item) => item.id}
+                class="h-[75vh]"
+            ></virtualized-list>
         </div>
-        ${paginationControls}
     `;
 };

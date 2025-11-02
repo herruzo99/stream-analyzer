@@ -1,6 +1,8 @@
 import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
 import { eventBus } from '@/application/event-bus';
 import { debugLog } from '@/shared/utils/debug';
+import { diffManifest } from '@/ui/shared/diff';
+import xmlFormatter from 'xml-formatter';
 
 /**
  * The main handler for processing a live manifest update. This is now a simple
@@ -26,23 +28,49 @@ async function processLiveUpdate(updateData) {
         return;
     }
 
-    // The new payload from shakaManifestHandler is now more comprehensive.
-    // We can pass most of it directly to the robust `updateStream` action.
+    let formattedOld = stream.manifestUpdates[0]?.rawManifest || '';
+    let formattedNew = updateData.newManifestString;
+    if (stream.protocol === 'dash') {
+        const formatOptions = { indentation: '  ', lineSeparator: '\n' };
+        formattedOld = xmlFormatter(formattedOld, formatOptions);
+        formattedNew = xmlFormatter(formattedNew, formatOptions);
+    }
+
+    const { diffHtml, changes } = diffManifest(
+        formattedOld,
+        formattedNew,
+        stream.protocol
+    );
+
+    const oldIssueCount = (
+        stream.manifestUpdates[0]?.complianceResults || []
+    ).filter((r) => r.status === 'fail' || r.status === 'warn').length;
+    const newIssueCount = (updateData.complianceResults || []).filter(
+        (r) => r.status === 'fail' || r.status === 'warn'
+    ).length;
+    const hasNewIssues = newIssueCount > oldIssueCount;
+
+    // Calculate the sequence number for this update.
+    const lastSequenceNumber =
+        stream.manifestUpdates[0]?.sequenceNumber || 0;
+
     const newUpdate = {
+        id: `${streamId}-${Date.now()}`,
+        sequenceNumber: lastSequenceNumber + 1,
         timestamp: new Date().toLocaleTimeString(),
-        diffHtml: updateData.diffHtml,
+        diffHtml,
         rawManifest: updateData.newManifestString,
         complianceResults: updateData.complianceResults,
-        hasNewIssues: false, // This could be enhanced later
+        hasNewIssues,
         serializedManifest: updateData.serializedManifest,
+        changes,
     };
 
     const updatePayload = {
         manifest: updateData.newManifestObject,
         rawManifest: updateData.newManifestString,
-        manifestUpdates: [newUpdate, ...stream.manifestUpdates].slice(0, 20),
-        adAvails: updateData.adAvails, // The worker now provides the complete, diffed list
-        // Pass the new states directly to the store action, which will handle merging
+        manifestUpdates: [newUpdate, ...stream.manifestUpdates].slice(0, 50),
+        adAvails: updateData.adAvails,
         dashRepresentationState: new Map(
             updateData.dashRepresentationState || []
         ),
