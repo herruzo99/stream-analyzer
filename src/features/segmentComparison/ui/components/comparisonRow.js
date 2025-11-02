@@ -1,6 +1,8 @@
 import { html } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { useUiStore, uiActions } from '@/state/uiStore';
+import * as icons from '@/ui/icons';
+import { tooltipTriggerClasses } from '@/ui/shared/constants';
 
 const flagsCellTemplate = (flags, isExpanded) => {
     if (!flags || typeof flags !== 'object') {
@@ -21,13 +23,13 @@ const flagsCellTemplate = (flags, isExpanded) => {
         <div class="text-xs">
             <div class="mb-2 truncate font-semibold">${summary}</div>
             <table
-                class="w-full text-left bg-gray-900/50 rounded border border-gray-700/50"
+                class="w-full text-left bg-slate-900/50 rounded border border-slate-700/50"
             >
                 <tbody>
                     ${Object.entries(flags).map(
                         ([key, value]) => html`
-                            <tr class="border-t border-gray-700/50">
-                                <td class="p-1.5 text-gray-400">
+                            <tr class="border-t border-slate-700/50">
+                                <td class="p-1.5 text-slate-400">
                                     ${key.replace(/_/g, '-')}
                                 </td>
                                 <td
@@ -78,7 +80,7 @@ const renderCell = (value, rowName, isExpanded) => {
  * @returns {import('lit-html').TemplateResult}
  */
 export const comparisonRowTemplate = (rowData, numColumns) => {
-    const { name, values, status } = rowData;
+    const { name, values, status, tooltip, isoRef } = rowData;
     const { expandedComparisonFlags } = useUiStore.getState();
 
     const containsFlags = values.some(isFlagsObject);
@@ -87,50 +89,67 @@ export const comparisonRowTemplate = (rowData, numColumns) => {
     const gridStyle = `grid-template-columns: 250px repeat(${numColumns}, minmax(300px, 1fr));`;
 
     const getCellClass = (value) => {
-        if (value === '---') return 'bg-gray-800/50 text-gray-500 italic';
-        if (status === 'different') return 'bg-red-900/40';
+        if (value === '---') return 'bg-slate-800/50 text-slate-500 italic';
+        if (status === 'different') return 'bg-amber-900/30';
         return '';
+    };
+
+    const getRowIcon = () => {
+        switch (status) {
+            case 'different':
+                return html`<span
+                    class="text-amber-400 shrink-0"
+                    title="Different"
+                    >${icons.updates}</span
+                >`;
+            case 'missing':
+                return html`<span
+                    class="text-red-400 shrink-0"
+                    title="Missing"
+                    >${icons.xCircle}</span
+                >`;
+            default:
+                return html`<span
+                    class="text-green-500/50 shrink-0"
+                    title="Same"
+                    >${icons.checkCircle}</span
+                >`;
+        }
     };
 
     const expanderButton = containsFlags
         ? html`
               <button
                   @click=${() => uiActions.toggleComparisonFlags(name)}
-                  class="ml-2 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 font-semibold flex items-center gap-1 px-2 py-0.5 rounded-md transition-colors"
+                  class="ml-2 text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 font-semibold flex items-center gap-1.5 px-2 py-1 rounded-md transition-colors"
                   title="Toggle flag details"
               >
-                  <span>Details</span>
-                  <svg
-                      class="w-3 h-3 transition-transform ${isFlagsExpanded
-                          ? 'rotate-180'
-                          : ''}"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                  >
-                      <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M19 9l-7 7-7-7"
-                      ></path>
-                  </svg>
+                  ${icons.binary}
+                  <span>Flags</span>
               </button>
           `
         : '';
 
     return html`
-        <div class="grid border-t border-gray-700" style="${gridStyle}">
+        <div class="grid border-t border-slate-700" style="${gridStyle}">
             <div
-                class="font-medium text-gray-300 p-3 border-r border-gray-700 flex items-center"
+                class="font-medium text-slate-300 p-3 border-r border-slate-700 flex items-start gap-2"
             >
-                <span>${name}</span>
-                ${expanderButton}
+                ${getRowIcon()}
+                <div class="grow">
+                    <span
+                        class=${tooltip ? tooltipTriggerClasses : ''}
+                        data-tooltip=${tooltip || ''}
+                        data-iso=${isoRef || ''}
+                        >${name}</span
+                    >
+                    ${expanderButton}
+                </div>
             </div>
             ${values.map(
                 (value) => html`
                     <div
-                        class="p-3 font-mono text-xs border-r border-gray-700 wrap-break-word ${getCellClass(
+                        class="p-3 font-mono text-xs border-r border-slate-700 wrap-break-word ${getCellClass(
                             value
                         )}"
                     >

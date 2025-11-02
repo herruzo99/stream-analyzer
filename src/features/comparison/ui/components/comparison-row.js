@@ -1,47 +1,71 @@
 import { html } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { tooltipTriggerClasses } from '@/ui/shared/constants';
+import * as icons from '@/ui/icons';
 
-const getCellClass = (status, value) => {
+const getCellClassAndIcon = (status, value) => {
     if (value === 'N/A' || value === null || value === undefined) {
-        return 'bg-gray-800/50 text-gray-500 italic';
+        return {
+            className: 'bg-slate-800/50 text-slate-500 italic',
+            icon: html``,
+        };
     }
     switch (status) {
         case 'different':
-            return 'bg-yellow-900/40';
+            return {
+                className: 'bg-amber-900/30',
+                icon: html`<span
+                    class="text-amber-400 shrink-0"
+                    title="Different"
+                    >${icons.updates}</span
+                >`,
+            };
         case 'missing':
-            return 'bg-red-900/40';
+            return {
+                className: 'bg-red-900/40',
+                icon: html`<span class="text-red-400 shrink-0" title="Missing"
+                    >${icons.xCircle}</span
+                >`,
+            };
         default:
-            return '';
+            return {
+                className: '',
+                icon: html`<span
+                    class="text-green-500/50 shrink-0"
+                    title="Same"
+                    >${icons.checkCircle}</span
+                >`,
+            };
     }
 };
 
 export const comparisonRowTemplate = (comparisonPoint, numColumns) => {
     const { label, tooltip, isoRef, values, status } = comparisonPoint;
 
-    const gridStyle = `grid-template-columns: 250px repeat(${numColumns}, minmax(200px, 1fr));`;
+    // Determine the icon for the entire row based on its status.
+    const { icon } = getCellClassAndIcon(status, values[0]);
 
     return html`
-        <div class="grid" style="${gridStyle}">
-            <div
-                class="font-medium text-gray-400 p-2 border-r border-gray-700 ${tooltipTriggerClasses}"
-                data-tooltip="${tooltip}"
-                data-iso="${isoRef}"
-            >
-                ${label}
-            </div>
-            ${values.map(
-                (value) => html`
-                    <div
-                        class="p-2 font-mono text-xs border-r border-gray-700 wrap-break-word ${getCellClass(
-                            status,
-                            value
-                        )}"
-                    >
-                        ${unsafeHTML(value ?? '')}
-                    </div>
-                `
-            )}
+        <!-- The parent .grid container controls the column layout -->
+        <div
+            class="font-medium text-slate-300 p-3 border-r border-slate-700 flex items-start gap-2 ${tooltipTriggerClasses}"
+            data-tooltip="${tooltip}"
+            data-iso="${isoRef}"
+        >
+            ${icon}
+            <span class="grow">${label}</span>
         </div>
+        ${values.map(
+            (value) => html`
+                <div
+                    class="p-3 font-mono text-xs border-r border-slate-700 wrap-break-word ${getCellClassAndIcon(
+                        status,
+                        value
+                    ).className}"
+                >
+                    ${unsafeHTML(value ?? 'N/A')}
+                </div>
+            `
+        )}
     `;
 };

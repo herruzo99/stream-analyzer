@@ -9,6 +9,51 @@ import { parseScte35 } from '@/infrastructure/parsing/scte35/parser';
 import { getDrmSystemName } from '../utils/drm.js';
 import { inferMediaInfoFromExtension } from '../utils/media-types.js';
 
+// --- Sorter Functions ---
+function sortVideoRepresentations(a, b) {
+    const heightA = a.height?.value || 0;
+    const heightB = b.height?.value || 0;
+    if (heightA !== heightB) {
+        return heightB - heightA; // Descending height
+    }
+
+    const widthA = a.width?.value || 0;
+    const widthB = b.width?.value || 0;
+    if (widthA !== widthB) {
+        return widthB - widthA; // Descending width
+    }
+
+    return (b.bandwidth || 0) - (a.bandwidth || 0); // Descending bandwidth
+}
+
+function sortAudioRepresentations(a, b) {
+    return (b.bandwidth || 0) - (a.bandwidth || 0); // Descending bandwidth
+}
+
+const contentTypeOrder = ['video', 'audio', 'text', 'application'];
+function sortAdaptationSets(a, b) {
+    const indexA = contentTypeOrder.indexOf(a.contentType);
+    const indexB = contentTypeOrder.indexOf(b.contentType);
+
+    if (indexA !== indexB) {
+        return (indexA === -1 ? 99 : indexA) - (indexB === -1 ? 99 : indexB);
+    }
+
+    if (a.contentType === 'audio' || a.contentType === 'text') {
+        const langA = a.lang || '';
+        const langB = b.lang || '';
+        if (langA.localeCompare(langB) !== 0) {
+            return langA.localeCompare(langB);
+        }
+    }
+
+    // Fallback to ID for stable sort
+    const idA = a.id || '';
+    const idB = b.id || '';
+    return idA.localeCompare(idB);
+}
+// --- End Sorter Functions ---
+
 /**
  * Determines the segment format for an HLS manifest using reliable heuristics.
  * @param {object} hlsParsed - The parsed HLS manifest data from the parser.
@@ -581,6 +626,7 @@ export async function adaptHlsToIr(hlsParsed, context) {
     }
 
     manifestIR.periods.push(periodIR);
+    periodIR.adaptationSets.sort(sortAdaptationSets);
 
     return manifestIR;
 }

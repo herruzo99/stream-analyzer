@@ -1,6 +1,7 @@
 import { html, render } from 'lit-html';
 import { useSegmentCacheStore } from '@/state/segmentCacheStore';
 import { useUiStore, uiActions } from '@/state/uiStore';
+import { workerService } from '@/infrastructure/worker/workerService';
 import {
     inspectorPanelTemplate as isobmffInspector,
     structureContentTemplate as isobmffStructure,
@@ -27,6 +28,7 @@ let container = null;
 let uiUnsubscribe = null;
 let segmentCacheUnsubscribe = null;
 let isViewInitialized = false;
+let fullByteMap = null;
 
 const HEX_BYTES_PER_PAGE = 512;
 const ALL_TOOLTIPS_DATA = {
@@ -48,9 +50,10 @@ function renderInteractiveSegment() {
     const {
         activeSegmentUrl,
         interactiveSegmentCurrentPage: currentPage,
-        fullByteMap,
+        isByteMapLoading,
     } = useUiStore.getState();
-    const { get: getFromCache } = useSegmentCacheStore.getState();
+    const { get: getFromCache, set: setInCache } =
+        useSegmentCacheStore.getState();
 
     if (!activeSegmentUrl) {
         render(html``, container);
@@ -58,7 +61,6 @@ function renderInteractiveSegment() {
     }
 
     const cachedSegment = getFromCache(activeSegmentUrl);
-    const startOffset = (currentPage - 1) * HEX_BYTES_PER_PAGE;
 
     let content;
 
@@ -73,89 +75,95 @@ function renderInteractiveSegment() {
             Error loading segment: HTTP ${cachedSegment.status}
         </div>`;
     } else {
-        const format = cachedSegment.parsedData?.format;
+        const { parsedData } = cachedSegment;
+        const format = parsedData?.format;
         const isBinaryFormat = format === 'isobmff' || format === 'ts';
 
-        // --- ARCHITECTURAL REFACTOR: Load full byte map once ---
-        if (isBinaryFormat && !fullByteMap) {
-            if (cachedSegment.parsedData.byteMap) {
-                // The worker has provided the full map, store it in the UI state.
-                uiActions.setFullByteMap(cachedSegment.parsedData.byteMap);
-            }
-            // A re-render will be triggered by the state change, so we can return a loading state.
-            content = inspectorLayoutTemplate({
-                inspectorContent: loadingTemplate('Initializing view...'),
-                structureContent: loadingTemplate('Initializing view...'),
-                hexContent: loadingTemplate('Initializing view...'),
-            });
-        } else if (format === 'vtt') {
+        if (format === 'vtt') {
             content = getInteractiveVttTemplate(cachedSegment.data);
-        } else if (isBinaryFormat && fullByteMap) {
-            let inspectorContent, structureContent;
-            if (format === 'ts') {
-                inspectorContent = tsInspector(cachedSegment.parsedData);
-                structureContent = tsStructure(cachedSegment.parsedData);
-            } else if (format === 'isobmff') {
-                inspectorContent = isobmffInspector(
-                    cachedSegment.parsedData.data
-                );
-                structureContent = isobmffStructure(
-                    cachedSegment.parsedData.data
-                );
+        } else if (isBinaryFormat) {
+            const hasFullAnalysis =
+                fullByteMap && (format === 'ts' || parsedData.samples);
+
+            if (!hasFullAnalysis && !isByteMapLoading) {
+                uiActions.setIsByteMapLoading(true);
+                workerService
+                    .postTask('full-segment-analysis', { parsedData })
+                    .promise.then(({ samples, byteMap }) => {
+                        const updatedParsedData = { ...parsedData, samples };
+                        setInCache(activeSegmentUrl, {
+                            ...cachedSegment,
+                            parsedData: updatedParsedData,
+                        });
+                        fullByteMap = new Map(byteMap);
+                        uiActions.setIsByteMapLoading(false);
+                    })
+                    .catch((err) => {
+                        console.error('Failed to generate byte map:', err);
+                        uiActions.setIsByteMapLoading(false);
+                    });
             }
 
-            const onHexPageChange = (offset) => {
-                const totalPages = Math.ceil(
-                    cachedSegment.data.byteLength / HEX_BYTES_PER_PAGE
-                );
-                const newPage = currentPage + offset;
-                if (newPage >= 1 && newPage <= totalPages) {
-                    uiActions.setInteractiveSegmentPage(newPage);
-                }
-            };
-
-            // Slice the current page's data from the full map
-            const pagedByteMap = new Map();
-            for (
-                let i = startOffset;
-                i < startOffset + HEX_BYTES_PER_PAGE;
-                i++
-            ) {
-                if (fullByteMap.has(i)) {
-                    pagedByteMap.set(i, fullByteMap.get(i));
-                }
-            }
-
-            const hexContent = hexViewTemplate(
-                cachedSegment.data,
-                pagedByteMap,
-                currentPage,
-                HEX_BYTES_PER_PAGE,
-                onHexPageChange,
-                ALL_TOOLTIPS_DATA
-            );
-
-            content = inspectorLayoutTemplate({
-                inspectorContent,
-                structureContent,
-                hexContent,
-            });
-
-            if (!isViewInitialized) {
-                const findFn =
-                    cachedSegment.parsedData.format === 'isobmff'
-                        ? findItemIsobmff
-                        : findItemTs;
-                setTimeout(() => {
-                    initializeSegmentViewInteractivity(
-                        { mainContent: container },
-                        cachedSegment.parsedData,
-                        fullByteMap,
-                        findFn,
-                        cachedSegment.parsedData.format
+            if (isByteMapLoading || !hasFullAnalysis) {
+                content = inspectorLayoutTemplate({
+                    inspectorContent: loadingTemplate('Performing deep analysis...'),
+                    structureContent: loadingTemplate('Performing deep analysis...'),
+                    hexContent: loadingTemplate('Performing deep analysis...'),
+                });
+            } else {
+                let inspectorContent, structureContent;
+                if (format === 'ts') {
+                    inspectorContent = tsInspector(parsedData);
+                    structureContent = tsStructure(parsedData);
+                } else if (format === 'isobmff') {
+                    inspectorContent = isobmffInspector(
+                        parsedData.data,
+                        parsedData.samples
                     );
-                    isViewInitialized = true;
-                }, 0);
+                    structureContent = isobmffStructure(parsedData.data);
+                }
+
+                const onHexPageChange = (offset) => {
+                    const totalPages = Math.ceil(
+                        cachedSegment.data.byteLength / HEX_BYTES_PER_PAGE
+                    );
+                    const newPage = currentPage + offset;
+                    if (newPage >= 1 && newPage <= totalPages) {
+                        uiActions.setInteractiveSegmentPage(newPage);
+                    }
+                };
+
+                const hexContent = hexViewTemplate(
+                    cachedSegment.data,
+                    fullByteMap,
+                    currentPage,
+                    HEX_BYTES_PER_PAGE,
+                    onHexPageChange,
+                    ALL_TOOLTIPS_DATA
+                );
+
+                content = inspectorLayoutTemplate({
+                    inspectorContent,
+                    structureContent,
+                    hexContent,
+                });
+
+                if (!isViewInitialized) {
+                    const findFn =
+                        parsedData.format === 'isobmff'
+                            ? findItemIsobmff
+                            : findItemTs;
+                    setTimeout(() => {
+                        initializeSegmentViewInteractivity(
+                            { mainContent: container },
+                            parsedData,
+                            fullByteMap,
+                            findFn,
+                            parsedData.format
+                        );
+                        isViewInitialized = true;
+                    }, 0);
+                }
             }
         } else {
             content = html`<div class="text-yellow-400 p-4">
@@ -214,6 +222,7 @@ export const interactiveSegmentView = {
     mount(containerElement, stream) {
         container = containerElement;
         isViewInitialized = false; // Reset initialization flag on mount
+        fullByteMap = null; // Clear local state on mount
         if (uiUnsubscribe) uiUnsubscribe();
         if (segmentCacheUnsubscribe) segmentCacheUnsubscribe();
 
@@ -229,6 +238,7 @@ export const interactiveSegmentView = {
         uiUnsubscribe = null;
         segmentCacheUnsubscribe = null;
         isViewInitialized = false;
+        fullByteMap = null; // Clear local state on unmount
 
         cleanupSegmentViewInteractivity({ mainContent: container });
         if (container) {

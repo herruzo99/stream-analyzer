@@ -19,6 +19,7 @@ import { getWorkspaces } from '@/infrastructure/persistence/streamStorage';
 
 /**
  * @typedef {object} UiState
+ * @property {object | null} _viewMap - Internal reference to the application's view map.
  * @property {'input' | 'results'} viewState
  * @property {string} activeTab
  * @property {'primary' | 'contextual' | null} activeSidebar
@@ -34,21 +35,21 @@ import { getWorkspaces } from '@/infrastructure/persistence/streamStorage';
  * @property {'inspector' | 'hex'} interactiveSegmentActiveTab
  * @property {{ item: any } | null} interactiveSegmentSelectedItem
  * @property {{ item: any; field: string } | null} interactiveSegmentHighlightedItem
- * @property {Map<number, object> | null} fullByteMap
  * @property {boolean} isByteMapLoading
  * @property {'all' | 'fail' | 'warn'} complianceActiveFilter
  * @property {number} complianceStandardVersion
  * @property {number} featureAnalysisStandardVersion
- * @property {'first' | 'last'} segmentExplorerDashMode
+ * @property {string | null} segmentExplorerActiveRepId
  * @property {string} segmentExplorerActiveTab
+ * @property {Set<string>} segmentExplorerClosedGroups
  * @property {'asc' | 'desc'} segmentExplorerSortOrder
  * @property {Date | null} segmentExplorerTargetTime
  * @property {boolean} segmentExplorerScrollToTarget
  * @property {string | null} highlightedCompliancePathId
- * @property {boolean} segmentComparisonHideSame
+ * @property {boolean} comparisonHideSameRows
  * @property {Set<string>} expandedComparisonTables
  * @property {Set<string>} expandedComparisonFlags
- * @property {boolean} comparisonHideSameRows
+ * @property {'tabular' | 'structural'} segmentComparisonActiveTab
  * @property {'standard' | 'advanced'} playerControlMode
  * @property {'workspaces' | 'presets' | 'history' | 'examples'} streamLibraryActiveTab
  * @property {string} streamLibrarySearchTerm
@@ -60,6 +61,7 @@ import { getWorkspaces } from '@/infrastructure/persistence/streamStorage';
 
 /**
  * @typedef {object} UiActions
+ * @property {(viewMap: object) => void} injectViewMap
  * @property {(view: 'input' | 'results') => void} setViewState
  * @property {(tabName: string) => void} setActiveTab
  * @property {(sidebar: 'primary' | 'contextual' | null) => void} setActiveSidebar
@@ -74,22 +76,22 @@ import { getWorkspaces } from '@/infrastructure/persistence/streamStorage';
  * @property {(tab: 'inspector' | 'hex') => void} setInteractiveSegmentActiveTab
  * @property {(item: any) => void} setInteractiveSegmentSelectedItem
  * @property {(item: any, field: string) => void} setInteractiveSegmentHighlightedItem
- * @property {(mapArray: [number, object][] | null) => void} setFullByteMap
  * @property {(isLoading: boolean) => void} setIsByteMapLoading
  * @property {(filter: 'all' | 'fail' | 'warn') => void} setComplianceFilter
  * @property {(version: number) => void} setComplianceStandardVersion
  * @property {(version: number) => void} setFeatureAnalysisStandardVersion
- * @property {(mode: 'first' | 'last') => void} setSegmentExplorerDashMode
+ * @property {(repId: string | null) => void} setSegmentExplorerActiveRepId
  * @property {(tab: string) => void} setSegmentExplorerActiveTab
+ * @property {(groupId: string) => void} toggleSegmentExplorerGroup
  * @property {() => void} toggleSegmentExplorerSortOrder
  * @property {(target: Date | null) => void} setSegmentExplorerTargetTime
  * @property {() => void} clearSegmentExplorerTargetTime
  * @property {() => void} clearSegmentExplorerScrollTrigger
  * @property {(pathId: string | null) => void} setHighlightedCompliancePathId
- * @property {() => void} toggleSegmentComparisonHideSame
  * @property {(tableId: string) => void} toggleComparisonTable
  * @property {(rowName: string) => void} toggleComparisonFlags
  * @property {() => void} toggleComparisonHideSameRows
+ * @property {(tab: 'tabular' | 'structural') => void} setSegmentComparisonActiveTab
  * @property {(mode: 'standard' | 'advanced') => void} setPlayerControlMode
  * @property {(segmentUniqueId: string) => void} navigateToInteractiveSegment
  * @property {(tab: 'workspaces' | 'presets' | 'history' | 'examples') => void} setStreamLibraryTab
@@ -103,9 +105,10 @@ import { getWorkspaces } from '@/infrastructure/persistence/streamStorage';
  */
 
 const createInitialUiState = () => ({
+    _viewMap: null,
     viewState: 'input',
     activeTab: 'summary',
-    activeSidebar: null,
+    activeSidebar: 'contextual',
     multiPlayerActiveTab: 'event-log',
     activeSegmentUrl: null,
     modalState: {
@@ -123,21 +126,21 @@ const createInitialUiState = () => ({
     interactiveSegmentActiveTab: 'inspector',
     interactiveSegmentSelectedItem: null,
     interactiveSegmentHighlightedItem: null,
-    fullByteMap: null,
     isByteMapLoading: false,
     complianceActiveFilter: 'all',
     complianceStandardVersion: 13,
     featureAnalysisStandardVersion: 13,
-    segmentExplorerDashMode: 'first',
+    segmentExplorerActiveRepId: null,
     segmentExplorerActiveTab: 'video',
+    segmentExplorerClosedGroups: new Set(),
     segmentExplorerSortOrder: 'desc',
     segmentExplorerTargetTime: null,
     segmentExplorerScrollToTarget: false,
     highlightedCompliancePathId: null,
-    segmentComparisonHideSame: false,
+    comparisonHideSameRows: false,
     expandedComparisonTables: new Set(),
     expandedComparisonFlags: new Set(),
-    comparisonHideSameRows: false,
+    segmentComparisonActiveTab: 'tabular',
     playerControlMode: 'standard',
     streamLibraryActiveTab: 'workspaces',
     streamLibrarySearchTerm: '',
@@ -150,14 +153,26 @@ const createInitialUiState = () => ({
 export const useUiStore = createStore((set, get) => ({
     ...createInitialUiState(),
 
+    injectViewMap: (viewMap) => set({ _viewMap: viewMap }),
     setViewState: (view) => set({ viewState: view }),
-    setActiveTab: (tabName) =>
-        set({
-            activeTab: tabName,
-            interactiveManifestCurrentPage: 1,
-            interactiveManifestHoveredItem: null,
-            interactiveManifestSelectedItem: null,
-        }),
+    setActiveTab: (tabName) => {
+        set((state) => {
+            const newView = state._viewMap ? state._viewMap[tabName] : null;
+            const newSidebarState = newView?.hasContextualSidebar
+                ? 'contextual'
+                : state.activeSidebar === 'contextual'
+                  ? null
+                  : state.activeSidebar;
+
+            return {
+                activeTab: tabName,
+                activeSidebar: newSidebarState,
+                interactiveManifestCurrentPage: 1,
+                interactiveManifestHoveredItem: null,
+                interactiveManifestSelectedItem: null,
+            };
+        });
+    },
     setActiveSidebar: (sidebar) => set({ activeSidebar: sidebar }),
     setMultiPlayerActiveTab: (tab) => set({ multiPlayerActiveTab: tab }),
     setModalState: (newModalState) =>
@@ -189,18 +204,25 @@ export const useUiStore = createStore((set, get) => ({
         set({
             interactiveSegmentHighlightedItem: item ? { item, field } : null,
         }),
-    setFullByteMap: (mapArray) =>
-        set({ fullByteMap: mapArray ? new Map(mapArray) : null }),
     setIsByteMapLoading: (isLoading) => set({ isByteMapLoading: isLoading }),
     setComplianceFilter: (filter) => set({ complianceActiveFilter: filter }),
     setComplianceStandardVersion: (version) =>
         set({ complianceStandardVersion: version }),
     setFeatureAnalysisStandardVersion: (version) =>
         set({ featureAnalysisStandardVersion: version }),
-    setSegmentExplorerDashMode: (mode) =>
-        set({ segmentExplorerDashMode: mode }),
+    setSegmentExplorerActiveRepId: (repId) => {
+        if (get().segmentExplorerActiveRepId === repId) return;
+        set({ segmentExplorerActiveRepId: repId });
+    },
     setSegmentExplorerActiveTab: (tab) =>
         set({ segmentExplorerActiveTab: tab }),
+    toggleSegmentExplorerGroup: (groupId) =>
+        set((state) => {
+            const newSet = new Set(state.segmentExplorerClosedGroups);
+            if (newSet.has(groupId)) newSet.delete(groupId);
+            else newSet.add(groupId);
+            return { segmentExplorerClosedGroups: newSet };
+        }),
     toggleSegmentExplorerSortOrder: () =>
         set((state) => ({
             segmentExplorerSortOrder:
@@ -220,10 +242,6 @@ export const useUiStore = createStore((set, get) => ({
         set({ segmentExplorerScrollToTarget: false }),
     setHighlightedCompliancePathId: (pathId) =>
         set({ highlightedCompliancePathId: pathId }),
-    toggleSegmentComparisonHideSame: () =>
-        set((state) => ({
-            segmentComparisonHideSame: !state.segmentComparisonHideSame,
-        })),
     toggleComparisonTable: (tableId) => {
         set((state) => {
             const newSet = new Set(state.expandedComparisonTables);
@@ -244,13 +262,14 @@ export const useUiStore = createStore((set, get) => ({
         set((state) => ({
             comparisonHideSameRows: !state.comparisonHideSameRows,
         })),
+    setSegmentComparisonActiveTab: (tab) =>
+        set({ segmentComparisonActiveTab: tab }),
     setPlayerControlMode: (mode) => set({ playerControlMode: mode }),
     navigateToInteractiveSegment: (segmentUniqueId) =>
         set({
             activeSegmentUrl: segmentUniqueId,
             activeTab: 'interactive-segment',
             interactiveSegmentCurrentPage: 1,
-            fullByteMap: null,
             isByteMapLoading: false,
             interactiveSegmentSelectedItem: null,
             interactiveSegmentHighlightedItem: null,

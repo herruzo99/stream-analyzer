@@ -12,55 +12,59 @@ import { tooltipTriggerClasses } from '@/ui/shared/constants';
  * @returns {import('lit-html').TemplateResult}
  */
 export const comparisonSectionTemplate = (sectionData, numColumns) => {
-    const { segmentComparisonHideSame, expandedComparisonTables } =
+    const { comparisonHideSameRows, expandedComparisonTables } =
         useUiStore.getState();
     const isTableExpanded = expandedComparisonTables.has(sectionData.title);
+
+    const rowsToRender = comparisonHideSameRows
+        ? sectionData.rows.filter((r) => r.status !== 'same')
+        : sectionData.rows;
+
+    if (rowsToRender.length === 0 && !sectionData.tableData) {
+        return html``;
+    }
 
     const expandButton = sectionData.tableData
         ? html`
               <button
-                  @click=${() =>
-                      uiActions.toggleComparisonTable(sectionData.title)}
-                  class="ml-4 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 font-semibold flex items-center gap-1.5 px-2 py-1 rounded-md transition-colors"
+                  @click=${(e) => {
+                      e.stopPropagation();
+                      uiActions.toggleComparisonTable(sectionData.title);
+                  }}
+                  class="text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 font-semibold flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-colors"
                   title="Toggle detailed entry table"
               >
+                  ${icons.table}
                   <span>Table</span>
-                  <svg
-                      class="w-3 h-3 transition-transform ${isTableExpanded
-                          ? 'rotate-180'
-                          : ''}"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                  >
-                      <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M19 9l-7 7-7-7"
-                      ></path>
-                  </svg>
               </button>
           `
         : '';
 
     return html`
-        <div class="mt-4">
-            <div class="flex justify-between items-center mb-2">
-                <h3 class="text-xl font-bold text-gray-200 flex items-center">
-                    ${sectionData.title} ${expandButton}
-                </h3>
-            </div>
-            <div class="border border-gray-700 rounded-lg overflow-hidden">
-                ${sectionData.rows.map((row) =>
-                    comparisonRowTemplate(row, numColumns)
-                )}
-            </div>
+        <div class="bg-slate-800 rounded-lg border border-slate-700 mt-6">
+            <h3
+                class="text-lg font-bold p-4 border-b border-slate-700 flex items-center text-slate-200"
+            >
+                ${icons.puzzle}
+                <span class="ml-3 font-mono">${sectionData.title}</span>
+                ${sectionData.fullName
+                    ? html`<span class="ml-2 text-sm font-normal text-slate-400"
+                          >(${sectionData.fullName})</span
+                      >`
+                    : ''}
+                <div class="ml-auto">${expandButton}</div>
+            </h3>
+
+            ${rowsToRender.length > 0
+                ? rowsToRender.map((row) =>
+                      comparisonRowTemplate(row, numColumns)
+                  )
+                : ''}
             ${isTableExpanded
                 ? tableComparisonTemplate({
                       tableData: sectionData.tableData,
                       numSegments: numColumns,
-                      hideSameRows: segmentComparisonHideSame,
+                      hideSameRows: comparisonHideSameRows,
                   })
                 : ''}
         </div>

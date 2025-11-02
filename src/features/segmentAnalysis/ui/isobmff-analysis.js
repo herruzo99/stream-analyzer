@@ -1,4 +1,11 @@
 import { html } from 'lit-html';
+import { statCardTemplate } from '@/features/summary/ui/components/shared';
+import { connectedTabBar } from '@/ui/components/tabs';
+import { useUiStore, uiActions } from '@/state/uiStore';
+import { cmafTrackRules } from '@/features/compliance/domain/cmaf/rules';
+import { validateCmafProfiles } from '@/features/compliance/domain/cmaf/profile-validator';
+import * as icons from '@/ui/icons';
+import '@/ui/components/virtualized-list';
 import { isoBoxTreeTemplate } from '@/ui/shared/isobmff-renderer';
 
 const findBoxRecursive = (boxes, predicateOrType) => {
@@ -18,251 +25,244 @@ const findBoxRecursive = (boxes, predicateOrType) => {
     return null;
 };
 
-const semanticCard = (title, box, fields, flags) => {
-    if (!box) return '';
+const cmafResultsTemplate = (results) => {
+    if (!results || results.length === 0) return html``;
 
-    const activeFlags = flags
-        ? Object.entries(flags)
-              .filter(([, value]) => value === true)
-              .map(([key]) => key)
-              .join(', ')
-        : null;
+    const statusClasses = {
+        pass: 'text-green-400',
+        fail: 'text-red-400',
+        warn: 'text-yellow-400',
+        info: 'text-blue-400',
+    };
+    const icon = { pass: '✓', fail: '✗', warn: '⚠️', info: 'ℹ' };
 
     return html`
-        <div class="bg-gray-900/50 border border-gray-700 rounded-lg">
-            <h4
-                class="text-sm font-semibold p-2 border-b border-gray-700 text-gray-300"
+        <div>
+            <h3 class="text-xl font-bold mb-4">CMAF Conformance</h3>
+            <div
+                class="bg-slate-900/50 rounded border border-slate-700/50 overflow-hidden"
             >
-                ${title}
-            </h4>
-            <dl class="grid grid-cols-[auto_1fr] gap-x-2 p-2 text-xs font-mono">
-                ${fields.map((field) => {
-                    const value = box.details[field.key]?.value;
-                    return value !== undefined
-                        ? html`
-                              <dt class="text-gray-400">${field.label}:</dt>
-                              <dd class="text-white break-all">${value}</dd>
-                          `
-                        : '';
-                })}
-                ${activeFlags
-                    ? html`
-                          <dt
-                              class="text-gray-400 col-span-2 pt-1 mt-1 border-t border-gray-700"
-                          >
-                              Active Flags:
-                          </dt>
-                          <dd
-                              class="text-white break-all col-span-2 text-green-400"
-                          >
-                              ${activeFlags}
-                          </dd>
-                      `
-                    : ''}
-            </dl>
+                <table class="w-full text-left text-xs table-auto">
+                    <thead class="bg-slate-800/50">
+                        <tr>
+                            <th class="p-2 font-semibold text-slate-400 w-20">
+                                Status
+                            </th>
+                            <th class="p-2 font-semibold text-slate-400">
+                                Check
+                            </th>
+                            <th class="p-2 font-semibold text-slate-400">
+                                Details
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-700/50">
+                        ${results.map(
+                            (result) => html`
+                                <tr class="hover:bg-slate-700/50">
+                                    <td class="p-2 text-center">
+                                        <span
+                                            class="${statusClasses[
+                                                result.status
+                                            ]} font-bold"
+                                            >${icon[result.status]}
+                                            ${result.status.toUpperCase()}</span
+                                        >
+                                    </td>
+                                    <td
+                                        class="p-2 text-slate-300"
+                                        title="${result.isoRef}"
+                                    >
+                                        ${result.text}
+                                    </td>
+                                    <td class="p-2 text-slate-400">
+                                        ${result.details}
+                                    </td>
+                                </tr>
+                            `
+                        )}
+                    </tbody>
+                </table>
+            </div>
         </div>
     `;
 };
 
-const semanticSummaryTemplate = (boxes) => {
-    const isInitSegment = !!findBoxRecursive(boxes, (b) => b.type === 'moov');
-    const isMediaSegment = !!findBoxRecursive(boxes, (b) => b.type === 'moof');
-
-    if (isInitSegment) {
-        const tkhd = findBoxRecursive(boxes, (b) => b.type === 'tkhd');
-        const mdhd = findBoxRecursive(boxes, (b) => b.type === 'mdhd');
-        const trex = findBoxRecursive(boxes, (b) => b.type === 'trex');
-        const elst = findBoxRecursive(boxes, (b) => b.type === 'elst');
-
-        return html`
-            <h3 class="text-xl font-bold mb-4">
-                Initialization Segment Summary
-            </h3>
-            <div
-                class="grid gap-4 grid-cols-[repeat(auto-fill,minmax(300px,1fr))] mb-6"
-            >
-                ${semanticCard(
-                    'Track Header (tkhd)',
-                    tkhd,
-                    [
-                        { key: 'track_ID', label: 'Track ID' },
-                        { key: 'duration', label: 'Duration' },
-                        { key: 'width', label: 'Width' },
-                        { key: 'height', label: 'Height' },
-                    ],
-                    tkhd?.details.flags?.value
-                )}
-                ${semanticCard('Media Header (mdhd)', mdhd, [
-                    { key: 'timescale', label: 'Timescale' },
-                    { key: 'duration', label: 'Duration' },
-                    { key: 'language', label: 'Language' },
-                ])}
-                ${semanticCard('Track Extends (trex)', trex, [
-                    { key: 'track_ID', label: 'Track ID' },
-                    {
-                        key: 'default_sample_duration',
-                        label: 'Default Duration',
-                    },
-                    { key: 'default_sample_size', label: 'Default Size' },
-                ])}
-                ${semanticCard('Edit List (elst)', elst, [
-                    { key: 'entry_count', label: 'Entry Count' },
-                    {
-                        key: 'entry_1_media_time',
-                        label: 'Media Time (Entry 1)',
-                    },
-                ])}
-            </div>
-        `;
-    }
-
-    if (isMediaSegment) {
-        const mfhd = findBoxRecursive(boxes, (b) => b.type === 'mfhd');
-        const tfhd = findBoxRecursive(boxes, (b) => b.type === 'tfhd');
-        const tfdt = findBoxRecursive(boxes, (b) => b.type === 'tfdt');
-        const trun = findBoxRecursive(boxes, (b) => b.type === 'trun');
-
-        return html`
-            <h3 class="text-xl font-bold mb-4">Media Segment Summary</h3>
-            <div
-                class="grid gap-4 grid-cols-[repeat(auto-fill,minmax(300px,1fr))] mb-6"
-            >
-                ${semanticCard('Movie Fragment Header (mfhd)', mfhd, [
-                    { key: 'sequence_number', label: 'Sequence Number' },
-                ])}
-                ${semanticCard(
-                    'Track Fragment Header (tfhd)',
-                    tfhd,
-                    [
-                        { key: 'track_ID', label: 'Track ID' },
-                        { key: 'base_data_offset', label: 'Base Data Offset' },
-                        {
-                            key: 'default_sample_duration',
-                            label: 'Default Duration',
-                        },
-                    ],
-                    tfhd?.details.flags?.value
-                )}
-                ${semanticCard('Track Fragment Decode Time (tfdt)', tfdt, [
-                    {
-                        key: 'baseMediaDecodeTime',
-                        label: 'Base Media Decode Time',
-                    },
-                ])}
-                ${semanticCard(
-                    'Track Run (trun)',
-                    trun,
-                    [
-                        { key: 'sample_count', label: 'Sample Count' },
-                        { key: 'data_offset', label: 'Data Offset' },
-                    ],
-                    trun?.details.flags?.value
-                )}
-            </div>
-        `;
-    }
-
-    return html`<h3 class="text-xl font-bold mb-4">Semantic Summary</h3>
-        <p class="text-sm text-gray-400">
-            Could not identify segment type (Init or Media).
-        </p>`;
-};
-
-const formatEncryptionInfo = (encryption) => {
-    if (!encryption) return 'No';
-    const iv = encryption.iv
-        ? Array.from(encryption.iv)
-              .map((b) => b.toString(16).padStart(2, '0'))
-              .join('')
-        : 'N/A';
-    const subsampleText =
-        encryption.subsamples && encryption.subsamples.length > 0
-            ? encryption.subsamples
-                  .map(
-                      (s) =>
-                          `[C:${s.BytesOfClearData},P:${s.BytesOfProtectedData}]`
-                  )
-                  .join(' ')
-            : 'None';
-    return html`IV: ${iv}<br />Subsamples: ${subsampleText}`;
-};
-
 const samplesTableTemplate = (samples) => {
-    if (!samples || samples.length === 0) return '';
+    if (!samples || samples.length === 0) {
+        return html``;
+    }
 
-    const renderDependsOn = (value) => {
-        switch (value) {
-            case 'Does not depend on others (I-frame)':
-                return html`<span class="text-green-400">${value}</span>`;
-            case 'Depends on others':
-                return html`<span class="text-yellow-400">${value}</span>`;
-            default:
-                return value;
-        }
+    const rowHeight = 40;
+
+    const rowRenderer = (sample, index) => {
+        const dependsOnMap = {
+            'Does not depend on others (I-picture)': 'No (I-Frame)',
+            'Depends on others': 'Yes',
+            Unknown: 'Unknown',
+            Reserved: 'Reserved',
+        };
+
+        // --- BUG FIX: Add guard for undefined sample.dependsOn ---
+        const dependsOnValue =
+            sample.dependsOn && dependsOnMap[sample.dependsOn]
+                ? dependsOnMap[sample.dependsOn]
+                : sample.dependsOn || 'N/A';
+        const dependsOnClass =
+            sample.dependsOn && sample.dependsOn.includes('not')
+                ? 'text-green-400'
+                : 'text-yellow-400';
+        // --- END BUG FIX ---
+
+        return html`
+            <div
+                class="flex items-center border-b border-gray-700/50 text-xs"
+                style="height: ${rowHeight}px;"
+            >
+                <div
+                    class="p-1 font-mono text-slate-500 w-16 text-right pr-2"
+                >
+                    ${index + 1}
+                </div>
+                <div class="p-1 font-mono flex-1 border-l border-gray-700/50">
+                    ${sample.offset}
+                </div>
+                <div class="p-1 font-mono flex-1 border-l border-gray-700/50">
+                    ${sample.size}
+                </div>
+                <div
+                    class="p-1 font-mono flex-1 border-l border-gray-700/50 ${dependsOnClass}"
+                >
+                    ${dependsOnValue}
+                </div>
+                <div class="p-1 font-mono flex-1 border-l border-gray-700/50">
+                    ${sample.degradationPriority ?? 'N/A'}
+                </div>
+            </div>
+        `;
     };
 
     return html`
-        <div
-            class="mt-1 overflow-y-auto max-h-96 border border-gray-700 rounded-md"
-        >
-            <table class="w-full text-left text-xs">
-                <thead class="bg-gray-800 sticky top-0">
-                    <tr>
-                        <th class="p-2">#</th>
-                        <th class="p-2">Offset</th>
-                        <th class="p-2">Size</th>
-                        <th class="p-2">Depends On</th>
-                        <th class="p-2">Priority</th>
-                        <th class="p-2">Group</th>
-                        <th class="p-2">Encryption</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-700">
-                    ${samples.map(
-                        (sample) => html`
-                            <tr class="hover:bg-gray-700/50">
-                                <td class="p-2">${sample.index}</td>
-                                <td class="p-2 font-mono">${sample.offset}</td>
-                                <td class="p-2 font-mono">${sample.size}</td>
-                                <td class="p-2 font-mono">
-                                    ${renderDependsOn(sample.dependsOn)}
-                                </td>
-                                <td class="p-2 font-mono">
-                                    ${sample.degradationPriority ?? 'N/A'}
-                                </td>
-                                <td class="p-2 font-mono">
-                                    ${sample.sampleGroup ?? 'N/A'}
-                                </td>
-                                <td class="p-2 font-mono">
-                                    ${formatEncryptionInfo(sample.encryption)}
-                                </td>
-                            </tr>
-                        `
-                    )}
-                </tbody>
-            </table>
+        <div>
+            <h3 class="text-xl font-bold mb-4">Samples (${samples.length})</h3>
+            <div
+                class="bg-slate-900/50 rounded border border-slate-700/50 overflow-hidden"
+            >
+                <div
+                    class="flex bg-slate-800/50 sticky top-0 z-10 font-semibold text-xs text-slate-400"
+                >
+                    <div class="p-1 w-16 text-right pr-2">#</div>
+                    <div class="p-1 flex-1 border-l border-gray-700/50">
+                        Offset
+                    </div>
+                    <div class="p-1 flex-1 border-l border-gray-700/50">
+                        Size
+                    </div>
+                    <div class="p-1 flex-1 border-l border-gray-700/50">
+                        Depends On Others
+                    </div>
+                    <div class="p-1 flex-1 border-l border-gray-700/50">
+                        Degradation Prio
+                    </div>
+                </div>
+                <virtualized-list
+                    .items=${samples}
+                    .rowTemplate=${rowRenderer}
+                    .rowHeight=${rowHeight}
+                    .itemId=${(item, index) => index}
+                    class="h-[400px]"
+                ></virtualized-list>
+            </div>
         </div>
     `;
 };
 
 export const isobmffAnalysisTemplate = (parsedData) => {
     const { data: isobmffData, samples } = parsedData;
+    const { boxes } = isobmffData;
+
+    const isInitSegment = !!findBoxRecursive(boxes, (b) => b.type === 'moov');
+    const isMediaSegment = !!findBoxRecursive(boxes, (b) => b.type === 'moof');
+
+    const ftyp = findBoxRecursive(boxes, 'ftyp');
+    const cmafBrands = ftyp?.details?.cmafBrands?.value?.split(', ') || [];
+    const isCmaf = cmafBrands.includes('cmfc');
+
+    let cmafResults = [];
+    if (isCmaf) {
+        const initDataForRules = isInitSegment
+            ? isobmffData
+            : { boxes: [], details: {} };
+        const mediaDataForRules = isMediaSegment
+            ? isobmffData
+            : { boxes: [], details: {} };
+        cmafTrackRules.forEach((rule) => {
+            try {
+                const result = rule(initDataForRules, mediaDataForRules);
+                if (result) cmafResults.push(result);
+            } catch (e) {}
+        });
+        if (isInitSegment) {
+            cmafResults.push(
+                ...validateCmafProfiles(cmafBrands, initDataForRules)
+            );
+        }
+    }
+
+    let segmentType = 'Unknown';
+    if (isInitSegment) segmentType = 'Initialization Segment';
+    if (isMediaSegment) segmentType = 'Media Segment';
+
+    const summaryCards = [
+        statCardTemplate({
+            label: 'Segment Type',
+            value: segmentType,
+            icon: isInitSegment ? icons.integrators : icons.film,
+            tooltip:
+                'Indicates if the segment is an Initialization Segment (`moov`) or a Media Segment (`moof`/`mdat`).',
+            isoRef: 'ISO/IEC 14496-12',
+        }),
+        statCardTemplate({
+            label: 'Total Size',
+            value: `${(isobmffData.size / 1024).toFixed(2)} KB`,
+            icon: icons.box,
+            tooltip: 'The total size of the segment in bytes.',
+            isoRef: 'ISO/IEC 14496-12, 4.2',
+        }),
+        statCardTemplate({
+            label: 'Sample Count',
+            value: samples?.length,
+            icon: icons.rectangleHorizontal,
+            tooltip:
+                'The total number of media samples (e.g., video frames or audio chunks) contained within this segment.',
+            isoRef: 'ISO/IEC 14496-12, 8.7.3',
+        }),
+        statCardTemplate({
+            label: 'CMAF Compatible',
+            value: isCmaf,
+            icon: icons.shieldCheck,
+            tooltip:
+                "Indicates if the segment's `ftyp` or `styp` box contains the 'cmfc' structural brand, a requirement for CMAF compliance.",
+            isoRef: 'ISO/IEC 23000-19:2020(E), 7.2',
+        }),
+    ];
 
     return html`
         <div class="space-y-8">
-            <div>${semanticSummaryTemplate(isobmffData.boxes)}</div>
+            <div>
+                <h3 class="text-xl text-white font-bold mb-4">Summary</h3>
+                <div
+                    class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(250px,1fr))]"
+                >
+                    ${summaryCards}
+                </div>
+            </div>
 
-            ${samples && samples.length > 0
-                ? html` <div>
-                      <h3 class="text-xl font-bold mb-4">
-                          Sample-level Analysis
-                      </h3>
-                      ${samplesTableTemplate(samples)}
-                  </div>`
-                : ''}
+            ${cmafResultsTemplate(cmafResults)}
+            ${samplesTableTemplate(samples)}
 
             <div>
-                <h3 class="text-xl font-bold mb-4 mt-8">Full Box Tree</h3>
+                <h3 class="text-xl text-white font-bold mb-4">Box Structure</h3>
                 <ul class="list-none p-0 space-y-2">
                     ${isobmffData.boxes.map(
                         (box) => html`<li>${isoBoxTreeTemplate(box)}</li>`

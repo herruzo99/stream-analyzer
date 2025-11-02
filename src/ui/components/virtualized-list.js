@@ -7,6 +7,7 @@ class VirtualizedList extends HTMLElement {
         this._rowTemplate = (item, index) => html``;
         this._rowHeight = 40;
         this._itemId = (item) => item.id;
+        this.postRenderCallback = null;
 
         this.visibleStartIndex = 0;
         this.visibleEndIndex = 0;
@@ -105,10 +106,16 @@ class VirtualizedList extends HTMLElement {
 
         const totalHeight = this._items.length * this._rowHeight;
         this.visibleStartIndex = Math.floor(this.scrollTop / this._rowHeight);
+
+        // --- ARCHITECTURAL FIX: Deterministic Calculation ---
+        // Calculate the exact number of items needed to fill the viewport height.
+        // Add a buffer of one item to prevent gaps during fast scrolling.
+        const numItemsInView = Math.ceil(this.clientHeight / this._rowHeight);
         this.visibleEndIndex = Math.min(
             this._items.length - 1,
-            Math.ceil((this.scrollTop + this.clientHeight) / this._rowHeight)
+            this.visibleStartIndex + numItemsInView + 1
         );
+        // --- END FIX ---
 
         this.paddingTop = this.visibleStartIndex * this._rowHeight;
         this.paddingBottom =
@@ -134,6 +141,10 @@ class VirtualizedList extends HTMLElement {
             )}
         `;
         render(template, this.container);
+
+        if (this.postRenderCallback) {
+            requestAnimationFrame(this.postRenderCallback);
+        }
     }
 }
 

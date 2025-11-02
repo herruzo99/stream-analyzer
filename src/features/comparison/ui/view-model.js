@@ -6,12 +6,12 @@ const valueOrNA = (value) =>
 
 const renderList = (items) =>
     items && items.length > 0
-        ? items
+        ? `<div class="flex flex-wrap gap-1">${items
               .map((item) => {
                   const value = typeof item === 'object' ? item.value : item;
-                  return `<div class="my-1">${value}</div>`;
+                  return `<span class="bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full text-xs">${value}</span>`;
               })
-              .join('')
+              .join('')}</div>`
         : 'N/A';
 
 const createRow = (label, tooltip, isoRef, values) => {
@@ -125,7 +125,9 @@ export function createComparisonViewModel(streams) {
                 const max = Math.max(...bitrates);
 
                 if (min === max) return formatBitrate(min * 1000);
-                return `${formatBitrate(min * 1000)} - ${formatBitrate(max * 1000)}`;
+                return `${formatBitrate(min * 1000)} - ${formatBitrate(
+                    max * 1000
+                )}`;
             })
         ),
         createRow(

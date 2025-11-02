@@ -64,7 +64,7 @@ function handleInteraction(e) {
                  eventBus.dispatch('ui:interactive-manifest:item-hovered', {
                     item,
                 });
-            }, 40);
+            }, 30);
         } else if (e.type === 'click') {
             eventBus.dispatch('ui:interactive-manifest:item-clicked', { item });
         }

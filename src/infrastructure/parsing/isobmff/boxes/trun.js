@@ -97,37 +97,36 @@ export function parseTrun(box, view) {
             const sample = {};
 
             if (flags.sample_duration_present) {
-                sample.duration = p.readUint32(`sample_${i + 1}_duration`);
+                sample.duration = p.readUint32(`sample_duration_field`);
+                delete box.details.sample_duration_field;
             }
 
             if (flags.sample_size_present) {
-                sample.size = p.readUint32(`sample_${i + 1}_size`);
+                sample.size = p.readUint32(`sample_size_field`);
+                delete box.details.sample_size_field;
             }
 
             if (flags.first_sample_flags_present && i === 0) {
                 sample.flags = firstSampleFlags;
             } else if (flags.sample_flags_present) {
-                const localFlagsInt = p.readUint32(`sample_${i + 1}_flags_raw`);
+                const localFlagsInt = p.readUint32(`sample_flags_field`);
                 if (localFlagsInt !== null) {
                     sample.flags = decodeSampleFlags(localFlagsInt);
-                    box.details[`sample_${i + 1}_flags`] = {
-                        ...box.details[`sample_${i + 1}_flags_raw`],
-                        value: sample.flags,
-                    };
-                    delete box.details[`sample_${i + 1}_flags_raw`];
                 }
+                delete box.details.sample_flags_field;
             }
 
             if (flags.sample_composition_time_offsets_present) {
                 if (version === 0) {
                     sample.compositionTimeOffset = p.readUint32(
-                        `sample_${i + 1}_composition_time_offset`
+                        `composition_time_offset_field`
                     );
                 } else {
                     sample.compositionTimeOffset = p.readInt32(
-                        `sample_${i + 1}_composition_time_offset`
+                        `composition_time_offset_field`
                     );
                 }
+                delete box.details.composition_time_offset_field;
             }
             box.samples.push(sample);
         }

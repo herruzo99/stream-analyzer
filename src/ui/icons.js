@@ -9,6 +9,7 @@ export const comparison = i('columns');
 export const integrators = i('settings-2');
 export const timeline = i('gantt-chart-square');
 export const advertising = i('tag');
+export const binary = i('binary');
 export const features = i('check-check');
 export const compliance = i('shield-check');
 export const interactiveManifest = i('file-text');
@@ -36,6 +37,7 @@ export const volumeUp = i('volume-2');
 export const volume1 = i('volume-1');
 export const volumeOff = i('volume-x');
 export const sync = i('sync');
+export const table = i('table-2');
 
 // --- Misc UI Icons ---
 export const plusCircle = i('plus-circle');

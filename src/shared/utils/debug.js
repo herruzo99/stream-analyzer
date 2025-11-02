@@ -5,24 +5,35 @@ const DEBUG_ENABLED =
 
 /**
  * Safely stringifies an object for logging, handling circular references and BigInts.
+ * It also replaces large Maps or Arrays with a summary to prevent performance issues.
  * @param {any} obj The object to stringify.
  * @returns {string}
  */
 function safeStringify(obj) {
     const cache = new Set();
     const replacer = (key, value) => {
-        // --- ARCHITECTURAL FIX ---
-        // JSON.stringify cannot serialize BigInt values by default. This replacer
-        // detects them and converts them to a string representation suffixed with 'n'
-        // to clearly indicate their original type in the debug logs.
         if (typeof value === 'bigint') {
             return value.toString() + 'n';
+        }
+
+        if (value instanceof Map) {
+            // --- ARCHITECTURAL FIX: Prevent serialization of large maps ---
+            if (value.size > 100) {
+                return `[Map with ${value.size} entries]`;
+            }
+            return Array.from(value.entries());
+        }
+
+        if (Array.isArray(value)) {
+            // --- ARCHITECTURAL FIX: Prevent serialization of large arrays ---
+            if (value.length > 200) {
+                return `[Array with ${value.length} items]`;
+            }
         }
         // --- END FIX ---
 
         if (typeof value === 'object' && value !== null) {
             if (cache.has(value)) {
-                // Circular reference found, discard key
                 return '[Circular]';
             }
             cache.add(value);

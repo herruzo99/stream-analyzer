@@ -16,11 +16,11 @@ const escapeHtml = (str) => {
  * @param {Uint8Array} view - The byte array view.
  * @param {number} start - The starting byte offset to render.
  * @param {number} end - The ending byte offset to render.
- * @param {Map<number, object>} byteMap - The pre-built map of byte properties.
+ * @param {Map<number, object>} fullByteMap - The pre-built map of all byte properties for the segment.
  * @param {object} allTooltips - The aggregated tooltip data for all formats.
  * @returns {{offsets: string, hexes: string, asciis: string}}
  */
-function renderHexGridContent(view, start, end, byteMap, allTooltips) {
+function renderHexGridContent(view, start, end, fullByteMap, allTooltips) {
     let offsetsHtml = '';
     let hexHtml = '';
     let asciiHtml = '';
@@ -41,8 +41,8 @@ function renderHexGridContent(view, start, end, byteMap, allTooltips) {
             const byteOffset = rowStartOffset + col;
             if (byteOffset < end) {
                 const byte = view[byteOffset];
-                const mapEntry = byteMap.get(byteOffset);
-                const prevMapEntry = byteMap.get(byteOffset - 1);
+                const mapEntry = fullByteMap.get(byteOffset);
+                const prevMapEntry = fullByteMap.get(byteOffset - 1);
 
                 let tooltipText = '';
                 let isoRefText = '';
@@ -124,7 +124,7 @@ function renderHexGridContent(view, start, end, byteMap, allTooltips) {
 
 export const hexViewTemplate = (
     buffer,
-    byteMap,
+    fullByteMap,
     currentPage,
     bytesPerPage,
     onPageChange,
@@ -139,7 +139,7 @@ export const hexViewTemplate = (
         view,
         startOffset,
         endByte,
-        byteMap,
+        fullByteMap,
         allTooltips
     );
 

@@ -146,9 +146,153 @@ function groupAndCalcTimingForChunks(boxes) {
 }
 
 /**
+ * Traverses the box tree to build a single, canonical list of all samples.
+ * @param {object} parsedData
+ * @returns {object[]}
+ */
+function buildCanonicalSampleList(parsedData) {
+    const samples = [];
+    let sampleIndex = 0;
+
+    const findMoofBoxesRecursive = (boxes) => {
+        let moofBoxes = [];
+        if (!boxes) return [];
+        for (const box of boxes) {
+            if (box.type === 'moof') {
+                moofBoxes.push(box);
+            }
+            if (box.children?.length > 0) {
+                moofBoxes = moofBoxes.concat(
+                    findMoofBoxesRecursive(box.children)
+                );
+            }
+        }
+        return moofBoxes;
+    };
+
+    const moofBoxes = findMoofBoxesRecursive(parsedData.data.boxes);
+
+    moofBoxes.forEach((moofBox) => {
+        const trafBoxes = moofBox.children.filter((c) => c.type === 'traf');
+        trafBoxes.forEach((traf) => {
+            const tfhd = findBoxRecursive(
+                traf.children,
+                (b) => b.type === 'tfhd'
+            );
+            const trun = findBoxRecursive(
+                traf.children,
+                (b) => b.type === 'trun'
+            );
+            const tfdt = findBoxRecursive(
+                traf.children,
+                (b) => b.type === 'tfdt'
+            );
+            if (!trun || !tfhd) return;
+            const baseDataOffset =
+                tfhd.details.base_data_offset?.value || moofBox.offset || 0;
+            const dataOffset = trun.details.data_offset?.value || 0;
+            let currentOffset = baseDataOffset + dataOffset;
+
+            (trun.samples || []).forEach((sampleInfo) => {
+                const sample = {
+                    isSample: true,
+                    index: sampleIndex,
+                    offset: currentOffset,
+                    size: sampleInfo.size,
+                    duration: sampleInfo.duration,
+                    compositionTimeOffset: sampleInfo.compositionTimeOffset,
+                    flags: sampleInfo.flags,
+                    baseMediaDecodeTime:
+                        tfdt?.details.baseMediaDecodeTime?.value,
+                    trackId: tfhd.details.track_ID?.value,
+                    color: { bgClass: 'bg-gray-700/20' },
+                };
+
+                sampleInfo.offset = currentOffset;
+                sampleInfo.index = sampleIndex;
+
+                samples.push(sample);
+                currentOffset += sampleInfo.size;
+                sampleIndex++;
+            });
+        });
+    });
+    return samples;
+}
+
+/**
+ * Enriches the canonical sample list with data from other boxes (sdtp, stdp, etc.).
+ * @param {object[]} samples The canonical sample list.
+ * @param {object} parsedData The full parsed data object.
+ */
+function decorateSamples(samples, parsedData) {
+    const sdtp = findBoxRecursive(
+        parsedData.data.boxes,
+        (b) => b.type === 'sdtp'
+    );
+    const stdp = findBoxRecursive(
+        parsedData.data.boxes,
+        (b) => b.type === 'stdp'
+    );
+    const sbgp = findBoxRecursive(
+        parsedData.data.boxes,
+        (b) => b.type === 'sbgp'
+    );
+    const senc = findBoxRecursive(
+        parsedData.data.boxes,
+        (b) => b.type === 'senc'
+    );
+
+    // --- STRATEGY 1: Use `sdtp` box if present (most explicit) ---
+    if (sdtp?.entries) {
+        samples.forEach((sample, i) => {
+            if (sdtp.entries[i]) {
+                sample.dependsOn = sdtp.entries[i].sample_depends_on;
+            }
+        });
+    } else {
+        // --- STRATEGY 2: Fallback to `trun` sample flags (common for fMP4) ---
+        samples.forEach((sample) => {
+            if (sample.flags) {
+                sample.dependsOn = sample.flags.sample_is_non_sync_sample
+                    ? 'Depends on others (not an I-picture)'
+                    : 'Does not depend on others (I-picture)';
+            }
+        });
+    }
+
+    let sbgpSampleCounter = 0;
+    let sbgpEntryIndex = 0;
+    samples.forEach((sample, i) => {
+        if (stdp?.entries?.[i]) {
+            sample.degradationPriority = stdp.entries[i];
+        }
+        if (sbgp?.entries) {
+            if (sbgpSampleCounter === 0) {
+                if (sbgp.entries[sbgpEntryIndex]) {
+                    sbgpSampleCounter =
+                        sbgp.entries[sbgpEntryIndex].sample_count;
+                }
+            }
+            if (sbgpSampleCounter > 0) {
+                sample.sampleGroup =
+                    sbgp.entries[sbgpEntryIndex].group_description_index;
+                sbgpSampleCounter--;
+                if (sbgpSampleCounter === 0) {
+                    sbgpEntryIndex++;
+                }
+            }
+        }
+        if (senc?.samples?.[i]) {
+            sample.encryption = senc.samples[i];
+        }
+    });
+}
+
+/**
  * @param {ArrayBuffer} buffer
  * @param {number} baseOffset
- * @returns {{format: 'isobmff', data: {boxes: Box[], issues: {type: 'error' | 'warn', message: string}[], events: object[]}}}
+ * @returns {{format: 'isobmff', data: {boxes: Box[], issues: {type: 'error' | 'warn', message: string}[], events: object[]}, samples?: object[]}}
  */
 export function parseISOBMFF(buffer, baseOffset = 0) {
     const result = {
@@ -288,7 +432,15 @@ export function parseISOBMFF(buffer, baseOffset = 0) {
     }
 
     result.boxes = groupAndCalcTimingForChunks(result.boxes);
-    return { format: 'isobmff', data: result };
+
+    const parsedResult = { format: 'isobmff', data: result, samples: [] };
+    const samples = buildCanonicalSampleList(parsedResult);
+    if (samples.length > 0) {
+        decorateSamples(samples, parsedResult);
+        parsedResult.samples = samples;
+    }
+
+    return parsedResult;
 }
 
 /**

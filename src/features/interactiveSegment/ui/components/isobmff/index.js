@@ -63,7 +63,7 @@ const sampleInspectorTemplate = (sample) => {
     const dependsOnMap = { 2: 'No (I-Frame)', 1: 'Yes', 0: 'Unknown' };
     return html`
         <div class="p-3 border-b border-gray-700">
-            <div class="font-bold text-base mb-1">Sample ${sample.index}</div>
+            <div class="font-bold text-base mb-1">Sample #${sample.index + 1}</div>
             <div class="text-xs text-gray-400">${sample.size} bytes</div>
         </div>
         <div class="overflow-y-auto">
@@ -101,7 +101,7 @@ const sampleInspectorTemplate = (sample) => {
     `;
 };
 
-export const inspectorPanelTemplate = (rootData) => {
+export const inspectorPanelTemplate = (rootData, samples) => {
     const { itemForDisplay, fieldForDisplay } = getInspectorState();
     const item = itemForDisplay;
 
@@ -109,7 +109,7 @@ export const inspectorPanelTemplate = (rootData) => {
     if (item.isSample) return sampleInspectorTemplate(item);
 
     // For a regular box, delegate rendering to the shared component.
-    return inspectorDetailsTemplate(item, rootData, fieldForDisplay);
+    return inspectorDetailsTemplate(item, rootData, fieldForDisplay, samples);
 };
 
 const renderBoxNode = (box) => {
@@ -149,10 +149,10 @@ const renderBoxNode = (box) => {
     `;
 };
 
-export const structureContentTemplate = (parsedSegmentData) => {
-    if (!parsedSegmentData) return html``;
+export const structureContentTemplate = (isobmffData) => {
+    if (!isobmffData) return html``;
 
-    const { boxes, issues } = parsedSegmentData;
+    const { boxes, issues } = isobmffData;
     const isInit = !!findBoxRecursive(boxes, (b) => b.type === 'moov');
     const isMedia = !!findBoxRecursive(boxes, (b) => b.type === 'moof');
     let summaryText = 'Unknown Segment Type';

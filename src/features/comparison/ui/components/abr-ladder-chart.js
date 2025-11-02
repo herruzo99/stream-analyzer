@@ -111,7 +111,7 @@ class AbrLadderChart extends HTMLElement {
         ) {
             render(
                 html`<div
-                    class="flex items-center justify-center h-full text-center text-gray-500"
+                    class="flex items-center justify-center h-full text-center text-slate-500"
                 >
                     No comparable video tracks found.
                 </div>`,

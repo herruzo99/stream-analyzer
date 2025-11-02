@@ -17,25 +17,16 @@ export function openModalWithContent({ title, url, content }) {
 }
 
 /**
- * Closes the global modal with an animation.
+ * Closes the global modal by synchronously updating the state.
+ * The rendering logic in `modal.js` will handle the exit animation.
  */
 export function closeModal() {
     const { modalState } = useUiStore.getState();
     if (!modalState.isModalOpen) return;
 
-    const modalEl = document.getElementById('segment-modal');
-    if (modalEl) {
-        modalEl.classList.remove('modal-enter');
-        modalEl.classList.add('modal-leave');
-    }
-
-    // Update the store after the animation completes
-    setTimeout(() => {
-        uiActions.setModalState({
-            isModalOpen: false,
-            modalTitle: '',
-            modalUrl: '',
-            modalContent: null,
-        });
-    }, 200); // Must match animation duration in CSS
+    // Immediately update the state. The renderer will see this change
+    // and trigger the exit animation.
+    uiActions.setModalState({
+        isModalOpen: false,
+    });
 }

@@ -133,7 +133,7 @@ class AppShellComponent extends HTMLElement {
                 >
                     <div
                         id="main-content-wrapper"
-                        class="flex flex-col overflow-y-auto grow pt-[60px] xl:pt-0"
+                        class="flex flex-col overflow-scroll grow pt-[60px] xl:pt-0"
                     >
                         <header
                             id="main-header"
@@ -144,10 +144,12 @@ class AppShellComponent extends HTMLElement {
                                 class="flex items-center gap-2 sm:gap-4 flex-wrap justify-start w-full"
                             ></div>
                         </header>
-                        <main class="grow flex text-white flex-col relative bg-slate-900 ">
+                        <main
+                            class="grow flex text-white flex-col relative bg-slate-900 min-h-0"
+                        >
                             <div
                                 id="tab-view-container"
-                                class="grow flex flex-col p-4 sm:p-6"
+                                class="grow flex flex-col p-4 sm:p-6 min-h-0"
                             ></div>
                             <div
                                 id="persistent-player-container"

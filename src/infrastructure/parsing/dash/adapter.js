@@ -27,6 +27,51 @@ import {
 import { parseScte35 } from '@/infrastructure/parsing/scte35/parser';
 import { inferMediaInfoFromExtension } from '../utils/media-types.js';
 
+// --- Sorter Functions ---
+function sortVideoRepresentations(a, b) {
+    const heightA = a.height?.value || 0;
+    const heightB = b.height?.value || 0;
+    if (heightA !== heightB) {
+        return heightB - heightA; // Descending height
+    }
+
+    const widthA = a.width?.value || 0;
+    const widthB = b.width?.value || 0;
+    if (widthA !== widthB) {
+        return widthB - widthA; // Descending width
+    }
+
+    return (b.bandwidth || 0) - (a.bandwidth || 0); // Descending bandwidth
+}
+
+function sortAudioRepresentations(a, b) {
+    return (b.bandwidth || 0) - (a.bandwidth || 0); // Descending bandwidth
+}
+
+const contentTypeOrder = ['video', 'audio', 'text', 'application'];
+function sortAdaptationSets(a, b) {
+    const indexA = contentTypeOrder.indexOf(a.contentType);
+    const indexB = contentTypeOrder.indexOf(b.contentType);
+
+    if (indexA !== indexB) {
+        return (indexA === -1 ? 99 : indexA) - (indexB === -1 ? 99 : indexB);
+    }
+
+    if (a.contentType === 'audio' || a.contentType === 'text') {
+        const langA = a.lang || '';
+        const langB = b.lang || '';
+        if (langA.localeCompare(langB) !== 0) {
+            return langA.localeCompare(langB);
+        }
+    }
+
+    // Fallback to ID for stable sort
+    const idA = a.id || '';
+    const idB = b.id || '';
+    return idA.localeCompare(idB);
+}
+// --- End Sorter Functions ---
+
 /**
  * @constant {string[]}
  * @description A list of known prefixes for Period IDs used by SSAI vendors.
@@ -391,6 +436,16 @@ function parseAdaptationSet(asEl, parentMergedEl) {
     const minH = getAttr(asEl, 'minHeight');
     const maxH = getAttr(asEl, 'maxHeight');
 
+    const representations = findChildren(asEl, 'Representation').map((repEl) =>
+        parseRepresentation(repEl, mergedAsEl)
+    );
+
+    if (contentType === 'video') {
+        representations.sort(sortVideoRepresentations);
+    } else if (contentType === 'audio') {
+        representations.sort(sortAudioRepresentations);
+    }
+
     /** @type {AdaptationSet} */
     const asIR = {
         id: getAttr(asEl, 'id'),
@@ -421,9 +476,7 @@ function parseAdaptationSet(asEl, parentMergedEl) {
             : null,
         mimeType: getAttr(mergedAsEl, 'mimeType'),
         profiles: getAttr(mergedAsEl, 'profiles'),
-        representations: findChildren(asEl, 'Representation').map((repEl) =>
-            parseRepresentation(repEl, mergedAsEl)
-        ),
+        representations: representations,
         contentProtection: findChildren(mergedAsEl, 'ContentProtection').map(
             (cpEl) => {
                 const psshNode = findChildren(cpEl, 'pssh')[0];
@@ -455,7 +508,9 @@ function parseAdaptationSet(asEl, parentMergedEl) {
         framePackings: findChildren(mergedAsEl, 'FramePacking').map(
             parseGenericDescriptor
         ),
-        ratings: findChildren(mergedAsEl, 'Rating').map(parseGenericDescriptor),
+        ratings: findChildren(mergedAsEl, 'Rating').map(
+            parseGenericDescriptor
+        ),
         viewpoints: findChildren(mergedAsEl, 'Viewpoint').map(
             parseGenericDescriptor
         ),
@@ -499,7 +554,9 @@ function parsePreselection(preselectionEl, parentMergedEl) {
             parseGenericDescriptor
         ),
         roles: findChildren(mergedEl, 'Role').map(parseGenericDescriptor),
-        ratings: findChildren(mergedEl, 'Rating').map(parseGenericDescriptor),
+        ratings: findChildren(mergedEl, 'Rating').map(
+            parseGenericDescriptor
+        ),
         viewpoints: findChildren(mergedEl, 'Viewpoint').map(
             parseGenericDescriptor
         ),
@@ -682,6 +739,11 @@ function parsePeriod(periodEl, parentMergedEl, previousPeriod = null) {
     }
     // --- END REFACTOR ---
 
+    const adaptationSets = findChildren(periodEl, 'AdaptationSet').map((asEl) =>
+        parseAdaptationSet(asEl, mergedPeriodEl)
+    );
+    adaptationSets.sort(sortAdaptationSets);
+
     /** @type {Period} */
     const periodIR = {
         id: periodId,
@@ -698,9 +760,7 @@ function parsePeriod(periodEl, parentMergedEl, previousPeriod = null) {
             contains: (getAttr(s, 'contains') || '').split(' '),
             id: getAttr(s, 'id'),
         })),
-        adaptationSets: findChildren(periodEl, 'AdaptationSet').map((asEl) =>
-            parseAdaptationSet(asEl, mergedPeriodEl)
-        ),
+        adaptationSets: adaptationSets,
         preselections: findChildren(periodEl, 'Preselection').map((pEl) =>
             parsePreselection(pEl, mergedPeriodEl)
         ),
