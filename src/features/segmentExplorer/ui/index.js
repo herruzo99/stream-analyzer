@@ -284,11 +284,7 @@ function renderExplorer() {
                     </button>
                 </div>
             </header>
-            <div
-                class="grow overflow-hidden bg-slate-800 rounded-lg border border-slate-700 min-h-0"
-            >
-                ${tableContent}
-            </div>
+            <div class="grow min-h-0">${tableContent}</div>
         </div>
     `;
     render(template, container);

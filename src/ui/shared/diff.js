@@ -23,6 +23,13 @@ export function diffManifest(oldManifest, newManifest, protocol) {
         // --- Modification Detection Logic (Word-level Diff) ---
         if (part.removed && nextPart && nextPart.added) {
             changes.modifications += 1;
+
+            // --- ARCHITECTURAL FIX: Preserve Indentation ---
+            // 1. Capture the leading whitespace from the original (removed) line.
+            const indentationMatch = part.value.match(/^(\s*)/);
+            const indentation = indentationMatch ? indentationMatch[1] : '';
+            // --- END FIX ---
+
             const wordDiffs = diffWords(
                 part.value.trim(),
                 nextPart.value.trim()
@@ -37,7 +44,9 @@ export function diffManifest(oldManifest, newManifest, protocol) {
                     lineHtml += highlightedValue;
                 }
             });
-            html += `<span>${lineHtml}</span>\n`;
+            // --- ARCHITECTURAL FIX: Prepend the preserved indentation ---
+            html += `<span>${indentation}${lineHtml}</span>\n`;
+            // --- END FIX ---
             i++; // Skip the next part since we've processed it
             continue;
         }

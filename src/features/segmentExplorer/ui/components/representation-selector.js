@@ -50,37 +50,29 @@ const representationCardTemplate = (rep, activeRepId, compositeKey) => {
     `;
 };
 
-const adaptationSetGroupTemplate = (as, periodId, activeRepId, asIndex) => {
-    const hasVisibleRepresentations = as.representations.length > 0;
-    if (!hasVisibleRepresentations) return '';
+const adaptationSetGroupTemplate = (as, periodId, activeRepId) => {
+    if (as.representations.length === 0) return '';
 
-    const { segmentExplorerClosedGroups } = useUiStore.getState();
-    const groupId = `as-${periodId}-${as.id || asIndex}`;
-    const isOpen = !segmentExplorerClosedGroups.has(groupId);
-    const title =
-        as.id ||
-        as.lang ||
-        `Untitled AdaptationSet (${as.contentType}, index ${asIndex})`;
+    let title, value;
+    if (as.id) {
+        title = 'AdaptationSet ID';
+        value = as.id;
+    } else if (as.lang) {
+        title = 'Language';
+        value = as.lang;
+    } else {
+        title = 'Group';
+        value = as.group ?? 'Ungrouped';
+    }
 
     return html`
-        <details class="group" ?open=${isOpen}>
-            <summary
-                @click=${(e) => {
-                    e.preventDefault();
-                    uiActions.toggleSegmentExplorerGroup(groupId);
-                }}
-                class="list-none cursor-pointer flex items-center p-2 rounded-md hover:bg-slate-700/50"
+        <div class="mt-2">
+            <div
+                class="text-xs font-semibold text-slate-400 px-2 flex items-center gap-2"
             >
-                <span class="font-semibold text-slate-400 text-xs"
-                    >${title}</span
-                >
-                <span
-                    class="ml-auto text-slate-400 transition-transform duration-200 ${isOpen
-                        ? 'rotate-180'
-                        : ''}"
-                    >${icons.chevronDown}</span
-                >
-            </summary>
+                <span>${title}:</span>
+                <span class="font-mono text-slate-300">${value}</span>
+            </div>
             <div class="pl-2 pt-2 space-y-2">
                 ${as.representations.map((rep) => {
                     const compositeKey = `${periodId}-${rep.id}`;
@@ -90,6 +82,45 @@ const adaptationSetGroupTemplate = (as, periodId, activeRepId, asIndex) => {
                         compositeKey
                     );
                 })}
+            </div>
+        </div>
+    `;
+};
+
+const periodGroupTemplate = (period, index, activeRepId, activeTab) => {
+    const periodId = period.id || index;
+    const { segmentExplorerClosedGroups } = useUiStore.getState();
+    const groupId = `period-${periodId}`;
+    const isOpen = !segmentExplorerClosedGroups.has(groupId);
+
+    const adaptationSetsForTab = period.adaptationSets.filter(
+        (as) => as.contentType === activeTab
+    );
+    if (adaptationSetsForTab.length === 0) return '';
+
+    return html`
+        <details class="group" ?open=${isOpen}>
+            <summary
+                @click=${(e) => {
+                    e.preventDefault();
+                    uiActions.toggleSegmentExplorerGroup(groupId);
+                }}
+                class="list-none cursor-pointer flex items-center p-3 rounded-md bg-slate-800 hover:bg-slate-700/50"
+            >
+                <span class="font-bold text-slate-200">Period</span>
+                <span class="font-mono text-sm text-slate-300 ml-2"
+                    >${period.id || `(index ${index})`}</span
+                >
+                <span
+                    class="ml-auto text-slate-400 transition-transform duration-200 group-open:rotate-180"
+                >
+                    ${icons.chevronDown}
+                </span>
+            </summary>
+            <div class="pl-3 pt-2 space-y-2 border-l-2 border-slate-700 ml-3">
+                ${adaptationSetsForTab.map((as) =>
+                    adaptationSetGroupTemplate(as, periodId, activeRepId)
+                )}
             </div>
         </details>
     `;
@@ -111,30 +142,16 @@ export const representationSelectorTemplate = (stream) => {
     let content;
     if (stream.protocol === 'dash') {
         content = html`
-            ${stream.manifest.periods.map(
-                (period, index) => html`
-                    <div class="border-b border-slate-700/50 pb-2 mb-2">
-                        <h4
-                            class="text-xs font-bold uppercase tracking-wider text-slate-500 px-2"
-                        >
-                            Period: ${period.id || index}
-                        </h4>
-                        ${period.adaptationSets
-                            .filter(
-                                (as) =>
-                                    as.contentType === segmentExplorerActiveTab
-                            )
-                            .map((as, asIndex) =>
-                                adaptationSetGroupTemplate(
-                                    as,
-                                    period.id || index,
-                                    segmentExplorerActiveRepId,
-                                    asIndex
-                                )
-                            )}
-                    </div>
-                `
-            )}
+            <div class="space-y-2">
+                ${stream.manifest.periods.map((period, index) =>
+                    periodGroupTemplate(
+                        period,
+                        index,
+                        segmentExplorerActiveRepId,
+                        segmentExplorerActiveTab
+                    )
+                )}
+            </div>
         `;
     } else if (stream.protocol === 'hls' && stream.manifest?.isMaster) {
         const renditions = stream.manifest.periods[0].adaptationSets
