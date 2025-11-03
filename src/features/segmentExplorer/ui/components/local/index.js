@@ -1,6 +1,7 @@
 import { html } from 'lit-html';
 import { segmentTableTemplate } from '../../components/segment-table.js';
 import { useUiStore } from '@/state/uiStore';
+import { findBoxRecursive } from '@/ui/shared/isobmff-renderer.js';
 
 /**
  * Renders the segment explorer view for locally uploaded files.
@@ -18,17 +19,45 @@ export function getLocalExplorerForType(stream) {
     const { segments, currentSegmentUrls, newlyAddedSegmentUrls } = repState;
     const title = 'Uploaded Segments';
 
-    // The segment objects have been adapted to fit the segmentTableTemplate's expectations
     const adaptedSegments = segments.map((s) => {
-        /** @type {import('@/types.ts').MediaSegment} */
-        const typedSegment = s;
+        const typedSegment = /** @type {import('@/types.ts').MediaSegment} */ (
+            s
+        );
         return {
             ...typedSegment,
-            // The parsed data is now nested, so we need to check its format
-            resolvedUrl: typedSegment.template, // Use original filename as URL
+            resolvedUrl: typedSegment.template,
             format: typedSegment.parsedData.format,
         };
     });
+
+    let contentType = 'unknown';
+    const firstSegment = adaptedSegments[0];
+    if (firstSegment?.parsedData) {
+        const { data, format } = firstSegment.parsedData;
+        if (format === 'isobmff') {
+            if (findBoxRecursive(data.boxes, (b) => b.type === 'vmhd')) {
+                contentType = 'video';
+            } else if (findBoxRecursive(data.boxes, (b) => b.type === 'smhd')) {
+                contentType = 'audio';
+            } else if (findBoxRecursive(data.boxes, (b) => b.type === 'stpp')) {
+                contentType = 'text';
+            }
+        } else if (format === 'ts') {
+            const pmtPid = [...(data.summary.pmtPids || [])][0];
+            const program = data.summary.programMap[pmtPid];
+            if (program && program.streams) {
+                const streamTypeHex = Object.values(program.streams)[0];
+                const typeNum = parseInt(streamTypeHex, 16);
+                const videoTypes = [0x01, 0x02, 0x1b, 0x24, 0x80];
+                const audioTypes = [0x03, 0x04, 0x0f, 0x11, 0x81];
+                if (videoTypes.includes(typeNum)) {
+                    contentType = 'video';
+                } else if (audioTypes.includes(typeNum)) {
+                    contentType = 'audio';
+                }
+            }
+        }
+    }
 
     adaptedSegments.sort((a, b) => {
         const order = segmentExplorerSortOrder === 'asc' ? 1 : -1;
@@ -39,7 +68,9 @@ export function getLocalExplorerForType(stream) {
         <div class="space-y-6">
             ${segmentTableTemplate({
                 id: 'local-segments',
+                rawId: 'local-segments',
                 title: title,
+                contentType: contentType,
                 segments: adaptedSegments,
                 stream: stream,
                 currentSegmentUrls: currentSegmentUrls,

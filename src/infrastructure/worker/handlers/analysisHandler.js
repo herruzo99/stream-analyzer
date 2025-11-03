@@ -17,6 +17,8 @@ import xmlFormatter from 'xml-formatter';
 import { debugLog } from '@/shared/utils/debug';
 import { resolveAdAvailsInWorker } from '@/features/advertising/application/resolveAdAvailWorker';
 
+const SCTE35_SCHEME_ID = 'urn:scte:scte35:2013:bin';
+
 async function fetchAndParseSegment(
     url,
     formatHint,
@@ -169,7 +171,7 @@ async function buildStreamObject(
         hlsDefinedVariables: manifestIR.hlsDefinedVariables,
         semanticData: semanticData,
         coverageReport,
-        adAvails: manifestIR.adAvails || [], // Correctly propagate ad avails
+        adAvails: manifestIR.adAvails || [], // Propagate any out-of-band ad avails
         inbandEvents: [],
         adaptationEvents: [],
     };
@@ -242,6 +244,82 @@ async function buildStreamObject(
         }
     }
 
+    // --- ARCHITECTURAL FIX: In-band Event Discovery in Worker ---
+    if (streamObject.protocol === 'dash') {
+        for (const period of manifestIR.periods) {
+            for (const as of period.adaptationSets) {
+                const hasScte35 = (as.inbandEventStreams || []).some(
+                    (ies) => ies.schemeIdUri === SCTE35_SCHEME_ID
+                );
+                if (hasScte35) {
+                    for (const rep of as.representations) {
+                        const compositeKey = `${period.id || 0}-${rep.id}`;
+                        const repState =
+                            streamObject.dashRepresentationState.get(
+                                compositeKey
+                            );
+                        const firstMediaSegment = (
+                            repState?.segments || []
+                        ).find((s) => s.type === 'Media');
+                        if (firstMediaSegment) {
+                            try {
+                                const parsedSegment =
+                                    await fetchAndParseSegment(
+                                        firstMediaSegment.resolvedUrl,
+                                        'isobmff',
+                                        null,
+                                        streamObject.auth
+                                    );
+                                if (
+                                    parsedSegment.data.events &&
+                                    parsedSegment.data.events.length > 0
+                                ) {
+                                    streamObject.inbandEvents.push(
+                                        ...parsedSegment.data.events
+                                    );
+                                }
+                            } catch (e) {
+                                debugLog(
+                                    'analysisHandler',
+                                    `Failed to pre-fetch/parse segment for in-band events: ${e.message}`
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (streamObject.inbandEvents.length > 0) {
+        const inbandAdAvails = streamObject.inbandEvents
+            .filter((e) => e.scte35)
+            .map((event) => ({
+                id:
+                    String(
+                        event.scte35?.splice_command?.splice_event_id ||
+                            event.scte35?.descriptors?.[0]
+                                ?.segmentation_event_id
+                    ) || String(event.startTime),
+                startTime: event.startTime,
+                duration:
+                    event.duration ||
+                    (event.scte35?.splice_command?.break_duration?.duration ||
+                        0) / 90000,
+                scte35Signal: event.scte35,
+                adManifestUrl:
+                    event.scte35?.descriptors?.[0]?.segmentation_upid_type ===
+                    0x0c
+                        ? event.scte35.descriptors[0].segmentation_upid
+                        : null,
+                creatives: [],
+            }));
+        const resolvedInbandAvails =
+            await resolveAdAvailsInWorker(inbandAdAvails);
+        streamObject.adAvails.push(...resolvedInbandAvails);
+    }
+    // --- END FIX ---
+
     let formattedInitial = streamObject.rawManifest;
     if (streamObject.protocol === 'dash') {
         formattedInitial = xmlFormatter(formattedInitial, {
@@ -249,10 +327,15 @@ async function buildStreamObject(
             lineSeparator: '\n',
         });
     }
-    const { diffHtml, changes } = diffManifest('', formattedInitial, streamObject.protocol);
+    const { diffHtml, changes } = diffManifest(
+        '',
+        formattedInitial,
+        streamObject.protocol
+    );
 
     streamObject.manifestUpdates.push({
         id: `${streamObject.id}-${Date.now()}`,
+        sequenceNumber: 1,
         timestamp: new Date().toLocaleTimeString(),
         diffHtml,
         rawManifest: streamObject.rawManifest,

@@ -21,30 +21,42 @@ export function parseSubs(box, view) {
         for (let i = 0; i < entryCount; i++) {
             if (p.stopped) break;
 
-            const sample_delta = p.readUint32('sample_delta');
-            const subsample_count = p.readUint16('subsample_count');
+            const delta = p.readUint32(`entry_${i}_sample_delta`);
+            const subsampleCount = p.readUint16(`entry_${i}_subsample_count`);
 
             const entry = {
-                sample_delta,
+                delta,
                 subsamples: [],
             };
 
-            if (subsample_count !== null) {
-                for (let j = 0; j < subsample_count; j++) {
+            if (subsampleCount !== null) {
+                for (let j = 0; j < subsampleCount; j++) {
                     if (p.stopped) break;
-                    let subsample_size;
+                    let size;
                     if (version === 1) {
-                        subsample_size = p.readUint32('subsample_size');
+                        size = p.readUint32(`entry_${i}_subsample_${j}_size`);
                     } else {
-                        subsample_size = p.readUint16('subsample_size');
+                        size = p.readUint16(`entry_${i}_subsample_${j}_size`);
                     }
-                    const subsample_priority =
-                        p.readUint8('subsample_priority');
-                    const discardable = p.readUint8('discardable');
+                    const priority = p.readUint8(
+                        `entry_${i}_subsample_${j}_priority`
+                    );
+                    const discardable = p.readUint8(
+                        `entry_${i}_subsample_${j}_discardable`
+                    );
+
+                    if (
+                        size === null ||
+                        priority === null ||
+                        discardable === null
+                    ) {
+                        p.stopped = true;
+                        break;
+                    }
 
                     entry.subsamples.push({
-                        subsample_size,
-                        subsample_priority,
+                        size,
+                        priority,
                         discardable,
                     });
                 }
@@ -69,19 +81,19 @@ export const subsTooltip = {
         text: 'The number of samples that are described as having a sub-sample structure.',
         ref: 'ISO/IEC 14496-12, 8.7.7.3',
     },
-    'subs@sample_delta': {
+    'subs@delta': {
         text: 'The number of samples between the start of the track and the first entry, or between previous and current entries.',
         ref: 'ISO/IEC 14496-12, 8.7.7.3',
     },
-    'subs@subsample_count': {
+    'subs@subsampleCount': {
         text: 'The number of sub-samples for the current sample. A value of 0 indicates no sub-sample structure.',
         ref: 'ISO/IEC 14496-12, 8.7.7.3',
     },
-    'subs@subsample_size': {
+    'subs@size': {
         text: 'The size in bytes of the current sub-sample.',
         ref: 'ISO/IEC 14496-12, 8.7.7.3',
     },
-    'subs@subsample_priority': {
+    'subs@priority': {
         text: 'A degradation priority for this sub-sample. Higher values indicate greater importance.',
         ref: 'ISO/IEC 14496-12, 8.7.7.3',
     },

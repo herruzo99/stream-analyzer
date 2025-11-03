@@ -15,6 +15,7 @@ import {
 /** @typedef {import('@/types.ts').DrmAuthInfo} DrmAuthInfo */
 /** @typedef {{id: number, url: string, name: string, file: File | null, auth: AuthInfo, drmAuth: DrmAuthInfo}} StreamInput */
 /** @typedef {{streamId: number, repId: string, segmentUniqueId: string}} SegmentToCompare */
+/** @typedef {import('@/types').MediaSegment} MediaSegment */
 
 /**
  * @typedef {object} AnalysisState
@@ -57,6 +58,7 @@ import {
  * @property {(payload: {streamId: number, variantUri: string, manifest: object, manifestString: string, segments: object[], currentSegmentUrls: string[], newSegmentUrls: string[]}) => void} updateHlsMediaPlaylist
  * @property {(streamId: number, events: Event[]) => void} addInbandEvents
  * @property {(id: number) => void} setActiveStreamInputId
+ * @property {(payload: {streamId: number, segment: MediaSegment}) => void} addDashSegmentFromPlayer
  * @property {(payload: {streamId: number, segmentUrl: string}) => void} addHlsSegmentFromPlayer
  */
 
@@ -512,7 +514,7 @@ export const useAnalysisStore = createStore((set, get) => ({
                         }
                         hydratedUpdate.hlsVariantState = newHlsState;
                     }
-                    
+
                     const newStream = { ...s, ...hydratedUpdate };
 
                     // --- ARCHITECTURAL FIX: "Follow Live" Mode ---
@@ -522,7 +524,7 @@ export const useAnalysisStore = createStore((set, get) => ({
                         newStream.activeManifestUpdateId = newLatestUpdateId;
                     }
                     // --- END FIX ---
-                    
+
                     return newStream;
                 }
                 return s;
@@ -589,8 +591,11 @@ export const useAnalysisStore = createStore((set, get) => ({
                     if (newIndex === currentIndex) return s;
 
                     const newActiveId = s.manifestUpdates[newIndex].id;
-                    const newStream = { ...s, activeManifestUpdateId: newActiveId };
-                    
+                    const newStream = {
+                        ...s,
+                        activeManifestUpdateId: newActiveId,
+                    };
+
                     if (newIndex === 0) {
                         newStream.manifestUpdates[0].hasNewIssues = false;
                     }
@@ -670,6 +675,61 @@ export const useAnalysisStore = createStore((set, get) => ({
                 ),
                 urlAuthMap: newUrlAuthMap,
             };
+        });
+    },
+
+    addDashSegmentFromPlayer: ({ streamId, segment }) => {
+        set((state) => {
+            const stream = state.streams.find((s) => s.id === streamId);
+            if (!stream || !segment || !segment.repId) return {};
+
+            const newDashRepState = new Map(stream.dashRepresentationState);
+            let updated = false;
+
+            for (const [key, repState] of newDashRepState.entries()) {
+                if (key.endsWith(`-${segment.repId}`)) {
+                    const existingSegments = new Map(
+                        (repState.segments || []).map((s) => [s.uniqueId, s])
+                    );
+                    if (!existingSegments.has(segment.uniqueId)) {
+                        existingSegments.set(segment.uniqueId, segment);
+
+                        const newSegments = Array.from(
+                            existingSegments.values()
+                        );
+
+                        const newCurrentUrls = new Set(
+                            repState.currentSegmentUrls
+                        );
+                        newCurrentUrls.add(segment.uniqueId);
+                        const newNewlyAddedUrls = new Set(
+                            repState.newlyAddedSegmentUrls
+                        );
+                        newNewlyAddedUrls.add(segment.uniqueId);
+
+                        newDashRepState.set(key, {
+                            ...repState,
+                            segments: newSegments,
+                            currentSegmentUrls: newCurrentUrls,
+                            newlyAddedSegmentUrls: newNewlyAddedUrls,
+                        });
+                        updated = true;
+                        break;
+                    }
+                }
+            }
+
+            if (updated) {
+                eventBus.dispatch('stream:segments-updated', { streamId });
+                return {
+                    streams: state.streams.map((s) =>
+                        s.id === streamId
+                            ? { ...s, dashRepresentationState: newDashRepState }
+                            : s
+                    ),
+                };
+            }
+            return {};
         });
     },
 

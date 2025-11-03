@@ -501,6 +501,9 @@ function parseAdaptationSet(asEl, parentMergedEl) {
                 };
             }
         ),
+        inbandEventStreams: findChildren(mergedAsEl, 'InbandEventStream').map(
+            parseGenericDescriptor
+        ),
         audioChannelConfigurations: findChildren(
             mergedAsEl,
             'AudioChannelConfiguration'
@@ -508,9 +511,7 @@ function parseAdaptationSet(asEl, parentMergedEl) {
         framePackings: findChildren(mergedAsEl, 'FramePacking').map(
             parseGenericDescriptor
         ),
-        ratings: findChildren(mergedAsEl, 'Rating').map(
-            parseGenericDescriptor
-        ),
+        ratings: findChildren(mergedAsEl, 'Rating').map(parseGenericDescriptor),
         viewpoints: findChildren(mergedAsEl, 'Viewpoint').map(
             parseGenericDescriptor
         ),
@@ -554,9 +555,7 @@ function parsePreselection(preselectionEl, parentMergedEl) {
             parseGenericDescriptor
         ),
         roles: findChildren(mergedEl, 'Role').map(parseGenericDescriptor),
-        ratings: findChildren(mergedEl, 'Rating').map(
-            parseGenericDescriptor
-        ),
+        ratings: findChildren(mergedEl, 'Rating').map(parseGenericDescriptor),
         viewpoints: findChildren(mergedEl, 'Viewpoint').map(
             parseGenericDescriptor
         ),

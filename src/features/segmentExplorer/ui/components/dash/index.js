@@ -3,6 +3,7 @@ import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { isDebugMode } from '@/shared/utils/env';
 import { segmentTableTemplate } from '../../components/segment-table.js';
 import { useUiStore } from '@/state/uiStore';
+import { formatBitrate } from '@/ui/shared/format.js';
 
 const diagnosticsTemplate = (diagnostics) => {
     if (!diagnostics || Object.keys(diagnostics).length === 0) {
@@ -152,21 +153,16 @@ export function getDashExplorerForType(stream, contentType) {
                                                     newlyAddedSegmentUrls,
                                                     diagnostics,
                                                 } = repState;
-                                                const title = `Representation: ${
+
+                                                const title = `Representation: <strong>${
                                                     rep.id
-                                                } <span class="ml-3 text-xs text-gray-400 font-mono">(${(
-                                                    rep.bandwidth / 1000
-                                                ).toFixed(0)} kbps)</span>`;
+                                                }</strong> <span class="ml-3 text-xs text-gray-400 font-mono">(${formatBitrate(
+                                                    rep.bandwidth
+                                                )})</span>`;
 
                                                 let processedSegments = [
                                                     ...segments,
                                                 ];
-
-                                                // The new logic uses targetTime instead of a range.
-                                                // It does not filter the list but is used by child components for scrolling and highlighting.
-                                                if (segmentExplorerTargetTime) {
-                                                    // This logic is now handled inside segment-table and segment-row
-                                                }
 
                                                 processedSegments.sort(
                                                     (a, b) => {
@@ -197,7 +193,10 @@ export function getDashExplorerForType(stream, contentType) {
                                                         : ''}
                                                     ${segmentTableTemplate({
                                                         id: compositeKey,
+                                                        rawId: compositeKey,
                                                         title: title,
+                                                        contentType:
+                                                            as.contentType,
                                                         segments:
                                                             processedSegments,
                                                         stream: stream,

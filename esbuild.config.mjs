@@ -1,5 +1,4 @@
 import esbuild from 'esbuild';
-import tsPaths from 'esbuild-ts-paths';
 import fs from 'fs/promises';
 import path from 'path';
 import crypto from 'crypto';
@@ -27,7 +26,13 @@ const esbuildOptions = {
     define: {
         global: 'self',
     },
-    plugins: [tsPaths()],
+    // --- ARCHITECTURAL FIX: Replace ts-paths plugin with native alias ---
+    // The `esbuild-ts-paths` plugin was incorrectly intercepting node_modules
+    // imports. Using esbuild's native `alias` feature is more robust and
+    // achieves the same goal for our simple `@/*` path mapping.
+    alias: {
+        '@': './src',
+    },
 };
 
 async function postBuild(meta, cspNonce) {

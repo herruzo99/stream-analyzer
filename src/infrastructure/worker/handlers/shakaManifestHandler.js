@@ -19,33 +19,246 @@ function detectProtocol(manifestString, hint) {
     return 'dash';
 }
 
-export async function handleShakaManifestFetch(payload, signal) {
+/**
+ * An asynchronous, non-blocking function to perform all application-level analysis for a live manifest update.
+ * @param {object} payload - The original payload received by the handler.
+ * @param {string} newManifestString - The newly fetched manifest content.
+ * @param {string} finalUrl - The final URL after any redirects.
+ */
+async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
     const {
         streamId,
-        url,
-        auth,
-        isPlayerLoadRequest,
         oldRawManifest,
-        protocol: protocolHint,
         baseUrl,
         hlsDefinedVariables,
         oldDashRepresentationState: oldDashRepStateArray,
         oldAdAvails,
     } = payload;
-
-    const startTime = performance.now();
     const now = Date.now();
+    const detectedProtocol = detectProtocol(
+        newManifestString,
+        payload.protocol
+    );
+
+    // --- REFACTORED LOGIC ---
+    // 1. Unconditionally parse the new manifest and generate its summary.
+    let newManifestObject, newSerializedObject;
+    if (detectedProtocol === 'hls') {
+        const { manifest } = await parseHlsManifest(
+            newManifestString,
+            baseUrl,
+            hlsDefinedVariables
+        );
+        newManifestObject = manifest;
+        newSerializedObject = manifest.serializedManifest;
+
+        // --- FIX: Handle media playlist updates directly from the player ---
+        if (!newManifestObject.isMaster) {
+            debugLog(
+                'shakaManifestHandler',
+                'Detected HLS media playlist update from player.'
+            );
+
+            const oldHlsVariantState = new Map(
+                payload.oldHlsVariantState || []
+            );
+            const oldSegments =
+                oldHlsVariantState.get(finalUrl)?.segments || [];
+            const newSegments = newManifestObject.segments || [];
+            const oldSegmentIds = new Set(oldSegments.map((s) => s.uniqueId));
+            const currentSegmentUrls = newSegments.map((s) => s.uniqueId);
+            const newSegmentUrls = currentSegmentUrls.filter(
+                (id) => !oldSegmentIds.has(id)
+            );
+
+            self.postMessage({
+                type: 'hls-media-playlist-updated-by-player',
+                payload: {
+                    streamId: payload.streamId,
+                    variantUri: finalUrl,
+                    manifest: newManifestObject,
+                    manifestString: newManifestString,
+                    segments: newSegments,
+                    currentSegmentUrls,
+                    newSegmentUrls,
+                },
+            });
+            // Stop further processing for this media playlist update.
+            return;
+        }
+        // --- END FIX ---
+
+        newManifestObject.summary = await generateHlsSummary(newManifestObject);
+    } else {
+        const { manifest, serializedManifest } = await parseDashManifest(
+            newManifestString,
+            baseUrl
+        );
+        newManifestObject = manifest;
+        newSerializedObject = serializedManifest;
+        newManifestObject.summary = await generateDashSummary(
+            newManifestObject,
+            newSerializedObject
+        );
+    }
+    newManifestObject.serializedManifest = newSerializedObject;
+
+    // 2. Check for changes. If none, ONLY short-circuit for VOD streams.
+    if (newManifestString.trim() === oldRawManifest.trim()) {
+        if (newManifestObject.type !== 'dynamic') {
+            debugLog(
+                'shakaManifestHandler',
+                'VOD manifest is unchanged. No update needed.'
+            );
+            return; // No changes to a static manifest, so we are done.
+        }
+        debugLog(
+            'shakaManifestHandler',
+            'Live manifest string is unchanged, but proceeding with analysis due to sliding window.'
+        );
+    }
+
+    // 3. If changed (or live), proceed with full diff, compliance, and segment analysis.
+    let formattedOld = oldRawManifest;
+    let formattedNew = newManifestString;
+    if (detectedProtocol === 'dash') {
+        const formatOptions = { indentation: '  ', lineSeparator: '\n' };
+        formattedOld = xmlFormatter(oldRawManifest || '', formatOptions);
+        formattedNew = xmlFormatter(newManifestString || '', formatOptions);
+    }
+
+    const { diffHtml, changes } = diffManifest(
+        formattedOld,
+        formattedNew,
+        detectedProtocol
+    );
+
+    const manifestObjectForChecks =
+        detectedProtocol === 'hls' ? newManifestObject : newSerializedObject;
+    const complianceResults = runChecks(
+        manifestObjectForChecks,
+        detectedProtocol
+    );
+
+    let dashRepStateForUpdate, hlsVariantStateForUpdate;
+    if (detectedProtocol === 'dash') {
+        const segmentsByCompositeKey = await parseDashSegments(
+            newSerializedObject,
+            baseUrl,
+            { now }
+        );
+        dashRepStateForUpdate = [];
+        const oldDashRepState = new Map(oldDashRepStateArray);
+
+        for (const [key, data] of Object.entries(segmentsByCompositeKey)) {
+            const oldRepState = oldDashRepState.get(key);
+            const newWindowSegments = data.segments || [];
+            const initSegment = data.initSegment;
+
+            // Merge old and new segments using a Map to handle deduplication and updates.
+            const segmentMap = new Map();
+            if (oldRepState?.segments) {
+                oldRepState.segments.forEach((seg) =>
+                    segmentMap.set(seg.uniqueId, seg)
+                );
+            }
+
+            if (initSegment) {
+                segmentMap.set(initSegment.uniqueId, initSegment);
+            }
+
+            newWindowSegments.forEach((seg) =>
+                segmentMap.set(seg.uniqueId, seg)
+            );
+
+            const mergedSegments = Array.from(segmentMap.values());
+
+            const oldSegmentIds = new Set(
+                (oldRepState?.segments || []).map((s) => s.uniqueId)
+            );
+
+            // currentSegmentUrls should represent only the segments in the LATEST manifest window.
+            const currentSegmentUrlsInWindow = newWindowSegments.map(
+                (s) => s.uniqueId
+            );
+
+            const newlyAddedSegmentUrls = currentSegmentUrlsInWindow.filter(
+                (id) => !oldSegmentIds.has(id)
+            );
+
+            dashRepStateForUpdate.push([
+                key,
+                {
+                    segments: mergedSegments,
+                    currentSegmentUrls: currentSegmentUrlsInWindow,
+                    newlyAddedSegmentUrls,
+                    diagnostics: data.diagnostics,
+                },
+            ]);
+        }
+    } else {
+        const oldHlsVariantState = new Map(payload.oldHlsVariantState || []);
+        hlsVariantStateForUpdate = [];
+        for (const variant of newManifestObject.variants || []) {
+            const variantUri = variant.resolvedUri;
+            if (variantUri) {
+                const oldState = oldHlsVariantState.get(variantUri) || {};
+                hlsVariantStateForUpdate.push([
+                    variantUri,
+                    {
+                        ...oldState, // Preserve existing segments, isLoading state, etc.
+                        currentSegmentUrls: [], // This will be calculated on the main thread now
+                        newlyAddedSegmentUrls: [],
+                    },
+                ]);
+            }
+        }
+    }
+
+    const oldAvailsById = new Map((oldAdAvails || []).map((a) => [a.id, a]));
+    const potentialNewAvails = newManifestObject.adAvails || [];
+    const availsToResolve = potentialNewAvails.filter(
+        (a) => !oldAvailsById.has(a.id)
+    );
+    const newlyResolvedAvails = await resolveAdAvailsInWorker(availsToResolve);
+    const newlyResolvedAvailsById = new Map(
+        newlyResolvedAvails.map((a) => [a.id, a])
+    );
+
+    const finalAdAvails = potentialNewAvails.map((avail) => {
+        if (oldAvailsById.has(avail.id)) {
+            return oldAvailsById.get(avail.id);
+        }
+        return newlyResolvedAvailsById.get(avail.id) || avail;
+    });
+
+    self.postMessage({
+        type: 'livestream:manifest-updated',
+        payload: {
+            streamId,
+            newManifestObject,
+            newManifestString,
+            complianceResults,
+            serializedManifest: newSerializedObject,
+            diffHtml,
+            changes,
+            dashRepresentationState: dashRepStateForUpdate,
+            hlsVariantState: hlsVariantStateForUpdate,
+            adAvails: finalAdAvails,
+        },
+    });
+}
+
+export async function handleShakaManifestFetch(payload, signal) {
+    const { streamId, url, auth } = payload;
+    const startTime = performance.now();
     debugLog('shakaManifestHandler', `Fetching manifest for ${url}`);
 
     const response = await fetchWithAuth(url, auth, null, {}, null, signal);
-
-    // --- BUG FIX: Correctly assemble request headers for logging ---
     const requestHeadersForLogging = {};
     if (auth?.headers) {
         for (const header of auth.headers) {
-            if (header.key) {
-                requestHeadersForLogging[header.key] = header.value;
-            }
+            if (header.key) requestHeadersForLogging[header.key] = header.value;
         }
     }
 
@@ -69,11 +282,10 @@ export async function handleShakaManifestFetch(payload, signal) {
                 startTime,
                 endTime: performance.now(),
                 duration: performance.now() - startTime,
-                breakdown: null, // This will be enriched by the main thread
+                breakdown: null,
             },
         },
     });
-    // --- END BUG FIX ---
 
     if (!response.ok) {
         throw new Error(
@@ -82,191 +294,16 @@ export async function handleShakaManifestFetch(payload, signal) {
     }
 
     const newManifestString = await response.text();
-    debugLog(
-        'shakaManifestHandler',
-        `Fetched new manifest content (length: ${newManifestString.length}).`
-    );
-    const detectedProtocol = detectProtocol(newManifestString, protocolHint);
 
-    if (isPlayerLoadRequest) {
-        debugLog(
-            'shakaManifestHandler',
-            'Request is for initial player load. Bypassing analysis and returning raw manifest to player.'
-        );
-        return {
-            uri: response.url,
-            originalUri: url,
-            data: new TextEncoder().encode(newManifestString).buffer,
-            headers: response.headers,
-            status: response.status,
-        };
-    }
-
-    if (
-        detectedProtocol === 'hls' &&
-        !newManifestString.includes('#EXT-X-STREAM-INF')
-    ) {
-        debugLog(
-            'shakaManifestHandler',
-            'Detected HLS Media Playlist during non-player-load. Returning to player without updating main state.'
-        );
-        return {
-            uri: response.url,
-            originalUri: url,
-            data: new TextEncoder().encode(newManifestString).buffer,
-            headers: response.headers,
-            status: response.status,
-        };
-    }
-
-    let formattedOld = oldRawManifest;
-    let formattedNew = newManifestString;
-    if (detectedProtocol === 'dash') {
-        const formatOptions = { indentation: '  ', lineSeparator: '\n' };
-        formattedOld = xmlFormatter(oldRawManifest || '', formatOptions);
-        formattedNew = xmlFormatter(newManifestString || '', formatOptions);
-    }
+    // Always trigger the analysis and notification pipeline. The `analyzeUpdateAndNotify`
+    // function is smart enough to differentiate between a VOD manifest that hasn't
+    // changed and a live manifest that needs re-evaluation.
+    analyzeUpdateAndNotify(payload, newManifestString, response.url);
 
     debugLog(
         'shakaManifestHandler',
-        'Processing master/main manifest update. Posting to main thread.'
+        'Returning raw manifest to Shaka player immediately.'
     );
-    const diffHtml = diffManifest(formattedOld, formattedNew, detectedProtocol);
-
-    let newManifestObject;
-    let newSerializedObject;
-    let dashRepStateForUpdate = null;
-    let hlsVariantStateForUpdate = null;
-
-    if (detectedProtocol === 'dash') {
-        const { manifest, serializedManifest } = await parseDashManifest(
-            newManifestString,
-            baseUrl
-        );
-        newManifestObject = manifest;
-        newSerializedObject = serializedManifest;
-        const segmentsByCompositeKey = await parseDashSegments(
-            newSerializedObject,
-            baseUrl,
-            { now }
-        );
-        dashRepStateForUpdate = [];
-        const oldDashRepState = new Map(oldDashRepStateArray);
-
-        for (const [key, data] of Object.entries(segmentsByCompositeKey)) {
-            const allSegments = [
-                data.initSegment,
-                ...(data.segments || []),
-            ].filter(Boolean);
-            const oldRepState = oldDashRepState.get(key);
-            const oldSegmentIds = new Set(
-                (oldRepState?.segments || []).map((s) => s.uniqueId)
-            );
-            const currentSegmentUrls = allSegments.map((s) => s.uniqueId);
-            const newlyAddedSegmentUrls = currentSegmentUrls.filter(
-                (id) => !oldSegmentIds.has(id)
-            );
-            dashRepStateForUpdate.push([
-                key,
-                {
-                    segments: allSegments,
-                    currentSegmentUrls: currentSegmentUrls,
-                    newlyAddedSegmentUrls: newlyAddedSegmentUrls,
-                    diagnostics: data.diagnostics,
-                },
-            ]);
-        }
-    } else {
-        const { manifest } = await parseHlsManifest(
-            newManifestString,
-            baseUrl,
-            hlsDefinedVariables
-        );
-        newManifestObject = manifest;
-        newSerializedObject = manifest.serializedManifest;
-        const oldHlsVariantState = new Map(payload.oldHlsVariantState || []);
-        hlsVariantStateForUpdate = [];
-        for (const variant of newManifestObject.variants || []) {
-            const variantUri = variant.resolvedUri;
-            if (variantUri) {
-                const oldState = oldHlsVariantState.get(variantUri) || {};
-                hlsVariantStateForUpdate.push([
-                    variantUri,
-                    {
-                        segments: oldState.segments || [],
-                        currentSegmentUrls: oldState.currentSegmentUrls || [],
-                        newlyAddedSegmentUrls: [],
-                        isLoading: false,
-                        isPolling: false,
-                        isExpanded: oldState.isExpanded || false,
-                        displayMode: oldState.displayMode || 'all',
-                        error: null,
-                    },
-                ]);
-            }
-        }
-    }
-
-    const manifestObjectForChecks =
-        detectedProtocol === 'hls' ? newManifestObject : newSerializedObject;
-    const complianceResults = runChecks(
-        manifestObjectForChecks,
-        detectedProtocol
-    );
-
-    // --- STATEFUL AD RESOLUTION LOGIC ---
-    const oldAvailsById = new Map((oldAdAvails || []).map((a) => [a.id, a]));
-    const potentialNewAvails = newManifestObject.adAvails || [];
-    const availsToResolve = potentialNewAvails.filter(
-        (a) => !oldAvailsById.has(a.id)
-    );
-
-    debugLog(
-        'shakaManifestHandler',
-        `Found ${potentialNewAvails.length} total avails in new manifest. ${availsToResolve.length} are new and require VAST resolution.`
-    );
-
-    const newlyResolvedAvails = await resolveAdAvailsInWorker(availsToResolve);
-    const newlyResolvedAvailsById = new Map(
-        newlyResolvedAvails.map((a) => [a.id, a])
-    );
-
-    // Reconstruct the final list based on the new manifest's periods,
-    // using already resolved data for old avails and newly resolved data for new ones.
-    const finalAdAvails = potentialNewAvails.map((avail) => {
-        if (oldAvailsById.has(avail.id)) {
-            return oldAvailsById.get(avail.id); // Return the memoized, already-resolved version
-        }
-        return newlyResolvedAvailsById.get(avail.id) || avail; // Return the newly resolved version, or the partial if resolution failed
-    });
-    // --- END STATEFUL AD RESOLUTION ---
-
-    if (detectedProtocol === 'dash') {
-        newManifestObject.summary = await generateDashSummary(
-            newManifestObject,
-            newSerializedObject
-        );
-    } else {
-        newManifestObject.summary = await generateHlsSummary(newManifestObject);
-    }
-
-    newManifestObject.serializedManifest = newSerializedObject;
-
-    self.postMessage({
-        type: 'livestream:manifest-updated',
-        payload: {
-            streamId,
-            newManifestObject,
-            newManifestString,
-            complianceResults,
-            serializedManifest: newSerializedObject,
-            diffHtml,
-            dashRepresentationState: dashRepStateForUpdate,
-            hlsVariantState: hlsVariantStateForUpdate,
-            adAvails: finalAdAvails, // Send the final merged list
-        },
-    });
-
     return {
         uri: response.url,
         originalUri: url,

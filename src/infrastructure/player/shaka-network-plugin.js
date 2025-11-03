@@ -20,8 +20,9 @@ export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
 
     let streamId = null;
     let auth = null;
+    let segmentUniqueId = null;
 
-    // --- ARCHITECTURAL FIX: Multi-stage, race-free streamId lookup ---
+    // --- ARCHITECTURAL FIX: Multi-stage, race-free streamId and uniqueId lookup ---
     // Stage 1: Primary. Get ID directly from the NetworkingEngine instance.
     const requester = /** @type {any} */ (request.requester);
     if (requester?.streamAnalyzerStreamId !== undefined) {
@@ -60,21 +61,42 @@ export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
         }
     }
 
-    // Stage 4: Definitive but expensive fallback. Iterate all known segments.
+    // Stage 4: Definitive fallback. Deep search for the exact segment object.
+    // This resolves the streamId, auth, and the canonical segmentUniqueId.
     if (streamId === null) {
+        const rangeHeader = request.headers['Range']?.replace('bytes=', '');
         for (const stream of streams) {
+            let foundSegment = null;
+            const findInState = (state) =>
+                (state.segments || []).find((s) => {
+                    if (s.resolvedUrl !== uri) return false;
+                    // If there's a range header, the segment must have a matching range.
+                    if (rangeHeader) return s.range === rangeHeader;
+                    // If no range header, the segment must not have a range.
+                    return !s.range;
+                });
+
             for (const state of stream.dashRepresentationState.values()) {
-                if (state.segments.some((s) => s.resolvedUrl === uri)) {
-                    streamId = stream.id;
-                    auth = stream.auth;
-                    debugLog(
-                        'shakaNetworkPlugin',
-                        `[Stage 4] Lookup successful. Found stream ID: ${streamId} via deep segment search.`
-                    );
-                    break;
+                foundSegment = findInState(state);
+                if (foundSegment) break;
+            }
+            if (!foundSegment) {
+                for (const state of stream.hlsVariantState.values()) {
+                    foundSegment = findInState(state);
+                    if (foundSegment) break;
                 }
             }
-            if (streamId !== null) break;
+
+            if (foundSegment) {
+                streamId = stream.id;
+                auth = stream.auth;
+                segmentUniqueId = foundSegment.uniqueId;
+                debugLog(
+                    'shakaNetworkPlugin',
+                    `[Stage 4] Lookup successful. Found stream ID: ${streamId} and uniqueId: ${segmentUniqueId} via deep segment search.`
+                );
+                break; // Exit the main stream loop
+            }
         }
     }
     // --- END FIX ---
@@ -125,11 +147,15 @@ export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
         };
     } else {
         taskType = 'shaka-fetch-resource';
+        const player = requester?.player_;
+        const shakaManifest = player?.getManifest();
         payload = {
             request: serializableRequest,
             requestType,
             auth,
             streamId,
+            shakaManifest,
+            segmentUniqueId: segmentUniqueId || uri, // Pass canonical uniqueId, fallback to URI
         };
     }
 
@@ -146,8 +172,7 @@ export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
         throw new shaka.util.Error(
             error.severity || shaka.util.Error.Severity.CRITICAL,
             error.category || shaka.util.Error.Category.NETWORK,
-            error.code ||
-                shaka.util.Error.Code.REQUESTED_KEY_SYSTEM_CONFIG_UNAVAILABLE,
+            error.code || shaka.util.Error.Code.NETWORK_ERROR,
             error.data || null
         );
     });

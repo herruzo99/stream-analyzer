@@ -113,7 +113,10 @@ function showCustomTooltip(chartEvent, chartContainer) {
     // --- END ENHANCED TOOLTIP LOGIC ---
 
     if (tooltipContent) {
-        tooltipProxyEl.setAttribute('data-tooltip-html-b64', btoa(tooltipContent));
+        tooltipProxyEl.setAttribute(
+            'data-tooltip-html-b64',
+            btoa(tooltipContent)
+        );
         tooltipProxyEl.removeAttribute('data-tooltip');
         tooltipProxyEl.removeAttribute('data-iso');
 

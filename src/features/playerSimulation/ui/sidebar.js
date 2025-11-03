@@ -3,7 +3,6 @@ import { usePlayerStore, playerActions } from '@/state/playerStore';
 import { connectedTabBar } from '@/ui/components/tabs';
 import { statsCardsTemplate } from './components/stats-cards.js';
 import { eventLogTemplate } from './components/event-log.js';
-import { createIcons, icons } from 'lucide';
 
 export class PlayerSidebarComponent extends HTMLElement {
     constructor() {
@@ -74,15 +73,6 @@ export class PlayerSidebarComponent extends HTMLElement {
             </div>
         `;
         render(template, this);
-
-        // --- ARCHITECTURAL FIX ---
-        // The createIcons function manipulates the DOM directly. Calling it inside a
-        // high-frequency render loop causes severe performance issues (layout thrashing).
-        // By wrapping it in requestAnimationFrame, we defer its execution until after the
-        // current browser paint, effectively debouncing it and preventing freezes.
-        requestAnimationFrame(() => {
-            createIcons({ icons });
-        });
     }
 }
 

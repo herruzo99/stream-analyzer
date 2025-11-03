@@ -103,9 +103,7 @@ export const comparisonRowTemplate = (rowData, numColumns) => {
                     >${icons.updates}</span
                 >`;
             case 'missing':
-                return html`<span
-                    class="text-red-400 shrink-0"
-                    title="Missing"
+                return html`<span class="text-red-400 shrink-0" title="Missing"
                     >${icons.xCircle}</span
                 >`;
             default:

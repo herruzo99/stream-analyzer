@@ -99,6 +99,19 @@ function activateHlsMediaPlaylist({ streamId, url }) {
     analysisActions.updateStream(streamId, { activeMediaPlaylistUrl: url });
 }
 
+function handlePlayerHlsUpdate(payload) {
+    debugLog(
+        'StreamService',
+        `Received HLS media playlist update from player for stream ${payload.streamId}`,
+        payload
+    );
+    analysisActions.updateHlsMediaPlaylist(payload);
+    eventBus.dispatch('hls-media-playlist-fetched', {
+        streamId: payload.streamId,
+        variantUri: payload.variantUri,
+    });
+}
+
 // Event Listeners
 eventBus.subscribe(
     'hls:media-playlist-fetch-request',
@@ -107,4 +120,8 @@ eventBus.subscribe(
 );
 eventBus.subscribe('hls:media-playlist-activate', (payload) =>
     activateHlsMediaPlaylist(payload)
+);
+eventBus.subscribe(
+    'hls-media-playlist-updated-by-player',
+    handlePlayerHlsUpdate
 );

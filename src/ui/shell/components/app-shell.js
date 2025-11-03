@@ -1,5 +1,4 @@
 import { html, render } from 'lit-html';
-import { createIcons, icons } from 'lucide';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { useUiStore, uiActions } from '@/state/uiStore';
 import { sidebarNavTemplate, getNavGroups } from './sidebar-nav.js';
@@ -7,6 +6,7 @@ import { renderContextSwitcher } from './context-switcher.js';
 import { globalControlsTemplate } from './global-controls.js';
 import { mainContentControlsTemplate } from './main-content-controls.js';
 import { startLiveSegmentHighlighter } from '@/features/segmentExplorer/ui/components/hls/index';
+import * as icons from '@/ui/icons';
 
 class AppShellComponent extends HTMLElement {
     constructor() {
@@ -89,7 +89,7 @@ class AppShellComponent extends HTMLElement {
                     id="sidebar-toggle-btn"
                     class="text-slate-300 hover:text-white p-1"
                 >
-                    <i data-lucide="menu" class="h-6 w-6"></i>
+                    ${icons.menu}
                 </button>
                 <h2
                     id="mobile-page-title"
@@ -241,7 +241,6 @@ class AppShellComponent extends HTMLElement {
         ) {
             startLiveSegmentHighlighter(this.dom.mainContent, activeStream);
         }
-        createIcons({ icons });
     }
 }
 

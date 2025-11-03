@@ -47,7 +47,9 @@ export const networkDetailsPanelTemplate = (event) => {
                                     </td>
                                 </tr>
                                 <tr class="border-b border-slate-700/50">
-                                    <td class="p-2 font-semibold text-slate-400">
+                                    <td
+                                        class="p-2 font-semibold text-slate-400"
+                                    >
                                         Method
                                     </td>
                                     <td class="p-2 font-mono">
@@ -55,7 +57,9 @@ export const networkDetailsPanelTemplate = (event) => {
                                     </td>
                                 </tr>
                                 <tr class="border-b border-slate-700/50">
-                                    <td class="p-2 font-semibold text-slate-400">
+                                    <td
+                                        class="p-2 font-semibold text-slate-400"
+                                    >
                                         Status Code
                                     </td>
                                     <td class="p-2 font-mono">
@@ -64,7 +68,9 @@ export const networkDetailsPanelTemplate = (event) => {
                                     </td>
                                 </tr>
                                 <tr class="border-b border-slate-700/50">
-                                    <td class="p-2 font-semibold text-slate-400">
+                                    <td
+                                        class="p-2 font-semibold text-slate-400"
+                                    >
                                         Total Time
                                     </td>
                                     <td class="p-2 font-mono">

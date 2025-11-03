@@ -1,8 +1,5 @@
 import { html, render } from 'lit-html';
-import {
-    renderChart,
-    disposeChart,
-} from '@/ui/shared/charts/chart-renderer';
+import { renderChart, disposeChart } from '@/ui/shared/charts/chart-renderer';
 
 const timelineChartOptions = (viewModel) => {
     if (!viewModel || viewModel.tracks.length === 0) {
@@ -174,10 +171,7 @@ class TimelineChart extends HTMLElement {
         this.chartContainer.style.height = `${
             this._viewModel.tracks.length * 40 + 120
         }px`;
-        renderChart(
-            this.chartContainer,
-            timelineChartOptions(this._viewModel)
-        );
+        renderChart(this.chartContainer, timelineChartOptions(this._viewModel));
     }
 }
 

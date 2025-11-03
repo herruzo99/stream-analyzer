@@ -16,7 +16,7 @@ function getEvents(stream) {
 
     // SCTE-35 from in-band emsg boxes
     (stream.inbandEvents || []).forEach((event) => {
-        if (event.scte35) {
+        if (event.scte35 && !('error' in event.scte35)) {
             events.push({
                 time: event.startTime,
                 type: 'SCTE-35 (in-band)',
@@ -31,13 +31,15 @@ function getEvents(stream) {
     (stream.manifest?.events || [])
         .filter((e) => e.scte35)
         .forEach((event) => {
-            events.push({
-                time: event.startTime,
-                type: 'SCTE-35 (DATERANGE)',
-                details: `Splice Command: ${event.scte35.splice_command?.type || 'Unknown'}`,
-                color: EVENT_COLORS['hls-daterange'],
-                scte35: event.scte35,
-            });
+            if (event.scte35 && !('error' in event.scte35)) {
+                events.push({
+                    time: event.startTime,
+                    type: 'SCTE-35 (DATERANGE)',
+                    details: `Splice Command: ${event.scte35.splice_command?.type || 'Unknown'}`,
+                    color: EVENT_COLORS['hls-daterange'],
+                    scte35: event.scte35,
+                });
+            }
         });
 
     // Adaptation events (bitrate switches)
@@ -124,9 +126,7 @@ export function createTimelineViewModel(stream) {
             const bw = (variant.attributes.BANDWIDTH / 1000).toFixed(0);
             tracks.push({
                 id: uri,
-                label: `[HLS] ${bw}k (${
-                    variant.attributes.RESOLUTION || '?'
-                })`,
+                label: `[HLS] ${bw}k (${variant.attributes.RESOLUTION || '?'})`,
             });
 
             let cumulativeTime = 0;
@@ -164,9 +164,7 @@ export function createTimelineViewModel(stream) {
     }
 
     const maxSegmentTime =
-        segments.length > 0
-            ? Math.max(...segments.map((s) => s.endTime))
-            : 0;
+        segments.length > 0 ? Math.max(...segments.map((s) => s.endTime)) : 0;
     const duration = isLive
         ? stream.manifest.timeShiftBufferDepth || maxSegmentTime
         : stream.manifest.duration || maxSegmentTime;

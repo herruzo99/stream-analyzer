@@ -61,12 +61,16 @@ const categoryTemplate = (category, categoryFeatures) => {
 
     return html`
         <section class="space-y-4">
-            <h4 class="text-lg font-semibold text-slate-300 flex items-center gap-2">
+            <h4
+                class="text-lg font-semibold text-slate-300 flex items-center gap-2"
+            >
                 ${icon}
                 <span>${category}</span>
             </h4>
             <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                ${categoryFeatures.map((feature) => featureCardTemplate(feature))}
+                ${categoryFeatures.map((feature) =>
+                    featureCardTemplate(feature)
+                )}
             </div>
         </section>
     `;
@@ -185,7 +189,9 @@ function renderFeaturesAnalysis() {
     };
 
     const template = html`
-        <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-2">
+        <div
+            class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-2"
+        >
             <h3 class="text-xl text-white font-bold">Feature Usage Analysis</h3>
             ${selector}
         </div>

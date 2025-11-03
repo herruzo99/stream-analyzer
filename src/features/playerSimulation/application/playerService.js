@@ -412,21 +412,19 @@ export const playerService = {
                 }
 
                 const drmConfig = {
-                    drm: {
-                        servers: {
-                            'com.widevine.alpha': licenseServerUrl,
-                            'com.microsoft.playready': licenseServerUrl,
+                    servers: {
+                        'com.widevine.alpha': licenseServerUrl,
+                        'com.microsoft.playready': licenseServerUrl,
+                    },
+                    advanced: {
+                        'com.widevine.alpha': {
+                            serverCertificate: serverCertificate
+                                ? new Uint8Array(serverCertificate)
+                                : undefined,
+                            headers: licenseRequestHeaders,
                         },
-                        advanced: {
-                            'com.widevine.alpha': {
-                                serverCertificate: serverCertificate
-                                    ? new Uint8Array(serverCertificate)
-                                    : undefined,
-                                headers: licenseRequestHeaders,
-                            },
-                            'com.microsoft.playready': {
-                                headers: licenseRequestHeaders,
-                            },
+                        'com.microsoft.playready': {
+                            headers: licenseRequestHeaders,
                         },
                     },
                 };
@@ -436,7 +434,9 @@ export const playerService = {
                     'Applying DRM configuration:',
                     drmConfig
                 );
-                player.configure(drmConfig);
+                // --- ARCHITECTURAL FIX: Correctly namespace the DRM config ---
+                player.configure({ drm: drmConfig });
+                // --- END FIX ---
             } catch (e) {
                 this.onError({
                     code: 'DRM_CERTIFICATE_FAILED',

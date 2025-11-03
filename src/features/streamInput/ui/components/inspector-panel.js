@@ -217,14 +217,8 @@ export const inspectorPanelTemplate = () => {
 
     let isPresetModified = false;
     if (isPreset) {
-        const currentStorableInput = {
-            name: activeInput.name,
-            url: activeInput.url,
-            auth: activeInput.auth,
-            drmAuth: activeInput.drmAuth,
-        };
         isPresetModified =
-            JSON.stringify(prepareForStorage(currentStorableInput)) !==
+            JSON.stringify(prepareForStorage(activeInput)) !==
             JSON.stringify(prepareForStorage(savedPreset));
     }
 
@@ -247,8 +241,7 @@ export const inspectorPanelTemplate = () => {
     };
 
     let saveButtonLabel = 'Save as Preset';
-    let saveButtonDisabled =
-        !activeInput.url || !activeInput.name || isExample;
+    let saveButtonDisabled = !activeInput.url || !activeInput.name || isExample;
     if (isPreset) {
         saveButtonLabel = 'Update Preset';
         saveButtonDisabled = !isPresetModified;

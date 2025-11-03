@@ -1,7 +1,10 @@
 import { html, render } from 'lit-html';
-import { getInspectorState } from '../interaction-logic.js';
+import { classMap } from 'lit-html/directives/class-map.js';
+import { useUiStore } from '@/state/uiStore';
 import { getTooltipData as getTsTooltipData } from '@/infrastructure/parsing/ts/index';
+import * as icons from '@/ui/icons';
 import { tooltipTriggerClasses } from '@/ui/shared/constants';
+import '@/ui/components/virtualized-list';
 
 let packetCurrentPage = 1;
 const PACKETS_PER_PAGE = 50;
@@ -29,12 +32,11 @@ const groupPackets = (packets) => {
     }, {});
 };
 
-const inspectorDetailRow = (packet, key, value) => {
-    const { itemForDisplay, fieldForDisplay } = getInspectorState();
-    const highlightClass =
-        fieldForDisplay === key && itemForDisplay?.offset === packet.offset
-            ? 'is-inspector-field-highlighted'
-            : '';
+const inspectorFieldTemplate = (packet, section, key, field) => {
+    const { interactiveSegmentHighlightedItem } = useUiStore.getState();
+    const isFieldHovered =
+        interactiveSegmentHighlightedItem?.item?.offset === packet.offset &&
+        interactiveSegmentHighlightedItem?.field === `${section}.${key}`;
 
     const tooltipKey = key.replace('.', '@');
     const tooltipInfo = allTsTooltipData[tooltipKey] || {};
@@ -56,31 +58,39 @@ const inspectorDetailRow = (packet, key, value) => {
     };
 
     return html`
-        <tr
-            class=${highlightClass}
-            data-field-name="${key}"
-            data-inspector-offset="${packet.offset}"
+        <div
+            class="py-2 px-3 border-b border-slate-700/50 ${isFieldHovered
+                ? 'highlight-hover-field'
+                : ''}"
+            data-field-name="${section}.${key}"
+            data-box-offset="${packet.offset}"
         >
-            <td
-                class="p-1 pr-2 text-xs text-gray-400 align-top ${tooltipInfo.text
+            <div
+                class="text-xs font-semibold text-slate-400 ${tooltipInfo.text
                     ? tooltipTriggerClasses
                     : ''}"
                 data-tooltip="${tooltipInfo.text || ''}"
                 data-iso="${tooltipInfo.ref || ''}"
             >
                 ${key}
-            </td>
-            <td class="p-1 text-xs font-mono text-white break-all">
-                ${renderValue(value)}
-            </td>
-        </tr>
+            </div>
+            <div class="text-sm font-mono text-white mt-1 break-all">
+                ${renderValue(field.value)}
+            </div>
+        </div>
     `;
 };
 
 const placeholderTemplate = () => {
     return html`
-        <div class="p-3 text-sm text-gray-500">
-            Hover over an item in the packet list or hex view to see details.
+        <div
+            class="flex flex-col h-full items-center justify-center text-center text-slate-500 p-6"
+        >
+            ${icons.searchCode}
+            <p class="mt-2 font-semibold">Select a Packet</p>
+            <p class="text-sm">
+                Click a packet in the list to see its parsed header details.
+            </p>
         </div>
     `;
 };
@@ -97,7 +107,7 @@ const encryptedContentTemplate = (error) => html`
         >
             <path
                 fill-rule="evenodd"
-                d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z"
+                d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002 2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z"
                 clip-rule="evenodd"
             />
         </svg>
@@ -117,147 +127,131 @@ export const inspectorPanelTemplate = (tsAnalysisData) => {
         return encryptedContentTemplate(encryptionError);
     }
 
-    const { itemForDisplay } = getInspectorState();
+    const {
+        interactiveSegmentSelectedItem,
+        interactiveSegmentHighlightedItem,
+    } = useUiStore.getState();
+    const itemForDisplay =
+        interactiveSegmentSelectedItem?.item ||
+        interactiveSegmentHighlightedItem?.item;
+
     const packet = itemForDisplay;
 
     if (!packet) return placeholderTemplate();
 
-    const renderDetailRowsFor = (prefix, dataObject) => {
-        if (!dataObject) return html``;
+    const renderDetailSection = (title, dataObject, prefix) => {
+        if (!dataObject) return '';
         return html`
-            ${Object.entries(dataObject).map(([key, value]) => {
-                if (typeof value.value === 'object' && value.value !== null) {
-                    return Object.entries(value.value).map(
-                        ([subKey, subValue]) =>
-                            inspectorDetailRow(
-                                packet,
-                                `${prefix}.${key}.${subKey}`,
-                                subValue.value
-                            )
-                    );
-                }
-                return inspectorDetailRow(
-                    packet,
-                    `${prefix}.${key}`,
-                    value.value
-                );
-            })}
+            <details class="group" open>
+                <summary
+                    class="list-none cursor-pointer p-3 bg-slate-800/50 border-b border-slate-700"
+                >
+                    <h5 class="font-semibold text-slate-300">${title}</h5>
+                </summary>
+                ${Object.entries(dataObject).map(([key, field]) =>
+                    inspectorFieldTemplate(packet, prefix, key, field)
+                )}
+            </details>
         `;
     };
 
     return html`
-        <div class="p-3 border-b border-gray-700">
-            <div class="font-bold text-base mb-1">
-                Packet @${packet.offset} (PID: ${packet.pid})
+        <div
+            class="segment-inspector-panel flex flex-col h-full bg-slate-900 rounded-lg border border-slate-700"
+        >
+            <div class="p-3 border-b border-slate-700 shrink-0">
+                <h4
+                    class="font-bold text-lg text-white font-mono flex items-center gap-2"
+                >
+                    Packet @${packet.offset}
+                    <span class="text-sm font-normal text-slate-400"
+                        >(PID: ${packet.pid})</span
+                    >
+                </h4>
+                <p class="text-sm text-slate-300 mt-1">${packet.payloadType}</p>
             </div>
-            <p class="text-xs text-gray-300">${packet.payloadType}</p>
-        </div>
-        <div class="overflow-y-auto">
-            <table class="w-full table-fixed">
-                <colgroup>
-                    <col class="w-2/5" />
-                    <col class="w-3/5" />
-                </colgroup>
-                <tbody>
-                    ${renderDetailRowsFor('Header', packet.header)}
-                    ${renderDetailRowsFor('AF', packet.adaptationField)}
-                    ${renderDetailRowsFor('PES', packet.pes)}
-                </tbody>
-            </table>
+            <div class="grow overflow-y-auto">
+                ${renderDetailSection('TS Header', packet.header, 'Header')}
+                ${renderDetailSection(
+                    'Adaptation Field',
+                    packet.adaptationField,
+                    'AF'
+                )}
+                ${renderDetailSection('PES Header', packet.pes, 'PES')}
+            </div>
         </div>
     `;
 };
 
 export const structureContentTemplate = (tsAnalysisData) => {
     const { summary, packets } = tsAnalysisData.data;
+    const {
+        interactiveSegmentSelectedItem,
+        interactiveSegmentHighlightedItem,
+    } = useUiStore.getState();
 
     const encryptionError = summary.errors.find((e) => e.includes('encrypted'));
     if (encryptionError) {
         return encryptedContentTemplate(encryptionError);
     }
 
-    const onPacketPageChange = (offset) => {
-        const totalPages = Math.ceil(packets.length / PACKETS_PER_PAGE);
-        const newPage = packetCurrentPage + offset;
-        if (newPage >= 1 && newPage <= totalPages) {
-            packetCurrentPage = newPage;
-            // Re-render the structure content area
-            const container = /** @type {HTMLElement | null} */ (
-                document.querySelector('.structure-content-area')
-            );
-            if (container) {
-                render(structureContentTemplate(tsAnalysisData), container);
-            }
-        }
-    };
-
-    const totalPages = Math.ceil(packets.length / PACKETS_PER_PAGE);
-    const startIndex = (packetCurrentPage - 1) * PACKETS_PER_PAGE;
-    const endIndex = startIndex + PACKETS_PER_PAGE;
-    const visiblePackets = packets.slice(startIndex, endIndex);
-
     if (packets.length === 0) {
-        return html`<div class="p-3 text-sm text-gray-500">
+        return html`<div class="p-3 text-sm text-slate-500">
             No TS packets were parsed from this segment.
         </div>`;
     }
 
+    const rowRenderer = (p, index) => {
+        const isSelected =
+            interactiveSegmentSelectedItem?.item?.offset === p.offset;
+        const isHovered =
+            interactiveSegmentHighlightedItem?.item?.offset === p.offset;
+        const color = p.color || { bgClass: 'bg-slate-800' };
+
+        const classes = {
+            flex: true,
+            'items-center': true,
+            'gap-2': true,
+            'p-1.5': true,
+            rounded: true,
+            'cursor-pointer': true,
+            'highlight-select-box': isSelected,
+            'highlight-hover-box': isHovered,
+        };
+
+        return html`
+            <div class=${classMap(classes)} data-packet-offset=${p.offset}>
+                <div
+                    class="w-3 h-3 rounded-full shrink-0 ${color.bgClass}"
+                ></div>
+                <span class="font-mono text-slate-400"
+                    >@${String(p.offset).padStart(5, '0')}</span
+                >
+                <span class="font-semibold text-slate-200 truncate"
+                    >${p.payloadType}</span
+                >
+                <span class="ml-auto font-mono text-slate-500"
+                    >PID: ${p.pid}</span
+                >
+            </div>
+        `;
+    };
+
     return html`
         <div
-            class="structure-content-area rounded-md bg-gray-900/90 border border-gray-700 flex flex-col h-full"
+            class="structure-tree-panel rounded-md bg-slate-900 h-full flex flex-col border border-slate-700"
         >
-            <h3 class="font-bold text-base p-2 border-b border-gray-700">
-                Packet List
+            <h3 class="font-bold p-3 border-b border-slate-700 shrink-0">
+                Packet List (${packets.length})
             </h3>
-            <div class="overflow-y-auto text-xs grow">
-                ${Object.entries(groupPackets(visiblePackets)).map(
-                    ([type, pkts]) => html`
-                        <details open>
-                            <summary
-                                class="p-2 font-semibold bg-gray-800/50 sticky top-0 cursor-pointer"
-                            >
-                                ${type} (${pkts.length})
-                            </summary>
-                            <ul class="list-none p-0">
-                                ${pkts.map(
-                                    (p) => html`
-                                        <li
-                                            class="flex justify-between p-2 border-b border-gray-800"
-                                            data-packet-offset=${p.offset}
-                                        >
-                                            <span class="font-mono"
-                                                >@${p.offset}</span
-                                            >
-                                            <span class="font-mono"
-                                                >PID: ${p.pid}</span
-                                            >
-                                        </li>
-                                    `
-                                )}
-                            </ul>
-                        </details>
-                    `
-                )}
+            <div class="p-2 overflow-y-auto grow text-xs">
+                <virtualized-list
+                    .items=${packets}
+                    .rowTemplate=${rowRenderer}
+                    .rowHeight=${32}
+                    .itemId=${(item) => item.offset}
+                ></virtualized-list>
             </div>
-            ${totalPages > 1
-                ? html`<div
-                      class="text-center p-1 border-t border-gray-700 shrink-0"
-                  >
-                      <button
-                          @click=${() => onPacketPageChange(-1)}
-                          ?disabled=${packetCurrentPage === 1}
-                      >
-                          &lt;
-                      </button>
-                      Page ${packetCurrentPage} of ${totalPages}
-                      <button
-                          @click=${() => onPacketPageChange(1)}
-                          ?disabled=${packetCurrentPage === totalPages}
-                      >
-                          &gt;
-                      </button>
-                  </div>`
-                : ''}
         </div>
     `;
 };

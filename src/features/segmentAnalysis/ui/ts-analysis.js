@@ -24,7 +24,9 @@ const descriptorTableTemplate = (descriptors) => {
                         <th class="p-2 font-semibold text-slate-400 w-1/3">
                             Descriptor Name (Tag)
                         </th>
-                        <th class="p-2 font-semibold text-slate-400">Details</th>
+                        <th class="p-2 font-semibold text-slate-400">
+                            Details
+                        </th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-700/50">
@@ -131,12 +133,13 @@ const programStructureTemplate = (analysis) => {
                                     <span
                                         >Stream Type:
                                         <strong class="text-white"
-                                            >${stream.stream_type
-                                                .value}</strong
+                                            >${stream.stream_type.value}</strong
                                         ></span
                                     >
                                 </div>
-                                ${descriptorTableTemplate(stream.es_descriptors)}
+                                ${descriptorTableTemplate(
+                                    stream.es_descriptors
+                                )}
                             </div>
                         `
                     )}
@@ -148,9 +151,7 @@ const programStructureTemplate = (analysis) => {
 
 const semanticResultsTemplate = (results) => {
     if (!results || results.length === 0) {
-        return html`<div
-            class="text-center p-8 text-green-400 font-semibold"
-        >
+        return html`<div class="text-center p-8 text-green-400 font-semibold">
             ${icons.checkCircle} No semantic issues found.
         </div>`;
     }
@@ -167,7 +168,9 @@ const semanticResultsTemplate = (results) => {
                             Status
                         </th>
                         <th class="p-2 font-semibold text-slate-400">Check</th>
-                        <th class="p-2 font-semibold text-slate-400">Details</th>
+                        <th class="p-2 font-semibold text-slate-400">
+                            Details
+                        </th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-700/50">
@@ -259,13 +262,10 @@ export const tsAnalysisTemplate = (analysis) => {
                 ${summaryCards}
             </div>
 
-            ${connectedTabBar(
-                tabs,
-                segmentAnalysisActiveTab,
-                (tab) =>
-                    uiActions.setSegmentAnalysisActiveTab(
-                        /** @type {'structure' | 'semantic'} */ (tab)
-                    )
+            ${connectedTabBar(tabs, segmentAnalysisActiveTab, (tab) =>
+                uiActions.setSegmentAnalysisActiveTab(
+                    /** @type {'structure' | 'semantic'} */ (tab)
+                )
             )}
             <div class="bg-slate-900 p-4 rounded-b-lg">${content}</div>
         </div>

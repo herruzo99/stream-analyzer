@@ -1,6 +1,12 @@
 import { html } from 'lit-html';
-import { getInspectorState } from '../interaction-logic.js';
-import { inspectorDetailsTemplate } from '@/ui/shared/isobmff-renderer';
+import { classMap } from 'lit-html/directives/class-map.js';
+import { useUiStore } from '@/state/uiStore';
+import { getTooltipData as getAllIsoTooltipData } from '@/infrastructure/parsing/isobmff/index';
+import * as icons from '@/ui/icons';
+import { tooltipTriggerClasses } from '@/ui/shared/constants';
+import { entriesTableTemplate } from '@/ui/shared/isobmff-renderer';
+
+const allIsoTooltipData = getAllIsoTooltipData();
 
 /**
  * Recursively finds the first occurrence of a box that satisfies the predicate.
@@ -53,139 +59,270 @@ export function findItemByOffset(parsedData, offset) {
     return findInGrouped(grouped, offset);
 }
 
-const placeholderTemplate = () => html`
-    <div class="p-3 text-sm text-gray-500">
-        Hover over an item in the tree view or hex view to see details.
-    </div>
-`;
-
-const sampleInspectorTemplate = (sample) => {
-    const dependsOnMap = { 2: 'No (I-Frame)', 1: 'Yes', 0: 'Unknown' };
+// --- REIMAGINED INSPECTOR PANEL ---
+const renderObjectValue = (obj) => {
+    if (!obj) {
+        return html`<span class="text-slate-500">N/A</span>`;
+    }
     return html`
-        <div class="p-3 border-b border-gray-700">
-            <div class="font-bold text-base mb-1">Sample #${sample.index + 1}</div>
-            <div class="text-xs text-gray-400">${sample.size} bytes</div>
-        </div>
-        <div class="overflow-y-auto">
-            <table class="w-full table-fixed text-xs">
-                <tbody>
-                    <tr>
-                        <td class="p-1 pr-2 text-gray-400">
-                            Depends On Others
-                        </td>
-                        <td class="p-1 font-mono text-white">
-                            ${dependsOnMap[sample.dependsOn] || 'N/A'}
-                        </td>
-                    </tr>
-                    <tr>
-                        <td class="p-1 pr-2 text-gray-400">Degradation Prio</td>
-                        <td class="p-1 font-mono text-white">
-                            ${sample.degradationPriority ?? 'N/A'}
-                        </td>
-                    </tr>
-                    <tr>
-                        <td class="p-1 pr-2 text-gray-400">Sample Group</td>
-                        <td class="p-1 font-mono text-white">
-                            ${sample.sampleGroup ?? 'N/A'}
-                        </td>
-                    </tr>
-                    <tr>
-                        <td class="p-1 pr-2 text-gray-400">Encrypted</td>
-                        <td class="p-1 font-mono text-white">
-                            ${sample.encryption ? 'Yes' : 'No'}
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
+        <div class="mt-1 ml-2 pl-2 border-l border-slate-600 space-y-1">
+            ${Object.entries(obj).map(
+                ([key, value]) => html`
+                    <div class="flex text-xs">
+                        <span class="text-slate-400 mr-2">${key}:</span>
+                        <span
+                            class="${value ? 'text-green-400' : 'text-red-400'}"
+                            >${String(value)}</span
+                        >
+                    </div>
+                `
+            )}
         </div>
     `;
 };
 
-export const inspectorPanelTemplate = (rootData, samples) => {
-    const { itemForDisplay, fieldForDisplay } = getInspectorState();
-    const item = itemForDisplay;
+const inspectorFieldTemplate = (box, key, field) => {
+    const fieldInfo = allIsoTooltipData[`${box.type}@${key}`];
+    const { interactiveSegmentHighlightedItem } = useUiStore.getState();
+    const isFieldHovered =
+        interactiveSegmentHighlightedItem?.item?.offset === box.offset &&
+        interactiveSegmentHighlightedItem?.field === key;
 
-    if (!item) return placeholderTemplate();
-    if (item.isSample) return sampleInspectorTemplate(item);
+    const highlightClass = isFieldHovered ? 'highlight-hover-field' : '';
 
-    // For a regular box, delegate rendering to the shared component.
-    return inspectorDetailsTemplate(item, rootData, fieldForDisplay, samples);
+    return html`
+        <div
+            class="py-2 px-3 border-b border-slate-700/50 ${highlightClass}"
+            data-field-name="${key}"
+            data-box-offset="${box.offset}"
+        >
+            <div
+                class="text-xs font-semibold text-slate-400 ${fieldInfo?.text
+                    ? tooltipTriggerClasses
+                    : ''}"
+                data-tooltip="${fieldInfo?.text || ''}"
+                data-iso="${fieldInfo?.ref || ''}"
+            >
+                ${key}
+            </div>
+            <div class="text-sm font-mono text-white mt-1 break-all">
+                ${typeof field.value === 'object' && field.value !== null
+                    ? renderObjectValue(field.value)
+                    : field.value}
+            </div>
+        </div>
+    `;
+};
+
+const sampleInspectorTemplate = (sample) => {
+    const renderDetailRow = (label, value) => html`
+        <div class="py-2 px-3 border-b border-slate-700/50">
+            <div class="text-xs font-semibold text-slate-400">${label}</div>
+            <div class="text-sm font-mono text-white mt-1 break-all">
+                ${value}
+            </div>
+        </div>
+    `;
+
+    return html`
+        <div
+            class="segment-inspector-panel flex flex-col h-full bg-slate-900 rounded-lg border border-slate-700"
+        >
+            <div class="p-3 border-b border-slate-700 shrink-0">
+                <h4
+                    class="font-bold text-lg text-white font-mono flex items-center gap-2"
+                >
+                    Sample #${sample.index}
+                    <span class="text-sm font-normal text-slate-400"
+                        >(${sample.size} bytes)</span
+                    >
+                </h4>
+                <p class="text-xs text-slate-300 mt-2">
+                    A single unit of media data (e.g., a video frame or chunk of
+                    audio).
+                </p>
+            </div>
+            <div class="grow overflow-y-auto">
+                ${renderDetailRow('Offset', sample.offset)}
+                ${renderDetailRow('Size', `${sample.size} bytes`)}
+                ${renderDetailRow(
+                    'Duration',
+                    `${sample.duration} (timescale units)`
+                )}
+                ${renderDetailRow(
+                    'Composition Time Offset',
+                    sample.compositionTimeOffset ?? 'N/A'
+                )}
+                ${renderDetailRow(
+                    'Flags',
+                    renderObjectValue(sample.sampleFlags)
+                )}
+                ${renderDetailRow('Track ID', sample.trackId)}
+            </div>
+        </div>
+    `;
+};
+
+export const inspectorPanelTemplate = (parsedData) => {
+    const rootData = parsedData.data;
+    const {
+        interactiveSegmentSelectedItem,
+        interactiveSegmentHighlightedItem,
+    } = useUiStore.getState();
+    const itemForDisplay =
+        interactiveSegmentSelectedItem?.item ||
+        interactiveSegmentHighlightedItem?.item;
+
+    if (!itemForDisplay) {
+        return html`
+            <div
+                class="flex flex-col h-full items-center justify-center text-center text-slate-500 p-6"
+            >
+                ${icons.searchCode}
+                <p class="mt-2 font-semibold">Select an Item</p>
+                <p class="text-sm">
+                    Click an item in the structure tree or hover in the hex view
+                    to see details.
+                </p>
+            </div>
+        `;
+    }
+
+    if (itemForDisplay.isSample) {
+        return sampleInspectorTemplate(itemForDisplay);
+    }
+
+    const box = itemForDisplay;
+    const boxInfo = allIsoTooltipData[box.type] || {};
+
+    const fieldsToRender = Object.entries(box.details).filter(
+        ([key]) => !key.startsWith('sample_')
+    );
+
+    let boxForTable = box;
+    if (box.type === 'trun') {
+        boxForTable = {
+            ...box,
+            // CRITICAL FIX: The `trun` box's own `samples` array is a raw parse
+            // without correct offsets or indices. The canonical, enriched `samples`
+            // list lives at the top level of the parsed data structure. We must
+            // substitute it here for the table renderer.
+            samples: parsedData.samples,
+        };
+    }
+
+    return html`
+        <div
+            class="segment-inspector-panel flex flex-col h-full bg-slate-900 rounded-lg border border-slate-700"
+        >
+            <div class="p-3 border-b border-slate-700 shrink-0">
+                <h4
+                    class="font-bold text-lg text-white font-mono flex items-center gap-2"
+                >
+                    ${box.type}
+                    <span class="text-sm font-normal text-slate-400"
+                        >(${box.size} bytes)</span
+                    >
+                </h4>
+                <p class="text-xs text-emerald-400 font-mono mt-1">
+                    ${boxInfo.ref || ''}
+                </p>
+                <p class="text-xs text-slate-300 mt-2">${boxInfo.text || ''}</p>
+            </div>
+            <div class="grow overflow-y-auto">
+                ${fieldsToRender.map(([key, field]) =>
+                    inspectorFieldTemplate(box, key, field)
+                )}
+                ${entriesTableTemplate(boxForTable)}
+            </div>
+        </div>
+    `;
+};
+
+// --- REIMAGINED STRUCTURE TREE ---
+const getBoxIcon = (box) => {
+    if (box.isChunk) return icons.box;
+    const type = box.type.toLowerCase();
+    if (['moov', 'trak', 'moof', 'traf', 'stbl', 'minf', 'mdia'].includes(type))
+        return icons.folder;
+    if (['tkhd', 'mdhd', 'mvhd'].includes(type)) return icons.fileText;
+    if (['avc1', 'hvc1', 'mp4a'].includes(type)) return icons.clapperboard;
+    if (type.includes('st')) return icons.table;
+    if (type === 'pssh') return icons.lockClosed;
+    return icons.puzzle;
 };
 
 const renderBoxNode = (box) => {
-    const { itemForDisplay } = getInspectorState();
+    const {
+        interactiveSegmentSelectedItem,
+        interactiveSegmentHighlightedItem,
+    } = useUiStore.getState();
     const isSelected =
-        itemForDisplay &&
-        itemForDisplay.offset === box.offset &&
-        !itemForDisplay.isSample;
-    const isChunk = box.isChunk;
-    const selectionClass = isSelected
-        ? 'bg-blue-900/50 ring-1 ring-blue-500'
-        : '';
-    const colorClass = box.color?.border || 'border-slate-700';
+        interactiveSegmentSelectedItem?.item?.offset === box.offset;
+    const isHovered =
+        interactiveSegmentHighlightedItem?.item?.offset === box.offset;
+
+    const classes = {
+        'tree-item': true,
+        flex: true,
+        'items-center': true,
+        'gap-2': true,
+        'p-1': true,
+        rounded: true,
+        'cursor-pointer': true,
+        'border-l-4': true,
+        [box.color?.border || 'border-slate-700']: true,
+        'highlight-select-box': isSelected,
+        'highlight-hover-box': isHovered,
+    };
 
     return html`
-        <details class="box-node" ?open=${isChunk || box.children.length > 0}>
-            <summary
-                class="relative p-1 rounded cursor-pointer ${selectionClass} border-l-4 ${colorClass}"
-                data-box-offset=${box.offset}
-                data-group-start-offset=${isChunk ? box.offset : null}
-            >
-                <span class="font-mono text-sm text-white ml-2"
-                    >${box.type}</span
+        <li class="relative">
+            <div class=${classMap(classes)} data-box-offset=${box.offset}>
+                <span class="text-slate-500 shrink-0 ml-1"
+                    >${getBoxIcon(box)}</span
                 >
-                <span class="text-xs text-gray-500 ml-2"
+                <span class="font-mono text-sm text-white">${box.type}</span>
+                <span class="text-xs text-slate-500 ml-auto"
                     >(${box.size} bytes)</span
                 >
-            </summary>
-            ${box.children.length > 0
-                ? html`<ul class="pl-4 border-l border-gray-700 list-none ml-2">
-                      ${box.children.map(
-                          (child) => html`<li>${renderBoxNode(child)}</li>`
-                      )}
-                  </ul>`
+            </div>
+            ${box.children && box.children.length > 0
+                ? html`
+                      <ul class="pl-4 border-l border-slate-700 ml-2.5">
+                          ${box.children.map(renderBoxNode)}
+                      </ul>
+                  `
                 : ''}
-        </details>
+        </li>
     `;
 };
 
 export const structureContentTemplate = (isobmffData) => {
     if (!isobmffData) return html``;
-
-    const { boxes, issues } = isobmffData;
-    const isInit = !!findBoxRecursive(boxes, (b) => b.type === 'moov');
-    const isMedia = !!findBoxRecursive(boxes, (b) => b.type === 'moof');
-    let summaryText = 'Unknown Segment Type';
-    if (isInit) summaryText = 'Initialization Segment';
-    if (isMedia) summaryText = 'Media Segment';
-
-    const ftyp = findBoxRecursive(boxes, (b) => b.type === 'ftyp');
-    const brands = ftyp?.details?.compatibleBrands?.value || 'N/A';
-
+    const { boxes } = isobmffData;
     return html`
+        <style>
+            .tree-item::before {
+                content: '';
+                position: absolute;
+                left: -0.625rem; /* -(pl-4 / 2) - (border / 2) = -1rem/2 - 1px/2 */
+                top: 1rem;
+                height: 1px;
+                width: 0.625rem;
+                background-color: #475569; /* slate-600 */
+            }
+        </style>
         <div
-            class="structure-content-area rounded-md bg-gray-900/90 border border-gray-700 h-full flex flex-col"
+            class="structure-tree-panel rounded-md bg-slate-900 h-full flex flex-col border border-slate-700"
         >
-            <h3 class="font-bold text-base p-2 border-b border-gray-700">
+            <h3 class="font-bold p-3 border-b border-slate-700 shrink-0">
                 Box Structure
             </h3>
             <div class="p-2 overflow-y-auto grow">
                 <ul class="list-none p-0">
-                    ${boxes.map((box) => html`<li>${renderBoxNode(box)}</li>`)}
+                    ${boxes.map(renderBoxNode)}
                 </ul>
-            </div>
-            <div
-                class="p-2 text-xs space-y-2 border-t border-gray-700 shrink-0"
-            >
-                <div>Type: ${summaryText}</div>
-                <div>
-                    Compatible Brands: <span class="font-mono">${brands}</span>
-                </div>
-                ${issues.length > 0
-                    ? html`<div class="text-red-400">
-                          Parsing Issues: ${issues.length}
-                      </div>`
-                    : ''}
             </div>
         </div>
     `;

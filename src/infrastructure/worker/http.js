@@ -10,6 +10,9 @@ import { debugLog } from '@/shared/utils/debug';
  * @param {Record<string, string>} [extraHeaders={}] Additional headers.
  * @param {BodyInit | null} [body=null] Request body.
  * @param {AbortSignal} [signal=null] An AbortSignal to cancel the fetch.
+ * @param {object} [loggingContext={}] Optional context for network event logging.
+ * @param {number} [loggingContext.streamId]
+ * @param {import('@/types').ResourceType} [loggingContext.resourceType]
  * @returns {Promise<{
  *   ok: boolean,
  *   status: number,
@@ -26,7 +29,8 @@ export async function fetchWithAuth(
     range = null,
     extraHeaders = {},
     body = null,
-    signal = null
+    signal = null,
+    loggingContext = {}
 ) {
     const initialUrl = new URL(url);
     /** @type {RequestInit} */
@@ -59,20 +63,65 @@ export async function fetchWithAuth(
     }
 
     debugLog('worker.fetchWithAuth', `Fetching: ${initialUrl.href}`, options);
+
+    const startTime = performance.now();
     const response = await fetchWithRetry(initialUrl.href, options);
+    const endTime = performance.now();
+
+    // --- ARCHITECTURAL REFACTOR: Fire-and-forget network logging ---
+    if (loggingContext.streamId !== undefined && loggingContext.resourceType) {
+        const responseHeaders = {};
+        response.headers.forEach((value, key) => {
+            responseHeaders[key] = value;
+        });
+
+        const requestHeadersForLogging = {};
+        // @ts-ignore
+        for (const [key, value] of options.headers.entries()) {
+            requestHeadersForLogging[key] = value;
+        }
+
+        self.postMessage({
+            type: 'worker:network-event',
+            payload: {
+                id: crypto.randomUUID(),
+                url: response.url,
+                resourceType: loggingContext.resourceType,
+                streamId: loggingContext.streamId,
+                request: {
+                    method: options.method,
+                    headers: requestHeadersForLogging,
+                },
+                response: {
+                    status: response.status,
+                    statusText: response.statusText,
+                    headers: responseHeaders,
+                    contentLength:
+                        Number(response.headers.get('content-length')) || null,
+                    contentType: response.headers.get('content-type'),
+                },
+                timing: {
+                    startTime,
+                    endTime,
+                    duration: endTime - startTime,
+                    breakdown: null, // To be filled by PerformanceObserver on main thread
+                },
+            },
+        });
+    }
+    // --- END REFACTOR ---
 
     /** @type {Record<string, string>} */
-    const responseHeaders = {};
+    const finalResponseHeaders = {};
     response.headers.forEach((value, key) => {
-        responseHeaders[key] = value;
+        finalResponseHeaders[key] = value;
     });
 
-    // Return a unified response object, deferring body reading to the caller.
     return {
         ok: response.ok,
         status: response.status,
         statusText: response.statusText,
-        headers: responseHeaders,
+        headers: finalResponseHeaders,
         url: response.url,
         arrayBuffer: () => response.arrayBuffer(),
         text: () => response.text(),

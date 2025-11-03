@@ -1,15 +1,19 @@
 import { html } from 'lit-html';
+import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { segmentRowTemplate } from './segment-row.js';
 import { getScrollbarWidth } from '@/ui/shared/dom-utils';
 import '@/ui/components/virtualized-list';
 import { useSegmentCacheStore } from '@/state/segmentCacheStore';
 import { useUiStore, uiActions } from '@/state/uiStore';
-import { createIcons, icons } from 'lucide';
+import * as customIcons from '@/ui/icons';
 
 const flashedSegmentIds = new Map();
 
 export const segmentTableTemplate = ({
     id,
+    rawId,
+    title,
+    contentType,
     segments,
     stream,
     currentSegmentUrls,
@@ -18,22 +22,30 @@ export const segmentTableTemplate = ({
     isLoading = false,
     error = null,
 }) => {
+    const iconMap = {
+        video: customIcons.clapperboard,
+        audio: customIcons.audioLines,
+        text: customIcons.fileText,
+        application: customIcons.fileText,
+    };
+    const icon = iconMap[contentType] || customIcons.fileScan;
+
     let content;
 
     if (isLoading) {
         content = html`<div
-            class="flex items-center justify-center h-full text-slate-400 text-sm"
+            class="flex items-center justify-center h-24 text-slate-400 text-sm"
         >
-            <div class="animate-spin mr-2">${icons.spinner}</div>
+            <div class="animate-spin mr-2">${customIcons.spinner}</div>
             Loading segments...
         </div>`;
     } else if (error) {
         content = html`<div class="p-4 text-red-400 text-sm">
             Error loading segments: ${error}
         </div>`;
-    } else if (segments.length === 0) {
+    } else if (!segments || segments.length === 0) {
         content = html`<div
-            class="flex items-center justify-center h-full text-slate-400 text-sm"
+            class="flex items-center justify-center h-24 text-slate-400 text-sm"
         >
             No segments found for this representation.
         </div>`;
@@ -70,7 +82,10 @@ export const segmentTableTemplate = ({
         const scrollbarWidth = getScrollbarWidth();
 
         setTimeout(() => {
-            const listElement = document.querySelector(`#vl-${id}`);
+            const listElement =
+                /** @type {HTMLElement & { scrollTop: number, clientHeight: number, scrollHeight: number, rowHeight: number }} */ (
+                    document.querySelector(`#vl-${id}`)
+                );
             if (!listElement) return;
             if (segmentExplorerTargetTime && segmentExplorerScrollToTarget) {
                 const targetIndex = segments.findIndex(
@@ -122,12 +137,25 @@ export const segmentTableTemplate = ({
                     .rowTemplate=${rowRenderer}
                     .rowHeight=${64}
                     .itemId=${(item) => item.uniqueId}
-                    .postRenderCallback=${() => createIcons({ icons })}
                     class="grow"
                 ></virtualized-list>
             </div>
         `;
     }
 
-    return html`${content}`;
+    return html`
+        <div
+            class="bg-slate-800 rounded-lg border border-slate-700 flex flex-col"
+        >
+            <header
+                class="flex items-center gap-3 p-3 bg-slate-900/50 border-b border-slate-700 rounded-t-lg"
+            >
+                <span class="text-slate-400">${icon}</span>
+                <h4 class="font-semibold text-slate-200 text-sm">
+                    ${unsafeHTML(title)}
+                </h4>
+            </header>
+            <div class="min-h-[100px] flex flex-col">${content}</div>
+        </div>
+    `;
 };

@@ -3,6 +3,7 @@ import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { eventBus } from '@/application/event-bus';
 import { segmentTableTemplate } from '../../components/segment-table.js';
 import { useUiStore } from '@/state/uiStore';
+import { formatBitrate } from '@/ui/shared/format';
 
 let liveSegmentHighlighterInterval = null;
 
@@ -47,7 +48,7 @@ export function stopLiveSegmentHighlighter() {
     }
 }
 
-const renderHlsRendition = (stream, renditionInfo) => {
+const renderHlsRendition = (stream, renditionInfo, contentType) => {
     const { title, uri, isMuxed } = renditionInfo;
     const { segmentExplorerSortOrder, segmentExplorerTargetTime } =
         useUiStore.getState();
@@ -136,6 +137,7 @@ const renderHlsRendition = (stream, renditionInfo) => {
         id: uri.replace(/[^a-zA-Z0-9]/g, '-'),
         rawId: uri,
         title: title,
+        contentType: contentType,
         segments: processedSegments,
         stream: stream,
         currentSegmentUrls,
@@ -151,9 +153,9 @@ export function getHlsExplorerForType(stream, contentType) {
         let itemsToRender = [];
         if (contentType === 'video') {
             itemsToRender = (stream.manifest.variants || []).map((v) => ({
-                title: `Variant Stream (BW: ${(
-                    v.attributes.BANDWIDTH / 1000
-                ).toFixed(0)}k, Res: ${v.attributes.RESOLUTION || 'N/A'})`,
+                title: `Variant Stream (BW: ${formatBitrate(
+                    v.attributes.BANDWIDTH
+                )}, Res: ${v.attributes.RESOLUTION || 'N/A'})`,
                 uri: v.resolvedUri,
                 isMuxed: false,
             }));
@@ -181,7 +183,9 @@ export function getHlsExplorerForType(stream, contentType) {
         }
 
         return html` <div class="space-y-4">
-            ${itemsToRender.map((item) => renderHlsRendition(stream, item))}
+            ${itemsToRender.map((item) =>
+                renderHlsRendition(stream, item, contentType)
+            )}
         </div>`;
     } else {
         // Media playlist directly
@@ -190,6 +194,6 @@ export function getHlsExplorerForType(stream, contentType) {
             uri: stream.originalUrl,
             isMuxed: false,
         };
-        return renderHlsRendition(stream, mediaVariant);
+        return renderHlsRendition(stream, mediaVariant, contentType);
     }
 }

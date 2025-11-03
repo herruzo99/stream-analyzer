@@ -15,12 +15,9 @@ export function parseStss(box, view) {
     if (entryCount !== null && entryCount > 0) {
         for (let i = 0; i < entryCount; i++) {
             if (p.stopped) break;
-            if (!p.checkBounds(4)) break;
-
-            const sample_number = p.view.getUint32(p.offset);
-            p.offset += 4;
-
-            box.entries.push({ sample_number });
+            const number = p.readUint32(`entry_${i}_sample_number`);
+            if (number === null) break;
+            box.entries.push({ number });
         }
     }
     p.finalize();
@@ -36,8 +33,8 @@ export const stssTooltip = {
         text: 'The number of sync samples listed in this table. If zero, there are no sync samples in the track.',
         ref: 'ISO/IEC 14496-12, 8.6.2.2',
     },
-    'stss@sample_numbers': {
-        text: 'A table of 1-based sample numbers for each sync sample, listed in strictly increasing order.',
+    'stss@number': {
+        text: 'A 1-based sample number for a sync sample, listed in strictly increasing order.',
         ref: 'ISO/IEC 14496-12, 8.6.2.2',
     },
 };

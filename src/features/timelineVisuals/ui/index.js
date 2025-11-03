@@ -42,9 +42,7 @@ function renderTimelineView() {
                 <div
                     class="bg-slate-800 p-4 rounded-lg border border-slate-700"
                 >
-                    <timeline-chart
-                        .viewModel=${viewModel}
-                    ></timeline-chart>
+                    <timeline-chart .viewModel=${viewModel}></timeline-chart>
                 </div>
             </div>
 
@@ -69,7 +67,9 @@ function renderTimelineView() {
                     : ''}
                 ${hasEvents
                     ? html`<div>
-                          <h3 class="text-xl text-white font-bold mb-4">Timed Events</h3>
+                          <h3 class="text-xl text-white font-bold mb-4">
+                              Timed Events
+                          </h3>
                           <div
                               class="bg-slate-800 p-4 rounded-lg border border-slate-700"
                           >

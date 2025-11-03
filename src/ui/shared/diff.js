@@ -23,7 +23,10 @@ export function diffManifest(oldManifest, newManifest, protocol) {
         // --- Modification Detection Logic (Word-level Diff) ---
         if (part.removed && nextPart && nextPart.added) {
             changes.modifications += 1;
-            const wordDiffs = diffWords(part.value.trim(), nextPart.value.trim());
+            const wordDiffs = diffWords(
+                part.value.trim(),
+                nextPart.value.trim()
+            );
 
             let lineHtml = '';
             wordDiffs.forEach((wordPart) => {

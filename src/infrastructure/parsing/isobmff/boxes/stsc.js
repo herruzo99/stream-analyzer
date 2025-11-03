@@ -14,17 +14,26 @@ export function parseStsc(box, view) {
     if (entryCount !== null && entryCount > 0) {
         for (let i = 0; i < entryCount; i++) {
             if (p.stopped) break;
-            if (!p.checkBounds(12)) break;
 
-            const first_chunk = p.view.getUint32(p.offset);
-            const samples_per_chunk = p.view.getUint32(p.offset + 4);
-            const sample_description_index = p.view.getUint32(p.offset + 8);
-            p.offset += 12;
+            const firstChunk = p.readUint32(`entry_${i}_first_chunk`);
+            const samplesPerChunk = p.readUint32(
+                `entry_${i}_samples_per_chunk`
+            );
+            const descriptionIndex = p.readUint32(
+                `entry_${i}_sample_description_index`
+            );
+
+            if (
+                firstChunk === null ||
+                samplesPerChunk === null ||
+                descriptionIndex === null
+            )
+                break;
 
             box.entries.push({
-                first_chunk,
-                samples_per_chunk,
-                sample_description_index,
+                firstChunk,
+                samplesPerChunk,
+                descriptionIndex,
             });
         }
     }
@@ -45,15 +54,15 @@ export const stscTooltip = {
         text: 'The number of entries in the sample-to-chunk table.',
         ref: 'ISO/IEC 14496-12, 8.7.4.2',
     },
-    'stsc@entry_1_first_chunk': {
+    'stsc@firstChunk': {
         text: 'The index of the first chunk in a run of chunks that share the same properties (samples per chunk and sample description). The first chunk in a track is always index 1.',
         ref: 'ISO/IEC 14496-12, 8.7.4.3',
     },
-    'stsc@entry_1_samples_per_chunk': {
+    'stsc@samplesPerChunk': {
         text: 'The number of samples contained in each chunk within this run.',
         ref: 'ISO/IEC 14496-12, 8.7.4.3',
     },
-    'stsc@entry_1_sample_description_index': {
+    'stsc@descriptionIndex': {
         text: 'The 1-based index into the Sample Description Box (`stsd`) that describes the samples in this run of chunks.',
         ref: 'ISO/IEC 14496-12, 8.7.4.3',
     },

@@ -17,7 +17,6 @@ export function getParsedSegment(uniqueId, streamId = null, formatHint = null) {
             : Promise.resolve(cachedEntry.parsedData);
     }
 
-    // --- ARCHITECTURAL REFACTOR: LAZY PARSING ---
     // 2. If we have raw data but haven't parsed it yet, parse it now.
     if (cachedEntry?.data) {
         debugLog(
@@ -43,7 +42,6 @@ export function getParsedSegment(uniqueId, streamId = null, formatHint = null) {
                 .catch(reject);
         });
     }
-    // --- END REFACTOR ---
 
     // 3. If we have nothing, fetch and parse from scratch.
     return new Promise((resolve, reject) => {
@@ -166,47 +164,44 @@ export function initializeSegmentService() {
         });
     });
 
-    // --- ARCHITECTURAL REFACTOR: LAZY PARSING ---
-    // This handler now receives raw segment data from the player. It stores
-    // the ArrayBuffer in the cache but does NOT hold onto the large parsedData object.
-    // This prevents the main thread from being overwhelmed with object allocations during playback.
-    eventBus.subscribe('worker:shaka-segment-loaded', (payload) => {
-        debugLog(
-            'SegmentService',
-            'Handler for "worker:shaka-segment-loaded" triggered.',
-            { uniqueId: payload.uniqueId, streamId: payload.streamId }
-        );
+    // --- ARCHITECTURAL FIX: Restore non-blocking segment caching from player ---
+    // This listener handles segment data that was fetched by the Shaka player's
+    // network engine. The worker sends this data in a non-blocking "fire-and-forget"
+    // message. We cache the raw and parsed data here, so that when the Segment Explorer
+    // or other tools request it, it's already available and doesn't need to be
+    // re-downloaded or re-parsed.
+    eventBus.subscribe(
+        'worker:shaka-segment-loaded',
+        ({ uniqueId, streamId, data, parsedData, status }) => {
+            const { get, set } = useSegmentCacheStore.getState();
+            const existingEntry = get(uniqueId);
 
-        const { uniqueId, status, data, streamId } = payload;
-        const { set } = useSegmentCacheStore.getState();
-        const stream = useAnalysisStore
-            .getState()
-            .streams.find((s) => s.id === streamId);
+            if (!existingEntry || existingEntry.status !== 200) {
+                debugLog(
+                    'SegmentService',
+                    `Caching parsed segment from Shaka player: ${uniqueId}`
+                );
+                const finalEntry = { status, data, parsedData };
+                set(uniqueId, finalEntry);
+                eventBus.dispatch('segment:loaded', {
+                    uniqueId,
+                    entry: finalEntry,
+                });
+            }
 
-        if (streamId === null || !stream) {
-            debugLog(
-                'SegmentService',
-                `Could not find stream with ID ${streamId}. Cannot process segment.`
-            );
-            return;
+            // --- FIX: Ingest new segments discovered by the player into the state model ---
+            const stream = useAnalysisStore
+                .getState()
+                .streams.find((s) => s.id === streamId);
+            if (stream && stream.protocol === 'hls') {
+                analysisActions.addHlsSegmentFromPlayer({
+                    streamId,
+                    segmentUrl: uniqueId,
+                });
+            }
+            // --- END FIX ---
         }
-
-        // Store only the raw data. Parsed data will be generated on-demand.
-        const entry = { status, data, parsedData: null };
-        set(uniqueId, entry);
-
-        // Dispatch a minimal event to notify that raw data is available.
-        // This is different from the full "segment:loaded" which implies parsing is complete.
-        eventBus.dispatch('segment:cached', { uniqueId, entry });
-
-        if (stream.protocol === 'hls') {
-            analysisActions.addHlsSegmentFromPlayer({
-                streamId,
-                segmentUrl: uniqueId,
-            });
-        }
-    });
-    // --- END REFACTOR ---
+    );
 }
 
 function findHlsSegmentAndPlaylist(uniqueId) {

@@ -59,8 +59,9 @@ function decodeSampleFlags(flagsInt) {
 /**
  * @param {import('../parser.js').Box} box
  * @param {DataView} view
+ * @param {object} context
  */
-export function parseTrun(box, view) {
+export function parseTrun(box, view, context) {
     const p = new BoxParser(box, view);
     const { version } = p.readVersionAndFlags(TRUN_FLAGS_SCHEMA);
     const flags = box.details.flags.value;
@@ -71,7 +72,7 @@ export function parseTrun(box, view) {
     }
 
     const sampleCount = p.readUint32('sample_count');
-    box.samples = []; // Initialize samples array
+    box.samples = [];
 
     if (flags.data_offset_present) {
         p.readInt32('data_offset');
@@ -97,36 +98,36 @@ export function parseTrun(box, view) {
             const sample = {};
 
             if (flags.sample_duration_present) {
-                sample.duration = p.readUint32(`sample_duration_field`);
-                delete box.details.sample_duration_field;
+                sample.duration = p.readUint32(`sample_duration_${i}`);
+                delete box.details[`sample_duration_${i}`];
             }
 
             if (flags.sample_size_present) {
-                sample.size = p.readUint32(`sample_size_field`);
-                delete box.details.sample_size_field;
+                sample.size = p.readUint32(`sample_size_${i}`);
+                delete box.details[`sample_size_${i}`];
             }
 
             if (flags.first_sample_flags_present && i === 0) {
-                sample.flags = firstSampleFlags;
+                sample.sampleFlags = firstSampleFlags;
             } else if (flags.sample_flags_present) {
-                const localFlagsInt = p.readUint32(`sample_flags_field`);
+                const localFlagsInt = p.readUint32(`sample_flags_${i}`);
                 if (localFlagsInt !== null) {
-                    sample.flags = decodeSampleFlags(localFlagsInt);
+                    sample.sampleFlags = decodeSampleFlags(localFlagsInt);
                 }
-                delete box.details.sample_flags_field;
+                delete box.details[`sample_flags_${i}`];
             }
 
             if (flags.sample_composition_time_offsets_present) {
                 if (version === 0) {
                     sample.compositionTimeOffset = p.readUint32(
-                        `composition_time_offset_field`
+                        `composition_time_offset_${i}`
                     );
                 } else {
                     sample.compositionTimeOffset = p.readInt32(
-                        `composition_time_offset_field`
+                        `composition_time_offset_${i}`
                     );
                 }
-                delete box.details.composition_time_offset_field;
+                delete box.details[`composition_time_offset_${i}`];
             }
             box.samples.push(sample);
         }
@@ -160,23 +161,19 @@ export const trunTooltip = {
         text: 'An optional set of flags that override the default flags for the first sample in this run only. Useful for marking a single sync sample at the start of a run of non-sync samples.',
         ref: 'ISO/IEC 14496-12, 8.8.8.3',
     },
-    'trun@samples': {
-        text: 'A table providing per-sample information (duration, size, flags, composition time offset) as indicated by the flags.',
-        ref: 'ISO/IEC 14496-12, 8.8.8.2',
-    },
-    'trun@sample_duration': {
+    'trun@duration': {
         text: 'The duration of this sample.',
         ref: 'ISO/IEC 14496-12, 8.8.8.2',
     },
-    'trun@sample_size': {
+    'trun@size': {
         text: 'The size of this sample in bytes.',
         ref: 'ISO/IEC 14496-12, 8.8.8.2',
     },
-    'trun@sample_flags': {
+    'trun@sampleFlags': {
         text: 'Flags for this sample, indicating dependency and sync information.',
         ref: 'ISO/IEC 14496-12, 8.8.8.2',
     },
-    'trun@sample_composition_time_offset': {
+    'trun@compositionTimeOffset': {
         text: 'The composition time offset for this sample.',
         ref: 'ISO/IEC 14496-12, 8.8.8.2',
     },

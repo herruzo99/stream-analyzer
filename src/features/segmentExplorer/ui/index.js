@@ -14,6 +14,52 @@ let analysisUnsubscribe = null;
 let uiUnsubscribe = null;
 let segmentCacheUnsubscribe = null;
 
+const findBoxRecursive = (boxes, predicateOrType) => {
+    const predicate =
+        typeof predicateOrType === 'function'
+            ? predicateOrType
+            : (box) => box.type === predicateOrType;
+
+    if (!boxes) return null;
+    for (const box of boxes) {
+        if (predicate(box)) return box;
+        if (box.children?.length > 0) {
+            const found = findBoxRecursive(box.children, predicate);
+            if (found) return found;
+        }
+    }
+    return null;
+};
+
+const inferContentTypeFromSegments = (segments) => {
+    if (!segments || segments.length === 0 || !segments[0].parsedData) {
+        return 'unknown';
+    }
+    const { data, format } = segments[0].parsedData;
+    if (format === 'isobmff') {
+        if (findBoxRecursive(data.boxes, (b) => b.type === 'vmhd'))
+            return 'video';
+        if (findBoxRecursive(data.boxes, (b) => b.type === 'smhd'))
+            return 'audio';
+        if (findBoxRecursive(data.boxes, (b) => b.type === 'stpp'))
+            return 'text';
+    } else if (format === 'ts') {
+        const pmtPid = [...(data.summary.pmtPids || [])][0];
+        const program = data.summary.programMap[pmtPid];
+        if (program && program.streams) {
+            const streamTypeHex = Object.values(program.streams)[0];
+            if (streamTypeHex) {
+                const typeNum = parseInt(streamTypeHex, 16);
+                const videoTypes = [0x01, 0x02, 0x1b, 0x24, 0x80];
+                if (videoTypes.includes(typeNum)) return 'video';
+                const audioTypes = [0x03, 0x04, 0x0f, 0x11, 0x81];
+                if (audioTypes.includes(typeNum)) return 'audio';
+            }
+        }
+    }
+    return 'unknown';
+};
+
 function calculateTimeBounds(stream) {
     if (!stream || stream.protocol === 'local') {
         return { minTime: null, maxTime: null };
@@ -38,9 +84,7 @@ function calculateTimeBounds(stream) {
     const minTimestamp = Math.min(
         ...allTimedSegments.map((s) => s.startTimeUTC)
     );
-    const maxTimestamp = Math.max(
-        ...allTimedSegments.map((s) => s.endTimeUTC)
-    );
+    const maxTimestamp = Math.max(...allTimedSegments.map((s) => s.endTimeUTC));
     return {
         minTime: new Date(minTimestamp),
         maxTime: new Date(maxTimestamp),
@@ -67,7 +111,9 @@ function renderExplorer() {
         segmentExplorerActiveTab,
     } = useUiStore.getState();
 
-    if (!segmentExplorerActiveRepId && stream.protocol !== 'local') {
+    let effectiveRepId = segmentExplorerActiveRepId;
+
+    if (!effectiveRepId && stream.protocol !== 'local') {
         let defaultRepId = null;
         if (stream.protocol === 'dash') {
             const firstPeriod = stream.manifest.periods[0];
@@ -93,8 +139,20 @@ function renderExplorer() {
         }
 
         if (defaultRepId) {
+            effectiveRepId = defaultRepId;
             uiActions.setSegmentExplorerActiveRepId(defaultRepId);
-            return;
+
+            if (stream.protocol === 'hls') {
+                const variantState = stream.hlsVariantState.get(defaultRepId);
+                const mediaPlaylist = stream.mediaPlaylists.get(defaultRepId);
+                if (variantState && !mediaPlaylist && !variantState.isLoading) {
+                    eventBus.dispatch('hls:media-playlist-fetch-request', {
+                        streamId: stream.id,
+                        variantUri: defaultRepId,
+                        isBackground: false,
+                    });
+                }
+            }
         }
     }
 
@@ -105,55 +163,52 @@ function renderExplorer() {
     let tableContent;
     if (stream.protocol === 'local') {
         const repState = stream.dashRepresentationState.get('0-local-rep');
-        tableContent = repState
-            ? segmentTableTemplate({
-                  id: 'local-rep',
-                  segments: repState.segments
-                      .slice()
-                      .sort((a, b) =>
-                          segmentExplorerSortOrder === 'asc'
-                              ? a.number - b.number
-                              : b.number - a.number
-                      ),
-                  stream,
-                  currentSegmentUrls: repState.currentSegmentUrls,
-                  newlyAddedSegmentUrls: repState.newlyAddedSegmentUrls,
-                  segmentFormat: stream.manifest.segmentFormat,
-              })
-            : html`<p class="text-slate-400 p-4">No segments found.</p>`;
+        const contentType = inferContentTypeFromSegments(repState?.segments);
+        tableContent = segmentTableTemplate({
+            id: 'local-rep',
+            rawId: 'local-rep',
+            title: 'Uploaded Segments',
+            contentType: contentType,
+            segments: repState?.segments
+                .slice()
+                .sort((a, b) =>
+                    segmentExplorerSortOrder === 'asc'
+                        ? a.number - b.number
+                        : b.number - a.number
+                ),
+            stream,
+            currentSegmentUrls: repState?.currentSegmentUrls,
+            newlyAddedSegmentUrls: repState?.newlyAddedSegmentUrls,
+            segmentFormat: stream.manifest.segmentFormat,
+        });
     } else {
         const repState =
-            stream.dashRepresentationState.get(segmentExplorerActiveRepId) ||
-            stream.hlsVariantState.get(segmentExplorerActiveRepId);
-        if (!repState) {
-            tableContent = html`<div
-                class="text-center p-8 text-slate-500 h-full flex flex-col items-center justify-center"
-            >
-                ${icons.searchCode}
-                <p class="mt-2 font-semibold">
-                    Select a representation from the sidebar to view its
-                    segments.
-                </p>
-            </div>`;
-        } else {
-            tableContent = segmentTableTemplate({
-                id: segmentExplorerActiveRepId.replace(/[^a-zA-Z0-9]/g, '-'),
-                rawId: segmentExplorerActiveRepId,
-                segments: (repState.segments || [])
-                    .slice()
-                    .sort((a, b) =>
-                        segmentExplorerSortOrder === 'asc'
-                            ? a.number - b.number
-                            : b.number - a.number
-                    ),
-                stream,
-                currentSegmentUrls: repState.currentSegmentUrls,
-                newlyAddedSegmentUrls: repState.newlyAddedSegmentUrls,
-                segmentFormat: stream.manifest.segmentFormat,
-                isLoading: repState.isLoading,
-                error: repState.error,
-            });
-        }
+            stream.dashRepresentationState.get(effectiveRepId) ||
+            stream.hlsVariantState.get(effectiveRepId);
+
+        const contentType = segmentExplorerActiveTab;
+
+        tableContent = segmentTableTemplate({
+            id: effectiveRepId
+                ? effectiveRepId.replace(/[^a-zA-Z0-9]/g, '-')
+                : 'empty',
+            rawId: effectiveRepId,
+            title: `Segments for ${effectiveRepId}`,
+            contentType: contentType,
+            segments: (repState?.segments || [])
+                .slice()
+                .sort((a, b) =>
+                    segmentExplorerSortOrder === 'asc'
+                        ? a.number - b.number
+                        : b.number - a.number
+                ),
+            stream,
+            currentSegmentUrls: repState?.currentSegmentUrls,
+            newlyAddedSegmentUrls: repState?.newlyAddedSegmentUrls,
+            segmentFormat: stream.manifest.segmentFormat,
+            isLoading: repState?.isLoading,
+            error: repState?.error,
+        });
     }
 
     const { minTime, maxTime } = calculateTimeBounds(stream);
@@ -243,42 +298,19 @@ export const segmentExplorerView = {
     hasContextualSidebar: true,
     mount(containerElement, { stream }) {
         container = containerElement;
+        if (analysisUnsubscribe) analysisUnsubscribe();
+        if (uiUnsubscribe) uiUnsubscribe();
+        if (segmentCacheUnsubscribe) segmentCacheUnsubscribe();
+
         analysisUnsubscribe = useAnalysisStore.subscribe(renderExplorer);
-        uiUnsubscribe = useUiStore.subscribe(renderExplorer);
         segmentCacheUnsubscribe =
             useSegmentCacheStore.subscribe(renderExplorer);
+        uiUnsubscribe = useUiStore.subscribe(renderExplorer);
 
-        const { segmentExplorerActiveRepId, segmentExplorerActiveTab } =
-            useUiStore.getState();
-        if (!segmentExplorerActiveRepId && stream.protocol !== 'local') {
-            let defaultRepId = null;
-            if (stream.protocol === 'dash') {
-                const firstPeriod = stream.manifest.periods[0];
-                const firstRep =
-                    firstPeriod?.adaptationSets.find(
-                        (as) => as.contentType === segmentExplorerActiveTab
-                    )?.representations[0] ||
-                    firstPeriod?.adaptationSets[0]?.representations[0];
-                if (firstPeriod && firstRep) {
-                    defaultRepId = `${firstPeriod.id || 0}-${firstRep.id}`;
-                }
-            } else if (stream.protocol === 'hls' && stream.manifest?.isMaster) {
-                const asContentType =
-                    segmentExplorerActiveTab === 'text'
-                        ? 'subtitles'
-                        : segmentExplorerActiveTab;
-                const firstRendition = stream.manifest.periods[0].adaptationSets
-                    .filter((as) => as.contentType === asContentType)
-                    .flatMap((as) => as.representations)[0];
-                defaultRepId =
-                    firstRendition?.__variantUri ||
-                    firstRendition?.serializedManifest.resolvedUri;
-            }
-
-            if (defaultRepId) {
-                uiActions.setSegmentExplorerActiveRepId(defaultRepId);
-            }
-        } else if (stream.protocol === 'local' && !segmentExplorerActiveRepId) {
+        if (
+            stream.protocol === 'local' &&
+            !useUiStore.getState().segmentExplorerActiveRepId
+        ) {
             uiActions.setSegmentExplorerActiveRepId('local-rep');
         } else {
             renderExplorer();

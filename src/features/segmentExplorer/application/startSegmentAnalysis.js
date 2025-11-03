@@ -78,7 +78,7 @@ export async function startSegmentAnalysisUseCase({ files }) {
             manifest: syntheticManifest,
             rawManifest: 'Synthetic manifest for local segment analysis.',
             manifestUpdates: [],
-            activeManifestUpdateIndex: 0,
+            activeManifestUpdateId: null,
             dashRepresentationState: new Map(),
             hlsVariantState: new Map(),
             semanticData: new Map(),

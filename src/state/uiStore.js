@@ -32,7 +32,7 @@ import { getWorkspaces } from '@/infrastructure/persistence/streamStorage';
  * @property {InteractiveManifestHoverItem | null} interactiveManifestHoveredItem
  * @property {InteractiveManifestHoverItem | null} interactiveManifestSelectedItem
  * @property {number} interactiveSegmentCurrentPage
- * @property {'inspector' | 'hex'} interactiveSegmentActiveTab
+ * @property {'inspector' | 'hex' | 'structure'} interactiveSegmentActiveTab
  * @property {{ item: any } | null} interactiveSegmentSelectedItem
  * @property {{ item: any; field: string } | null} interactiveSegmentHighlightedItem
  * @property {boolean} isByteMapLoading
@@ -57,6 +57,7 @@ import { getWorkspaces } from '@/infrastructure/persistence/streamStorage';
  * @property {any[]} workspaces
  * @property {string | null} loadedWorkspaceName
  * @property {boolean} isRestoringSession
+ * @property {'structure' | 'semantic'} segmentAnalysisActiveTab
  */
 
 /**
@@ -73,7 +74,7 @@ import { getWorkspaces } from '@/infrastructure/persistence/streamStorage';
  * @property {(item: InteractiveManifestHoverItem | null) => void} setInteractiveManifestHoveredItem
  * @property {(item: InteractiveManifestHoverItem | null) => void} setInteractiveManifestSelectedItem
  * @property {(page: number) => void} setInteractiveSegmentPage
- * @property {(tab: 'inspector' | 'hex') => void} setInteractiveSegmentActiveTab
+ * @property {(tab: 'inspector' | 'hex' | 'structure') => void} setInteractiveSegmentActiveTab
  * @property {(item: any) => void} setInteractiveSegmentSelectedItem
  * @property {(item: any, field: string) => void} setInteractiveSegmentHighlightedItem
  * @property {(isLoading: boolean) => void} setIsByteMapLoading
@@ -101,6 +102,7 @@ import { getWorkspaces } from '@/infrastructure/persistence/streamStorage';
  * @property {(workspaces: any[]) => void} setWorkspaces
  * @property {(name: string | null) => void} setLoadedWorkspaceName
  * @property {(isRestoring: boolean) => void} setIsRestoringSession
+ * @property {(tab: 'structure' | 'semantic') => void} setSegmentAnalysisActiveTab
  * @property {() => void} reset
  */
 
@@ -148,6 +150,7 @@ const createInitialUiState = () => ({
     workspaces: [],
     loadedWorkspaceName: null,
     isRestoringSession: false,
+    segmentAnalysisActiveTab: 'structure',
 });
 
 export const useUiStore = createStore((set, get) => ({
@@ -215,7 +218,10 @@ export const useUiStore = createStore((set, get) => ({
         set({ segmentExplorerActiveRepId: repId });
     },
     setSegmentExplorerActiveTab: (tab) =>
-        set({ segmentExplorerActiveTab: tab }),
+        set({
+            segmentExplorerActiveTab: tab,
+            segmentExplorerActiveRepId: null,
+        }),
     toggleSegmentExplorerGroup: (groupId) =>
         set((state) => {
             const newSet = new Set(state.segmentExplorerClosedGroups);
@@ -284,6 +290,8 @@ export const useUiStore = createStore((set, get) => ({
     setLoadedWorkspaceName: (name) => set({ loadedWorkspaceName: name }),
     setIsRestoringSession: (isRestoring) =>
         set({ isRestoringSession: isRestoring }),
+    setSegmentAnalysisActiveTab: (tab) =>
+        set({ segmentAnalysisActiveTab: tab }),
     reset: () => set(createInitialUiState()),
 }));
 

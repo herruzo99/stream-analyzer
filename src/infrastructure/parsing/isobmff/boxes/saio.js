@@ -25,19 +25,17 @@ export function parseSaio(box, view) {
     }
 
     const entryCount = p.readUint32('entry_count');
+    box.entries = [];
 
     if (entryCount !== null && entryCount > 0) {
-        // For simplicity in the UI, we only show the first offset.
-        // A full implementation would create an array of entries.
-        if (version === 1) {
-            p.readBigUint64('offset_1');
-        } else {
-            p.readUint32('offset_1');
-        }
-        // If there are more entries, skip them to avoid cluttering the details.
-        if (entryCount > 1) {
-            const bytesToSkip = (entryCount - 1) * (version === 1 ? 8 : 4);
-            p.skip(bytesToSkip, `remaining_${entryCount - 1}_offsets`);
+        for (let i = 0; i < entryCount; i++) {
+            if (p.stopped) break;
+            const offset =
+                version === 1
+                    ? p.readBigUint64(`offset_${i}`)
+                    : p.readUint32(`offset_${i}`);
+            if (offset === null) break;
+            box.entries.push(offset);
         }
     }
     p.finalize();

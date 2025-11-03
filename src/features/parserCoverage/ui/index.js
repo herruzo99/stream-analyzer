@@ -3,12 +3,14 @@ import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { highlightDash, highlightHls } from '@/ui/shared/syntax-highlighter';
 import { copyTextToClipboard } from '@/ui/shared/clipboard';
+import { statCardTemplate } from '@/features/summary/ui/components/shared';
+import * as icons from '@/ui/icons';
 
 let container = null;
 let currentStreamId = null;
 let analysisUnsubscribe = null;
 
-// --- Sidebar Logic ---
+// --- Interaction Handlers ---
 
 function handleFindingHover(e) {
     const card = /** @type {HTMLElement} */ (e.currentTarget);
@@ -37,61 +39,33 @@ function handleFindingClick(e) {
     }
 }
 
-const findingCard = (finding) => {
+// --- UI Templates ---
+
+const findingCardTemplate = (finding) => {
     const isDrift = finding.status === 'drift';
     const borderColor = isDrift ? 'border-orange-500' : 'border-yellow-500';
     const textColor = isDrift ? 'text-orange-300' : 'text-yellow-300';
     const locationId = `cov-loc-${finding.pathOrLine.replace(/[.[\]@]/g, '-')}`;
-    const typeText = isDrift
-        ? `Schema Drift: ${finding.type}`
-        : `Unparsed ${finding.type}`;
 
     return html`
         <div
-            class="bg-gray-800 p-3 rounded-lg border-l-4 ${borderColor} cursor-pointer hover:bg-gray-700/50"
+            class="bg-slate-800/50 p-3 rounded-lg border-l-4 ${borderColor} cursor-pointer hover:bg-slate-700/50 transition-colors"
             data-location-id="${locationId}"
             @mouseover=${handleFindingHover}
             @mouseleave=${handleFindingLeave}
             @click=${handleFindingClick}
         >
-            <p class="font-semibold text-sm text-gray-200">
-                <span class="text-xs text-gray-500 mr-2"
-                    >${finding.lineNumber
-                        ? `L${finding.lineNumber}`
-                        : 'PATH'}</span
+            <p
+                class="font-semibold text-sm text-slate-200 flex items-center gap-2"
+            >
+                <span class="font-mono text-xs ${textColor}"
+                    >${finding.name}</span
                 >
-                ${typeText}:
-                <span class="font-mono ${textColor}">${finding.name}</span>
             </p>
-            <p class="text-xs text-gray-400 mt-1">${finding.details}</p>
+            <p class="text-xs text-slate-400 mt-1">${finding.details}</p>
         </div>
     `;
 };
-
-const sidebarTemplate = (coverageReport) => {
-    if (!coverageReport || coverageReport.length === 0) {
-        return html`<div
-            class="p-4 text-center text-sm text-green-400 bg-gray-800 rounded-lg"
-        >
-            <p class="font-bold">🎉 Full Parser Coverage!</p>
-            <p>No unparsed elements or parser drift were detected.</p>
-        </div>`;
-    }
-    return html`
-        <div
-            class="shrink-0 p-2 bg-gray-900/50 rounded-md border-b border-gray-700"
-        >
-            <h4 class="font-bold text-gray-300">
-                Coverage Issues (${coverageReport.length})
-            </h4>
-        </div>
-        <div class="space-y-2 grow min-h-0 overflow-y-auto p-1">
-            ${coverageReport.map(findingCard)}
-        </div>
-    `;
-};
-
-// --- Manifest Renderer Logic ---
 
 const renderDashNodeCoverage = (
     tagName,
@@ -146,7 +120,7 @@ const renderDashNodeCoverage = (
     templates.push(
         html`<div class="flex">
             <span
-                class="text-right text-gray-500 pr-4 select-none shrink-0 w-12"
+                class="text-right text-slate-500 pr-4 select-none shrink-0 w-12"
                 >${lineCounter.count++}</span
             >
             <span class="grow whitespace-pre-wrap break-all"
@@ -159,7 +133,8 @@ const renderDashNodeCoverage = (
         if (textContent) {
             templates.push(
                 html`<div class="flex">
-                    <span class="text-right text-gray-500 pr-4 select-none w-12"
+                    <span
+                        class="text-right text-slate-500 pr-4 select-none w-12"
                         >${lineCounter.count++}</span
                     >
                     <span class="grow whitespace-pre-wrap break-all"
@@ -195,7 +170,7 @@ const renderDashNodeCoverage = (
         templates.push(
             html`<div class="flex">
                 <span
-                    class="text-right text-gray-500 pr-4 select-none shrink-0 w-12"
+                    class="text-right text-slate-500 pr-4 select-none shrink-0 w-12"
                     >${lineCounter.count++}</span
                 >
                 <span class="grow whitespace-pre-wrap break-all"
@@ -237,7 +212,7 @@ const manifestViewTemplate = (stream, coverageReport) => {
             const locationId = `cov-loc-${lineNumber}`;
 
             return html`<div class="flex">
-                <span class="text-right text-gray-500 pr-4 select-none w-12"
+                <span class="text-right text-slate-500 pr-4 select-none w-12"
                     >${lineNumber}</span
                 >
                 <span
@@ -249,7 +224,6 @@ const manifestViewTemplate = (stream, coverageReport) => {
         })}`;
     }
 
-    // DASH Rendering Logic
     const serializedManifest = manifest?.serializedManifest;
     if (!serializedManifest || typeof serializedManifest !== 'object') {
         return html`<div class="text-red-400">
@@ -270,7 +244,23 @@ const manifestViewTemplate = (stream, coverageReport) => {
     return html`${templates}`;
 };
 
-// --- Main Render Function and Lifecycle ---
+function countManifestNodes(node) {
+    if (!node || typeof node !== 'object') return 0;
+    let count = 1;
+    if (node[':@']) {
+        count += Object.keys(node[':@']).length;
+    }
+    for (const key in node) {
+        if (key === ':@' || key === '#text') continue;
+        const children = Array.isArray(node[key]) ? node[key] : [node[key]];
+        for (const child of children) {
+            count += countManifestNodes(child);
+        }
+    }
+    return count;
+}
+
+// --- Main Render Function ---
 
 function renderParserCoverage() {
     if (!container || currentStreamId === null) return;
@@ -299,17 +289,69 @@ function renderParserCoverage() {
         copyTextToClipboard(debugString, 'Debug report copied to clipboard!');
     };
 
-    const sidebarContent = sidebarTemplate(stream.coverageReport);
+    const report = stream.coverageReport || [];
+    const unparsedFindings = report.filter((f) => f.status === 'unparsed');
+    const driftFindings = report.filter((f) => f.status === 'drift');
+
+    let coveragePercentage = 100;
+    if (stream.protocol === 'dash' && stream.manifest.serializedManifest) {
+        const totalNodes = countManifestNodes(
+            stream.manifest.serializedManifest
+        );
+        if (totalNodes > 0) {
+            coveragePercentage =
+                (1 - unparsedFindings.length / totalNodes) * 100;
+        }
+    }
+
+    const statsSection = html`
+        <div class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(250px,1fr))]">
+            ${statCardTemplate({
+                label: 'Parser Coverage',
+                value: `${coveragePercentage.toFixed(1)}%`,
+                icon: icons.shieldCheck,
+                tooltip:
+                    'Percentage of XML elements and attributes in the manifest that are recognized and processed by the parser.',
+                iconBgClass:
+                    coveragePercentage < 95
+                        ? 'bg-yellow-900/30 text-yellow-300'
+                        : 'bg-green-900/30 text-green-300',
+            })}
+            ${statCardTemplate({
+                label: 'Unparsed Items',
+                value: unparsedFindings.length,
+                icon: icons.searchCode,
+                tooltip:
+                    'Elements or attributes present in the manifest but not defined in the parser schema.',
+                iconBgClass:
+                    unparsedFindings.length > 0
+                        ? 'bg-yellow-900/30 text-yellow-300'
+                        : 'bg-slate-800 text-slate-400',
+            })}
+            ${statCardTemplate({
+                label: 'Schema Drift',
+                value: driftFindings.length,
+                icon: icons.debug,
+                tooltip:
+                    'Properties that exist on the internal data model but are not defined in the canonical schema, indicating a potential mismatch between the parser and the data model.',
+                iconBgClass:
+                    driftFindings.length > 0
+                        ? 'bg-orange-900/30 text-orange-300'
+                        : 'bg-slate-800 text-slate-400',
+            })}
+        </div>
+    `;
 
     const mainTemplate = html`
         <div class="flex flex-col h-full">
-            <div class="mb-4 shrink-0 flex justify-between items-center">
+            <header
+                class="shrink-0 mb-4 flex justify-between items-center gap-4"
+            >
                 <div>
                     <h3 class="text-xl font-bold">Parser Coverage Analysis</h3>
-                    <p class="text-sm text-gray-400 mt-1">
-                        Highlights elements not parsed from the manifest
-                        (unparsed) and properties created by the parser but not
-                        in the schema (drift).
+                    <p class="text-sm text-slate-400 mt-1">
+                        Highlights manifest elements not processed by the parser
+                        (Unparsed) and internal schema inconsistencies (Drift).
                     </p>
                 </div>
                 <button
@@ -318,29 +360,71 @@ function renderParserCoverage() {
                 >
                     Copy Debug Report
                 </button>
-            </div>
-            <div
-                class="bg-slate-800 rounded-lg p-2 sm:p-4 font-mono text-sm leading-relaxed overflow-auto grow min-h-0"
-            >
-                ${manifestViewTemplate(stream, stream.coverageReport)}
-            </div>
+            </header>
+
+            ${statsSection}
+            ${report.length === 0
+                ? html`<div
+                      class="mt-8 p-8 bg-slate-800 rounded-lg text-center text-green-400 border border-green-700/50"
+                  >
+                      <p class="font-bold text-lg">🎉 Full Parser Coverage!</p>
+                      <p>No unparsed elements or parser drift were detected.</p>
+                  </div>`
+                : html`<div class="grid lg:grid-cols-2 gap-6 mt-6 grow min-h-0">
+                      <div class="flex flex-col h-full min-h-0">
+                          <h4 class="font-bold text-lg mb-2">Findings</h4>
+                          <div class="grow overflow-y-auto space-y-4 pr-2">
+                              ${unparsedFindings.length > 0
+                                  ? html`<section>
+                                        <h5
+                                            class="font-semibold text-yellow-400 mb-2"
+                                        >
+                                            Unparsed Items
+                                        </h5>
+                                        <div class="space-y-2">
+                                            ${unparsedFindings.map(
+                                                findingCardTemplate
+                                            )}
+                                        </div>
+                                    </section>`
+                                  : ''}
+                              ${driftFindings.length > 0
+                                  ? html`<section>
+                                        <h5
+                                            class="font-semibold text-orange-400 mb-2"
+                                        >
+                                            Schema Drift
+                                        </h5>
+                                        <div class="space-y-2">
+                                            ${driftFindings.map(
+                                                findingCardTemplate
+                                            )}
+                                        </div>
+                                    </section>`
+                                  : ''}
+                          </div>
+                      </div>
+                      <div class="flex flex-col h-full min-h-0">
+                          <h4 class="font-bold text-lg mb-2">
+                              Manifest Source
+                          </h4>
+                          <div
+                              class="bg-slate-800 rounded-lg p-2 font-mono text-sm leading-relaxed overflow-auto grow"
+                          >
+                              ${manifestViewTemplate(stream, report)}
+                          </div>
+                      </div>
+                  </div>`}
         </div>
     `;
 
-    const contextualTemplate = html`
-        <div class="flex flex-col p-4 h-full">${sidebarContent}</div>
-    `;
-
     render(mainTemplate, container);
-
-    const contextualSidebar = document.getElementById('contextual-sidebar');
-    if (contextualSidebar) {
-        render(contextualTemplate, contextualSidebar);
-    }
 }
 
+// --- View Lifecycle ---
+
 export const parserCoverageView = {
-    hasContextualSidebar: true,
+    hasContextualSidebar: false,
 
     mount(containerElement, { stream }) {
         container = containerElement;
@@ -351,15 +435,12 @@ export const parserCoverageView = {
 
         renderParserCoverage();
     },
+
     unmount() {
         if (analysisUnsubscribe) analysisUnsubscribe();
         analysisUnsubscribe = null;
+        if (container) render(html``, container);
         container = null;
         currentStreamId = null;
-
-        const contextualSidebar = document.getElementById('contextual-sidebar');
-        if (contextualSidebar) {
-            render(html``, contextualSidebar);
-        }
     },
 };

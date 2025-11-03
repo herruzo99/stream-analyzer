@@ -17,7 +17,10 @@ const escapeHtml = (str) => {
 const flattenManifest = (node, path, depth, lines) => {
     if (typeof node !== 'object' || node === null) return;
 
-    const tagName = path.split('.').pop().replace(/\[\d+\]$/, '');
+    const tagName = path
+        .split('.')
+        .pop()
+        .replace(/\[\d+\]$/, '');
     const attributes = node[':@'] || {};
     const textContent = node['#text'] || null;
     const childKeys = Object.keys(node).filter(
@@ -73,7 +76,14 @@ const flattenManifest = (node, path, depth, lines) => {
     }
 };
 
-const renderTagHTML = (tagName, path, isClosing, hoveredItem, selectedItem, missingTooltips) => {
+const renderTagHTML = (
+    tagName,
+    path,
+    isClosing,
+    hoveredItem,
+    selectedItem,
+    missingTooltips
+) => {
     const cleanTagName = isClosing ? tagName.substring(1) : tagName;
     const [prefix, localName] = cleanTagName.includes(':')
         ? cleanTagName.split(':')
@@ -92,9 +102,9 @@ const renderTagHTML = (tagName, path, isClosing, hoveredItem, selectedItem, miss
     } else if (isHovered) {
         highlightClass = 'bg-slate-700/80';
     } else if (isMissing) {
-        highlightClass = 'bg-red-900/50 underline decoration-red-400 decoration-dotted';
+        highlightClass =
+            'bg-red-900/50 underline decoration-red-400 decoration-dotted';
     }
-
 
     return `&lt;${
         isClosing ? '/' : ''
@@ -124,7 +134,8 @@ const renderAttributeHTML = (
     } else if (isHovered) {
         highlightClass = 'bg-slate-700/80';
     } else if (isMissing) {
-        highlightClass = 'bg-red-900/50 underline decoration-red-400 decoration-dotted';
+        highlightClass =
+            'bg-red-900/50 underline decoration-red-400 decoration-dotted';
     }
 
     return `<span class="interactive-dash-token ${nameClass} ${highlightClass}" data-type="attribute" data-name="${attrKey}" data-path="${attrPath}">${attrName}</span>="<span class="${valueClass}">${escapeHtml(
@@ -132,7 +143,13 @@ const renderAttributeHTML = (
     )}</span>"`;
 };
 
-const rowRenderer = (line, index, hoveredItem, selectedItem, missingTooltips) => {
+const rowRenderer = (
+    line,
+    index,
+    hoveredItem,
+    selectedItem,
+    missingTooltips
+) => {
     const indent = '  '.repeat(line.depth);
     let lineHtml = '';
 
@@ -192,9 +209,16 @@ const rowRenderer = (line, index, hoveredItem, selectedItem, missingTooltips) =>
     `;
 };
 
-export const dashManifestTemplate = (stream, hoveredItem, selectedItem, missingTooltips) => {
-    const activeUpdate = stream.manifestUpdates.find(u => u.id === stream.activeManifestUpdateId);
-    
+export const dashManifestTemplate = (
+    stream,
+    hoveredItem,
+    selectedItem,
+    missingTooltips
+) => {
+    const activeUpdate = stream.manifestUpdates.find(
+        (u) => u.id === stream.activeManifestUpdateId
+    );
+
     const manifestObject = activeUpdate
         ? activeUpdate.serializedManifest
         : stream.manifest.serializedManifest;

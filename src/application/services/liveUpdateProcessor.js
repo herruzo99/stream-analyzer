@@ -28,6 +28,37 @@ async function processLiveUpdate(updateData) {
         return;
     }
 
+    // --- ARCHITECTURAL REMEDIATION: Preserve HLS Summary Enrichment ---
+    // The worker only re-parses the master playlist on updates, losing the enriched
+    // data (like duration) that was gathered from a media playlist on initial load.
+    // We must merge the old, enriched summary data into the new, sparse summary.
+    if (
+        stream.protocol === 'hls' &&
+        stream.manifest?.summary?.hls &&
+        updateData.newManifestObject?.summary?.hls
+    ) {
+        const oldSummary = stream.manifest.summary;
+        const newSummary = updateData.newManifestObject.summary;
+
+        // If the new summary (from master) is missing duration but the old one had it, carry it over.
+        if (
+            newSummary.general.duration === null &&
+            oldSummary.general.duration
+        ) {
+            newSummary.general.duration = oldSummary.general.duration;
+            newSummary.hls.dvrWindow = oldSummary.hls.dvrWindow;
+            newSummary.hls.targetDuration = oldSummary.hls.targetDuration;
+            newSummary.hls.mediaPlaylistDetails =
+                oldSummary.hls.mediaPlaylistDetails;
+            debugLog(
+                'LiveUpdateProcessor',
+                'Hydrating new HLS summary with duration data from previous state.',
+                { duration: newSummary.general.duration }
+            );
+        }
+    }
+    // --- END REMEDIATION ---
+
     let formattedOld = stream.manifestUpdates[0]?.rawManifest || '';
     let formattedNew = updateData.newManifestString;
     if (stream.protocol === 'dash') {
@@ -51,8 +82,7 @@ async function processLiveUpdate(updateData) {
     const hasNewIssues = newIssueCount > oldIssueCount;
 
     // Calculate the sequence number for this update.
-    const lastSequenceNumber =
-        stream.manifestUpdates[0]?.sequenceNumber || 0;
+    const lastSequenceNumber = stream.manifestUpdates[0]?.sequenceNumber || 1;
 
     const newUpdate = {
         id: `${streamId}-${Date.now()}`,
@@ -78,6 +108,33 @@ async function processLiveUpdate(updateData) {
     };
 
     analysisActions.updateStream(streamId, updatePayload);
+
+    // --- ARCHITECTURAL FIX: Unify Live Update Data Paths ---
+    // When the player is active, it takes over polling the master playlist. When we
+    // process that update here, we must manually trigger the media playlist fetches
+    // to ensure the Segment Explorer continues to receive new segments.
+    const updatedStream = useAnalysisStore
+        .getState()
+        .streams.find((s) => s.id === streamId);
+
+    if (
+        updatedStream &&
+        updatedStream.protocol === 'hls' &&
+        updatedStream.manifest?.isMaster
+    ) {
+        debugLog(
+            'LiveUpdateProcessor',
+            'HLS Master playlist updated. Triggering media playlist refreshes.'
+        );
+        for (const variantUri of updatedStream.hlsVariantState.keys()) {
+            eventBus.dispatch('hls:media-playlist-fetch-request', {
+                streamId: updatedStream.id,
+                variantUri,
+                isBackground: true,
+            });
+        }
+    }
+    // --- END FIX ---
 }
 
 /**

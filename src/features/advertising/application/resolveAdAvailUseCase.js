@@ -149,7 +149,13 @@ function handleInbandEventsAdded({ streamId, newEvents }) {
 }
 
 export function initializeResolveAdAvailUseCase() {
-    // This use case now ONLY handles in-band events that may arrive after the initial analysis.
-    // Initial ad resolution is handled synchronously in the worker.
-    eventBus.subscribe('state:inband-events-added', handleInbandEventsAdded);
+    // --- ARCHITECTURAL REMEDIATION ---
+    // The responsibility for handling the *initial* set of in-band events has been moved
+    // synchronously into the worker's `analysisHandler`. This main-thread use case is
+    // now redundant for the initial load.
+    //
+    // This listener is being disabled to prevent duplicate processing. It could be
+    // re-enabled later if we need to process in-band events from *newly added* live segments.
+    // eventBus.subscribe('state:inband-events-added', handleInbandEventsAdded);
+    // --- END REMEDIATION ---
 }
