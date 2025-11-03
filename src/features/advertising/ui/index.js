@@ -4,7 +4,7 @@ import * as icons from '@/ui/icons';
 import { scte35DetailsTemplate } from '@/ui/shared/scte35-details';
 import { statCardTemplate } from '@/features/summary/ui/components/shared';
 import { connectedTabBar } from '@/ui/components/tabs';
-import { tooltipTriggerClasses } from '@/ui/shared/constants';
+import { copyTextToClipboard } from '@/ui/shared/clipboard';
 
 let container = null;
 let analysisUnsubscribe = null;
@@ -61,25 +61,33 @@ const trackingEventsTableTemplate = (trackingUrls) => {
 };
 
 const adCreativeCardTemplate = (creative) => html`
-    <div class="bg-slate-800 rounded-lg border border-slate-700">
-        <div class="p-3 border-b border-slate-700">
-            <h5 class="font-bold text-slate-200">
-                Creative ID:
-                <span class="font-mono">${creative.id || 'N/A'}</span>
-            </h5>
-            <div class="text-xs text-slate-400 font-mono mt-1">
-                Sequence: ${creative.sequence} | Duration:
-                ${creative.duration.toFixed(2)}s
-            </div>
-        </div>
-        <div class="p-3 space-y-3">
+    <details class="bg-slate-800 rounded-lg border border-slate-700 group">
+        <summary
+            class="flex items-center p-3 cursor-pointer list-none hover:bg-slate-700/50 rounded-t-lg"
+        >
+            <span
+                class="text-slate-400 group-open:rotate-90 transition-transform"
+                >${icons.chevronDown}</span
+            >
+            <span class="font-bold text-slate-200 ml-2"
+                >Creative:
+                <span class="font-mono">${creative.id || 'N/A'}</span></span
+            >
+            <span class="ml-auto text-xs font-mono text-slate-400"
+                >Seq: ${creative.sequence} | Dur:
+                ${creative.duration.toFixed(2)}s</span
+            >
+        </summary>
+        <div class="p-4 border-t border-slate-700 space-y-4">
             <div>
                 <h6
                     class="text-xs font-semibold text-slate-400 mb-1 flex items-center gap-2"
                 >
                     ${icons.fileText} Media File
                 </h6>
-                <p class="text-xs font-mono text-cyan-400 break-all">
+                <p
+                    class="text-xs font-mono text-cyan-400 break-all bg-slate-900/50 p-2 rounded"
+                >
                     ${creative.mediaFileUrl || 'Not specified'}
                 </p>
             </div>
@@ -92,7 +100,7 @@ const adCreativeCardTemplate = (creative) => html`
                 ${trackingEventsTableTemplate(creative.trackingUrls)}
             </div>
         </div>
-    </div>
+    </details>
 `;
 
 const adAvailCardTemplate = (avail) => {
@@ -109,34 +117,58 @@ const adAvailCardTemplate = (avail) => {
         renderAdvertisingReport();
     };
 
+    const isCsai = !!avail.adManifestUrl;
+    const typeLabel = isCsai
+        ? 'Client-Side Ad Avail'
+        : 'Server-Side Ad Break / Signal';
+    const typeIcon = isCsai ? icons.advertising : icons.server;
+    const typeColor = isCsai ? 'border-blue-500' : 'border-purple-500';
+
+    const handleCopyVastUrl = (e) => {
+        e.stopPropagation();
+        copyTextToClipboard(avail.adManifestUrl, 'VAST URL copied!');
+    };
+
+    const noCreativesMessage = avail.adManifestUrl
+        ? html`<div
+              class="text-center p-6 bg-slate-800 rounded-lg border border-dashed border-slate-700"
+          >
+              <div class="text-yellow-400 mx-auto w-10 h-10">
+                  ${icons.searchCode}
+              </div>
+              <p class="text-sm font-semibold text-yellow-300 mt-2">
+                  Could Not Resolve Ad Creatives
+              </p>
+              <p class="text-xs text-slate-400 mt-2">
+                  The VAST manifest at
+                  <code class="bg-slate-700/50 px-1 rounded"
+                      >${new URL(avail.adManifestUrl).hostname}</code
+                  >
+                  was fetched, but it either contained no compatible creatives
+                  or was empty.
+              </p>
+          </div>`
+        : html`<div
+              class="text-center p-6 bg-slate-800 rounded-lg border border-dashed border-slate-700"
+          >
+              <div class="text-slate-400 mx-auto w-10 h-10">
+                  ${icons.server}
+              </div>
+              <p class="text-sm font-semibold text-slate-300 mt-2">
+                  Server-Side Ad Period or Timed Signal
+              </p>
+              <p class="text-xs text-slate-400 mt-2">
+                  This ad avail was signaled in the manifest (e.g., via
+                  SCTE-35), but does not point to a client-side VAST URL. Ads
+                  are likely stitched into the main content by the server.
+              </p>
+          </div>`;
+
     let contentTemplate;
     if (activeTab === 'creatives') {
-        const noCreativesMessage = avail.adManifestUrl
-            ? html`<div
-                  class="text-center p-6 bg-slate-900/50 rounded-lg border border-dashed border-slate-700"
-              >
-                  <p class="text-sm text-yellow-300 italic">
-                      Could not resolve ad creatives from the VAST manifest.
-                  </p>
-                  <p class="text-xs text-slate-400 mt-2">
-                      This could be due to an empty VAST response, a network
-                      error, or an unsupported ad format.
-                  </p>
-              </div>`
-            : html`<div
-                  class="text-center p-6 bg-slate-900/50 rounded-lg border border-dashed border-slate-700"
-              >
-                  <p class="text-sm text-slate-400 italic">
-                      This is a server-stitched ad period.
-                  </p>
-                  <p class="text-xs text-slate-400 mt-2">
-                      Ad creatives are part of the main media stream and not
-                      from a separate VAST file.
-                  </p>
-              </div>`;
         contentTemplate =
             avail.creatives.length > 0
-                ? html`<div class="space-y-4">
+                ? html`<div class="space-y-2">
                       ${avail.creatives.map(adCreativeCardTemplate)}
                   </div>`
                 : noCreativesMessage;
@@ -145,24 +177,55 @@ const adAvailCardTemplate = (avail) => {
     }
 
     return html`
-        <div class="bg-slate-900 rounded-lg border border-slate-700">
+        <div class="bg-slate-900 rounded-lg border-l-4 ${typeColor}">
             <header class="p-4 border-b border-slate-700">
-                <div class="flex flex-wrap justify-between items-center gap-2">
-                    <h4 class="text-lg font-bold text-slate-100 truncate">
-                        Ad Avail: ${avail.id}
+                <div class="flex flex-wrap justify-between items-start gap-2">
+                    <h4
+                        class="text-lg font-bold text-slate-100 flex items-center gap-3"
+                    >
+                        ${typeIcon}
+                        <span>${typeLabel}</span>
                     </h4>
                     <span
-                        class="text-sm font-mono px-3 py-1 rounded-full ${tooltipTriggerClasses}"
-                        data-tooltip="Total duration of this ad break"
-                        >${avail.duration.toFixed(2)}s</span
+                        class="text-sm font-mono px-3 py-1 bg-slate-800 text-slate-300 rounded-full"
+                        >ID: ${avail.id}</span
                     >
                 </div>
-                <p
-                    class="text-xs text-slate-400 font-mono mt-1 ${tooltipTriggerClasses}"
-                    data-tooltip="Start time on the media timeline"
-                >
-                    Start Time: ${avail.startTime.toFixed(2)}s
-                </p>
+                ${isCsai
+                    ? html`
+                          <div
+                              class="mt-3 text-xs font-mono text-cyan-400 bg-slate-800/50 p-2 rounded flex items-center gap-2"
+                          >
+                              <span
+                                  class="text-slate-400 shrink-0 font-sans font-semibold"
+                                  >VAST URL:</span
+                              >
+                              <span
+                                  class="truncate"
+                                  title=${avail.adManifestUrl}
+                                  >${avail.adManifestUrl}</span
+                              >
+                              <button
+                                  @click=${handleCopyVastUrl}
+                                  class="text-slate-400 hover:text-white shrink-0"
+                              >
+                                  ${icons.clipboardCopy}
+                              </button>
+                          </div>
+                      `
+                    : ''}
+                <div class="grid grid-cols-2 gap-4 mt-4">
+                    ${statCardTemplate({
+                        label: 'Start Time',
+                        value: `${avail.startTime.toFixed(2)}s`,
+                        icon: icons.timer,
+                    })}
+                    ${statCardTemplate({
+                        label: 'Duration',
+                        value: `${avail.duration.toFixed(2)}s`,
+                        icon: icons.clock,
+                    })}
+                </div>
             </header>
             <div class="p-4">
                 <div class="mb-4">
@@ -186,7 +249,9 @@ function renderAdvertisingReport() {
         render(
             html`
                 <div class="text-center py-12">
-                    <div class="text-slate-500 mx-auto">${icons.film}</div>
+                    <div class="text-slate-500 mx-auto w-12 h-12">
+                        ${icons.film}
+                    </div>
                     <h3 class="mt-2 text-lg font-medium text-slate-300">
                         No Ad Avails Detected
                     </h3>
@@ -204,14 +269,18 @@ function renderAdvertisingReport() {
     const sortedAvails = [...stream.adAvails].sort(
         (a, b) => a.startTime - b.startTime
     );
-    const totalAdDuration = sortedAvails.reduce((sum, a) => sum + a.duration, 0);
+    const totalAdDuration = sortedAvails.reduce(
+        (sum, a) => sum + a.duration,
+        0
+    );
 
     const summarySection = html`
         <div class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(250px,1fr))]">
             ${statCardTemplate({
                 label: 'Total Ad Avails',
                 value: sortedAvails.length,
-                tooltip: 'The total number of ad insertion opportunities detected.',
+                tooltip:
+                    'The total number of ad insertion opportunities detected.',
                 icon: icons.advertising,
             })}
             ${statCardTemplate({
@@ -231,7 +300,9 @@ function renderAdvertisingReport() {
             </div>
             <div>
                 <h3 class="text-xl font-bold mb-4">Ad Avail Details</h3>
-                <div class="space-y-4">${sortedAvails.map(adAvailCardTemplate)}</div>
+                <div class="space-y-4">
+                    ${sortedAvails.map(adAvailCardTemplate)}
+                </div>
             </div>
         </div>
     `;
@@ -243,7 +314,9 @@ export const advertisingView = {
         container = containerElement;
         activeTabs.clear();
         if (analysisUnsubscribe) analysisUnsubscribe();
-        analysisUnsubscribe = useAnalysisStore.subscribe(renderAdvertisingReport);
+        analysisUnsubscribe = useAnalysisStore.subscribe(
+            renderAdvertisingReport
+        );
         renderAdvertisingReport();
     },
     unmount() {

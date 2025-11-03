@@ -6,7 +6,7 @@ import '@/ui/components/virtualized-list'; // Import for side-effect of registra
 
 const allIsoTooltipData = getAllIsoTooltipData();
 
-const findBoxRecursive = (boxes, predicateOrType) => {
+export const findBoxRecursive = (boxes, predicateOrType) => {
     const predicate =
         typeof predicateOrType === 'function'
             ? predicateOrType
@@ -103,15 +103,29 @@ const renderCellContent = (value) => {
     return value;
 };
 
-const entriesTableTemplate = (box) => {
+export const entriesTableTemplate = (box) => {
     const entries = box.samples || box.entries;
     if (!entries || entries.length === 0) {
         return '';
     }
 
-    const headers = Object.keys(entries[0] || {}).filter(
-        (key) => !['offset', 'index'].includes(key)
-    );
+    // --- ARCHITECTURAL REMEDIATION ---
+    // Instead of creating a column for every property on the sample object,
+    // we now use a whitelist of valid properties for a `trun` sample entry.
+    // This prevents internal UI properties like `color` and `isSample` from leaking
+    // into the table view.
+    const firstEntry = entries[0];
+    const potentialHeaders = [
+        'duration',
+        'size',
+        'sampleFlags',
+        'compositionTimeOffset',
+    ];
+    const headers = firstEntry
+        ? potentialHeaders.filter((h) => h in firstEntry)
+        : [];
+    // --- END REMEDIATION ---
+
     if (headers.length === 0) return '';
 
     const rowHeight = 32;
@@ -163,14 +177,19 @@ const entriesTableTemplate = (box) => {
                     >
                         #
                     </div>
-                    ${headers.map(
-                        (h) =>
-                            html`<div
-                                class="p-1 flex-1 border-r border-gray-700/50 last:border-r-0"
-                            >
-                                ${h}
-                            </div>`
-                    )}
+                    ${headers.map((header) => {
+                        const tooltipKey = `${box.type}@${header}`;
+                        const tooltipInfo = allIsoTooltipData[tooltipKey];
+                        return html`<div
+                            class="p-1 flex-1 border-r border-gray-700/50 last:border-r-0 ${tooltipInfo
+                                ? tooltipTriggerClasses
+                                : ''}"
+                            data-tooltip=${tooltipInfo?.text || ''}
+                            data-iso=${tooltipInfo?.ref || ''}
+                        >
+                            ${header}
+                        </div>`;
+                    })}
                 </div>
                 <virtualized-list
                     .items=${entries}
@@ -267,7 +286,6 @@ export const inspectorDetailsTemplate = (
                 </tbody>
             </table>
         </div>
-        ${entriesTableTemplate(box)}
     `;
 };
 
@@ -323,7 +341,7 @@ export const isoBoxTreeTemplate = (box) => {
                       <tbody>
                           ${Object.entries(box.details).map(([key, field]) => {
                               if (key.endsWith('_raw')) return ''; // Hide raw values if decoded ones exist
-                              
+
                               const fieldTooltip =
                                   allIsoTooltipData[`${box.type}@${key}`];
                               return html`<tr>
@@ -362,6 +380,6 @@ export const isoBoxTreeTemplate = (box) => {
     return html`<div class="border border-gray-700 rounded-md bg-gray-800">
         ${headerTemplate}
         <div class="space-y-2">${detailsTemplate}</div>
-        ${entriesTableTemplate(box)} ${childrenTemplate}
+        ${childrenTemplate}
     </div>`;
 };

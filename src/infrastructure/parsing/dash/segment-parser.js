@@ -8,6 +8,55 @@ import {
 import { getDrmSystemName } from '../utils/drm.js';
 
 /**
+ * Creates a single MediaSegment object from a URL using template information.
+ * @param {string} url - The segment URL.
+ * @param {object} context - Contextual information for parsing.
+ * @returns {import('@/types').MediaSegment | null}
+ */
+export function createSegmentFromTemplateUrl(url, context) {
+    const {
+        repId,
+        baseUrl,
+        mediaTemplate,
+        startNumber,
+        timescale,
+        segmentDuration,
+        periodStart,
+        encryptionInfo,
+        flags,
+    } = context;
+
+    const numberMatch =
+        mediaTemplate.match(/\$Number(%0(\d+)d)?\$/) ||
+        mediaTemplate.match(/\$Number\$/);
+    if (!numberMatch) return null;
+
+    const regexStr = mediaTemplate
+        .replace(/\$RepresentationID\$/g, repId)
+        .replace(numberMatch[0], '(\\d+)');
+    const urlMatch = new URL(url).pathname.match(new RegExp(regexStr));
+    if (!urlMatch || !urlMatch[1]) return null;
+
+    const segmentNumber = parseInt(urlMatch[1], 10);
+    const time = (segmentNumber - startNumber) * segmentDuration;
+
+    return {
+        repId,
+        type: 'Media',
+        number: segmentNumber,
+        resolvedUrl: url,
+        uniqueId: url,
+        template: mediaTemplate,
+        time: time,
+        duration: segmentDuration,
+        timescale,
+        encryptionInfo,
+        flags,
+        gap: false,
+    };
+}
+
+/**
  * Generates a list of Media Segment objects based on a starting number and count.
  * @returns {object[]} An array of segment objects.
  */
@@ -64,6 +113,7 @@ function generateSegments(
                 : null,
             encryptionInfo,
             flags,
+            gap: false,
         });
     }
     return segments;
@@ -210,6 +260,7 @@ export async function parseAllSegmentUrls(
                         range: initInfo.range,
                         encryptionInfo,
                         flags: [],
+                        gap: false,
                     };
                 }
 
@@ -309,6 +360,7 @@ export async function parseAllSegmentUrls(
                                         segmentDurationSeconds * 1000,
                                     encryptionInfo,
                                     flags,
+                                    gap: false,
                                 });
                                 mediaTime += d;
                                 currentNumber++;
@@ -463,6 +515,7 @@ export async function parseAllSegmentUrls(
                         timescale,
                         encryptionInfo,
                         flags,
+                        gap: false,
                     };
                     segmentsByRep[compositeKey].segments.push(mediaSegment);
                 } else if (baseURLOnly) {
@@ -489,6 +542,7 @@ export async function parseAllSegmentUrls(
                         timescale,
                         encryptionInfo,
                         flags,
+                        gap: false,
                     };
                     segmentsByRep[compositeKey].segments.push(mediaSegment);
                 }

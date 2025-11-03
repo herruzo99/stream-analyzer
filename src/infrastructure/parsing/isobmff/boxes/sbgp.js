@@ -26,18 +26,14 @@ export function parseSbgp(box, view) {
     if (entryCount !== null) {
         for (let i = 0; i < entryCount; i++) {
             if (p.stopped) break;
-            const sample_count = p.readUint32(`entry_${i}_sample_count`);
-            const group_description_index = p.readUint32(
+            const count = p.readUint32(`entry_${i}_sample_count`);
+            const groupIndex = p.readUint32(
                 `entry_${i}_group_description_index`
             );
 
-            if (sample_count !== null && group_description_index !== null) {
-                box.entries.push({ sample_count, group_description_index });
+            if (count !== null && groupIndex !== null) {
+                box.entries.push({ count, groupIndex });
             }
-
-            // Clean up details to avoid clutter, as data is now in box.entries
-            delete box.details[`entry_${i}_sample_count`];
-            delete box.details[`entry_${i}_group_description_index`];
         }
     }
     p.finalize();
@@ -60,5 +56,13 @@ export const sbgpTooltip = {
     'sbgp@entry_count': {
         text: 'The number of entries in the run-length encoded table that maps runs of samples to group descriptions.',
         ref: 'ISO/IEC 14496-12, 8.9.2.2',
+    },
+    'sbgp@count': {
+        text: 'The number of consecutive samples that belong to the same group.',
+        ref: 'ISO/IEC 14496-12, 8.9.2.3',
+    },
+    'sbgp@groupIndex': {
+        text: 'The 1-based index into the `sgpd` box that describes this group of samples.',
+        ref: 'ISO/IEC 14496-12, 8.9.2.3',
     },
 };

@@ -14,12 +14,9 @@ export function parseStco(box, view) {
     if (entryCount !== null && entryCount > 0) {
         for (let i = 0; i < entryCount; i++) {
             if (p.stopped) break;
-            if (!p.checkBounds(4)) break;
-
-            const chunk_offset = p.view.getUint32(p.offset);
-            p.offset += 4;
-
-            box.entries.push({ chunk_offset });
+            const offset = p.readUint32(`entry_${i}_chunk_offset`);
+            if (offset === null) break;
+            box.entries.push({ offset });
         }
     }
     p.finalize();
@@ -39,8 +36,8 @@ export const stcoTooltip = {
         text: 'The total number of entries in the chunk offset table, which corresponds to the total number of chunks in the track.',
         ref: 'ISO/IEC 14496-12, 8.7.5.2',
     },
-    'stco@chunk_offset_1': {
-        text: 'The absolute file offset (from the beginning of the file) to the start of the first chunk of media data.',
+    'stco@offset': {
+        text: 'The absolute file offset (from the beginning of the file) to the start of a chunk of media data.',
         ref: 'ISO/IEC 14496-12, 8.7.5.3',
     },
 };

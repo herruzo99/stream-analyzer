@@ -195,6 +195,7 @@ export interface AdaptationSet {
     characteristics: string[] | null;
     forced: boolean;
     serializedManifest: object;
+    inbandEventStreams: Descriptor[];
 }
 
 // --- SCTE-35 Type Definitions ---

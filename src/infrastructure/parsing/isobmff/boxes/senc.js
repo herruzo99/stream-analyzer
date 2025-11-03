@@ -23,10 +23,6 @@ export function parseSenc(box, view) {
     box.samples = []; // Initialize for detailed sample data
 
     if (sampleCount !== null) {
-        // NOTE: The IV size is defined in the associated Track Encryption ('tenc') box.
-        // This context-free parser cannot access it. We assume a default IV size of 8 bytes,
-        // which is common for CENC ('cbcs', 'cenc'). This is a known limitation.
-        // The validation logic, which has more context, will perform the final checks.
         const assumedIvSize = 8;
 
         for (let i = 0; i < sampleCount; i++) {
@@ -37,7 +33,6 @@ export function parseSenc(box, view) {
                 subsamples: [],
             };
 
-            // --- Parse Initialization Vector ---
             if (p.checkBounds(assumedIvSize)) {
                 const ivBytes = new Uint8Array(
                     p.view.buffer,
@@ -45,33 +40,39 @@ export function parseSenc(box, view) {
                     assumedIvSize
                 );
                 sampleEntry.iv = ivBytes;
+                p.box.details[`sample_${i}_iv`] = {
+                    value: 'IV Data',
+                    offset: p.box.offset + p.offset,
+                    length: assumedIvSize,
+                };
                 p.offset += assumedIvSize;
             } else {
-                break; // Not enough data for even an IV
+                break;
             }
 
-            // --- Parse subsample data if flag is set ---
             if (flags.use_subsample_encryption) {
-                if (p.checkBounds(2)) {
-                    const subSampleCount = p.view.getUint16(p.offset);
+                const subSampleCount = p.readUint16(
+                    `sample_${i}_subsample_count`
+                );
+                if (subSampleCount !== null) {
                     sampleEntry.subsample_count = subSampleCount;
-                    p.offset += 2;
-
                     for (let j = 0; j < subSampleCount; j++) {
-                        if (p.checkBounds(6)) {
-                            const clearBytes = p.view.getUint16(p.offset);
-                            const protectedBytes = p.view.getUint32(
-                                p.offset + 2
-                            );
-                            sampleEntry.subsamples.push({
-                                BytesOfClearData: clearBytes,
-                                BytesOfProtectedData: protectedBytes,
-                            });
-                            p.offset += 6;
-                        } else {
+                        const clearBytes = p.readUint16(
+                            `sample_${i}_subsample_${j}_clear`
+                        );
+                        const protectedBytes = p.readUint32(
+                            `sample_${i}_subsample_${j}_protected`
+                        );
+
+                        if (clearBytes === null || protectedBytes === null) {
                             p.stopped = true;
                             break;
                         }
+
+                        sampleEntry.subsamples.push({
+                            BytesOfClearData: clearBytes,
+                            BytesOfProtectedData: protectedBytes,
+                        });
                     }
                 }
             }

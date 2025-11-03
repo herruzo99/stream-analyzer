@@ -8,6 +8,7 @@ export function parseMfhd(box, view) {
     const p = new BoxParser(box, view);
     p.readVersionAndFlags();
     p.readUint32('sequence_number');
+    p.finalize();
 }
 
 export const mfhdTooltip = {

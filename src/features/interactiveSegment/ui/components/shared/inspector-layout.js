@@ -1,30 +1,25 @@
 import { html } from 'lit-html';
 import { classMap } from 'lit-html/directives/class-map.js';
 import { useUiStore, uiActions } from '@/state/uiStore';
+import { connectedTabBar } from '@/ui/components/tabs';
+import * as icons from '@/ui/icons';
 
-const tabButton = (label, tabKey) => {
+const mobileTabButton = (label, tabKey, icon) => {
     const { interactiveSegmentActiveTab } = useUiStore.getState();
     const isActive = interactiveSegmentActiveTab === tabKey;
     return html`
         <button
             @click=${() => uiActions.setInteractiveSegmentActiveTab(tabKey)}
-            class="py-2 px-4 font-semibold text-sm rounded-t-lg transition-colors ${isActive
-                ? 'bg-slate-800 text-white'
-                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}"
+            class="flex-1 flex flex-col items-center justify-center p-2 transition-colors ${isActive
+                ? 'text-blue-400 bg-slate-800'
+                : 'text-slate-500 hover:text-slate-300'}"
         >
-            ${label}
+            ${icon}
+            <span class="text-xs font-semibold mt-1">${label}</span>
         </button>
     `;
 };
 
-/**
- * A shared layout component for the interactive segment view.
- * @param {object} options
- * @param {import('lit-html').TemplateResult} options.inspectorContent
- * @param {import('lit-html').TemplateResult} options.structureContent
- * @param {import('lit-html').TemplateResult} options.hexContent
- * @returns {import('lit-html').TemplateResult}
- */
 export const inspectorLayoutTemplate = ({
     inspectorContent,
     structureContent,
@@ -32,38 +27,89 @@ export const inspectorLayoutTemplate = ({
 }) => {
     const { interactiveSegmentActiveTab } = useUiStore.getState();
 
-    const inspectorClasses = {
-        hidden: interactiveSegmentActiveTab !== 'inspector',
-        'lg:block': true,
-        'h-svh': true,
-    };
-    const hexClasses = {
-        hidden: interactiveSegmentActiveTab !== 'hex',
-        'lg:block': true,
-    };
+    const tabs = [
+        { key: 'inspector', label: 'Inspector' },
+        { key: 'hex', label: 'Hex View' },
+    ];
+
+    const mobileViewClasses = (key) => ({
+        'lg:hidden': true,
+        hidden: interactiveSegmentActiveTab !== key,
+        'h-full': true,
+        'w-full': true,
+    });
 
     return html`
-        <!-- Mobile Tab Navigation -->
-        <div class="lg:hidden border-b border-gray-700 mb-4">
-            ${tabButton('Inspector', 'inspector')}
-            ${tabButton('Hex View', 'hex')}
-        </div>
-
-        <!-- Responsive Content Grid -->
+        <!-- Desktop Layout: Responsive 2-column and 3-column Grid -->
         <div
-            class="lg:grid lg:grid-cols-[minmax(500px,33%)_1fr] lg:gap-4 h-svh"
+            class="hidden lg:grid lg:grid-cols-[minmax(320px,25%)_1fr] 2xl:grid-cols-[minmax(320px,20%)_35%_1fr] lg:gap-4 h-full"
         >
-            <div class=${classMap(inspectorClasses)}>
-                <div class="flex flex-col gap-4 h-svh">
+            <!-- Column 1: Structure Tree (Always visible on desktop) -->
+            <div class="h-full min-h-0">${structureContent}</div>
+
+            <!-- Column 2 (for 2XL): Inspector Panel -->
+            <div class="hidden 2xl:flex flex-col h-full min-h-0">
+                ${inspectorContent}
+            </div>
+
+            <!-- Column 3 (for 2XL): Hex View Panel -->
+            <div class="hidden 2xl:flex flex-col h-full min-h-0">
+                ${hexContent}
+            </div>
+
+            <!-- Tabbed container for LG screens (hidden on 2XL) -->
+            <div class="flex flex-col h-full min-h-0 2xl:hidden">
+                ${connectedTabBar(
+                    tabs,
+                    interactiveSegmentActiveTab,
+                    uiActions.setInteractiveSegmentActiveTab
+                )}
+                <div
+                    class="grow bg-slate-900 rounded-b-lg min-h-0 border-x border-b border-slate-700"
+                >
                     <div
-                        class="segment-inspector-panel rounded-md bg-gray-900/90 border border-gray-700 transition-opacity duration-200 basis-2/5 min-h-0 flex flex-col overflow-y-auto"
+                        class="h-full ${interactiveSegmentActiveTab !==
+                        'inspector'
+                            ? 'hidden'
+                            : ''}"
                     >
                         ${inspectorContent}
                     </div>
-                    <div class="basis-2/5 min-h-0">${structureContent}</div>
+                    <div
+                        class="h-full ${interactiveSegmentActiveTab !== 'hex'
+                            ? 'hidden'
+                            : ''}"
+                    >
+                        ${hexContent}
+                    </div>
                 </div>
             </div>
-            <div class=${classMap(hexClasses)}>${hexContent}</div>
+        </div>
+
+        <!-- Mobile Layout: Fullscreen with Bottom Tabs -->
+        <div class="lg:hidden flex flex-col h-full w-full">
+            <div class="grow min-h-0 overflow-y-auto mb-16">
+                <div class=${classMap(mobileViewClasses('structure'))}>
+                    ${structureContent}
+                </div>
+                <div class=${classMap(mobileViewClasses('inspector'))}>
+                    ${inspectorContent}
+                </div>
+                <div class=${classMap(mobileViewClasses('hex'))}>
+                    ${hexContent}
+                </div>
+            </div>
+            <div
+                class="fixed bottom-0 left-0 right-0 h-16 bg-slate-800/80 backdrop-blur-sm border-t border-slate-700 flex items-stretch z-10"
+            >
+                ${mobileTabButton('Structure', 'structure', icons.folderTree)}
+                ${mobileTabButton(
+                    'Inspector',
+                    'inspector',
+                    icons.slidersHorizontal
+                )}
+                ${mobileTabButton('Hex View', 'hex', icons.binary)}
+            </div>
         </div>
     `;
 };

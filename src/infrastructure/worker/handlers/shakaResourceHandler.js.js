@@ -1,8 +1,8 @@
 import { fetchWithAuth } from '../http.js';
 import { inferMediaInfoFromExtension } from '@/infrastructure/parsing/utils/media-types';
-import { handleParseSegmentStructure as parseAndDecorate } from '../parsingService.js';
 import { debugLog } from '@/shared/utils/debug';
 import shaka from 'shaka-player/dist/shaka-player.compiled';
+import { handleParseSegmentStructure } from '../parsingService.js';
 
 /**
  * Maps Shaka Player's request type values to our internal resource types for logging.
@@ -26,7 +26,10 @@ function mapShakaRequestType(request, requestType) {
             const { contentType } = inferMediaInfoFromExtension(
                 request.uris[0]
             );
-            return ['video', 'audio', 'text', 'init'].includes(contentType)
+            if (request.uris[0].includes('init')) {
+                return 'init';
+            }
+            return ['video', 'audio', 'text'].includes(contentType)
                 ? /** @type {import('@/types').ResourceType} */ (contentType)
                 : 'other';
         }
@@ -42,36 +45,25 @@ function mapShakaRequestType(request, requestType) {
  * @param {number} payload.requestType The request type enum value.
  * @param {import('@/types').AuthInfo} payload.auth Authentication info.
  * @param {number} payload.streamId The ID of the stream this request belongs to.
+ * @param {shaka.extern.Manifest} payload.shakaManifest The shaka player manifest object.
+ * @param {string} payload.segmentUniqueId The canonical unique ID for the segment.
  * @param {AbortSignal} signal - The AbortSignal for the operation.
  * @returns {Promise<shaka.extern.Response>}
  */
 export async function handleShakaResourceFetch(
-    { request, requestType, auth, streamId },
+    { request, requestType, auth, streamId, segmentUniqueId },
     signal
 ) {
-    const SEGMENT_REQUEST_TYPE = 1;
     const NETWORK_ERROR = 6001;
     const NETWORK_CATEGORY = 1;
     const CRITICAL_SEVERITY = 2;
-
     const url = request.uris[0];
+    const uniqueIdToUse = segmentUniqueId || url;
 
     debugLog('shakaResourceHandler', `Fetching resource from network: ${url}.`);
 
     try {
-        const startTime = performance.now();
-
         const body = /** @type {BodyInit | null} */ (request.body || null);
-
-        // --- BUG FIX: Correctly assemble request headers for logging ---
-        const requestHeadersForLogging = { ...request.headers };
-        if (auth?.headers) {
-            for (const header of auth.headers) {
-                if (header.key) {
-                    requestHeadersForLogging[header.key] = header.value;
-                }
-            }
-        }
 
         const response = await fetchWithAuth(
             url,
@@ -79,37 +71,13 @@ export async function handleShakaResourceFetch(
             null,
             request.headers,
             body,
-            signal
-        );
-
-        self.postMessage({
-            type: 'worker:network-event',
-            payload: {
-                id: crypto.randomUUID(),
-                url: response.url,
-                resourceType: mapShakaRequestType(request, requestType),
+            signal,
+            {
+                // Provide context for the network logger
                 streamId,
-                request: {
-                    method: request.method,
-                    headers: requestHeadersForLogging,
-                },
-                response: {
-                    status: response.status,
-                    statusText: response.statusText,
-                    headers: response.headers,
-                    contentLength:
-                        Number(response.headers['content-length']) || null,
-                    contentType: response.headers['content-type'],
-                },
-                timing: {
-                    startTime,
-                    endTime: performance.now(),
-                    duration: performance.now() - startTime,
-                    breakdown: null, // This will be enriched by the main thread
-                },
-            },
-        });
-        // --- END BUG FIX ---
+                resourceType: mapShakaRequestType(request, requestType),
+            }
+        );
 
         if (!response.ok) {
             return {
@@ -123,18 +91,38 @@ export async function handleShakaResourceFetch(
 
         const data = await response.arrayBuffer();
 
-        if (requestType === SEGMENT_REQUEST_TYPE) {
-            self.postMessage({
-                type: 'worker:shaka-segment-loaded',
-                payload: {
-                    uniqueId: url,
-                    status: response.status,
-                    data,
-                    parsedData: null,
-                    streamId,
-                },
-            });
-        }
+        // --- ARCHITECTURAL FIX: Non-blocking segment caching with canonical ID ---
+        (async () => {
+            try {
+                const resourceType = mapShakaRequestType(request, requestType);
+                const formatHint =
+                    resourceType === 'video' || resourceType === 'audio'
+                        ? 'isobff'
+                        : null;
+                const parsedData = await handleParseSegmentStructure({
+                    data: data.slice(0),
+                    url,
+                    formatHint,
+                });
+
+                self.postMessage({
+                    type: 'worker:shaka-segment-loaded',
+                    payload: {
+                        uniqueId: uniqueIdToUse,
+                        streamId,
+                        data: data.slice(0),
+                        parsedData,
+                        status: response.status,
+                    },
+                });
+            } catch (e) {
+                console.error(
+                    `[shakaResourceHandler] Background segment parse failed for ${url}:`,
+                    e
+                );
+            }
+        })();
+        // --- END FIX ---
 
         return {
             uri: response.url,

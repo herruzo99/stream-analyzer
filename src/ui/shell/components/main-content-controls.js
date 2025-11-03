@@ -4,8 +4,9 @@ import * as icons from '@/ui/icons';
 
 const contextualSidebarToggle = () => {
     const { activeTab } = useUiStore.getState();
-    const currentView =
-        document.querySelector('app-shell-component')?.viewMap?.[activeTab];
+    const currentView = /** @type {any} */ (
+        document.querySelector('app-shell-component')
+    )?.viewMap?.[activeTab];
     const visible = currentView?.hasContextualSidebar;
 
     if (!visible) return html``;

@@ -68,7 +68,7 @@ const NavGroup = (group, activeTab) => {
                 <span
                     class="ml-auto transition-transform duration-200 group-open:rotate-90"
                 >
-                    <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                    ${icons.chevronRight}
                 </span>
             </summary>
             <ul class="pl-2 mt-1 space-y-1">

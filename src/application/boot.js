@@ -28,6 +28,7 @@ import { initializeAdvertisingFeature } from '@/features/advertising/index';
 import { initializeComplianceFeature } from '@/features/compliance/index';
 import { initializeFeatureAnalysisFeature } from '@/features/featureAnalysis/index';
 import { initializeInteractiveManifestFeature } from '@/features/interactiveManifest/index';
+import { initializeInteractiveSegmentFeature } from '@/features/interactiveSegment/index';
 import { initializeSegmentExplorerFeature } from '@/features/segmentExplorer/index';
 import { initializeStreamInputFeature } from '@/features/streamInput/index';
 import { initializePlayerSimulationFeature } from '@/features/playerSimulation/index';
@@ -123,6 +124,7 @@ export async function startApp() {
     initializeComplianceFeature();
     initializeFeatureAnalysisFeature();
     initializeInteractiveManifestFeature();
+    initializeInteractiveSegmentFeature();
     initializeSegmentExplorerFeature();
     initializeStreamInputFeature();
     initializePlayerSimulationFeature();

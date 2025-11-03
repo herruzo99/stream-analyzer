@@ -61,7 +61,7 @@ function handleInteraction(e) {
 
         if (e.type === 'mouseover') {
             hoverDebounceTimeout = setTimeout(() => {
-                 eventBus.dispatch('ui:interactive-manifest:item-hovered', {
+                eventBus.dispatch('ui:interactive-manifest:item-hovered', {
                     item,
                 });
             }, 30);

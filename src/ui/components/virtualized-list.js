@@ -23,7 +23,9 @@ class VirtualizedList extends HTMLElement {
         // --- FIX: Preserve scroll position across updates ---
         const oldScrollTop = this.scrollTop;
         const oldScrollHeight = this.scrollHeight;
+        // --- FIX: Add guard for initial render when scrollHeight is 0 ---
         const isScrolledToBottom =
+            oldScrollHeight > 0 &&
             oldScrollTop + this.clientHeight >= oldScrollHeight - 10;
         // --- END FIX ---
 

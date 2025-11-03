@@ -1,5 +1,4 @@
 import { render, html } from 'lit-html';
-import { createIcons, icons } from 'lucide';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { useUiStore, uiActions } from '@/state/uiStore';
 import { inputViewTemplate } from '@/features/streamInput/ui/input-view';
@@ -60,8 +59,13 @@ export function renderApp() {
     if (!initialDomContext) return;
 
     const { streams, activeStreamId } = useAnalysisStore.getState();
-    const { viewState, activeTab, activeSidebar, segmentExplorerActiveRepId, segmentExplorerActiveTab } =
-        useUiStore.getState();
+    const {
+        viewState,
+        activeTab,
+        activeSidebar,
+        segmentExplorerActiveRepId,
+        segmentExplorerActiveTab,
+    } = useUiStore.getState();
     const isResultsView = viewState === 'results' && streams.length > 0;
     const activeStream = streams.find((s) => s.id === activeStreamId);
 
@@ -202,8 +206,4 @@ export function renderApp() {
 
         render(inputViewTemplate(), initialDomContext.inputSection);
     }
-
-    requestAnimationFrame(() => {
-        createIcons({ icons });
-    });
 }

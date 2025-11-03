@@ -35,20 +35,20 @@ export function parseSidx(box, view) {
     }
 
     for (let i = 0; i < referenceCount; i++) {
-        if (p.stopped || !p.checkBounds(12)) break;
-
-        const refTypeAndSize = p.view.getUint32(p.offset);
-        const duration = p.view.getUint32(p.offset + 4);
-        const sapInfo = p.view.getUint32(p.offset + 8);
-        p.offset += 12;
+        if (p.stopped) break;
+        const refTypeAndSize = p.readUint32(`refTypeAndSize_${i}`);
+        const duration = p.readUint32(`duration_${i}`);
+        const sapInfo = p.readUint32(`sapInfo_${i}`);
+        if (refTypeAndSize === null || duration === null || sapInfo === null)
+            break;
 
         box.entries.push({
-            reference_type: (refTypeAndSize >> 31) & 1 ? 'sidx' : 'media',
-            referenced_size: refTypeAndSize & 0x7fffffff,
-            subsegment_duration: duration,
-            starts_with_SAP: (sapInfo >> 31) & 1,
-            SAP_type: (sapInfo >> 28) & 0x07,
-            SAP_delta_time: sapInfo & 0x0fffffff,
+            type: (refTypeAndSize >> 31) & 1 ? 'sidx' : 'media',
+            size: refTypeAndSize & 0x7fffffff,
+            duration: duration,
+            startsWithSap: (sapInfo >> 31) & 1,
+            sapType: (sapInfo >> 28) & 0x07,
+            sapDeltaTime: sapInfo & 0x0fffffff,
         });
     }
     p.finalize();
@@ -84,20 +84,28 @@ export const sidxTooltip = {
         text: 'The number of subsegment references that follow in the table.',
         ref: 'ISO/IEC 14496-12, 8.16.3.3',
     },
-    'sidx@reference_1_type': {
-        text: 'For the first reference, this bit indicates the type of item being referenced. 0 means it references media data (e.g., a `moof` box), and 1 means it references another `sidx` box (for hierarchical indexing).',
+    'sidx@type': {
+        text: 'Indicates the type of item being referenced. "media" means it references media data (e.g., a `moof` box), and "sidx" means it references another `sidx` box (for hierarchical indexing).',
         ref: 'ISO/IEC 14496-12, 8.16.3.3',
     },
-    'sidx@reference_1_size': {
-        text: 'The size in bytes of the first referenced item.',
+    'sidx@size': {
+        text: 'The size in bytes of the referenced item.',
         ref: 'ISO/IEC 14496-12, 8.16.3.3',
     },
-    'sidx@reference_1_duration': {
-        text: 'The duration of the first referenced subsegment in `timescale` units.',
+    'sidx@duration': {
+        text: 'The duration of the referenced subsegment in `timescale` units.',
         ref: 'ISO/IEC 14496-12, 8.16.3.3',
     },
-    'sidx@reference_1_sap_info': {
-        text: 'A bitfield containing information about Stream Access Points (SAPs) within the first referenced subsegment.',
+    'sidx@startsWithSap': {
+        text: 'A flag indicating if the referenced subsegment starts with a Stream Access Point (SAP).',
+        ref: 'ISO/IEC 14496-12, 8.16.3.3',
+    },
+    'sidx@sapType': {
+        text: 'The type of the leading SAP, if present.',
+        ref: 'ISO/IEC 14496-12, 8.16.3.3',
+    },
+    'sidx@sapDeltaTime': {
+        text: 'The SAP decoding time minus the earliest presentation time of the subsegment.',
         ref: 'ISO/IEC 14496-12, 8.16.3.3',
     },
 };

@@ -76,7 +76,7 @@ export const aboutModalTemplate = () => html`
                 rel="noopener noreferrer"
                 class="mt-2 inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 transition-colors"
             >
-                <i data-lucide="github" class="h-4 w-4"></i>
+                ${icons.github}
                 <span>View Project on GitHub</span>
             </a>
         </div>

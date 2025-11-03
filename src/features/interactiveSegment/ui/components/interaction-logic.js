@@ -1,31 +1,13 @@
-import { inspectorPanelTemplate as isobmffInspector } from './isobmff/index.js';
-import { inspectorPanelTemplate as tsInspector } from './ts/index.js';
-import { html } from 'lit-html';
-import { uiActions, useUiStore } from '@/state/uiStore';
-import { renderApp } from '@/ui/shell/mainRenderer';
+import { useUiStore } from '@/state/uiStore';
+import { eventBus } from '@/application/event-bus';
 
 let mainContainer = null;
 let keydownListener = null;
 let containerListeners = new Map();
-let inspectorContainer = null;
 let currentFormat = null;
 let rootParsedData = null;
+let hoverDebounceTimeout = null;
 
-// --- UTILITY ---
-function scrollIntoViewIfNeeded(element, container) {
-    if (!element || !container) return;
-
-    const containerRect = container.getBoundingClientRect();
-    const elementRect = element.getBoundingClientRect();
-
-    if (elementRect.top < containerRect.top) {
-        container.scrollTop += elementRect.top - containerRect.top;
-    } else if (elementRect.bottom > containerRect.bottom) {
-        container.scrollTop += elementRect.bottom - containerRect.bottom;
-    }
-}
-
-// --- STATE SELECTOR (Reads from central store) ---
 export function getInspectorState() {
     const {
         interactiveSegmentSelectedItem,
@@ -37,94 +19,6 @@ export function getInspectorState() {
             interactiveSegmentHighlightedItem?.item,
         fieldForDisplay: interactiveSegmentHighlightedItem?.field,
     };
-}
-
-// --- IMPERATIVE DOM MANIPULATION (Exported) ---
-export function clearHighlights() {
-    document
-        .querySelectorAll(
-            '.is-box-hover-highlighted, .is-field-hover-highlighted, .is-inspector-field-highlighted'
-        )
-        .forEach((el) => {
-            el.classList.remove(
-                'is-box-hover-highlighted',
-                'is-field-hover-highlighted',
-                'is-inspector-field-highlighted'
-            );
-        });
-}
-
-export function applyHighlights(
-    container,
-    item,
-    fieldName,
-    pageStartOffset = 0
-) {
-    if (!item || !container) return;
-
-    // --- Highlight structure tree node ---
-    if (!item.isSample) {
-        const highlightSelector = `[data-box-offset="${item.offset}"], [data-packet-offset="${item.offset}"], [data-group-start-offset="${item.offset}"]`;
-        const structureNode = container.querySelector(highlightSelector);
-        if (structureNode) {
-            structureNode.classList.add('is-box-hover-highlighted');
-        }
-    }
-
-    // --- Determine byte ranges for hex view ---
-    let boxStart, boxEnd, fieldStart, fieldEnd;
-    boxStart = item.offset;
-    boxEnd = item.offset + item.size;
-
-    if (fieldName && item.details?.[fieldName]) {
-        const fieldMeta = item.details[fieldName];
-        fieldStart = fieldMeta.offset;
-        fieldEnd = fieldStart + Math.ceil(fieldMeta.length);
-    } else {
-        fieldStart = -1;
-        fieldEnd = -1;
-    }
-
-    // --- Apply highlights to hex view ---
-    const hexContentGrid = container.querySelector('#hex-grid-content');
-    if (!hexContentGrid) return;
-
-    const visibleByteElements =
-        hexContentGrid.querySelectorAll('[data-byte-offset]');
-
-    visibleByteElements.forEach((el) => {
-        // --- ARCHITECTURAL FIX ---
-        // The element's data-byte-offset is its absolute offset in the file.
-        // No page offset calculation is needed here. The value from the DOM is already correct.
-        const byteOffset = parseInt(
-            /** @type {HTMLElement} */ (el).dataset.byteOffset,
-            10
-        );
-
-        if (byteOffset >= boxStart && byteOffset < boxEnd) {
-            el.classList.add('is-box-hover-highlighted');
-        }
-
-        if (
-            fieldStart !== -1 &&
-            byteOffset >= fieldStart &&
-            byteOffset < fieldEnd
-        ) {
-            el.classList.add('is-field-hover-highlighted');
-        }
-    });
-
-    // --- Highlight inspector field row ---
-    const inspectorPanel = container.querySelector('.segment-inspector-panel');
-    if (inspectorPanel && fieldName) {
-        const fieldRow = inspectorPanel.querySelector(
-            `[data-inspector-offset="${item.offset}"][data-field-name="${fieldName}"]`
-        );
-        if (fieldRow) {
-            fieldRow.classList.add('is-inspector-field-highlighted');
-            scrollIntoViewIfNeeded(fieldRow, inspectorPanel);
-        }
-    }
 }
 
 function cleanupEventListeners(container) {
@@ -148,8 +42,12 @@ export function cleanupSegmentViewInteractivity(dom) {
     const container = dom.mainContent;
     if (!container) return;
 
+    if (hoverDebounceTimeout) {
+        clearTimeout(hoverDebounceTimeout);
+        hoverDebounceTimeout = null;
+    }
+
     cleanupEventListeners(container);
-    inspectorContainer = null;
     currentFormat = null;
     rootParsedData = null;
     mainContainer = null;
@@ -167,199 +65,102 @@ export function initializeSegmentViewInteractivity(
     if (!container || !parsedSegmentData) return;
 
     cleanupEventListeners(container);
-    inspectorContainer = container.querySelector('.segment-inspector-panel');
     currentFormat = format;
     rootParsedData = parsedSegmentData;
 
     const handleHover = (item, field) => {
-        uiActions.setInteractiveSegmentHighlightedItem(item, field);
+        if (hoverDebounceTimeout) {
+            clearTimeout(hoverDebounceTimeout);
+        }
+        hoverDebounceTimeout = setTimeout(() => {
+            eventBus.dispatch('ui:interactive-segment:item-hovered', {
+                item,
+                field,
+            });
+        }, 10);
     };
 
     const handleSelection = (targetOffset) => {
-        const { interactiveSegmentSelectedItem } = useUiStore.getState();
-        const currentSelectedItem = interactiveSegmentSelectedItem?.item;
-        let newSelectedItem = null;
-
-        if (
-            currentSelectedItem &&
-            currentSelectedItem.offset === targetOffset
-        ) {
-            newSelectedItem = null; // Deselect
-        } else {
-            newSelectedItem = findDataByOffset(
-                rootParsedData,
-                targetOffset,
-                true
-            );
-        }
-
-        uiActions.setInteractiveSegmentSelectedItem(newSelectedItem);
-        uiActions.setInteractiveSegmentHighlightedItem(null, null); // Clear hover on click
-
-        if (window.innerWidth < 1024 && newSelectedItem) {
-            uiActions.setInteractiveSegmentActiveTab('hex');
-        }
+        const item = findDataByOffset(rootParsedData, targetOffset);
+        eventBus.dispatch('ui:interactive-segment:item-clicked', { item });
+        if (hoverDebounceTimeout) clearTimeout(hoverDebounceTimeout);
+        eventBus.dispatch('ui:interactive-segment:item-unhovered');
     };
 
     const handleHexHover = (e) => {
-        const target = /** @type {HTMLElement | null} */ (
-            e.target.closest('[data-byte-offset]')
-        );
+        const target = e.target.closest('[data-byte-offset]');
         if (!target) return;
         const byteOffset = parseInt(target.dataset.byteOffset, 10);
         const mapEntry = byteMap.get(byteOffset);
 
         if (mapEntry) {
-            if (mapEntry.sample) {
-                handleHover(mapEntry.sample, 'Sample Data');
-            } else if (mapEntry.box || mapEntry.packet) {
-                handleHover(
-                    mapEntry.box || mapEntry.packet,
-                    mapEntry.fieldName
-                );
-            }
+            handleHover(
+                mapEntry.box || mapEntry.packet || mapEntry.sample,
+                mapEntry.fieldName
+            );
         }
     };
 
     const handleInspectorHover = (e) => {
-        const sampleRow = /** @type {HTMLElement | null} */ (
-            e.target.closest('[data-sample-offset]')
-        );
-        if (sampleRow) {
-            const dataOffset = parseInt(sampleRow.dataset.sampleOffset, 10);
-            if (isNaN(dataOffset)) return;
-            const item = findDataByOffset(parsedSegmentData, dataOffset, true); // Use deep find for samples
-            if (item) {
-                handleHover(item, 'Sample Data');
-            }
-            return;
-        }
-
-        const entryRow = /** @type {HTMLElement | null} */ (
-            e.target.closest('[data-entry-row-for-offset]')
-        );
-        if (entryRow) {
-            const dataOffset = parseInt(entryRow.dataset.entryRowForOffset, 10);
-            if (isNaN(dataOffset)) return;
-            const item = findDataByOffset(parsedSegmentData, dataOffset);
-            if (item) {
-                handleHover(item, 'Box Entries');
-            }
-            return;
-        }
-
-        const fieldRow = /** @type {HTMLElement | null} */ (
-            e.target.closest('[data-field-name]')
-        );
+        const fieldRow = e.target.closest('[data-field-name]');
         if (!fieldRow) return;
-
         const fieldName = fieldRow.dataset.fieldName;
-        const dataOffset = parseInt(fieldRow.dataset.inspectorOffset, 10);
-        if (isNaN(dataOffset)) return;
-
+        const dataOffset = parseInt(fieldRow.dataset.boxOffset, 10);
         const item = findDataByOffset(parsedSegmentData, dataOffset);
-        if (item) {
-            handleHover(item, fieldName);
-        }
+        if (item) handleHover(item, fieldName);
     };
 
     const handleStructureHover = (e) => {
-        const node = /** @type {HTMLElement | null} */ (
-            e.target.closest(
-                '[data-box-offset], [data-group-start-offset], [data-packet-offset]'
-            )
+        const node = e.target.closest(
+            '[data-box-offset], [data-packet-offset]'
         );
         if (!node) return;
         const dataOffset = parseInt(
-            node.dataset.boxOffset ||
-                node.dataset.groupStartOffset ||
-                node.dataset.packetOffset,
+            node.dataset.boxOffset || node.dataset.packetOffset,
             10
         );
-        if (isNaN(dataOffset)) return;
         const item = findDataByOffset(parsedSegmentData, dataOffset);
-        const fieldName = 'Box Header'; // Generic for structure hover
-        if (item) handleHover(item, fieldName);
+        if (item) handleHover(item, 'Box Header');
     };
 
     const delegatedMouseOver = (e) => {
         if (e.target.closest('.segment-inspector-panel'))
             handleInspectorHover(e);
-        else if (e.target.closest('.structure-content-area'))
+        else if (e.target.closest('.structure-tree-panel'))
             handleStructureHover(e);
         else if (e.target.closest('#hex-grid-content')) handleHexHover(e);
     };
 
     const delegatedMouseOut = (e) => {
-        const relatedTarget = /** @type {Node | null} */ (e.relatedTarget);
-        const currentTarget = /** @type {Node} */ (e.currentTarget);
-        if (relatedTarget && currentTarget.contains(relatedTarget)) {
-            const isStillOnInteractive = /** @type {HTMLElement} */ (
-                relatedTarget
-            ).closest(
-                '.segment-inspector-panel, .structure-content-area, #hex-grid-content'
-            );
-            if (isStillOnInteractive) {
-                return;
+        if (!e.currentTarget.contains(e.relatedTarget)) {
+            if (hoverDebounceTimeout) {
+                clearTimeout(hoverDebounceTimeout);
             }
+            eventBus.dispatch('ui:interactive-segment:item-unhovered');
         }
-        handleHover(null, null);
     };
 
     const handleClick = (e) => {
-        const target = /** @type {HTMLElement} */ (e.target);
-        if (target.closest('summary')) e.preventDefault();
-
-        const sampleRow = /** @type {HTMLElement | null} */ (
-            target.closest('[data-sample-offset]')
-        );
-        if (sampleRow) {
-            const offset = parseInt(sampleRow.dataset.sampleOffset, 10);
-            if (!isNaN(offset)) {
-                handleSelection(offset);
-            }
-            return;
-        }
-
-        const entryRow = /** @type {HTMLElement | null} */ (
-            target.closest('[data-entry-row-for-offset]')
-        );
-        if (entryRow) {
-            const offset = parseInt(entryRow.dataset.entryRowForOffset, 10);
-            if (!isNaN(offset)) {
-                handleSelection(offset);
-            }
-            return;
-        }
-
-        const treeNode = /** @type {HTMLElement | null} */ (
-            target.closest(
-                '[data-box-offset], [data-packet-offset], [data-group-start-offset]'
-            )
+        const treeNode = e.target.closest(
+            '[data-box-offset], [data-packet-offset]'
         );
         if (treeNode) {
-            const offset =
-                parseInt(treeNode.dataset.boxOffset, 10) ||
-                parseInt(treeNode.dataset.packetOffset, 10) ||
-                parseInt(treeNode.dataset.groupStartOffset, 10);
-            if (!isNaN(offset)) {
-                handleSelection(offset);
-            }
+            const offset = parseInt(
+                treeNode.dataset.boxOffset || treeNode.dataset.packetOffset,
+                10
+            );
+            handleSelection(offset);
             return;
         }
 
-        const hexNode = /** @type {HTMLElement | null} */ (
-            target.closest('[data-byte-offset]')
-        );
+        const hexNode = e.target.closest('[data-byte-offset]');
         if (hexNode) {
             const byteOffset = parseInt(hexNode.dataset.byteOffset, 10);
             const mapEntry = byteMap.get(byteOffset);
             if (mapEntry) {
                 const itemToSelect =
-                    mapEntry.sample || mapEntry.box || mapEntry.packet;
-                if (itemToSelect) {
-                    handleSelection(itemToSelect.offset);
-                }
+                    mapEntry.box || mapEntry.packet || mapEntry.sample;
+                if (itemToSelect) handleSelection(itemToSelect.offset);
             }
         }
     };
@@ -375,8 +176,10 @@ export function initializeSegmentViewInteractivity(
 
     keydownListener = (e) => {
         const { interactiveSegmentSelectedItem } = useUiStore.getState();
-        if (e.key === 'Escape' && interactiveSegmentSelectedItem !== null) {
-            handleSelection(interactiveSegmentSelectedItem.item.offset); // Deselect
+        if (e.key === 'Escape' && interactiveSegmentSelectedItem) {
+            eventBus.dispatch('ui:interactive-segment:item-clicked', {
+                item: interactiveSegmentSelectedItem.item,
+            });
         }
     };
     document.addEventListener('keydown', keydownListener);

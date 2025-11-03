@@ -146,7 +146,8 @@ function groupAndCalcTimingForChunks(boxes) {
 }
 
 /**
- * Traverses the box tree to build a single, canonical list of all samples.
+ * Traverses the box tree to build a single, canonical list of all samples with correct offsets.
+ * This function must be called AFTER the full box tree is parsed.
  * @param {object} parsedData
  * @returns {object[]}
  */
@@ -187,32 +188,27 @@ function buildCanonicalSampleList(parsedData) {
                 traf.children,
                 (b) => b.type === 'tfdt'
             );
-            if (!trun || !tfhd) return;
+            if (!trun || !tfhd || !trun.samples) return;
+
             const baseDataOffset =
-                tfhd.details.base_data_offset?.value || moofBox.offset || 0;
+                tfhd.details.base_data_offset?.value ?? moofBox.offset;
             const dataOffset = trun.details.data_offset?.value || 0;
             let currentOffset = baseDataOffset + dataOffset;
 
-            (trun.samples || []).forEach((sampleInfo) => {
+            trun.samples.forEach((sampleInfo) => {
                 const sample = {
+                    ...sampleInfo,
                     isSample: true,
                     index: sampleIndex,
                     offset: currentOffset,
-                    size: sampleInfo.size,
-                    duration: sampleInfo.duration,
-                    compositionTimeOffset: sampleInfo.compositionTimeOffset,
-                    flags: sampleInfo.flags,
+                    color: { bgClass: 'bg-gray-700/20' },
                     baseMediaDecodeTime:
                         tfdt?.details.baseMediaDecodeTime?.value,
                     trackId: tfhd.details.track_ID?.value,
-                    color: { bgClass: 'bg-gray-700/20' },
                 };
 
-                sampleInfo.offset = currentOffset;
-                sampleInfo.index = sampleIndex;
-
                 samples.push(sample);
-                currentOffset += sampleInfo.size;
+                currentOffset += sample.size || 0;
                 sampleIndex++;
             });
         });
@@ -292,9 +288,10 @@ function decorateSamples(samples, parsedData) {
 /**
  * @param {ArrayBuffer} buffer
  * @param {number} baseOffset
+ * @param {object} [context={}]
  * @returns {{format: 'isobmff', data: {boxes: Box[], issues: {type: 'error' | 'warn', message: string}[], events: object[]}, samples?: object[]}}
  */
-export function parseISOBMFF(buffer, baseOffset = 0) {
+export function parseISOBMFF(buffer, baseOffset = 0, context = {}) {
     const result = {
         boxes: [],
         issues: [],
@@ -378,7 +375,26 @@ export function parseISOBMFF(buffer, baseOffset = 0) {
         };
 
         const boxDataView = new DataView(buffer, offset, size);
-        parseBoxDetails(box, boxDataView);
+        const childContext = { ...context };
+        if (type === 'moof') {
+            childContext.moofOffset = box.offset;
+        }
+        // This is a simplification; a full implementation would need to parse tfhd first
+        // to get the base_data_offset. The trun parser now receives this context.
+        const traf = findBoxRecursive(box.children, (b) => b.type === 'traf');
+        if (traf) {
+            const tfhd = findBoxRecursive(
+                traf.children,
+                (b) => b.type === 'tfhd'
+            );
+            if (tfhd) {
+                childContext.baseDataOffset =
+                    tfhd.details.base_data_offset?.value ||
+                    childContext.moofOffset ||
+                    0;
+            }
+        }
+        parseBoxDetails(box, boxDataView, childContext);
 
         if (type === 'emsg') {
             result.events.push(box);
@@ -414,7 +430,8 @@ export function parseISOBMFF(buffer, baseOffset = 0) {
                 if (childrenBuffer.byteLength > 0) {
                     const childResult = parseISOBMFF(
                         childrenBuffer,
-                        childrenBase
+                        childrenBase,
+                        childContext
                     );
                     box.children = childResult.data.boxes;
                     if (childResult.data.events.length > 0) {
@@ -433,25 +450,29 @@ export function parseISOBMFF(buffer, baseOffset = 0) {
 
     result.boxes = groupAndCalcTimingForChunks(result.boxes);
 
-    const parsedResult = { format: 'isobmff', data: result, samples: [] };
-    const samples = buildCanonicalSampleList(parsedResult);
+    const parsedResultData = { format: 'isobmff', data: result };
+    const samples = buildCanonicalSampleList(parsedResultData);
     if (samples.length > 0) {
-        decorateSamples(samples, parsedResult);
-        parsedResult.samples = samples;
+        decorateSamples(samples, parsedResultData);
     }
 
-    return parsedResult;
+    return {
+        format: 'isobmff',
+        data: result,
+        samples: samples.length > 0 ? samples : undefined,
+    };
 }
 
 /**
  * @param {Box} box
  * @param {DataView} view
+ * @param {object} context
  */
-function parseBoxDetails(box, view) {
+function parseBoxDetails(box, view, context) {
     try {
         const parser = boxParsers[box.type];
         if (parser) {
-            parser(box, view);
+            parser(box, view, context);
         } else if (box.type === 'mdat') {
             box.details['info'] = {
                 value: 'Contains raw media data for samples.',

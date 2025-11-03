@@ -24,9 +24,8 @@ const representationCardTemplate = (rep, activeRepId, compositeKey) => {
         >`;
     } else if (rep.contentType === 'audio') {
         details = html`<span class="text-xs text-slate-400 font-mono"
-            >Lang: ${rep.lang || 'und'} | ${formatBitrate(
-                rep.bandwidth || 0
-            )}</span
+            >Lang: ${rep.lang || 'und'} |
+            ${formatBitrate(rep.bandwidth || 0)}</span
         >`;
     } else {
         details = html`<span class="text-xs text-slate-400 font-mono"
@@ -122,7 +121,8 @@ export const representationSelectorTemplate = (stream) => {
                         </h4>
                         ${period.adaptationSets
                             .filter(
-                                (as) => as.contentType === segmentExplorerActiveTab
+                                (as) =>
+                                    as.contentType === segmentExplorerActiveTab
                             )
                             .map((as, asIndex) =>
                                 adaptationSetGroupTemplate(
@@ -173,8 +173,7 @@ export const representationSelectorTemplate = (stream) => {
     } else {
         content = html`
             <div class="p-4 text-sm text-slate-400 text-center">
-                Representation selection is not applicable for this stream
-                type.
+                Representation selection is not applicable for this stream type.
             </div>
         `;
     }

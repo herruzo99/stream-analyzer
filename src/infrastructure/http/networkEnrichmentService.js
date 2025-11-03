@@ -52,7 +52,8 @@ function performanceObserverCallback(list) {
             // --- END BUG FIX ---
 
             if (matchingEvent) {
-                const breakdown = getTimingBreakdownFromPerfEntry(resourceEntry);
+                const breakdown =
+                    getTimingBreakdownFromPerfEntry(resourceEntry);
                 const enrichedEvent = {
                     ...matchingEvent,
                     timing: { ...matchingEvent.timing, breakdown },

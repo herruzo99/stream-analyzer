@@ -34,12 +34,14 @@ const detailTemplate = (item, isSelected) => {
     return html`
         <div class="p-4 space-y-4 text-sm">
             <div>
-                <div
-                    class="flex justify-between items-start gap-4"
-                >
-                     <div class="font-mono text-lg text-white break-all">
+                <div class="flex justify-between items-start gap-4">
+                    <div class="font-mono text-lg text-white break-all">
                         ${title}
-                        ${subtitle ? html`<span class="block text-sm text-slate-400">on &lt;${subtitle}&gt;</span>` : ''}
+                        ${subtitle
+                            ? html`<span class="block text-sm text-slate-400"
+                                  >on &lt;${subtitle}&gt;</span
+                              >`
+                            : ''}
                     </div>
                     ${isSelected
                         ? html`<button

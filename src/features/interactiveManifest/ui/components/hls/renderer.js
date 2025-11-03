@@ -14,7 +14,13 @@ const escapeHtml = (str) => {
         .replace(/"/g, '&quot;');
 };
 
-const getInteractiveHlsLineHTML = (line, lineNumber, hoveredItem, selectedItem, missingTooltips) => {
+const getInteractiveHlsLineHTML = (
+    line,
+    lineNumber,
+    hoveredItem,
+    selectedItem,
+    missingTooltips
+) => {
     line = line.trim();
     if (!line.startsWith('#EXT')) {
         const isComment = line.startsWith('#');
@@ -37,7 +43,9 @@ const getInteractiveHlsLineHTML = (line, lineNumber, hoveredItem, selectedItem, 
         let highlightClass = '';
         if (isSelected) highlightClass = 'bg-blue-900/80';
         else if (isHovered) highlightClass = 'bg-slate-700/80';
-        else if (isMissing) highlightClass = 'bg-red-900/50 underline decoration-red-400 decoration-dotted';
+        else if (isMissing)
+            highlightClass =
+                'bg-red-900/50 underline decoration-red-400 decoration-dotted';
 
         return `#<span class="interactive-hls-token ${highlightClass}" data-type="tag" data-name="${tagName}" data-path="${path}">${tagName}</span>`;
     }
@@ -65,14 +73,16 @@ const getInteractiveHlsLineHTML = (line, lineNumber, hoveredItem, selectedItem, 
             let val = match[2];
             const isQuoted = val.startsWith('"') && val.endsWith('"');
             if (isQuoted) val = val.substring(1, val.length - 1);
-            
+
             const isHovered = hoveredItem && hoveredItem.path === attrPath;
             const isSelected = selectedItem && selectedItem.path === attrPath;
             const isMissing = isDebugMode && missingTooltips.has(attrKey);
             let highlightClass = '';
             if (isSelected) highlightClass = 'bg-blue-900/80';
             else if (isHovered) highlightClass = 'bg-slate-700/80';
-            else if (isMissing) highlightClass = 'bg-red-900/50 underline decoration-red-400 decoration-dotted';
+            else if (isMissing)
+                highlightClass =
+                    'bg-red-900/50 underline decoration-red-400 decoration-dotted';
 
             parts.push(
                 `<span class="interactive-hls-token ${attributeClass} ${highlightClass}" data-type="attribute" data-name="${attrKey}" data-path="${attrPath}">${escapeHtml(
@@ -97,7 +107,9 @@ const getInteractiveHlsLineHTML = (line, lineNumber, hoveredItem, selectedItem, 
     let tagHighlightClass = '';
     if (isTagSelected) tagHighlightClass = 'bg-blue-900/80';
     else if (isTagHovered) tagHighlightClass = 'bg-slate-700/80';
-    else if (isTagMissing) tagHighlightClass = 'bg-red-900/50 underline decoration-red-400 decoration-dotted';
+    else if (isTagMissing)
+        tagHighlightClass =
+            'bg-red-900/50 underline decoration-red-400 decoration-dotted';
 
     return `#<span class="interactive-hls-token ${tagClass} ${tagHighlightClass}" data-type="tag" data-name="${tagName}" data-path="${tagPath}">${tagName}</span>:<span class="font-normal">${valueHtml}</span>`;
 };
@@ -137,9 +149,15 @@ export const hlsManifestTemplate = (
         .map((line, index) => ({
             id: `${index}-${line}`,
             lineNumber: index + 1,
-            html: getInteractiveHlsLineHTML(line, index + 1, hoveredItem, selectedItem, missingTooltips),
+            html: getInteractiveHlsLineHTML(
+                line,
+                index + 1,
+                hoveredItem,
+                selectedItem,
+                missingTooltips
+            ),
         }));
-    
+
     const rowRenderer = (item) => html`
         <div class="flex">
             <span

@@ -10,9 +10,7 @@ export const summaryCardsTemplate = (summary) => {
             : 0;
 
     return html`
-        <div
-            class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(250px,1fr))]"
-        >
+        <div class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(250px,1fr))]">
             ${statCardTemplate({
                 label: 'Total Requests',
                 value: summary.totalRequests,
@@ -22,9 +20,9 @@ export const summaryCardsTemplate = (summary) => {
             ${statCardTemplate({
                 label: 'Failed Requests',
                 value: html`${summary.failedRequests}
-                <span class="text-lg text-slate-400"
-                    >(${errorRate.toFixed(1)}%)</span
-                >`,
+                    <span class="text-lg text-slate-400"
+                        >(${errorRate.toFixed(1)}%)</span
+                    >`,
                 icon: icons.xCircle,
                 iconBgClass:
                     summary.failedRequests > 0

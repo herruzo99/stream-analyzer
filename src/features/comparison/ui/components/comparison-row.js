@@ -30,9 +30,7 @@ const getCellClassAndIcon = (status, value) => {
         default:
             return {
                 className: '',
-                icon: html`<span
-                    class="text-green-500/50 shrink-0"
-                    title="Same"
+                icon: html`<span class="text-green-500/50 shrink-0" title="Same"
                     >${icons.checkCircle}</span
                 >`,
             };

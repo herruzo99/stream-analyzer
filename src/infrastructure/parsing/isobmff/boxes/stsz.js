@@ -15,12 +15,9 @@ export function parseStsz(box, view) {
     if (sampleSize === 0 && sampleCount !== null && sampleCount > 0) {
         for (let i = 0; i < sampleCount; i++) {
             if (p.stopped) break;
-            if (!p.checkBounds(4)) break;
-
-            const entry_size = p.view.getUint32(p.offset);
-            p.offset += 4;
-
-            box.entries.push({ entry_size });
+            const size = p.readUint32(`entry_${i}_size`);
+            if (size === null) break;
+            box.entries.push({ size });
         }
     }
     p.finalize();
@@ -44,8 +41,8 @@ export const stszTooltip = {
         text: 'The total number of samples in the track.',
         ref: 'ISO/IEC 14496-12, 8.7.3.2.2',
     },
-    'stsz@entry_size_1': {
-        text: 'The size of the first sample in bytes. This field and subsequent entries only appear if `sample_size` is 0.',
+    'stsz@size': {
+        text: 'The size of an individual sample in bytes. This field only appears in the entry table if `sample_size` is 0.',
         ref: 'ISO/IEC 14496-12, 8.7.3.2.2',
     },
 };

@@ -15,14 +15,13 @@ import {
 import {
     cleanupSegmentViewInteractivity,
     initializeSegmentViewInteractivity,
-    clearHighlights,
-    applyHighlights,
 } from './components/interaction-logic.js';
 import { getInteractiveVttTemplate } from './components/vtt/index.js';
 import { inspectorLayoutTemplate } from './components/shared/inspector-layout.js';
 import { hexViewTemplate } from './components/hex-view.js';
 import { getTooltipData as getIsobmffTooltipData } from '@/infrastructure/parsing/isobmff/index';
 import { getTooltipData as getTsTooltipData } from '@/infrastructure/parsing/ts/index';
+import * as icons from '@/ui/icons';
 
 let container = null;
 let uiUnsubscribe = null;
@@ -30,28 +29,23 @@ let segmentCacheUnsubscribe = null;
 let isViewInitialized = false;
 let fullByteMap = null;
 
-const HEX_BYTES_PER_PAGE = 512;
 const ALL_TOOLTIPS_DATA = {
     ...getIsobmffTooltipData(),
     ...getTsTooltipData(),
 };
 
 const loadingTemplate = (message) =>
-    html`<div class="text-center py-12">
-        <div
-            class="animate-spin inline-block w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mb-4"
-        ></div>
-        <p class="text-gray-400">${message}</p>
+    html`<div class="flex items-center justify-center h-full text-slate-400">
+        <div class="text-center">
+            <div class="animate-spin inline-block">${icons.spinner}</div>
+            <p class="mt-2">${message}</p>
+        </div>
     </div>`;
 
 function renderInteractiveSegment() {
     if (!container) return;
 
-    const {
-        activeSegmentUrl,
-        interactiveSegmentCurrentPage: currentPage,
-        isByteMapLoading,
-    } = useUiStore.getState();
+    const { activeSegmentUrl, isByteMapLoading } = useUiStore.getState();
     const { get: getFromCache, set: setInCache } =
         useSegmentCacheStore.getState();
 
@@ -64,11 +58,7 @@ function renderInteractiveSegment() {
 
     let content;
 
-    if (
-        !cachedSegment ||
-        cachedSegment.status === -1 ||
-        !cachedSegment.parsedData
-    ) {
+    if (!cachedSegment || cachedSegment.status === -1) {
         content = loadingTemplate('Loading and parsing segment...');
     } else if (cachedSegment.status !== 200 || !cachedSegment.data) {
         content = html`<div class="text-red-400 p-4">
@@ -82,19 +72,13 @@ function renderInteractiveSegment() {
         if (format === 'vtt') {
             content = getInteractiveVttTemplate(cachedSegment.data);
         } else if (isBinaryFormat) {
-            const hasFullAnalysis =
-                fullByteMap && (format === 'ts' || parsedData.samples);
+            const hasFullAnalysis = !!fullByteMap;
 
             if (!hasFullAnalysis && !isByteMapLoading) {
                 uiActions.setIsByteMapLoading(true);
                 workerService
                     .postTask('full-segment-analysis', { parsedData })
-                    .promise.then(({ samples, byteMap }) => {
-                        const updatedParsedData = { ...parsedData, samples };
-                        setInCache(activeSegmentUrl, {
-                            ...cachedSegment,
-                            parsedData: updatedParsedData,
-                        });
+                    .promise.then(({ byteMap }) => {
                         fullByteMap = new Map(byteMap);
                         uiActions.setIsByteMapLoading(false);
                     })
@@ -106,39 +90,27 @@ function renderInteractiveSegment() {
 
             if (isByteMapLoading || !hasFullAnalysis) {
                 content = inspectorLayoutTemplate({
-                    inspectorContent: loadingTemplate('Performing deep analysis...'),
-                    structureContent: loadingTemplate('Performing deep analysis...'),
-                    hexContent: loadingTemplate('Performing deep analysis...'),
+                    inspectorContent: loadingTemplate(
+                        'Performing deep analysis...'
+                    ),
+                    structureContent: loadingTemplate(
+                        'Building structure tree...'
+                    ),
+                    hexContent: loadingTemplate('Generating hex view...'),
                 });
             } else {
                 let inspectorContent, structureContent;
                 if (format === 'ts') {
                     inspectorContent = tsInspector(parsedData);
                     structureContent = tsStructure(parsedData);
-                } else if (format === 'isobmff') {
-                    inspectorContent = isobmffInspector(
-                        parsedData.data,
-                        parsedData.samples
-                    );
+                } else {
+                    inspectorContent = isobmffInspector(parsedData);
                     structureContent = isobmffStructure(parsedData.data);
                 }
-
-                const onHexPageChange = (offset) => {
-                    const totalPages = Math.ceil(
-                        cachedSegment.data.byteLength / HEX_BYTES_PER_PAGE
-                    );
-                    const newPage = currentPage + offset;
-                    if (newPage >= 1 && newPage <= totalPages) {
-                        uiActions.setInteractiveSegmentPage(newPage);
-                    }
-                };
 
                 const hexContent = hexViewTemplate(
                     cachedSegment.data,
                     fullByteMap,
-                    currentPage,
-                    HEX_BYTES_PER_PAGE,
-                    onHexPageChange,
                     ALL_TOOLTIPS_DATA
                 );
 
@@ -150,16 +122,14 @@ function renderInteractiveSegment() {
 
                 if (!isViewInitialized) {
                     const findFn =
-                        parsedData.format === 'isobmff'
-                            ? findItemIsobmff
-                            : findItemTs;
+                        format === 'isobmff' ? findItemIsobmff : findItemTs;
                     setTimeout(() => {
                         initializeSegmentViewInteractivity(
                             { mainContent: container },
                             parsedData,
                             fullByteMap,
                             findFn,
-                            parsedData.format
+                            format
                         );
                         isViewInitialized = true;
                     }, 0);
@@ -174,55 +144,33 @@ function renderInteractiveSegment() {
     }
 
     const template = html`
-        <div class="mb-6 shrink-0">
-            <div class="flex justify-between items-center mb-2">
-                <h3 class="text-xl font-bold text-white">
-                    🔍 Interactive Segment View
-                </h3>
+        <div class="flex flex-col h-full gap-y-4">
+            <div class="flex justify-between items-center shrink-0">
+                <h3 class="text-xl font-bold text-white">Segment Inspector</h3>
                 <button
                     @click=${() => uiActions.setActiveTab('explorer')}
-                    class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md transition duration-300 text-sm"
+                    class="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-md transition duration-300 text-sm flex items-center gap-2"
                 >
-                    &larr; Back to Segment Explorer
+                    ${icons.arrowLeft} Back to Explorer
                 </button>
             </div>
             <p
-                class="text-sm text-gray-400 mb-4 font-mono break-all bg-gray-800 p-2 rounded"
+                class="text-sm text-slate-400 -mt-2 mb-2 font-mono break-all bg-slate-800/50 p-2 rounded"
             >
                 ${(activeSegmentUrl || '').split('@')[0]}
             </p>
+            <div class="grow min-h-0">${content}</div>
         </div>
-        <div class="grow min-h-0">${content}</div>
     `;
 
     render(template, container);
-
-    // Imperatively apply highlights after the render cycle completes.
-    setTimeout(() => {
-        const {
-            interactiveSegmentSelectedItem,
-            interactiveSegmentHighlightedItem,
-        } = useUiStore.getState();
-        clearHighlights();
-        if (interactiveSegmentHighlightedItem?.item) {
-            applyHighlights(
-                container,
-                interactiveSegmentHighlightedItem.item,
-                interactiveSegmentHighlightedItem.field
-            );
-        }
-        if (interactiveSegmentSelectedItem?.item) {
-            // Re-apply selection highlights over any hover highlights
-            applyHighlights(container, interactiveSegmentSelectedItem.item);
-        }
-    }, 0);
 }
 
 export const interactiveSegmentView = {
     mount(containerElement, stream) {
         container = containerElement;
-        isViewInitialized = false; // Reset initialization flag on mount
-        fullByteMap = null; // Clear local state on mount
+        isViewInitialized = false;
+        fullByteMap = null;
         if (uiUnsubscribe) uiUnsubscribe();
         if (segmentCacheUnsubscribe) segmentCacheUnsubscribe();
 
@@ -238,7 +186,7 @@ export const interactiveSegmentView = {
         uiUnsubscribe = null;
         segmentCacheUnsubscribe = null;
         isViewInitialized = false;
-        fullByteMap = null; // Clear local state on unmount
+        fullByteMap = null;
 
         cleanupSegmentViewInteractivity({ mainContent: container });
         if (container) {

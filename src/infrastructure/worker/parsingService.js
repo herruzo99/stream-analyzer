@@ -107,40 +107,30 @@ function assignBoxColors(boxes) {
 
 function assignTsPacketColors(packets) {
     if (!packets) return;
-    let lastColorFamilyName = null;
-    let lastColorIndex = 0;
-    for (const packet of packets) {
+    for (const [index, packet] of packets.entries()) {
         const colorFamilyName =
             TS_PACKET_COLOR_MAP[packet.payloadType] ||
             TS_PACKET_COLOR_MAP.default;
         const colorFamily = TAILWIND_COLORS[colorFamilyName];
-        let colorIndex;
-        if (colorFamilyName === lastColorFamilyName) {
-            colorIndex = (lastColorIndex + 1) % colorFamily.length;
-        } else {
-            colorIndex = 0;
-        }
+        const colorIndex = index % colorFamily.length;
         const selectedShade = colorFamily[colorIndex];
         packet.color = {
             name: colorFamilyName,
             bgClass: selectedShade.bg,
             border: selectedShade.border,
         };
-        lastColorFamilyName = colorFamilyName;
-        lastColorIndex = colorIndex;
     }
 }
 
 // --- End Color Logic ---
 
-export function generateFullByteMap(parsedData) {
+function generateFullByteMap(parsedData) {
     const byteMap = new Map();
 
     if (parsedData.format === 'isobmff') {
         const walkAndMap = (boxes) => {
             if (!boxes) return;
             for (const box of boxes) {
-                const isMdat = box.type === 'mdat';
                 for (let i = box.offset; i < box.contentOffset; i++) {
                     byteMap.set(i, {
                         box,
@@ -148,49 +138,14 @@ export function generateFullByteMap(parsedData) {
                         fieldName: 'Box Header',
                     });
                 }
-                if (!isMdat) {
-                    for (const [fieldName, field] of Object.entries(
-                        box.details
-                    )) {
-                        const fieldEnd = field.offset + Math.ceil(field.length);
-                        for (let i = field.offset; i < fieldEnd; i++) {
-                            byteMap.set(i, {
-                                box,
-                                color: box.color,
-                                fieldName,
-                            });
-                        }
-                    }
-                    // --- ARCHITECTURAL FIX: Map samples inside their parent box (e.g., trun) ---
-                    if (box.samples) {
-                        box.samples.forEach((sample) => {
-                            for (
-                                let i = sample.offset;
-                                i < sample.offset + sample.size;
-                                i++
-                            ) {
-                                byteMap.set(i, {
-                                    box: box,
-                                    color: { bgClass: 'bg-gray-700/20' },
-                                    fieldName: `Sample ${sample.index}`,
-                                });
-                            }
+                for (const [fieldName, field] of Object.entries(box.details)) {
+                    const fieldEnd = field.offset + Math.ceil(field.length);
+                    for (let i = field.offset; i < fieldEnd; i++) {
+                        byteMap.set(i, {
+                            box,
+                            color: box.color,
+                            fieldName,
                         });
-                    }
-                    // --- END FIX ---
-                } else {
-                    for (
-                        let i = box.contentOffset;
-                        i < box.offset + box.size;
-                        i++
-                    ) {
-                        if (!byteMap.has(i)) {
-                            byteMap.set(i, {
-                                box,
-                                color: box.color,
-                                fieldName: 'Media Data',
-                            });
-                        }
                     }
                 }
                 if (box.children?.length > 0) {
@@ -316,13 +271,9 @@ export async function parseSegment({ data, formatHint, url }) {
 export async function handleParseSegmentStructure({ url, data, formatHint }) {
     const parsedData = await parseSegment({ data, formatHint, url });
 
-    // --- ARCHITECTURAL FIX: CONSOLIDATE L2 ANALYSIS & DECORATE FOR UI ---
     if (parsedData.format === 'isobmff' && parsedData.data.boxes) {
-        // The `parseISOBMFF` function now reliably builds the canonical sample list.
-        // This handler is now only responsible for UI-specific decoration (colors)
-        // and event extraction.
         assignBoxColors(parsedData.data.boxes);
-        parsedData.data.size = data.byteLength; // Add total size
+        parsedData.data.size = data.byteLength;
 
         if (parsedData.data.events && parsedData.data.events.length > 0) {
             const canonicalEvents = parsedData.data.events
@@ -354,22 +305,14 @@ export async function handleParseSegmentStructure({ url, data, formatHint }) {
     } else if (parsedData.format === 'ts' && parsedData.data.packets) {
         assignTsPacketColors(parsedData.data.packets);
     }
-    // --- END FIX ---
 
     return parsedData;
 }
 
 export async function handleFullSegmentAnalysis({ parsedData }) {
     debugLog('parsingService', 'Performing full L2 analysis on segment.');
-    if (parsedData.format === 'isobmff' && parsedData.data.boxes) {
-        // The sample list is now reliably attached by parseISOBMFF.
-        // No further action is needed here to generate it.
-    }
-    // For TS, the initial parse is already the full analysis.
-
     const byteMap = generateFullByteMap(parsedData);
     return {
-        samples: parsedData.samples || [],
         byteMap: byteMap,
     };
 }

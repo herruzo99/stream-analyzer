@@ -35,12 +35,10 @@ export function parseSaiz(box, view) {
     ) {
         for (let i = 0; i < sampleCount; i++) {
             if (p.stopped) break;
-            const size = p.readUint8(`sample_info_size_${i + 1}`);
+            const size = p.readUint8(`sample_info_size_${i}`);
             if (size !== null) {
                 box.entries.push({ sample_info_size: size });
             }
-            // Clean up details to avoid clutter, as data is now in box.entries
-            delete box.details[`sample_info_size_${i + 1}`];
         }
     }
     p.finalize();

@@ -247,7 +247,8 @@ export const manifestViewTemplate = (
                     : '';
 
             const locationId = `loc-line-${lineNumber}`;
-            const isHoverHighlighted = highlightedCompliancePathId === locationId;
+            const isHoverHighlighted =
+                highlightedCompliancePathId === locationId;
             const hoverHighlightClass = isHoverHighlighted
                 ? 'bg-purple-500/30'
                 : '';

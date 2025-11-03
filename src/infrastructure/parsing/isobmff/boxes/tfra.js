@@ -28,6 +28,17 @@ export function parseTfra(box, view) {
         };
         delete box.details['length_sizes_raw'];
 
+        /** Helper to read variable-length integers and populate details */
+        const readVarBytes = (len) => {
+            if (!p.checkBounds(len)) return null;
+            let value = 0;
+            for (let k = 0; k < len; k++) {
+                value = (value << 8) | p.view.getUint8(p.offset + k);
+            }
+            p.offset += len;
+            return value;
+        };
+
         const numberOfEntries = p.readUint32('number_of_entries');
         box.entries = [];
 
@@ -37,43 +48,34 @@ export function parseTfra(box, view) {
 
                 const time =
                     version === 1
-                        ? p.readBigUint64('time')
-                        : p.readUint32('time');
-                const moof_offset =
+                        ? p.readBigUint64(`entry_${i}_time`)
+                        : p.readUint32(`entry_${i}_time`);
+                const moofOffset =
                     version === 1
-                        ? p.readBigUint64('moof_offset')
-                        : p.readUint32('moof_offset');
+                        ? p.readBigUint64(`entry_${i}_moof_offset`)
+                        : p.readUint32(`entry_${i}_moof_offset`);
 
-                let traf_number = 0;
-                for (let j = 0; j < length_size_of_traf_num; j++) {
-                    if (p.stopped) break;
-                    traf_number =
-                        (traf_number << 8) | p.readUint8(`traf_byte_${j}`);
+                const trafNumber = readVarBytes(length_size_of_traf_num);
+                const trunNumber = readVarBytes(length_size_of_trun_num);
+                const sampleNumber = readVarBytes(length_size_of_sample_num);
+
+                if (
+                    time === null ||
+                    moofOffset === null ||
+                    trafNumber === null ||
+                    trunNumber === null ||
+                    sampleNumber === null
+                ) {
+                    break;
                 }
 
-                let trun_number = 0;
-                for (let j = 0; j < length_size_of_trun_num; j++) {
-                    if (p.stopped) break;
-                    trun_number =
-                        (trun_number << 8) | p.readUint8(`trun_byte_${j}`);
-                }
-
-                let sample_number = 0;
-                for (let j = 0; j < length_size_of_sample_num; j++) {
-                    if (p.stopped) break;
-                    sample_number =
-                        (sample_number << 8) | p.readUint8(`sample_byte_${j}`);
-                }
-
-                if (!p.stopped) {
-                    box.entries.push({
-                        time: Number(time),
-                        moof_offset: Number(moof_offset),
-                        traf_number,
-                        trun_number,
-                        sample_number,
-                    });
-                }
+                box.entries.push({
+                    time: Number(time),
+                    moofOffset: Number(moofOffset),
+                    trafNumber,
+                    trunNumber,
+                    sampleNumber,
+                });
             }
         }
     }
@@ -99,24 +101,24 @@ export const tfraTooltip = {
         text: 'The number of random access point entries in the table that follows.',
         ref: 'ISO/IEC 14496-12, 8.8.10.3',
     },
-    'tfra@entry_1_time': {
-        text: "For the first entry, this is the presentation time of the sync sample in the media's timescale.",
+    'tfra@time': {
+        text: "The presentation time of the sync sample in the media's timescale.",
         ref: 'ISO/IEC 14496-12, 8.8.10.3',
     },
-    'tfra@entry_1_moof_offset': {
-        text: 'For the first entry, this is the absolute file offset of the beginning of the `moof` box that contains the sync sample.',
+    'tfra@moofOffset': {
+        text: 'The absolute file offset of the beginning of the `moof` box that contains the sync sample.',
         ref: 'ISO/IEC 14496-12, 8.8.10.3',
     },
-    'tfra@entry_1_traf_number': {
-        text: 'For the first entry, this is the 1-based index of the `traf` box within the `moof` that contains the sync sample.',
+    'tfra@trafNumber': {
+        text: 'The 1-based index of the `traf` box within the `moof` that contains the sync sample.',
         ref: 'ISO/IEC 14496-12, 8.8.10.3',
     },
-    'tfra@entry_1_trun_number': {
-        text: 'For the first entry, this is the 1-based index of the `trun` box within the `traf` that contains the sync sample.',
+    'tfra@trunNumber': {
+        text: 'The 1-based index of the `trun` box within the `traf` that contains the sync sample.',
         ref: 'ISO/IEC 14496-12, 8.8.10.3',
     },
-    'tfra@entry_1_sample_number': {
-        text: 'For the first entry, this is the 1-based index of the sync sample within the `trun`.',
+    'tfra@sampleNumber': {
+        text: 'The 1-based index of the sync sample within the `trun`.',
         ref: 'ISO/IEC 14496-12, 8.8.10.3',
     },
 };

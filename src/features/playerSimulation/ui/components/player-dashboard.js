@@ -1,7 +1,6 @@
 import { html, render } from 'lit-html';
 import { usePlayerStore } from '@/state/playerStore';
 import './player-controls.js';
-import { createIcons, icons } from 'lucide';
 
 export class PlayerDashboardComponent extends HTMLElement {
     constructor() {
@@ -29,10 +28,6 @@ export class PlayerDashboardComponent extends HTMLElement {
             </div>
         `;
         render(template, this);
-
-        requestAnimationFrame(() => {
-            createIcons({ icons });
-        });
     }
 }
 

@@ -307,6 +307,7 @@ const irSchema = {
         'maxFrameRate',
         'representations',
         'contentProtection',
+        'inbandEventStreams',
         'framePackings',
         'ratings',
         'viewpoints',

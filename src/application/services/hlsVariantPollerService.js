@@ -1,6 +1,7 @@
 import { eventBus } from '@/application/event-bus';
 import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
 import { debugLog } from '@/shared/utils/debug';
+import { playerService } from '@/features/playerSimulation/application/playerService';
 
 const pollers = new Map();
 let managerInterval = null;
@@ -62,10 +63,16 @@ export function manageHlsPollers() {
             (s) => s.protocol === 'hls' && s.manifest?.type === 'dynamic'
         );
 
+    const playerActiveStreamIds = playerService.getActiveStreamIds();
+
     for (const stream of hlsStreams) {
         for (const [variantUri] of stream.hlsVariantState.entries()) {
             const pollerKey = `${stream.id}-${variantUri}`;
-            const shouldBePolling = stream.isPolling;
+
+            // A stream should only be polled by this service if the UI toggle is on AND
+            // the player is NOT currently active for this stream.
+            const shouldBePolling =
+                stream.isPolling && !playerActiveStreamIds.has(stream.id);
             const isCurrentlyPolling = pollers.has(pollerKey);
 
             if (shouldBePolling && !isCurrentlyPolling) {
@@ -96,6 +103,9 @@ function updateVariantState(streamId, variantUri, updates) {
 export function initializeHlsVariantPoller() {
     if (managerInterval) clearInterval(managerInterval);
     managerInterval = setInterval(manageHlsPollers, 1000);
+
+    // Subscribe to player state changes to immediately re-evaluate polling.
+    eventBus.subscribe('player:active-streams-changed', manageHlsPollers);
 
     eventBus.subscribe(
         'hls-explorer:set-display-mode',

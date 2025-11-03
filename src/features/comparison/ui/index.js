@@ -13,9 +13,7 @@ const streamHeaderCard = (stream) => {
     const icon =
         stream.protocol === 'dash' ? icons.newAnalysis : icons.fileText;
     return html`
-        <div
-            class="bg-slate-800 rounded-lg p-3 border border-slate-700 h-full"
-        >
+        <div class="bg-slate-800 rounded-lg p-3 border border-slate-700 h-full">
             <div class="flex items-center gap-2">
                 <span class="text-blue-400">${icon}</span>
                 <h4
@@ -58,9 +56,7 @@ function renderComparison() {
             <div class="flex justify-between items-center mb-4 shrink-0">
                 <h3 class="text-xl font-bold">Manifest Comparison</h3>
                 <div class="flex items-center gap-2">
-                    <label
-                        for="hide-same-toggle"
-                        class="text-sm text-slate-400"
+                    <label for="hide-same-toggle" class="text-sm text-slate-400"
                         >Hide identical rows</label
                     >
                     <button

@@ -1,9 +1,5 @@
 import { eventBus } from '@/application/event-bus';
 import { getParsedSegment } from '@/infrastructure/segments/segmentService';
-import {
-    findChildrenRecursive,
-    getAttr,
-} from '@/infrastructure/parsing/dash/recursive-parser';
 
 const SCTE35_SCHEME_ID = 'urn:scte:scte35:2013:bin';
 
@@ -14,70 +10,16 @@ const SCTE35_SCHEME_ID = 'urn:scte:scte35:2013:bin';
  * @param {import('@/types').Stream} stream
  */
 async function checkForInbandEvents(stream) {
-    if (stream.protocol !== 'dash' || !stream.manifest?.periods) {
-        return;
-    }
-
-    for (const period of stream.manifest.periods) {
-        for (const as of period.adaptationSets) {
-            const inbandEventStreams = findChildrenRecursive(
-                as.serializedManifest,
-                'InbandEventStream'
-            );
-            const hasScte35 = inbandEventStreams.some(
-                (ies) => getAttr(ies, 'schemeIdUri') === SCTE35_SCHEME_ID
-            );
-
-            if (hasScte35) {
-                if (!as.representations || as.representations.length === 0)
-                    continue;
-
-                for (const rep of as.representations) {
-                    const compositeKey = `${period.id || 0}-${rep.id}`;
-                    const repState =
-                        stream.dashRepresentationState.get(compositeKey);
-                    const mediaSegments =
-                        repState?.segments.filter(
-                            (s) => /** @type {any} */ (s).type === 'Media'
-                        ) || [];
-
-                    if (mediaSegments.length === 0) continue;
-
-                    // ARCHITECTURAL REFINEMENT:
-                    // If there's only one media segment and it's a VOD stream, it's highly
-                    // likely a SegmentBase stream representing the entire file. Do NOT fetch it.
-                    if (
-                        mediaSegments.length === 1 &&
-                        stream.manifest?.type === 'static'
-                    ) {
-                        continue;
-                    }
-
-                    // For multi-segment streams (SegmentTemplate/SegmentList),
-                    // proactively parse only the FIRST media segment.
-                    const firstMediaSegment = mediaSegments[0];
-                    if (firstMediaSegment) {
-                        const segmentUrl =
-                            /** @type {any} */
-                            (firstMediaSegment).resolvedUrl;
-                        if (segmentUrl) {
-                            try {
-                                getParsedSegment(
-                                    segmentUrl,
-                                    stream.id,
-                                    'isobmff'
-                                );
-                            } catch (e) {
-                                console.error(
-                                    `[InbandEventMonitor] Failed to dispatch segment parse for ${segmentUrl}: ${e.message}`
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
+    // --- ARCHITECTURAL REMEDIATION ---
+    // This entire function's responsibility for the *initial* segment load
+    // has been moved into the worker's `analysisHandler.js` to ensure ad avail
+    // data is present in the first state update.
+    //
+    // This function might be repurposed later to handle discovery of in-band
+    // events in *newly added* segments of a live stream, but for now, it
+    // should do nothing to prevent duplicate fetches.
+    return;
+    // --- END REMEDIATION ---
 }
 
 function handleAnalysisComplete({ streams }) {

@@ -1,12 +1,13 @@
 import { html } from 'lit-html';
 import { statCardTemplate } from '@/features/summary/ui/components/shared';
-import { connectedTabBar } from '@/ui/components/tabs';
-import { useUiStore, uiActions } from '@/state/uiStore';
+import { useUiStore } from '@/state/uiStore';
 import { cmafTrackRules } from '@/features/compliance/domain/cmaf/rules';
 import { validateCmafProfiles } from '@/features/compliance/domain/cmaf/profile-validator';
 import * as icons from '@/ui/icons';
-import '@/ui/components/virtualized-list';
-import { isoBoxTreeTemplate } from '@/ui/shared/isobmff-renderer';
+import {
+    isoBoxTreeTemplate,
+    entriesTableTemplate,
+} from '@/ui/shared/isobmff-renderer';
 
 const findBoxRecursive = (boxes, predicateOrType) => {
     const predicate =
@@ -88,97 +89,8 @@ const cmafResultsTemplate = (results) => {
     `;
 };
 
-const samplesTableTemplate = (samples) => {
-    if (!samples || samples.length === 0) {
-        return html``;
-    }
-
-    const rowHeight = 40;
-
-    const rowRenderer = (sample, index) => {
-        const dependsOnMap = {
-            'Does not depend on others (I-picture)': 'No (I-Frame)',
-            'Depends on others': 'Yes',
-            Unknown: 'Unknown',
-            Reserved: 'Reserved',
-        };
-
-        // --- BUG FIX: Add guard for undefined sample.dependsOn ---
-        const dependsOnValue =
-            sample.dependsOn && dependsOnMap[sample.dependsOn]
-                ? dependsOnMap[sample.dependsOn]
-                : sample.dependsOn || 'N/A';
-        const dependsOnClass =
-            sample.dependsOn && sample.dependsOn.includes('not')
-                ? 'text-green-400'
-                : 'text-yellow-400';
-        // --- END BUG FIX ---
-
-        return html`
-            <div
-                class="flex items-center border-b border-gray-700/50 text-xs"
-                style="height: ${rowHeight}px;"
-            >
-                <div
-                    class="p-1 font-mono text-slate-500 w-16 text-right pr-2"
-                >
-                    ${index + 1}
-                </div>
-                <div class="p-1 font-mono flex-1 border-l border-gray-700/50">
-                    ${sample.offset}
-                </div>
-                <div class="p-1 font-mono flex-1 border-l border-gray-700/50">
-                    ${sample.size}
-                </div>
-                <div
-                    class="p-1 font-mono flex-1 border-l border-gray-700/50 ${dependsOnClass}"
-                >
-                    ${dependsOnValue}
-                </div>
-                <div class="p-1 font-mono flex-1 border-l border-gray-700/50">
-                    ${sample.degradationPriority ?? 'N/A'}
-                </div>
-            </div>
-        `;
-    };
-
-    return html`
-        <div>
-            <h3 class="text-xl font-bold mb-4">Samples (${samples.length})</h3>
-            <div
-                class="bg-slate-900/50 rounded border border-slate-700/50 overflow-hidden"
-            >
-                <div
-                    class="flex bg-slate-800/50 sticky top-0 z-10 font-semibold text-xs text-slate-400"
-                >
-                    <div class="p-1 w-16 text-right pr-2">#</div>
-                    <div class="p-1 flex-1 border-l border-gray-700/50">
-                        Offset
-                    </div>
-                    <div class="p-1 flex-1 border-l border-gray-700/50">
-                        Size
-                    </div>
-                    <div class="p-1 flex-1 border-l border-gray-700/50">
-                        Depends On Others
-                    </div>
-                    <div class="p-1 flex-1 border-l border-gray-700/50">
-                        Degradation Prio
-                    </div>
-                </div>
-                <virtualized-list
-                    .items=${samples}
-                    .rowTemplate=${rowRenderer}
-                    .rowHeight=${rowHeight}
-                    .itemId=${(item, index) => index}
-                    class="h-[400px]"
-                ></virtualized-list>
-            </div>
-        </div>
-    `;
-};
-
 export const isobmffAnalysisTemplate = (parsedData) => {
-    const { data: isobmffData, samples } = parsedData;
+    const { data: isobmffData } = parsedData;
     const { boxes } = isobmffData;
 
     const isInitSegment = !!findBoxRecursive(boxes, (b) => b.type === 'moov');
@@ -213,6 +125,28 @@ export const isobmffAnalysisTemplate = (parsedData) => {
     if (isInitSegment) segmentType = 'Initialization Segment';
     if (isMediaSegment) segmentType = 'Media Segment';
 
+    let boxForTable;
+    if (isMediaSegment) {
+        const trunBox = findBoxRecursive(boxes, (b) => b.type === 'trun');
+        if (trunBox) {
+            boxForTable = {
+                ...trunBox,
+                // CRITICAL FIX: The `trun` box's own `samples` array is a raw parse
+                // without correct offsets or indices. The canonical, enriched `samples`
+                // list lives at the top level of the parsed data structure. We must
+                // substitute it here for the table renderer.
+                samples: parsedData.samples || trunBox.samples,
+            };
+        }
+    } else {
+        boxForTable = findBoxRecursive(
+            boxes,
+            (b) =>
+                (b.samples && b.samples.length > 0) ||
+                (b.entries && b.entries.length > 0)
+        );
+    }
+
     const summaryCards = [
         statCardTemplate({
             label: 'Segment Type',
@@ -231,7 +165,7 @@ export const isobmffAnalysisTemplate = (parsedData) => {
         }),
         statCardTemplate({
             label: 'Sample Count',
-            value: samples?.length,
+            value: parsedData.samples?.length,
             icon: icons.rectangleHorizontal,
             tooltip:
                 'The total number of media samples (e.g., video frames or audio chunks) contained within this segment.',
@@ -259,7 +193,7 @@ export const isobmffAnalysisTemplate = (parsedData) => {
             </div>
 
             ${cmafResultsTemplate(cmafResults)}
-            ${samplesTableTemplate(samples)}
+            ${boxForTable ? entriesTableTemplate(boxForTable) : ''}
 
             <div>
                 <h3 class="text-xl text-white font-bold mb-4">Box Structure</h3>

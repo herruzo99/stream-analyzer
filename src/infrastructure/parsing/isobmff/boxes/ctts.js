@@ -20,18 +20,16 @@ export function parseCtts(box, view) {
     if (entryCount !== null && entryCount > 0) {
         for (let i = 0; i < entryCount; i++) {
             if (p.stopped) break;
-            if (!p.checkBounds(8)) break;
 
-            const sample_count = p.view.getUint32(p.offset);
-            let sample_offset;
-            if (version === 1) {
-                sample_offset = p.view.getInt32(p.offset + 4);
-            } else {
-                sample_offset = p.view.getUint32(p.offset + 4);
-            }
-            p.offset += 8;
+            const count = p.readUint32(`entry_${i}_sample_count`);
+            const offset =
+                version === 1
+                    ? p.readInt32(`entry_${i}_sample_offset`)
+                    : p.readUint32(`entry_${i}_sample_offset`);
 
-            box.entries.push({ sample_count, sample_offset });
+            if (count === null || offset === null) break;
+
+            box.entries.push({ count, offset });
         }
     }
     p.finalize();
@@ -51,12 +49,12 @@ export const cttsTooltip = {
         text: 'The number of entries in the run-length encoded composition time-to-sample table.',
         ref: 'ISO/IEC 14496-12, 8.6.1.3.3',
     },
-    'ctts@entry_1_sample_count': {
-        text: 'For the first entry, this is the number of consecutive samples that have the same composition offset.',
+    'ctts@count': {
+        text: 'The number of consecutive samples that have the same composition offset.',
         ref: 'ISO/IEC 14496-12, 8.6.1.3.3',
     },
-    'ctts@entry_1_sample_offset': {
-        text: 'For the first entry, this is the composition time offset, such that CompositionTime(n) = DecodingTime(n) + CompositionOffset(n).',
+    'ctts@offset': {
+        text: 'The composition time offset, such that CompositionTime(n) = DecodingTime(n) + CompositionOffset(n).',
         ref: 'ISO/IEC 14496-12, 8.6.1.3.3',
     },
 };

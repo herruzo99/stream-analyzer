@@ -37,9 +37,7 @@ const eventRowTemplate = (event) => {
 
 export const eventListTemplate = (events) => {
     if (!events || events.length === 0) {
-        return html`<div
-            class="text-sm text-slate-500 italic text-center p-4"
-        >
+        return html`<div class="text-sm text-slate-500 italic text-center p-4">
             No timed events found in this stream.
         </div>`;
     }
