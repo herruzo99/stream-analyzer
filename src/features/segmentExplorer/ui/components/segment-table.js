@@ -50,6 +50,11 @@ export const segmentTableTemplate = ({
             No segments found for this representation.
         </div>`;
     } else {
+        // --- ARCHITECTURAL REFACTOR: Separate Init and Media Segments ---
+        const initSegment = segments.find((s) => s.type === 'Init');
+        const mediaSegments = segments.filter((s) => s.type !== 'Init');
+        // --- END REFACTOR ---
+
         const getFromCache = useSegmentCacheStore.getState().get;
         const { segmentExplorerTargetTime, segmentExplorerScrollToTarget } =
             useUiStore.getState();
@@ -59,7 +64,7 @@ export const segmentTableTemplate = ({
         }
         const thisTablesFlashed = flashedSegmentIds.get(id);
 
-        const rowRenderer = (seg) => {
+        const rowRenderer = (seg, index) => {
             const cacheEntry = getFromCache(seg.uniqueId);
             const safeNewlyAdded = new Set(newlyAddedSegmentUrls || []);
             const shouldFlash =
@@ -88,7 +93,7 @@ export const segmentTableTemplate = ({
                 );
             if (!listElement) return;
             if (segmentExplorerTargetTime && segmentExplorerScrollToTarget) {
-                const targetIndex = segments.findIndex(
+                const targetIndex = mediaSegments.findIndex(
                     (seg) =>
                         seg.startTimeUTC <=
                             segmentExplorerTargetTime.getTime() &&
@@ -131,10 +136,15 @@ export const segmentTableTemplate = ({
                         URL & Actions
                     </div>
                 </div>
+                <!-- Render Init Segment Separately -->
+                ${initSegment
+                    ? rowRenderer(initSegment)
+                    : ''}
+                <!-- Virtualized List for Media Segments -->
                 <virtualized-list
                     id="vl-${id}"
-                    .items=${segments}
-                    .rowTemplate=${rowRenderer}
+                    .items=${mediaSegments}
+                    .rowTemplate=${(item, index) => rowRenderer(item, index)}
                     .rowHeight=${64}
                     .itemId=${(item) => item.uniqueId}
                     class="grow"
@@ -145,7 +155,7 @@ export const segmentTableTemplate = ({
 
     return html`
         <div
-            class="bg-slate-800 rounded-lg border border-slate-700 flex flex-col"
+            class="bg-slate-800 rounded-lg border border-slate-700 flex flex-col h-full"
         >
             <header
                 class="flex items-center gap-3 p-3 bg-slate-900/50 border-b border-slate-700 rounded-t-lg"
@@ -155,7 +165,7 @@ export const segmentTableTemplate = ({
                     ${unsafeHTML(title)}
                 </h4>
             </header>
-            <div class="min-h-[100px] flex flex-col">${content}</div>
+            <div class="grow min-h-0 flex flex-col">${content}</div>
         </div>
     `;
 };
