@@ -1,37 +1,24 @@
 import { formatBitrate } from '@/ui/shared/format';
 import { multiPlayerService } from '../application/multiPlayerService';
 import { useMultiPlayerStore } from '@/state/multiPlayerStore';
+import * as icons from '@/ui/icons';
 
 /**
  * Creates the view model for the new multi-player grid view.
  * @param {Map<number, import('@/state/multiPlayerStore').PlayerInstance>} playersMap
  * @returns {{
- *   cards: Array<object>,
- *   averagePlayheadTime: number,
- *   maxDuration: number
- * }} An object containing card view models and aggregate data.
+ *   cards: Array<object>
+ * }} An object containing card view models.
  */
 export function createMultiPlayerGridViewModel(playersMap) {
     const players = Array.from(playersMap.values());
     const { hoveredStreamId } = useMultiPlayerStore.getState();
 
     if (players.length === 0) {
-        return { cards: [], averagePlayheadTime: 0, maxDuration: 0 };
+        return {
+            cards: [],
+        };
     }
-
-    const playingPlayers = players.filter(
-        (p) => p.state === 'playing' && p.stats?.playheadTime
-    );
-    const averagePlayheadTime =
-        playingPlayers.length > 0
-            ? playingPlayers.reduce((sum, p) => sum + p.stats.playheadTime, 0) /
-              playingPlayers.length
-            : players[0]?.stats?.playheadTime || 0;
-
-    const maxDuration = Math.max(
-        ...players.map((p) => p.stats?.manifestTime || 1),
-        1
-    );
 
     const cards = players.map((player) => {
         const {
@@ -39,48 +26,60 @@ export function createMultiPlayerGridViewModel(playersMap) {
             streamName,
             state,
             error,
-            playbackHistory,
             streamType,
             health,
         } = player;
 
-        let syncDrift = 0;
-        if (
-            averagePlayheadTime > 0 &&
-            stats?.playheadTime &&
-            isFinite(maxDuration) &&
-            maxDuration > 0
-        ) {
-            const driftSeconds = stats.playheadTime - averagePlayheadTime;
-            // Calculate drift as a percentage of a smaller, more relevant window (e.g., 60s)
-            // to make the visualization more sensitive.
-            const syncWindow = 60;
-            syncDrift = (driftSeconds / syncWindow) * 100 * 2; // Scale by 2 for visibility
-            syncDrift = Math.max(-50, Math.min(50, syncDrift)); // Clamp to [-50, 50]
-        }
+        const bufferStat = {
+            label: stats.buffer.label || 'Buffer',
+            value: stats.buffer.seconds
+                ? `${stats.buffer.seconds.toFixed(2)}s`
+                : 'N/A',
+            icon: icons.history,
+            tooltip:
+                stats.buffer.label === 'Live Latency'
+                    ? 'Time difference between the playhead and the live edge.'
+                    : 'Amount of playable media ahead of the playhead.',
+        };
 
-        const bufferHistory = playbackHistory
-            .map((h) => h.buffer)
-            .filter((b) => isFinite(b));
-        const maxBuffer =
-            bufferHistory.length > 0 ? Math.max(...bufferHistory, 1) : 1;
-        const bufferSparklinePoints =
-            bufferHistory.length > 1
-                ? bufferHistory
-                      .map(
-                          (val, i) =>
-                              `${i * (100 / (bufferHistory.length - 1))},${100 - (val / maxBuffer) * 100}`
-                      )
-                      .join(' ')
-                : '0,50 100,50';
+        const bitrateStat = {
+            label: 'Bitrate',
+            value: formatBitrate(stats.abr.currentVideoBitrate),
+            icon: icons.gauge,
+            tooltip: 'The bitrate of the current video representation.',
+        };
 
-        // --- ARCHITECTURAL FIX: Use the correct, unambiguous buffer property ---
-        const forwardBuffer = (stats?.buffer?.seconds ?? 0).toFixed(2);
-        const liveLatencyValue =
-            streamType === 'live' && (stats?.buffer?.seconds ?? 0) > 0
-                ? stats.buffer.seconds.toFixed(2)
-                : 'N/A';
-        // --- END FIX ---
+        const resolutionStat = {
+            label: 'Resolution',
+            value: stats.playbackQuality.resolution || 'N/A',
+            icon: icons.clapperboard,
+            tooltip: 'The resolution of the video frames being rendered.',
+        };
+
+        const stallsStat = {
+            label: 'Stalls / Duration',
+            value: `${stats.playbackQuality.totalStalls || 0} / ${(
+                stats.playbackQuality.totalStallDuration || 0
+            ).toFixed(2)}s`,
+            icon: icons.pause,
+            tooltip:
+                'Total number of rebuffering events and the total time spent stalled.',
+        };
+
+        const droppedFramesStat = {
+            label: 'Dropped Frames',
+            value: stats.playbackQuality.droppedFrames || 0,
+            icon: icons.film,
+            tooltip: 'Frames decoded but not displayed due to performance.',
+        };
+
+        const bandwidthStat = {
+            label: 'Est. Bandwidth',
+            value: formatBitrate(stats.abr.estimatedBandwidth),
+            icon: icons.network,
+            tooltip:
+                "The player's real-time estimate of available network bandwidth.",
+        };
 
         return {
             streamId: player.streamId,
@@ -90,22 +89,17 @@ export function createMultiPlayerGridViewModel(playersMap) {
             error,
             streamType,
             health,
-            resolution: stats?.playbackQuality?.resolution || 'N/A',
-            videoBitrate: formatBitrate(stats?.abr?.currentVideoBitrate),
-            forwardBuffer: forwardBuffer,
-            syncDrift,
-            bufferSparklinePoints,
-            maxBuffer: maxBuffer.toFixed(2),
-            estBandwidth: formatBitrate(stats?.abr?.estimatedBandwidth),
-            liveLatency: liveLatencyValue,
-            droppedFrames: stats?.playbackQuality?.droppedFrames ?? 'N/A',
-            totalStalls: stats?.playbackQuality?.totalStalls ?? 'N/A',
-            stallDuration: (
-                stats?.playbackQuality?.totalStallDuration ?? 0
-            ).toFixed(2),
             videoElement: multiPlayerService.videoElements.get(player.streamId),
+            stats: {
+                buffer: bufferStat,
+                bitrate: bitrateStat,
+                resolution: resolutionStat,
+                stalls: stallsStat,
+                droppedFrames: droppedFramesStat,
+                bandwidth: bandwidthStat,
+            },
         };
     });
 
-    return { cards, averagePlayheadTime, maxDuration };
+    return { cards };
 }

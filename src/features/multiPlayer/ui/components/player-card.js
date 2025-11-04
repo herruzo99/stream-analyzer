@@ -1,16 +1,45 @@
 import { html, render } from 'lit-html';
-import { multiPlayerService } from '../../application/multiPlayerService';
+import { classMap } from 'lit-html/directives/class-map.js';
 import { useMultiPlayerStore } from '@/state/multiPlayerStore';
-import { debugLog } from '@/shared/utils/debug';
 import { eventBus } from '@/application/event-bus';
 import * as icons from '@/ui/icons';
+import { statCardTemplate } from '@/features/summary/ui/components/shared';
+import { toggleDropdown } from '@/ui/services/dropdownService';
+import {
+    videoSelectionPanelTemplate,
+    audioSelectionPanelTemplate,
+    textSelectionPanelTemplate,
+} from '@/features/playerSimulation/ui/components/track-selection-dropdown';
+import { formatBitrate } from '@/ui/shared/format';
+import { connectedTabBar } from '@/ui/components/tabs';
+
+const dropdownButton = (label, subtext, onClick, disabled = false) => {
+    return html`
+        <button
+            type="button"
+            @click=${onClick}
+            class="flex items-center justify-between rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-left transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-blue-500/50 w-full disabled:opacity-50 disabled:cursor-not-allowed"
+            ?disabled=${disabled}
+        >
+            <span class="grid flex-1 grid-cols-1 overflow-hidden">
+                <span class="truncate text-sm font-semibold text-slate-100"
+                    >${label}</span
+                >
+                <span class="truncate text-xs text-slate-400">${subtext}</span>
+            </span>
+            <span class="ml-3 flex-shrink-0 text-slate-400"
+                >${icons.chevronDown}</span
+            >
+        </button>
+    `;
+};
 
 export class PlayerCardComponent extends HTMLElement {
     constructor() {
         super();
         this.streamId = -1;
         this._viewModel = null;
-        this._isExpanded = false;
+        this.isLastInGroup = false;
     }
 
     static get observedAttributes() {
@@ -20,7 +49,16 @@ export class PlayerCardComponent extends HTMLElement {
     set viewModel(newViewModel) {
         if (this._viewModel === newViewModel) return;
         this._viewModel = newViewModel;
-        this._isExpanded = useMultiPlayerStore.getState().isAllExpanded;
+
+        const { players } = useMultiPlayerStore.getState();
+        const playerState = players.get(this.streamId);
+        if (playerState) {
+            const group = Array.from(players.values()).filter(
+                (p) => p.sourceStreamId === playerState.sourceStreamId
+            );
+            this.isLastInGroup = group.length <= 1;
+        }
+
         this.render();
     }
 
@@ -35,23 +73,6 @@ export class PlayerCardComponent extends HTMLElement {
     }
 
     connectedCallback() {
-        debugLog(
-            'PlayerCard',
-            `[LIFECYCLE] connectedCallback for stream ${this.streamId}`
-        );
-        this.render();
-    }
-
-    disconnectedCallback() {
-        debugLog(
-            'PlayerCard',
-            `[LIFECYCLE] disconnectedCallback for stream ${this.streamId}`
-        );
-    }
-
-    toggleExpand(e) {
-        e.stopPropagation();
-        this._isExpanded = !this._isExpanded;
         this.render();
     }
 
@@ -61,26 +82,11 @@ export class PlayerCardComponent extends HTMLElement {
             return;
         }
 
-        const {
-            streamName,
-            state,
-            error,
-            streamType,
-            health,
-            resolution,
-            videoBitrate,
-            forwardBuffer,
-            syncDrift,
-            bufferSparklinePoints,
-            maxBuffer,
-            estBandwidth,
-            liveLatency,
-            droppedFrames,
-            totalStalls,
-            stallDuration,
-            videoElement,
-            isHovered,
-        } = this._viewModel;
+        const vm = this._viewModel;
+        const { globalAbrEnabled, players, playerCardTabs } =
+            useMultiPlayerStore.getState();
+        const playerState = players.get(this.streamId);
+        const activeTab = playerCardTabs.get(this.streamId) || 'stats';
 
         const stateColors = {
             playing: 'bg-green-500',
@@ -92,63 +98,38 @@ export class PlayerCardComponent extends HTMLElement {
             idle: 'bg-gray-600',
         };
         const healthColors = {
-            healthy: 'border-gray-700',
+            healthy: 'border-slate-700',
             warning: 'border-yellow-500',
             critical: 'border-red-500',
         };
-        const hoverClass = isHovered ? 'ring-2 ring-purple-400' : '';
 
-        const driftSeconds = (
-            (syncDrift * (parseFloat(maxBuffer) || 1)) /
-            100
-        ).toFixed(2);
-        const bufferLatencyLabel =
-            streamType === 'live' ? 'Live Latency' : 'Fwd Buffer (VOD)';
-        const bufferLatencyValue =
-            streamType === 'live' ? liveLatency : forwardBuffer;
-
-        const detailsTemplate = html` <div
-            class="mt-3 pt-3 border-t border-gray-700/50 grid grid-cols-2 gap-x-3 gap-y-2"
-        >
-            <div>
-                <div class="text-gray-400">Est. Bandwidth</div>
-                <div class="font-semibold text-white font-mono">
-                    ${estBandwidth}
-                </div>
-            </div>
-            <div>
-                <div class="text-gray-400">${bufferLatencyLabel}</div>
-                <div class="font-semibold text-white font-mono">
-                    ${bufferLatencyValue}s
-                </div>
-            </div>
-            <div>
-                <div class="text-gray-400">Dropped Frames</div>
-                <div class="font-semibold text-white font-mono">
-                    ${droppedFrames}
-                </div>
-            </div>
-            <div>
-                <div class="text-gray-400">Stalls / Dur</div>
-                <div class="font-semibold text-white font-mono">
-                    ${totalStalls} / ${stallDuration}s
-                </div>
-            </div>
-        </div>`;
+        const cardClasses = classMap({
+            'player-card': true,
+            'bg-slate-800': true,
+            'rounded-lg': true,
+            border: true,
+            flex: true,
+            'flex-col': true,
+            'transition-all': true,
+            'w-[420px]': true, // Enforce fixed width
+            [healthColors[vm.health]]: true,
+            'ring-2': vm.isHovered,
+            'ring-purple-400': vm.isHovered,
+        });
 
         const videoContainer = html`
             <div
                 class="relative aspect-video bg-black rounded-t-lg overflow-hidden"
             >
-                ${videoElement}
-                ${error
+                ${vm.videoElement}
+                ${vm.error
                     ? html`<div
                           class="absolute inset-0 bg-red-900/80 text-red-200 p-2 text-xs flex items-center justify-center text-center"
                       >
-                          ${error}
+                          ${vm.error}
                       </div>`
                     : ''}
-                ${streamType === 'live'
+                ${vm.streamType === 'live'
                     ? html`<span
                           class="absolute top-2 right-2 text-xs font-bold px-2 py-1 bg-red-600 text-white rounded-md animate-pulse"
                           >LIVE</span
@@ -157,133 +138,236 @@ export class PlayerCardComponent extends HTMLElement {
             </div>
         `;
 
-        const template = html` <style>
+        const isAbrEffectivelyEnabled =
+            playerState.abrOverride === null
+                ? globalAbrEnabled
+                : playerState.abrOverride;
+        const hasOverrides =
+            playerState.abrOverride !== null || !isAbrEffectivelyEnabled;
+
+        const tabs = [
+            { key: 'stats', label: 'Stats' },
+            {
+                key: 'controls',
+                label: 'Controls',
+                indicator: hasOverrides
+                    ? html`<span class="text-yellow-400"
+                          >${icons.slidersHorizontal}</span
+                      >`
+                    : '',
+            },
+        ];
+        const onTabClick = (tab) => {
+            eventBus.dispatch('ui:multi-player:set-card-tab', {
+                streamId: this.streamId,
+                tab,
+            });
+        };
+
+        const activeVideoTrack = playerState.variantTracks.find(
+            (t) => t.active
+        );
+        const activeAudioTrack = playerState.audioTracks.find((t) => t.active);
+        const activeTextTrack = playerState.textTracks.find((t) => t.active);
+
+        const isPlayerLoading =
+            playerState.state === 'idle' || playerState.state === 'loading';
+
+        const handleAbrToggle = () => {
+            const newAbrState = !isAbrEffectivelyEnabled;
+            eventBus.dispatch('ui:player:set-abr-enabled', {
+                streamId: playerState.streamId,
+                enabled: newAbrState,
+            });
+        };
+
+        const controlsContent = html` <div class="p-3 space-y-3">
+            <div class="flex justify-between items-center">
+                <label class="font-semibold text-slate-300 text-sm"
+                    >ABR Mode</label
+                >
+                <button
+                    @click=${handleAbrToggle}
+                    class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50"
+                    ?disabled=${isPlayerLoading}
+                >
+                    <span
+                        class="absolute inset-0 rounded-full ${isAbrEffectivelyEnabled
+                            ? 'bg-blue-600'
+                            : 'bg-slate-600'}"
+                    ></span>
+                    <span
+                        class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isAbrEffectivelyEnabled
+                            ? 'translate-x-6'
+                            : 'translate-x-1'}"
+                    ></span>
+                </button>
+            </div>
+            ${dropdownButton(
+                isAbrEffectivelyEnabled
+                    ? 'Auto (ABR)'
+                    : activeVideoTrack
+                      ? `${activeVideoTrack.height}p`
+                      : 'Video',
+                isAbrEffectivelyEnabled
+                    ? 'Adapting to network'
+                    : activeVideoTrack
+                      ? formatBitrate(activeVideoTrack.bandwidth)
+                      : 'N/A',
+                (e) =>
+                    toggleDropdown(
+                        e.currentTarget,
+                        videoSelectionPanelTemplate(
+                            playerState.variantTracks,
+                            isAbrEffectivelyEnabled,
+                            new Map(),
+                            playerState.streamId
+                        )
+                    ),
+                isPlayerLoading || isAbrEffectivelyEnabled
+            )}
+            ${dropdownButton(
+                activeAudioTrack?.label || activeAudioTrack?.language || 'Audio',
+                activeAudioTrack
+                    ? `Role: ${activeAudioTrack.roles.join(', ') || 'main'}`
+                    : 'N/A',
+                (e) =>
+                    toggleDropdown(
+                        e.currentTarget,
+                        audioSelectionPanelTemplate(
+                            playerState.audioTracks,
+                            playerState.streamId
+                        )
+                    ),
+                isPlayerLoading
+            )}
+            ${dropdownButton(
+                activeTextTrack?.label ||
+                    activeTextTrack?.language ||
+                    'Text Tracks Off',
+                activeTextTrack
+                    ? `Kind: ${activeTextTrack.kind || 'subtitle'}`
+                    : '',
+                (e) =>
+                    toggleDropdown(
+                        e.currentTarget,
+                        textSelectionPanelTemplate(
+                            playerState.textTracks,
+                            playerState.streamId
+                        )
+                    ),
+                isPlayerLoading
+            )}
+        </div>`;
+
+        const statsContent = html` <div class="p-3 grid grid-cols-2 gap-2">
+            ${statCardTemplate(vm.stats.buffer)}
+            ${statCardTemplate(vm.stats.bitrate)}
+            ${statCardTemplate(vm.stats.resolution)}
+            ${statCardTemplate(vm.stats.stalls)}
+            ${statCardTemplate(vm.stats.bandwidth)}
+            ${statCardTemplate(vm.stats.droppedFrames)}
+        </div>`;
+
+        const actionButton = (icon, title, action, disabled = false) => {
+            const classes = classMap({
+                'text-slate-400': !disabled,
+                'hover:text-white': !disabled,
+                'hover:bg-slate-700': !disabled,
+                'text-slate-600': disabled,
+                'cursor-not-allowed': disabled,
+                'p-1.5': true,
+                'rounded-full': true,
+                'transition-colors': true,
+            });
+            return html`<button
+                @click=${disabled ? null : action}
+                title=${title}
+                class=${classes}
+                ?disabled=${disabled}
+            >
+                ${icon}
+            </button>`;
+        };
+
+        const template = html`
+            <style>
                 :host {
                     display: contents;
                 }
-                .sparkline {
-                    fill: none;
-                    stroke: #3b82f6;
-                    stroke-width: 2;
-                    stroke-linejoin: round;
-                    stroke-linecap: round;
-                }
             </style>
             <div
-                class="player-card bg-gray-800 rounded-lg border-2 ${healthColors[
-                    health
-                ]} ${hoverClass} flex flex-col transition-all"
+                class=${cardClasses}
+                @mouseover=${() =>
+                    useMultiPlayerStore
+                        .getState()
+                        .setHoveredStreamId(this.streamId)}
+                @mouseout=${() =>
+                    useMultiPlayerStore.getState().setHoveredStreamId(null)}
             >
                 ${videoContainer}
-                <div class="p-3 space-y-3 text-xs">
-                    <div class="flex items-start justify-between gap-2">
+                <div class="p-3 text-xs">
+                    <header class="flex items-start justify-between gap-2">
                         <h4
-                            class="font-bold text-gray-200 text-sm truncate flex items-center gap-2"
-                            title=${streamName}
+                            class="font-bold text-slate-200 text-sm truncate"
+                            title=${vm.streamName}
                         >
-                            <button
-                                @click=${() =>
-                                    eventBus.dispatch(
-                                        'ui:multi-player:sync-all-to',
-                                        { streamId: this.streamId }
-                                    )}
-                                class="text-cyan-400 hover:text-cyan-200 transition-colors"
-                                title="Sync all other players to this player's current time"
-                            >
-                                ${icons.syncMaster}
-                            </button>
-                            <button
-                                @click=${() =>
-                                    eventBus.dispatch(
-                                        'ui:multi-player:filter-log-to-stream',
-                                        { streamId: this.streamId }
-                                    )}
-                                class="hover:underline"
-                                title="Click to filter event log to this stream"
-                            >
-                                ${streamName}
-                            </button>
+                            ${vm.streamName}
                         </h4>
-                        <div class="flex items-center gap-2 shrink-0">
+                        <div class="flex items-center gap-1 shrink-0">
                             <span
-                                class="font-semibold ${state === 'error'
+                                class="font-semibold ${vm.error
                                     ? 'text-red-400'
-                                    : 'text-gray-300'}"
-                                >${state.toUpperCase()}</span
+                                    : 'text-slate-300'}"
+                                >${vm.state.toUpperCase()}</span
                             >
                             <div
                                 class="w-3 h-3 rounded-full ${stateColors[
-                                    state
-                                ] || 'bg-gray-600'}"
-                                title="Status: ${state}"
+                                    vm.state
+                                ] || 'bg-slate-600'}"
+                                title="Status: ${vm.state}"
                             ></div>
+                            ${actionButton(
+                                icons.syncMaster,
+                                'Sync All to This',
+                                () =>
+                                    eventBus.dispatch(
+                                        'ui:multi-player:sync-all-to',
+                                        { streamId: this.streamId }
+                                    )
+                            )}
+                            ${actionButton(
+                                icons.clipboardCopy,
+                                'Duplicate Player',
+                                () =>
+                                    eventBus.dispatch(
+                                        'ui:multi-player:duplicate-stream',
+                                        { streamId: this.streamId }
+                                    )
+                            )}
+                            ${actionButton(
+                                icons.xCircle,
+                                'Remove Player',
+                                () =>
+                                    eventBus.dispatch(
+                                        'ui:multi-player:remove-stream',
+                                        { streamId: this.streamId }
+                                    ),
+                                this.isLastInGroup
+                            )}
                         </div>
-                    </div>
-                    <div class="grid grid-cols-3 gap-3 text-center">
-                        <div>
-                            <div class="text-gray-400">Resolution</div>
-                            <div class="font-semibold text-white font-mono">
-                                ${resolution}
-                            </div>
-                        </div>
-                        <div>
-                            <div class="text-gray-400">Bitrate</div>
-                            <div class="font-semibold text-white font-mono">
-                                ${videoBitrate}
-                            </div>
-                        </div>
-                        <div>
-                            <div class="text-gray-400">Buffer</div>
-                            <div class="font-semibold text-white font-mono">
-                                ${forwardBuffer}s
-                            </div>
-                        </div>
-                    </div>
-                    <div class="h-10 relative">
-                        <svg
-                            class="w-full h-full"
-                            viewBox="0 0 100 100"
-                            preserveAspectRatio="none"
-                        >
-                            <polyline
-                                class="sparkline"
-                                points=${bufferSparklinePoints}
-                            ></polyline>
-                        </svg>
-                        <div
-                            class="absolute top-0 right-0 text-gray-500 text-[10px] font-mono"
-                        >
-                            ${maxBuffer}s
-                        </div>
-                    </div>
-                    <div>
-                        <div class="text-gray-400 text-center mb-1">
-                            Sync Drift
-                        </div>
-                        <div
-                            class="relative h-2 bg-gray-700 rounded-full overflow-hidden"
-                        >
-                            <div
-                                class="absolute top-0 bottom-0 left-1/2 w-px bg-gray-500"
-                            ></div>
-                            <div
-                                class="absolute top-0 bottom-0 h-full bg-cyan-400 rounded-full"
-                                style="left: 50%; transform: translateX(-50%) translateX(${syncDrift}%); width: 4px;"
-                                title="Drift: ${driftSeconds}s"
-                            ></div>
-                        </div>
-                    </div>
-                    ${this._isExpanded ? detailsTemplate : ''}
+                    </header>
                 </div>
-                <div class="border-t border-gray-700/50 mt-auto">
-                    <button
-                        @click=${(e) => this.toggleExpand(e)}
-                        class="w-full text-center text-xs py-1.5 text-gray-400 hover:bg-gray-700/50 hover:text-white"
+                <div class="border-t border-slate-700 mt-auto">
+                    ${connectedTabBar(tabs, activeTab, onTabClick)}
+                    <div
+                        class="bg-slate-900 rounded-b-lg border-x border-b border-slate-700 min-h-[220px]"
                     >
-                        ${this._isExpanded ? 'Show Less' : 'Show More'}
-                    </button>
+                        ${activeTab === 'stats' ? statsContent : controlsContent}
+                    </div>
                 </div>
-            </div>`;
+            </div>
+        `;
         render(template, this);
     }
 }

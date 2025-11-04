@@ -12,7 +12,9 @@ import { createMultiPlayerGridViewModel } from './view-model';
 
 import { GridViewComponent } from './components/grid-view.js';
 import { SidebarShellComponent } from './components/sidebar-shell.js';
+import { ControlsViewComponent } from './components/controls-view.js';
 import * as icons from '@/ui/icons';
+import { formatPlayerTime } from '@/ui/shared/time-format.js';
 
 let container = null;
 let multiPlayerUnsubscribe = null;
@@ -23,35 +25,18 @@ if (!customElements.get('grid-view-component'))
     customElements.define('grid-view-component', GridViewComponent);
 if (!customElements.get('sidebar-shell-component'))
     customElements.define('sidebar-shell-component', SidebarShellComponent);
+if (!customElements.get('controls-view-component'))
+    customElements.define('controls-view-component', ControlsViewComponent);
 
 const topBarControlsTemplate = () => {
-    const { isMutedAll, isSyncEnabled, isAllExpanded, activeLayout } =
-        useMultiPlayerStore.getState();
+    const { isMutedAll, isSyncEnabled } = useMultiPlayerStore.getState();
     const isPlaying = selectIsPlayingAll();
 
     const buttonClasses =
         'px-3 py-1.5 text-sm font-semibold rounded-md transition-colors flex items-center gap-2';
-    const layoutOptions = [
-        { value: 'auto', label: 'Auto Grid' },
-        { value: 'grid-2', label: '2-Column' },
-        { value: 'grid-1', label: '1-Column' },
-    ];
 
     return html`
         <div class="flex items-center gap-2">
-            <select
-                @change=${(e) =>
-                    eventBus.dispatch('ui:multi-player:set-active-layout', {
-                        layout: e.target.value,
-                    })}
-                .value=${activeLayout}
-                class="bg-gray-700/50 hover:bg-gray-600/50 text-white font-semibold rounded-md p-2 text-sm border border-gray-600"
-            >
-                ${layoutOptions.map(
-                    (opt) =>
-                        html`<option value=${opt.value}>${opt.label}</option>`
-                )}
-            </select>
             <button
                 @click=${() =>
                     isPlaying
@@ -69,24 +54,17 @@ const topBarControlsTemplate = () => {
                     isMutedAll
                         ? eventBus.dispatch('ui:multi-player:unmute-all')
                         : eventBus.dispatch('ui:multi-player:mute-all')}
-                class="${buttonClasses} bg-gray-700/50 hover:bg-gray-600 text-gray-300"
+                class="${buttonClasses} bg-slate-700/50 hover:bg-slate-600 text-slate-300"
             >
                 ${isMutedAll ? icons.volumeUp : icons.volumeOff}
                 ${isMutedAll ? 'Unmute' : 'Mute'}
             </button>
             <button
                 @click=${() =>
-                    eventBus.dispatch('ui:multi-player:expand-all-toggled')}
-                class="${buttonClasses} bg-gray-700/50 hover:bg-gray-600 text-gray-300"
-            >
-                ${isAllExpanded ? 'Collapse All' : 'Expand All'}
-            </button>
-            <button
-                @click=${() =>
                     eventBus.dispatch('ui:multi-player:sync-toggled')}
                 class="${buttonClasses} ${isSyncEnabled
                     ? 'bg-blue-600 text-white'
-                    : 'bg-gray-700/50 hover:bg-gray-600 text-gray-300'}"
+                    : 'bg-slate-700/50 hover:bg-slate-600 text-slate-300'}"
             >
                 ${icons.sync} Sync
             </button>
@@ -96,40 +74,6 @@ const topBarControlsTemplate = () => {
 
 function renderMultiPlayerDashboard() {
     if (!container) return;
-    const { players } = useMultiPlayerStore.getState();
-    const { averagePlayheadTime, maxDuration } =
-        createMultiPlayerGridViewModel(players);
-
-    const handleSeek = (e) => {
-        eventBus.dispatch('ui:multi-player:seek-all', {
-            time: parseFloat(e.target.value),
-        });
-    };
-
-    const masterSeekBar = html`
-        <div
-            class="flex items-center gap-4 bg-gray-900/50 p-2 rounded-lg border border-gray-700"
-        >
-            <span class="font-mono text-sm text-gray-400"
-                >${new Date(averagePlayheadTime * 1000)
-                    .toISOString()
-                    .slice(14, 19)}</span
-            >
-            <input
-                type="range"
-                min="0"
-                .max=${maxDuration}
-                .value=${averagePlayheadTime}
-                @input=${handleSeek}
-                class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
-            />
-            <span class="font-mono text-sm text-gray-400"
-                >${new Date(maxDuration * 1000)
-                    .toISOString()
-                    .slice(14, 19)}</span
-            >
-        </div>
-    `;
 
     const template = html`
         <div class="flex flex-col h-full gap-y-4">
@@ -137,9 +81,17 @@ function renderMultiPlayerDashboard() {
                 <h3 class="text-xl font-bold">Multi-Player Dashboard</h3>
                 ${topBarControlsTemplate()}
             </div>
-            <div class="shrink-0">${masterSeekBar}</div>
-            <div class="grow overflow-y-auto">
-                <grid-view-component></grid-view-component>
+            <div
+                class="grid grid-cols-1 lg:grid-cols-[20rem_1fr] gap-4 grow min-h-0"
+            >
+                <div
+                    class="overflow-y-auto bg-slate-800 rounded-lg p-3 border border-slate-700"
+                >
+                    <controls-view-component></controls-view-component>
+                </div>
+                <div class="overflow-y-auto">
+                    <grid-view-component></grid-view-component>
+                </div>
             </div>
         </div>
     `;
@@ -217,7 +169,7 @@ export const multiPlayerView = {
 
         const contextualSidebar = document.getElementById('contextual-sidebar');
         if (contextualSidebar) {
-            render(html``, contextualSidebar);
+            render(html``, container);
         }
     },
 };

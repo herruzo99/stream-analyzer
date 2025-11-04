@@ -4,11 +4,7 @@ import { playerActions, usePlayerStore } from '@/state/playerStore';
 import { debugLog } from '@/shared/utils/debug';
 import { getShaka } from '@/infrastructure/player/shaka';
 import { formatBitrate } from '@/ui/shared/format';
-
-let player = null;
-let statsInterval = null;
-let activeStreamIds = new Set();
-let activeManifestVariants = [];
+import 'shaka-player/dist/shaka-player.ui.js'; // Import for side effects (registers shaka.ui)
 
 async function fetchCertificate(url) {
     try {
@@ -28,22 +24,32 @@ async function fetchCertificate(url) {
     }
 }
 
-export const playerService = {
-    isInitialized: false,
-    ui: null, // Holds the Shaka UI instance
-    getActiveStreamIds: () => activeStreamIds,
+class PlayerService {
+    constructor() {
+        this.player = null;
+        this.statsInterval = null;
+        this.activeStreamIds = new Set();
+        this.activeManifestVariants = [];
+        this.isInitialized = false;
+        this.ui = null; // Holds the Shaka UI instance
+    }
+
+    getActiveStreamIds() {
+        return this.activeStreamIds;
+    }
 
     _updateStatsAndPlaybackInfo() {
-        if (!player) return;
+        if (!this.player) return;
 
-        const shakaStats = player.getStats();
+        const shakaStats = this.player.getStats();
         const { abrHistory, currentStats } = usePlayerStore.getState();
         const lastBitrate = abrHistory[0]?.bitrate;
-        const videoEl = player.getMediaElement();
+        const videoEl = this.player.getMediaElement();
         if (!videoEl) return;
 
-        // --- Update Playback Info (for status display) ---
-        const activeVariant = player.getVariantTracks().find((t) => t.active);
+        const activeVariant = this.player
+            .getVariantTracks()
+            .find((t) => t.active);
         playerActions.updatePlaybackInfo({
             activeVideoTrack: activeVariant
                 ? {
@@ -53,13 +59,13 @@ export const playerService = {
                   }
                 : null,
             activeAudioTrack:
-                player.getAudioLanguagesAndRoles().find((t) => t.active) ||
-                null,
+                this.player
+                    .getAudioLanguagesAndRoles()
+                    .find((t) => t.active) || null,
             activeTextTrack:
-                player.getTextTracks().find((t) => t.active) || null,
+                this.player.getTextTracks().find((t) => t.active) || null,
         });
 
-        // --- Calculate Full Stats Object (for graphs and stats panel) ---
         const videoOnlyBitrate = activeVariant?.videoBandwidth || 0;
         if (videoOnlyBitrate && videoOnlyBitrate !== lastBitrate) {
             playerActions.logAbrSwitch({
@@ -135,10 +141,10 @@ export const playerService = {
             }
         }
 
-        const seekRange = player.seekRange();
+        const seekRange = this.player.seekRange();
         const manifestTime = seekRange.end - seekRange.start;
         const playheadTime = videoEl.currentTime;
-        const isLive = player.isLive();
+        const isLive = this.player.isLive();
 
         let bufferEnd = 0;
         const buffered = videoEl.buffered;
@@ -166,7 +172,6 @@ export const playerService = {
                 : Math.max(0, bufferEnd - playheadTime),
         };
 
-        /** @type {import('@/types').PlayerStats} */
         const newStats = {
             playheadTime: playheadTime,
             manifestTime: manifestTime,
@@ -196,7 +201,7 @@ export const playerService = {
         };
 
         playerActions.updateStats(newStats);
-    },
+    }
 
     async initialize(videoEl, videoContainer) {
         if (this.isInitialized) {
@@ -215,11 +220,10 @@ export const playerService = {
             return;
         }
 
-        player = new shaka.Player();
-        await player.attach(videoEl);
+        this.player = new shaka.Player();
+        await this.player.attach(videoEl);
 
-        // --- ARCHITECTURAL FIX: Instantiate and Configure Shaka UI Overlay ---
-        this.ui = new shaka.ui.Overlay(player, videoContainer, videoEl);
+        this.ui = new shaka.ui.Overlay(this.player, videoContainer, videoEl);
         this.ui.configure({
             overflowMenuButtons: [
                 'playback_rate',
@@ -229,9 +233,8 @@ export const playerService = {
                 'loop',
             ],
         });
-        // --- END FIX ---
 
-        const videoElement = player.getMediaElement();
+        const videoElement = this.player.getMediaElement();
         if (!videoElement) {
             console.error(
                 'Shaka player did not attach to the video element correctly.'
@@ -239,44 +242,41 @@ export const playerService = {
             return;
         }
 
-        // --- ARCHITECTURAL FIX: Apply initial muted state from store ---
         videoElement.muted = usePlayerStore.getState().isMuted;
-        // --- END FIX ---
 
-        /** @type {any} */ (player).streamAnalyzerStreamId = null;
-        /** @type {any} */ (
-            player.getNetworkingEngine()
-        ).streamAnalyzerStreamId = null;
+        this.player.streamAnalyzerStreamId = null;
+        this.player.getNetworkingEngine().streamAnalyzerStreamId = null;
 
-        player.addEventListener('error', this.onErrorEvent.bind(this));
-        player.addEventListener(
+        this.player.addEventListener('error', this.onErrorEvent.bind(this));
+        this.player.addEventListener(
             'adaptation',
             this.onAdaptationEvent.bind(this)
         );
-        player.addEventListener('buffering', this.onBufferingEvent.bind(this));
+        this.player.addEventListener(
+            'buffering',
+            this.onBufferingEvent.bind(this)
+        );
 
-        // --- ADD MORE EVENT LISTENERS ---
-        player.addEventListener('loading', (e) =>
+        this.player.addEventListener('loading', (e) =>
             eventBus.dispatch('player:loading', e)
         );
-        player.addEventListener('loaded', (e) =>
+        this.player.addEventListener('loaded', (e) =>
             eventBus.dispatch('player:loaded', e)
         );
-        player.addEventListener('streaming', (e) =>
+        this.player.addEventListener('streaming', (e) =>
             eventBus.dispatch('player:streaming', e)
         );
-        player.addEventListener('ratechange', (e) =>
+        this.player.addEventListener('ratechange', (e) =>
             eventBus.dispatch('player:ratechange', {
                 rate: videoElement.playbackRate,
             })
         );
-        player.addEventListener('emsg', (e) =>
+        this.player.addEventListener('emsg', (e) =>
             eventBus.dispatch('player:emsg', e.detail)
         );
-        player.addEventListener('texttrackvisibility', (e) =>
+        this.player.addEventListener('texttrackvisibility', (e) =>
             eventBus.dispatch('player:texttrackvisibility', e.detail)
         );
-        // --- END ---
 
         videoElement.addEventListener('play', () =>
             playerActions.updatePlaybackInfo({ playbackState: 'PLAYING' })
@@ -294,7 +294,7 @@ export const playerService = {
             playerActions.updatePlaybackInfo({ playbackState: 'BUFFERING' })
         );
         videoElement.addEventListener('volumechange', () => {
-            const currentElement = player?.getMediaElement();
+            const currentElement = this.player?.getMediaElement();
             if (currentElement) {
                 playerActions.setMutedState(currentElement.muted);
             }
@@ -308,31 +308,31 @@ export const playerService = {
         );
 
         this.isInitialized = true;
-    },
+    }
 
-    togglePlay: () => {
-        const video = player?.getMediaElement();
+    togglePlay() {
+        const video = this.player?.getMediaElement();
         if (video) {
             video.paused ? video.play() : video.pause();
         }
-    },
+    }
 
-    toggleMute: () => {
-        const video = player?.getMediaElement();
+    toggleMute() {
+        const video = this.player?.getMediaElement();
         if (video) {
             video.muted = !video.muted;
         }
-    },
+    }
 
-    seek: (time) => {
-        const video = player?.getMediaElement();
+    seek(time) {
+        const video = this.player?.getMediaElement();
         if (video) {
             video.currentTime = time;
         }
-    },
+    }
 
     async togglePictureInPicture() {
-        const video = player?.getMediaElement();
+        const video = this.player?.getMediaElement();
         if (!video || !document.pictureInPictureEnabled) return;
         try {
             if (document.pictureInPictureElement === video) {
@@ -343,40 +343,39 @@ export const playerService = {
         } catch (error) {
             console.error('PiP request failed:', error);
         }
-    },
+    }
 
     startStatsCollection() {
-        if (statsInterval) clearInterval(statsInterval);
-        statsInterval = setInterval(() => {
-            if (player?.getMediaElement()) {
+        if (this.statsInterval) clearInterval(this.statsInterval);
+        this.statsInterval = setInterval(() => {
+            if (this.player?.getMediaElement()) {
                 this._updateStatsAndPlaybackInfo();
             }
         }, 1000);
-    },
+    }
 
     stopStatsCollection() {
-        if (statsInterval) {
-            clearInterval(statsInterval);
-            statsInterval = null;
+        if (this.statsInterval) {
+            clearInterval(this.statsInterval);
+            this.statsInterval = null;
         }
-        activeManifestVariants = [];
-    },
+        this.activeManifestVariants = [];
+    }
 
     async load(stream, autoPlay = false) {
-        if (!this.isInitialized || !player || !stream || !stream.drmAuth)
+        if (!this.isInitialized || !this.player || !stream || !stream.drmAuth)
             return;
 
-        const videoElement = player.getMediaElement();
-
-        const networkingEngine = player.getNetworkingEngine();
+        const networkingEngine = this.player.getNetworkingEngine();
         if (networkingEngine) {
-            /** @type {any} */ (networkingEngine).streamAnalyzerStreamId =
-                stream.id;
+            networkingEngine.streamAnalyzerStreamId = stream.id;
         }
-        /** @type {any} */ (player).streamAnalyzerStreamId = stream.id;
+        this.player.streamAnalyzerStreamId = stream.id;
 
-        activeStreamIds.add(stream.id);
-        eventBus.dispatch('player:active-streams-changed', { activeStreamIds });
+        this.activeStreamIds.add(stream.id);
+        eventBus.dispatch('player:active-streams-changed', {
+            activeStreamIds: this.activeStreamIds,
+        });
 
         const isEncrypted = stream.manifest?.summary?.security?.isEncrypted;
 
@@ -429,14 +428,7 @@ export const playerService = {
                     },
                 };
 
-                debugLog(
-                    'playerService.load',
-                    'Applying DRM configuration:',
-                    drmConfig
-                );
-                // --- ARCHITECTURAL FIX: Correctly namespace the DRM config ---
-                player.configure({ drm: drmConfig });
-                // --- END FIX ---
+                this.player.configure({ drm: drmConfig });
             } catch (e) {
                 this.onError({
                     code: 'DRM_CERTIFICATE_FAILED',
@@ -446,43 +438,42 @@ export const playerService = {
                 return;
             }
         } else {
-            player.configure({ drm: { servers: {} } });
+            this.player.configure({ drm: { servers: {} } });
         }
 
         try {
-            debugLog('playerService.load', 'Loading URL:', stream.originalUrl);
-
-            await player.load(stream.originalUrl);
+            await this.player.load(stream.originalUrl);
             playerActions.setLoadedState(true);
 
-            activeManifestVariants = player.getManifest()?.variants || [];
+            this.activeManifestVariants =
+                this.player.getManifest()?.variants || [];
             this.startStatsCollection();
 
             eventBus.dispatch('player:manifest-loaded');
 
-            if (autoPlay && videoElement) {
-                videoElement.play();
+            if (autoPlay && this.player.getMediaElement()) {
+                this.player.getMediaElement().play();
             }
         } catch (e) {
             playerActions.setLoadedState(false);
             this.onError(e);
         }
-    },
+    }
 
     async unload() {
-        if (this.isInitialized && player) {
-            const streamId = /** @type {any} */ (player).streamAnalyzerStreamId;
+        if (this.isInitialized && this.player) {
+            const streamId = this.player.streamAnalyzerStreamId;
             this.stopStatsCollection();
-            await player.unload();
+            await this.player.unload();
             playerActions.setLoadedState(false);
             if (streamId !== undefined) {
-                activeStreamIds.delete(streamId);
+                this.activeStreamIds.delete(streamId);
                 eventBus.dispatch('player:active-streams-changed', {
-                    activeStreamIds,
+                    activeStreamIds: this.activeStreamIds,
                 });
             }
         }
-    },
+    }
 
     destroy() {
         if (!this.isInitialized) return;
@@ -491,40 +482,48 @@ export const playerService = {
             this.ui.destroy();
             this.ui = null;
         }
-        if (player) {
-            player.destroy();
-            player = null;
+        if (this.player) {
+            this.player.destroy();
+            this.player = null;
         }
         this.isInitialized = false;
-        activeStreamIds.clear();
-        eventBus.dispatch('player:active-streams-changed', { activeStreamIds });
+        this.activeStreamIds.clear();
+        eventBus.dispatch('player:active-streams-changed', {
+            activeStreamIds: this.activeStreamIds,
+        });
         playerActions.setLoadedState(false);
-    },
+    }
 
-    getPlayer: () => player,
-    getActiveManifestVariants: () => activeManifestVariants,
-    getConfiguration: () => player?.getConfiguration(),
+    getPlayer() {
+        return this.player;
+    }
+    getActiveManifestVariants() {
+        return this.activeManifestVariants;
+    }
+    getConfiguration() {
+        return this.player?.getConfiguration();
+    }
 
     setAbrEnabled(enabled) {
-        if (player) {
-            player.configure({ abr: { enabled } });
+        if (this.player) {
+            this.player.configure({ abr: { enabled } });
             playerActions.logEvent({
                 timestamp: new Date().toLocaleTimeString(),
                 type: 'interaction',
                 details: `ABR strategy set to: ${enabled ? 'Auto (enabled)' : 'Manual (disabled)'}.`,
             });
             if (enabled) {
-                player.selectVariantTrack(null, false);
+                this.player.selectVariantTrack(null, false);
             }
         }
-    },
+    }
 
     setRestrictions(restrictions) {
-        player?.configure({ restrictions });
-    },
+        this.player?.configure({ restrictions });
+    }
 
     setBufferConfiguration(config) {
-        player?.configure({
+        this.player?.configure({
             streaming: {
                 rebufferingGoal: config.rebufferingGoal,
                 bufferingGoal: config.bufferingGoal,
@@ -532,42 +531,42 @@ export const playerService = {
                 ignoreTextStreamFailures: config.ignoreTextStreamFailures,
             },
         });
-    },
+    }
 
     setAbrConfiguration(config) {
-        player?.configure({
+        this.player?.configure({
             abr: {
                 bandwidthUpgradeTarget: config.bandwidthUpgradeTarget,
                 bandwidthDowngradeTarget: config.bandwidthDowngradeTarget,
             },
         });
-    },
+    }
 
     selectVariantTrack(track, clearBuffer = true) {
-        if (player) {
-            if (player.getConfiguration().abr.enabled) {
-                player.configure({ abr: { enabled: false } });
+        if (this.player) {
+            if (this.player.getConfiguration().abr.enabled) {
+                this.player.configure({ abr: { enabled: false } });
             }
-            player.selectVariantTrack(track, clearBuffer);
+            this.player.selectVariantTrack(track, clearBuffer);
             playerActions.logEvent({
                 timestamp: new Date().toLocaleTimeString(),
                 type: 'interaction',
                 details: `Manual track selection: Locked to ${track.height}p @ ${formatBitrate(track.bandwidth)}.`,
             });
         }
-    },
+    }
 
     selectTextTrack(track) {
-        player?.selectTextTrack(track);
-    },
+        this.player?.selectTextTrack(track);
+    }
 
     selectAudioLanguage(lang) {
-        player?.selectAudioLanguage(lang);
-    },
+        this.player?.selectAudioLanguage(lang);
+    }
 
     onErrorEvent(event) {
         this.onError(event.detail);
-    },
+    }
 
     onError(error) {
         console.error('Shaka Player Error:', error.code, error);
@@ -581,7 +580,7 @@ export const playerService = {
             }
         }
         eventBus.dispatch('player:error', { message, error });
-    },
+    }
 
     onAdaptationEvent(event) {
         if (!event.newVariant && !event.oldVariant) {
@@ -590,7 +589,7 @@ export const playerService = {
 
         const { streams, activeStreamId } = useAnalysisStore.getState();
         const stream = streams.find((s) => s.id === activeStreamId);
-        const mediaElement = player.getMediaElement();
+        const mediaElement = this.player.getMediaElement();
         const currentTime = mediaElement ? mediaElement.currentTime : 0;
 
         const newTrack = event.newVariant
@@ -612,9 +611,11 @@ export const playerService = {
             : null;
 
         eventBus.dispatch('player:adaptation-internal', { oldTrack, newTrack });
-    },
+    }
 
     onBufferingEvent(event) {
         eventBus.dispatch('player:buffering', { buffering: event.buffering });
-    },
-};
+    }
+}
+
+export const playerService = new PlayerService();

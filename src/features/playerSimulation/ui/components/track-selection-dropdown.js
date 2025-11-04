@@ -1,9 +1,9 @@
 import { html } from 'lit-html';
-import { playerService } from '../../application/playerService.js';
 import { closeDropdown } from '@/ui/services/dropdownService';
 import { formatBitrate } from '@/ui/shared/format';
 import * as icons from '@/ui/icons';
 import { tooltipTriggerClasses } from '@/ui/shared/constants';
+import { eventBus } from '@/application/event-bus';
 
 const trackCardTemplate = ({
     label,
@@ -56,14 +56,21 @@ const trackCardTemplate = ({
 export const videoSelectionPanelTemplate = (
     videoTracks,
     isAbrEnabled,
-    videoBandwidthMap
+    videoBandwidthMap,
+    streamId
 ) => {
     const handleSelect = (track) => {
         const isAuto = track === null;
         if (isAuto) {
-            playerService.setAbrEnabled(true);
+            eventBus.dispatch('ui:player:set-abr-enabled', {
+                streamId,
+                enabled: true,
+            });
         } else {
-            playerService.selectVariantTrack(track);
+            eventBus.dispatch('ui:player:select-video-track', {
+                streamId,
+                track,
+            });
         }
         closeDropdown();
     };
@@ -94,9 +101,12 @@ export const videoSelectionPanelTemplate = (
     `;
 };
 
-export const audioSelectionPanelTemplate = (audioTracks) => {
+export const audioSelectionPanelTemplate = (audioTracks, streamId) => {
     const handleSelect = (track) => {
-        playerService.selectAudioLanguage(track.language);
+        eventBus.dispatch('ui:player:select-audio-track', {
+            streamId,
+            language: track.language,
+        });
         closeDropdown();
     };
 
@@ -119,9 +129,9 @@ export const audioSelectionPanelTemplate = (audioTracks) => {
     `;
 };
 
-export const textSelectionPanelTemplate = (textTracks) => {
+export const textSelectionPanelTemplate = (textTracks, streamId) => {
     const handleSelect = (track) => {
-        playerService.selectTextTrack(track);
+        eventBus.dispatch('ui:player:select-text-track', { streamId, track });
         closeDropdown();
     };
 

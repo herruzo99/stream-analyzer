@@ -14,16 +14,18 @@ export const tabButton = (label, key, activeKey, clickHandler) => {
     `;
 };
 
-const connectedTabButton = (label, key, activeKey, clickHandler) => {
+const connectedTabButton = (tab, activeKey, clickHandler) => {
+    const { key, label, indicator } = tab;
     const isActive = activeKey === key;
     return html`
         <button
             @click=${() => clickHandler(key)}
-            class="py-2 px-3 text-sm font-semibold rounded-t-md transition-colors border-t border-l border-r ${isActive
+            class="py-2 px-3 text-sm font-semibold rounded-t-md transition-colors border-t border-l border-r flex items-center gap-2 ${isActive
                 ? 'bg-slate-900 border-slate-700 text-white -mb-px border-b-slate-900'
                 : 'bg-slate-800/50 border-transparent text-slate-300 hover:bg-slate-700/50 hover:border-slate-700/50'}"
         >
-            ${label}
+            <span>${label}</span>
+            ${indicator || ''}
         </button>
     `;
 };
@@ -49,12 +51,7 @@ export const connectedTabBar = (tabs, activeKey, clickHandler) => {
         <div>
             <nav class="flex space-x-2 border-b border-slate-700 px-2">
                 ${tabs.map((tab) =>
-                    connectedTabButton(
-                        tab.label,
-                        tab.key,
-                        activeKey,
-                        clickHandler
-                    )
+                    connectedTabButton(tab, activeKey, clickHandler)
                 )}
             </nav>
         </div>

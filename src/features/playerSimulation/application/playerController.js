@@ -133,6 +133,42 @@ export function initializePlayerController() {
         });
     });
 
+    // --- Track Selection Event Listeners ---
+    eventBus.subscribe('ui:player:set-abr-enabled', ({ streamId, enabled }) => {
+        const { activeStreamId } = useAnalysisStore.getState();
+        if (streamId === activeStreamId) {
+            playerService.setAbrEnabled(enabled);
+        }
+    });
+    eventBus.subscribe(
+        'ui:player:select-video-track',
+        ({ streamId, track }) => {
+            const { activeStreamId } = useAnalysisStore.getState();
+            if (streamId === activeStreamId) {
+                playerService.selectVariantTrack(track);
+            }
+        }
+    );
+    eventBus.subscribe(
+        'ui:player:select-audio-track',
+        ({ streamId, language }) => {
+            const { activeStreamId } = useAnalysisStore.getState();
+            if (streamId === activeStreamId) {
+                playerService.selectAudioLanguage(language);
+            }
+        }
+    );
+    eventBus.subscribe(
+        'ui:player:select-text-track',
+        ({ streamId, track }) => {
+            const { activeStreamId } = useAnalysisStore.getState();
+            if (streamId === activeStreamId) {
+                playerService.selectTextTrack(track);
+            }
+        }
+    );
+    // --- End Track Selection ---
+
     eventBus.subscribe('analysis:started', playerActions.reset);
 
     // --- ARCHITECTURAL FIX: Reset player state on stream context change ---

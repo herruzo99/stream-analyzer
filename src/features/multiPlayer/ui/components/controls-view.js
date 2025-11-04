@@ -1,10 +1,10 @@
 import { html, render } from 'lit-html';
 import { useMultiPlayerStore } from '@/state/multiPlayerStore';
-import { multiPlayerService } from '../../application/multiPlayerService';
 import './global-controls.js';
 import './player-roster.js';
 import './playback-controls.js';
 import './session-management.js';
+import '@/ui/components/labeled-control';
 
 export class ControlsViewComponent extends HTMLElement {
     constructor() {
@@ -22,9 +22,10 @@ export class ControlsViewComponent extends HTMLElement {
     }
 
     getAvailableAudioLangs() {
+        const { players } = useMultiPlayerStore.getState();
         const allLangs = new Set();
-        for (const player of multiPlayerService.players.values()) {
-            player.getAudioLanguages().forEach((lang) => allLangs.add(lang));
+        for (const player of players.values()) {
+            player.audioTracks.forEach((track) => allLangs.add(track.language));
         }
         return Array.from(allLangs).sort();
     }
@@ -37,29 +38,20 @@ export class ControlsViewComponent extends HTMLElement {
 
         const globalControlsState = {
             globalAbrEnabled: state.globalAbrEnabled,
-            globalMaxHeight: state.globalMaxHeight,
-            globalBufferingGoal: state.globalBufferingGoal,
             globalBandwidthCap: state.globalBandwidthCap,
+            globalMaxHeight: state.globalMaxHeight,
             availableAudioLangs: this.getAvailableAudioLangs(),
         };
 
         const template = html`
-            <div class="space-y-4 p-1">
-                <h3 class="text-xl font-bold text-white">
-                    Multi-Player Controls
-                </h3>
-
+            <div class="space-y-6">
                 <global-controls
                     .state=${globalControlsState}
                 ></global-controls>
-
-                <player-roster .players=${Array.from(state.players.entries())}>
-                </player-roster>
-
+                <player-roster></player-roster>
                 <playback-controls
                     selected-count=${selectedCount}
                 ></playback-controls>
-
                 <session-management></session-management>
             </div>
         `;

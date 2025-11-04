@@ -34,8 +34,8 @@ export class SidebarShellComponent extends HTMLElement {
                 @click=${() => uiActions.setMultiPlayerActiveTab(key)}
                 class="px-4 py-2 text-sm font-semibold rounded-t-lg transition-colors ${multiPlayerActiveTab ===
                 key
-                    ? 'bg-gray-800 text-white'
-                    : 'bg-gray-900/50 text-gray-400 hover:bg-gray-700/50'}"
+                    ? 'bg-slate-800 text-white'
+                    : 'bg-slate-900/50 text-slate-400 hover:bg-slate-700/50'}"
             >
                 ${label}
             </button>
@@ -46,9 +46,6 @@ export class SidebarShellComponent extends HTMLElement {
             case 'graphs':
                 viewContent = html`<graphs-view-component></graphs-view-component>`;
                 break;
-            case 'controls':
-                viewContent = html`<controls-view-component></controls-view-component>`;
-                break;
             case 'event-log':
             default:
                 viewContent = html`<event-log-component></event-log-component>`;
@@ -58,11 +55,10 @@ export class SidebarShellComponent extends HTMLElement {
         const template = html`
             <div class="flex flex-col h-full">
                 <div
-                    class="shrink-0 border-b border-gray-700 flex space-x-2 px-2 pt-2 sticky top-0 bg-gray-800/80 backdrop-blur-sm z-10"
+                    class="shrink-0 border-b border-slate-700 flex space-x-2 px-2 pt-2 sticky top-0 bg-slate-800/80 backdrop-blur-sm z-10"
                 >
                     ${tabButton('Event Log', 'event-log')}
                     ${tabButton('Graphs', 'graphs')}
-                    ${tabButton('Controls', 'controls')}
                 </div>
                 <div class="grow p-4 overflow-y-auto min-h-0">
                     ${viewContent}

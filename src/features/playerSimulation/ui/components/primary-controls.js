@@ -18,6 +18,7 @@ import {
 } from '../../domain/control-presets.js';
 import '@/ui/components/labeled-control';
 import { tooltipTriggerClasses } from '@/ui/shared/constants';
+import { useAnalysisStore } from '@/state/analysisStore.js';
 
 // --- Utility Functions ---
 
@@ -89,21 +90,14 @@ class PlayerControlsComponent extends HTMLElement {
         const formId = form.dataset.formId;
 
         const actions = {
-            'abr-config': () => {
-                const newConfig = {
+            'abr-config': () =>
+                playerService.setAbrConfiguration({
                     bandwidthUpgradeTarget:
                         Number(formData.get('bandwidthUpgradeTarget')) || 0.85,
                     bandwidthDowngradeTarget:
                         Number(formData.get('bandwidthDowngradeTarget')) ||
                         0.95,
-                };
-                playerService.setAbrConfiguration(newConfig);
-                playerActions.logEvent({
-                    timestamp: new Date().toLocaleTimeString(),
-                    type: 'interaction',
-                    details: `ABR config updated: Upgrade Target=${newConfig.bandwidthUpgradeTarget}, Downgrade Target=${newConfig.bandwidthDowngradeTarget}`,
-                });
-            },
+                }),
             'abr-restrictions': () => {
                 const maxBw = formData.get('maxBandwidth');
                 const maxH = formData.get('maxHeight');
@@ -163,6 +157,7 @@ class PlayerControlsComponent extends HTMLElement {
         textTracks,
         isAbrEnabled,
         manifest,
+        streamId,
     }) {
         const videoBandwidthMap = new Map();
         if (manifest?.variants) {
@@ -213,7 +208,8 @@ class PlayerControlsComponent extends HTMLElement {
                             videoSelectionPanelTemplate(
                                 videoTracks,
                                 isAbrEnabled,
-                                videoBandwidthMap
+                                videoBandwidthMap,
+                                streamId
                             )
                         ),
                     {
@@ -228,7 +224,7 @@ class PlayerControlsComponent extends HTMLElement {
                     (e) =>
                         toggleDropdown(
                             e.currentTarget,
-                            audioSelectionPanelTemplate(audioTracks)
+                            audioSelectionPanelTemplate(audioTracks, streamId)
                         ),
                     { tooltip: 'Select the active audio language track.' }
                 )}
@@ -238,7 +234,7 @@ class PlayerControlsComponent extends HTMLElement {
                     (e) =>
                         toggleDropdown(
                             e.currentTarget,
-                            textSelectionPanelTemplate(textTracks)
+                            textSelectionPanelTemplate(textTracks, streamId)
                         ),
                     { tooltip: 'Select the active subtitle or caption track.' }
                 )}
@@ -533,6 +529,7 @@ class PlayerControlsComponent extends HTMLElement {
             return;
         }
 
+        const { activeStreamId } = useAnalysisStore.getState();
         const config = playerService.getConfiguration();
         if (!config) {
             render(
@@ -560,6 +557,7 @@ class PlayerControlsComponent extends HTMLElement {
                     textTracks,
                     isAbrEnabled,
                     manifest,
+                    streamId: activeStreamId,
                 })}
                 ${this._renderExperiencePresets(config)}
                 ${this._renderAdvancedControls(config, isAbrEnabled)}
