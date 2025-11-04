@@ -14,7 +14,7 @@ import { createStore } from 'zustand/vanilla';
  * @property {'live' | 'vod'} streamType
  * @property {'idle' | 'loading' | 'playing' | 'paused' | 'buffering' | 'ended' | 'error'} state
  * @property {string | null} error
- * @property {PlayerStats | null} stats
+ * @property {PlayerStats} stats
  * @property {PlaybackHistoryEntry[]} playbackHistory
  * @property {PlayerHealth} health
  * @property {boolean} selectedForAction
@@ -22,20 +22,24 @@ import { createStore } from 'zustand/vanilla';
  * @property {number | null} maxHeightOverride
  * @property {number | null} bufferingGoalOverride
  * @property {{currentTime: number, paused: boolean} | null} initialState
+ * @property {object[]} variantTracks
+ * @property {object[]} audioTracks
+ * @property {object[]} textTracks
+ * @property {{start: number, end: number}} seekableRange
+ * @property {number} normalizedPlayheadTime
  */
 
 /**
  * @typedef {object} MultiPlayerState
  * @property {Map<number, PlayerInstance>} players
+ * @property {Map<number, 'stats' | 'controls'>} playerCardTabs
  * @property {boolean} isMutedAll
  * @property {boolean} isSyncEnabled
- * @property {boolean} isAllExpanded
  * @property {PlayerEvent[]} eventLog
  * @property {boolean} globalAbrEnabled
  * @property {number} globalMaxHeight
  * @property {number} globalBufferingGoal
  * @property {number} globalBandwidthCap
- * @property {'auto' | 'grid-2' | 'grid-1'} activeLayout
  * @property {number} streamIdCounter
  * @property {number | null} hoveredStreamId
  */
@@ -50,12 +54,11 @@ import { createStore } from 'zustand/vanilla';
  * @property {(isMuted: boolean) => void} setMuteAll
  * @property {() => void} toggleMuteAll
  * @property {() => void} toggleSync
- * @property {() => void} toggleExpandAll
+ * @property {(streamId: number, tab: 'stats' | 'controls') => void} setPlayerCardTab
  * @property {(enabled: boolean) => void} setGlobalAbrEnabled
  * @property {(height: number) => void} setGlobalMaxHeight
  * @property {(goal: number) => void} setGlobalBufferingGoal
  * @property {(bps: number) => void} setGlobalBandwidthCap
- * @property {(layout: 'auto' | 'grid-2' | 'grid-1') => void} setActiveLayout
  * @property {(streamId: number) => void} toggleStreamSelection
  * @property {() => void} selectAllStreams
  * @property {() => void} deselectAllStreams
@@ -65,18 +68,38 @@ import { createStore } from 'zustand/vanilla';
  * @property {() => void} reset
  */
 
+const defaultStats = {
+    playheadTime: 0,
+    manifestTime: 0,
+    playbackQuality: {
+        resolution: 'N/A',
+        droppedFrames: 0,
+        corruptedFrames: 0,
+        totalStalls: 0,
+        totalStallDuration: 0,
+        timeToFirstFrame: 0,
+    },
+    abr: {
+        currentVideoBitrate: 0,
+        estimatedBandwidth: 0,
+        switchesUp: 0,
+        switchesDown: 0,
+    },
+    buffer: { label: 'Buffer Health', seconds: 0, totalGaps: 0 },
+    session: { totalPlayTime: 0, totalBufferingTime: 0 },
+};
+
 /** @returns {MultiPlayerState} */
 const createInitialState = () => ({
     players: new Map(),
+    playerCardTabs: new Map(),
     isMutedAll: true,
     isSyncEnabled: false,
-    isAllExpanded: false,
     eventLog: [],
     globalAbrEnabled: true,
     globalMaxHeight: Infinity,
     globalBufferingGoal: 10,
     globalBandwidthCap: Infinity,
-    activeLayout: 'auto',
     streamIdCounter: 0,
     hoveredStreamId: null,
 });
@@ -85,8 +108,8 @@ export const useMultiPlayerStore = createStore((set, get) => ({
     ...createInitialState(),
     addPlayer: (sourceStreamId, streamName, manifestUrl, streamType) => {
         const newStreamId = get().streamIdCounter;
-        set((state) => ({
-            players: new Map(state.players).set(newStreamId, {
+        set((state) => {
+            const newPlayers = new Map(state.players).set(newStreamId, {
                 streamId: newStreamId,
                 sourceStreamId,
                 streamName,
@@ -94,7 +117,7 @@ export const useMultiPlayerStore = createStore((set, get) => ({
                 streamType,
                 state: 'idle',
                 error: null,
-                stats: null,
+                stats: defaultStats,
                 playbackHistory: [],
                 health: 'healthy',
                 selectedForAction: true,
@@ -102,16 +125,31 @@ export const useMultiPlayerStore = createStore((set, get) => ({
                 maxHeightOverride: null,
                 bufferingGoalOverride: null,
                 initialState: null,
-            }),
-            streamIdCounter: newStreamId + 1,
-        }));
+                variantTracks: [],
+                audioTracks: [],
+                textTracks: [],
+                seekableRange: { start: 0, end: 0 },
+                normalizedPlayheadTime: 0,
+            });
+            const newTabs = new Map(state.playerCardTabs).set(
+                newStreamId,
+                'stats'
+            );
+            return {
+                players: newPlayers,
+                playerCardTabs: newTabs,
+                streamIdCounter: newStreamId + 1,
+            };
+        });
         return newStreamId;
     },
     removePlayer: (streamId) =>
         set((state) => {
             const newPlayers = new Map(state.players);
+            const newTabs = new Map(state.playerCardTabs);
             newPlayers.delete(streamId);
-            return { players: newPlayers };
+            newTabs.delete(streamId);
+            return { players: newPlayers, playerCardTabs: newTabs };
         }),
     updatePlayerState: (streamId, updates) =>
         set((state) => {
@@ -130,6 +168,7 @@ export const useMultiPlayerStore = createStore((set, get) => ({
     clearPlayersAndLogs: () =>
         set({
             players: new Map(),
+            playerCardTabs: new Map(),
             streamIdCounter: 0,
             eventLog: [],
             hoveredStreamId: null,
@@ -137,13 +176,14 @@ export const useMultiPlayerStore = createStore((set, get) => ({
     setMuteAll: (isMuted) => set({ isMutedAll: isMuted }),
     toggleMuteAll: () => set((state) => ({ isMutedAll: !state.isMutedAll })),
     toggleSync: () => set((state) => ({ isSyncEnabled: !state.isSyncEnabled })),
-    toggleExpandAll: () =>
-        set((state) => ({ isAllExpanded: !state.isAllExpanded })),
+    setPlayerCardTab: (streamId, tab) =>
+        set((state) => ({
+            playerCardTabs: new Map(state.playerCardTabs).set(streamId, tab),
+        })),
     setGlobalAbrEnabled: (enabled) => set({ globalAbrEnabled: enabled }),
     setGlobalMaxHeight: (height) => set({ globalMaxHeight: height }),
     setGlobalBufferingGoal: (goal) => set({ globalBufferingGoal: goal }),
     setGlobalBandwidthCap: (bps) => set({ globalBandwidthCap: bps }),
-    setActiveLayout: (layout) => set({ activeLayout: layout }),
     toggleStreamSelection: (streamId) => {
         set((state) => {
             const newPlayers = new Map(state.players);
@@ -159,18 +199,18 @@ export const useMultiPlayerStore = createStore((set, get) => ({
     },
     selectAllStreams: () => {
         set((state) => {
-            const newPlayers = new Map(state.players);
-            newPlayers.forEach((player) => {
-                player.selectedForAction = true;
+            const newPlayers = new Map();
+            state.players.forEach((player, key) => {
+                newPlayers.set(key, { ...player, selectedForAction: true });
             });
             return { players: newPlayers };
         });
     },
     deselectAllStreams: () => {
         set((state) => {
-            const newPlayers = new Map(state.players);
-            newPlayers.forEach((player) => {
-                player.selectedForAction = false;
+            const newPlayers = new Map();
+            state.players.forEach((player, key) => {
+                newPlayers.set(key, { ...player, selectedForAction: false });
             });
             return { players: newPlayers };
         });
@@ -212,12 +252,18 @@ export const useMultiPlayerStore = createStore((set, get) => ({
                 streamName: `${sourcePlayer.streamName} (Copy)`,
                 state: 'idle',
                 error: null,
-                stats: null,
+                stats: defaultStats,
                 playbackHistory: [],
                 health: 'healthy',
                 selectedForAction: true,
                 initialState,
+                variantTracks: [],
+                audioTracks: [],
+                textTracks: [],
+                seekableRange: { start: 0, end: 0 },
+                normalizedPlayheadTime: 0,
             }),
+            playerCardTabs: new Map(state.playerCardTabs).set(newId, 'stats'),
             streamIdCounter: newId + 1,
         });
         return newId;

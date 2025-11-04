@@ -268,24 +268,41 @@ class MultiPlayerService {
             const { players } = useMultiPlayerStore.getState();
             for (const [streamId, player] of this.players.entries()) {
                 const videoEl = this.videoElements.get(streamId);
-                if (
-                    !player ||
-                    !videoEl ||
-                    videoEl.readyState === 0 ||
-                    !videoEl.duration
-                )
+                const isLive = player.isLive();
+
+                if (!player || !videoEl || videoEl.readyState === 0) {
                     continue;
+                }
+                if (!isLive && !isFinite(videoEl.duration)) {
+                    continue;
+                }
 
                 const shakaStats = player.getStats();
                 const currentPlayerState = players.get(streamId);
                 if (!currentPlayerState) continue;
+
+                const seekable = player.seekRange();
+                const seekableRange =
+                    seekable.end - seekable.start > 0
+                        ? { start: seekable.start, end: seekable.end }
+                        : { start: 0, end: videoEl.duration || 0 };
+
+                const seekableDuration =
+                    seekableRange.end - seekableRange.start;
+                const normalizedPlayheadTime =
+                    seekableDuration > 0
+                        ? Math.max(
+                              0,
+                              (videoEl.currentTime - seekableRange.start) /
+                                  seekableDuration
+                          )
+                        : 0;
 
                 const activeVariant = player
                     .getVariantTracks()
                     .find((track) => track.active);
                 const { totalStalls, totalStallDuration } =
                     calculateStallMetrics(shakaStats.stateHistory);
-                const isLive = player.isLive();
                 const bufferHealth = isLive
                     ? shakaStats.liveLatency
                     : shakaStats.bufferEnd - videoEl.currentTime;
@@ -364,6 +381,11 @@ class MultiPlayerService {
                     stats: newStats,
                     playbackHistory: newPlaybackHistory,
                     health,
+                    variantTracks: player.getVariantTracks(),
+                    audioTracks: player.getAudioLanguagesAndRoles(),
+                    textTracks: player.getTextTracks(),
+                    seekableRange: seekableRange,
+                    normalizedPlayheadTime: normalizedPlayheadTime,
                 });
             }
         }, 1000);
@@ -443,24 +465,73 @@ class MultiPlayerService {
         for (const v of this.videoElements.values()) v.muted = false;
     }
 
-    seekAll(time) {
-        for (const v of this.videoElements.values()) v.currentTime = time;
+    seek(time, streamId) {
+        const video = this.videoElements.get(streamId);
+        if (video) {
+            video.currentTime = time;
+        }
     }
 
     syncAllTo(sourceStreamId) {
+        const { players, isSyncEnabled } = useMultiPlayerStore.getState();
+        if (!isSyncEnabled) return;
+
+        const sourcePlayerState = players.get(sourceStreamId);
         const sourceVideo = this.videoElements.get(sourceStreamId);
-        if (!sourceVideo) return;
+        if (!sourcePlayerState || !sourceVideo) return;
 
-        const targetTime = sourceVideo.currentTime;
-        showToast({
-            message: `Syncing all players to ${targetTime.toFixed(2)}s`,
-            type: 'info',
-        });
+        let syncedCount = 0;
+        let skippedCount = 0;
 
-        for (const [id, video] of this.videoElements.entries()) {
-            if (id !== sourceStreamId) {
-                video.currentTime = targetTime;
+        if (sourcePlayerState.streamType === 'live') {
+            const sourceLatency =
+                sourcePlayerState.seekableRange.end - sourceVideo.currentTime;
+
+            for (const [targetId, targetVideo] of this.videoElements.entries()) {
+                if (targetId === sourceStreamId) continue;
+                const targetPlayerState = players.get(targetId);
+
+                if (targetPlayerState?.streamType === 'live') {
+                    const targetSeekTime =
+                        targetPlayerState.seekableRange.end - sourceLatency;
+                    if (
+                        targetSeekTime >= targetPlayerState.seekableRange.start
+                    ) {
+                        this.seek(targetSeekTime, targetId);
+                        syncedCount++;
+                    } else {
+                        skippedCount++; // Target DVR window doesn't contain the sync point
+                    }
+                } else {
+                    skippedCount++; // Mismatched type
+                }
             }
+            showToast({
+                message: `Synced ${syncedCount} live player(s) to ${sourceLatency.toFixed(
+                    2
+                )}s latency.`,
+                type: 'info',
+            });
+        } else {
+            // Source is VOD
+            const targetTime = sourceVideo.currentTime;
+            for (const [targetId, targetVideo] of this.videoElements.entries()) {
+                if (targetId === sourceStreamId) continue;
+                const targetPlayerState = players.get(targetId);
+
+                if (targetPlayerState?.streamType === 'vod') {
+                    this.seek(targetTime, targetId);
+                    syncedCount++;
+                } else {
+                    skippedCount++; // Mismatched type
+                }
+            }
+            showToast({
+                message: `Synced ${syncedCount} VOD player(s) to ${targetTime.toFixed(
+                    2
+                )}s.`,
+                type: 'info',
+            });
         }
     }
 
@@ -491,6 +562,15 @@ class MultiPlayerService {
     setGlobalAbr(enabled) {
         for (const p of this.players.values()) {
             p.configure({ abr: { enabled } });
+        }
+    }
+
+    setAbrEnabled(streamId, enabled) {
+        const player = this.players.get(streamId);
+        if (!player) return;
+        player.configure({ abr: { enabled } });
+        if (enabled) {
+            player.selectVariantTrack(null, false);
         }
     }
 

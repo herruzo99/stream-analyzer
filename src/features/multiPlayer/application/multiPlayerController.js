@@ -1,6 +1,7 @@
 import { eventBus } from '@/application/event-bus';
 import { multiPlayerService } from './multiPlayerService.js';
 import { useMultiPlayerStore } from '@/state/multiPlayerStore';
+import { useAnalysisStore } from '@/state/analysisStore.js';
 
 export function initializeMultiPlayerController() {
     eventBus.subscribe('ui:multi-player:play-all', () =>
@@ -20,11 +21,11 @@ export function initializeMultiPlayerController() {
     eventBus.subscribe('ui:multi-player:sync-toggled', () =>
         useMultiPlayerStore.getState().toggleSync()
     );
-    eventBus.subscribe('ui:multi-player:expand-all-toggled', () =>
-        useMultiPlayerStore.getState().toggleExpandAll()
-    );
-    eventBus.subscribe('ui:multi-player:seek-all', ({ time }) =>
-        multiPlayerService.seekAll(time)
+    eventBus.subscribe(
+        'ui:multi-player:set-card-tab',
+        ({ streamId, tab }) => {
+            useMultiPlayerStore.getState().setPlayerCardTab(streamId, tab);
+        }
     );
     eventBus.subscribe('ui:multi-player:sync-all-to', ({ streamId }) =>
         multiPlayerService.syncAllTo(streamId)
@@ -42,41 +43,43 @@ export function initializeMultiPlayerController() {
         multiPlayerService.setGlobalAbr(enabled);
     });
     eventBus.subscribe(
-        'ui:multi-player:set-global-max-height',
-        ({ height }) => {
-            useMultiPlayerStore.getState().setGlobalMaxHeight(height);
-            multiPlayerService.setGlobalRestrictions({ maxHeight: height });
-        }
-    );
-    eventBus.subscribe('ui:multi-player:set-global-buffer-goal', ({ goal }) => {
-        useMultiPlayerStore.getState().setGlobalBufferingGoal(goal);
-        multiPlayerService.setGlobalBufferingGoal(goal);
-    });
-    eventBus.subscribe(
         'ui:multi-player:set-global-bandwidth-cap',
         ({ bps }) => {
             useMultiPlayerStore.getState().setGlobalBandwidthCap(bps);
             multiPlayerService.setGlobalBandwidthCap(bps);
         }
     );
-    eventBus.subscribe('ui:multi-player:set-global-audio-track', ({ lang }) => {
-        multiPlayerService.setGlobalAudioTrack(lang);
-    });
-    eventBus.subscribe('ui:multi-player:set-active-layout', ({ layout }) => {
-        useMultiPlayerStore.getState().setActiveLayout(layout);
-    });
-    eventBus.subscribe(
-        'ui:multi-player:select-video-track',
-        ({ streamId, trackId }) => {
-            multiPlayerService.selectTrack(streamId, 'variant', trackId);
+
+    // --- REFACTORED TRACK SELECTION HANDLERS FOR MULTIPLAYER CONTEXT ---
+    eventBus.subscribe('ui:player:select-video-track', ({ streamId, track }) => {
+        const { players } = useMultiPlayerStore.getState();
+        // This event is now generic, ensure it's for a player in this view
+        if (players.has(streamId)) {
+            multiPlayerService.selectTrack(streamId, 'variant', track.id);
+            useMultiPlayerStore
+                .getState()
+                .setStreamOverride(streamId, { abr: false });
         }
-    );
+    });
     eventBus.subscribe(
-        'ui:multi-player:select-audio-track',
+        'ui:player:select-audio-track',
         ({ streamId, language }) => {
-            multiPlayerService.selectTrack(streamId, 'audio', language);
+            const { players } = useMultiPlayerStore.getState();
+            if (players.has(streamId)) {
+                multiPlayerService.selectTrack(streamId, 'audio', language);
+            }
         }
     );
+    eventBus.subscribe('ui:player:set-abr-enabled', ({ streamId, enabled }) => {
+        const { players } = useMultiPlayerStore.getState();
+        if (players.has(streamId)) {
+            multiPlayerService.setAbrEnabled(streamId, enabled);
+            useMultiPlayerStore
+                .getState()
+                .setStreamOverride(streamId, { abr: enabled });
+        }
+    });
+    // --- END REFACTOR ---
 
     // Per-stream and Group Action Listeners
     eventBus.subscribe('ui:multi-player:toggle-selection', ({ streamId }) => {

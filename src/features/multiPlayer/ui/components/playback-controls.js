@@ -20,18 +20,16 @@ const playbackControlsTemplate = ({ selectedCount }) => {
     const isDisabled = selectedCount === 0;
 
     const buttonClasses = `
-        bg-gray-700/50 hover:bg-gray-600/50 text-white font-bold
+        bg-slate-700 hover:bg-slate-600 text-white font-bold
         p-2 rounded-md transition-colors flex-1 flex items-center
         justify-center disabled:opacity-50 disabled:cursor-not-allowed
     `;
     const smallButtonClasses = `${buttonClasses} text-sm`;
-    const primaryButtonClasses = `bg-blue-600/80! hover:bg-blue-700/80!`;
+    const primaryButtonClasses = `bg-blue-600 hover:bg-blue-700`;
 
     return html`
-        <div
-            class="bg-gray-800 p-3 rounded-lg border border-gray-700 space-y-3"
-        >
-            <h4 class="text-md font-bold text-gray-300">
+        <div class="space-y-3">
+            <h4 class="text-md font-bold text-slate-300">
                 Selected Player Actions (${selectedCount})
             </h4>
             <div class="flex items-center justify-center gap-2">
@@ -40,7 +38,7 @@ const playbackControlsTemplate = ({ selectedCount }) => {
                         applyAction('seek-frame-backward', 0, selectedCount)}
                     class=${smallButtonClasses}
                     title="Previous Frame"
-                    .disabled=${isDisabled}
+                    ?disabled=${isDisabled}
                 >
                     ${icons.frameBackward}
                 </button>
@@ -48,7 +46,7 @@ const playbackControlsTemplate = ({ selectedCount }) => {
                     @click=${() => applyAction('seek', -10, selectedCount)}
                     class=${smallButtonClasses}
                     title="Rewind 10s"
-                    .disabled=${isDisabled}
+                    ?disabled=${isDisabled}
                 >
                     -10s
                 </button>
@@ -56,7 +54,7 @@ const playbackControlsTemplate = ({ selectedCount }) => {
                     @click=${() => applyAction('pause', 0, selectedCount)}
                     class=${buttonClasses}
                     title="Pause"
-                    .disabled=${isDisabled}
+                    ?disabled=${isDisabled}
                 >
                     ${icons.pause}
                 </button>
@@ -64,7 +62,7 @@ const playbackControlsTemplate = ({ selectedCount }) => {
                     @click=${() => applyAction('play', 0, selectedCount)}
                     class=${`${buttonClasses} ${primaryButtonClasses}`}
                     title="Play"
-                    .disabled=${isDisabled}
+                    ?disabled=${isDisabled}
                 >
                     ${icons.play}
                 </button>
@@ -72,7 +70,7 @@ const playbackControlsTemplate = ({ selectedCount }) => {
                     @click=${() => applyAction('seek', 10, selectedCount)}
                     class=${smallButtonClasses}
                     title="Forward 10s"
-                    .disabled=${isDisabled}
+                    ?disabled=${isDisabled}
                 >
                     +10s
                 </button>
@@ -81,7 +79,7 @@ const playbackControlsTemplate = ({ selectedCount }) => {
                         applyAction('seek-frame-forward', 0, selectedCount)}
                     class=${smallButtonClasses}
                     title="Next Frame"
-                    .disabled=${isDisabled}
+                    ?disabled=${isDisabled}
                 >
                     ${icons.frameForward}
                 </button>
