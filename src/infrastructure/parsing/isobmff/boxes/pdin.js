@@ -8,24 +8,24 @@ import { BoxParser } from '../utils.js';
 export function parsePdin(box, view) {
     const p = new BoxParser(box, view);
     p.readVersionAndFlags();
+    box.entries = [];
 
-    let entryIndex = 1;
     while (p.offset < box.size) {
         if (p.stopped) break;
-        if (entryIndex > 5) {
-            // To avoid cluttering UI, show first few and summarize
-            box.details['...more_entries'] = {
-                value: 'More entries not shown.',
-                offset: 0,
-                length: 0,
-            };
-            break;
-        }
 
-        const entryPrefix = `entry_${entryIndex}`;
-        p.readUint32(`${entryPrefix}_rate`);
-        p.readUint32(`${entryPrefix}_initial_delay`);
-        entryIndex++;
+        const rate = p.readUint32(`entry_${box.entries.length}_rate`);
+        const initial_delay = p.readUint32(
+            `entry_${box.entries.length}_initial_delay`
+        );
+
+        if (rate === null || initial_delay === null) break;
+
+        box.details[`entry_${box.entries.length}_rate`].internal = true;
+        box.details[
+            `entry_${box.entries.length}_initial_delay`
+        ].internal = true;
+
+        box.entries.push({ rate, initial_delay });
     }
     p.finalize();
 }

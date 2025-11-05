@@ -511,7 +511,9 @@ function parseAdaptationSet(asEl, parentMergedEl) {
         framePackings: findChildren(mergedAsEl, 'FramePacking').map(
             parseGenericDescriptor
         ),
-        ratings: findChildren(mergedAsEl, 'Rating').map(parseGenericDescriptor),
+        ratings: findChildren(mergedAsEl, 'Rating').map(
+            parseGenericDescriptor
+        ),
         viewpoints: findChildren(mergedAsEl, 'Viewpoint').map(
             parseGenericDescriptor
         ),
@@ -738,9 +740,38 @@ function parsePeriod(periodEl, parentMergedEl, previousPeriod = null) {
     }
     // --- END REFACTOR ---
 
-    const adaptationSets = findChildren(periodEl, 'AdaptationSet').map((asEl) =>
-        parseAdaptationSet(asEl, mergedPeriodEl)
-    );
+    const rawAdaptationSets = findChildren(periodEl, 'AdaptationSet');
+
+    // Group AdaptationSets by content type
+    const asGroups = rawAdaptationSets.reduce((acc, asEl) => {
+        let contentType =
+            getAttr(asEl, 'contentType') ||
+            getAttr(asEl, 'mimeType')?.split('/')[0];
+        if (!contentType) {
+            const firstRep = findChildren(asEl, 'Representation')[0];
+            if (firstRep) {
+                contentType = getAttr(firstRep, 'mimeType')?.split('/')[0];
+            }
+        }
+        if (!acc[contentType]) {
+            acc[contentType] = [];
+        }
+        acc[contentType].push(asEl);
+        return acc;
+    }, {});
+
+    const adaptationSets = [];
+
+    // --- ARCHITECTURAL FIX: Process all AdaptationSet types individually ---
+    for (const type of ['video', 'audio', 'text', 'application']) {
+        if (asGroups[type]) {
+            asGroups[type].forEach((asEl) => {
+                adaptationSets.push(parseAdaptationSet(asEl, mergedPeriodEl));
+            });
+        }
+    }
+    // --- END FIX ---
+
     adaptationSets.sort(sortAdaptationSets);
 
     /** @type {Period} */

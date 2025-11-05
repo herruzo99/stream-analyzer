@@ -30,12 +30,14 @@ export function parseSaio(box, view) {
     if (entryCount !== null && entryCount > 0) {
         for (let i = 0; i < entryCount; i++) {
             if (p.stopped) break;
+            const offsetField = `offset_${i}`;
             const offset =
                 version === 1
-                    ? p.readBigUint64(`offset_${i}`)
-                    : p.readUint32(`offset_${i}`);
+                    ? p.readBigUint64(offsetField)
+                    : p.readUint32(offsetField);
             if (offset === null) break;
-            box.entries.push(offset);
+            box.details[offsetField].internal = true;
+            box.entries.push({ offset: Number(offset) });
         }
     }
     p.finalize();

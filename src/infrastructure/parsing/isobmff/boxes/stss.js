@@ -15,9 +15,11 @@ export function parseStss(box, view) {
     if (entryCount !== null && entryCount > 0) {
         for (let i = 0; i < entryCount; i++) {
             if (p.stopped) break;
-            const number = p.readUint32(`entry_${i}_sample_number`);
-            if (number === null) break;
-            box.entries.push({ number });
+            const numberField = `entry_${i}_sample_number`;
+            const sample_number = p.readUint32(numberField);
+            if (sample_number === null) break;
+            box.details[numberField].internal = true;
+            box.entries.push({ sample_number });
         }
     }
     p.finalize();

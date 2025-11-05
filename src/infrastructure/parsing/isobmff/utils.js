@@ -306,3 +306,21 @@ export class BoxParser {
         }
     }
 }
+
+/**
+ * Recursively finds the first box of a given type.
+ * @param {import('./parser.js').Box[]} boxes
+ * @param {string} type
+ * @returns {import('./parser.js').Box | null}
+ */
+export function findBoxRecursive(boxes, type) {
+    if (!boxes) return null;
+    for (const box of boxes) {
+        if (box.type === type) return box;
+        if (box.children?.length > 0) {
+            const found = findBoxRecursive(box.children, type);
+            if (found) return found;
+        }
+    }
+    return null;
+}

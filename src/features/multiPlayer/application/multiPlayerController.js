@@ -49,6 +49,13 @@ export function initializeMultiPlayerController() {
             multiPlayerService.setGlobalBandwidthCap(bps);
         }
     );
+    eventBus.subscribe(
+        'ui:multi-player:set-global-max-height',
+        ({ height }) => {
+            useMultiPlayerStore.getState().setGlobalMaxHeight(height);
+            multiPlayerService.setGlobalMaxHeight(height);
+        }
+    );
     // --- NEW: Listener for global track selection ---
     eventBus.subscribe(
         'ui:multi-player:set-global-video-track-by-height',
@@ -63,7 +70,7 @@ export function initializeMultiPlayerController() {
         const { players } = useMultiPlayerStore.getState();
         // This event is now generic, ensure it's for a player in this view
         if (players.has(streamId)) {
-            multiPlayerService.selectTrack(streamId, 'variant', track.id);
+            multiPlayerService.selectTrack(streamId, 'variant', track);
             useMultiPlayerStore
                 .getState()
                 .setStreamOverride(streamId, { abr: false });

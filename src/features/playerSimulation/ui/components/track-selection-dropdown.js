@@ -56,7 +56,6 @@ const trackCardTemplate = ({
 export const videoSelectionPanelTemplate = (
     videoTracks,
     isAbrEnabled,
-    videoBandwidthMap,
     streamId
 ) => {
     const handleSelect = (track) => {
@@ -75,6 +74,24 @@ export const videoSelectionPanelTemplate = (
         closeDropdown();
     };
 
+    // --- ARCHITECTURAL OVERHAUL: Robust De-duplication and Rich Data ---
+    const uniqueTracks = new Map();
+    (videoTracks || []).forEach((track) => {
+        // Create a unique key based on all relevant video properties
+        const key = `${track.height}x${track.width}@${track.videoBandwidth || track.bandwidth}|${track.videoCodec}|${track.frameRate}`;
+        if (!uniqueTracks.has(key)) {
+            uniqueTracks.set(key, track);
+        }
+    });
+
+    const tracksToRender = [...uniqueTracks.values()].sort((a, b) => {
+        if ((b.height || 0) !== (a.height || 0)) {
+            return (b.height || 0) - (a.height || 0);
+        }
+        return (b.videoBandwidth || b.bandwidth || 0) - (a.videoBandwidth || a.bandwidth || 0);
+    });
+    // --- END OVERHAUL ---
+
     return html`
         <div
             class="dropdown-panel bg-slate-800 border border-slate-700 rounded-lg shadow-xl w-80 p-2 space-y-2"
@@ -86,17 +103,20 @@ export const videoSelectionPanelTemplate = (
                 isActive: isAbrEnabled,
                 onClick: () => handleSelect(null),
             })}
-            ${videoTracks.map((track) =>
-                trackCardTemplate({
+            ${tracksToRender.map((track) => {
+                const details = [
+                    formatBitrate(track.videoBandwidth || track.bandwidth),
+                    track.frameRate ? `${parseFloat(track.frameRate).toFixed(2)}fps` : null,
+                ].filter(Boolean).join(' | ');
+
+                return trackCardTemplate({
                     label: `${track.height}p`,
-                    details: formatBitrate(
-                        videoBandwidthMap.get(track.id) ?? track.bandwidth
-                    ),
+                    details: details,
                     subDetails: track.videoCodec,
                     isActive: track.active && !isAbrEnabled,
                     onClick: () => handleSelect(track),
-                })
-            )}
+                });
+            })}
         </div>
     `;
 };
@@ -106,6 +126,7 @@ export const audioSelectionPanelTemplate = (audioTracks, streamId) => {
         eventBus.dispatch('ui:player:select-audio-track', {
             streamId,
             language: track.language,
+            label: track.label, // Pass label for more specific selection
         });
         closeDropdown();
     };

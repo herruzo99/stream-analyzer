@@ -98,7 +98,7 @@ export async function startAnalysisUseCase({ inputs }, services) {
             stream.adAvails = []; // Initialize adAvails
         });
 
-        analysisActions.completeAnalysis(streams, urlAuthMapArray);
+        analysisActions.completeAnalysis(streams, urlAuthMapArray, workerInputs);
         const tEndTotal = performance.now();
         debugLog(
             'startAnalysisUseCase',

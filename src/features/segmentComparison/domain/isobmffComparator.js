@@ -234,10 +234,10 @@ const boxComparators = {
                 ),
             ],
             tableData: createTableData(segments, 'sidx', [
-                { key: 'reference_type', label: 'Type' },
-                { key: 'referenced_size', label: 'Size' },
-                { key: 'subsegment_duration', label: 'Duration' },
-                { key: 'starts_with_SAP', label: 'SAP' },
+                { key: 'type', label: 'Type' },
+                { key: 'size', label: 'Size' },
+                { key: 'duration', label: 'Duration' },
+                { key: 'startsWithSap', label: 'SAP' },
             ]),
         };
     },
@@ -316,7 +316,10 @@ const boxComparators = {
             ],
             tableData: createTableData(segments, 'sbgp', [
                 { key: 'sample_count', label: 'Sample Count' },
-                { key: 'group_description_index', label: 'Group Index' },
+                {
+                    key: 'group_description_index',
+                    label: 'Group Index',
+                },
             ]),
         };
     },

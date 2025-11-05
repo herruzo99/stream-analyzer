@@ -15,9 +15,11 @@ export function parseStsz(box, view) {
     if (sampleSize === 0 && sampleCount !== null && sampleCount > 0) {
         for (let i = 0; i < sampleCount; i++) {
             if (p.stopped) break;
-            const size = p.readUint32(`entry_${i}_size`);
-            if (size === null) break;
-            box.entries.push({ size });
+            const sizeField = `entry_${i}_size`;
+            const entry_size = p.readUint32(sizeField);
+            if (entry_size === null) break;
+            box.details[sizeField].internal = true;
+            box.entries.push({ entry_size });
         }
     }
     p.finalize();

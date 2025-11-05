@@ -14,38 +14,39 @@ export function parseElst(box, view) {
     }
 
     const entryCount = p.readUint32('entry_count');
+    box.entries = [];
 
     if (entryCount !== null && entryCount > 0) {
-        const maxEntriesToShow = 5;
-        const entrySize = version === 1 ? 20 : 12;
-
         for (let i = 0; i < entryCount; i++) {
             if (p.stopped) break;
 
-            if (i < maxEntriesToShow) {
-                const entryPrefix = `entry_${i + 1}`;
-                if (version === 1) {
-                    p.readBigUint64(`${entryPrefix}_segment_duration`);
-                    p.readBigInt64(`${entryPrefix}_media_time`); // Corrected to signed
-                } else {
-                    p.readUint32(`${entryPrefix}_segment_duration`);
-                    p.readInt32(`${entryPrefix}_media_time`);
-                }
-                p.readInt16(`${entryPrefix}_media_rate_integer`);
-                p.readInt16(`${entryPrefix}_media_rate_fraction`);
+            const entry = {};
+            if (version === 1) {
+                entry.segment_duration = p.readBigUint64(
+                    `entry_${i}_segment_duration`
+                );
+                entry.media_time = p.readBigInt64(`entry_${i}_media_time`);
             } else {
-                p.offset += entrySize;
+                entry.segment_duration = p.readUint32(
+                    `entry_${i}_segment_duration`
+                );
+                entry.media_time = p.readInt32(`entry_${i}_media_time`);
             }
-        }
+            entry.media_rate_integer = p.readInt16(
+                `entry_${i}_media_rate_integer`
+            );
+            entry.media_rate_fraction = p.readInt16(
+                `entry_${i}_media_rate_fraction`
+            );
 
-        if (entryCount > maxEntriesToShow) {
-            box.details['...more_entries'] = {
-                value: `${
-                    entryCount - maxEntriesToShow
-                } more entries not shown but parsed`,
-                offset: 0,
-                length: 0,
-            };
+            // Hide individual fields and push the structured entry
+            const prefix = `entry_${i}`;
+            box.details[`${prefix}_segment_duration`].internal = true;
+            box.details[`${prefix}_media_time`].internal = true;
+            box.details[`${prefix}_media_rate_integer`].internal = true;
+            box.details[`${prefix}_media_rate_fraction`].internal = true;
+
+            box.entries.push(entry);
         }
     }
     p.finalize();

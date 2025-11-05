@@ -156,7 +156,6 @@ async function buildStreamObject(
         rawManifest: input.manifestString,
         auth: input.auth,
         drmAuth: input.drmAuth,
-        licenseServerUrl: input.drmAuth.licenseServerUrl,
         steeringInfo: steeringTag,
         manifestUpdates: [],
         activeManifestUpdateId: null,
@@ -227,7 +226,8 @@ async function buildStreamObject(
     } else if (input.protocol === 'dash') {
         const segmentsByCompositeKey = await parseDashSegments(
             serializedManifestObject,
-            streamObject.baseUrl
+            streamObject.baseUrl,
+            { auth: input.auth, now: Date.now() } // Pass auth context for sidx fetches
         );
         for (const [key, data] of Object.entries(segmentsByCompositeKey)) {
             const mediaSegments = data.segments || [];
@@ -266,7 +266,7 @@ async function buildStreamObject(
                                 const parsedSegment =
                                     await fetchAndParseSegment(
                                         firstMediaSegment.resolvedUrl,
-                                        'isobmff',
+                                        'isobff',
                                         null,
                                         streamObject.auth
                                     );

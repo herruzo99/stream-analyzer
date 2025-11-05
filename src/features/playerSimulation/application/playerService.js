@@ -5,6 +5,8 @@ import { debugLog } from '@/shared/utils/debug';
 import { getShaka } from '@/infrastructure/player/shaka';
 import { formatBitrate } from '@/ui/shared/format';
 import { StallCalculator } from '@/features/multiPlayer/domain/stall-calculator';
+import { parseShakaError } from '@/infrastructure/player/shaka-error';
+import { schemeIdUriToKeySystem } from '@/infrastructure/parsing/utils/drm';
 
 async function fetchCertificate(url) {
     try {
@@ -49,21 +51,20 @@ class PlayerService {
         const videoEl = this.player.getMediaElement();
         if (!videoEl) return;
 
-        const activeVariant = this.player
-            .getVariantTracks()
-            .find((t) => t.active);
+        const rawVariantTracks = this.player.getVariantTracks();
+        const activeVariant = rawVariantTracks.find((t) => t.active);
+
+        const videoTracks = this.player.getVariantTracks();
+        const audioTracks = this.player.getAudioLanguagesAndRoles();
+        const textTracks = this.player.getTextTracks();
+
         playerActions.updatePlaybackInfo({
-            activeVideoTrack: activeVariant
-                ? {
-                      bitrate: activeVariant.bandwidth,
-                      width: activeVariant.width,
-                      height: activeVariant.height,
-                  }
-                : null,
-            activeAudioTrack:
-                this.player.getAudioTracks().find((t) => t.active) || null,
-            activeTextTrack:
-                this.player.getTextTracks().find((t) => t.active) || null,
+            videoTracks,
+            audioTracks,
+            textTracks,
+            activeVideoTrack: activeVariant,
+            activeAudioTrack: audioTracks.find((t) => t.active),
+            activeTextTrack: textTracks.find((t) => t.active),
         });
 
         const videoOnlyBitrate = activeVariant?.videoBandwidth || 0;
@@ -152,7 +153,9 @@ class PlayerService {
             playheadTime: playheadTime,
             manifestTime: manifestTime,
             playbackQuality: {
-                resolution: `${shakaStats.width || 0}x${shakaStats.height || 0}`,
+                resolution: `${shakaStats.width || 0}x${
+                    shakaStats.height || 0
+                }`,
                 droppedFrames: shakaStats.droppedFrames || 0,
                 corruptedFrames: shakaStats.corruptedFrames || 0,
                 totalStalls: totalStalls,
@@ -361,24 +364,9 @@ class PlayerService {
             activeStreamIds: this.activeStreamIds,
         });
 
-        const isEncrypted = stream.manifest?.summary?.security?.isEncrypted;
+        const security = stream.manifest?.summary?.security;
 
-        if (isEncrypted) {
-            const discoveredUrls =
-                stream.manifest.summary.security.licenseServerUrls || [];
-            const licenseServerUrl =
-                stream.drmAuth.licenseServerUrl || discoveredUrls[0] || '';
-
-            if (!licenseServerUrl) {
-                this.onError({
-                    code: 'DRM_NO_LICENSE_URL',
-                    message:
-                        'This stream is encrypted, but no license server URL could be found. Please provide one manually.',
-                });
-                playerActions.setLoadedState(false);
-                return;
-            }
-
+        if (security?.isEncrypted) {
             const licenseRequestHeaders = {};
             stream.drmAuth?.headers?.forEach((h) => {
                 if (h.key) licenseRequestHeaders[h.key] = h.value;
@@ -395,27 +383,55 @@ class PlayerService {
                 }
 
                 const drmConfig = {
-                    servers: {
-                        'com.widevine.alpha': licenseServerUrl,
-                        'com.microsoft.playready': licenseServerUrl,
-                    },
-                    advanced: {
-                        'com.widevine.alpha': {
-                            serverCertificate: serverCertificate
-                                ? new Uint8Array(serverCertificate)
-                                : undefined,
-                            headers: licenseRequestHeaders,
-                        },
-                        'com.microsoft.playready': {
-                            headers: licenseRequestHeaders,
-                        },
-                    },
+                    servers: {},
+                    advanced: {},
                 };
+
+                for (const system of security.systems) {
+                    const keySystem = schemeIdUriToKeySystem[system.systemId];
+                    if (keySystem) {
+                        // Prioritize user-provided URL for this specific key system.
+                        const licenseServerUrl =
+                            typeof stream.drmAuth.licenseServerUrl === 'object'
+                                ? stream.drmAuth.licenseServerUrl[keySystem]
+                                : typeof stream.drmAuth.licenseServerUrl ===
+                                    'string'
+                                  ? stream.drmAuth.licenseServerUrl
+                                  : null;
+
+                        // Fallback to discovered URL if no user-provided one exists.
+                        const finalUrl =
+                            licenseServerUrl ||
+                            security.licenseServerUrls?.[0] ||
+                            '';
+
+                        if (finalUrl) {
+                            drmConfig.servers[keySystem] = finalUrl;
+                            drmConfig.advanced[keySystem] = {
+                                serverCertificate: serverCertificate
+                                    ? new Uint8Array(serverCertificate)
+                                    : undefined,
+                                headers: licenseRequestHeaders,
+                            };
+                        }
+                    }
+                }
+
+                if (Object.keys(drmConfig.servers).length === 0) {
+                    this.onError({
+                        code: 6012, // NO_LICENSE_SERVER_GIVEN
+                        message:
+                            'No license server was configured for the detected DRM systems.',
+                        data: security.systems.map((s) => s.systemId),
+                    });
+                    playerActions.setLoadedState(false);
+                    return;
+                }
 
                 this.player.configure({ drm: drmConfig });
             } catch (e) {
                 this.onError({
-                    code: 'DRM_CERTIFICATE_FAILED',
+                    code: 6017, // SERVER_CERTIFICATE_REQUEST_FAILED
                     message: `Failed to fetch or process the DRM service certificate: ${e.message}`,
                 });
                 playerActions.setLoadedState(false);
@@ -427,10 +443,27 @@ class PlayerService {
 
         try {
             await this.player.load(stream.originalUrl);
-            playerActions.setLoadedState(true);
-            playerActions.setAbrEnabled(
-                this.player.getConfiguration().abr.enabled
-            );
+
+            const rawVariantTracks = this.player.getVariantTracks();
+            const uniqueVideoTracks = new Map();
+            if (rawVariantTracks) {
+                rawVariantTracks.forEach((track) => {
+                    if (track.videoCodec) {
+                        const trackKey = `${track.height}x${track.width}@${track.videoBandwidth || track.bandwidth}|${track.videoCodec}|${track.frameRate}`;
+                        if (!uniqueVideoTracks.has(trackKey)) {
+                            uniqueVideoTracks.set(trackKey, track);
+                        }
+                    }
+                });
+            }
+            const videoTracks = Array.from(uniqueVideoTracks.values());
+
+            playerActions.setPlayerLoadedWithTracks({
+                videoTracks,
+                audioTracks: this.player.getAudioLanguagesAndRoles(),
+                textTracks: this.player.getTextTracks(),
+                isAbrEnabled: this.player.getConfiguration().abr.enabled,
+            });
 
             this.activeManifestVariants =
                 this.player.getManifest()?.variants || [];
@@ -499,11 +532,10 @@ class PlayerService {
             playerActions.logEvent({
                 timestamp: new Date().toLocaleTimeString(),
                 type: 'interaction',
-                details: `ABR strategy set to: ${enabled ? 'Auto (enabled)' : 'Manual (disabled)'}.`,
+                details: `ABR strategy set to: ${
+                    enabled ? 'Auto (enabled)' : 'Manual (disabled)'
+                }.`,
             });
-            if (enabled) {
-                this.player.selectVariantTrack(null, false);
-            }
         }
     }
 
@@ -532,25 +564,66 @@ class PlayerService {
     }
 
     selectVariantTrack(track, clearBuffer = true) {
-        if (this.player) {
-            if (this.player.getConfiguration().abr.enabled) {
-                this.player.configure({ abr: { enabled: false } });
-            }
-            this.player.selectVariantTrack(track, clearBuffer);
-            playerActions.logEvent({
-                timestamp: new Date().toLocaleTimeString(),
-                type: 'interaction',
-                details: `Manual track selection: Locked to ${track.height}p @ ${formatBitrate(track.bandwidth)}.`,
-            });
+        if (!this.player) return;
+
+        if (this.player.getConfiguration().abr.enabled) {
+            this.player.configure({ abr: { enabled: false } });
         }
+
+        let trackToSelect = track;
+        // If the passed track doesn't have Shaka's internal properties, it's a pre-hydrated object.
+        if (typeof track.id !== 'number' || track.label === undefined) {
+            const shakaTracks = this.player.getVariantTracks();
+            trackToSelect = shakaTracks.find(
+                (t) =>
+                    t.bandwidth === track.bandwidth &&
+                    t.height === track.height &&
+                    t.width === track.width &&
+                    t.codecs === track.codecs
+            );
+            if (!trackToSelect) {
+                console.warn('Could not find matching Shaka track for', track);
+                return;
+            }
+        }
+
+        this.player.selectVariantTrack(trackToSelect, clearBuffer);
+        playerActions.logEvent({
+            timestamp: new Date().toLocaleTimeString(),
+            type: 'interaction',
+            details: `Manual track selection: Locked to ${
+                track.height
+            }p @ ${formatBitrate(track.bandwidth)}.`,
+        });
     }
 
     selectTextTrack(track) {
-        this.player?.selectTextTrack(track);
+        if (!this.player) return;
+        let trackToSelect = track;
+
+        if (track && typeof track.id !== 'number') {
+            const shakaTracks = this.player.getTextTracks();
+            trackToSelect = shakaTracks.find(
+                (t) => t.language === track.language && t.kind === track.kind
+            );
+        }
+
+        this.player.selectTextTrack(trackToSelect);
     }
 
-    selectAudioLanguage(lang) {
-        this.player?.selectAudioLanguage(lang);
+    selectAudioLanguage(language) {
+        if (!this.player) return;
+        // Match by label first, as it can be more descriptive (e.g., "English (Commentary)")
+        const audioTracks = this.player.getAudioLanguagesAndRoles();
+        const trackToSelect =
+            audioTracks.find((t) => t.label === language) ||
+            audioTracks.find((t) => t.language === language);
+
+        if (trackToSelect) {
+            // By only passing the language, we let Shaka choose the default role,
+            // which is a safer operation than potentially passing `undefined`.
+            this.player.selectAudioLanguage(trackToSelect.language);
+        }
     }
 
     onErrorEvent(event) {
@@ -560,14 +633,7 @@ class PlayerService {
     onError(error) {
         console.error('Shaka Player Error:', error.code, error);
         playerActions.setLoadedState(false);
-        let message = `Player error: ${error.code} - ${error.message}`;
-        if (error.code === 6007) {
-            const networkError = error.data[0];
-            if (networkError && networkError.data) {
-                const httpStatus = networkError.data[1];
-                message = `License request failed: HTTP ${httpStatus}. Check Authentication settings.`;
-            }
-        }
+        const message = parseShakaError(error);
         eventBus.dispatch('player:error', { message, error });
     }
 

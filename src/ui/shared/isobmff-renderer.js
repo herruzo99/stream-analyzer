@@ -103,35 +103,51 @@ const renderCellContent = (value) => {
     return value;
 };
 
+const SAMPLE_FIELD_WHITELIST = {
+    trun: ['duration', 'size', 'sampleFlags', 'compositionTimeOffset'],
+    senc: ['iv', 'subsamples'],
+    ctts: ['sample_count', 'sample_offset'],
+    stts: ['sample_count', 'sample_delta'],
+    stsc: ['first_chunk', 'samples_per_chunk', 'sample_description_index'],
+    stsz: ['entry_size'],
+    stss: ['sample_number'],
+    stco: ['chunk_offset'],
+    sbgp: ['sample_count', 'group_description_index'],
+    sdtp: [
+        'is_leading',
+        'sample_depends_on',
+        'sample_is_depended_on',
+        'sample_has_redundancy',
+    ],
+    subs: ['sample_delta', 'subsamples'],
+    tfra: [
+        'time',
+        'moof_offset',
+        'traf_number',
+        'trun_number',
+        'sample_number',
+    ],
+    sidx: ['type', 'size', 'duration', 'startsWithSap'],
+};
+
 export const entriesTableTemplate = (box) => {
     const entries = box.samples || box.entries;
     if (!entries || entries.length === 0) {
         return '';
     }
 
-    // --- ARCHITECTURAL REMEDIATION ---
-    // Instead of creating a column for every property on the sample object,
-    // we now use a whitelist of valid properties for a `trun` sample entry.
-    // This prevents internal UI properties like `color` and `isSample` from leaking
-    // into the table view.
     const firstEntry = entries[0];
-    const potentialHeaders = [
-        'duration',
-        'size',
-        'sampleFlags',
-        'compositionTimeOffset',
-    ];
-    const headers = firstEntry
-        ? potentialHeaders.filter((h) => h in firstEntry)
-        : [];
-    // --- END REMEDIATION ---
+    const validHeaders = SAMPLE_FIELD_WHITELIST[box.type] || [];
+    const headers = validHeaders.filter((h) => h in firstEntry);
 
     if (headers.length === 0) return '';
 
     const rowHeight = 32;
 
     const rowRenderer = (entry, index) => {
-        const rowTooltip = `Sample #${entry.index} located at file offset ${entry.offset}.`;
+        const rowTooltip = entry.isSample
+            ? `Sample #${entry.index} located at file offset ${entry.offset}.`
+            : `Entry #${index + 1}`;
         let rowBgClass = 'bg-gray-800/30';
         if (box.color?.bgClass) {
             const parts = box.color.bgClass.split('-');
@@ -150,7 +166,7 @@ export const entriesTableTemplate = (box) => {
                 <div
                     class="p-1 font-mono text-gray-500 w-12 text-right pr-2 border-r border-gray-700/50 self-stretch flex items-center justify-end"
                 >
-                    ${index + 1}
+                    ${entry.isSample ? entry.index + 1 : index + 1}
                 </div>
                 ${headers.map(
                     (header) => html`
@@ -199,7 +215,7 @@ export const entriesTableTemplate = (box) => {
                     .items=${entries}
                     .rowTemplate=${(item, index) => rowRenderer(item, index)}
                     .rowHeight=${rowHeight}
-                    .itemId=${(item) => item.index}
+                    .itemId=${(item) => item.index ?? item.offset}
                     style="height: ${Math.min(
                         entries.length * rowHeight,
                         400

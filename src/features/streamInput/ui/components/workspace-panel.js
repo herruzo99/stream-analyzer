@@ -12,7 +12,8 @@ const workspaceCardTemplate = (input, isActive) => {
     const handleRemove = (e) => {
         e.stopPropagation();
         analysisActions.removeStreamInput(input.id);
-        uiActions.setLoadedWorkspaceName(null); // Removing an item invalidates the saved workspace state
+        // BUG FIX: Do NOT unlink the workspace on item removal. This is now handled
+        // by an explicit "Unlink" button in the main panel.
     };
 
     const handleSetActive = () => {
@@ -145,6 +146,10 @@ export const workspacePanelTemplate = () => {
         }
     };
 
+    const handleUnlinkWorkspace = () => {
+        uiActions.setLoadedWorkspaceName(null);
+    };
+
     let isWorkspaceModified = false;
     if (loadedWorkspaceName) {
         const savedWorkspace = workspaces.find(
@@ -185,9 +190,31 @@ export const workspacePanelTemplate = () => {
         >
             <div>
                 <div class="flex justify-between items-center mb-2">
-                    <h2 class="text-2xl font-bold text-white">
-                        Analysis Workspace
-                    </h2>
+                    <div>
+                        <h2 class="text-2xl font-bold text-white">
+                            Analysis Workspace
+                        </h2>
+                        ${loadedWorkspaceName
+                            ? html`
+                                  <div class="flex items-center gap-2 mt-1">
+                                      <span class="text-sm text-slate-400"
+                                          >Editing:</span
+                                      >
+                                      <span
+                                          class="font-semibold text-teal-300"
+                                          >${loadedWorkspaceName}</span
+                                      >
+                                      <button
+                                          @click=${handleUnlinkWorkspace}
+                                          title="Stop editing this workspace"
+                                          class="text-slate-500 hover:text-white"
+                                      >
+                                          ${icons.unlink}
+                                      </button>
+                                  </div>
+                              `
+                            : ''}
+                    </div>
                     <div class="flex items-center gap-2">
                         ${loadedWorkspaceName
                             ? html`<button

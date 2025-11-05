@@ -6,6 +6,7 @@ import { useSegmentCacheStore } from '@/state/segmentCacheStore';
 import { useDecryptionStore } from '@/state/decryptionStore';
 import { usePlayerStore } from '@/state/playerStore';
 import { useNetworkStore } from '@/state/networkStore';
+import { multiPlayerService } from '@/features/multiPlayer/application/multiPlayerService';
 
 /**
  * Performs a hard reset of the entire application state.
@@ -15,6 +16,7 @@ export function resetApplicationState() {
     // 1. Stop all background polling services.
     stopAllMonitoring();
     stopAllHlsVariantPolling();
+    multiPlayerService.destroyAll();
 
     // 2. Reset all Zustand stores to their initial state.
     // The `startAnalysis` action on the analysis store also resets the UI store.

@@ -45,13 +45,18 @@ const representationCardTemplate = (rep, activeRepId, compositeKey) => {
             <p class="font-semibold text-sm text-slate-200 truncate">
                 ID: ${rep.id || 'N/A'}
             </p>
+            ${rep.label
+                ? html`<p class="text-xs text-slate-300 truncate">
+                      ${rep.label}
+                  </p>`
+                : ''}
             ${details}
         </button>
     `;
 };
 
-const adaptationSetGroupTemplate = (as, periodId, activeRepId) => {
-    if (as.representations.length === 0) return '';
+const adaptationSetGroupTemplate = (as, periodId, activeRepId, sortedReps) => {
+    if (sortedReps.length === 0) return '';
 
     let title, value;
     if (as.id) {
@@ -74,10 +79,10 @@ const adaptationSetGroupTemplate = (as, periodId, activeRepId) => {
                 <span class="font-mono text-slate-300">${value}</span>
             </div>
             <div class="pl-2 pt-2 space-y-2">
-                ${as.representations.map((rep) => {
+                ${sortedReps.map((rep) => {
                     const compositeKey = `${periodId}-${rep.id}`;
                     return representationCardTemplate(
-                        { ...rep, contentType: as.contentType },
+                        { ...rep, contentType: as.contentType, lang: as.lang },
                         activeRepId,
                         compositeKey
                     );
@@ -112,15 +117,33 @@ const periodGroupTemplate = (period, index, activeRepId, activeTab) => {
                     >${period.id || `(index ${index})`}</span
                 >
                 <span
-                    class="ml-auto text-slate-400 transition-transform duration-200 group-open:rotate-180"
+                    class="ml-auto text-slate-400 transition-transform duration-200 group-open:rotate-90"
                 >
                     ${icons.chevronDown}
                 </span>
             </summary>
             <div class="pl-3 pt-2 space-y-2 border-l-2 border-slate-700 ml-3">
-                ${adaptationSetsForTab.map((as) =>
-                    adaptationSetGroupTemplate(as, periodId, activeRepId)
-                )}
+                ${adaptationSetsForTab.map((as) => {
+                    // --- SORTING LOGIC APPLIED HERE ---
+                    const sortedReps = [...as.representations].sort((a, b) => {
+                        const heightA = a.height?.value || 0;
+                        const heightB = b.height?.value || 0;
+                        if (heightA !== heightB) return heightB - heightA;
+
+                        const widthA = a.width?.value || 0;
+                        const widthB = b.width?.value || 0;
+                        if (widthA !== widthB) return widthB - widthA;
+
+                        return (b.bandwidth || 0) - (a.bandwidth || 0);
+                    });
+                    // --- END SORTING LOGIC ---
+                    return adaptationSetGroupTemplate(
+                        as,
+                        periodId,
+                        activeRepId,
+                        sortedReps
+                    );
+                })}
             </div>
         </details>
     `;
@@ -154,7 +177,7 @@ export const representationSelectorTemplate = (stream) => {
             </div>
         `;
     } else if (stream.protocol === 'hls' && stream.manifest?.isMaster) {
-        const renditions = stream.manifest.periods[0].adaptationSets
+        const allReps = stream.manifest.periods[0].adaptationSets
             .filter((as) => {
                 if (segmentExplorerActiveTab === 'text') {
                     return (
@@ -175,10 +198,28 @@ export const representationSelectorTemplate = (stream) => {
                     lang: as.lang,
                 }))
             );
+
+        // --- SORTING LOGIC FOR HLS ---
+        const sortedReps = allReps.sort((a, b) => {
+            if (a.contentType === 'video' && b.contentType === 'video') {
+                const heightA = a.height?.value || 0;
+                const heightB = b.height?.value || 0;
+                if (heightA !== heightB) return heightB - heightA;
+            }
+            if (a.contentType === 'audio' || a.contentType === 'text') {
+                const langA = a.lang || 'zzz';
+                const langB = b.lang || 'zzz';
+                if (langA.localeCompare(langB) !== 0)
+                    return langA.localeCompare(langB);
+            }
+            return (b.bandwidth || 0) - (a.bandwidth || 0);
+        });
+        // --- END SORTING LOGIC ---
+
         content =
-            renditions.length > 0
+            sortedReps.length > 0
                 ? html`<div class="space-y-2">
-                      ${renditions.map((r) =>
+                      ${sortedReps.map((r) =>
                           representationCardTemplate(
                               r,
                               segmentExplorerActiveRepId,

@@ -13,9 +13,9 @@ const extensionPatterns = [
     ['init.mp4', { contentType: 'init', codec: null }],
     ['init.m4s', { contentType: 'init', codec: null }],
 
-    // Media Segments - these are now more generic fallbacks
+    // Media Segments
     ['.m4s', { contentType: 'video', codec: 'avc1, mp4a' }],
-    ['.mp4', { contentType: 'video', codec: 'avc1, mp4a' }],
+    // REMOVED: ['.mp4', { contentType: 'video', codec: 'avc1, mp4a' }],
     ['.m4v', { contentType: 'video', codec: 'avc1' }],
     ['.cmfv', { contentType: 'video', codec: 'avc1, mp4a' }], // CMAF Video
     ['.ts', { contentType: 'video', codec: 'avc1, mp4a' }], // Transport Stream
@@ -48,14 +48,16 @@ export function inferMediaInfoFromExtension(filename) {
 
     // --- NEW: Heuristic based on URL content ---
     if (
-        lowerFilename.includes('_video_') ||
-        lowerFilename.includes('/video/')
+        lowerFilename.includes('video') ||
+        lowerFilename.includes('vid_') ||
+        lowerFilename.includes('_v')
     ) {
         return { contentType: 'video', codec: 'avc1' };
     }
     if (
-        lowerFilename.includes('_audio_') ||
-        lowerFilename.includes('/audio/')
+        lowerFilename.includes('audio') ||
+        lowerFilename.includes('aud_') ||
+        lowerFilename.includes('_a')
     ) {
         return { contentType: 'audio', codec: 'mp4a.40.2' };
     }
@@ -81,6 +83,10 @@ export function inferMediaInfoFromExtension(filename) {
                 return info;
             }
         }
+    }
+    // If no specific audio extension is found, but it is an mp4, assume video as a last resort.
+    if (lowerFilename.endsWith('.mp4')) {
+        return { contentType: 'video', codec: 'avc1, mp4a' };
     }
 
     return { contentType: 'unknown', codec: null };

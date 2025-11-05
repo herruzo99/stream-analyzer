@@ -135,6 +135,7 @@ export function initializePlayerController() {
 
     // --- Track Selection Event Listeners ---
     eventBus.subscribe('ui:player:set-abr-enabled', ({ streamId, enabled }) => {
+        if (useUiStore.getState().activeTab !== 'player-simulation') return;
         const { activeStreamId } = useAnalysisStore.getState();
         if (streamId === activeStreamId) {
             playerService.setAbrEnabled(enabled);
@@ -144,6 +145,7 @@ export function initializePlayerController() {
     eventBus.subscribe(
         'ui:player:select-video-track',
         ({ streamId, track }) => {
+            if (useUiStore.getState().activeTab !== 'player-simulation') return;
             const { activeStreamId } = useAnalysisStore.getState();
             if (streamId === activeStreamId) {
                 playerService.selectVariantTrack(track);
@@ -154,6 +156,7 @@ export function initializePlayerController() {
     eventBus.subscribe(
         'ui:player:select-audio-track',
         ({ streamId, language }) => {
+            if (useUiStore.getState().activeTab !== 'player-simulation') return;
             const { activeStreamId } = useAnalysisStore.getState();
             if (streamId === activeStreamId) {
                 playerService.selectAudioLanguage(language);
@@ -163,6 +166,7 @@ export function initializePlayerController() {
     eventBus.subscribe(
         'ui:player:select-text-track',
         ({ streamId, track }) => {
+            if (useUiStore.getState().activeTab !== 'player-simulation') return;
             const { activeStreamId } = useAnalysisStore.getState();
             if (streamId === activeStreamId) {
                 playerService.selectTextTrack(track);
@@ -173,14 +177,17 @@ export function initializePlayerController() {
 
     // --- ARCHITECTURAL FIX: Add listeners for configuration presets ---
     eventBus.subscribe('ui:player:set-abr-strategy', ({ config }) => {
+        if (useUiStore.getState().activeTab !== 'player-simulation') return;
         playerService.setAbrConfiguration(config);
     });
 
     eventBus.subscribe('ui:player:set-restrictions', ({ restrictions }) => {
+        if (useUiStore.getState().activeTab !== 'player-simulation') return;
         playerService.setRestrictions(restrictions);
     });
 
     eventBus.subscribe('ui:player:set-buffering-strategy', ({ config }) => {
+        if (useUiStore.getState().activeTab !== 'player-simulation') return;
         playerService.setBufferConfiguration(config);
     });
     // --- END FIX ---

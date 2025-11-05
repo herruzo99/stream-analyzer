@@ -14,9 +14,11 @@ export function parseStco(box, view) {
     if (entryCount !== null && entryCount > 0) {
         for (let i = 0; i < entryCount; i++) {
             if (p.stopped) break;
-            const offset = p.readUint32(`entry_${i}_chunk_offset`);
-            if (offset === null) break;
-            box.entries.push({ offset });
+            const offsetField = `entry_${i}_chunk_offset`;
+            const chunk_offset = p.readUint32(offsetField);
+            if (chunk_offset === null) break;
+            box.details[offsetField].internal = true;
+            box.entries.push({ chunk_offset });
         }
     }
     p.finalize();

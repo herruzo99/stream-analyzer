@@ -3,6 +3,7 @@ import { analysisActions } from '@/state/analysisStore';
 import { uiActions } from '@/state/uiStore';
 import { workerService } from '@/infrastructure/worker/workerService';
 import { debugLog } from '@/shared/utils/debug';
+import { useSegmentCacheStore } from '@/state/segmentCacheStore';
 
 /**
  * Orchestrates the business logic of starting a new analysis directly from segment files.
@@ -27,16 +28,52 @@ export async function startSegmentAnalysisUseCase({ files }) {
     eventBus.dispatch('analysis:started');
 
     try {
-        const parsingPromises = files.map(async (file) => {
+        const { set: setInCache } = useSegmentCacheStore.getState();
+
+        const parsingPromises = files.map(async (file, index) => {
             const data = await file.arrayBuffer();
-            // The worker's 'parse-segment-structure' handler is perfect for this.
-            return workerService.postTask('parse-segment-structure', {
-                data,
-                url: file.name,
+            const initialParsedData = await workerService.postTask(
+                'parse-segment-structure',
+                {
+                    data,
+                    url: file.name,
+                }
+            ).promise;
+
+            const uniqueId = `local-segment-${index}-${
+                initialParsedData.data?.boxes?.[0]?.offset ||
+                initialParsedData.data?.packets?.[0]?.offset ||
+                index
+            }`;
+
+            // ARCHITECTURAL FIX: Cache the raw data and parsed structure immediately.
+            setInCache(uniqueId, {
+                status: 200,
+                data: data,
+                parsedData: initialParsedData,
             });
+
+            return { uniqueId, parsedData: initialParsedData };
         });
 
-        const parsedSegments = await Promise.all(parsingPromises);
+        const parsedSegmentsInfo = await Promise.all(parsingPromises);
+
+        const syntheticStreamInput = {
+            id: 1,
+            name:
+                files.length > 1
+                    ? `${files.length} Local Files`
+                    : files[0].name,
+            url: '',
+            file: files.length > 0 ? files[0] : null,
+            auth: { headers: [], queryParams: [] },
+            drmAuth: {
+                licenseServerUrl: '',
+                serverCertificate: null,
+                headers: [],
+                queryParams: [],
+            },
+        };
 
         /** @type {import('@/types.ts').Manifest} */
         const syntheticManifest = {
@@ -57,7 +94,7 @@ export async function startSegmentAnalysisUseCase({ files }) {
             patchLocations: [],
             serviceDescriptions: [],
             initializationSets: [],
-            segmentFormat: parsedSegments[0]?.format || 'unknown',
+            segmentFormat: parsedSegmentsInfo[0]?.parsedData?.format || 'unknown',
             periods: [],
             events: [],
             serializedManifest: {},
@@ -65,15 +102,13 @@ export async function startSegmentAnalysisUseCase({ files }) {
             serverControl: null,
         };
 
-        // Construct a "synthetic" stream object to hold the segments.
-        // This allows us to reuse the entire results view.
         /** @type {import('@/types').Stream} */
         const syntheticStream = {
             id: 1,
             name: 'Local Segments',
             originalUrl: null,
             baseUrl: '',
-            protocol: 'local', // A special protocol type for this workflow
+            protocol: 'local',
             isPolling: false,
             manifest: syntheticManifest,
             rawManifest: 'Synthetic manifest for local segment analysis.',
@@ -97,22 +132,18 @@ export async function startSegmentAnalysisUseCase({ files }) {
                 queryParams: [],
             },
             licenseServerUrl: '',
-
-            // Populate a synthetic representation with the uploaded segments
-            segments: parsedSegments.map((ps, index) => ({
+            segments: parsedSegmentsInfo.map(({ uniqueId, parsedData }, index) => ({
                 repId: 'local-rep',
                 type: 'Media',
                 number: index + 1,
-                uniqueId: `local-segment-${index}-${ps.data?.boxes?.[0]?.offset || ps.data?.packets?.[0]?.offset || index}`,
+                uniqueId: uniqueId,
                 resolvedUrl: `local://segment_${index}`,
-                template: ps.url,
+                template: parsedData.url,
                 time: 0,
                 duration: 0,
                 timescale: 1,
                 gap: false,
                 flags: [],
-                // Attach the full parsed data for later use
-                parsedData: ps,
             })),
         };
 
@@ -122,17 +153,22 @@ export async function startSegmentAnalysisUseCase({ files }) {
         syntheticStream.dashRepresentationState.set('0-local-rep', {
             segments: syntheticStream.segments,
             currentSegmentUrls: allSegmentUrls,
-            newlyAddedSegmentUrls: allSegmentUrls, // On initial load, all are new.
+            newlyAddedSegmentUrls: allSegmentUrls,
             diagnostics: {},
         });
 
-        // Use the existing action to transition the app to the results view.
-        analysisActions.completeAnalysis([syntheticStream]);
-        uiActions.setActiveTab('explorer'); // Go directly to the segment explorer
+        analysisActions.completeAnalysis(
+            [syntheticStream],
+            [],
+            [syntheticStreamInput]
+        );
+        uiActions.setActiveTab('explorer');
 
         debugLog(
             'startSegmentAnalysisUseCase',
-            `Segment Analysis Pipeline (success): ${(performance.now() - analysisStartTime).toFixed(2)}ms`
+            `Segment Analysis Pipeline (success): ${(
+                performance.now() - analysisStartTime
+            ).toFixed(2)}ms`
         );
     } catch (error) {
         console.error('Error during segment analysis:', error);

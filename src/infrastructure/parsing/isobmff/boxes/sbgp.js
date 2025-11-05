@@ -26,13 +26,15 @@ export function parseSbgp(box, view) {
     if (entryCount !== null) {
         for (let i = 0; i < entryCount; i++) {
             if (p.stopped) break;
-            const count = p.readUint32(`entry_${i}_sample_count`);
-            const groupIndex = p.readUint32(
-                `entry_${i}_group_description_index`
-            );
+            const countField = `entry_${i}_sample_count`;
+            const groupIndexField = `entry_${i}_group_description_index`;
+            const sample_count = p.readUint32(countField);
+            const group_description_index = p.readUint32(groupIndexField);
 
-            if (count !== null && groupIndex !== null) {
-                box.entries.push({ count, groupIndex });
+            if (sample_count !== null && group_description_index !== null) {
+                box.details[countField].internal = true;
+                box.details[groupIndexField].internal = true;
+                box.entries.push({ sample_count, group_description_index });
             }
         }
     }

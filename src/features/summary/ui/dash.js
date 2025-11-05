@@ -8,6 +8,7 @@ import {
     getAttr,
 } from '@/infrastructure/parsing/dash/recursive-parser';
 import * as icons from '@/ui/icons';
+import { streamHeaderTemplate } from './components/stream-header.js';
 
 const programInfoTemplate = (stream) => {
     const programInfo = stream.manifest.programInformations?.[0];
@@ -49,12 +50,15 @@ export function getDashSummaryTemplate(stream) {
         'UTCTiming'
     )[0];
     const utcTimingValue = utcTimingEl
-        ? `${getAttr(utcTimingEl, 'schemeIdUri')?.split(':').pop()} @ ${getAttr(utcTimingEl, 'value')}`
+        ? `${getAttr(utcTimingEl, 'schemeIdUri')?.split(':').pop()} @ ${getAttr(
+              utcTimingEl,
+              'value'
+          )}`
         : null;
 
     return html`
         <div class="space-y-8">
-            ${programInfoTemplate(stream)}
+            ${streamHeaderTemplate(stream)} ${programInfoTemplate(stream)}
             <div>
                 <h3 class="text-xl font-bold mb-4 text-slate-100">
                     General Properties
@@ -68,7 +72,9 @@ export function getDashSummaryTemplate(stream) {
                         tooltip:
                             'Indicates if the stream is live or on-demand.',
                         isoRef: 'DASH: 5.3.1.2',
-                        customClasses: `border-l-4 ${isLive ? 'border-danger' : 'border-info'}`,
+                        customClasses: `border-l-4 ${
+                            isLive ? 'border-danger' : 'border-info'
+                        }`,
                         icon: isLive ? icons.play : icons.fileText,
                         iconBgClass: isLive
                             ? 'bg-red-900/30 text-red-300'
@@ -104,7 +110,9 @@ export function getDashSummaryTemplate(stream) {
                         ? statCardTemplate({
                               label: 'DVR Window',
                               value: summary.dash.timeShiftBufferDepth
-                                  ? `${summary.dash.timeShiftBufferDepth.toFixed(2)}s`
+                                  ? `${summary.dash.timeShiftBufferDepth.toFixed(
+                                        2
+                                    )}s`
                                   : null,
                               tooltip:
                                   'The duration of the time-shifting buffer (DVR window).',
@@ -116,7 +124,9 @@ export function getDashSummaryTemplate(stream) {
                         ? statCardTemplate({
                               label: 'Min Update Period',
                               value: summary.dash.minimumUpdatePeriod
-                                  ? `${summary.dash.minimumUpdatePeriod.toFixed(2)}s`
+                                  ? `${summary.dash.minimumUpdatePeriod.toFixed(
+                                        2
+                                    )}s`
                                   : null,
                               tooltip:
                                   'Minimum time a client should wait before requesting an updated MPD.',

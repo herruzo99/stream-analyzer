@@ -22,8 +22,22 @@ export function parseSenc(box, view) {
     const sampleCount = p.readUint32('sample_count');
     box.samples = []; // Initialize for detailed sample data
 
-    if (sampleCount !== null) {
-        const assumedIvSize = 8;
+    if (sampleCount !== null && sampleCount > 0) {
+        // --- ARCHITECTURAL FIX ---
+        // NOTE: The IV size should be read from the 'tenc' box. This is a heuristic
+        // to work around the architectural limitation of not having that context.
+        let perSampleIvSize = 8; // Default CENC assumption.
+        if (flags.use_subsample_encryption) {
+            const remainingBytes = box.size - p.offset;
+            const avgEntrySize = remainingBytes / sampleCount;
+            // For CBCS, if the average entry size is exactly 8, it implies an IV size of 0
+            // and a single subsample entry (2 bytes count + 2 bytes clear + 4 bytes protected).
+            // 0 (IV) + 2 (count) + 6 (subsample) = 8.
+            if (Math.abs(avgEntrySize - 8) < 0.01) {
+                perSampleIvSize = 0;
+            }
+        }
+        // --- END FIX ---
 
         for (let i = 0; i < sampleCount; i++) {
             if (p.stopped) break;
@@ -33,45 +47,60 @@ export function parseSenc(box, view) {
                 subsamples: [],
             };
 
-            if (p.checkBounds(assumedIvSize)) {
-                const ivBytes = new Uint8Array(
-                    p.view.buffer,
-                    p.view.byteOffset + p.offset,
-                    assumedIvSize
-                );
-                sampleEntry.iv = ivBytes;
-                p.box.details[`sample_${i}_iv`] = {
-                    value: 'IV Data',
-                    offset: p.box.offset + p.offset,
-                    length: assumedIvSize,
-                };
-                p.offset += assumedIvSize;
-            } else {
-                break;
+            const ivField = `sample_${i}_iv`;
+
+            if (perSampleIvSize > 0) {
+                if (p.checkBounds(perSampleIvSize)) {
+                    const ivBytes = new Uint8Array(
+                        p.view.buffer,
+                        p.view.byteOffset + p.offset,
+                        perSampleIvSize
+                    );
+                    sampleEntry.iv = ivBytes;
+                    p.box.details[ivField] = {
+                        value: `[${perSampleIvSize} bytes]`,
+                        offset: p.box.offset + p.offset,
+                        length: perSampleIvSize,
+                        internal: true,
+                    };
+                    p.offset += perSampleIvSize;
+                } else {
+                    // This break will be hit if the heuristic is wrong and there are not enough bytes.
+                    // The heuristic should prevent the error from being thrown.
+                    break;
+                }
             }
 
             if (flags.use_subsample_encryption) {
-                const subSampleCount = p.readUint16(
-                    `sample_${i}_subsample_count`
-                );
+                const subSampleCountField = `sample_${i}_subsample_count`;
+                const subSampleCount = p.readUint16(subSampleCountField);
+
                 if (subSampleCount !== null) {
-                    sampleEntry.subsample_count = subSampleCount;
+                    p.box.details[subSampleCountField].internal = true;
+
                     for (let j = 0; j < subSampleCount; j++) {
-                        const clearBytes = p.readUint16(
-                            `sample_${i}_subsample_${j}_clear`
-                        );
-                        const protectedBytes = p.readUint32(
-                            `sample_${i}_subsample_${j}_protected`
+                        const clearBytesField = `sample_${i}_subsample_${j}_BytesOfClearData`;
+                        const protectedBytesField = `sample_${i}_subsample_${j}_BytesOfProtectedData`;
+
+                        const BytesOfClearData = p.readUint16(clearBytesField);
+                        const BytesOfProtectedData = p.readUint32(
+                            protectedBytesField
                         );
 
-                        if (clearBytes === null || protectedBytes === null) {
+                        if (
+                            BytesOfClearData === null ||
+                            BytesOfProtectedData === null
+                        ) {
                             p.stopped = true;
                             break;
                         }
 
+                        p.box.details[clearBytesField].internal = true;
+                        p.box.details[protectedBytesField].internal = true;
+
                         sampleEntry.subsamples.push({
-                            BytesOfClearData: clearBytes,
-                            BytesOfProtectedData: protectedBytes,
+                            BytesOfClearData,
+                            BytesOfProtectedData,
                         });
                     }
                 }
