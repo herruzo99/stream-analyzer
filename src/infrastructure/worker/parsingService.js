@@ -156,8 +156,32 @@ function generateFullByteMap(parsedData) {
         walkAndMap(parsedData.data.boxes);
 
         if (parsedData.samples) {
+            const boxMapByOffset = new Map();
+            const buildBoxMap = (boxes) => {
+                if (!boxes) return;
+                for (const box of boxes) {
+                    boxMapByOffset.set(box.offset, box);
+                    if (box.children) buildBoxMap(box.children);
+                }
+            };
+            buildBoxMap(parsedData.data.boxes);
+
             for (const sample of parsedData.samples) {
-                const sampleColor = { bgClass: 'bg-gray-700/30' };
+                const parentTrun = boxMapByOffset.get(sample.trunOffset);
+                let sampleColor;
+                if (parentTrun?.color?.bgClass) {
+                    const parts = parentTrun.color.bgClass.split('-');
+                    if (parts.length === 3) {
+                        sampleColor = {
+                            bgClass: `bg-${parts[1]}-900/30`,
+                        };
+                    } else {
+                        sampleColor = { bgClass: 'bg-gray-700/30' };
+                    }
+                } else {
+                    sampleColor = { bgClass: 'bg-gray-700/30' };
+                }
+
                 for (
                     let i = sample.offset;
                     i < sample.offset + sample.size;

@@ -196,7 +196,7 @@ export const inspectorPanelTemplate = (parsedData) => {
     const boxInfo = allIsoTooltipData[box.type] || {};
 
     const fieldsToRender = Object.entries(box.details).filter(
-        ([key]) => !key.startsWith('sample_')
+        ([key, field]) => !field.internal
     );
 
     let boxForTable = box;

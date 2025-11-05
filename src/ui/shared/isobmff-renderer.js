@@ -132,9 +132,13 @@ export const entriesTableTemplate = (box) => {
 
     const rowRenderer = (entry, index) => {
         const rowTooltip = `Sample #${entry.index} located at file offset ${entry.offset}.`;
-        const rowBgClass = box.color?.bgClass
-            ? `${box.color.bgClass.replace(/-\d{2,3}/, '-900')}/30`
-            : 'bg-gray-800/30';
+        let rowBgClass = 'bg-gray-800/30';
+        if (box.color?.bgClass) {
+            const parts = box.color.bgClass.split('-');
+            if (parts.length === 3) {
+                rowBgClass = `bg-${parts[1]}-900/30`;
+            }
+        }
 
         return html`
             <div
@@ -223,6 +227,10 @@ export const inspectorDetailsTemplate = (
     const fields = Object.entries(box.details).map(([key, field]) => {
         // Hide the raw flags if a decoded version exists
         if (key.endsWith('_raw') && box.details[key.replace('_raw', '')]) {
+            return '';
+        }
+        // Hide internal fields meant only for rendering
+        if (field.internal) {
             return '';
         }
         const fieldInfo = allIsoTooltipData[`${box.type}@${key}`];
@@ -334,12 +342,16 @@ export const isoBoxTreeTemplate = (box) => {
         >
     </div>`;
 
+    const fieldsToRender = Object.entries(box.details).filter(
+        ([key, field]) => !field.internal
+    );
+
     const detailsTemplate =
-        Object.keys(box.details).length > 0
+        fieldsToRender.length > 0
             ? html`<div class="p-2">
                   <table class="text-xs border-collapse w-full table-auto">
                       <tbody>
-                          ${Object.entries(box.details).map(([key, field]) => {
+                          ${fieldsToRender.map(([key, field]) => {
                               if (key.endsWith('_raw')) return ''; // Hide raw values if decoded ones exist
 
                               const fieldTooltip =
