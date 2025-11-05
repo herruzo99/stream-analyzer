@@ -246,14 +246,15 @@ function renderExplorer() {
                             hasTimeData &&
                             toggleDropdown(
                                 e.currentTarget,
-                                timeFilterTemplate({
+                                () => timeFilterTemplate({
                                     minTime,
                                     maxTime,
                                     currentTargetTime:
                                         segmentExplorerTargetTime,
                                     isLive,
                                     duration: stream.manifest.duration,
-                                })
+                                }),
+                                e
                             )}
                         ?disabled=${!hasTimeData}
                         class="bg-slate-700/50 hover:bg-slate-600/50 text-white font-bold py-2 px-3 rounded-md transition duration-300 flex items-center text-sm gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${timeFilterActive

@@ -474,11 +474,14 @@ function parseBoxDetails(box, view, context) {
         if (parser) {
             parser(box, view, context);
         } else if (box.type === 'mdat') {
+            // --- ARCHITECTURAL ENHANCEMENT ---
+            // Add a descriptive info field for the UI to display.
             box.details['info'] = {
-                value: 'Contains raw media data for samples.',
+                value: 'Contains the raw, multiplexed media samples (video frames, audio samples). The structure of this data is described by the metadata in the preceding `moof` box. It is not parsed further at this structural level.',
                 offset: box.contentOffset,
                 length: box.size - box.headerSize,
             };
+            // --- END ENHANCEMENT ---
         } else if (!knownContainerBoxes.has(box.type)) {
             box.issues = box.issues || [];
             box.issues.push({

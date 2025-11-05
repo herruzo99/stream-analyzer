@@ -4,7 +4,7 @@ import { debugLog } from '@/shared/utils/debug';
 import { playerService } from '@/features/playerSimulation/application/playerService';
 
 const pollers = new Map();
-let managerInterval = null;
+let tickerSubscription = null;
 
 export async function pollHlsVariant(streamId, variantUri) {
     const stream = useAnalysisStore
@@ -41,19 +41,15 @@ function startPoller(stream, variantUri) {
         playlistTargetDuration || masterTargetDuration || 2;
     const pollInterval = Math.max(pollIntervalSeconds * 1000, 2000); // Enforce a minimum of 2 seconds.
 
-    const intervalId = setInterval(
-        () => pollHlsVariant(stream.id, variantUri),
-        pollInterval
-    );
-    pollers.set(pollerKey, intervalId);
+    pollers.set(pollerKey, {
+        lastPollTime: performance.now(),
+        pollInterval,
+    });
 }
 
 function stopPoller(streamId, variantUri) {
     const pollerKey = `${streamId}-${variantUri}`;
-    if (pollers.has(pollerKey)) {
-        clearInterval(pollers.get(pollerKey));
-        pollers.delete(pollerKey);
-    }
+    pollers.delete(pollerKey);
 }
 
 export function manageHlsPollers() {
@@ -68,17 +64,24 @@ export function manageHlsPollers() {
     for (const stream of hlsStreams) {
         for (const [variantUri] of stream.hlsVariantState.entries()) {
             const pollerKey = `${stream.id}-${variantUri}`;
+            const poller = pollers.get(pollerKey);
 
-            // A stream should only be polled by this service if the UI toggle is on AND
-            // the player is NOT currently active for this stream.
             const shouldBePolling =
                 stream.isPolling && !playerActiveStreamIds.has(stream.id);
-            const isCurrentlyPolling = pollers.has(pollerKey);
+            const isCurrentlyPolling = !!poller;
 
             if (shouldBePolling && !isCurrentlyPolling) {
                 startPoller(stream, variantUri);
             } else if (!shouldBePolling && isCurrentlyPolling) {
                 stopPoller(stream.id, variantUri);
+            } else if (shouldBePolling && isCurrentlyPolling) {
+                if (
+                    performance.now() - poller.lastPollTime >
+                    poller.pollInterval
+                ) {
+                    poller.lastPollTime = performance.now();
+                    pollHlsVariant(stream.id, variantUri);
+                }
             }
         }
     }
@@ -101,8 +104,11 @@ function updateVariantState(streamId, variantUri, updates) {
 }
 
 export function initializeHlsVariantPoller() {
-    if (managerInterval) clearInterval(managerInterval);
-    managerInterval = setInterval(manageHlsPollers, 1000);
+    if (tickerSubscription) tickerSubscription();
+    tickerSubscription = eventBus.subscribe(
+        'ticker:one-second-tick',
+        manageHlsPollers
+    );
 
     // Subscribe to player state changes to immediately re-evaluate polling.
     eventBus.subscribe('player:active-streams-changed', manageHlsPollers);
@@ -149,12 +155,9 @@ export function initializeHlsVariantPoller() {
 }
 
 export function stopAllHlsVariantPolling() {
-    if (managerInterval) {
-        clearInterval(managerInterval);
-        managerInterval = null;
-    }
-    for (const intervalId of pollers.values()) {
-        clearInterval(intervalId);
+    if (tickerSubscription) {
+        tickerSubscription();
+        tickerSubscription = null;
     }
     pollers.clear();
 }

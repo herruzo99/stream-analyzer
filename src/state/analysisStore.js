@@ -54,6 +54,7 @@ import {
  * @property {() => void} clearSegmentsToCompare
  * @property {(streamId: number, updatedStreamData: Partial<Stream>) => void} updateStream
  * @property {(isPolling: boolean, options?: { fromInactivity?: boolean }) => void} setAllLiveStreamsPolling
+ * @property {(streamId: number, isPolling: boolean) => void} setStreamPolling
  * @property {(streamId: number, direction: number) => void} navigateManifestUpdate
  * @property {(payload: {streamId: number, variantUri: string, manifest: object, manifestString: string, segments: object[], currentSegmentUrls: string[], newSegmentUrls: string[]}) => void} updateHlsMediaPlaylist
  * @property {(streamId: number, events: Event[]) => void} addInbandEvents
@@ -66,22 +67,8 @@ const createInitialAnalysisState = () => ({
     streams: [],
     activeStreamId: null,
     streamIdCounter: 1,
-    streamInputs: [
-        {
-            id: 0,
-            url: '',
-            name: '',
-            file: null,
-            auth: { headers: [], queryParams: [] },
-            drmAuth: {
-                licenseServerUrl: '',
-                serverCertificate: null,
-                headers: [],
-                queryParams: [],
-            },
-        },
-    ],
-    activeStreamInputId: 0,
+    streamInputs: [],
+    activeStreamInputId: null,
     segmentsForCompare: [],
     decodedSamples: new Map(),
     urlAuthMap: new Map(),
@@ -202,23 +189,21 @@ export const useAnalysisStore = createStore((set, get) => ({
     addStreamInput: () => {
         set((state) => {
             const newId = state.streamIdCounter;
+            const newStreamInput = {
+                id: newId,
+                url: '',
+                name: '',
+                file: null,
+                auth: { headers: [], queryParams: [] },
+                drmAuth: {
+                    licenseServerUrl: '',
+                    serverCertificate: null,
+                    headers: [],
+                    queryParams: [],
+                },
+            };
             return {
-                streamInputs: [
-                    ...state.streamInputs,
-                    {
-                        id: newId,
-                        url: '',
-                        name: '',
-                        file: null,
-                        auth: { headers: [], queryParams: [] },
-                        drmAuth: {
-                            licenseServerUrl: '',
-                            serverCertificate: null,
-                            headers: [],
-                            queryParams: [],
-                        },
-                    },
-                ],
+                streamInputs: [...state.streamInputs, newStreamInput],
                 streamIdCounter: newId + 1,
                 activeStreamInputId: newId,
             };
@@ -565,6 +550,22 @@ export const useAnalysisStore = createStore((set, get) => ({
                     if (options.fromInactivity && !isPolling) {
                         newStream.wasStoppedByInactivity = true;
                     } else if (isPolling) {
+                        newStream.wasStoppedByInactivity = false;
+                    }
+                    return newStream;
+                }
+                return s;
+            }),
+        }));
+        eventBus.dispatch('state:stream-updated');
+    },
+
+    setStreamPolling: (streamId, isPolling) => {
+        set((state) => ({
+            streams: state.streams.map((s) => {
+                if (s.id === streamId) {
+                    const newStream = { ...s, isPolling };
+                    if (isPolling) {
                         newStream.wasStoppedByInactivity = false;
                     }
                     return newStream;

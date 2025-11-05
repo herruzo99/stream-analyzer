@@ -1,12 +1,11 @@
 import { fetchWithAuth } from '../http.js';
 import { inferMediaInfoFromExtension } from '@/infrastructure/parsing/utils/media-types';
 import { debugLog } from '@/shared/utils/debug';
-import shaka from 'shaka-player/dist/shaka-player.compiled';
 import { handleParseSegmentStructure } from '../parsingService.js';
 
 /**
  * Maps Shaka Player's request type values to our internal resource types for logging.
- * @param {shaka.extern.Request} request The simplified, serializable request object.
+ * @param {any} request The simplified, serializable request object.
  * @param {number} requestType The numeric enum value for the request type from shaka.net.NetworkingEngine.RequestType
  * @returns {import('@/types').ResourceType}
  */
@@ -41,20 +40,20 @@ function mapShakaRequestType(request, requestType) {
 /**
  * Fetches a non-manifest resource for Shaka player (segment, license, key), logs it, and returns the ArrayBuffer.
  * @param {object} payload
- * @param {shaka.extern.Request} payload.request The simplified, serializable request object.
+ * @param {any} payload.request The simplified, serializable request object.
  * @param {number} payload.requestType The request type enum value.
  * @param {import('@/types').AuthInfo} payload.auth Authentication info.
  * @param {number} payload.streamId The ID of the stream this request belongs to.
- * @param {shaka.extern.Manifest} payload.shakaManifest The shaka player manifest object.
+ * @param {any} payload.shakaManifest The shaka player manifest object.
  * @param {string} payload.segmentUniqueId The canonical unique ID for the segment.
  * @param {AbortSignal} signal - The AbortSignal for the operation.
- * @returns {Promise<shaka.extern.Response>}
+ * @returns {Promise<any>}
  */
 export async function handleShakaResourceFetch(
     { request, requestType, auth, streamId, segmentUniqueId },
     signal
 ) {
-    const NETWORK_ERROR = 6001;
+    const REQUEST_FAILED = 6001;
     const NETWORK_CATEGORY = 1;
     const CRITICAL_SEVERITY = 2;
     const url = request.uris[0];
@@ -86,6 +85,7 @@ export async function handleShakaResourceFetch(
                 data: new ArrayBuffer(0),
                 headers: response.headers,
                 status: response.status,
+                originalRequest: request,
             };
         }
 
@@ -130,6 +130,7 @@ export async function handleShakaResourceFetch(
             data,
             headers: response.headers,
             status: response.status,
+            originalRequest: request,
         };
     } catch (error) {
         if (error.name === 'AbortError') {
@@ -143,7 +144,7 @@ export async function handleShakaResourceFetch(
         );
         throw {
             message: error.message || 'A network error occurred.',
-            code: error.code || NETWORK_ERROR,
+            code: error.code || REQUEST_FAILED,
             category: error.category || NETWORK_CATEGORY,
             severity: error.severity || CRITICAL_SEVERITY,
             data: error.data || [url, null, request, requestType, error],

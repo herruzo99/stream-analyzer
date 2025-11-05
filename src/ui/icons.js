@@ -47,6 +47,7 @@ export const volume1 = icon('volume-1');
 export const volumeOff = icon('volume-x');
 export const sync = icon('rotate-cw');
 export const table = icon('table-2');
+export const locateFixed = icon('locate-fixed');
 
 // --- Misc UI Icons ---
 export const plusCircle = icon('plus-circle');

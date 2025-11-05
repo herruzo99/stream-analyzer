@@ -138,6 +138,7 @@ export function initializePlayerController() {
         const { activeStreamId } = useAnalysisStore.getState();
         if (streamId === activeStreamId) {
             playerService.setAbrEnabled(enabled);
+            playerActions.setAbrEnabled(enabled);
         }
     });
     eventBus.subscribe(
@@ -146,6 +147,7 @@ export function initializePlayerController() {
             const { activeStreamId } = useAnalysisStore.getState();
             if (streamId === activeStreamId) {
                 playerService.selectVariantTrack(track);
+                playerActions.setAbrEnabled(false);
             }
         }
     );
@@ -168,6 +170,20 @@ export function initializePlayerController() {
         }
     );
     // --- End Track Selection ---
+
+    // --- ARCHITECTURAL FIX: Add listeners for configuration presets ---
+    eventBus.subscribe('ui:player:set-abr-strategy', ({ config }) => {
+        playerService.setAbrConfiguration(config);
+    });
+
+    eventBus.subscribe('ui:player:set-restrictions', ({ restrictions }) => {
+        playerService.setRestrictions(restrictions);
+    });
+
+    eventBus.subscribe('ui:player:set-buffering-strategy', ({ config }) => {
+        playerService.setBufferConfiguration(config);
+    });
+    // --- END FIX ---
 
     eventBus.subscribe('analysis:started', playerActions.reset);
 

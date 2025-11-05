@@ -20,10 +20,9 @@ class VirtualizedList extends HTMLElement {
     set items(newItems) {
         if (this._items === newItems) return;
 
-        // --- FIX: Preserve scroll position across updates ---
+        // --- PERFORMANCE FIX: Preserve scroll position across updates ---
         const oldScrollTop = this.scrollTop;
         const oldScrollHeight = this.scrollHeight;
-        // --- FIX: Add guard for initial render when scrollHeight is 0 ---
         const isScrolledToBottom =
             oldScrollHeight > 0 &&
             oldScrollTop + this.clientHeight >= oldScrollHeight - 10;
@@ -32,7 +31,7 @@ class VirtualizedList extends HTMLElement {
         this._items = newItems;
         this._updateVisibleItems();
 
-        // --- FIX: Restore scroll position after render ---
+        // --- PERFORMANCE FIX: Restore scroll position after render ---
         // Use requestAnimationFrame to ensure this runs after the DOM has been updated by lit-html
         requestAnimationFrame(() => {
             if (isScrolledToBottom) {
@@ -99,7 +98,6 @@ class VirtualizedList extends HTMLElement {
     }
 
     _onScroll() {
-        // This is now just for triggering re-renders on scroll, not for tracking state.
         this._updateVisibleItems();
     }
 
@@ -109,15 +107,11 @@ class VirtualizedList extends HTMLElement {
         const totalHeight = this._items.length * this._rowHeight;
         this.visibleStartIndex = Math.floor(this.scrollTop / this._rowHeight);
 
-        // --- ARCHITECTURAL FIX: Deterministic Calculation ---
-        // Calculate the exact number of items needed to fill the viewport height.
-        // Add a buffer of one item to prevent gaps during fast scrolling.
         const numItemsInView = Math.ceil(this.clientHeight / this._rowHeight);
         this.visibleEndIndex = Math.min(
             this._items.length - 1,
             this.visibleStartIndex + numItemsInView + 1
         );
-        // --- END FIX ---
 
         this.paddingTop = this.visibleStartIndex * this._rowHeight;
         this.paddingBottom =

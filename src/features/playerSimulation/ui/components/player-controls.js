@@ -1,5 +1,4 @@
 import { html, render } from 'lit-html';
-import { playerService } from '../../application/playerService.js';
 import { usePlayerStore } from '@/state/playerStore';
 import * as icons from '@/ui/icons';
 import { showToast } from '@/ui/components/toast';
@@ -18,10 +17,16 @@ import {
 } from '../../domain/control-presets.js';
 import '@/ui/components/labeled-control';
 import { tooltipTriggerClasses } from '@/ui/shared/constants';
+import { useAnalysisStore } from '@/state/analysisStore.js';
+import { eventBus } from '@/application/event-bus.js';
+import { playerService } from '../../application/playerService.js';
 
 // --- Utility Functions ---
 
 const findActivePreset = (presets, currentConfigSubset) => {
+    if (!currentConfigSubset) {
+        return { id: 'custom', label: 'Custom' };
+    }
     const activePreset = presets.find((preset) =>
         Object.entries(preset.config).every(
             ([key, value]) => currentConfigSubset[key] === value
@@ -90,34 +95,44 @@ class PlayerControlsComponent extends HTMLElement {
 
         const actions = {
             'abr-config': () =>
-                playerService.setAbrConfiguration({
-                    bandwidthUpgradeTarget:
-                        Number(formData.get('bandwidthUpgradeTarget')) || 0.85,
-                    bandwidthDowngradeTarget:
-                        Number(formData.get('bandwidthDowngradeTarget')) ||
-                        0.95,
+                eventBus.dispatch('ui:player:set-abr-strategy', {
+                    config: {
+                        bandwidthUpgradeTarget:
+                            Number(formData.get('bandwidthUpgradeTarget')) ||
+                            0.85,
+                        bandwidthDowngradeTarget:
+                            Number(formData.get('bandwidthDowngradeTarget')) ||
+                            0.95,
+                    },
                 }),
             'abr-restrictions': () => {
                 const maxBw = formData.get('maxBandwidth');
                 const maxH = formData.get('maxHeight');
-                playerService.setRestrictions({
-                    minWidth: Number(formData.get('minWidth')) || 0,
-                    maxWidth: maxH === '' ? Infinity : Number(maxH),
-                    minHeight: Number(formData.get('minHeight')) || 0,
-                    maxHeight: maxH === '' ? Infinity : Number(maxH),
-                    minBandwidth: Number(formData.get('minBandwidth')) || 0,
-                    maxBandwidth: maxBw === '' ? Infinity : Number(maxBw),
+                eventBus.dispatch('ui:player:set-restrictions', {
+                    restrictions: {
+                        minWidth: Number(formData.get('minWidth')) || 0,
+                        maxWidth: maxH === '' ? Infinity : Number(maxH),
+                        minHeight: Number(formData.get('minHeight')) || 0,
+                        maxHeight: maxH === '' ? Infinity : Number(maxH),
+                        minBandwidth:
+                            Number(formData.get('minBandwidth')) || 0,
+                        maxBandwidth: maxBw === '' ? Infinity : Number(maxBw),
+                    },
                 });
             },
             buffering: () =>
-                playerService.setBufferConfiguration({
-                    rebufferingGoal:
-                        Number(formData.get('rebufferingGoal')) || 2,
-                    bufferingGoal: Number(formData.get('bufferingGoal')) || 10,
-                    bufferBehind: Number(formData.get('bufferBehind')) || 30,
-                    ignoreTextStreamFailures: formData.has(
-                        'ignoreTextStreamFailures'
-                    ),
+                eventBus.dispatch('ui:player:set-buffering-strategy', {
+                    config: {
+                        rebufferingGoal:
+                            Number(formData.get('rebufferingGoal')) || 2,
+                        bufferingGoal:
+                            Number(formData.get('bufferingGoal')) || 10,
+                        bufferBehind:
+                            Number(formData.get('bufferBehind')) || 30,
+                        ignoreTextStreamFailures: formData.has(
+                            'ignoreTextStreamFailures'
+                        ),
+                    },
                 }),
         };
 
@@ -156,6 +171,7 @@ class PlayerControlsComponent extends HTMLElement {
         textTracks,
         isAbrEnabled,
         manifest,
+        streamId,
     }) {
         const videoBandwidthMap = new Map();
         if (manifest?.variants) {
@@ -203,11 +219,14 @@ class PlayerControlsComponent extends HTMLElement {
                     (e) =>
                         toggleDropdown(
                             e.currentTarget,
-                            videoSelectionPanelTemplate(
-                                videoTracks,
-                                isAbrEnabled,
-                                videoBandwidthMap
-                            )
+                            () =>
+                                videoSelectionPanelTemplate(
+                                    videoTracks,
+                                    isAbrEnabled,
+                                    videoBandwidthMap,
+                                    streamId
+                                ),
+                            e
                         ),
                     {
                         isActive: !isAbrEnabled,
@@ -221,7 +240,12 @@ class PlayerControlsComponent extends HTMLElement {
                     (e) =>
                         toggleDropdown(
                             e.currentTarget,
-                            audioSelectionPanelTemplate(audioTracks)
+                            () =>
+                                audioSelectionPanelTemplate(
+                                    audioTracks,
+                                    streamId
+                                ),
+                            e
                         ),
                     { tooltip: 'Select the active audio language track.' }
                 )}
@@ -231,7 +255,8 @@ class PlayerControlsComponent extends HTMLElement {
                     (e) =>
                         toggleDropdown(
                             e.currentTarget,
-                            textSelectionPanelTemplate(textTracks)
+                            () => textSelectionPanelTemplate(textTracks, streamId),
+                            e
                         ),
                     { tooltip: 'Select the active subtitle or caption track.' }
                 )}
@@ -264,19 +289,22 @@ class PlayerControlsComponent extends HTMLElement {
                         (e) =>
                             toggleDropdown(
                                 e.currentTarget,
-                                formattedOptionsDropdownTemplate(
-                                    ABR_STRATEGY_PRESETS,
-                                    activeAbrPreset.id,
-                                    (preset) => {
-                                        playerService.setAbrConfiguration(
-                                            preset.config
-                                        );
-                                        showToast({
-                                            message: `ABR strategy set to ${preset.label}`,
-                                            type: 'pass',
-                                        });
-                                    }
-                                )
+                                () =>
+                                    formattedOptionsDropdownTemplate(
+                                        ABR_STRATEGY_PRESETS,
+                                        activeAbrPreset.id,
+                                        (preset) => {
+                                            eventBus.dispatch(
+                                                'ui:player:set-abr-strategy',
+                                                { config: preset.config }
+                                            );
+                                            showToast({
+                                                message: `ABR strategy set to ${preset.label}`,
+                                                type: 'pass',
+                                            });
+                                        }
+                                    ),
+                                e
                             ),
                         {
                             fullWidth: false,
@@ -293,23 +321,30 @@ class PlayerControlsComponent extends HTMLElement {
                         (e) =>
                             toggleDropdown(
                                 e.currentTarget,
-                                formattedOptionsDropdownTemplate(
-                                    RESOLUTION_PRESETS,
-                                    activeResPreset.id,
-                                    (preset) => {
-                                        playerService.setRestrictions({
-                                            minWidth: 0,
-                                            minHeight: 0,
-                                            minBandwidth: 0,
-                                            maxBandwidth: Infinity,
-                                            ...preset.config,
-                                        });
-                                        showToast({
-                                            message: `Resolution capped at ${preset.label}`,
-                                            type: 'pass',
-                                        });
-                                    }
-                                )
+                                () =>
+                                    formattedOptionsDropdownTemplate(
+                                        RESOLUTION_PRESETS,
+                                        activeResPreset.id,
+                                        (preset) => {
+                                            eventBus.dispatch(
+                                                'ui:player:set-restrictions',
+                                                {
+                                                    restrictions: {
+                                                        minWidth: 0,
+                                                        minHeight: 0,
+                                                        minBandwidth: 0,
+                                                        maxBandwidth: Infinity,
+                                                        ...preset.config,
+                                                    },
+                                                }
+                                            );
+                                            showToast({
+                                                message: `Resolution capped at ${preset.label}`,
+                                                type: 'pass',
+                                            });
+                                        }
+                                    ),
+                                e
                             ),
                         {
                             fullWidth: false,
@@ -328,20 +363,27 @@ class PlayerControlsComponent extends HTMLElement {
                         (e) =>
                             toggleDropdown(
                                 e.currentTarget,
-                                formattedOptionsDropdownTemplate(
-                                    BUFFERING_PRESETS,
-                                    activeBufferPreset.id,
-                                    (preset) => {
-                                        playerService.setBufferConfiguration({
-                                            ...config.streaming,
-                                            ...preset.config,
-                                        });
-                                        showToast({
-                                            message: `Buffering profile set to ${preset.label}`,
-                                            type: 'pass',
-                                        });
-                                    }
-                                )
+                                () =>
+                                    formattedOptionsDropdownTemplate(
+                                        BUFFERING_PRESETS,
+                                        activeBufferPreset.id,
+                                        (preset) => {
+                                            eventBus.dispatch(
+                                                'ui:player:set-buffering-strategy',
+                                                {
+                                                    config: {
+                                                        ...config.streaming,
+                                                        ...preset.config,
+                                                    },
+                                                }
+                                            );
+                                            showToast({
+                                                message: `Buffering profile set to ${preset.label}`,
+                                                type: 'pass',
+                                            });
+                                        }
+                                    ),
+                                e
                             ),
                         {
                             fullWidth: false,
@@ -520,6 +562,8 @@ class PlayerControlsComponent extends HTMLElement {
             return;
         }
 
+        const { isAbrEnabled } = usePlayerStore.getState();
+        const { activeStreamId } = useAnalysisStore.getState();
         const config = playerService.getConfiguration();
         if (!config) {
             render(
@@ -531,12 +575,19 @@ class PlayerControlsComponent extends HTMLElement {
             return;
         }
 
-        const isAbrEnabled = config.abr.enabled;
         const manifest = player.getManifest();
         const videoTracks = player
             .getVariantTracks()
             .filter((t) => t.type === 'variant' && t.videoCodec);
-        videoTracks.sort((a, b) => (b.height || 0) - (a.height || 0));
+
+        // Sort by height, then bandwidth, both descending.
+        videoTracks.sort((a, b) => {
+            if ((b.height || 0) !== (a.height || 0)) {
+                return (b.height || 0) - (a.height || 0);
+            }
+            return (b.bandwidth || 0) - (a.bandwidth || 0);
+        });
+
         const audioTracks = player.getAudioLanguagesAndRoles();
         const textTracks = player.getTextTracks();
 
@@ -548,6 +599,7 @@ class PlayerControlsComponent extends HTMLElement {
                     textTracks,
                     isAbrEnabled,
                     manifest,
+                    streamId: activeStreamId,
                 })}
                 ${this._renderExperiencePresets(config)}
                 ${this._renderAdvancedControls(config, isAbrEnabled)}

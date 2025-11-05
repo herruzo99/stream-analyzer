@@ -33,6 +33,17 @@ export function togglePlayerAndPolling() {
 }
 
 /**
+ * Toggles the polling state for all live streams simultaneously.
+ */
+export function toggleAllPolling() {
+    const { streams } = useAnalysisStore.getState();
+    const isAnyLivePolling = streams.some(
+        (s) => s.manifest?.type === 'dynamic' && s.isPolling
+    );
+    analysisActions.setAllLiveStreamsPolling(!isAnyLivePolling);
+}
+
+/**
  * Reloads the manifest for a given stream, handling different protocols and states.
  * @param {import('@/types.ts').Stream | null} stream The stream to reload.
  */

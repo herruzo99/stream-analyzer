@@ -1,8 +1,8 @@
-declare module 'shaka-player/dist/shaka-player.compiled.js' {
-    export = shaka;
-}
 
-interface Window {
+
+declare interface Window {
+    shaka: any;
+
     // Functions defined in index.html for on-demand script loading
     loadGoogleAnalytics: () => void;
     loadSentry: () => void;
@@ -30,7 +30,21 @@ interface Window {
         worker: string;
     };
     PROD_HOSTNAME: string;
+}
 
-    // The shaka player global object, for reference in legacy code or debugging
-    shaka: typeof import('shaka-player/dist/shaka-player.compiled');
+// Add Picture-in-Picture API definitions
+interface HTMLMediaElement {
+    requestPictureInPicture(): Promise<PictureInPictureWindow>;
+}
+
+interface Document {
+    readonly pictureInPictureEnabled: boolean;
+    readonly pictureInPictureElement: HTMLVideoElement | null;
+    exitPictureInPicture(): Promise<void>;
+}
+
+interface PictureInPictureWindow extends EventTarget {
+    readonly width: number;
+    readonly height: number;
+    onresize: ((this: PictureInPictureWindow, ev: Event) => any) | null;
 }

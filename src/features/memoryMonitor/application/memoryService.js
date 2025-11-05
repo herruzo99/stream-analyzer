@@ -6,9 +6,11 @@ import { useNetworkStore } from '@/state/networkStore';
 import { useDecryptionStore } from '@/state/decryptionStore';
 import { useMemoryStore, memoryActions } from '@/state/memoryStore';
 import { workerService } from '@/infrastructure/worker/workerService';
+import { useMultiPlayerStore } from '@/state/multiPlayerStore';
+import { debugLog } from '@/shared/utils/debug';
+import { eventBus } from '@/application/event-bus';
 
-const UPDATE_INTERVAL_MS = 3000;
-let intervalId = null;
+let tickerSubscription = null;
 
 function getJsHeapSize() {
     const { isPerformanceApiSupported } = useMemoryStore.getState();
@@ -44,56 +46,38 @@ function updateMemoryReport(appStateSize) {
 }
 
 /**
- * Deep clones the analysis state and removes any references to raw ArrayBuffer data
- * to create a pure metadata object that is safe to send to the worker.
- * @param {object} analysisState - The original state from the analysisStore.
- * @returns {object} A cleansed, serializable state object.
+ * Prepares the complex analysis state for serialization, handling non-JSON-friendly types.
+ * This still runs on the main thread but targets the most complex, but not largest, piece of state.
+ * @param {object} analysisState The raw analysis state.
+ * @returns {object} A serializable representation.
  */
-function cleanseStateForWorker(analysisState) {
-    // Manually reconstruct the stream objects to ensure no heavy data is included.
-    const cleansedStreams = analysisState.streams.map((stream) => {
-        const cleansedStream = { ...stream };
-
-        // Remove references to parsed data on segments, which can hold ArrayBuffers.
-        const cleanseSegments = (segments) => {
-            if (!segments) return [];
-            return segments.map((seg) => {
-                const { parsedData, ...rest } = seg;
-                return rest;
-            });
-        };
-
-        cleansedStream.dashRepresentationState = new Map(
-            Array.from(stream.dashRepresentationState.entries()).map(
-                ([key, value]) => {
-                    return [
-                        key,
-                        { ...value, segments: cleanseSegments(value.segments) },
-                    ];
-                }
-            )
-        );
-
-        cleansedStream.hlsVariantState = new Map(
-            Array.from(stream.hlsVariantState.entries()).map(([key, value]) => {
-                return [
-                    key,
-                    { ...value, segments: cleanseSegments(value.segments) },
-                ];
-            })
-        );
-
-        if (cleansedStream.segments) {
-            cleansedStream.segments = cleanseSegments(cleansedStream.segments);
+function prepareAnalysisStateForWorker(analysisState) {
+    const replacer = (key, value) => {
+        if (
+            key === 'parsedData' ||
+            (key === 'data' && value instanceof ArrayBuffer)
+        ) {
+            return undefined;
         }
-
-        return cleansedStream;
-    });
-
-    return {
-        ...analysisState,
-        streams: cleansedStreams,
+        if (value instanceof File) {
+            return {
+                isFilePlaceholder: true,
+                name: value.name,
+                type: value.type,
+            };
+        }
+        if (value instanceof Map) {
+            return Array.from(value.entries());
+        }
+        if (value instanceof Set) {
+            return Array.from(value.values());
+        }
+        return value;
     };
+    // The key change is to only stringify/parse the analysis state.
+    // This is still a synchronous operation, but it's much smaller than the full app state
+    // because we are now excluding the large log arrays.
+    return JSON.parse(JSON.stringify(analysisState, replacer));
 }
 
 async function dispatchAndProcessMemoryCalculation() {
@@ -103,8 +87,12 @@ async function dispatchAndProcessMemoryCalculation() {
     const networkState = useNetworkStore.getState();
     const decryptionState = useDecryptionStore.getState();
 
+    // PERFORMANCE REFACTOR:
+    // Instead of serializing the entire state on the main thread, we now only
+    // pre-process the most complex part (analysis state) and pass the *length*
+    // of large log arrays to the worker. The worker then estimates the size.
     const statePayload = {
-        analysis: cleanseStateForWorker({
+        analysis: prepareAnalysisStateForWorker({
             streams: analysisState.streams,
             activeStreamId: analysisState.activeStreamId,
             streamInputs: analysisState.streamInputs,
@@ -120,12 +108,14 @@ async function dispatchAndProcessMemoryCalculation() {
             isLoaded: playerState.isLoaded,
             playbackState: playerState.playbackState,
             currentStats: playerState.currentStats,
-            eventLog: playerState.eventLog,
-            abrHistory: playerState.abrHistory,
-            playbackHistory: playerState.playbackHistory,
+            // Pass lengths instead of full arrays
+            eventLogLength: playerState.eventLog.length,
+            abrHistoryLength: playerState.abrHistory.length,
+            playbackHistoryLength: playerState.playbackHistory.length,
         },
         network: {
-            events: networkState.events,
+            // Pass length instead of full array
+            eventsLength: networkState.events.length,
             filters: networkState.filters,
         },
         decryption: {
@@ -146,21 +136,74 @@ async function dispatchAndProcessMemoryCalculation() {
     }
 }
 
-export const memoryService = {
-    start() {
-        if (intervalId) {
-            clearInterval(intervalId);
+/**
+ * Checks if any player is currently active (playing or buffering).
+ * @returns {boolean}
+ */
+function isAnyPlayerActive() {
+    const { playbackState } = usePlayerStore.getState();
+    if (playbackState === 'PLAYING' || playbackState === 'BUFFERING') {
+        return true;
+    }
+
+    const { players } = useMultiPlayerStore.getState();
+    for (const player of players.values()) {
+        if (player.state === 'playing' || player.state === 'buffering') {
+            return true;
         }
-        dispatchAndProcessMemoryCalculation();
-        intervalId = setInterval(
-            dispatchAndProcessMemoryCalculation,
-            UPDATE_INTERVAL_MS
+    }
+
+    return false;
+}
+
+/**
+ * Handles changes in player states to automatically start or stop memory monitoring.
+ */
+function _handlePlayerStateChange() {
+    if (isAnyPlayerActive()) {
+        memoryService.stop();
+    } else {
+        memoryService.start();
+    }
+}
+
+export const memoryService = {
+    /**
+     * Sets up listeners to make the memory service playback-aware.
+     */
+    initialize() {
+        usePlayerStore.subscribe(_handlePlayerStateChange);
+        useMultiPlayerStore.subscribe(_handlePlayerStateChange);
+        // Initial check
+        _handlePlayerStateChange();
+    },
+
+    /**
+     * Starts the periodic memory calculation if not already running.
+     */
+    start() {
+        if (tickerSubscription) {
+            return; // Already running
+        }
+        debugLog('MemoryService', 'Starting periodic memory analysis.');
+        dispatchAndProcessMemoryCalculation(); // Run once immediately
+        tickerSubscription = eventBus.subscribe(
+            'ticker:two-second-tick',
+            dispatchAndProcessMemoryCalculation
         );
     },
+
+    /**
+     * Stops the periodic memory calculation.
+     */
     stop() {
-        if (intervalId) {
-            clearInterval(intervalId);
-            intervalId = null;
+        if (tickerSubscription) {
+            debugLog(
+                'MemoryService',
+                'Stopping periodic memory analysis to yield to playback.'
+            );
+            tickerSubscription();
+            tickerSubscription = null;
         }
     },
 };

@@ -3,10 +3,10 @@ import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
 import { workerService } from '@/infrastructure/worker/workerService';
 import { debugLog } from '@/shared/utils/debug';
 import { playerService } from '@/features/playerSimulation/application/playerService';
+import { useUiStore } from '@/state/uiStore';
 
 const pollers = new Map();
 const oneTimePollers = new Map();
-let managerInterval = null;
 let inactivityTimer = null;
 const INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -84,18 +84,33 @@ function startMonitoring(stream) {
             'PrimaryMonitor',
             `Starting poller for stream ${stream.id} with interval ${pollInterval}ms.`
         );
-        const pollerId = setInterval(
-            () => monitorStream(stream.id),
-            pollInterval
-        );
-        pollers.set(stream.id, { pollerId, pollInterval });
+
+        // The poller object now stores the interval and the last poll time.
+        const poller = {
+            pollInterval,
+            lastPollTime: 0,
+            tickSubscription: null,
+        };
+
+        // Subscribe to the unified ticker instead of using setInterval.
+        poller.tickSubscription = eventBus.subscribe('ticker:one-second-tick', () => {
+            if (performance.now() - poller.lastPollTime > poller.pollInterval) {
+                poller.lastPollTime = performance.now();
+                monitorStream(stream.id);
+            }
+        });
+
+        pollers.set(stream.id, poller);
     }
 }
 
 function stopMonitoring(streamId) {
     if (pollers.has(streamId)) {
         debugLog('PrimaryMonitor', `Stopping poller for stream ${streamId}.`);
-        clearInterval(pollers.get(streamId).pollerId);
+        const poller = pollers.get(streamId);
+        if (poller.tickSubscription) {
+            poller.tickSubscription(); // Unsubscribe from the ticker
+        }
         pollers.delete(streamId);
     }
     if (oneTimePollers.has(streamId)) {
@@ -174,11 +189,32 @@ function scheduleOneTimePoll({ streamId, pollTime, reason }) {
 function handleVisibilityChange() {
     if (document.hidden) {
         if (inactivityTimer) clearTimeout(inactivityTimer);
+
+        const { inactivityTimeoutOverride } = useUiStore.getState();
+
+        if (inactivityTimeoutOverride === Infinity) {
+            debugLog(
+                'PrimaryMonitor',
+                'Inactivity timeout disabled by user override. Polling will continue in background.'
+            );
+            return; // User has disabled the timeout.
+        }
+
+        const timeoutMs =
+            inactivityTimeoutOverride === null
+                ? INACTIVITY_TIMEOUT_MS
+                : inactivityTimeoutOverride;
+
+        debugLog(
+            'PrimaryMonitor',
+            `Tab is hidden. Setting inactivity timer for ${timeoutMs / 1000} seconds.`
+        );
+
         inactivityTimer = setTimeout(() => {
             analysisActions.setAllLiveStreamsPolling(false, {
                 fromInactivity: true,
             });
-        }, INACTIVITY_TIMEOUT_MS);
+        }, timeoutMs);
     } else {
         if (inactivityTimer) {
             clearTimeout(inactivityTimer);
@@ -187,11 +223,15 @@ function handleVisibilityChange() {
     }
 }
 
+let tickerSubscription = null;
+
 export function initializeLiveStreamMonitor() {
-    if (managerInterval) {
-        clearInterval(managerInterval);
-    }
-    managerInterval = setInterval(managePollers, 1000);
+    if (tickerSubscription) tickerSubscription();
+    tickerSubscription = eventBus.subscribe(
+        'ticker:one-second-tick',
+        managePollers
+    );
+
     eventBus.subscribe('state:stream-updated', managePollers);
     eventBus.subscribe('state:analysis-complete', managePollers);
     eventBus.subscribe('player:active-streams-changed', managePollers);
@@ -205,12 +245,12 @@ export function initializeLiveStreamMonitor() {
 }
 
 export function stopAllMonitoring() {
-    if (managerInterval) {
-        clearInterval(managerInterval);
-        managerInterval = null;
+    if (tickerSubscription) {
+        tickerSubscription();
+        tickerSubscription = null;
     }
     for (const poller of pollers.values()) {
-        clearInterval(poller.pollerId);
+        if (poller.tickSubscription) poller.tickSubscription();
     }
     pollers.clear();
     for (const timerId of oneTimePollers.values()) {

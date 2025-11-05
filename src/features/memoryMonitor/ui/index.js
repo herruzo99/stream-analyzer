@@ -157,10 +157,12 @@ class MemoryMonitorComponent extends HTMLElement {
                 @click=${(e) =>
                     toggleDropdown(
                         e.currentTarget,
-                        memoryDropdownPanelTemplate(
-                            report,
-                            isPerformanceApiSupported
-                        )
+                        () =>
+                            memoryDropdownPanelTemplate(
+                                report,
+                                isPerformanceApiSupported
+                            ),
+                        e
                     )}
                 class="w-full flex items-center justify-between text-left text-xs text-gray-400 hover:bg-gray-700/50 p-2 rounded-md transition-colors"
             >

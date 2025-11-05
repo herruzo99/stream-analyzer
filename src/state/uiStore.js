@@ -17,94 +17,9 @@ import { getWorkspaces } from '@/infrastructure/persistence/streamStorage';
  * @property {string} path - The unique path identifier for the element.
  */
 
-/**
- * @typedef {object} UiState
- * @property {object | null} _viewMap - Internal reference to the application's view map.
- * @property {'input' | 'results'} viewState
- * @property {string} activeTab
- * @property {'primary' | 'contextual' | null} activeSidebar
- * @property {'event-log' | 'graphs' | 'controls'} multiPlayerActiveTab
- * @property {string | null} activeSegmentUrl
- * @property {ModalState} modalState
- * @property {boolean} isCmafSummaryExpanded
- * @property {number} interactiveManifestCurrentPage
- * @property {boolean} interactiveManifestShowSubstituted
- * @property {InteractiveManifestHoverItem | null} interactiveManifestHoveredItem
- * @property {InteractiveManifestHoverItem | null} interactiveManifestSelectedItem
- * @property {number} interactiveSegmentCurrentPage
- * @property {'inspector' | 'hex' | 'structure'} interactiveSegmentActiveTab
- * @property {{ item: any } | null} interactiveSegmentSelectedItem
- * @property {{ item: any; field: string } | null} interactiveSegmentHighlightedItem
- * @property {boolean} isByteMapLoading
- * @property {'all' | 'fail' | 'warn'} complianceActiveFilter
- * @property {number} complianceStandardVersion
- * @property {number} featureAnalysisStandardVersion
- * @property {string | null} segmentExplorerActiveRepId
- * @property {string} segmentExplorerActiveTab
- * @property {Set<string>} segmentExplorerClosedGroups
- * @property {'asc' | 'desc'} segmentExplorerSortOrder
- * @property {Date | null} segmentExplorerTargetTime
- * @property {boolean} segmentExplorerScrollToTarget
- * @property {string | null} highlightedCompliancePathId
- * @property {boolean} comparisonHideSameRows
- * @property {Set<string>} expandedComparisonTables
- * @property {Set<string>} expandedComparisonFlags
- * @property {'tabular' | 'structural'} segmentComparisonActiveTab
- * @property {'standard' | 'advanced'} playerControlMode
- * @property {'workspaces' | 'presets' | 'history' | 'examples'} streamLibraryActiveTab
- * @property {string} streamLibrarySearchTerm
- * @property {'library' | 'workspace' | 'inspector'} streamInputActiveMobileTab
- * @property {any[]} workspaces
- * @property {string | null} loadedWorkspaceName
- * @property {boolean} isRestoringSession
- * @property {'structure' | 'semantic'} segmentAnalysisActiveTab
- */
-
-/**
- * @typedef {object} UiActions
- * @property {(viewMap: object) => void} injectViewMap
- * @property {(view: 'input' | 'results') => void} setViewState
- * @property {(tabName: string) => void} setActiveTab
- * @property {(sidebar: 'primary' | 'contextual' | null) => void} setActiveSidebar
- * @property {(tab: 'event-log' | 'graphs' | 'controls') => void} setMultiPlayerActiveTab
- * @property {(modalState: Partial<ModalState>) => void} setModalState
- * @property {() => void} toggleCmafSummary
- * @property {(page: number) => void} setInteractiveManifestPage
- * @property {() => void} toggleInteractiveManifestSubstitution
- * @property {(item: InteractiveManifestHoverItem | null) => void} setInteractiveManifestHoveredItem
- * @property {(item: InteractiveManifestHoverItem | null) => void} setInteractiveManifestSelectedItem
- * @property {(page: number) => void} setInteractiveSegmentPage
- * @property {(tab: 'inspector' | 'hex' | 'structure') => void} setInteractiveSegmentActiveTab
- * @property {(item: any) => void} setInteractiveSegmentSelectedItem
- * @property {(item: any, field: string) => void} setInteractiveSegmentHighlightedItem
- * @property {(isLoading: boolean) => void} setIsByteMapLoading
- * @property {(filter: 'all' | 'fail' | 'warn') => void} setComplianceFilter
- * @property {(version: number) => void} setComplianceStandardVersion
- * @property {(version: number) => void} setFeatureAnalysisStandardVersion
- * @property {(repId: string | null) => void} setSegmentExplorerActiveRepId
- * @property {(tab: string) => void} setSegmentExplorerActiveTab
- * @property {(groupId: string) => void} toggleSegmentExplorerGroup
- * @property {() => void} toggleSegmentExplorerSortOrder
- * @property {(target: Date | null) => void} setSegmentExplorerTargetTime
- * @property {() => void} clearSegmentExplorerTargetTime
- * @property {() => void} clearSegmentExplorerScrollTrigger
- * @property {(pathId: string | null) => void} setHighlightedCompliancePathId
- * @property {(tableId: string) => void} toggleComparisonTable
- * @property {(rowName: string) => void} toggleComparisonFlags
- * @property {() => void} toggleComparisonHideSameRows
- * @property {(tab: 'tabular' | 'structural') => void} setSegmentComparisonActiveTab
- * @property {(mode: 'standard' | 'advanced') => void} setPlayerControlMode
- * @property {(segmentUniqueId: string) => void} navigateToInteractiveSegment
- * @property {(tab: 'workspaces' | 'presets' | 'history' | 'examples') => void} setStreamLibraryTab
- * @property {(term: string) => void} setStreamLibrarySearchTerm
- * @property {(tab: 'library' | 'workspace' | 'inspector') => void} setStreamInputActiveMobileTab
- * @property {() => void} loadWorkspaces
- * @property {(workspaces: any[]) => void} setWorkspaces
- * @property {(name: string | null) => void} setLoadedWorkspaceName
- * @property {(isRestoring: boolean) => void} setIsRestoringSession
- * @property {(tab: 'structure' | 'semantic') => void} setSegmentAnalysisActiveTab
- * @property {() => void} reset
- */
+/** @typedef {import('@/types').ConditionalPollingState} ConditionalPollingState */
+/** @typedef {import('@/types').UiState} UiState */
+/** @typedef {import('@/types').UiActions} UiActions */
 
 const createInitialUiState = () => ({
     _viewMap: null,
@@ -151,6 +66,14 @@ const createInitialUiState = () => ({
     loadedWorkspaceName: null,
     isRestoringSession: false,
     segmentAnalysisActiveTab: 'structure',
+    conditionalPolling: {
+        streamId: null,
+        featureName: null,
+        status: 'idle',
+        targetStreamId: null,
+        targetFeatureName: null,
+    },
+    inactivityTimeoutOverride: null,
 });
 
 export const useUiStore = createStore((set, get) => ({
@@ -292,6 +215,41 @@ export const useUiStore = createStore((set, get) => ({
         set({ isRestoringSession: isRestoring }),
     setSegmentAnalysisActiveTab: (tab) =>
         set({ segmentAnalysisActiveTab: tab }),
+    startConditionalPolling: (streamId, featureName) =>
+        set({
+            conditionalPolling: {
+                streamId,
+                featureName,
+                status: 'active',
+                targetStreamId: streamId,
+                targetFeatureName: featureName,
+            },
+        }),
+    clearConditionalPolling: () =>
+        set((state) => ({
+            conditionalPolling: {
+                ...createInitialUiState().conditionalPolling,
+                // Preserve the user's last selection for convenience
+                targetStreamId: state.conditionalPolling.targetStreamId,
+                targetFeatureName: state.conditionalPolling.targetFeatureName,
+            },
+        })),
+    setConditionalPollingStatus: (status) =>
+        set((state) => ({
+            conditionalPolling: { ...state.conditionalPolling, status },
+        })),
+    setConditionalPollingTarget: (target) => {
+        set((state) => {
+            const currentTarget = state.conditionalPolling;
+            const newTarget = { ...currentTarget, ...target };
+            // --- FIX: Do NOT reset feature name when stream changes ---
+            // The UI component is responsible for filtering the feature list,
+            // so we can safely preserve the user's feature selection here.
+            return { conditionalPolling: newTarget };
+        });
+    },
+    setInactivityTimeoutOverride: (durationMs) =>
+        set({ inactivityTimeoutOverride: durationMs }),
     reset: () => set(createInitialUiState()),
 }));
 

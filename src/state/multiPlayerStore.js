@@ -49,6 +49,7 @@ import { createStore } from 'zustand/vanilla';
  * @property {(sourceStreamId: number, streamName: string, manifestUrl: string, streamType: 'live' | 'vod') => number} addPlayer
  * @property {(streamId: number) => void} removePlayer
  * @property {(streamId: number, updates: Partial<PlayerInstance>) => void} updatePlayerState
+ * @property {(updates: {streamId: number, updates: Partial<PlayerInstance>}[]) => void} batchUpdatePlayerState
  * @property {(event: Omit<PlayerEvent, 'id' | 'timestamp'>) => void} logEvent
  * @property {() => void} clearPlayersAndLogs
  * @property {(isMuted: boolean) => void} setMuteAll
@@ -158,6 +159,18 @@ export const useMultiPlayerStore = createStore((set, get) => ({
             if (player) newPlayers.set(streamId, { ...player, ...updates });
             return { players: newPlayers };
         }),
+    batchUpdatePlayerState: (updates) => {
+        set((state) => {
+            const newPlayers = new Map(state.players);
+            for (const { streamId, updates: playerUpdates } of updates) {
+                const player = newPlayers.get(streamId);
+                if (player) {
+                    newPlayers.set(streamId, { ...player, ...playerUpdates });
+                }
+            }
+            return { players: newPlayers };
+        });
+    },
     logEvent: (event) =>
         set((state) => ({
             eventLog: [

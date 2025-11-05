@@ -75,7 +75,7 @@ export const streamContextSwitcherTemplate = (streams, activeStreamId) => {
         closeDropdown();
     };
 
-    const panelTemplate = html`
+    const panelTemplate = () => html`
         <div
             class="dropdown-panel bg-gray-800 border border-gray-700 rounded-lg shadow-xl max-h-[60vh] w-full min-w-[20rem] overflow-y-auto"
             @click=${handleSelect}
@@ -95,7 +95,7 @@ export const streamContextSwitcherTemplate = (streams, activeStreamId) => {
     return html`
         <div class="relative w-64 overflow-hidden">
             <button
-                @click=${(e) => toggleDropdown(e.currentTarget, panelTemplate)}
+                @click=${(e) => toggleDropdown(e.currentTarget, panelTemplate, e)}
                 class="bg-gray-800/50 hover:bg-gray-700/50 text-white rounded-md border border-gray-600/50 p-2 w-full text-left flex items-center justify-between transition-colors"
             >
                 <span class="truncate min-w-0"

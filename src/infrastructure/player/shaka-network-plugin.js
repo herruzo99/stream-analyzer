@@ -1,4 +1,3 @@
-import shaka from 'shaka-player/dist/shaka-player.compiled';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { workerService } from '@/infrastructure/worker/workerService';
 import { debugLog } from '@/shared/utils/debug';
@@ -9,10 +8,10 @@ import { debugLog } from '@/shared/utils/debug';
  * the correct stream context, and forwards them to our web worker for
  * authentication handling and network logging.
  * @param {string} uri
- * @param {shaka.extern.Request} request
- * @param {shaka.net.NetworkingEngine.RequestType} requestType
- * @param {shaka.extern.ProgressUpdated} progressUpdated
- * @returns {shaka.extern.IAbortableOperation<shaka.extern.Response>}
+ * @param {any} request
+ * @param {any} requestType
+ * @param {any} progressUpdated
+ * @returns {any}
  */
 export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
     const MANIFEST_REQUEST_TYPE = 0;
@@ -23,8 +22,8 @@ export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
     let segmentUniqueId = null;
 
     // --- ARCHITECTURAL FIX: Multi-stage, race-free streamId and uniqueId lookup ---
-    // Stage 1: Primary. Get ID directly from the NetworkingEngine instance.
-    const requester = /** @type {any} */ (request.requester);
+    // Stage 1: Primary. Get ID directly from the NetworkingEngine instance if available (it is added by our service).
+    const requester = /** @type {any} */ (request['requester']);
     if (requester?.streamAnalyzerStreamId !== undefined) {
         streamId = requester.streamAnalyzerStreamId;
         debugLog(
@@ -125,13 +124,15 @@ export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
     if (requestType === MANIFEST_REQUEST_TYPE) {
         taskType = 'shaka-fetch-manifest';
         const currentStream = streams.find((s) => s.id === streamId);
-        const isPlayerLoad = !requester?.isLiveRequest();
+        
+        // Heuristic: The very first manifest load will not have a pre-existing stream object.
+        const isPlayerLoad = !currentStream;
 
         payload = {
             streamId,
             url: uri,
             auth,
-            isPlayerLoadRequest: isPlayerLoad, // CRITICAL FIX: Pass context to worker
+            isPlayerLoadRequest: isPlayerLoad, 
             oldRawManifest: currentStream?.rawManifest || '',
             protocol: currentStream?.protocol,
             baseUrl: currentStream?.baseUrl,
@@ -163,21 +164,21 @@ export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
 
     const shakaPromise = workerTask.promise.catch((error) => {
         if (error.name === 'AbortError') {
-            throw new shaka.util.Error(
-                shaka.util.Error.Severity.RECOVERABLE,
-                shaka.util.Error.Category.PLAYER,
-                shaka.util.Error.Code.OPERATION_ABORTED
+            throw new window.shaka.util.Error(
+                window.shaka.util.Error.Severity.RECOVERABLE,
+                window.shaka.util.Error.Category.PLAYER,
+                window.shaka.util.Error.Code.OPERATION_ABORTED
             );
         }
-        throw new shaka.util.Error(
-            error.severity || shaka.util.Error.Severity.CRITICAL,
-            error.category || shaka.util.Error.Category.NETWORK,
-            error.code || shaka.util.Error.Code.NETWORK_ERROR,
+        throw new window.shaka.util.Error(
+            error.severity || window.shaka.util.Error.Severity.CRITICAL,
+            error.category || window.shaka.util.Error.Category.NETWORK,
+            error.code || window.shaka.util.Error.Code.HTTP_ERROR,
             error.data || null
         );
     });
 
-    return new shaka.util.AbortableOperation(shakaPromise, () => {
+    return new window.shaka.util.AbortableOperation(shakaPromise, () => {
         workerTask.cancel();
         return Promise.resolve();
     });

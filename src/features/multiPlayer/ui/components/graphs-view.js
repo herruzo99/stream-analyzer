@@ -1,5 +1,6 @@
 import { html, render } from 'lit-html';
 import { useMultiPlayerStore } from '@/state/multiPlayerStore';
+import { useUiStore } from '@/state/uiStore';
 import { renderChart, disposeChart } from '@/ui/shared/charts/chart-renderer';
 import { formatBitrate } from '@/ui/shared/format';
 
@@ -27,7 +28,8 @@ const createChartOptions = (title, yAxisName, yAxisFormatter, seriesData) => ({
 export class GraphsViewComponent extends HTMLElement {
     constructor() {
         super();
-        this.unsubscribe = null;
+        this.multiPlayerUnsubscribe = null;
+        this.uiUnsubscribe = null;
     }
 
     connectedCallback() {
@@ -38,14 +40,16 @@ export class GraphsViewComponent extends HTMLElement {
                 <div id="bitrate-chart" class="h-72 bg-gray-800 p-4 rounded-lg border border-gray-700"></div>
             </div>
         `;
-        this.unsubscribe = useMultiPlayerStore.subscribe(() =>
+        this.multiPlayerUnsubscribe = useMultiPlayerStore.subscribe(() =>
             this.renderCharts()
         );
+        this.uiUnsubscribe = useUiStore.subscribe(() => this.renderCharts());
         this.renderCharts();
     }
 
     disconnectedCallback() {
-        if (this.unsubscribe) this.unsubscribe();
+        if (this.multiPlayerUnsubscribe) this.multiPlayerUnsubscribe();
+        if (this.uiUnsubscribe) this.uiUnsubscribe();
         disposeChart(
             /** @type {HTMLElement} */ (this.querySelector('#buffer-chart'))
         );
@@ -58,6 +62,14 @@ export class GraphsViewComponent extends HTMLElement {
     }
 
     renderCharts() {
+        // --- PERFORMANCE FIX: Conditionally render based on visibility ---
+        // Only execute the expensive chart rendering if this component's tab is active.
+        const { multiPlayerActiveTab } = useUiStore.getState();
+        if (multiPlayerActiveTab !== 'graphs') {
+            return;
+        }
+        // --- END FIX ---
+
         const { players } = useMultiPlayerStore.getState();
         const playersArray = Array.from(players.values());
 

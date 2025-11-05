@@ -5,6 +5,7 @@
  * @property {string} desc
  * @property {string} isoRef
  * @property {number} version - The HLS protocol version where this feature was introduced.
+ * @property {boolean} [isDynamic] - True if the feature can appear dynamically in a live stream.
  */
 
 /** @type {Feature[]} */
@@ -26,9 +27,10 @@ export const hlsFeatureDefinitions = [
     {
         name: 'Discontinuity',
         category: 'Core Streaming',
-        desc: 'The presentation contains discontinuity tags, commonly used for Server-Side Ad Insertion (SSAI).',
+        desc: '[Ad Insertion] The presentation contains discontinuity tags, commonly used for Server-Side Ad Insertion (SSAI).',
         isoRef: 'HLS 2nd Ed: 4.4.4.3',
         version: 1,
+        isDynamic: true,
     },
     {
         name: 'Content Protection',
@@ -36,6 +38,7 @@ export const hlsFeatureDefinitions = [
         desc: 'Indicates that the content is encrypted using AES-128 or SAMPLE-AES.',
         isoRef: 'HLS 2nd Ed: 4.4.4.4',
         version: 1,
+        isDynamic: true,
     },
     {
         name: 'Session Keys',
@@ -43,6 +46,7 @@ export const hlsFeatureDefinitions = [
         desc: 'Allows encryption keys to be specified in the Multivariant Playlist via #EXT-X-SESSION-KEY, enabling clients to preload keys for faster startup.',
         isoRef: 'HLS 2nd Ed: 4.4.6.5',
         version: 1,
+        isDynamic: true,
     },
     {
         name: 'Fragmented MP4 Segments',
@@ -64,6 +68,7 @@ export const hlsFeatureDefinitions = [
         desc: 'Uses #EXT-X-DISCONTINUITY-SEQUENCE to allow synchronization between different renditions of the same variant stream.',
         isoRef: 'HLS 2nd Ed: 4.4.3.3',
         version: 1,
+        isDynamic: true,
     },
     {
         name: 'Gap Segments',
@@ -71,6 +76,7 @@ export const hlsFeatureDefinitions = [
         desc: 'Uses EXT-X-GAP to signal the absence of media data, for example during a temporary encoder outage.',
         isoRef: 'HLS 2nd Ed: 4.4.4.7',
         version: 8,
+        isDynamic: true,
     },
     {
         name: 'Independent Segments',
@@ -82,9 +88,10 @@ export const hlsFeatureDefinitions = [
     {
         name: 'Date Ranges / Timed Metadata',
         category: 'Live & Dynamic',
-        desc: 'The manifest includes timed metadata via #EXT-X-DATERANGE, typically used for ad insertion signaling (SCTE-35).',
+        desc: '[Ad Insertion] Carries timed metadata via #EXT-X-DATERANGE, which is the primary mechanism for SCTE-35 ad signaling in HLS.',
         isoRef: 'HLS 2nd Ed: 4.4.5.1',
         version: 1,
+        isDynamic: true,
     },
     {
         name: 'Low-Latency HLS',
@@ -92,6 +99,7 @@ export const hlsFeatureDefinitions = [
         desc: 'Uses modern HLS features for reduced latency, such as Partial Segments (EXT-X-PART), Preload Hinting (EXT-X-PRELOAD-HINT), and Server Control.',
         isoRef: 'HLS 2nd Ed: Appendices A, B, C',
         version: 9,
+        isDynamic: true,
     },
     {
         name: 'Playlist Delta Updates',
@@ -99,6 +107,7 @@ export const hlsFeatureDefinitions = [
         desc: 'The server can provide partial playlist updates using the #EXT-X-SKIP tag, reducing download size for live streams.',
         isoRef: 'HLS 2nd Ed: 4.4.5.2, 6.2.5.1',
         version: 9,
+        isDynamic: true,
     },
     {
         name: 'Variable Substitution',
@@ -113,6 +122,7 @@ export const hlsFeatureDefinitions = [
         desc: 'Provides a mechanism for servers to steer clients to alternate servers for redundancy and load balancing.',
         isoRef: 'HLS 2nd Ed: 4.4.6.6',
         version: 11,
+        isDynamic: true,
     },
     {
         name: 'I-Frame Playlists',
@@ -127,6 +137,7 @@ export const hlsFeatureDefinitions = [
         desc: 'Utilizes advanced attributes (e.g., SCORE, STABLE-VARIANT-ID) and semantic tags (e.g., Interstitials) to provide richer context for client ABR and UI logic.',
         isoRef: 'HLS 2nd Ed: Appendices D, G',
         version: 9,
+        isDynamic: true,
     },
     {
         name: 'Immersive Video (REQ-VIDEO-LAYOUT)',
@@ -162,6 +173,7 @@ export const hlsFeatureDefinitions = [
         desc: 'Provides the approximate segment bit rate of media segments using the EXT-X-BITRATE tag.',
         isoRef: 'HLS 2nd Ed: 4.4.4.8',
         version: 8,
+        isDynamic: true,
     },
     {
         name: 'HDCP Level',

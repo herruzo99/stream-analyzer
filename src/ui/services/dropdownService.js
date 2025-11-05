@@ -1,8 +1,10 @@
-import { render, html } from 'lit-html';
+import { render } from 'lit-html';
+import { useAnalysisStore } from '@/state/analysisStore';
+import { useUiStore } from '@/state/uiStore';
 
 let dropdownContainer = null;
-let currentCloseHandler = null;
-let activeTrigger = null;
+let activeDropdowns = [];
+let globalClickListener = null;
 
 /**
  * Initializes the dropdown service with the global container element.
@@ -12,29 +14,37 @@ export function initializeDropdownService(dom) {
     dropdownContainer = dom.dropdownContainer;
 }
 
-/**
- * Closes any currently open dropdown.
- */
-function closeCurrentDropdown() {
-    if (currentCloseHandler) {
-        currentCloseHandler();
+function closeAllDropdowns() {
+    activeDropdowns.forEach(({ close }) => close());
+    activeDropdowns = [];
+    if (globalClickListener) {
+        document.removeEventListener('click', globalClickListener);
+        globalClickListener = null;
+    }
+}
+
+function closeDropdownByTrigger(triggerElement) {
+    const index = activeDropdowns.findIndex(
+        (d) => d.trigger === triggerElement
+    );
+    if (index === -1) return;
+
+    const toClose = activeDropdowns.splice(index);
+    toClose.forEach(({ close }) => close());
+
+    if (activeDropdowns.length === 0 && globalClickListener) {
+        document.removeEventListener('click', globalClickListener);
+        globalClickListener = null;
     }
 }
 
 /**
  * Toggles a dropdown panel associated with a trigger element.
  * @param {HTMLElement} triggerElement - The element that triggers the dropdown.
- * @param {import('lit-html').TemplateResult} contentTemplate - The lit-html template to render inside the panel.
+ * @param {() => import('lit-html').TemplateResult} templateFn - A function that returns the lit-html template.
+ * @param {MouseEvent} event - The original click event that triggered the toggle.
  */
-export function toggleDropdown(triggerElement, contentTemplate) {
-    if (triggerElement === activeTrigger) {
-        closeCurrentDropdown();
-        return;
-    }
-
-    closeCurrentDropdown();
-    activeTrigger = triggerElement;
-
+export function toggleDropdown(triggerElement, templateFn, event) {
     if (!dropdownContainer) {
         console.error(
             '[DropdownService] Service not initialized with a container.'
@@ -42,99 +52,116 @@ export function toggleDropdown(triggerElement, contentTemplate) {
         return;
     }
 
-    const content = html`
-        <div @click=${(e) => e.stopPropagation()}>${contentTemplate}</div>
-    `;
-
-    render(content, dropdownContainer);
-    const panel = /** @type {HTMLElement} */ (
-        dropdownContainer.firstElementChild
+    const existingDropdown = activeDropdowns.find(
+        (d) => d.trigger === triggerElement
     );
-    if (!panel) return;
+    if (existingDropdown) {
+        closeDropdownByTrigger(triggerElement);
+        return;
+    }
 
-    // --- ENHANCED VIEWPORT-AWARE POSITIONING LOGIC ---
+    const isClickInsideAnotherPanel = activeDropdowns.some((d) =>
+        d.panel.contains(/** @type {Node} */ (event?.target))
+    );
+    if (!isClickInsideAnotherPanel) {
+        closeAllDropdowns();
+    }
 
-    // To measure the panel, we must make it visible but can position it off-screen initially
-    // to prevent any flicker.
-    panel.style.position = 'absolute';
-    panel.style.pointerEvents = 'auto';
-    panel.style.visibility = 'hidden';
-    panel.style.top = '-9999px';
-    panel.style.left = '-9999px';
+    const panelContainer = document.createElement('div');
+    dropdownContainer.appendChild(panelContainer);
+    render(templateFn(), panelContainer);
+    const panelElement = /** @type {HTMLElement} */ (
+        panelContainer.firstElementChild
+    );
+    if (!panelElement) {
+        dropdownContainer.removeChild(panelContainer);
+        return;
+    }
 
-    // Force a reflow to get accurate dimensions before calculating final position.
-    const panelRect = panel.getBoundingClientRect();
+    // --- REACTIVITY ---
+    const rerender = () => render(templateFn(), panelContainer);
+    const unsubAnalysis = useAnalysisStore.subscribe(rerender);
+    const unsubUi = useUiStore.subscribe(rerender);
+    // --- END REACTIVITY ---
+
+    panelElement.style.position = 'absolute';
+    panelElement.style.pointerEvents = 'auto';
+    panelElement.style.visibility = 'hidden';
+
+    const panelRect = panelElement.getBoundingClientRect();
     const triggerRect = triggerElement.getBoundingClientRect();
     const MARGIN = 10;
     const SPACING = 4;
 
-    // --- Vertical Positioning ---
     let top;
-    // Default: position below the trigger if there is enough space.
     if (
         triggerRect.bottom + panelRect.height + SPACING <
         window.innerHeight - MARGIN
     ) {
         top = triggerRect.bottom + SPACING;
-        panel.style.transformOrigin = 'top right';
-    }
-    // Alternative: position above the trigger.
-    else {
+        panelElement.style.transformOrigin = 'top right';
+    } else {
         top = triggerRect.top - panelRect.height - SPACING;
-        panel.style.transformOrigin = 'bottom right';
+        panelElement.style.transformOrigin = 'bottom right';
     }
-    // Clamp the final position to stay within the top viewport boundary.
     top = Math.max(MARGIN, top);
 
-    // --- Horizontal Positioning ---
-    /** @type {number | string} */
     let right = 'auto';
-    /** @type {string} */
     let left = 'auto';
-
-    // Default: align the right edge of the panel with the right edge of the trigger.
     let rightPos = window.innerWidth - triggerRect.right;
-
-    // Check if right-aligning the panel would push it off the left side of the screen.
     if (triggerRect.right - panelRect.width < MARGIN) {
         left = `${MARGIN}px`;
-        right = 'auto';
     } else {
-        // Clamp the right position to stay within the right viewport boundary.
-        right = Math.max(MARGIN, rightPos);
-        left = 'auto';
+        right = `${Math.max(MARGIN, rightPos)}px`;
     }
 
-    // Apply final calculated position and make the panel visible.
-    panel.style.top = `${top}px`;
-    panel.style.left = left;
-    panel.style.right = typeof right === 'number' ? `${right}px` : right;
-    panel.style.visibility = 'visible';
+    panelElement.style.top = `${top}px`;
+    panelElement.style.left = left;
+    panelElement.style.right = right;
+    panelElement.style.visibility = 'visible';
 
-    // --- END ENHANCED POSITIONING LOGIC ---
-
-    const handleOutsideClick = (e) => {
-        if (!triggerElement.contains(/** @type {Node} */ (e.target))) {
-            closeCurrentDropdown();
+    const close = () => {
+        unsubAnalysis();
+        unsubUi();
+        if (panelContainer.parentNode === dropdownContainer) {
+            dropdownContainer.removeChild(panelContainer);
         }
     };
 
-    currentCloseHandler = () => {
-        if (!dropdownContainer) return;
-        render(html``, dropdownContainer);
-        document.removeEventListener('click', handleOutsideClick);
-        currentCloseHandler = null;
-        activeTrigger = null;
-    };
+    activeDropdowns.push({
+        trigger: triggerElement,
+        panel: panelContainer,
+        close,
+    });
 
-    setTimeout(() => {
-        document.addEventListener('click', handleOutsideClick, { once: true });
-    }, 0);
+    if (!globalClickListener) {
+        globalClickListener = (e) => {
+            const target = /** @type {Node} */ (e.target);
+            if (!document.body.contains(target)) return;
+
+            const isOutside = activeDropdowns.every(
+                (d) => !d.trigger.contains(target) && !d.panel.contains(target)
+            );
+            if (isOutside) {
+                closeAllDropdowns();
+            }
+        };
+        setTimeout(
+            () => document.addEventListener('click', globalClickListener),
+            0
+        );
+    }
 }
 
-/**
- * Public method to explicitly close the dropdown.
- */
 export function closeDropdown() {
-    closeCurrentDropdown();
+    if (activeDropdowns.length > 0) {
+        const lastDropdown = activeDropdowns.pop();
+        if (lastDropdown) {
+            lastDropdown.close();
+        }
+        if (activeDropdowns.length === 0 && globalClickListener) {
+            document.removeEventListener('click', globalClickListener);
+            globalClickListener = null;
+        }
+    }
 }

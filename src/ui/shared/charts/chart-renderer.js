@@ -146,12 +146,10 @@ function hideCustomTooltip() {
 export function renderChart(container, options, onClick) {
     if (!container) return;
 
-    // --- ARCHITECTURAL FIX: Defer initialization if container has no dimensions ---
     if (container.clientWidth === 0 || container.clientHeight === 0) {
         requestAnimationFrame(() => renderChart(container, options, onClick));
         return;
     }
-    // --- END FIX ---
 
     let chart = chartInstances.get(container);
 
@@ -165,7 +163,6 @@ export function renderChart(container, options, onClick) {
         resizeObserver.observe(container);
         resizeObservers.set(container, resizeObserver);
 
-        // Integrate custom tooltip system
         chart.on('mouseover', (params) => showCustomTooltip(params, container));
         chart.on('mouseout', hideCustomTooltip);
 
@@ -182,7 +179,11 @@ export function renderChart(container, options, onClick) {
         }
     }
 
-    chart.setOption(options, { notMerge: true });
+    // --- PERFORMANCE FIX: Use intelligent merging instead of full redraw ---
+    // The default behavior (`notMerge: false`) allows ECharts to perform an
+    // efficient diff and only update the parts of the chart that have changed,
+    // which is critical for performance with frequent data updates.
+    chart.setOption(options, { notMerge: false });
 }
 
 /**
