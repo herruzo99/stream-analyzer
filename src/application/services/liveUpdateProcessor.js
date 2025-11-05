@@ -3,6 +3,8 @@ import { eventBus } from '@/application/event-bus';
 import { debugLog } from '@/shared/utils/debug';
 import { diffManifest } from '@/ui/shared/diff';
 import xmlFormatter from 'xml-formatter';
+import { useUiStore, uiActions } from '@/state/uiStore';
+import { generateFeatureAnalysis } from '@/features/featureAnalysis/domain/analyzer';
 
 /**
  * The main handler for processing a live manifest update. This is now a simple
@@ -108,6 +110,43 @@ async function processLiveUpdate(updateData) {
     };
 
     analysisActions.updateStream(streamId, updatePayload);
+
+    // --- NEW: Conditional Polling Check ---
+    const { conditionalPolling } = useUiStore.getState();
+    if (
+        conditionalPolling.status === 'active' &&
+        conditionalPolling.streamId === streamId
+    ) {
+        const featureAnalysisResults = new Map(
+            Object.entries(
+                generateFeatureAnalysis(
+                    updateData.newManifestObject,
+                    stream.protocol,
+                    updateData.serializedManifest
+                )
+            )
+        );
+
+        const targetFeature = featureAnalysisResults.get(
+            conditionalPolling.featureName
+        );
+
+        if (targetFeature && targetFeature.used) {
+            // Feature Found! Stop polling for this specific stream.
+            analysisActions.setStreamPolling(streamId, false);
+            uiActions.setConditionalPollingStatus('found');
+            eventBus.dispatch('ui:show-status', {
+                message: `Feature "${conditionalPolling.featureName}" found in ${stream.name}! Polling stopped.`,
+                type: 'pass',
+                duration: 10000,
+            });
+            debugLog(
+                'LiveUpdateProcessor',
+                `Conditional poll target "${conditionalPolling.featureName}" found. Stopping poll for stream ${streamId}.`
+            );
+        }
+    }
+    // --- END NEW ---
 
     // --- ARCHITECTURAL FIX: Unify Live Update Data Paths ---
     // When the player is active, it takes over polling the master playlist. When we

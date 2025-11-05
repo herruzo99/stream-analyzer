@@ -4,7 +4,7 @@ import { playerActions, usePlayerStore } from '@/state/playerStore';
 import { debugLog } from '@/shared/utils/debug';
 import { getShaka } from '@/infrastructure/player/shaka';
 import { formatBitrate } from '@/ui/shared/format';
-import 'shaka-player/dist/shaka-player.ui.js'; // Import for side effects (registers shaka.ui)
+import { StallCalculator } from '@/features/multiPlayer/domain/stall-calculator';
 
 async function fetchCertificate(url) {
     try {
@@ -32,6 +32,8 @@ class PlayerService {
         this.activeManifestVariants = [];
         this.isInitialized = false;
         this.ui = null; // Holds the Shaka UI instance
+        this.tickerSubscription = null;
+        this.stallCalculator = new StallCalculator();
     }
 
     getActiveStreamIds() {
@@ -59,9 +61,7 @@ class PlayerService {
                   }
                 : null,
             activeAudioTrack:
-                this.player
-                    .getAudioLanguagesAndRoles()
-                    .find((t) => t.active) || null,
+                this.player.getAudioTracks().find((t) => t.active) || null,
             activeTextTrack:
                 this.player.getTextTracks().find((t) => t.active) || null,
         });
@@ -69,56 +69,32 @@ class PlayerService {
         const videoOnlyBitrate = activeVariant?.videoBandwidth || 0;
         if (videoOnlyBitrate && videoOnlyBitrate !== lastBitrate) {
             playerActions.logAbrSwitch({
-                time: shakaStats.displayTime || 0,
+                time: shakaStats.playTime || 0,
                 bitrate: videoOnlyBitrate,
                 width: shakaStats.width || 0,
                 height: shakaStats.height || 0,
             });
         }
 
-        let totalStalls = 0;
-        let totalStallDuration = 0;
         let timeToFirstFrame =
             currentStats?.playbackQuality.timeToFirstFrame || 0;
 
-        if (shakaStats.stateHistory && shakaStats.stateHistory.length > 1) {
-            if (timeToFirstFrame === 0) {
-                const loadingState = shakaStats.stateHistory.find(
-                    (s) => s.state === 'loading'
-                );
-                const firstPlayingState = shakaStats.stateHistory.find(
-                    (s) => s.state === 'playing'
-                );
-                if (loadingState && firstPlayingState) {
-                    timeToFirstFrame =
-                        firstPlayingState.timestamp - loadingState.timestamp;
-                }
-            }
-
-            const firstPlayIndex = shakaStats.stateHistory.findIndex(
+        if (timeToFirstFrame === 0 && shakaStats.stateHistory.length > 1) {
+            const loadingState = shakaStats.stateHistory.find(
+                (s) => s.state === 'loading'
+            );
+            const firstPlayingState = shakaStats.stateHistory.find(
                 (s) => s.state === 'playing'
             );
-            if (firstPlayIndex > -1) {
-                for (
-                    let i = firstPlayIndex + 1;
-                    i < shakaStats.stateHistory.length;
-                    i++
-                ) {
-                    const currentState = shakaStats.stateHistory[i];
-                    const prevState = shakaStats.stateHistory[i - 1];
-                    if (
-                        currentState.state === 'buffering' &&
-                        prevState.state !== 'buffering'
-                    ) {
-                        totalStalls++;
-                    }
-                    if (prevState.state === 'buffering') {
-                        totalStallDuration +=
-                            currentState.timestamp - prevState.timestamp;
-                    }
-                }
+            if (loadingState && firstPlayingState) {
+                timeToFirstFrame =
+                    firstPlayingState.timestamp - loadingState.timestamp;
             }
         }
+
+        const { totalStalls, totalStallDuration } = this.stallCalculator.update(
+            shakaStats.stateHistory
+        );
 
         let switchesUp = 0;
         let switchesDown = 0;
@@ -177,10 +153,9 @@ class PlayerService {
             manifestTime: manifestTime,
             playbackQuality: {
                 resolution: `${shakaStats.width || 0}x${shakaStats.height || 0}`,
-                droppedFrames: shakaStats.droppedFrames || 0,
                 corruptedFrames: shakaStats.corruptedFrames || 0,
                 totalStalls: totalStalls,
-                totalStallDuration: totalStallDuration / 1000,
+                totalStallDuration: totalStallDuration,
                 timeToFirstFrame: timeToFirstFrame,
             },
             abr: {
@@ -192,7 +167,7 @@ class PlayerService {
             buffer: {
                 label: bufferInfo.label,
                 seconds: bufferInfo.seconds,
-                totalGaps: shakaStats.gapCount || 0,
+                totalGaps: shakaStats.gapsJumped || 0,
             },
             session: {
                 totalPlayTime: shakaStats.playTime || 0,
@@ -272,10 +247,13 @@ class PlayerService {
             })
         );
         this.player.addEventListener('emsg', (e) =>
-            eventBus.dispatch('player:emsg', e.detail)
+            eventBus.dispatch('player:emsg', /** @type {any} */ (e).detail)
         );
         this.player.addEventListener('texttrackvisibility', (e) =>
-            eventBus.dispatch('player:texttrackvisibility', e.detail)
+            eventBus.dispatch(
+                'player:texttrackvisibility',
+                /** @type {any} */ (e).detail
+            )
         );
 
         videoElement.addEventListener('play', () =>
@@ -346,18 +324,21 @@ class PlayerService {
     }
 
     startStatsCollection() {
-        if (this.statsInterval) clearInterval(this.statsInterval);
-        this.statsInterval = setInterval(() => {
-            if (this.player?.getMediaElement()) {
-                this._updateStatsAndPlaybackInfo();
+        this.stopStatsCollection();
+        this.tickerSubscription = eventBus.subscribe(
+            'ticker:one-second-tick',
+            () => {
+                if (this.player?.getMediaElement()) {
+                    this._updateStatsAndPlaybackInfo();
+                }
             }
-        }, 1000);
+        );
     }
 
     stopStatsCollection() {
-        if (this.statsInterval) {
-            clearInterval(this.statsInterval);
-            this.statsInterval = null;
+        if (this.tickerSubscription) {
+            this.tickerSubscription();
+            this.tickerSubscription = null;
         }
         this.activeManifestVariants = [];
     }
@@ -365,6 +346,8 @@ class PlayerService {
     async load(stream, autoPlay = false) {
         if (!this.isInitialized || !this.player || !stream || !stream.drmAuth)
             return;
+
+        this.stallCalculator.reset();
 
         const networkingEngine = this.player.getNetworkingEngine();
         if (networkingEngine) {
@@ -444,6 +427,9 @@ class PlayerService {
         try {
             await this.player.load(stream.originalUrl);
             playerActions.setLoadedState(true);
+            playerActions.setAbrEnabled(
+                this.player.getConfiguration().abr.enabled
+            );
 
             this.activeManifestVariants =
                 this.player.getManifest()?.variants || [];
@@ -466,6 +452,7 @@ class PlayerService {
             this.stopStatsCollection();
             await this.player.unload();
             playerActions.setLoadedState(false);
+            this.stallCalculator.reset();
             if (streamId !== undefined) {
                 this.activeStreamIds.delete(streamId);
                 eventBus.dispatch('player:active-streams-changed', {
@@ -492,6 +479,7 @@ class PlayerService {
             activeStreamIds: this.activeStreamIds,
         });
         playerActions.setLoadedState(false);
+        this.stallCalculator.reset();
     }
 
     getPlayer() {
@@ -565,7 +553,7 @@ class PlayerService {
     }
 
     onErrorEvent(event) {
-        this.onError(event.detail);
+        this.onError(/** @type {any} */ (event).detail);
     }
 
     onError(error) {

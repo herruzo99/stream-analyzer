@@ -1,3 +1,4 @@
+
 import { html } from 'lit-html';
 import { formatBitrate } from '@/ui/shared/format';
 import * as icons from '@/ui/icons';
@@ -122,19 +123,6 @@ export const statsCardsTemplate = (stats) => {
                 text: 'Current Video Resolution',
                 details:
                     'The width and height of the video frames currently being rendered.',
-            },
-        })}
-        ${statCard({
-            title: 'Dropped Frames',
-            value: playbackQuality.droppedFrames,
-            colorClass:
-                playbackQuality.droppedFrames > 0
-                    ? 'text-yellow-400'
-                    : 'text-white',
-            tooltip: {
-                text: 'Frames Dropped by the Decoder',
-                details:
-                    'The number of frames that were decoded but not displayed, usually due to the decoder being unable to keep up. High numbers can indicate performance issues on the client device.',
             },
         })}
         ${statCard({

@@ -22,6 +22,7 @@ import { initializeSegmentService } from '@/infrastructure/segments/segmentServi
 import { initializeUiOrchestration } from '@/ui/services/uiOrchestrationService';
 import { initializeNetworkEnrichmentService } from '@/infrastructure/http/networkEnrichmentService';
 import { eventBus } from './event-bus.js';
+import { tickerService } from './services/tickerService.js';
 
 // Feature Initializers
 import { initializeAdvertisingFeature } from '@/features/advertising/index';
@@ -88,6 +89,7 @@ export async function startApp() {
     workerService.initialize();
     initializeConsentManager();
     initializeRenderer(dom);
+    tickerService.start();
 
     // --- ARCHITECTURAL FIX: One-time data load ---
     // Load persisted workspaces into the reactive state store at boot time.

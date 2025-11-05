@@ -38,6 +38,34 @@ function estimateObjectSize(object) {
     }
 }
 
+// --- PERFORMANCE REFACTORING ---
+// Define representative "average" objects for log arrays. Calculating the size of these
+// once and multiplying by the array length is vastly more performant than serializing
+// the entire array from the main thread.
+const AVG_NETWORK_EVENT_SIZE = estimateObjectSize({
+    id: 'b78a9c2b-3e5f-4a1d-8c9f-6b3d1e2a5c4b',
+    url: 'https://example.com/segment_12345.m4s',
+    resourceType: 'video',
+    streamId: 1,
+    request: { method: 'GET', headers: { Range: 'bytes=0-1023' } },
+    response: { status: 206, statusText: 'Partial Content', headers: { 'content-type': 'video/mp4' }, contentLength: 1024 },
+    timing: { startTime: 12345.67, endTime: 12456.78, duration: 111.11, breakdown: null },
+});
+
+const AVG_PLAYER_EVENT_SIZE = estimateObjectSize({
+    timestamp: '12:34:56',
+    type: 'adaptation',
+    details: 'Bitrate: 1500k → 2500k | Resolution: 720p → 1080p',
+});
+
+const AVG_HISTORY_EVENT_SIZE = estimateObjectSize({
+    time: 123.45,
+    bufferHealth: 25.6,
+    bandwidth: 5e6,
+    bitrate: 2.5e6,
+});
+// --- END REFACTORING ---
+
 /**
  * Calculates the size of all application state objects passed from the main thread.
  * @param {object} statePayload - An object containing all the Zustand store states.
@@ -48,12 +76,26 @@ function calculateApplicationStateSize(statePayload) {
 
     const analysisSize = estimateObjectSize(analysis);
     const uiSize = estimateObjectSize(ui);
-    const playerSize = estimateObjectSize(player);
-    const networkSize = estimateObjectSize(network);
     const decryptionSize = estimateObjectSize(decryption);
-
-    // The segmentCacheIndex is no longer passed and its size is considered zero for this calculation.
     const segmentCacheIndexSize = 0;
+
+    // --- PERFORMANCE REFACTORING ---
+    // Use the lengths passed from the main thread to estimate the size of large arrays.
+    const networkSize = (network.eventsLength || 0) * AVG_NETWORK_EVENT_SIZE;
+    const playerLogSize = (player.eventLogLength || 0) * AVG_PLAYER_EVENT_SIZE;
+    const playerHistorySize =
+        ((player.abrHistoryLength || 0) + (player.playbackHistoryLength || 0)) *
+        AVG_HISTORY_EVENT_SIZE;
+
+    // Estimate the size of the static parts of the player state.
+    const playerStaticSize = estimateObjectSize({
+        isLoaded: player.isLoaded,
+        playbackState: player.playbackState,
+        currentStats: player.currentStats,
+    });
+
+    const playerSize = playerStaticSize + playerLogSize + playerHistorySize;
+    // --- END REFACTORING ---
 
     return {
         analysis: analysisSize,

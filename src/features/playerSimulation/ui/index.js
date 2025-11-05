@@ -3,7 +3,6 @@ import { playerService } from '../application/playerService.js';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { usePlayerStore } from '@/state/playerStore';
 import { eventBus } from '@/application/event-bus';
-import shaka from 'shaka-player/dist/shaka-player.ui.js';
 import 'shaka-player/dist/controls.css';
 import * as echarts from 'echarts';
 

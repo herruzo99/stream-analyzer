@@ -70,6 +70,16 @@ body {
     background: var(--color-slate-600);
 }
 
+/* --- ARCHITECTURAL FIX: Scrollbar Hide Utility --- */
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+.scrollbar-hide {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+}
+/* --- END FIX --- */
+
 /* --- Tailwind CSS Safelist --- */
 /* These v4 directives are correct as-is */
 @source inline('bg-{red,orange,amber,yellow,lime,green,emerald,teal,cyan,sky,blue,indigo,violet,purple,fuchsia,pink,rose,slate,zinc}-{400,500,600,700,800,900}');

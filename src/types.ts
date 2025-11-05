@@ -781,7 +781,6 @@ export interface PlayerStats {
     manifestTime: number;
     playbackQuality: {
         resolution: string;
-        droppedFrames: number;
         corruptedFrames: number;
         totalStalls: number;
         totalStallDuration: number;
@@ -850,6 +849,125 @@ export interface PlayerInstance {
     stats: PlayerStats | null;
 }
 
+export interface ConditionalPollingState {
+    streamId: number | null; // The stream being actively polled
+    featureName: string | null; // The feature being searched for
+    status: 'idle' | 'active' | 'found' | 'error';
+    targetStreamId: number | null; // The stream selected in the UI form
+    targetFeatureName: string | null; // The feature selected in the UI form
+}
+
+export interface UiState {
+    _viewMap: object | null;
+    viewState: 'input' | 'results';
+    activeTab: string;
+    activeSidebar: 'primary' | 'contextual' | null;
+    multiPlayerActiveTab: 'event-log' | 'graphs' | 'controls';
+    activeSegmentUrl: string | null;
+    modalState: {
+        isModalOpen: boolean;
+        modalTitle: string;
+        modalUrl: string;
+        modalContent: { type: string; data: any } | null;
+    };
+    isCmafSummaryExpanded: boolean;
+    interactiveManifestCurrentPage: number;
+    interactiveManifestShowSubstituted: boolean;
+    interactiveManifestHoveredItem: object | null;
+    interactiveManifestSelectedItem: object | null;
+    interactiveSegmentCurrentPage: number;
+    interactiveSegmentActiveTab: 'inspector' | 'hex' | 'structure';
+    interactiveSegmentSelectedItem: { item: any } | null;
+    interactiveSegmentHighlightedItem: { item: any; field: string } | null;
+    isByteMapLoading: boolean;
+    complianceActiveFilter: 'all' | 'fail' | 'warn';
+    complianceStandardVersion: number;
+    featureAnalysisStandardVersion: number;
+    segmentExplorerActiveRepId: string | null;
+    segmentExplorerActiveTab: string;
+    segmentExplorerClosedGroups: Set<string>;
+    segmentExplorerSortOrder: 'asc' | 'desc';
+    segmentExplorerTargetTime: Date | null;
+    segmentExplorerScrollToTarget: boolean;
+    highlightedCompliancePathId: string | null;
+    comparisonHideSameRows: boolean;
+    expandedComparisonTables: Set<string>;
+    expandedComparisonFlags: Set<string>;
+    segmentComparisonActiveTab: 'tabular' | 'structural';
+    playerControlMode: 'standard' | 'advanced';
+    streamLibraryActiveTab: 'workspaces' | 'presets' | 'history' | 'examples';
+    streamLibrarySearchTerm: string;
+    streamInputActiveMobileTab: 'library' | 'workspace' | 'inspector';
+    workspaces: any[];
+    loadedWorkspaceName: string | null;
+    isRestoringSession: boolean;
+    segmentAnalysisActiveTab: 'structure' | 'semantic';
+    conditionalPolling: ConditionalPollingState;
+    inactivityTimeoutOverride: number | null;
+}
+
+export interface UiActions {
+    // ... (existing actions)
+    startConditionalPolling: (streamId: number, featureName: string) => void;
+    clearConditionalPolling: () => void;
+    setConditionalPollingStatus: (
+        status: 'idle' | 'active' | 'found' | 'error'
+    ) => void;
+    setConditionalPollingTarget: (target: {
+        streamId?: number | null;
+        featureName?: string | null;
+    }) => void;
+    setInactivityTimeoutOverride: (durationMs: number | null) => void;
+}
+
+export interface PlaybackHistoryEntry {
+    time: number;
+    bufferHealth: number;
+    bandwidth: number;
+    bitrate: number;
+}
+
+export interface PlayerState {
+    isLoaded: boolean;
+    isAbrEnabled: boolean;
+    isPictureInPicture: boolean;
+    isPipUnmount: boolean;
+    isMuted: boolean;
+    playbackState: 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ENDED' | 'IDLE';
+    activeVideoTrack: object | null;
+    activeAudioTrack: object | null;
+    activeTextTrack: object | null;
+    currentStats: PlayerStats | null;
+    eventLog: PlayerEvent[];
+    hasUnreadLogs: boolean;
+    abrHistory: AbrHistoryEntry[];
+    playbackHistory: PlaybackHistoryEntry[];
+    activeTab: 'controls' | 'stats' | 'log' | 'graphs';
+}
+
+export interface PlayerActions {
+    setLoadedState: (isLoaded: boolean) => void;
+    setAbrEnabled: (isAbrEnabled: boolean) => void;
+    setPictureInPicture: (isInPiP: boolean) => void;
+    setPipUnmountState: (isPipUnmount: boolean) => void;
+    setMutedState: (isMuted: boolean) => void;
+    updatePlaybackInfo: (
+        info: Partial<
+            Pick<
+                PlayerState,
+                | 'playbackState'
+                | 'activeVideoTrack'
+                | 'activeAudioTrack'
+                | 'activeTextTrack'
+            >
+        >
+    ) => void;
+    updateStats: (stats: PlayerStats) => void;
+    logEvent: (event: PlayerEvent) => void;
+    logAbrSwitch: (entry: AbrHistoryEntry) => void;
+    setActiveTab: (tab: 'controls' | 'stats' | 'log' | 'graphs') => void;
+    reset: () => void;
+}
 // --- FIX: Moved SerializedStream to after Stream is defined ---
 export type SerializedStream = Omit<
     Stream,

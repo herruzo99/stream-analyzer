@@ -17,6 +17,7 @@ import { createStore } from 'zustand/vanilla';
 /**
  * @typedef {object} PlayerState
  * @property {boolean} isLoaded
+ * @property {boolean} isAbrEnabled
  * @property {boolean} isPictureInPicture
  * @property {boolean} isPipUnmount - True when the view is unmounted but player persists in PiP.
  * @property {boolean} isMuted
@@ -35,6 +36,7 @@ import { createStore } from 'zustand/vanilla';
 /**
  * @typedef {object} PlayerActions
  * @property {(isLoaded: boolean) => void} setLoadedState
+ * @property {(isEnabled: boolean) => void} setAbrEnabled
  * @property {(isInPiP: boolean) => void} setPictureInPicture
  * @property {(isPipUnmount: boolean) => void} setPipUnmountState
  * @property {(isMuted: boolean) => void} setMutedState
@@ -49,6 +51,7 @@ import { createStore } from 'zustand/vanilla';
 /** @returns {PlayerState} */
 const createInitialPlayerState = () => ({
     isLoaded: false,
+    isAbrEnabled: true,
     isPictureInPicture: false,
     isPipUnmount: false,
     isMuted: true,
@@ -72,6 +75,8 @@ export const usePlayerStore = createStore((set, get) => ({
     ...createInitialPlayerState(),
 
     setLoadedState: (isLoaded) => set({ isLoaded }),
+
+    setAbrEnabled: (isAbrEnabled) => set({ isAbrEnabled }),
 
     setPictureInPicture: (isInPiP) => set({ isPictureInPicture: isInPiP }),
 

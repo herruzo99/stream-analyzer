@@ -1,3 +1,4 @@
+
 import { formatBitrate } from '@/ui/shared/format';
 import { multiPlayerService } from '../application/multiPlayerService';
 import { useMultiPlayerStore } from '@/state/multiPlayerStore';
@@ -31,7 +32,7 @@ export function createMultiPlayerGridViewModel(playersMap) {
         } = player;
 
         const bufferStat = {
-            label: stats.buffer.label || 'Buffer',
+            label: 'Buffer',
             value: stats.buffer.seconds
                 ? `${stats.buffer.seconds.toFixed(2)}s`
                 : 'N/A',
@@ -57,20 +58,11 @@ export function createMultiPlayerGridViewModel(playersMap) {
         };
 
         const stallsStat = {
-            label: 'Stalls / Duration',
-            value: `${stats.playbackQuality.totalStalls || 0} / ${(
-                stats.playbackQuality.totalStallDuration || 0
-            ).toFixed(2)}s`,
+            label: 'Stalls',
+            value: stats.playbackQuality.totalStalls || 0,
             icon: icons.pause,
             tooltip:
                 'Total number of rebuffering events and the total time spent stalled.',
-        };
-
-        const droppedFramesStat = {
-            label: 'Dropped Frames',
-            value: stats.playbackQuality.droppedFrames || 0,
-            icon: icons.film,
-            tooltip: 'Frames decoded but not displayed due to performance.',
         };
 
         const bandwidthStat = {
@@ -95,7 +87,6 @@ export function createMultiPlayerGridViewModel(playersMap) {
                 bitrate: bitrateStat,
                 resolution: resolutionStat,
                 stalls: stallsStat,
-                droppedFrames: droppedFramesStat,
                 bandwidth: bandwidthStat,
             },
         };

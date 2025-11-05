@@ -20,7 +20,7 @@ const connectedTabButton = (tab, activeKey, clickHandler) => {
     return html`
         <button
             @click=${() => clickHandler(key)}
-            class="py-2 px-3 text-sm font-semibold rounded-t-md transition-colors border-t border-l border-r flex items-center gap-2 ${isActive
+            class="py-2 px-3 text-sm font-semibold rounded-t-md transition-colors border-t border-l border-r flex items-center gap-2 shrink-0 ${isActive
                 ? 'bg-slate-900 border-slate-700 text-white -mb-px border-b-slate-900'
                 : 'bg-slate-800/50 border-transparent text-slate-300 hover:bg-slate-700/50 hover:border-slate-700/50'}"
         >
@@ -48,8 +48,8 @@ export const tabBar = (tabs, activeKey, clickHandler) => {
 
 export const connectedTabBar = (tabs, activeKey, clickHandler) => {
     return html`
-        <div>
-            <nav class="flex space-x-2 border-b border-slate-700 px-2">
+        <div class="overflow-x-auto scrollbar-hide">
+            <nav class="flex space-x-2 border-b border-slate-700 flex-nowrap">
                 ${tabs.map((tab) =>
                     connectedTabButton(tab, activeKey, clickHandler)
                 )}

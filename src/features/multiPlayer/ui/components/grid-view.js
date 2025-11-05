@@ -1,18 +1,33 @@
 import { html, render } from 'lit-html';
 import { useMultiPlayerStore } from '@/state/multiPlayerStore';
-import { createMultiPlayerGridViewModel } from '../view-model.js';
-import { multiPlayerService } from '../../application/multiPlayerService.js';
 import './player-card.js';
 
 export class GridViewComponent extends HTMLElement {
     constructor() {
         super();
         this.unsubscribe = null;
+        this.lastPlayerIds = [];
     }
 
     connectedCallback() {
-        this.render();
-        this.unsubscribe = useMultiPlayerStore.subscribe(() => this.render());
+        const listener = (state) => {
+            // Only re-render if the list of players has changed.
+            // This prevents re-rendering on every stats update.
+            const playerIds = Array.from(state.players.keys());
+            const hasChanged =
+                playerIds.length !== this.lastPlayerIds.length ||
+                playerIds.some((id, i) => id !== this.lastPlayerIds[i]);
+
+            if (hasChanged) {
+                this.lastPlayerIds = playerIds;
+                this.renderComponent(playerIds);
+            }
+        };
+
+        this.unsubscribe = useMultiPlayerStore.subscribe(listener);
+
+        // Initial render
+        listener(useMultiPlayerStore.getState());
     }
 
     disconnectedCallback() {
@@ -21,29 +36,16 @@ export class GridViewComponent extends HTMLElement {
         }
     }
 
-    render() {
-        const { players } = useMultiPlayerStore.getState();
-
-        // Orchestrate player creation if they exist in state but not in the service
-        for (const playerState of players.values()) {
-            if (!multiPlayerService.players.has(playerState.streamId)) {
-                multiPlayerService.createVideoElement(playerState.streamId);
-                multiPlayerService.createAndLoadPlayer(playerState);
-            }
-        }
-
-        const { cards: viewModel } = createMultiPlayerGridViewModel(players);
-
+    renderComponent(playerIds) {
         const template = html`
             <div
                 id="player-grid-container"
                 class="flex flex-wrap justify-center gap-4 content-start h-full"
             >
-                ${viewModel.map(
-                    (cardViewModel) =>
+                ${playerIds.map(
+                    (streamId) =>
                         html`<player-card-component
-                            stream-id=${cardViewModel.streamId}
-                            .viewModel=${cardViewModel}
+                            stream-id=${streamId}
                         ></player-card-component>`
                 )}
             </div>

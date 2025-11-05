@@ -4,6 +4,7 @@
  * @property {'Core Streaming' | 'Timeline & Segment Management' | 'Live & Dynamic' | 'Advanced Content' | 'Client Guidance & Optimization' | 'Accessibility & Metadata'} category
  * @property {string} desc
  * @property {string} isoRef
+ * @property {boolean} [isDynamic] - True if the feature can appear dynamically in a live stream.
  */
 
 /** @type {Feature[]} */
@@ -19,6 +20,7 @@ export const dashFeatureDefinitions = [
         category: 'Core Streaming',
         desc: 'Provides alternative URLs where the MPD can be fetched, enabling CDN redundancy.',
         isoRef: 'DASH: 5.3.1.2',
+        isDynamic: true,
     },
     {
         name: 'Scoped Profiles',
@@ -29,14 +31,16 @@ export const dashFeatureDefinitions = [
     {
         name: 'Multi-Period',
         category: 'Core Streaming',
-        desc: 'The presentation is split into multiple, independent periods. Commonly used for Server-Side Ad Insertion (SSAI).',
+        desc: '[Ad Insertion] The presentation is split into multiple, independent periods. Commonly used for Server-Side Ad Insertion (SSAI).',
         isoRef: 'DASH: 5.3.2',
+        isDynamic: true,
     },
     {
         name: 'Content Protection',
         category: 'Core Streaming',
         desc: 'Indicates that the content is encrypted using one or more schemes like CENC.',
         isoRef: 'DASH: 5.8.4.1',
+        isDynamic: true,
     },
     {
         name: 'Client Authentication',
@@ -59,7 +63,7 @@ export const dashFeatureDefinitions = [
     {
         name: 'Segment Timeline',
         category: 'Timeline & Segment Management',
-        desc: 'Provides explicit timing and duration for each segment via <S> elements, allowing for variable segment sizes.',
+        desc: 'Provides explicit segment timing and duration for each segment via <S> elements, allowing for variable segment sizes.',
         isoRef: 'DASH: 5.3.9.6',
     },
     {
@@ -85,36 +89,42 @@ export const dashFeatureDefinitions = [
         category: 'Timeline & Segment Management',
         desc: 'Signals time ranges where content may be replaced by failover content (e.g., slate) due to encoding errors.',
         isoRef: 'DASH: 5.3.9.7',
+        isDynamic: true,
     },
     {
         name: 'Low Latency Streaming',
         category: 'Live & Dynamic',
         desc: 'The manifest includes features for low-latency playback, such as chunked transfer hints or specific service descriptions.',
         isoRef: 'DASH: Annex K.3.2',
+        isDynamic: true,
     },
     {
         name: 'Manifest Patch Updates',
         category: 'Live & Dynamic',
         desc: 'Allows efficient manifest updates by sending only the changed parts of the manifest.',
         isoRef: 'DASH: 5.15',
+        isDynamic: true,
     },
     {
         name: 'MPD Events',
         category: 'Live & Dynamic',
-        desc: 'The manifest contains one or more <EventStream> elements, allowing timed metadata to be communicated to the client via the MPD.',
+        desc: '[Ad Insertion] The manifest contains one or more <EventStream> elements, allowing timed metadata (like SCTE-35) to be communicated via the MPD.',
         isoRef: 'DASH: 5.10.2',
+        isDynamic: true,
     },
     {
         name: 'Inband Events',
         category: 'Live & Dynamic',
-        desc: 'The manifest signals that event messages ("emsg" boxes) are present within the media segments themselves, allowing for tightly synchronized metadata.',
+        desc: '[Ad Insertion] The manifest signals that event messages ("emsg" boxes) are present within the media segments themselves, often used for SCTE-35.',
         isoRef: 'DASH: 5.10.3',
+        isDynamic: true,
     },
     {
         name: 'Producer Reference Time',
         category: 'Live & Dynamic',
         desc: 'Provides a mapping between media timestamps and a wall-clock production time, enabling latency measurement and control.',
         isoRef: 'DASH: 5.12',
+        isDynamic: true,
     },
     {
         name: 'UTC Timing Source',
@@ -145,24 +155,28 @@ export const dashFeatureDefinitions = [
         category: 'Advanced Content',
         desc: 'Provides special tracks (e.g. I-Frame only) to enable efficient fast-forward and rewind.',
         isoRef: 'DASH: 5.3.6',
+        isDynamic: true,
     },
     {
         name: 'Adaptation Set Switching',
         category: 'Client Guidance & Optimization',
         desc: 'Signals that a client can seamlessly switch between Representations in different Adaptation Sets (e.g., for different codecs).',
         isoRef: 'DASH: 5.3.3.5',
+        isDynamic: true,
     },
     {
         name: 'Service Description',
         category: 'Client Guidance & Optimization',
         desc: 'Provides guidance to the client on latency targets, playback rates, and quality/bandwidth constraints for the service.',
         isoRef: 'DASH: Annex K',
+        isDynamic: true,
     },
     {
         name: 'Resync Points',
         category: 'Client Guidance & Optimization',
         desc: 'Signals the presence of resynchronization points within segments to allow for faster startup or recovery after a stall.',
         isoRef: 'DASH: 5.3.13',
+        isDynamic: true,
     },
     {
         name: 'Initialization Sets',

@@ -3,36 +3,11 @@ import { useMultiPlayerStore } from '@/state/multiPlayerStore';
 import { workerService } from '@/infrastructure/worker/workerService';
 import { debugLog } from '@/shared/utils/debug';
 import { getShaka } from '@/infrastructure/player/shaka';
-import shaka from 'shaka-player/dist/shaka-player.compiled';
 import { showToast } from '@/ui/components/toast';
+import { eventBus } from '@/application/event-bus';
+import { StallCalculator } from '../domain/stall-calculator.js';
 
 const FRAME_DURATION = 1 / 30; // Assume 30fps for frame-stepping
-
-function calculateStallMetrics(stateHistory) {
-    let totalStalls = 0;
-    let totalStallDuration = 0;
-    if (!stateHistory || stateHistory.length < 2) {
-        return { totalStalls, totalStallDuration };
-    }
-    const firstPlayIndex = stateHistory.findIndex((s) => s.state === 'playing');
-    if (firstPlayIndex > -1) {
-        for (let i = firstPlayIndex + 1; i < stateHistory.length; i++) {
-            const [prevState, currentState] = [
-                stateHistory[i - 1],
-                stateHistory[i],
-            ];
-            if (
-                currentState.state === 'buffering' &&
-                prevState.state !== 'buffering'
-            )
-                totalStalls++;
-            if (prevState.state === 'buffering')
-                totalStallDuration +=
-                    currentState.timestamp - prevState.timestamp;
-        }
-    }
-    return { totalStalls, totalStallDuration: totalStallDuration / 1000 };
-}
 
 async function fetchCertificate(url) {
     try {
@@ -50,11 +25,13 @@ class MultiPlayerService {
     #loadQueue = Promise.resolve();
 
     constructor() {
-        /** @type {Map<number, shaka.Player>} */
+        /** @type {Map<number, any>} */
         this.players = new Map();
         /** @type {Map<number, HTMLVideoElement>} */
         this.videoElements = new Map();
-        this.statsInterval = null;
+        /** @type {Map<number, StallCalculator>} */
+        this.stallCalculators = new Map();
+        this.tickerSubscription = null;
     }
 
     initialize() {
@@ -92,13 +69,14 @@ class MultiPlayerService {
             const shaka = await getShaka();
             const player = new shaka.Player();
             this.players.set(streamId, player);
+            this.stallCalculators.set(streamId, new StallCalculator());
             debugLog(
                 'MultiPlayerService.createAndLoadPlayer',
-                `Created new Shaka player for stream ${streamId}`
+                `Created new Shaka player and StallCalculator for stream ${streamId}`
             );
 
             player.addEventListener('error', (e) =>
-                this._handlePlayerError(streamId, e.detail)
+                this._handlePlayerError(streamId, /** @type {any} */ (e).detail)
             );
 
             const { streams } = useAnalysisStore.getState();
@@ -263,137 +241,165 @@ class MultiPlayerService {
     }
 
     startStatsCollection() {
-        if (this.statsInterval) clearInterval(this.statsInterval);
-        this.statsInterval = setInterval(() => {
-            const { players } = useMultiPlayerStore.getState();
-            for (const [streamId, player] of this.players.entries()) {
-                const videoEl = this.videoElements.get(streamId);
-                const isLive = player.isLive();
+        this.stopStatsCollection();
+        this.tickerSubscription = eventBus.subscribe(
+            'ticker:two-second-tick',
+            () => {
+                const { players, batchUpdatePlayerState, logEvent } =
+                    useMultiPlayerStore.getState();
+                const updates = [];
 
-                if (!player || !videoEl || videoEl.readyState === 0) {
-                    continue;
-                }
-                if (!isLive && !isFinite(videoEl.duration)) {
-                    continue;
-                }
+                for (const [streamId, shakaPlayer] of this.players.entries()) {
+                    const videoEl = this.videoElements.get(streamId);
+                    const isLive = shakaPlayer.isLive();
 
-                const shakaStats = player.getStats();
-                const currentPlayerState = players.get(streamId);
-                if (!currentPlayerState) continue;
-
-                const seekable = player.seekRange();
-                const seekableRange =
-                    seekable.end - seekable.start > 0
-                        ? { start: seekable.start, end: seekable.end }
-                        : { start: 0, end: videoEl.duration || 0 };
-
-                const seekableDuration =
-                    seekableRange.end - seekableRange.start;
-                const normalizedPlayheadTime =
-                    seekableDuration > 0
-                        ? Math.max(
-                              0,
-                              (videoEl.currentTime - seekableRange.start) /
-                                  seekableDuration
-                          )
-                        : 0;
-
-                const activeVariant = player
-                    .getVariantTracks()
-                    .find((track) => track.active);
-                const { totalStalls, totalStallDuration } =
-                    calculateStallMetrics(shakaStats.stateHistory);
-                const bufferHealth = isLive
-                    ? shakaStats.liveLatency
-                    : shakaStats.bufferEnd - videoEl.currentTime;
-                const newHistoryEntry = {
-                    time: Date.now(),
-                    buffer: isNaN(bufferHealth) ? 0 : bufferHealth,
-                };
-                const newPlaybackHistory = [
-                    ...(currentPlayerState.playbackHistory || []),
-                    newHistoryEntry,
-                ].slice(-50);
-
-                const newStats = {
-                    playheadTime: videoEl.currentTime,
-                    manifestTime: videoEl.duration,
-                    playbackQuality: {
-                        resolution: `${shakaStats.width}x${shakaStats.height}`,
-                        droppedFrames: shakaStats.droppedFrames,
-                        corruptedFrames: shakaStats.corruptedFrames,
-                        totalStalls,
-                        totalStallDuration,
-                        timeToFirstFrame: 0,
-                    },
-                    abr: {
-                        currentVideoBitrate: activeVariant?.videoBandwidth || 0,
-                        estimatedBandwidth: shakaStats.estimatedBandwidth,
-                        switchesUp: 0,
-                        switchesDown: 0,
-                    },
-                    buffer: {
-                        bufferHealth,
-                        liveLatency: shakaStats.liveLatency,
-                        totalGaps: 0,
-                    },
-                    session: {
-                        totalPlayTime: shakaStats.playTime,
-                        totalBufferingTime: shakaStats.bufferingTime,
-                    },
-                };
-
-                let health = 'healthy';
-                const lastStats = currentPlayerState.stats;
-                if (lastStats) {
                     if (
-                        newStats.playbackQuality.totalStalls >
-                        lastStats.playbackQuality.totalStalls
+                        !videoEl ||
+                        videoEl.readyState === 0 ||
+                        (!isLive && !isFinite(videoEl.duration))
                     ) {
-                        health = 'critical';
-                        useMultiPlayerStore.getState().logEvent({
-                            streamId,
-                            streamName: currentPlayerState.streamName,
-                            type: 'stall',
-                            details: `Stall detected at playhead time ${newStats.playheadTime.toFixed(
-                                2
-                            )}s`,
-                            severity: 'critical',
-                        });
-                    } else if (
-                        newStats.playbackQuality.droppedFrames >
-                        lastStats.playbackQuality.droppedFrames
-                    ) {
-                        health = 'warning';
-                        useMultiPlayerStore.getState().logEvent({
-                            streamId,
-                            streamName: currentPlayerState.streamName,
-                            type: 'dropped-frames',
-                            details: `${
-                                newStats.playbackQuality.droppedFrames -
-                                lastStats.playbackQuality.droppedFrames
-                            } frames dropped.`,
-                            severity: 'warning',
-                        });
+                        continue;
                     }
+
+                    const shakaStats = shakaPlayer.getStats();
+                    const currentPlayerState = players.get(streamId);
+                    const stallCalculator = this.stallCalculators.get(streamId);
+                    if (!currentPlayerState || !stallCalculator) continue;
+
+                    const seekable = shakaPlayer.seekRange();
+                    const seekableRange =
+                        seekable.end - seekable.start > 0
+                            ? { start: seekable.start, end: seekable.end }
+                            : { start: 0, end: videoEl.duration || 0 };
+
+                    const seekableDuration =
+                        seekableRange.end - seekableRange.start;
+                    const normalizedPlayheadTime =
+                        seekableDuration > 0
+                            ? Math.max(
+                                  0,
+                                  (videoEl.currentTime - seekableRange.start) /
+                                      seekableDuration
+                              )
+                            : 0;
+
+                    const activeVariant = shakaPlayer
+                        .getVariantTracks()
+                        .find((track) => track.active);
+                    const { totalStalls, totalStallDuration } =
+                        stallCalculator.update(shakaStats.stateHistory);
+
+                    let bufferEnd = 0;
+                    const buffered = videoEl.buffered;
+                    if (buffered) {
+                        for (let i = 0; i < buffered.length; i++) {
+                            if (
+                                buffered.start(i) <= videoEl.currentTime &&
+                                buffered.end(i) >= videoEl.currentTime
+                            ) {
+                                bufferEnd = buffered.end(i);
+                                break;
+                            }
+                        }
+                        if (bufferEnd === 0 && buffered.length > 0) {
+                            bufferEnd = buffered.end(buffered.length - 1);
+                        }
+                    }
+                    
+                    const bufferInfo = {
+                        label: /** @type {'Live Latency' | 'Buffer Health'} */ (
+                            isLive ? 'Live Latency' : 'Buffer Health'
+                        ),
+                        seconds: isLive
+                            ? shakaStats.liveLatency || 0
+                            : Math.max(0, bufferEnd - videoEl.currentTime),
+                    };
+
+                    const newHistoryEntry = {
+                        time: Date.now(),
+                        buffer: isNaN(bufferInfo.seconds) ? 0 : bufferInfo.seconds,
+                    };
+
+                    const newPlaybackHistory = [
+                        ...(currentPlayerState.playbackHistory || []),
+                        newHistoryEntry,
+                    ].slice(-50);
+
+                    const newStats = {
+                        playheadTime: videoEl.currentTime,
+                        manifestTime: videoEl.duration,
+                        playbackQuality: {
+                            resolution: `${shakaStats.width}x${shakaStats.height}`,
+                            corruptedFrames: shakaStats.corruptedFrames,
+                            totalStalls,
+                            totalStallDuration,
+                            timeToFirstFrame: 0,
+                        },
+                        abr: {
+                            currentVideoBitrate:
+                                activeVariant?.videoBandwidth || 0,
+                            estimatedBandwidth: shakaStats.estimatedBandwidth,
+                            switchesUp: 0,
+                            switchesDown: 0,
+                        },
+                        buffer: {
+                            label: bufferInfo.label,
+                            seconds: bufferInfo.seconds,
+                            totalGaps: 0,
+                        },
+                        session: {
+                            totalPlayTime: shakaStats.playTime,
+                            totalBufferingTime: shakaStats.bufferingTime,
+                        },
+                    };
+
+                    let health = 'healthy';
+                    const lastStats = currentPlayerState.stats;
+                    if (lastStats) {
+                        if (
+                            newStats.playbackQuality.totalStalls >
+                            lastStats.playbackQuality.totalStalls
+                        ) {
+                            health = 'critical';
+                            logEvent({
+                                streamId,
+                                streamName: currentPlayerState.streamName,
+                                type: 'stall',
+                                details: `Stall detected at playhead time ${newStats.playheadTime.toFixed(
+                                    2
+                                )}s`,
+                                severity: 'critical',
+                            });
+                        }
+                    }
+
+                    updates.push({
+                        streamId,
+                        updates: {
+                            stats: newStats,
+                            playbackHistory: newPlaybackHistory,
+                            health,
+                            variantTracks: shakaPlayer.getVariantTracks(),
+                            audioTracks: shakaPlayer.getAudioTracks(),
+                            textTracks: shakaPlayer.getTextTracks(),
+                            seekableRange: seekableRange,
+                            normalizedPlayheadTime: normalizedPlayheadTime,
+                        },
+                    });
                 }
-                useMultiPlayerStore.getState().updatePlayerState(streamId, {
-                    stats: newStats,
-                    playbackHistory: newPlaybackHistory,
-                    health,
-                    variantTracks: player.getVariantTracks(),
-                    audioTracks: player.getAudioLanguagesAndRoles(),
-                    textTracks: player.getTextTracks(),
-                    seekableRange: seekableRange,
-                    normalizedPlayheadTime: normalizedPlayheadTime,
-                });
+
+                if (updates.length > 0) {
+                    batchUpdatePlayerState(updates);
+                }
             }
-        }, 1000);
+        );
     }
 
     stopStatsCollection() {
-        if (this.statsInterval) clearInterval(this.statsInterval);
-        this.statsInterval = null;
+        if (this.tickerSubscription) {
+            this.tickerSubscription();
+            this.tickerSubscription = null;
+        }
     }
 
     async destroyPlayer(streamId) {
@@ -407,7 +413,9 @@ class MultiPlayerService {
             this.players.delete(streamId);
         }
         this.videoElements.delete(streamId);
-        useMultiPlayerStore.getState().removePlayer(streamId);
+        this.stallCalculators.delete(streamId);
+        // REMOVED: The store action is now the CAUSE of this cleanup, not the effect.
+        // useMultiPlayerStore.getState().removePlayer(streamId);
     }
 
     async removePlayer(streamId) {
@@ -426,8 +434,9 @@ class MultiPlayerService {
             });
             return;
         }
-
-        this.destroyPlayer(streamId);
+        // The UI now dispatches a store action, which will cause the component to unmount,
+        // which will then call destroyPlayer().
+        useMultiPlayerStore.getState().removePlayer(streamId);
     }
 
     async destroyAll() {
@@ -437,6 +446,7 @@ class MultiPlayerService {
         for (const player of this.players.values()) await player.destroy();
         this.players.clear();
         this.videoElements.clear();
+        this.stallCalculators.clear();
         useMultiPlayerStore.getState().clearPlayersAndLogs();
     }
 
@@ -487,7 +497,10 @@ class MultiPlayerService {
             const sourceLatency =
                 sourcePlayerState.seekableRange.end - sourceVideo.currentTime;
 
-            for (const [targetId, targetVideo] of this.videoElements.entries()) {
+            for (const [
+                targetId,
+                targetVideo,
+            ] of this.videoElements.entries()) {
                 if (targetId === sourceStreamId) continue;
                 const targetPlayerState = players.get(targetId);
 
@@ -515,7 +528,10 @@ class MultiPlayerService {
         } else {
             // Source is VOD
             const targetTime = sourceVideo.currentTime;
-            for (const [targetId, targetVideo] of this.videoElements.entries()) {
+            for (const [
+                targetId,
+                targetVideo,
+            ] of this.videoElements.entries()) {
                 if (targetId === sourceStreamId) continue;
                 const targetPlayerState = players.get(targetId);
 
@@ -536,9 +552,10 @@ class MultiPlayerService {
     }
 
     resetAllPlayers() {
-        for (const video of this.videoElements.values()) {
+        for (const [id, video] of this.videoElements.entries()) {
             video.pause();
             video.currentTime = 0;
+            this.stallCalculators.get(id)?.reset();
         }
         showToast({ message: 'All players reset.', type: 'info' });
     }
@@ -591,6 +608,49 @@ class MultiPlayerService {
         }
         showToast({
             message: `Audio language '${lang}' applied to ${appliedCount} player(s).`,
+            type: 'info',
+        });
+    }
+
+    setGlobalTrackByHeight(height) {
+        const { players, setStreamOverride } = useMultiPlayerStore.getState();
+        let appliedCount = 0;
+
+        for (const [streamId, shakaPlayer] of this.players.entries()) {
+            const playerState = players.get(streamId);
+            if (!playerState) continue;
+
+            const tracks = shakaPlayer
+                .getVariantTracks()
+                .filter((t) => t.type === 'variant' && t.videoCodec);
+            if (tracks.length === 0) continue;
+
+            // Find the best track: closest height, then highest bandwidth
+            const bestTrack = tracks.reduce((best, current) => {
+                if (!best) return current;
+                const currentDiff = Math.abs((current.height || 0) - height);
+                const bestDiff = Math.abs((best.height || 0) - height);
+
+                if (currentDiff < bestDiff) {
+                    return current;
+                }
+                if (currentDiff === bestDiff) {
+                    return (current.bandwidth || 0) > (best.bandwidth || 0)
+                        ? current
+                        : best;
+                }
+                return best;
+            });
+
+            if (bestTrack) {
+                shakaPlayer.configure({ abr: { enabled: false } });
+                shakaPlayer.selectVariantTrack(bestTrack, true);
+                setStreamOverride(streamId, { abr: false });
+                appliedCount++;
+            }
+        }
+        showToast({
+            message: `Manual track selection applied to ${appliedCount} player(s).`,
             type: 'info',
         });
     }

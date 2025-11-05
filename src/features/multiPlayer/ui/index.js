@@ -8,7 +8,7 @@ import { multiPlayerService } from '../application/multiPlayerService';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { eventBus } from '@/application/event-bus';
 import { debugLog } from '@/shared/utils/debug';
-import { createMultiPlayerGridViewModel } from './view-model';
+import { createMultiPlayerGridViewModel } from './view-model.js';
 
 import { GridViewComponent } from './components/grid-view.js';
 import { SidebarShellComponent } from './components/sidebar-shell.js';
@@ -105,6 +105,8 @@ export const multiPlayerView = {
         debugLog('MultiPlayerView', '[LIFECYCLE] mount() called.');
         container = containerElement;
 
+        // ARCHITECTURAL FIX: Destroy previous players on mount, not unmount.
+        // This ensures a clean slate and prevents re-entrant state updates during unmount.
         await multiPlayerService.destroyAll();
 
         if (multiPlayerUnsubscribe) multiPlayerUnsubscribe();
@@ -156,7 +158,10 @@ export const multiPlayerView = {
     },
     unmount() {
         debugLog('MultiPlayerView', '[LIFECYCLE] unmount() called.');
-        multiPlayerService.destroyAll();
+        // ARCHITECTURAL FIX: Removed multiPlayerService.destroyAll() from here.
+        // It is now handled by the next view's mount() or the global unmount of the player view.
+        multiPlayerService.stopStatsCollection(); // Stop tickers safely.
+
         if (multiPlayerUnsubscribe) multiPlayerUnsubscribe();
         if (uiUnsubscribe) uiUnsubscribe();
         if (analysisUnsubscribe) analysisUnsubscribe();
@@ -169,7 +174,7 @@ export const multiPlayerView = {
 
         const contextualSidebar = document.getElementById('contextual-sidebar');
         if (contextualSidebar) {
-            render(html``, container);
+            render(html``, contextualSidebar); // Use the same container reference
         }
     },
 };

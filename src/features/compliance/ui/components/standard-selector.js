@@ -83,11 +83,13 @@ export const standardSelectorTemplate = ({
     const handleDropdownToggle = (e) => {
         toggleDropdown(
             e.currentTarget,
-            formattedOptionsDropdownTemplate(
-                HLS_VERSIONS,
-                selectedVersion,
-                (option) => onVersionChange(option.id)
-            )
+            () =>
+                formattedOptionsDropdownTemplate(
+                    HLS_VERSIONS,
+                    selectedVersion,
+                    (option) => onVersionChange(option.id)
+                ),
+            e
         );
     };
 
