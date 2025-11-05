@@ -18,6 +18,7 @@ export function parseTfra(box, view) {
 
     const lengthSizes = p.readUint32('length_sizes_raw');
     if (lengthSizes !== null) {
+        box.details['length_sizes_raw'].internal = true;
         const length_size_of_traf_num = ((lengthSizes >> 4) & 0x03) + 1;
         const length_size_of_trun_num = ((lengthSizes >> 2) & 0x03) + 1;
         const length_size_of_sample_num = (lengthSizes & 0x03) + 1;
@@ -26,9 +27,7 @@ export function parseTfra(box, view) {
             offset: box.details['length_sizes_raw'].offset,
             length: 4,
         };
-        delete box.details['length_sizes_raw'];
 
-        /** Helper to read variable-length integers and populate details */
         const readVarBytes = (len) => {
             if (!p.checkBounds(len)) return null;
             let value = 0;
@@ -46,35 +45,41 @@ export function parseTfra(box, view) {
             for (let i = 0; i < numberOfEntries; i++) {
                 if (p.stopped) break;
 
+                const timeField = `entry_${i}_time`;
+                const moofOffsetField = `entry_${i}_moof_offset`;
+
                 const time =
                     version === 1
-                        ? p.readBigUint64(`entry_${i}_time`)
-                        : p.readUint32(`entry_${i}_time`);
-                const moofOffset =
+                        ? p.readBigUint64(timeField)
+                        : p.readUint32(timeField);
+                const moof_offset =
                     version === 1
-                        ? p.readBigUint64(`entry_${i}_moof_offset`)
-                        : p.readUint32(`entry_${i}_moof_offset`);
+                        ? p.readBigUint64(moofOffsetField)
+                        : p.readUint32(moofOffsetField);
 
-                const trafNumber = readVarBytes(length_size_of_traf_num);
-                const trunNumber = readVarBytes(length_size_of_trun_num);
-                const sampleNumber = readVarBytes(length_size_of_sample_num);
+                const traf_number = readVarBytes(length_size_of_traf_num);
+                const trun_number = readVarBytes(length_size_of_trun_num);
+                const sample_number = readVarBytes(length_size_of_sample_num);
 
                 if (
                     time === null ||
-                    moofOffset === null ||
-                    trafNumber === null ||
-                    trunNumber === null ||
-                    sampleNumber === null
+                    moof_offset === null ||
+                    traf_number === null ||
+                    trun_number === null ||
+                    sample_number === null
                 ) {
                     break;
                 }
 
+                box.details[timeField].internal = true;
+                box.details[moofOffsetField].internal = true;
+
                 box.entries.push({
                     time: Number(time),
-                    moofOffset: Number(moofOffset),
-                    trafNumber,
-                    trunNumber,
-                    sampleNumber,
+                    moof_offset: Number(moof_offset),
+                    traf_number,
+                    trun_number,
+                    sample_number,
                 });
             }
         }

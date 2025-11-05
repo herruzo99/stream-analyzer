@@ -87,6 +87,7 @@ export const timer = icon('timer');
 export const shieldCheck = icon('shield-check');
 export const puzzle = icon('puzzle');
 export const github = icon('github', 'h-4 w-4');
+export const unlink = icon('unlink-2');
 
 // --- Property Icons ---
 export const aligned = icon('align-vertical-space-around', 'h-4 w-4');

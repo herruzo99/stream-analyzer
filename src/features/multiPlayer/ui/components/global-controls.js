@@ -3,9 +3,12 @@ import { eventBus } from '@/application/event-bus';
 import '@/ui/components/labeled-control';
 import { toggleDropdown } from '@/ui/services/dropdownService';
 import { virtualTrackDropdownTemplate } from './virtual-track-dropdown.js';
+import { useMultiPlayerStore } from '@/state/multiPlayerStore.js';
 
 const RESOLUTION_OPTIONS = [
     { label: 'Auto', value: Infinity },
+    { label: '4K', value: 2160 },
+    { label: '1440p', value: 1440 },
     { label: '1080p', value: 1080 },
     { label: '720p', value: 720 },
     { label: '480p', value: 480 },
@@ -20,7 +23,7 @@ const BANDWIDTH_CAP_OPTIONS = [
     { label: 'Slow 3G (500 Kbps)', value: 500000 },
 ];
 
-const globalControlsTemplate = ({ state }) => {
+const globalControlsTemplate = ({ state, isAnyPlayerLoading }) => {
     const selectClasses =
         'bg-slate-700 text-white rounded-md p-1 text-sm border border-slate-600 w-full max-w-[10rem]';
 
@@ -93,7 +96,8 @@ const globalControlsTemplate = ({ state }) => {
                                       () => virtualTrackDropdownTemplate(),
                                       e
                                   )}
-                              class="bg-slate-700 hover:bg-slate-600 text-white rounded-md p-1 text-sm border border-slate-600 w-full max-w-[10rem] flex justify-between items-center"
+                              ?disabled=${isAnyPlayerLoading}
+                              class="bg-slate-700 hover:bg-slate-600 text-white rounded-md p-1 text-sm border border-slate-600 w-full max-w-[10rem] flex justify-between items-center disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                               <span>Select Quality...</span>
                               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
@@ -152,9 +156,11 @@ export class GlobalControlsComponent extends HTMLElement {
     constructor() {
         super();
         this._state = {};
+        this.unsubscribe = null;
     }
 
     set state(newState) {
+        // This is still used for the initial state from controls-view
         if (this._state === newState) return;
         this._state = newState;
         this.render();
@@ -166,10 +172,37 @@ export class GlobalControlsComponent extends HTMLElement {
 
     connectedCallback() {
         this.render();
+        // Subscribe to any changes in the players map to re-render.
+        this.unsubscribe = useMultiPlayerStore.subscribe((newState, oldState) => {
+            if (newState.players !== oldState.players) {
+                this.render();
+            }
+        });
+    }
+
+    disconnectedCallback() {
+        if (this.unsubscribe) {
+            this.unsubscribe();
+        }
     }
 
     render() {
-        render(globalControlsTemplate({ state: this._state }), this);
+        const fullState = useMultiPlayerStore.getState();
+        const isAnyPlayerLoading = Array.from(fullState.players.values()).some(
+            (p) => p.state === 'idle' || p.state === 'loading'
+        );
+
+        const currentState = {
+            ...this._state,
+            globalAbrEnabled: fullState.globalAbrEnabled,
+        };
+        render(
+            globalControlsTemplate({
+                state: currentState,
+                isAnyPlayerLoading,
+            }),
+            this
+        );
     }
 }
 

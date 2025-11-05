@@ -21,15 +21,18 @@ export function parseCtts(box, view) {
         for (let i = 0; i < entryCount; i++) {
             if (p.stopped) break;
 
-            const count = p.readUint32(`entry_${i}_sample_count`);
-            const offset =
+            const sample_count = p.readUint32(`entry_${i}_sample_count`);
+            const sample_offset =
                 version === 1
                     ? p.readInt32(`entry_${i}_sample_offset`)
                     : p.readUint32(`entry_${i}_sample_offset`);
 
-            if (count === null || offset === null) break;
+            if (sample_count === null || sample_offset === null) break;
 
-            box.entries.push({ count, offset });
+            box.details[`entry_${i}_sample_count`].internal = true;
+            box.details[`entry_${i}_sample_offset`].internal = true;
+
+            box.entries.push({ sample_count, sample_offset });
         }
     }
     p.finalize();

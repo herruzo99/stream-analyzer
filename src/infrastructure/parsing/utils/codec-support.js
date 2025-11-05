@@ -18,6 +18,7 @@ const SUPPORTED_CODECS = new Set([
     // Text
     'stpp', // TTML in MP4
     'wvtt', // WebVTT in MP4
+    'text/vtt',
 ]);
 
 /**

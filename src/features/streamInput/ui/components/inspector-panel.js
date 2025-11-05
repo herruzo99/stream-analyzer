@@ -10,6 +10,7 @@ import * as icons from '@/ui/icons';
 import { useUiStore, uiActions } from '@/state/uiStore';
 import { exampleStreams } from '@/data/example-streams';
 import { connectedTabBar } from '@/ui/components/tabs';
+import { schemeIdUriToKeySystem } from '@/infrastructure/parsing/utils/drm';
 
 const authParamRowTemplate = (param, inputId, type, isDrm) => {
     const updateAction = isDrm
@@ -118,27 +119,55 @@ const drmAuthSettingsTemplate = (inputId, drmAuth) => {
         certFileClasses = 'bg-green-600 text-white';
     }
 
+    const handleLicenseUrlInput = (keySystem, value) => {
+        let newLicenseServerUrl;
+        if (typeof drmAuth.licenseServerUrl === 'string') {
+            // Convert from string to object when the first per-system URL is entered
+            newLicenseServerUrl = { [keySystem]: value };
+        } else {
+            newLicenseServerUrl = { ...drmAuth.licenseServerUrl, [keySystem]: value };
+        }
+
+        analysisActions.updateStreamInput(inputId, 'drmAuth', {
+            ...drmAuth,
+            licenseServerUrl: newLicenseServerUrl,
+        });
+    };
+
+    const licenseUrlFor = (keySystem) => {
+        if (typeof drmAuth.licenseServerUrl === 'string') {
+            return drmAuth.licenseServerUrl;
+        }
+        return drmAuth.licenseServerUrl?.[keySystem] || '';
+    };
+
+    const licenseServerInput = (label, keySystem) => html`
+        <div>
+            <label class="block text-sm font-medium text-slate-400 mb-1"
+                >${label}</label
+            >
+            <input
+                type="url"
+                class="bg-slate-800 text-white rounded px-2 py-1.5 text-sm w-full border border-slate-600"
+                placeholder="Leave blank for auto-discovery"
+                .value=${licenseUrlFor(keySystem)}
+                @input=${(e) => handleLicenseUrlInput(keySystem, e.target.value)}
+            />
+        </div>
+    `;
+
     return html`
         <div class="space-y-4">
+            ${licenseServerInput('Widevine License URL', 'com.widevine.alpha')}
+            ${licenseServerInput(
+                'PlayReady License URL',
+                'com.microsoft.playready'
+            )}
+            ${licenseServerInput('FairPlay License URL', 'com.apple.fps')}
+
             <div>
                 <label class="block text-sm font-medium text-slate-400 mb-1"
-                    >License Server URL</label
-                >
-                <input
-                    type="url"
-                    class="bg-slate-800 text-white rounded px-2 py-1.5 text-sm w-full border border-slate-600"
-                    placeholder="Leave blank for auto-discovery"
-                    .value=${drmAuth.licenseServerUrl}
-                    @input=${(e) =>
-                        analysisActions.updateStreamInput(inputId, 'drmAuth', {
-                            ...drmAuth,
-                            licenseServerUrl: e.target.value,
-                        })}
-                />
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-slate-400 mb-1"
-                    >Service Certificate</label
+                    >FairPlay Certificate</label
                 >
                 <div class="flex items-center gap-2">
                     <input

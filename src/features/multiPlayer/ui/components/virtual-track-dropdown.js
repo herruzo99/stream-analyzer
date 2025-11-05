@@ -1,113 +1,139 @@
 import { html } from 'lit-html';
-import { useMultiPlayerStore } from '@/state/multiPlayerStore';
-import { eventBus } from '@/application/event-bus';
 import { closeDropdown } from '@/ui/services/dropdownService';
 import { formatBitrate } from '@/ui/shared/format';
+import * as icons from '@/ui/icons';
+import { tooltipTriggerClasses } from '@/ui/shared/constants';
+import { eventBus } from '@/application/event-bus';
+import { useMultiPlayerStore } from '@/state/multiPlayerStore.js';
 
-const RESOLUTION_BUCKETS = [
-    { label: '4K', height: 2160 },
-    { label: '1440p', height: 1440 },
-    { label: '1080p', height: 1080 },
-    { label: '720p', height: 720 },
-    { label: '540p', height: 540 },
-    { label: '480p', height: 480 },
-    { label: '360p', height: 360 },
-    { label: '240p', height: 240 },
-    { label: '144p', height: 144 },
-];
+// --- ARCHITECTURAL REFACTOR (DRY): Import shared templates ---
+import {
+    videoSelectionPanelTemplate,
+    audioSelectionPanelTemplate,
+    textSelectionPanelTemplate,
+} from '@/features/playerSimulation/ui/components/track-selection-dropdown.js';
 
-function createVirtualTracks() {
-    const { players } = useMultiPlayerStore.getState();
-    const virtualTracks = new Map();
+// Export the imported templates so they can be used by other components in this feature
+export {
+    videoSelectionPanelTemplate,
+    audioSelectionPanelTemplate,
+    textSelectionPanelTemplate,
+};
+// --- END REFACTOR ---
 
-    // Initialize buckets
-    RESOLUTION_BUCKETS.forEach((bucket) => {
-        virtualTracks.set(bucket.label, {
-            ...bucket,
-            playerTracks: new Map(), // Map<streamId, track[]>
-            playerCount: 0,
-        });
-    });
-
-    for (const player of players.values()) {
-        for (const track of player.variantTracks) {
-            if (!track.height) continue;
-
-            // Find the best bucket for this track
-            const bestBucket = RESOLUTION_BUCKETS.reduce((prev, curr) => {
-                const prevDiff = Math.abs(prev.height - track.height);
-                const currDiff = Math.abs(curr.height - track.height);
-                return currDiff < prevDiff ? curr : prev;
-            });
-
-            const bucket = virtualTracks.get(bestBucket.label);
-            if (!bucket.playerTracks.has(player.streamId)) {
-                bucket.playerTracks.set(player.streamId, []);
-            }
-            bucket.playerTracks.get(player.streamId).push(track);
-        }
-    }
-
-    // Tally player counts for each bucket
-    for (const bucket of virtualTracks.values()) {
-        bucket.playerCount = bucket.playerTracks.size;
-    }
-
-    // Filter out empty buckets and sort
-    return Array.from(virtualTracks.values())
-        .filter((bucket) => bucket.playerCount > 0)
-        .sort((a, b) => b.height - a.height);
-}
-
-const virtualTrackCard = ({
+const trackCardTemplate = ({
     label,
-    height,
-    playerCount,
-    totalPlayers,
+    details,
+    subDetails = null,
+    isActive,
     onClick,
 }) => {
-    const coverage = ((playerCount / totalPlayers) * 100).toFixed(0);
+    const activeClasses = 'bg-blue-800 border-blue-600 ring-2 ring-blue-500';
+    const baseClasses =
+        'bg-slate-900/50 p-3 rounded-lg border border-slate-700 cursor-pointer transition-all duration-150 ease-in-out text-left w-full';
+    const hoverClasses = 'hover:bg-slate-700 hover:border-slate-500';
+    const tooltipText = `${details}${subDetails ? ` | ${subDetails}` : ''}`;
+
     return html`
         <button
+            class="${baseClasses} ${hoverClasses} ${isActive
+                ? activeClasses
+                : ''}"
             @click=${onClick}
-            class="w-full text-left p-3 rounded-lg border border-slate-700 bg-slate-900/50 hover:bg-slate-700 hover:border-slate-500 transition-colors"
+            data-tooltip=${tooltipText}
         >
             <div class="flex justify-between items-center">
-                <span class="font-semibold text-slate-200">${label}</span>
-                <span class="text-xs font-mono text-slate-400"
-                    >${playerCount} / ${totalPlayers} Players</span
+                <span class="font-semibold text-slate-200 truncate"
+                    >${label}</span
                 >
+                ${isActive
+                    ? html`<span
+                          class="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-600 text-white"
+                          >ACTIVE</span
+                      >`
+                    : ''}
             </div>
-            <div class="w-full bg-slate-700 rounded-full h-1.5 mt-2">
-                <div
-                    class="bg-blue-500 h-1.5 rounded-full"
-                    style="width: ${coverage}%"
-                ></div>
+            <div
+                class="text-xs text-slate-400 font-mono truncate mt-1 ${tooltipTriggerClasses}"
+            >
+                ${details}
             </div>
+            ${subDetails
+                ? html`<div
+                      class="text-xs text-slate-500 font-mono truncate mt-1"
+                  >
+                      ${subDetails}
+                  </div>`
+                : ''}
         </button>
     `;
 };
 
+/**
+ * Renders a dropdown panel for selecting a global "virtual" video track.
+ * This aggregates all available resolutions from all players.
+ * @returns {import('lit-html').TemplateResult}
+ */
 export const virtualTrackDropdownTemplate = () => {
-    const virtualTracks = createVirtualTracks();
-    const totalPlayers = useMultiPlayerStore.getState().players.size;
+    const { players } = useMultiPlayerStore.getState();
+    if (!players || players.size === 0) {
+        return html`<div
+            class="dropdown-panel bg-slate-800 border border-slate-700 rounded-lg shadow-xl w-80 p-4 text-sm text-slate-400"
+        >
+            No players available to select tracks from.
+        </div>`;
+    }
 
-    const handleSelect = (bucket) => {
+    // Aggregate all unique video tracks by a composite key, keeping the one with the highest bandwidth as representative.
+    const uniqueTracksByKey = new Map();
+    for (const player of players.values()) {
+        for (const track of player.variantTracks) {
+            if (track.height && track.videoCodec) {
+                const key = `${track.height}x${track.width}|${track.videoCodec}|${track.frameRate}`;
+                const existing = uniqueTracksByKey.get(key);
+                if (
+                    !existing ||
+                    (track.videoBandwidth || track.bandwidth) >
+                        (existing.videoBandwidth || existing.bandwidth)
+                ) {
+                    uniqueTracksByKey.set(key, track);
+                }
+            }
+        }
+    }
+
+    const sortedTracks = Array.from(uniqueTracksByKey.values()).sort(
+        (a, b) => (b.height || 0) - (a.height || 0)
+    );
+
+    const handleSelect = (height) => {
         eventBus.dispatch('ui:multi-player:set-global-video-track-by-height', {
-            height: bucket.height,
+            height,
         });
         closeDropdown();
     };
 
+    if (sortedTracks.length === 0) {
+        return html`<div
+            class="dropdown-panel bg-slate-800 border border-slate-700 rounded-lg shadow-xl w-80 p-4 text-sm text-slate-400"
+        >
+            No video tracks found across all players.
+        </div>`;
+    }
+
     return html`
         <div
-            class="dropdown-panel bg-slate-800 border border-slate-700 rounded-lg shadow-xl w-80 p-2 space-y-2 max-h-[60vh] overflow-y-auto"
+            class="dropdown-panel bg-slate-800 border border-slate-700 rounded-lg shadow-xl w-80 p-2 space-y-2"
         >
-            ${virtualTracks.map((bucket) =>
-                virtualTrackCard({
-                    ...bucket,
-                    totalPlayers,
-                    onClick: () => handleSelect(bucket),
+            ${sortedTracks.map((track) =>
+                trackCardTemplate({
+                    label: `${track.height}p`,
+                    details: `Up to ${formatBitrate(
+                        track.videoBandwidth || track.bandwidth
+                    )}`,
+                    subDetails: `Represents all available ${track.height}p tracks`,
+                    isActive: false, // This is a global action, not a state reflection
+                    onClick: () => handleSelect(track.height),
                 })
             )}
         </div>

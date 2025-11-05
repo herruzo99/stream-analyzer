@@ -47,29 +47,27 @@ function renderSegmentComparison() {
 
                 let segment = null;
 
-                // --- ARCHITECTURAL FIX: Robust Segment Lookup ---
                 if (stream.protocol === 'dash') {
-                    for (const repState of stream.dashRepresentationState.values()) {
-                        const foundSegment = repState.segments.find(
+                    // ARCHITECTURAL REFACTOR: Use direct lookup instead of iterating all representations.
+                    // This is more efficient and correctly resolves the segment using the representation ID
+                    // stored with the segment-to-compare item.
+                    const repState = stream.dashRepresentationState.get(
+                        item.repId
+                    );
+                    if (repState) {
+                        segment = repState.segments.find(
                             (s) => s.uniqueId === item.segmentUniqueId
                         );
-                        if (foundSegment) {
-                            segment = foundSegment;
-                            break;
-                        }
                     }
                 } else if (stream.protocol === 'hls') {
-                    for (const variantState of stream.hlsVariantState.values()) {
-                        const foundSegment = variantState.segments.find(
+                    // HLS uses the variant URI as the key. The item.repId holds this.
+                    const variantState = stream.hlsVariantState.get(item.repId);
+                    if (variantState) {
+                        segment = variantState.segments.find(
                             (s) => s.uniqueId === item.segmentUniqueId
                         );
-                        if (foundSegment) {
-                            segment = foundSegment;
-                            break;
-                        }
                     }
                 }
-                // --- END FIX ---
 
                 if (!segment) return null;
 

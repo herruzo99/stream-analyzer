@@ -107,6 +107,7 @@ export interface Representation {
     viewpoints: Descriptor[];
     accessibility: Descriptor[];
     labels: Label[];
+    label?: string; // For aggregated tracks
     groupLabels: Label[];
     subRepresentations: SubRepresentation[];
     resyncs: Resync[];
@@ -485,6 +486,8 @@ export interface MediaSegment {
     endTimeUTC?: number;
     flags: string[];
     encryptionInfo?: EncryptionInfo;
+    range?: string | null;
+    indexRange?: string | null;
     parsedData?: any; // For local segment analysis
 }
 
@@ -667,7 +670,7 @@ export interface AuthInfo {
 }
 
 export interface DrmAuthInfo {
-    licenseServerUrl: string;
+    licenseServerUrl: string | { [key: string]: string };
     serverCertificate: string | File | ArrayBuffer | null;
     headers: KeyValuePair[];
     queryParams: KeyValuePair[];
@@ -943,6 +946,9 @@ export interface PlayerState {
     isPipUnmount: boolean;
     isMuted: boolean;
     playbackState: 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ENDED' | 'IDLE';
+    videoTracks: object[];
+    audioTracks: object[];
+    textTracks: object[];
     activeVideoTrack: object | null;
     activeAudioTrack: object | null;
     activeTextTrack: object | null;
@@ -968,6 +974,9 @@ export interface PlayerActions {
                 | 'activeVideoTrack'
                 | 'activeAudioTrack'
                 | 'activeTextTrack'
+                | 'videoTracks'
+                | 'audioTracks'
+                | 'textTracks'
             >
         >
     ) => void;

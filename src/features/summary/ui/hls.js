@@ -5,6 +5,7 @@ import { hlsStructureTemplate } from './components/hls-structure.js';
 import { hlsMediaPlaylistTemplate } from './components/hls-media-playlist.js';
 import { statCardTemplate } from './components/shared.js';
 import * as icons from '@/ui/icons';
+import { streamHeaderTemplate } from './components/stream-header.js';
 
 export function getHlsSummaryTemplate(stream) {
     const summary = stream.manifest.summary;
@@ -18,6 +19,7 @@ export function getHlsSummaryTemplate(stream) {
 
     return html`
         <div class="space-y-8">
+            ${streamHeaderTemplate(stream)}
             <div>
                 <h3 class="text-xl font-bold mb-4 text-slate-100">
                     General Properties
@@ -31,7 +33,9 @@ export function getHlsSummaryTemplate(stream) {
                         tooltip:
                             'Indicates if the stream is live (EVENT) or on-demand (VOD).',
                         isoRef: 'HLS: 4.3.3.5',
-                        customClasses: `border-l-4 ${isLive ? 'border-danger' : 'border-info'}`,
+                        customClasses: `border-l-4 ${
+                            isLive ? 'border-danger' : 'border-info'
+                        }`,
                         icon: isLive ? icons.play : icons.fileText,
                         iconBgClass: isLive
                             ? 'bg-red-900/30 text-red-300'

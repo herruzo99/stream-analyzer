@@ -15,25 +15,29 @@ export function parseStsc(box, view) {
         for (let i = 0; i < entryCount; i++) {
             if (p.stopped) break;
 
-            const firstChunk = p.readUint32(`entry_${i}_first_chunk`);
-            const samplesPerChunk = p.readUint32(
-                `entry_${i}_samples_per_chunk`
-            );
-            const descriptionIndex = p.readUint32(
-                `entry_${i}_sample_description_index`
-            );
+            const firstChunkField = `entry_${i}_first_chunk`;
+            const samplesPerChunkField = `entry_${i}_samples_per_chunk`;
+            const descriptionIndexField = `entry_${i}_sample_description_index`;
+
+            const first_chunk = p.readUint32(firstChunkField);
+            const samples_per_chunk = p.readUint32(samplesPerChunkField);
+            const sample_description_index = p.readUint32(descriptionIndexField);
 
             if (
-                firstChunk === null ||
-                samplesPerChunk === null ||
-                descriptionIndex === null
+                first_chunk === null ||
+                samples_per_chunk === null ||
+                sample_description_index === null
             )
                 break;
 
+            box.details[firstChunkField].internal = true;
+            box.details[samplesPerChunkField].internal = true;
+            box.details[descriptionIndexField].internal = true;
+
             box.entries.push({
-                firstChunk,
-                samplesPerChunk,
-                descriptionIndex,
+                first_chunk,
+                samples_per_chunk,
+                sample_description_index,
             });
         }
     }

@@ -10,167 +10,313 @@
  * @property {StreamType} type - The stream type (VOD or Live).
  * @property {string} source - The provider of the stream.
  * @property {string} category - A sub-category for better organization.
+ * @property {object} [auth] - Authentication details.
+ * @property {object} [drmAuth] - DRM authentication details.
+ * @property {string | {[key: string]: string}} [drmAuth.licenseServerUrl] - The license server URL(s) for Widevine/PlayReady. Can be a single string or an object mapping key system names to URLs.
+ * @property {string | File | ArrayBuffer | null} [drmAuth.serverCertificate] - The certificate for FairPlay.
+ * @property {object} [drmAuth.clearKeys] - Clear Key configuration.
+ * @property {Array<{id: number, key: string, value: string}>} [drmAuth.headers] - Headers for the license request.
  */
 
-/** @type {ExampleStream[]} */
+const v10LicenseServers = {
+    'com.widevine.alpha':
+        'https://drm-widevine-licensing.axprod.net/AcquireLicense',
+    'com.microsoft.playready':
+        'https://drm-playready-licensing.axprod.net/AcquireLicense',
+    'com.apple.fps':
+        'https://drm-fairplay-licensing.axprod.net/AcquireLicense',
+};
+
+const v10Tokens = {
+    h264SingleKey:
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJ2ZXJzaW9uIjogMSwKICAiY29tX2tleV9pZCI6ICI2OWU1NDA4OC1lOWUwLTQ1MzAtOGMxYS0xZWI2ZGNkMGQxNGUiLAogICJtZXNzYWdlIjogewogICAgInR5cGUiOiAiZW50aXRsZW1lbnRfbWVzc2FnZSIsCiAgICAidmVyc2lvbiI6IDIsCiAgICAibGljZW5zZSI6IHsKICAgICAgImFsbG93X3BlcnNpc3RlbmNlIjogdHJ1ZQogICAgfSwKICAgICJjb250ZW50X2tleXNfc291cmNlIjogewogICAgICAiaW5saW5lIjogWwogICAgICAgIHsKICAgICAgICAgICJpZCI6ICIzMDJmODBkZC00MTFlLTQ4ODYtYmNhNS1iYjFmODAxOGEwMjQiLAogICAgICAgICAgImVuY3J5cHRlZF9rZXkiOiAicm9LQWcwdDdKaTFpNDNmd3YremZ0UT09IiwKICAgICAgICAgICJ1c2FnZV9wb2xpY3kiOiAiUG9saWN5IEEiCiAgICAgICAgfQogICAgICBdCiAgICB9LAogICAgImNvbnRlbnRfa2V5X3VzYWdlX3BvbGljaWVzIjogWwogICAgICB7CiAgICAgICAgIm5hbWUiOiAiUG9saWN5IEEiLAogICAgICAgICJwbGF5cmVhZHkiOiB7CiAgICAgICAgICAibWluX2RldmljZV9zZWN1cml0eV9sZXZlbCI6IDE1MCwKICAgICAgICAgICJwbGF5X2VuYWJsZXJzIjogWwogICAgICAgICAgICAiNzg2NjI3RDgtQzJBNi00NEJFLThGODgtMDhBRTI1NUIwMUE3IgogICAgICAgICAgXQogICAgICAgIH0KICAgICAgfQogICAgXQogIH0KfQ._NfhLVY7S6k8TJDWPeMPhUawhympnrk6WAZHOVjER6M',
+    h264MultiKey:
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJ2ZXJzaW9uIjogMSwKICAiY29tX2tleV9pZCI6ICI2OWU1NDA4OC1lOWUwLTQ1MzAtOGMxYS0xZWI2ZGNkMGQxNGUiLAogICJtZXNzYWdlIjogewogICAgInR5cGUiOiAiZW50aXRsZW1lbnRfbWVzc2FnZSIsCiAgICAidmVyc2lvbiI6IDIsCiAgICAibGljZW5zZSI6IHsKICAgICAgImFsbG93X3BlcnNpc3RlbmNlIjogdHJ1ZQogICAgfSwKICAgICJjb250ZW50X2tleXNfc291cmNlIjogewogICAgICAiaW5saW5lIjogWwogICAgICAgIHsKICAgICAgICAgICJpZCI6ICJiNTRlYzkxNC0xOTJkLTRlYTEtYWMxOS1mNDI5ZWI0OTgyNjgiLAogICAgICAgICAgImVuY3J5cHRlZF9rZXkiOiAiR1ZERnJZUU9Bb1kzZmpxVVVtamswQT09IiwKICAgICAgICAgICJ1c2FnZV9wb2xpY3kiOiAiUG9saWN5IEEiCiAgICAgICAgfSwKICAgICAgICB7CiAgICAgICAgICAiaWQiOiAiYzgzYzRlYTgtMGYyYS00NTIzLTg1MWMtZmJlY2NkYzBmMjAyIiwKICAgICAgICAgICJlbmNyeXB0ZWRfa2V5IjogIlRKZGZsWmJLYmZXQXl5K1dta21UUEE9PSIsCiAgICAgICAgICAidXNhZ2VfcG9saWN5IjogIlBvbGljeSBBIgogICAgICAgIH0sCiAgICAgICAgewogICAgICAgICAgImlkIjogImM4NjhjNzAyLWM3MWItNDA2NC1hZTJiLWMyNGY3Y2MxMDc5MiIsCiAgICAgICAgICAiZW5jcnlwdGVkX2tleSI6ICJ4QXJpUkpOcUFTdXp6RExDRzNXSjdnPT0iLAogICAgICAgICAgInVzYWdlX3BvbGljeSI6ICJQb2xpY3kgQSIKICAgICAgICB9CiAgICAgIF0KICAgIH0sCiAgICAiY29udGVudF9rZXlfdXNhZ2VfcG9saWNpZXMiOiBbCiAgICAgIHsKICAgICAgICAibmFtZSI6ICJQb2xpY3kgQSIsCiAgICAgICAgInBsYXlyZWFkeSI6IHsKICAgICAgICAgICJtaW5fZGV2aWNlX3NlY3VyaXR5X2xldmVsIjogMTUwLAogICAgICAgICAgInBsYXlfZW5hYmxlcnMiOiBbCiAgICAgICAgICAgICI3ODY2MjdEOC1DMkE2LTQ0QkUtOEY4OC0wOEFFMjU1QjAxQTciCiAgICAgICAgICBdCiAgICAgICAgfQogICAgICB9CiAgICBdCiAgfQp9.XC0YIbZpKGFc3IZROklP4LvISc6cZGpE9UL-XcpcqWg',
+    h265SingleKey:
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJ2ZXJzaW9uIjogMSwKICAiY29tX2tleV9pZCI6ICI2OWU1NDA4OC1lOWUwLTQ1MzAtOGMxYS0xZWI2ZGNkMGQxNGUiLAogICJtZXNzYWdlIjogewogICAgInR5cGUiOiAiZW50aXRsZW1lbnRfbWVzc2FnZSIsCiAgICAidmVyc2lvbiI6IDIsCiAgICAibGljZW5zZSI6IHsKICAgICAgImFsbG93X3BlcnNpc3RlbmNlIjogdHJ1ZQogICAgfSwKICAgICJjb250ZW50X2tleXNfc291cmNlIjogewogICAgICAiaW5saW5lIjogWwogICAgICAgIHsKICAgICAgICAgICJpZCI6ICJhYmNjNDRlNS1jMTIyLTQ1YWItYWM4MC1hNWIzNTIyYTBhMzEiLAogICAgICAgICAgImVuY3J5cHRlZF9rZXkiOiAiZnM2VUx1UzR3SFQxdkI2M0RONnI5UT09IiwKICAgICAgICAgICJ1c2FnZV9wb2xpY3kiOiAiUG9saWN5IEEiCiAgICAgICAgfQogICAgICBdCiAgICB9LAogICAgImNvbnRlbnRfa2V5X3VzYWdlX3BvbGljaWVzIjogWwogICAgICB7CiAgICAgICAgIm5hbWUiOiAiUG9saWN5IEEiLAogICAgICAgICJwbGF5cmVhZHkiOiB7CiAgICAgICAgICAibWluX2RldmljZV9zZWN1cml0eV9sZXZlbCI6IDE1MCwKICAgICAgICAgICJwbGF5X2VuYWJsZXJzIjogWwogICAgICAgICAgICAiNzg2NjI3RDgtQzJBNi00NEJFLThGODgtMDhBRTI1NUIwMUE3IgogICAgICAgICAgXQogICAgICAgIH0KICAgICAgfQogICAgXQogIH0KfQ.5rM_qUo4dKrHNDKQO0yzbCiufJxFUzHeOQc13Z48rv4',
+    h265MultiKey:
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJ2ZXJzaW9uIjogMSwKICAiY29tX2tleV9pZCI6ICI2OWU1NDA4OC1lOWUwLTQ1MzAtOGMxYS0xZWI2ZGNkMGQxNGUiLAogICJtZXNzYWdlIjogewogICAgInR5cGUiOiAiZW50aXRsZW1lbnRfbWVzc2FnZSIsCiAgICAidmVyc2lvbiI6IDIsCiAgICAibGljZW5zZSI6IHsKICAgICAgImFsbG93X3BlcnNpc3RlbmNlIjogdHJ1ZQogICAgfSwKICAgICJjb250ZW50X2tleXNfc291cmNlIjogewogICAgICAiaW5saW5lIjogWwogICAgICAgIHsKICAgICAgICAgICJpZCI6ICI1M2RjM2VhYS01MTY0LTQxMGEtOGY0ZS1lMTUxMTNiNDMwNDAiLAogICAgICAgICAgImVuY3J5cHRlZF9rZXkiOiAiSk00UnNXR0M5dVpjd1llRk5NakNPdz09IiwKICAgICAgICAgICJ1c2FnZV9wb2xpY3kiOiAiUG9saWN5IEEiCiAgICAgICAgfSwKICAgICAgICB7CiAgICAgICAgICAiaWQiOiAiOWRiYWNlOWUtNDEwMy00YzUyLTk2YWEtNjMyMjdkYzVmNzczIiwKICAgICAgICAgICJlbmNyeXB0ZWRfa2V5IjogInliTUNkUkRnamgvR215cG9mTVdDa3c9PSIsCiAgICAgICAgICAidXNhZ2VfcG9saWN5IjogIlBvbGljeSBBIgogICAgICAgIH0sCiAgICAgICAgewogICAgICAgICAgImlkIjogImE3NmYwY2E2LThlN2QtNDBkMC04YTM3LTkwNmYzZTI0ZGRlMiIsCiAgICAgICAgICAiZW5jcnlwdGVkX2tleSI6ICJTTnlTSFlEZ3MzYkJtamhPTlh5SmRBPT0iLAogICAgICAgICAgInVzYWdlX3BvbGljeSI6ICJQb2xpY3kgQSIKICAgICAgICB9CiAgICAgIF0KICAgIH0sCiAgICAiY29udGVudF9rZXlfdXNhZ2VfcG9saWNpZXMiOiBbCiAgICAgIHsKICAgICAgICAibmFtZSI6ICJQb2xpY3kgQSIsCiAgICAgICAgInBsYXlyZWFkeSI6IHsKICAgICAgICAgICJtaW5fZGV2aWNlX3NlY3VyaXR5X2xldmVsIjogMTUwLAogICAgICAgICAgInBsYXlfZW5hYmxlcnMiOiBbCiAgICAgICAgICAgICI3ODY2MjdEOC1DMkE2LTQ0QkUtOEY4OC0wOEFFMjU1QjAxQTciCiAgICAgICAgICBdCiAgICAgICAgfQogICAgICB9CiAgICBdCiAgfQp9.SSRguglJk2l3VahbSq8N5O4Qhxv78n2gSL5Za8HZJmk',
+    dashH264SingleKey:
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJ2ZXJzaW9uIjogMSwKICAiY29tX2tleV9pZCI6ICI2OWU1NDA4OC1lOWUwLTQ1MzAtOGMxYS0xZWI2ZGNkMGQxNGUiLAogICJtZXNzYWdlIjogewogICAgInR5cGUiOiAiZW50aXRsZW1lbnRfbWVzc2FnZSIsCiAgICAidmVyc2lvbiI6IDIsCiAgICAibGljZW5zZSI6IHsKICAgICAgImFsbG93X3BlcnNpc3RlbmNlIjogdHJ1ZQogICAgfSwKICAgICJjb250ZW50X2tleXNfc291cmNlIjogewogICAgICAiaW5saW5lIjogWwogICAgICAgIHsKICAgICAgICAgICJpZCI6ICI0MDYwYTg2NS04ODc4LTQyNjctOWNiZi05MWFlNWJhZTFlNzIiLAogICAgICAgICAgImVuY3J5cHRlZF9rZXkiOiAid3QzRW51dVI1UkFybjZBRGYxNkNCQT09IiwKICAgICAgICAgICJ1c2FnZV9wb2xpY3kiOiAiUG9saWN5IEEiCiAgICAgICAgfQogICAgICBdCiAgICB9LAogICAgImNvbnRlbnRfa2V5X3VzYWdlX3BvbGljaWVzIjogWwogICAgICB7CiAgICAgICAgIm5hbWUiOiAiUG9saWN5IEEiLAogICAgICAgICJwbGF5cmVhZHkiOiB7CiAgICAgICAgICAibWluX2RldmljZV9zZWN1cml0eV9sZXZlbCI6IDE1MCwKICAgICAgICAgICJwbGF5X2VuYWJsZXJzIjogWwogICAgICAgICAgICAiNzg2NjI3RDgtQzJBNi00NEJFLThGODgtMDhBRTI1NUIwMUE3IgogICAgICAgICAgXQogICAgICAgIH0KICAgICAgfQogICAgXQogIH0KfQ.l8PnZznspJ6lnNmfAE9UQV532Ypzt1JXQkvrk8gFSRw',
+    dashH264MultiKey:
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJ2ZXJzaW9uIjogMSwKICAiY29tX2tleV9pZCI6ICI2OWU1NDA4OC1lOWUwLTQ1MzAtOGMxYS0xZWI2ZGNkMGQxNGUiLAogICJtZXNzYWdlIjogewogICAgInR5cGUiOiAiZW50aXRsZW1lbnRfbWVzc2FnZSIsCiAgICAidmVyc2lvbiI6IDIsCiAgICAibGljZW5zZSI6IHsKICAgICAgImFsbG93X3BlcnNpc3RlbmNlIjogdHJ1ZQogICAgfSwKICAgICJjb250ZW50X2tleXNfc291cmNlIjogewogICAgICAiaW5saW5lIjogWwogICAgICAgIHsKICAgICAgICAgICJpZCI6ICI0MjZkMWEzMi03OGZkLTRmMjItODczMC02OGRiMzk3NGRkYTkiLAogICAgICAgICAgImVuY3J5cHRlZF9rZXkiOiAiZjFsLy95M0dnN3pFVE9qM1ZQTXovQT09IiwKICAgICAgICAgICJ1c2FnZV9wb2xpY3kiOiAiUG9saWN5IEEiCiAgICAgICAgfSwKICAgICAgICB7CiAgICAgICAgICAiaWQiOiAiOWRjOGU4MGEtY2JmYS00MWMzLTk4NGYtYjYwNDM0NDAzOTFhIiwKICAgICAgICAgICJlbmNyeXB0ZWRfa2V5IjogInlxOW9pSjJ0QnQ1bkpFM1VENE53bXc9PSIsCiAgICAgICAgICAidXNhZ2VfcG9saWN5IjogIlBvbGljeSBBIgogICAgICAgIH0sCiAgICAgICAgewogICAgICAgICAgImlkIjogIjQxYmFhNTk5LTY5MDUtNGZjMC1hOGM2LTM1NWRjZDFhYjM5ZiIsCiAgICAgICAgICAiZW5jcnlwdGVkX2tleSI6ICJ0ZWhGVGhwK2RpMUFHSHM2eGdySjBRPT0iLAogICAgICAgICAgInVzYWdlX3BvbGljeSI6ICJQb2xpY3kgQSIKICAgICAgICB9CiAgICAgIF0KICAgIH0sCiAgICAiY29udGVudF9rZXlfdXNhZ2VfcG9saWNpZXMiOiBbCiAgICAgIHsKICAgICAgICAibmFtZSI6ICJQb2xpY3kgQSIsCiAgICAgICAgInBsYXlyZWFkeSI6IHsKICAgICAgICAgICJtaW5fZGV2aWNlX3NlY3VyaXR5X2xldmVsIjogMTUwLAogICAgICAgICAgInBsYXlfZW5hYmxlcnMiOiBbCiAgICAgICAgICAgICI3ODY2MjdEOC1DMkE2LTQ0QkUtOEY4OC0wOEFFMjU1QjAxQTciCiAgICAgICAgICBdCiAgICAgICAgfQogICAgICB9CiAgICBdCiAgfQp9.KpLCxibrW87lZwA_CSuZdqj7u0L-lnt-e3z_M1Toas0',
+    dashH265SingleKey:
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJ2ZXJzaW9uIjogMSwKICAiY29tX2tleV9pZCI6ICI2OWU1NDA4OC1lOWUwLTQ1MzAtOGMxYS0xZWI2ZGNkMGQxNGUiLAogICJtZXNzYWdlIjogewogICAgInR5cGUiOiAiZW50aXRsZW1lbnRfbWVzc2FnZSIsCiAgICAidmVyc2lvbiI6IDIsCiAgICAibGljZW5zZSI6IHsKICAgICAgImFsbG93X3BlcnNpc3RlbmNlIjogdHJ1ZQogICAgfSwKICAgICJjb250ZW50X2tleXNfc291cmNlIjogewogICAgICAiaW5saW5lIjogWwogICAgICAgIHsKICAgICAgICAgICJpZCI6ICI5ZmQzODVkNS1mMzg5LTQ4YjUtYjdjMy1iMTg2M2VlMTA4ODgiLAogICAgICAgICAgImVuY3J5cHRlZF9rZXkiOiAiS3ZhaytZZVF1NGU2QnRvcEQ2Wm1JUT09IiwKICAgICAgICAgICJ1c2FnZV9wb2xpY3kiOiAiUG9saWN5IEEiCiAgICAgICAgfQogICAgICBdCiAgICB9LAogICAgImNvbnRlbnRfa2V5X3VzYWdlX3BvbGljaWVzIjogWwogICAgICB7CiAgICAgICAgIm5hbWUiOiAiUG9saWN5IEEiLAogICAgICAgICJwbGF5cmVhZHkiOiB7CiAgICAgICAgICAibWluX2RldmljZV9zZWN1cml0eV9sZXZlbCI6IDE1MCwKICAgICAgICAgICJwbGF5X2VuYWJsZXJzIjogWwogICAgICAgICAgICAiNzg2NjI3RDgtQzJBNi00NEJFLThGODgtMDhBRTI1NUIwMUE3IgogICAgICAgICAgXQogICAgICAgIH0KICAgICAgfQogICAgXQogIH0KfQ.CNEEm6UhOFiXadbcxQrs64NEb9ys7YdPZ7TmTO8aTbg',
+    dashH265MultiKey:
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJ2ZXJzaW9uIjogMSwKICAiY29tX2tleV9pZCI6ICI2OWU1NDA4OC1lOWUwLTQ1MzAtOGMxYS0xZWI2ZGNkMGQxNGUiLAogICJtZXNzYWdlIjogewogICAgInR5cGUiOiAiZW50aXRsZW1lbnRfbWVzc2FnZSIsCiAgICAidmVyc2lvbiI6IDIsCiAgICAibGljZW5zZSI6IHsKICAgICAgImFsbG93X3BlcnNpc3RlbmNlIjogdHJ1ZQogICAgfSwKICAgICJjb250ZW50X2tleXNfc291cmNlIjogewogICAgICAiaW5saW5lIjogWwogICAgICAgIHsKICAgICAgICAgICJpZCI6ICIzMWJiNjViNC01ODMxLTRjMzQtOTExNC0yNTU5MWJhZTQwNjYiLAogICAgICAgICAgImVuY3J5cHRlZF9rZXkiOiAiWTV2ZDB2aWpvbDExVHFMKytBTFpNZz09IiwKICAgICAgICAgICJ1c2FnZV9wb2xpY3kiOiAiUG9saWN5IEEiCiAgICAgICAgfSwKICAgICAgICB7CiAgICAgICAgICAiaWQiOiAiZDVlM2YzNjctZmM5Ny00Njg1LWFjM2QtMmNjYWI0ZTAxNDhhIiwKICAgICAgICAgICJlbmNyeXB0ZWRfa2V5IjogInhwM1l6TWpQTkFDT2FSeEoxRnJiV3c9PSIsCiAgICAgICAgICAidXNhZ2VfcG9saWN5IjogIlBvbGljeSBBIgogICAgICAgIH0sCiAgICAgICAgewogICAgICAgICAgImlkIjogIjk4MjkzYWE1LWE2M2QtNDA1Ni1hZWI1LWI4ZWJmMmIyMjM3MCIsCiAgICAgICAgICAiZW5jcnlwdGVkX2tleSI6ICJYZmpUZkFqZjYxSk9JK1BuM0hIV0dnPT0iLAogICAgICAgICAgInVzYWdlX3BvbGljeSI6ICJQb2xpY3kgQSIKICAgICAgICB9CiAgICAgIF0KICAgIH0sCiAgICAiY29udGVudF9rZXlfdXNhZ2VfcG9saWNpZXMiOiBbCiAgICAgIHsKICAgICAgICAibmFtZSI6ICJQb2xpY3kgQSIsCiAgICAgICAgInBsYXlyZWFkeSI6IHsKICAgICAgICAgICJtaW5fZGV2aWNlX3NlY3VyaXR5X2xldmVsIjogMTUwLAogICAgICAgICAgInBsYXlfZW5hYmxlcnMiOiBbCiAgICAgICAgICAgICI3ODY2MjdEOC1DMkE2LTQ0QkUtOEY4OC0wOEFFMjU1QjAxQTciCiAgICAgICAgICBdCiAgICAgICAgfQogICAgICB9CiAgICBdCiAgfQp9.8U5sx_tcQOUb86cjqkd5e2leudsnT4BpzY0zTTVAKcA',
+};
+
+const createDrmAuth = (token) => ({
+    licenseServerUrl: v10LicenseServers,
+    headers: [{ id: 1, key: 'X-AxDRM-Message', value: token }],
+});
+
+const appleFairPlayDrmAuth = {
+    licenseServerUrl: {
+        'com.apple.fps':
+            'https://drm-fairplay-licensing.axprod.net/AcquireLicense',
+    },
+    serverCertificate:
+        'https://fp-keyos.licensekeyserver.com/cert/a32f2762391043329972379354a32b31.der',
+    headers: [],
+    queryParams: [],
+};
+
 export const exampleStreams = [
     // --- DASH VOD ---
     {
-        name: 'Big Buck Bunny (4K, VOD)',
-        url: 'https://dash.akamaized.net/akamai/bbb_30fps/bbb_30fps.mpd',
-        protocol: 'dash',
-        type: 'vod',
-        source: 'DASH-IF',
-        category: 'Basic VOD',
-    },
-    {
-        name: 'Art of Motion (WEBM, VP9)',
-        url: 'https://storage.googleapis.com/shaka-demo-assets/art-of-motion-vp9/mpd.mpd',
-        protocol: 'dash',
-        type: 'vod',
-        source: 'Shaka Player',
-        category: 'Basic VOD',
-    },
-    {
-        name: 'Sintel (Multi-period)',
-        url: 'https://storage.googleapis.com/shaka-demo-assets/sintel/dash.mpd',
-        protocol: 'dash',
-        type: 'vod',
-        source: 'Shaka Player',
-        category: 'Advanced VOD',
-    },
-    {
-        name: 'Multi-key Widevine/PlayReady DRM',
-        url: 'https://media.axprod.net/TestVectors/v7-MultiDRM-MultiKey/Manifest.mpd',
+        name: 'V10: H.264 Single-Key (DASH)',
+        url: 'https://media.axprod.net/TestVectors/Dash/protected_dash_1080p_h264_singlekey/manifest.mpd',
         protocol: 'dash',
         type: 'vod',
         source: 'Axinom',
-        category: 'DRM',
+        category: 'DASH VOD',
+        drmAuth: createDrmAuth(v10Tokens.dashH264SingleKey),
     },
     {
-        name: 'AC-4 Immersive Audio',
-        url: 'https://dash.dolby.com/Content/AC4_Com_A_IMD/stream.mpd',
+        name: 'V10: H.264 Multi-Key (DASH)',
+        url: 'https://media.axprod.net/TestVectors/MultiKey/Dash_h264_1080p_cenc/manifest.mpd',
         protocol: 'dash',
         type: 'vod',
-        source: 'Dolby',
-        category: 'Advanced VOD',
+        source: 'Axinom',
+        category: 'DASH VOD',
+        drmAuth: createDrmAuth(v10Tokens.dashH264MultiKey),
+    },
+    {
+        name: 'V10: H.264 Clear (DASH)',
+        url: 'https://media.axprod.net/TestVectors/Dash/not_protected_dash_1080p_h264/manifest.mpd',
+        protocol: 'dash',
+        type: 'vod',
+        source: 'Axinom',
+        category: 'DASH VOD',
+    },
+    {
+        name: 'V10: H.265 Single-Key (DASH)',
+        url: 'https://media.axprod.net/TestVectors/H265/protected_dash_1080p_h265_singlekey/manifest.mpd',
+        protocol: 'dash',
+        type: 'vod',
+        source: 'Axinom',
+        category: 'DASH VOD',
+        drmAuth: createDrmAuth(v10Tokens.dashH265SingleKey),
+    },
+    {
+        name: 'V10: H.265 Multi-Key (DASH)',
+        url: 'https://media.axprod.net/TestVectors/H265/protected_dash_1080p_h265_multikey/manifest.mpd',
+        protocol: 'dash',
+        type: 'vod',
+        source: 'Axinom',
+        category: 'DASH VOD',
+        drmAuth: createDrmAuth(v10Tokens.dashH265MultiKey),
+    },
+    {
+        name: 'V10: H.265 Clear (DASH)',
+        url: 'https://media.axprod.net/TestVectors/H265/clear_dash_1080p_h265/manifest.mpd',
+        protocol: 'dash',
+        type: 'vod',
+        source: 'Axinom',
+        category: 'DASH VOD',
+    },
+    {
+        name: 'V10: H.264 Single-Key (CMAF/DASH)',
+        url: 'https://media.axprod.net/TestVectors/Cmaf/protected_1080p_h264_cbcs/manifest.mpd',
+        protocol: 'dash',
+        type: 'vod',
+        source: 'Axinom',
+        category: 'DASH VOD',
+        drmAuth: createDrmAuth(v10Tokens.h264SingleKey),
+    },
+    {
+        name: 'V10: H.264 Multi-Key (CMAF/DASH)',
+        url: 'https://media.axprod.net/TestVectors/MultiKey/Cmaf_h264_1080p_cbcs/manifest.mpd',
+        protocol: 'dash',
+        type: 'vod',
+        source: 'Axinom',
+        category: 'DASH VOD',
+        drmAuth: createDrmAuth(v10Tokens.h264MultiKey),
+    },
+    {
+        name: 'V10: H.264 Clear (CMAF/DASH)',
+        url: 'https://media.axprod.net/TestVectors/Cmaf/clear_1080p_h264/manifest.mpd',
+        protocol: 'dash',
+        type: 'vod',
+        source: 'Axinom',
+        category: 'DASH VOD',
+    },
+    {
+        name: 'V10: H.265 Single-Key (CMAF/DASH)',
+        url: 'https://media.axprod.net/TestVectors/H265/protected_cmaf_1080p_h265_singlekey/manifest.mpd',
+        protocol: 'dash',
+        type: 'vod',
+        source: 'Axinom',
+        category: 'DASH VOD',
+        drmAuth: createDrmAuth(v10Tokens.h265SingleKey),
+    },
+    {
+        name: 'V10: H.265 Multi-Key (CMAF/DASH)',
+        url: 'https://media.axprod.net/TestVectors/H265/protected_cmaf_1080p_h265_multikey/manifest.mpd',
+        protocol: 'dash',
+        type: 'vod',
+        source: 'Axinom',
+        category: 'DASH VOD',
+        drmAuth: createDrmAuth(v10Tokens.h265MultiKey),
+    },
+    {
+        name: 'V10: H.265 Clear (CMAF/DASH)',
+        url: 'https://media.axprod.net/TestVectors/H265/clear_cmaf_1080p_h265/manifest.mpd',
+        protocol: 'dash',
+        type: 'vod',
+        source: 'Axinom',
+        category: 'DASH VOD',
     },
 
     // --- DASH Live ---
     {
-        name: 'Live Simulation (SegmentTemplate)',
+        name: 'DASH-IF: Live Simulation',
         url: 'https://livesim.dashif.org/livesim/testpic_2s/Manifest.mpd',
         protocol: 'dash',
         type: 'live',
         source: 'DASH-IF',
-        category: 'Live',
+        category: 'DASH Live',
     },
     {
-        name: 'Live Simulation (SegmentTimeline)',
-        url: 'https://livesim.dashif.org/livesim/segtimeline_1/testpic_2s/Manifest.mpd',
-        protocol: 'dash',
-        type: 'live',
-        source: 'DASH-IF',
-        category: 'Live',
-    },
-    {
-        name: 'Low-Latency (Chunked CMAF)',
-        url: 'https://livesim.dashif.org/livesim-chunked/testpic_2s/Manifest.mpd',
-        protocol: 'dash',
-        type: 'live',
-        source: 'DASH-IF',
-        category: 'Low-Latency',
-    },
-    {
-        name: 'SCTE-35 Events',
+        name: 'DASH-IF: SCTE-35 Ad Insertion (Live)',
         url: 'https://livesim.dashif.org/livesim/scte35_2/testpic_2s/Manifest.mpd',
         protocol: 'dash',
         type: 'live',
         source: 'DASH-IF',
-        category: 'Ad Insertion',
-    },
-    {
-        name: 'Live w/ Ad Breaks (AWS)',
-        url: 'https://d2qohgpffhaffh.cloudfront.net/HLS/vanlife/withad/sdr_wide/master.mpd',
-        protocol: 'dash',
-        type: 'live',
-        source: 'AWS',
-        category: 'Ad Insertion',
+        category: 'DASH Live',
     },
 
     // --- HLS VOD ---
     {
-        name: 'Big Buck Bunny (fMP4)',
-        url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
+        name: 'V10: H.264 Single-Key (HLS)',
+        url: 'https://media.axprod.net/TestVectors/Hls/protected_hls_1080p_h264_singlekey/manifest.m3u8',
         protocol: 'hls',
         type: 'vod',
-        source: 'Mux',
-        category: 'Basic VOD',
+        source: 'Axinom',
+        category: 'HLS VOD',
+        drmAuth: createDrmAuth(v10Tokens.dashH264SingleKey),
     },
     {
-        name: 'Bip-Bop (HEVC + AVC)',
-        url: 'https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_adv_example_hevc/master.m3u8',
+        name: 'V10: H.264 Multi-Key (HLS)',
+        url: 'https://media.axprod.net/TestVectors/MultiKey/Hls_h264_1080p_cenc/manifest.m3u8',
+        protocol: 'hls',
+        type: 'vod',
+        source: 'Axinom',
+        category: 'HLS VOD',
+        drmAuth: createDrmAuth(v10Tokens.dashH264MultiKey),
+    },
+    {
+        name: 'V10: H.264 Clear (HLS)',
+        url: 'https://media.axprod.net/TestVectors/Hls/not_protected_hls_1080p_h264/manifest.m3u8',
+        protocol: 'hls',
+        type: 'vod',
+        source: 'Axinom',
+        category: 'HLS VOD',
+    },
+    {
+        name: 'V10: H.265 Single-Key (HLS)',
+        url: 'https://media.axprod.net/TestVectors/H265/protected_hls_1080p_h265_singlekey/manifest.m3u8',
+        protocol: 'hls',
+        type: 'vod',
+        source: 'Axinom',
+        category: 'HLS VOD',
+        drmAuth: createDrmAuth(v10Tokens.dashH265SingleKey),
+    },
+    {
+        name: 'V10: H.265 Multi-Key (HLS)',
+        url: 'https://media.axprod.net/TestVectors/H265/protected_hls_1080p_h265_multikey/manifest.m3u8',
+        protocol: 'hls',
+        type: 'vod',
+        source: 'Axinom',
+        category: 'HLS VOD',
+        drmAuth: createDrmAuth(v10Tokens.dashH265MultiKey),
+    },
+    {
+        name: 'V10: H.265 Clear (HLS)',
+        url: 'https://media.axprod.net/TestVectors/H265/clear_hls_1080p_h265/manifest.m3u8',
+        protocol: 'hls',
+        type: 'vod',
+        source: 'Axinom',
+        category: 'HLS VOD',
+    },
+    {
+        name: 'V10: H.264 Single-Key (CMAF/HLS)',
+        url: 'https://media.axprod.net/TestVectors/Cmaf/protected_1080p_h264_cbcs/manifest.m3u8',
+        protocol: 'hls',
+        type: 'vod',
+        source: 'Axinom',
+        category: 'HLS VOD',
+        drmAuth: createDrmAuth(v10Tokens.h264SingleKey),
+    },
+    {
+        name: 'V10: H.264 Multi-Key (CMAF/HLS)',
+        url: 'https://media.axprod.net/TestVectors/MultiKey/Cmaf_h264_1080p_cbcs/manifest.m3u8',
+        protocol: 'hls',
+        type: 'vod',
+        source: 'Axinom',
+        category: 'HLS VOD',
+        drmAuth: createDrmAuth(v10Tokens.h264MultiKey),
+    },
+    {
+        name: 'V10: H.264 Clear (CMAF/HLS)',
+        url: 'https://media.axprod.net/TestVectors/Cmaf/clear_1080p_h264/manifest.m3u8',
+        protocol: 'hls',
+        type: 'vod',
+        source: 'Axinom',
+        category: 'HLS VOD',
+    },
+    {
+        name: 'V10: H.265 Single-Key (CMAF/HLS)',
+        url: 'https://media.axprod.net/TestVectors/H265/protected_cmaf_1080p_h265_singlekey/manifest.m3u8',
+        protocol: 'hls',
+        type: 'vod',
+        source: 'Axinom',
+        category: 'HLS VOD',
+        drmAuth: createDrmAuth(v10Tokens.h265SingleKey),
+    },
+    {
+        name: 'V10: H.265 Multi-Key (CMAF/HLS)',
+        url: 'https://media.axprod.net/TestVectors/H265/protected_cmaf_1080p_h265_multikey/manifest.m3u8',
+        protocol: 'hls',
+        type: 'vod',
+        source: 'Axinom',
+        category: 'HLS VOD',
+        drmAuth: createDrmAuth(v10Tokens.h265MultiKey),
+    },
+    {
+        name: 'V10: H.265 Clear (CMAF/HLS)',
+        url: 'https://media.axprod.net/TestVectors/H265/clear_cmaf_1080p_h265/manifest.m3u8',
+        protocol: 'hls',
+        type: 'vod',
+        source: 'Axinom',
+        category: 'HLS VOD',
+    },
+    {
+        name: 'Apple: BipBop (HEVC + AVC)',
+        url: 'https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_4x3/bipbop_4x3_variant.m3u8',
         protocol: 'hls',
         type: 'vod',
         source: 'Apple',
-        category: 'Basic VOD',
+        category: 'HLS VOD',
     },
     {
-        name: 'Multiple Audio & Subtitle Tracks',
-        url: 'https://storage.googleapis.com/shaka-demo-assets/angel-one-hls/hls.m3u8',
+        name: 'Apple: FairPlay DRM',
+        url: 'https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_encrypted/master.m3u8',
         protocol: 'hls',
         type: 'vod',
-        source: 'Shaka Player',
-        category: 'Advanced VOD',
-    },
-    {
-        name: 'FairPlay DRM (fMP4)',
-        url: 'https://storage.googleapis.com/shaka-demo-assets/angel-one-fairplay/hls.m3u8',
-        protocol: 'hls',
-        type: 'vod',
-        source: 'Shaka Player',
-        category: 'DRM',
-    },
-    {
-        name: 'AES-128 Encrypted (TS)',
-        url: 'https://playertest.longtailvideo.com/adaptive/oceans_aes/oceans_aes.m3u8',
-        protocol: 'hls',
-        type: 'vod',
-        source: 'JW Player',
-        category: 'DRM',
+        source: 'Apple',
+        category: 'HLS VOD',
+        drmAuth: appleFairPlayDrmAuth,
     },
 
     // --- HLS Live ---
     {
-        name: 'Low-Latency HLS (LL-HLS)',
-        url: 'https://stream.mux.com/v69RSHhFelSm4701snP22dYz2jICy4E4FUyk02rW4gxRM.m3u8',
+        name: 'Apple: Advanced stream (Live)',
+        url: 'https://devstreaming-cdn.apple.com/videos/streaming/examples/adv_dv_atmos/main.m3u8',
         protocol: 'hls',
         type: 'live',
-        source: 'Mux',
-        category: 'Low-Latency',
-    },
-    {
-        name: 'Tears of Steel (Live)',
-        url: 'https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8',
-        protocol: 'hls',
-        type: 'live',
-        source: 'Unified Streaming',
-        category: 'Live',
-    },
-    {
-        name: 'Live w/ DATERANGE & SCTE-35',
-        url: 'https://d2qohgpffhaffh.cloudfront.net/HLS/vanlife/withad/sdr_wide/master.m3u8',
-        protocol: 'hls',
-        type: 'live',
-        source: 'AWS',
-        category: 'Ad Insertion',
-    },
-    {
-        name: 'Content Steering',
-        url: 'https://demo.unified-streaming.com/k8s/live/stable/scte35.isml/.m3u8?hls.content_steering=https://demo.unified-streaming.com/k8s/steering/master.json',
-        protocol: 'hls',
-        type: 'live',
-        source: 'Unified Streaming',
-        category: 'Advanced Live',
+        source: 'Apple',
+        category: 'HLS Live',
     },
 ];

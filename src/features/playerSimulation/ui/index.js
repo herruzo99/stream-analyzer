@@ -1,7 +1,7 @@
 import { html, render } from 'lit-html';
 import { playerService } from '../application/playerService.js';
 import { useAnalysisStore } from '@/state/analysisStore';
-import { usePlayerStore } from '@/state/playerStore';
+import { usePlayerStore, playerActions } from '@/state/playerStore';
 import { eventBus } from '@/application/event-bus';
 import 'shaka-player/dist/controls.css';
 import * as echarts from 'echarts';
@@ -69,6 +69,9 @@ export const playerView = {
     hasContextualSidebar: true,
 
     activate(stream) {
+        // Pre-populate the player store with tracks from the manifest IR.
+        playerActions.setInitialTracksFromManifest(stream.manifest);
+
         if (playerService.isInitialized && stream?.originalUrl) {
             const player = playerService.getPlayer();
             const currentAsset = player?.getAssetUri();

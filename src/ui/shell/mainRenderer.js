@@ -109,14 +109,8 @@ export function renderApp() {
                 `View change detected. From: ${previousViewKey}, To: ${currentViewKey}. Stream changed: ${streamIdChanged}`
             );
 
-            // --- ARCHITECTURAL FIX: Prevent re-entrant unmount loop ---
-            // Update the current view key *before* unmounting. This ensures that if
-            // the unmount logic triggers a state change and a re-render, this
-            // block will not execute again for the same view transition, breaking
-            // the infinite recursion.
             currentMountedViewKey = currentViewKey;
             currentMountedStreamId = activeStream?.id;
-            // --- END FIX ---
 
             const oldView = viewMap[previousViewKey];
             const newView = viewMap[currentViewKey];
@@ -132,15 +126,20 @@ export function renderApp() {
 
             if (oldView) {
                 if (
-                    previousViewKey === 'player-simulation' &&
-                    newView !== playerView
+                    (previousViewKey === 'player-simulation' &&
+                        newView !== playerView) ||
+                    (previousViewKey === 'multi-player' &&
+                        newView !== multiPlayerView)
                 ) {
                     debugLog(
                         'MainRenderer',
-                        `Deactivating persistent player view: ${previousViewKey}`
+                        `Deactivating persistent view: ${previousViewKey}`
                     );
                     oldView.deactivate?.();
-                } else if (oldView !== playerView) {
+                } else if (
+                    oldView !== playerView &&
+                    oldView !== multiPlayerView
+                ) {
                     debugLog(
                         'MainRenderer',
                         `Unmounting view: ${previousViewKey}`
@@ -159,12 +158,17 @@ export function renderApp() {
                     newView === playerView
                 );
 
-                if (newView === playerView) {
+                if (newView === playerView || newView === multiPlayerView) {
                     debugLog(
                         'MainRenderer',
-                        `Activating persistent player view: ${currentViewKey}`
+                        `Activating persistent view: ${currentViewKey}`
                     );
-                    newView.activate?.(activeStream);
+                    if (newView === playerView) {
+                        newView.activate?.(activeStream);
+                    } else {
+                        // newView must be multiPlayerView
+                        newView.activate?.(mainContentContainer);
+                    }
                 } else {
                     debugLog(
                         'MainRenderer',
@@ -190,9 +194,10 @@ export function renderApp() {
         if (isShellRendered) {
             debugLog(
                 'MainRenderer',
-                'Transitioning from results to input view. Unmounting player.'
+                'Transitioning from results to input view. Unmounting persistent views.'
             );
             playerView.unmount();
+            multiPlayerView.unmount();
             if (viewMap[currentMountedViewKey]) {
                 viewMap[currentMountedViewKey].unmount?.();
             }

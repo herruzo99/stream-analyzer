@@ -43,28 +43,32 @@ export function parseSdtp(box, view) {
         offset: 0,
         length: 0,
     };
-
     box.entries = [];
 
     if (sampleCount > 0) {
         for (let i = 0; i < sampleCount; i++) {
             if (p.stopped) break;
 
-            const byte = p.readUint8(`sample_${i}_flags_byte`);
+            const flagByteField = `sample_${i}_flags_byte`;
+            const byte = p.readUint8(flagByteField);
             if (byte === null) break;
+            box.details[flagByteField].internal = true;
 
-            const isLeading = (byte >> 6) & 0x03;
-            const dependsOn = (byte >> 4) & 0x03;
-            const isDependedOn = (byte >> 2) & 0x03;
-            const hasRedundancy = byte & 0x03;
+            const is_leading = (byte >> 6) & 0x03;
+            const sample_depends_on = (byte >> 4) & 0x03;
+            const sample_is_depended_on = (byte >> 2) & 0x03;
+            const sample_has_redundancy = byte & 0x03;
 
             box.entries.push({
-                isLeading: IS_LEADING_MAP[isLeading] || 'Reserved',
-                dependsOn: SAMPLE_DEPENDS_ON_MAP[dependsOn] || 'Reserved',
-                isDependedOn:
-                    SAMPLE_IS_DEPENDED_ON_MAP[isDependedOn] || 'Reserved',
-                hasRedundancy:
-                    SAMPLE_HAS_REDUNDANCY_MAP[hasRedundancy] || 'Reserved',
+                is_leading: IS_LEADING_MAP[is_leading] || 'Reserved',
+                sample_depends_on:
+                    SAMPLE_DEPENDS_ON_MAP[sample_depends_on] || 'Reserved',
+                sample_is_depended_on:
+                    SAMPLE_IS_DEPENDED_ON_MAP[sample_is_depended_on] ||
+                    'Reserved',
+                sample_has_redundancy:
+                    SAMPLE_HAS_REDUNDANCY_MAP[sample_has_redundancy] ||
+                    'Reserved',
             });
         }
     }

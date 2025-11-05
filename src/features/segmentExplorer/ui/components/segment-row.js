@@ -153,7 +153,7 @@ export const segmentRowTemplate = (
     const isChecked = segmentsForCompare.some(
         (s) => s.segmentUniqueId === seg.uniqueId
     );
-    const isLoaded = cacheEntry && cacheEntry.status === 200;
+    const isLoaded = cacheEntry && cacheEntry.status >= 200 && cacheEntry.status < 300;
     const isInCurrentManifest =
         seg.type === 'Init' || currentSegmentUrls.has(seg.uniqueId);
     const isStaleByTime =
@@ -174,7 +174,7 @@ export const segmentRowTemplate = (
                 ></div>`,
                 label: 'Loading',
             };
-        if (cacheEntry?.status !== 200 && cacheEntry) {
+        if (cacheEntry && !isLoaded) {
             const statusText =
                 cacheEntry.status === 0
                     ? 'Network Error'
@@ -186,7 +186,7 @@ export const segmentRowTemplate = (
                 label: `Error (${statusText})`,
             };
         }
-        if (cacheEntry?.status === 200) {
+        if (isLoaded) {
             if (!isInCurrentManifest)
                 return {
                     icon: html`<div

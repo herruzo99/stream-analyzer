@@ -9,6 +9,7 @@ import { toggleDropdown } from '@/ui/services/dropdownService';
 import {
     audioSelectionPanelTemplate,
     textSelectionPanelTemplate,
+    videoSelectionPanelTemplate,
 } from '@/features/playerSimulation/ui/components/track-selection-dropdown';
 import { formatBitrate } from '@/ui/shared/format';
 import { connectedTabBar } from '@/ui/components/tabs';
@@ -79,8 +80,13 @@ export class PlayerCardComponent extends HTMLElement {
         }
         // When the card is removed from the DOM, destroy its associated player.
         multiPlayerService.destroyPlayer(this.streamId);
-        const videoElement = multiPlayerService.videoElements.get(this.streamId);
-        if (videoElement && videoElement.parentElement === this.videoElementContainer) {
+        const videoElement = multiPlayerService.videoElements.get(
+            this.streamId
+        );
+        if (
+            videoElement &&
+            videoElement.parentElement === this.videoElementContainer
+        ) {
             this.videoElementContainer.removeChild(videoElement);
         }
     }
@@ -92,20 +98,29 @@ export class PlayerCardComponent extends HTMLElement {
             globalAbrEnabled: state.globalAbrEnabled,
             activeTab: state.playerCardTabs.get(this.streamId) || 'stats',
         });
-        
+
         const listener = (state) => {
             const newState = selector(state);
 
-            if (newState.player && !multiPlayerService.players.has(this.streamId)) {
+            if (
+                newState.player &&
+                !multiPlayerService.players.has(this.streamId)
+            ) {
                 multiPlayerService.createVideoElement(this.streamId);
                 multiPlayerService.createAndLoadPlayer(newState.player);
             }
+
+            const tracksChanged =
+                newState.player?.variantTracks !==
+                this.lastRenderedState.player?.variantTracks;
 
             if (
                 newState.player !== this.lastRenderedState.player ||
                 newState.isHovered !== this.lastRenderedState.isHovered ||
                 newState.activeTab !== this.lastRenderedState.activeTab ||
-                newState.globalAbrEnabled !== this.lastRenderedState.globalAbrEnabled
+                newState.globalAbrEnabled !==
+                    this.lastRenderedState.globalAbrEnabled ||
+                tracksChanged
             ) {
                 this.lastRenderedState = newState;
                 this.renderComponent(newState);
@@ -113,7 +128,7 @@ export class PlayerCardComponent extends HTMLElement {
         };
 
         this.unsubscribe = useMultiPlayerStore.subscribe(listener);
-        
+
         listener(useMultiPlayerStore.getState());
     }
 
@@ -122,9 +137,15 @@ export class PlayerCardComponent extends HTMLElement {
         const player = this.lastRenderedState.player;
         const globalAbrEnabled = this.lastRenderedState.globalAbrEnabled;
         if (!player) return;
-        const isAbrEffectivelyEnabled = player.abrOverride === null ? globalAbrEnabled : player.abrOverride;
+        const isAbrEffectivelyEnabled =
+            player.abrOverride === null
+                ? globalAbrEnabled
+                : player.abrOverride;
         const newAbrState = !isAbrEffectivelyEnabled;
-        eventBus.dispatch('ui:player:set-abr-enabled', { streamId: player.streamId, enabled: newAbrState });
+        eventBus.dispatch('ui:player:set-abr-enabled', {
+            streamId: player.streamId,
+            enabled: newAbrState,
+        });
     }
 
     _handleAudioDropdown(e) {
@@ -132,21 +153,28 @@ export class PlayerCardComponent extends HTMLElement {
         if (!player) return;
         toggleDropdown(
             e.currentTarget,
-            () => audioSelectionPanelTemplate(player.audioTracks, this.streamId),
+            () =>
+                audioSelectionPanelTemplate(player.audioTracks, this.streamId),
             e
         );
     }
 
     _handleSync() {
-        eventBus.dispatch('ui:multi-player:sync-all-to', { streamId: this.streamId });
+        eventBus.dispatch('ui:multi-player:sync-all-to', {
+            streamId: this.streamId,
+        });
     }
 
     _handleDuplicate() {
-        eventBus.dispatch('ui:multi-player:duplicate-stream', { streamId: this.streamId });
+        eventBus.dispatch('ui:multi-player:duplicate-stream', {
+            streamId: this.streamId,
+        });
     }
 
     _handleRemove() {
-        eventBus.dispatch('ui:multi-player:remove-stream', { streamId: this.streamId });
+        eventBus.dispatch('ui:multi-player:remove-stream', {
+            streamId: this.streamId,
+        });
     }
 
     _handleMouseOver() {
@@ -164,18 +192,26 @@ export class PlayerCardComponent extends HTMLElement {
             return;
         }
 
-        const videoElement = multiPlayerService.videoElements.get(player.streamId);
-        if (videoElement && videoElement.parentElement !== this.videoElementContainer) {
+        const videoElement = multiPlayerService.videoElements.get(
+            player.streamId
+        );
+        if (
+            videoElement &&
+            videoElement.parentElement !== this.videoElementContainer
+        ) {
             this.videoElementContainer.appendChild(videoElement);
         }
 
-        const { cards } = createMultiPlayerGridViewModel(new Map([[player.streamId, player]]));
+        const { cards } = createMultiPlayerGridViewModel(
+            new Map([[player.streamId, player]])
+        );
         const vm = cards[0];
         if (!vm) return;
 
-
         const { players } = useMultiPlayerStore.getState();
-        const group = Array.from(players.values()).filter(p => p.sourceStreamId === player.sourceStreamId);
+        const group = Array.from(players.values()).filter(
+            (p) => p.sourceStreamId === player.sourceStreamId
+        );
         this.isLastInGroup = group.length <= 1;
 
         const stateColors = {
@@ -227,8 +263,11 @@ export class PlayerCardComponent extends HTMLElement {
                     : ''}
             </div>
         `;
-        
-        const isAbrEffectivelyEnabled = player.abrOverride === null ? globalAbrEnabled : player.abrOverride;
+
+        const isAbrEffectivelyEnabled =
+            player.abrOverride === null
+                ? globalAbrEnabled
+                : player.abrOverride;
         const hasOverrides = player.abrOverride !== null;
 
         const tabs = [
@@ -237,49 +276,60 @@ export class PlayerCardComponent extends HTMLElement {
                 key: 'controls',
                 label: 'Controls',
                 indicator: hasOverrides
-                    ? html`<span class="text-yellow-400">${icons.slidersHorizontal}</span>`
+                    ? html`<span class="text-yellow-400"
+                          >${icons.slidersHorizontal}</span
+                      >`
                     : '',
             },
         ];
         const onTabClick = (tab) => {
-            eventBus.dispatch('ui:multi-player:set-card-tab', { streamId: this.streamId, tab });
+            eventBus.dispatch('ui:multi-player:set-card-tab', {
+                streamId: this.streamId,
+                tab,
+            });
         };
 
-        const activeVideoTrack = player.variantTracks.find((t) => t.active);
+        const activeVideoTrack = player.activeVideoTrack;
+
+        const videoTrackLabel = isAbrEffectivelyEnabled
+            ? 'Auto (ABR)'
+            : activeVideoTrack
+              ? `${activeVideoTrack.height}p`
+              : 'Video';
+        const videoTrackSubtext = isAbrEffectivelyEnabled
+            ? 'Adapting to network'
+            : activeVideoTrack
+              ? formatBitrate(activeVideoTrack.bandwidth)
+              : 'N/A';
         const activeAudioTrack = player.audioTracks.find((t) => t.active);
 
-        const isPlayerLoading = player.state === 'idle' || player.state === 'loading';
-
-        const videoTrackInfo = html`
-            <div class="flex items-center justify-between rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-left">
-                 <span class="grid flex-1 grid-cols-1 overflow-hidden">
-                    <span class="truncate text-sm font-semibold text-slate-100"
-                        >Video: ${activeVideoTrack ? `${activeVideoTrack.height}p` : 'N/A'}</span
-                    >
-                    <span class="truncate text-xs text-slate-400">${activeVideoTrack ? formatBitrate(activeVideoTrack.bandwidth) : 'N/A'}</span>
-                </span>
-            </div>
-        `;
+        const isPlayerLoading =
+            player.state === 'idle' || player.state === 'loading';
 
         const controlsContent = html` <div class="p-3 space-y-3">
-            <div class="flex justify-between items-center">
-                <label class="font-semibold text-slate-300 text-sm">ABR Mode Override</label>
-                <button
-                    @click=${this._handleAbrToggle}
-                    class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50"
-                    ?disabled=${isPlayerLoading}
-                    title="Override global ABR setting for this player"
-                >
-                    <span class="absolute inset-0 rounded-full ${isAbrEffectivelyEnabled ? 'bg-blue-600' : 'bg-slate-600'}"></span>
-                    <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isAbrEffectivelyEnabled ? 'translate-x-6' : 'translate-x-1'}"></span>
-                </button>
-            </div>
-
-            ${!isAbrEffectivelyEnabled ? videoTrackInfo : ''}
-
             ${dropdownButton(
-                activeAudioTrack?.label || activeAudioTrack?.language || 'Audio',
-                activeAudioTrack ? `Role: ${activeAudioTrack.roles.join(', ') || 'main'}` : 'N/A',
+                videoTrackLabel,
+                videoTrackSubtext,
+                (e) =>
+                    toggleDropdown(
+                        e.currentTarget,
+                        () =>
+                            videoSelectionPanelTemplate(
+                                player.variantTracks,
+                                isAbrEffectivelyEnabled,
+                                player.streamId
+                            ),
+                        e
+                    ),
+                isPlayerLoading
+            )}
+            ${dropdownButton(
+                activeAudioTrack?.label ||
+                    activeAudioTrack?.language ||
+                    'Audio',
+                activeAudioTrack
+                    ? `Role: ${activeAudioTrack.roles.join(', ') || 'main'}`
+                    : 'N/A',
                 this._handleAudioDropdown,
                 isPlayerLoading
             )}
@@ -300,30 +350,77 @@ export class PlayerCardComponent extends HTMLElement {
                 'hover:bg-slate-700': !disabled,
                 'text-slate-600': disabled,
                 'cursor-not-allowed': disabled,
-                'p-1.5': true, 'rounded-full': true, 'transition-colors': true
+                'p-1.5': true,
+                'rounded-full': true,
+                'transition-colors': true,
             });
-            return html`<button @click=${disabled ? null : action} title=${title} class=${classes} ?disabled=${disabled}>${icon}</button>`;
+            return html`<button
+                @click=${disabled ? null : action}
+                title=${title}
+                class=${classes}
+                ?disabled=${disabled}
+            >
+                ${icon}
+            </button>`;
         };
 
         const template = html`
-            <style>:host { display: contents; }</style>
-            <div class=${cardClasses} @mouseover=${this._handleMouseOver} @mouseout=${this._handleMouseOut}>
+            <style>
+                :host {
+                    display: contents;
+                }
+            </style>
+            <div
+                class=${cardClasses}
+                @mouseover=${this._handleMouseOver}
+                @mouseout=${this._handleMouseOut}
+            >
                 ${videoContainer}
                 <div class="p-3 text-xs">
                     <header class="flex items-start justify-between gap-2">
-                        <h4 class="font-bold text-slate-200 text-sm truncate" title=${vm.streamName}>${vm.streamName}</h4>
+                        <h4
+                            class="font-bold text-slate-200 text-sm truncate"
+                            title=${vm.streamName}
+                        >
+                            ${vm.streamName}
+                        </h4>
                         <div class="flex items-center gap-1 shrink-0">
-                            <span class="font-semibold ${vm.error ? 'text-red-400' : 'text-slate-300'}">${vm.state.toUpperCase()}</span>
-                            <div class="w-3 h-3 rounded-full ${stateColors[vm.state] || 'bg-slate-600'}" title="Status: ${vm.state}"></div>
-                            ${actionButton(icons.syncMaster, 'Sync All to This', this._handleSync)}
-                            ${actionButton(icons.clipboardCopy, 'Duplicate Player', this._handleDuplicate)}
-                            ${actionButton(icons.xCircle, 'Remove Player', this._handleRemove, this.isLastInGroup)}
+                            <span
+                                class="font-semibold ${vm.error
+                                    ? 'text-red-400'
+                                    : 'text-slate-300'}"
+                                >${vm.state.toUpperCase()}</span
+                            >
+                            <div
+                                class="w-3 h-3 rounded-full ${stateColors[
+                                    vm.state
+                                ] || 'bg-slate-600'}"
+                                title="Status: ${vm.state}"
+                            ></div>
+                            ${actionButton(
+                                icons.syncMaster,
+                                'Sync All to This',
+                                this._handleSync
+                            )}
+                            ${actionButton(
+                                icons.clipboardCopy,
+                                'Duplicate Player',
+                                this._handleDuplicate
+                            )}
+                            ${actionButton(
+                                icons.xCircle,
+                                'Remove Player',
+                                this._handleRemove,
+                                this.isLastInGroup
+                            )}
                         </div>
                     </header>
                 </div>
                 <div class="border-t border-slate-700 mt-auto">
                     ${connectedTabBar(tabs, activeTab, onTabClick)}
-                    <div class="bg-slate-900 rounded-b-lg border-x border-b border-slate-700 min-h-[160px]">
+                    <div
+                        class="bg-slate-900 rounded-b-lg border-x border-b border-slate-700 min-h-[160px]"
+                    >
                         ${activeTab === 'stats' ? statsContent : controlsContent}
                     </div>
                 </div>

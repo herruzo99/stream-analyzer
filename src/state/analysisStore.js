@@ -6,6 +6,7 @@ import {
     prepareForStorage,
     restoreFromStorage,
 } from '@/infrastructure/persistence/streamStorage';
+import { useMultiPlayerStore } from './multiPlayerStore.js';
 
 // --- Type Definitions ---
 /** @typedef {import('@/types.ts').Stream} Stream */
@@ -32,7 +33,7 @@ import {
 /**
  * @typedef {object} AnalysisActions
  * @property {() => void} startAnalysis
- * @property {(streams: Stream[], urlAuthMapArray: [string, {streamId: number, auth: AuthInfo}][]) => void} completeAnalysis
+ * @property {(streams: Stream[], urlAuthMapArray: [string, {streamId: number, auth: AuthInfo}][], inputs: StreamInput[]) => void} completeAnalysis
  * @property {(streamId: number) => void} setActiveStreamId
  * @property {(updateId: string) => void} setActiveManifestUpdate
  * @property {(id: string) => void} setActiveSegmentUrl
@@ -83,18 +84,11 @@ export const useAnalysisStore = createStore((set, get) => ({
     },
 
     startAnalysis: () => {
-        const initialState = createInitialAnalysisState();
-        set({
-            streams: initialState.streams,
-            activeStreamId: initialState.activeStreamId,
-            segmentsForCompare: initialState.segmentsForCompare,
-            decodedSamples: initialState.decodedSamples,
-            urlAuthMap: initialState.urlAuthMap,
-        });
+        set(createInitialAnalysisState());
         uiActions.reset();
     },
 
-    completeAnalysis: (streams, urlAuthMapArray) => {
+    completeAnalysis: (streams, urlAuthMapArray, inputs) => {
         const fullyFormedStreams = streams.map((s) => {
             const newStream = { ...s };
 
@@ -161,7 +155,12 @@ export const useAnalysisStore = createStore((set, get) => ({
             streams: fullyFormedStreams,
             activeStreamId: fullyFormedStreams[0]?.id ?? null,
             urlAuthMap: new Map(urlAuthMapArray),
+            streamInputs: inputs,
+            activeStreamInputId: inputs.length > 0 ? inputs[0].id : null,
         });
+        
+        useMultiPlayerStore.getState().initializePlayers(fullyFormedStreams);
+
         eventBus.dispatch('state:analysis-complete', {
             streams: get().streams,
         });

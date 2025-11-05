@@ -25,6 +25,7 @@ import { createStore } from 'zustand/vanilla';
  * @property {object[]} variantTracks
  * @property {object[]} audioTracks
  * @property {object[]} textTracks
+ * @property {object | null} activeVideoTrack
  * @property {{start: number, end: number}} seekableRange
  * @property {number} normalizedPlayheadTime
  */
@@ -46,6 +47,7 @@ import { createStore } from 'zustand/vanilla';
 
 /**
  * @typedef {object} MultiPlayerActions
+ * @property {(streams: import('@/types').Stream[]) => void} initializePlayers
  * @property {(sourceStreamId: number, streamName: string, manifestUrl: string, streamType: 'live' | 'vod') => number} addPlayer
  * @property {(streamId: number) => void} removePlayer
  * @property {(streamId: number, updates: Partial<PlayerInstance>) => void} updatePlayerState
@@ -107,6 +109,52 @@ const createInitialState = () => ({
 
 export const useMultiPlayerStore = createStore((set, get) => ({
     ...createInitialState(),
+
+    initializePlayers: (streams) => {
+        const newPlayers = new Map();
+        const newTabs = new Map();
+        let streamIdCounter = 0;
+        for (const stream of streams) {
+            const streamId = streamIdCounter++;
+            const streamType =
+                stream.manifest?.type === 'dynamic' ? 'live' : 'vod';
+
+            const variantTracks = [];
+            const audioTracks = [];
+            const textTracks = [];
+
+            newPlayers.set(streamId, {
+                streamId: streamId,
+                sourceStreamId: stream.id,
+                streamName: stream.name,
+                manifestUrl: stream.originalUrl,
+                streamType,
+                state: 'idle',
+                error: null,
+                stats: defaultStats,
+                playbackHistory: [],
+                health: 'healthy',
+                selectedForAction: true,
+                abrOverride: null,
+                maxHeightOverride: null,
+                bufferingGoalOverride: null,
+                initialState: null,
+                variantTracks,
+                audioTracks,
+                textTracks,
+                activeVideoTrack: null,
+                seekableRange: { start: 0, end: 0 },
+                normalizedPlayheadTime: 0,
+            });
+            newTabs.set(streamId, 'stats');
+        }
+        set({
+            players: newPlayers,
+            playerCardTabs: newTabs,
+            streamIdCounter: streamIdCounter,
+        });
+    },
+
     addPlayer: (sourceStreamId, streamName, manifestUrl, streamType) => {
         const newStreamId = get().streamIdCounter;
         set((state) => {
@@ -129,6 +177,7 @@ export const useMultiPlayerStore = createStore((set, get) => ({
                 variantTracks: [],
                 audioTracks: [],
                 textTracks: [],
+                activeVideoTrack: null,
                 seekableRange: { start: 0, end: 0 },
                 normalizedPlayheadTime: 0,
             });
@@ -273,6 +322,7 @@ export const useMultiPlayerStore = createStore((set, get) => ({
                 variantTracks: [],
                 audioTracks: [],
                 textTracks: [],
+                activeVideoTrack: null,
                 seekableRange: { start: 0, end: 0 },
                 normalizedPlayheadTime: 0,
             }),

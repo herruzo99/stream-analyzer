@@ -22,6 +22,9 @@ import { createStore } from 'zustand/vanilla';
  * @property {boolean} isPipUnmount - True when the view is unmounted but player persists in PiP.
  * @property {boolean} isMuted
  * @property {'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ENDED' | 'IDLE'} playbackState
+ * @property {object[]} videoTracks
+ * @property {object[]} audioTracks
+ * @property {object[]} textTracks
  * @property {object | null} activeVideoTrack
  * @property {object | null} activeAudioTrack
  * @property {object | null} activeTextTrack
@@ -40,12 +43,14 @@ import { createStore } from 'zustand/vanilla';
  * @property {(isInPiP: boolean) => void} setPictureInPicture
  * @property {(isPipUnmount: boolean) => void} setPipUnmountState
  * @property {(isMuted: boolean) => void} setMutedState
- * @property {(info: Partial<Pick<PlayerState, 'playbackState' | 'activeVideoTrack' | 'activeAudioTrack' | 'activeTextTrack'>>) => void} updatePlaybackInfo
+ * @property {(info: Partial<Pick<PlayerState, 'playbackState' | 'activeVideoTrack' | 'activeAudioTrack' | 'activeTextTrack' | 'videoTracks' | 'audioTracks' | 'textTracks'>>) => void} updatePlaybackInfo
  * @property {(stats: PlayerStats) => void} updateStats
  * @property {(event: PlayerEvent) => void} logEvent
  * @property {(entry: AbrHistoryEntry) => void} logAbrSwitch
  * @property {(tab: 'controls' | 'stats' | 'log' | 'graphs') => void} setActiveTab
  * @property {() => void} reset
+ * @property {(tracks: {videoTracks: object[], audioTracks: object[], textTracks: object[], isAbrEnabled: boolean}) => void} setPlayerLoadedWithTracks
+ * @property {(manifest: import('@/types').Manifest) => void} setInitialTracksFromManifest
  */
 
 /** @returns {PlayerState} */
@@ -56,6 +61,9 @@ const createInitialPlayerState = () => ({
     isPipUnmount: false,
     isMuted: true,
     playbackState: 'IDLE',
+    videoTracks: [],
+    audioTracks: [],
+    textTracks: [],
     activeVideoTrack: null,
     activeAudioTrack: null,
     activeTextTrack: null,
@@ -123,6 +131,86 @@ export const usePlayerStore = createStore((set, get) => ({
     },
 
     reset: () => set(createInitialPlayerState()),
+
+    setPlayerLoadedWithTracks: ({
+        videoTracks,
+        audioTracks,
+        textTracks,
+        isAbrEnabled,
+    }) => {
+        set({
+            isLoaded: true,
+            videoTracks,
+            audioTracks,
+            textTracks,
+            isAbrEnabled,
+            activeVideoTrack: videoTracks.find((t) => t.active),
+            activeAudioTrack: audioTracks.find((t) => t.active),
+            activeTextTrack: textTracks.find((t) => t.active),
+        });
+    },
+
+    setInitialTracksFromManifest: (manifest) => {
+        if (!manifest || !manifest.periods) {
+            set({ videoTracks: [], audioTracks: [], textTracks: [] });
+            return;
+        }
+
+        const allAdaptationSets = manifest.periods.flatMap(
+            (p) => p.adaptationSets
+        );
+
+        const videoTracks = allAdaptationSets
+            .filter((as) => as.contentType === 'video')
+            .flatMap((as) => as.representations)
+            .map((rep) => ({
+                id: rep.id,
+                active: false,
+                type: 'variant',
+                bandwidth: rep.bandwidth,
+                width: rep.width.value,
+                height: rep.height.value,
+                videoCodec: rep.codecs.value,
+                frameRate: rep.frameRate,
+            }));
+
+        const audioTracks = allAdaptationSets
+            .filter((as) => as.contentType === 'audio')
+            .flatMap((as) =>
+                as.representations.map((rep) => ({
+                    id: as.id || rep.id,
+                    language: as.lang,
+                    label: as.labels?.[0]?.text || as.lang,
+                    codecs: rep.codecs.value,
+                    roles: as.roles.map((r) => r.value),
+                    active: false,
+                }))
+            );
+
+        const textTracks = allAdaptationSets
+            .filter(
+                (as) =>
+                    as.contentType === 'text' ||
+                    as.contentType === 'application'
+            )
+            .flatMap((as) =>
+                as.representations.map((rep) => ({
+                    id: as.id || rep.id,
+                    language: as.lang,
+                    label: as.labels?.[0]?.text || as.lang,
+                    mimeType: rep.mimeType,
+                    codecs: rep.codecs.value,
+                    roles: as.roles.map((r) => r.value),
+                    kind:
+                        as.roles.find((r) => r.value === 'caption')
+                            ? 'caption'
+                            : 'subtitle',
+                    active: false,
+                }))
+            );
+
+        set({ videoTracks, audioTracks, textTracks });
+    },
 }));
 
 export const playerActions = usePlayerStore.getState();

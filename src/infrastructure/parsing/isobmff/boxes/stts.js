@@ -14,10 +14,14 @@ export function parseStts(box, view) {
     if (entryCount !== null && entryCount > 0) {
         for (let i = 0; i < entryCount; i++) {
             if (p.stopped) break;
-            const count = p.readUint32(`entry_${i}_sample_count`);
-            const delta = p.readUint32(`entry_${i}_sample_delta`);
-            if (count === null || delta === null) break;
-            box.entries.push({ count, delta });
+            const countField = `entry_${i}_sample_count`;
+            const deltaField = `entry_${i}_sample_delta`;
+            const sample_count = p.readUint32(countField);
+            const sample_delta = p.readUint32(deltaField);
+            if (sample_count === null || sample_delta === null) break;
+            box.details[countField].internal = true;
+            box.details[deltaField].internal = true;
+            box.entries.push({ sample_count, sample_delta });
         }
     }
     p.finalize();

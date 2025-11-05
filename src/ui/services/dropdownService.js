@@ -1,6 +1,7 @@
 import { render } from 'lit-html';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { useUiStore } from '@/state/uiStore';
+import { useMultiPlayerStore } from '@/state/multiPlayerStore';
 
 let dropdownContainer = null;
 let activeDropdowns = [];
@@ -82,6 +83,7 @@ export function toggleDropdown(triggerElement, templateFn, event) {
     const rerender = () => render(templateFn(), panelContainer);
     const unsubAnalysis = useAnalysisStore.subscribe(rerender);
     const unsubUi = useUiStore.subscribe(rerender);
+    const unsubMultiPlayer = useMultiPlayerStore.subscribe(rerender);
     // --- END REACTIVITY ---
 
     panelElement.style.position = 'absolute';
@@ -123,6 +125,7 @@ export function toggleDropdown(triggerElement, templateFn, event) {
     const close = () => {
         unsubAnalysis();
         unsubUi();
+        unsubMultiPlayer();
         if (panelContainer.parentNode === dropdownContainer) {
             dropdownContainer.removeChild(panelContainer);
         }

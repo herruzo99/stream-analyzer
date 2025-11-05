@@ -15,14 +15,19 @@ import { debugLog } from '@/shared/utils/debug';
  */
 export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
     const MANIFEST_REQUEST_TYPE = 0;
+    const SEGMENT_REQUEST_TYPE = 1;
     const { urlAuthMap, streams } = useAnalysisStore.getState();
 
     let streamId = null;
     let auth = null;
     let segmentUniqueId = null;
+    const rangeHeader = request.headers['Range']?.replace('bytes=', '');
 
-    // --- ARCHITECTURAL FIX: Multi-stage, race-free streamId and uniqueId lookup ---
-    // Stage 1: Primary. Get ID directly from the NetworkingEngine instance if available (it is added by our service).
+    // --- ARCHITECTURAL FIX: Always perform deep search for segments ---
+    // This new, consolidated lookup ensures we find the canonical segment object
+    // from our state, which contains the correct `uniqueId` needed for caching.
+
+    // Stage 1: Primary. Get ID directly from the NetworkingEngine instance if available.
     const requester = /** @type {any} */ (request['requester']);
     if (requester?.streamAnalyzerStreamId !== undefined) {
         streamId = requester.streamAnalyzerStreamId;
@@ -32,46 +37,32 @@ export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
         );
     }
 
-    // Stage 2: Secondary. If primary fails, find stream whose base URL is a prefix of the request URI.
-    if (streamId === null) {
-        const streamForAuth = streams.find(
-            (s) => s.baseUrl && uri.startsWith(s.baseUrl)
-        );
-        if (streamForAuth) {
-            streamId = streamForAuth.id;
-            auth = streamForAuth.auth;
-            debugLog(
-                'shakaNetworkPlugin',
-                `[Stage 2] Lookup successful. Found stream ID: ${streamId} by base URL.`
-            );
-        }
-    }
-
-    // Stage 3: Fallback to urlAuthMap (useful for initial manifest requests and live updates).
-    if (streamId === null) {
+    // Stage 2: Fallback to urlAuthMap for initial manifest requests.
+    if (streamId === null && requestType === MANIFEST_REQUEST_TYPE) {
         const context = urlAuthMap.get(uri);
         if (context) {
             streamId = context.streamId ?? null;
             auth = context.auth ?? null;
             debugLog(
                 'shakaNetworkPlugin',
-                `[Stage 3] Lookup successful. Found stream ID: ${streamId} via urlAuthMap.`
+                `[Stage 2] Lookup successful. Found stream ID: ${streamId} via urlAuthMap for manifest.`
             );
         }
     }
 
-    // Stage 4: Definitive fallback. Deep search for the exact segment object.
-    // This resolves the streamId, auth, and the canonical segmentUniqueId.
-    if (streamId === null) {
-        const rangeHeader = request.headers['Range']?.replace('bytes=', '');
+    // Stage 3: Definitive segment search. This must run for all segment requests.
+    if (requestType === SEGMENT_REQUEST_TYPE) {
         for (const stream of streams) {
+            // If we already know the streamId, only search within that stream.
+            if (streamId !== null && stream.id !== streamId) {
+                continue;
+            }
+
             let foundSegment = null;
             const findInState = (state) =>
                 (state.segments || []).find((s) => {
                     if (s.resolvedUrl !== uri) return false;
-                    // If there's a range header, the segment must have a matching range.
                     if (rangeHeader) return s.range === rangeHeader;
-                    // If no range header, the segment must not have a range.
                     return !s.range;
                 });
 
@@ -87,15 +78,37 @@ export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
             }
 
             if (foundSegment) {
-                streamId = stream.id;
+                streamId = stream.id; // Confirm or set streamId
                 auth = stream.auth;
                 segmentUniqueId = foundSegment.uniqueId;
                 debugLog(
                     'shakaNetworkPlugin',
-                    `[Stage 4] Lookup successful. Found stream ID: ${streamId} and uniqueId: ${segmentUniqueId} via deep segment search.`
+                    `[Stage 3] Definitive lookup successful. Found stream ID: ${streamId} and uniqueId: ${segmentUniqueId} via deep segment search.`
                 );
                 break; // Exit the main stream loop
             }
+        }
+    }
+
+    // Stage 4: Fallback for segments that were not pre-calculated (e.g. some live scenarios)
+    if (segmentUniqueId === null && requestType === SEGMENT_REQUEST_TYPE) {
+        // Find stream context if not already known
+        if (streamId === null) {
+            const streamForAuth = streams.find(
+                (s) => s.baseUrl && uri.startsWith(s.baseUrl)
+            );
+            if (streamForAuth) {
+                streamId = streamForAuth.id;
+                auth = streamForAuth.auth;
+            }
+        }
+        // Construct unique ID as a last resort
+        if (rangeHeader) {
+            segmentUniqueId = `${uri}@media@${rangeHeader}`;
+            debugLog(
+                'shakaNetworkPlugin',
+                `[Stage 4 - Fallback] Constructed unique ID for byte-ranged request: ${segmentUniqueId}`
+            );
         }
     }
     // --- END FIX ---
@@ -124,15 +137,14 @@ export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
     if (requestType === MANIFEST_REQUEST_TYPE) {
         taskType = 'shaka-fetch-manifest';
         const currentStream = streams.find((s) => s.id === streamId);
-        
-        // Heuristic: The very first manifest load will not have a pre-existing stream object.
+
         const isPlayerLoad = !currentStream;
 
         payload = {
             streamId,
             url: uri,
             auth,
-            isPlayerLoadRequest: isPlayerLoad, 
+            isPlayerLoadRequest: isPlayerLoad,
             oldRawManifest: currentStream?.rawManifest || '',
             protocol: currentStream?.protocol,
             baseUrl: currentStream?.baseUrl,

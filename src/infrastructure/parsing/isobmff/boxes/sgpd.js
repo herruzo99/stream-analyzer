@@ -26,6 +26,7 @@ export function parseSgpd(box, view) {
     }
 
     const entryCount = p.readUint32('entry_count');
+    box.entries = [];
 
     if (entryCount !== null) {
         for (let i = 0; i < entryCount; i++) {
@@ -33,40 +34,46 @@ export function parseSgpd(box, view) {
 
             let descriptionLength = defaultLength;
             if (version === 1 && defaultLength === 0) {
-                const len = p.readUint32(`entry_${i + 1}_description_length`);
+                const lenField = `entry_${i + 1}_description_length`;
+                const len = p.readUint32(lenField);
                 if (len === null) break;
+                p.box.details[lenField].internal = true;
                 descriptionLength = len;
             }
 
-            const entryPrefix = `entry_${i + 1}`;
+            const entry = {};
             const entryStartOffset = p.offset;
 
-            // --- DEEP PARSING LOGIC ---
             switch (groupingType) {
                 case 'roll':
-                    // VisualRollRecoveryEntry or AudioRollRecoveryEntry
-                    p.readInt16(`${entryPrefix}_roll_distance`);
-                    if (version === 0) descriptionLength = 2; // Implicit size for v0
+                    entry.roll_distance = p.readInt16(
+                        `entry_${i + 1}_roll_distance`
+                    );
+                    p.box.details[
+                        `entry_${i + 1}_roll_distance`
+                    ].internal = true;
+                    if (version === 0) descriptionLength = 2;
                     break;
-                // Add other known group types here in the future
                 default:
-                    // Fallback for unknown types
                     if (version === 0) {
                         p.addIssue(
                             'warn',
-                            `Cannot determine entry size for unknown grouping_type '${groupingType}' with version 0. Parsing of this box may be incomplete.`
+                            `Cannot determine entry size for unknown grouping_type '${groupingType}' with version 0.`
                         );
                         p.readRemainingBytes('unparsed_sgpd_entries');
-                        // Use a break that exits the for-loop
-                        i = entryCount;
+                        i = entryCount; // Exit loop
                     }
                     break;
             }
 
             if (descriptionLength > 0 && p.offset === entryStartOffset) {
-                // If we didn't parse a known type, skip the bytes
-                p.skip(descriptionLength, `${entryPrefix}_description_data`);
+                const dataField = `entry_${i + 1}_description_data`;
+                p.skip(descriptionLength, dataField);
+                p.box.details[dataField].internal = true;
+                entry.description_data = `${descriptionLength} bytes`;
             }
+
+            box.entries.push(entry);
         }
     }
 

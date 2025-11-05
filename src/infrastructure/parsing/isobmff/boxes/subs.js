@@ -20,46 +20,55 @@ export function parseSubs(box, view) {
     if (entryCount !== null) {
         for (let i = 0; i < entryCount; i++) {
             if (p.stopped) break;
+            const deltaField = `entry_${i}_sample_delta`;
+            const subsampleCountField = `entry_${i}_subsample_count`;
 
-            const delta = p.readUint32(`entry_${i}_sample_delta`);
-            const subsampleCount = p.readUint16(`entry_${i}_subsample_count`);
+            const sample_delta = p.readUint32(deltaField);
+            const subsample_count = p.readUint16(subsampleCountField);
+
+            if (sample_delta === null || subsample_count === null) break;
+
+            p.box.details[deltaField].internal = true;
+            p.box.details[subsampleCountField].internal = true;
 
             const entry = {
-                delta,
+                sample_delta,
                 subsamples: [],
             };
 
-            if (subsampleCount !== null) {
-                for (let j = 0; j < subsampleCount; j++) {
-                    if (p.stopped) break;
-                    let size;
-                    if (version === 1) {
-                        size = p.readUint32(`entry_${i}_subsample_${j}_size`);
-                    } else {
-                        size = p.readUint16(`entry_${i}_subsample_${j}_size`);
-                    }
-                    const priority = p.readUint8(
-                        `entry_${i}_subsample_${j}_priority`
-                    );
-                    const discardable = p.readUint8(
-                        `entry_${i}_subsample_${j}_discardable`
-                    );
+            for (let j = 0; j < subsample_count; j++) {
+                if (p.stopped) break;
+                const sizeField = `entry_${i}_subsample_${j}_size`;
+                const priorityField = `entry_${i}_subsample_${j}_priority`;
+                const discardableField = `entry_${i}_subsample_${j}_discardable`;
 
-                    if (
-                        size === null ||
-                        priority === null ||
-                        discardable === null
-                    ) {
-                        p.stopped = true;
-                        break;
-                    }
-
-                    entry.subsamples.push({
-                        size,
-                        priority,
-                        discardable,
-                    });
+                let subsample_size;
+                if (version === 1) {
+                    subsample_size = p.readUint32(sizeField);
+                } else {
+                    subsample_size = p.readUint16(sizeField);
                 }
+                const subsample_priority = p.readUint8(priorityField);
+                const discardable = p.readUint8(discardableField);
+
+                if (
+                    subsample_size === null ||
+                    subsample_priority === null ||
+                    discardable === null
+                ) {
+                    p.stopped = true;
+                    break;
+                }
+
+                p.box.details[sizeField].internal = true;
+                p.box.details[priorityField].internal = true;
+                p.box.details[discardableField].internal = true;
+
+                entry.subsamples.push({
+                    subsample_size,
+                    subsample_priority,
+                    discardable,
+                });
             }
             box.entries.push(entry);
         }

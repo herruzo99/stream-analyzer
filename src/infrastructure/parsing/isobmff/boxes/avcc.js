@@ -16,7 +16,7 @@ export function parseAvcc(box, view) {
 
     const lengthSizeByte = p.readUint8('length_size_byte');
     if (lengthSizeByte !== null) {
-        delete box.details['length_size_byte'];
+        box.details['length_size_byte'].internal = true;
         box.details['lengthSizeMinusOne'] = {
             value: lengthSizeByte & 0x03,
             offset: box.offset + p.offset - 1,
@@ -26,12 +26,13 @@ export function parseAvcc(box, view) {
             value: (lengthSizeByte >> 2) & 0x3f,
             offset: box.offset + p.offset - 1,
             length: 0.75,
+            internal: true,
         };
     }
 
     const spsCountByte = p.readUint8('sps_count_byte');
     if (spsCountByte !== null) {
-        delete box.details['sps_count_byte'];
+        box.details['sps_count_byte'].internal = true;
 
         const spsCount = spsCountByte & 0x1f;
         box.details['numOfSequenceParameterSets'] = {
@@ -43,11 +44,15 @@ export function parseAvcc(box, view) {
             value: (spsCountByte >> 5) & 0x07,
             offset: box.offset + p.offset - 1,
             length: 0.375,
+            internal: true,
         };
 
+        box.spsList = [];
         for (let i = 0; i < spsCount; i++) {
-            const spsLength = p.readUint16(`sps_${i + 1}_length`);
+            const spsLengthField = `sps_length_${i}`;
+            const spsLength = p.readUint16(spsLengthField);
             if (spsLength === null) break;
+            box.details[spsLengthField].internal = true;
 
             const spsStartOffset = p.offset;
             if (p.checkBounds(spsLength)) {
@@ -57,34 +62,47 @@ export function parseAvcc(box, view) {
                     spsLength
                 );
                 const parsedSPS = parseSPS(spsNalUnit);
+
+                const spsEntry = {
+                    length: spsLength,
+                    nal_unit_bytes: spsNalUnit,
+                };
+
                 if (parsedSPS) {
-                    box.details[`sps_${i + 1}_decoded_profile`] = {
-                        value: parsedSPS.profile_idc,
-                        offset: 0,
-                        length: 0,
-                    };
-                    box.details[`sps_${i + 1}_decoded_level`] = {
-                        value: parsedSPS.level_idc,
-                        offset: 0,
-                        length: 0,
-                    };
-                    box.details[`sps_${i + 1}_decoded_resolution`] = {
-                        value: parsedSPS.resolution,
-                        offset: 0,
-                        length: 0,
-                    };
+                    spsEntry.decoded_profile = parsedSPS.profile_idc;
+                    spsEntry.decoded_level = parsedSPS.level_idc;
+                    spsEntry.decoded_resolution = parsedSPS.resolution;
                 }
-                p.skip(spsLength, `sps_${i + 1}_nal_unit`);
+
+                box.spsList.push(spsEntry);
+                p.skip(spsLength, `sps_nal_unit_${i}`);
+                box.details[`sps_nal_unit_${i}`].internal = true;
             }
         }
     }
 
     const ppsCount = p.readUint8('numOfPictureParameterSets');
     if (ppsCount !== null) {
+        box.ppsList = [];
         for (let i = 0; i < ppsCount; i++) {
-            const ppsLength = p.readUint16(`pps_${i + 1}_length`);
+            const ppsLengthField = `pps_length_${i}`;
+            const ppsLength = p.readUint16(ppsLengthField);
             if (ppsLength === null) break;
-            p.skip(ppsLength, `pps_${i + 1}_nal_unit`);
+            box.details[ppsLengthField].internal = true;
+
+            if (p.checkBounds(ppsLength)) {
+                const ppsNalUnit = new Uint8Array(
+                    p.view.buffer,
+                    p.view.byteOffset + p.offset,
+                    ppsLength
+                );
+                box.ppsList.push({
+                    length: ppsLength,
+                    nal_unit_bytes: ppsNalUnit,
+                });
+                p.skip(ppsLength, `pps_nal_unit_${i}`);
+                box.details[`pps_nal_unit_${i}`].internal = true;
+            }
         }
     }
 
@@ -95,7 +113,6 @@ export function parseAvcc(box, view) {
             profile === 122 ||
             profile === 144)
     ) {
-        // Handle profile-specific extensions, skipping for now to keep focus
         p.readRemainingBytes('profile_specific_extensions');
     }
 

@@ -170,21 +170,11 @@ class PlayerControlsComponent extends HTMLElement {
         audioTracks,
         textTracks,
         isAbrEnabled,
-        manifest,
+        activeVideoTrack,
+        activeAudioTrack,
+        activeTextTrack,
         streamId,
     }) {
-        const videoBandwidthMap = new Map();
-        if (manifest?.variants) {
-            for (const variant of manifest.variants) {
-                if (variant.video && variant.video.bandwidth) {
-                    videoBandwidthMap.set(variant.id, variant.video.bandwidth);
-                }
-            }
-        }
-        const activeVideoTrack = videoTracks.find((t) => t.active);
-        const activeAudioTrack = audioTracks.find((t) => t.active);
-        const activeTextTrack = textTracks.find((t) => t.active);
-
         const videoLabel = isAbrEnabled
             ? 'Auto (ABR)'
             : activeVideoTrack
@@ -193,10 +183,7 @@ class PlayerControlsComponent extends HTMLElement {
         const videoSubtext = isAbrEnabled
             ? 'Adapting to network'
             : activeVideoTrack
-              ? formatBitrate(
-                    videoBandwidthMap.get(activeVideoTrack.id) ??
-                        activeVideoTrack.bandwidth
-                )
+              ? formatBitrate(activeVideoTrack.bandwidth)
               : 'N/A';
         const audioLabel =
             activeAudioTrack?.label || activeAudioTrack?.language || 'Audio';
@@ -223,7 +210,6 @@ class PlayerControlsComponent extends HTMLElement {
                                 videoSelectionPanelTemplate(
                                     videoTracks,
                                     isAbrEnabled,
-                                    videoBandwidthMap,
                                     streamId
                                 ),
                             e
@@ -562,9 +548,18 @@ class PlayerControlsComponent extends HTMLElement {
             return;
         }
 
-        const { isAbrEnabled } = usePlayerStore.getState();
+        const {
+            isAbrEnabled,
+            videoTracks,
+            audioTracks,
+            textTracks,
+            activeVideoTrack,
+            activeAudioTrack,
+            activeTextTrack,
+        } = usePlayerStore.getState();
         const { activeStreamId } = useAnalysisStore.getState();
         const config = playerService.getConfiguration();
+
         if (!config) {
             render(
                 html`<div class="p-4 text-center text-slate-500">
@@ -575,22 +570,6 @@ class PlayerControlsComponent extends HTMLElement {
             return;
         }
 
-        const manifest = player.getManifest();
-        const videoTracks = player
-            .getVariantTracks()
-            .filter((t) => t.type === 'variant' && t.videoCodec);
-
-        // Sort by height, then bandwidth, both descending.
-        videoTracks.sort((a, b) => {
-            if ((b.height || 0) !== (a.height || 0)) {
-                return (b.height || 0) - (a.height || 0);
-            }
-            return (b.bandwidth || 0) - (a.bandwidth || 0);
-        });
-
-        const audioTracks = player.getAudioLanguagesAndRoles();
-        const textTracks = player.getTextTracks();
-
         const template = html`
             <div class="bg-slate-900 text-white px-4">
                 ${this._renderTrackSelection({
@@ -598,7 +577,9 @@ class PlayerControlsComponent extends HTMLElement {
                     audioTracks,
                     textTracks,
                     isAbrEnabled,
-                    manifest,
+                    activeVideoTrack,
+                    activeAudioTrack,
+                    activeTextTrack,
                     streamId: activeStreamId,
                 })}
                 ${this._renderExperiencePresets(config)}

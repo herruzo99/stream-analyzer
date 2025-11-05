@@ -101,13 +101,9 @@ function renderMultiPlayerDashboard() {
 export const multiPlayerView = {
     hasContextualSidebar: true,
 
-    async mount(containerElement) {
-        debugLog('MultiPlayerView', '[LIFECYCLE] mount() called.');
+    activate(containerElement) {
+        debugLog('MultiPlayerView', '[LIFECYCLE] activate() called.');
         container = containerElement;
-
-        // ARCHITECTURAL FIX: Destroy previous players on mount, not unmount.
-        // This ensures a clean slate and prevents re-entrant state updates during unmount.
-        await multiPlayerService.destroyAll();
 
         if (multiPlayerUnsubscribe) multiPlayerUnsubscribe();
         if (uiUnsubscribe) uiUnsubscribe();
@@ -117,31 +113,6 @@ export const multiPlayerView = {
             renderMultiPlayerDashboard
         );
         uiUnsubscribe = useUiStore.subscribe(renderMultiPlayerDashboard);
-
-        const { streams } = useAnalysisStore.getState();
-        const { addPlayer, players } = useMultiPlayerStore.getState();
-
-        debugLog(
-            'MultiPlayerView',
-            `Mounting. Current player count: ${players.size}. Streams to process: ${streams.length}`
-        );
-
-        if (players.size === 0 && streams.length > 0) {
-            streams.forEach((stream) => {
-                const streamType =
-                    stream.manifest?.type === 'dynamic' ? 'live' : 'vod';
-                addPlayer(
-                    stream.id,
-                    stream.name,
-                    stream.originalUrl,
-                    streamType
-                );
-            });
-            debugLog(
-                'MultiPlayerView',
-                'Populated player state in store. GridView will now initialize players.'
-            );
-        }
 
         multiPlayerService.startStatsCollection();
         renderMultiPlayerDashboard();
@@ -156,11 +127,10 @@ export const multiPlayerView = {
             );
         }
     },
-    unmount() {
-        debugLog('MultiPlayerView', '[LIFECYCLE] unmount() called.');
-        // ARCHITECTURAL FIX: Removed multiPlayerService.destroyAll() from here.
-        // It is now handled by the next view's mount() or the global unmount of the player view.
-        multiPlayerService.stopStatsCollection(); // Stop tickers safely.
+
+    deactivate() {
+        debugLog('MultiPlayerView', '[LIFECYCLE] deactivate() called.');
+        multiPlayerService.stopStatsCollection();
 
         if (multiPlayerUnsubscribe) multiPlayerUnsubscribe();
         if (uiUnsubscribe) uiUnsubscribe();
@@ -174,7 +144,16 @@ export const multiPlayerView = {
 
         const contextualSidebar = document.getElementById('contextual-sidebar');
         if (contextualSidebar) {
-            render(html``, contextualSidebar); // Use the same container reference
+            render(html``, contextualSidebar);
         }
+    },
+
+    unmount() {
+        debugLog(
+            'MultiPlayerView',
+            '[LIFECYCLE] unmount() called for full teardown.'
+        );
+        this.deactivate();
+        multiPlayerService.destroyAll();
     },
 };
