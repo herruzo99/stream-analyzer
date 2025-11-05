@@ -153,6 +153,7 @@ class PlayerService {
             manifestTime: manifestTime,
             playbackQuality: {
                 resolution: `${shakaStats.width || 0}x${shakaStats.height || 0}`,
+                droppedFrames: shakaStats.droppedFrames || 0,
                 corruptedFrames: shakaStats.corruptedFrames || 0,
                 totalStalls: totalStalls,
                 totalStallDuration: totalStallDuration,

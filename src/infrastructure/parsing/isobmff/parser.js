@@ -7,7 +7,7 @@ import { boxParsers } from './index.js';
  * @property {number} offset
  * @property {number} contentOffset
  * @property {number} headerSize
- * @property {Record<string, {value: any, offset: number, length: number}>} details
+ * @property {Record<string, {value: any, offset: number, length: number, internal?: boolean}>} details
  * @property {Box[]} children
  * @property {object[]=} samples
  * @property {any[]=} entries
@@ -201,6 +201,7 @@ function buildCanonicalSampleList(parsedData) {
                     isSample: true,
                     index: sampleIndex,
                     offset: currentOffset,
+                    trunOffset: trun.offset,
                     color: { bgClass: 'bg-gray-700/20' },
                     baseMediaDecodeTime:
                         tfdt?.details.baseMediaDecodeTime?.value,

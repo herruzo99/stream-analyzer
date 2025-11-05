@@ -96,38 +96,47 @@ export function parseTrun(box, view, context) {
             if (p.stopped) break;
 
             const sample = {};
+            let fieldName;
 
             if (flags.sample_duration_present) {
-                sample.duration = p.readUint32(`sample_duration_${i}`);
-                delete box.details[`sample_duration_${i}`];
+                fieldName = `sample_duration_${i}`;
+                sample.duration = p.readUint32(fieldName);
+                if (box.details[fieldName]) {
+                    box.details[fieldName].internal = true;
+                }
             }
 
             if (flags.sample_size_present) {
-                sample.size = p.readUint32(`sample_size_${i}`);
-                delete box.details[`sample_size_${i}`];
+                fieldName = `sample_size_${i}`;
+                sample.size = p.readUint32(fieldName);
+                if (box.details[fieldName]) {
+                    box.details[fieldName].internal = true;
+                }
             }
 
             if (flags.first_sample_flags_present && i === 0) {
                 sample.sampleFlags = firstSampleFlags;
             } else if (flags.sample_flags_present) {
-                const localFlagsInt = p.readUint32(`sample_flags_${i}`);
+                fieldName = `sample_flags_${i}`;
+                const localFlagsInt = p.readUint32(fieldName);
                 if (localFlagsInt !== null) {
                     sample.sampleFlags = decodeSampleFlags(localFlagsInt);
                 }
-                delete box.details[`sample_flags_${i}`];
+                if (box.details[fieldName]) {
+                    box.details[fieldName].internal = true;
+                }
             }
 
             if (flags.sample_composition_time_offsets_present) {
+                fieldName = `composition_time_offset_${i}`;
                 if (version === 0) {
-                    sample.compositionTimeOffset = p.readUint32(
-                        `composition_time_offset_${i}`
-                    );
+                    sample.compositionTimeOffset = p.readUint32(fieldName);
                 } else {
-                    sample.compositionTimeOffset = p.readInt32(
-                        `composition_time_offset_${i}`
-                    );
+                    sample.compositionTimeOffset = p.readInt32(fieldName);
                 }
-                delete box.details[`composition_time_offset_${i}`];
+                if (box.details[fieldName]) {
+                    box.details[fieldName].internal = true;
+                }
             }
             box.samples.push(sample);
         }

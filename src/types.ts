@@ -628,7 +628,15 @@ export interface Box {
     offset: number;
     contentOffset: number;
     headerSize: number;
-    details: Record<string, { value: any; offset: number; length: number }>;
+    details: Record<
+        string,
+        {
+            value: any;
+            offset: number;
+            length: number;
+            internal?: boolean;
+        }
+    >;
     children: Box[];
     samples?: object[];
     entries?: any[];
@@ -781,6 +789,7 @@ export interface PlayerStats {
     manifestTime: number;
     playbackQuality: {
         resolution: string;
+        droppedFrames: number;
         corruptedFrames: number;
         totalStalls: number;
         totalStallDuration: number;
