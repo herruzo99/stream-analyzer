@@ -5,7 +5,8 @@ import { useUiStore, uiActions } from '@/state/uiStore';
 import { formatBitrate } from '@/ui/shared/format';
 import { connectedTabBar } from '@/ui/components/tabs';
 
-const representationCardTemplate = (rep, activeRepId, compositeKey) => {
+// --- DASH Specific Templates ---
+const dashRepresentationCardTemplate = (rep, activeRepId, compositeKey) => {
     const isActive = activeRepId === compositeKey;
     const baseClasses =
         'p-3 rounded-lg border-2 cursor-pointer transition-colors duration-150 ease-in-out text-left w-full';
@@ -55,7 +56,7 @@ const representationCardTemplate = (rep, activeRepId, compositeKey) => {
     `;
 };
 
-const adaptationSetGroupTemplate = (as, periodId, activeRepId, sortedReps) => {
+const dashAdaptationSetGroupTemplate = (as, periodId, activeRepId, sortedReps) => {
     if (sortedReps.length === 0) return '';
 
     let title, value;
@@ -81,7 +82,7 @@ const adaptationSetGroupTemplate = (as, periodId, activeRepId, sortedReps) => {
             <div class="pl-2 pt-2 space-y-2">
                 ${sortedReps.map((rep) => {
                     const compositeKey = `${periodId}-${rep.id}`;
-                    return representationCardTemplate(
+                    return dashRepresentationCardTemplate(
                         { ...rep, contentType: as.contentType, lang: as.lang },
                         activeRepId,
                         compositeKey
@@ -92,7 +93,7 @@ const adaptationSetGroupTemplate = (as, periodId, activeRepId, sortedReps) => {
     `;
 };
 
-const periodGroupTemplate = (period, index, activeRepId, activeTab) => {
+const dashPeriodGroupTemplate = (period, index, activeRepId, activeTab) => {
     const periodId = period.id || index;
     const { segmentExplorerClosedGroups } = useUiStore.getState();
     const groupId = `period-${periodId}`;
@@ -124,7 +125,6 @@ const periodGroupTemplate = (period, index, activeRepId, activeTab) => {
             </summary>
             <div class="pl-3 pt-2 space-y-2 border-l-2 border-slate-700 ml-3">
                 ${adaptationSetsForTab.map((as) => {
-                    // --- SORTING LOGIC APPLIED HERE ---
                     const sortedReps = [...as.representations].sort((a, b) => {
                         const heightA = a.height?.value || 0;
                         const heightB = b.height?.value || 0;
@@ -136,8 +136,7 @@ const periodGroupTemplate = (period, index, activeRepId, activeTab) => {
 
                         return (b.bandwidth || 0) - (a.bandwidth || 0);
                     });
-                    // --- END SORTING LOGIC ---
-                    return adaptationSetGroupTemplate(
+                    return dashAdaptationSetGroupTemplate(
                         as,
                         periodId,
                         activeRepId,
@@ -148,6 +147,87 @@ const periodGroupTemplate = (period, index, activeRepId, activeTab) => {
         </details>
     `;
 };
+
+// --- HLS Specific Templates ---
+
+const hlsRepresentationCardTemplate = (rep, activeRepId) => {
+    const isActive = activeRepId === rep.id;
+    const baseClasses =
+        'p-3 rounded-lg border-2 cursor-pointer transition-colors duration-150 ease-in-out text-left w-full';
+    const activeClasses = 'bg-blue-900/50 border-blue-600';
+    const inactiveClasses =
+        'bg-slate-800/50 border-slate-700 hover:border-blue-500/50 hover:bg-slate-700/50';
+
+    let label = 'Unknown';
+    let details = `ID: ${rep.id}`;
+    if (rep.contentType === 'video') {
+        label = `${rep.height?.value || '?'}p`;
+        details = formatBitrate(rep.bandwidth);
+    } else if (rep.contentType === 'audio' || rep.contentType === 'text') {
+        label =
+            rep.serializedManifest.NAME ||
+            rep.lang ||
+            `Rendition ${rep.id}`;
+        details = `Lang: ${rep.lang || 'und'}`;
+    }
+
+    return html`
+        <button
+            @click=${() =>
+                eventBus.dispatch(
+                    'ui:segment-explorer:representation-selected',
+                    { repId: rep.id }
+                )}
+            class="${baseClasses} ${isActive ? activeClasses : inactiveClasses}"
+        >
+            <p
+                class="font-semibold text-sm text-slate-200 truncate"
+                title=${label}
+            >
+                ${label}
+            </p>
+            <p
+                class="text-xs text-slate-400 font-mono truncate"
+                title=${details}
+            >
+                ${details}
+            </p>
+        </button>
+    `;
+};
+
+const hlsGroupTemplate = (groupTitle, reps, activeRepId, groupType) => {
+    const { segmentExplorerClosedGroups } = useUiStore.getState();
+    const groupId = `${groupType}-${groupTitle}`;
+    const isOpen = !segmentExplorerClosedGroups.has(groupId);
+    if (!reps || reps.length === 0) return '';
+
+    return html`
+        <details class="group" ?open=${isOpen}>
+            <summary
+                @click=${(e) => {
+                    e.preventDefault();
+                    uiActions.toggleSegmentExplorerGroup(groupId);
+                }}
+                class="list-none cursor-pointer flex items-center p-3 rounded-md bg-slate-800 hover:bg-slate-700/50"
+            >
+                <span class="font-bold text-slate-200">${groupTitle}</span>
+                <span
+                    class="ml-auto text-slate-400 transition-transform duration-200 group-open:rotate-90"
+                >
+                    ${icons.chevronDown}
+                </span>
+            </summary>
+            <div class="pl-3 pt-2 space-y-2 border-l-2 border-slate-700 ml-3">
+                ${reps.map((rep) =>
+                    hlsRepresentationCardTemplate(rep, activeRepId)
+                )}
+            </div>
+        </details>
+    `;
+};
+
+// --- Main Template ---
 
 export const representationSelectorTemplate = (stream) => {
     const { segmentExplorerActiveTab, segmentExplorerActiveRepId } =
@@ -167,7 +247,7 @@ export const representationSelectorTemplate = (stream) => {
         content = html`
             <div class="space-y-2">
                 ${stream.manifest.periods.map((period, index) =>
-                    periodGroupTemplate(
+                    dashPeriodGroupTemplate(
                         period,
                         index,
                         segmentExplorerActiveRepId,
@@ -177,17 +257,8 @@ export const representationSelectorTemplate = (stream) => {
             </div>
         `;
     } else if (stream.protocol === 'hls' && stream.manifest?.isMaster) {
-        const allReps = stream.manifest.periods[0].adaptationSets
-            .filter((as) => {
-                if (segmentExplorerActiveTab === 'text') {
-                    return (
-                        as.contentType === 'text' ||
-                        as.contentType === 'subtitles'
-                    );
-                }
-                return as.contentType === segmentExplorerActiveTab;
-            })
-            .flatMap((as) =>
+        const allReps = stream.manifest.periods[0].adaptationSets.flatMap(
+            (as) =>
                 as.representations.map((r) => ({
                     ...r,
                     id:
@@ -196,38 +267,77 @@ export const representationSelectorTemplate = (stream) => {
                         r.id,
                     contentType: as.contentType,
                     lang: as.lang,
+                    roles: as.roles?.map((role) => role.value) || [],
                 }))
+        );
+
+        if (segmentExplorerActiveTab === 'video') {
+            const videoReps = allReps.filter(
+                (r) => r.contentType === 'video' && !r.roles.includes('trick')
             );
+            const iFrameReps = allReps.filter(
+                (r) => r.contentType === 'video' && r.roles.includes('trick')
+            );
+            
+            const videoGroups = videoReps.reduce((acc, rep) => {
+                const groupKey = rep.videoRange || 'SDR';
+                if (!acc[groupKey]) acc[groupKey] = [];
+                acc[groupKey].push(rep);
+                return acc;
+            }, {});
 
-        // --- SORTING LOGIC FOR HLS ---
-        const sortedReps = allReps.sort((a, b) => {
-            if (a.contentType === 'video' && b.contentType === 'video') {
-                const heightA = a.height?.value || 0;
-                const heightB = b.height?.value || 0;
-                if (heightA !== heightB) return heightB - heightA;
-            }
-            if (a.contentType === 'audio' || a.contentType === 'text') {
-                const langA = a.lang || 'zzz';
-                const langB = b.lang || 'zzz';
-                if (langA.localeCompare(langB) !== 0)
-                    return langA.localeCompare(langB);
-            }
-            return (b.bandwidth || 0) - (a.bandwidth || 0);
-        });
-        // --- END SORTING LOGIC ---
+             const iFrameGroups = iFrameReps.reduce((acc, rep) => {
+                const groupKey = rep.videoRange || 'SDR';
+                if (!acc[groupKey]) acc[groupKey] = [];
+                acc[groupKey].push(rep);
+                return acc;
+            }, {});
 
-        content =
-            sortedReps.length > 0
-                ? html`<div class="space-y-2">
-                      ${sortedReps.map((r) =>
-                          representationCardTemplate(
-                              r,
-                              segmentExplorerActiveRepId,
-                              r.id
-                          )
-                      )}
-                  </div>`
-                : '';
+            content = html`
+                ${Object.entries(videoGroups).map(([group, reps]) =>
+                    hlsGroupTemplate(
+                        `Video (${group})`,
+                        reps,
+                        segmentExplorerActiveRepId,
+                        `video-${group}`
+                    )
+                )}
+                ${Object.entries(iFrameGroups).map(([group, reps]) =>
+                    hlsGroupTemplate(
+                        `I-Frame (${group})`,
+                        reps,
+                        segmentExplorerActiveRepId,
+                        `iframe-${group}`
+                    )
+                )}
+            `;
+        } else {
+            const groupType =
+                segmentExplorerActiveTab === 'audio' ? 'AUDIO' : 'SUBTITLES';
+            const repsForTab = allReps.filter(
+                (r) =>
+                    r.contentType === segmentExplorerActiveTab ||
+                    (segmentExplorerActiveTab === 'text' &&
+                        r.contentType === 'subtitles')
+            );
+            const groups = repsForTab.reduce((acc, rep) => {
+                const groupId =
+                    rep.serializedManifest['GROUP-ID'] || 'default';
+                if (!acc[groupId]) acc[groupId] = [];
+                acc[groupId].push(rep);
+                return acc;
+            }, {});
+            content = html`
+                ${Object.entries(groups).map(([groupId, reps]) =>
+                    hlsGroupTemplate(
+                        `Group: ${groupId}`,
+                        reps,
+                        segmentExplorerActiveRepId,
+                        groupId
+                    )
+                )}
+            `;
+        }
     } else {
         content = html`
             <div class="p-4 text-sm text-slate-400 text-center">

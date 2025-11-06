@@ -31,21 +31,18 @@ function renderPlayerView() {
     );
 }
 
-const drmErrorTemplate = (error) => {
+const playerErrorTemplate = (error) => {
+    const message = error?.message || 'An unknown player error occurred.';
     return html`<div
         class="absolute inset-0 bg-red-900/80 text-red-200 p-4 flex flex-col items-center justify-center text-center"
     >
-        <h3 class="text-lg font-bold">DRM Error</h3>
-        <p class="text-sm mt-2">
-            ${error?.message || 'An unknown DRM error occurred.'}
-        </p>
+        <h3 class="text-lg font-bold">Playback Error</h3>
+        <p class="text-sm mt-2 font-mono">${message}</p>
     </div>`;
 };
 
 const playerViewShellTemplate = () => {
     const { lastError } = viewState;
-    const isDrmError =
-        lastError?.code === 'DRM_NO_LICENSE_URL' || lastError?.code === 6007;
 
     return html`
         <div id="player-view-shell" class="flex flex-col h-full gap-4">
@@ -53,7 +50,7 @@ const playerViewShellTemplate = () => {
                 id="video-container-element"
                 class="w-full bg-black aspect-video relative shadow-2xl rounded-lg overflow-hidden shrink-0"
             >
-                ${isDrmError ? drmErrorTemplate(lastError) : ''}
+                ${lastError ? playerErrorTemplate(lastError) : ''}
                 <video id="player-video-element" class="w-full h-full"></video>
             </div>
             <div
@@ -122,8 +119,9 @@ export const playerView = {
 
         const errorSubscription = eventBus.subscribe(
             'player:error',
-            ({ error }) => {
-                viewState.lastError = error;
+            ({ message, error }) => {
+                // Combine the original error with our formatted message for the UI
+                viewState.lastError = { ...error, message };
                 renderPlayerView();
             }
         );

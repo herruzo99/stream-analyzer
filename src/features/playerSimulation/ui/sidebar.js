@@ -3,6 +3,8 @@ import { usePlayerStore, playerActions } from '@/state/playerStore';
 import { connectedTabBar } from '@/ui/components/tabs';
 import { statsCardsTemplate } from './components/stats-cards.js';
 import { eventLogTemplate } from './components/event-log.js';
+import { playerService } from '../application/playerService.js';
+import * as icons from '@/ui/icons';
 
 export class PlayerSidebarComponent extends HTMLElement {
     constructor() {
@@ -20,7 +22,7 @@ export class PlayerSidebarComponent extends HTMLElement {
     }
 
     render() {
-        const { activeTab, currentStats, eventLog, hasUnreadLogs } =
+        const { activeTab, currentStats, eventLog, hasUnreadLogs, isLoaded } =
             usePlayerStore.getState();
 
         const logTabLabel = html`
@@ -56,6 +58,23 @@ export class PlayerSidebarComponent extends HTMLElement {
                 break;
         }
 
+        const sessionControls = html`
+            <div class="p-4 border-t border-slate-700">
+                <h4
+                    class="font-bold text-slate-400 text-xs uppercase tracking-wider mb-2"
+                >
+                    Session Control
+                </h4>
+                <button
+                    @click=${() => playerService.unload()}
+                    ?disabled=${!isLoaded}
+                    class="w-full bg-red-800 hover:bg-red-700 text-red-100 font-bold py-2 px-3 rounded-md transition-colors flex items-center justify-center gap-2 disabled:bg-slate-600 disabled:opacity-50"
+                >
+                    ${icons.xCircle} Stop & Reset Player
+                </button>
+            </div>
+        `;
+
         const template = html`
             <div class="flex flex-col h-full">
                 <div class="shrink-0 px-2 pt-2">
@@ -70,6 +89,7 @@ export class PlayerSidebarComponent extends HTMLElement {
                 >
                     ${content}
                 </div>
+                ${sessionControls}
             </div>
         `;
         render(template, this);

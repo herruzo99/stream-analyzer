@@ -28,6 +28,7 @@ export function parseTsSegment(buffer) {
         continuityCounters: {},
         tsdt: null,
         ipmp: null,
+        semanticResults: [], // Defensive initialization
     };
     const dataView = new DataView(buffer);
 

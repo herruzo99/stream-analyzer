@@ -34,7 +34,7 @@ function renderComplianceView() {
         activeMediaPlaylistUrl,
         mediaPlaylists,
         manifestUpdates,
-        activeManifestUpdateIndex,
+        activeManifestUpdateId,
     } = stream;
 
     // --- UNIFIED DATA PATH ---
@@ -57,7 +57,9 @@ function renderComplianceView() {
         }
     } else {
         // For DASH and HLS Master Playlist, we use the pre-computed results.
-        currentUpdate = manifestUpdates[activeManifestUpdateIndex];
+        currentUpdate = manifestUpdates.find(
+            (u) => u.id === activeManifestUpdateId
+        );
         complianceResults = currentUpdate?.complianceResults || [];
         if (currentUpdate) {
             rawManifestToDisplay = currentUpdate.rawManifest;

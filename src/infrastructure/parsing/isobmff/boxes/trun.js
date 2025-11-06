@@ -57,7 +57,7 @@ function decodeSampleFlags(flagsInt) {
 }
 
 /**
- * @param {import('../parser.js').Box} box
+ * @param {import('@/types.js').Box} box
  * @param {DataView} view
  * @param {object} context
  */

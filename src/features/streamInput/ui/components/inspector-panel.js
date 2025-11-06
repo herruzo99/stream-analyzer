@@ -102,19 +102,19 @@ const streamAuthSettingsTemplate = (inputId, auth) => html`
     </div>
 `;
 
-const drmAuthSettingsTemplate = (inputId, drmAuth) => {
+const drmAuthSettingsTemplate = (inputId, drmAuth, detectedDrm, showAll) => {
     const cert = drmAuth.serverCertificate;
-    const certIsFile = cert instanceof File;
-    const certIsFileStub = certIsFile && cert.size === 0;
-    const certUrlValue = !certIsFile ? cert || '' : '';
+    const isFile = cert instanceof File;
+    const isFileStub = isFile && cert.size === 0;
+    const certUrlValue = !isFile ? cert || '' : '';
     let certFileLabel = 'Upload .der';
     let certFileClasses = 'bg-slate-600 hover:bg-slate-700';
 
-    if (certIsFileStub) {
+    if (isFileStub) {
         certFileLabel = `RE-SELECT: ${cert.name}`;
         certFileClasses =
             'bg-yellow-600 hover:bg-yellow-700 text-yellow-900 animate-pulse';
-    } else if (certIsFile) {
+    } else if (isFile) {
         certFileLabel = cert.name;
         certFileClasses = 'bg-green-600 text-white';
     }
@@ -122,7 +122,6 @@ const drmAuthSettingsTemplate = (inputId, drmAuth) => {
     const handleLicenseUrlInput = (keySystem, value) => {
         let newLicenseServerUrl;
         if (typeof drmAuth.licenseServerUrl === 'string') {
-            // Convert from string to object when the first per-system URL is entered
             newLicenseServerUrl = { [keySystem]: value };
         } else {
             newLicenseServerUrl = { ...drmAuth.licenseServerUrl, [keySystem]: value };
@@ -155,59 +154,72 @@ const drmAuthSettingsTemplate = (inputId, drmAuth) => {
             />
         </div>
     `;
+    
+    const showWidevine = showAll || detectedDrm?.includes('Widevine');
+    const showPlayReady = showAll || detectedDrm?.includes('PlayReady');
+    const showFairPlay = showAll || detectedDrm?.includes('FairPlay');
+    
+    if (!showWidevine && !showPlayReady && !showFairPlay) {
+        return html`
+            <div class="text-center p-4 bg-slate-800/50 rounded-md">
+                <div class="text-green-400 mx-auto w-8 h-8">${icons.shieldCheck}</div>
+                <p class="text-sm font-semibold text-slate-300 mt-2">No DRM Detected</p>
+                <p class="text-xs text-slate-400 mt-1">This appears to be a clear, unencrypted stream.</p>
+                <button @click=${() => uiActions.toggleShowAllDrmFields()} class="text-xs text-blue-400 hover:underline mt-2">Manual Override</button>
+            </div>
+        `;
+    }
 
     return html`
         <div class="space-y-4">
-            ${licenseServerInput('Widevine License URL', 'com.widevine.alpha')}
-            ${licenseServerInput(
-                'PlayReady License URL',
-                'com.microsoft.playready'
-            )}
-            ${licenseServerInput('FairPlay License URL', 'com.apple.fps')}
-
-            <div>
-                <label class="block text-sm font-medium text-slate-400 mb-1"
-                    >FairPlay Certificate</label
-                >
-                <div class="flex items-center gap-2">
-                    <input
-                        type="url"
-                        class="bg-slate-800 text-white rounded px-2 py-1.5 text-sm w-full border border-slate-600"
-                        placeholder="Enter URL..."
-                        .value=${certUrlValue}
-                        ?disabled=${certIsFile}
-                        @input=${(e) =>
-                            analysisActions.updateStreamInput(
-                                inputId,
-                                'drmAuth',
-                                {
-                                    ...drmAuth,
-                                    serverCertificate: e.target.value,
-                                }
-                            )}
-                    />
-                    <label
-                        for="cert-file-${inputId}"
-                        class="shrink-0 cursor-pointer ${certFileClasses} text-white font-bold py-2 px-3 rounded-md text-center text-xs truncate"
-                        >${certFileLabel}</label
+            ${showWidevine ? licenseServerInput('Widevine License URL', 'com.widevine.alpha') : ''}
+            ${showPlayReady ? licenseServerInput('PlayReady License URL', 'com.microsoft.playready') : ''}
+            ${showFairPlay ? html`
+                ${licenseServerInput('FairPlay License URL', 'com.apple.fps')}
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-1"
+                        >FairPlay Certificate</label
                     >
-                    <input
-                        type="file"
-                        id="cert-file-${inputId}"
-                        class="hidden"
-                        accept=".der"
-                        @change=${(e) =>
-                            analysisActions.updateStreamInput(
-                                inputId,
-                                'drmAuth',
-                                {
-                                    ...drmAuth,
-                                    serverCertificate: e.target.files[0],
-                                }
-                            )}
-                    />
-                </div>
-            </div>
+                    <div class="flex items-center gap-2">
+                        <input
+                            type="url"
+                            class="bg-slate-800 text-white rounded px-2 py-1.5 text-sm w-full border border-slate-600"
+                            placeholder="Enter URL..."
+                            .value=${certUrlValue}
+                            ?disabled=${isFile}
+                            @input=${(e) =>
+                                analysisActions.updateStreamInput(
+                                    inputId,
+                                    'drmAuth',
+                                    {
+                                        ...drmAuth,
+                                        serverCertificate: e.target.value,
+                                    }
+                                )}
+                        />
+                        <label
+                            for="cert-file-${inputId}"
+                            class="shrink-0 cursor-pointer ${certFileClasses} text-white font-bold py-2 px-3 rounded-md text-center text-xs truncate"
+                            >${certFileLabel}</label
+                        >
+                        <input
+                            type="file"
+                            id="cert-file-${inputId}"
+                            class="hidden"
+                            accept=".der"
+                            @change=${(e) =>
+                                analysisActions.updateStreamInput(
+                                    inputId,
+                                    'drmAuth',
+                                    {
+                                        ...drmAuth,
+                                        serverCertificate: e.target.files[0],
+                                    }
+                                )}
+                        />
+                    </div>
+                </div>` : ''}
+
             ${authSectionTemplate(
                 'License Request Headers',
                 'headers',
@@ -215,13 +227,14 @@ const drmAuthSettingsTemplate = (inputId, drmAuth) => {
                 inputId,
                 true
             )}
+            ${!showAll ? html`<button @click=${() => uiActions.toggleShowAllDrmFields()} class="text-xs text-blue-400 hover:underline mt-2">Show All / Manual Override</button>` : ''}
         </div>
     `;
 };
 
 export const inspectorPanelTemplate = () => {
     const { streamInputs, activeStreamInputId } = useAnalysisStore.getState();
-    const { streamInputActiveMobileTab } = useUiStore.getState();
+    const { streamInputActiveMobileTab, showAllDrmFields } = useUiStore.getState();
     const activeInput = streamInputs.find((i) => i.id === activeStreamInputId);
 
     if (!activeInput) {
@@ -238,6 +251,8 @@ export const inspectorPanelTemplate = () => {
             </div>
         `;
     }
+
+    const { detectedDrm, isDrmInfoLoading } = activeInput;
 
     const presets = getPresets();
     const savedPreset = presets.find((p) => p.url === activeInput.url);
@@ -276,15 +291,31 @@ export const inspectorPanelTemplate = () => {
         saveButtonDisabled = !isPresetModified;
     }
 
+    let drmTabIndicator = null;
+    if (isDrmInfoLoading) {
+        drmTabIndicator = icons.spinner;
+    } else if (detectedDrm && detectedDrm.length > 0) {
+        drmTabIndicator = html`<span class="text-yellow-400">${icons.lockClosed}</span>`;
+    }
+    
     const tabs = [
         { key: 'stream', label: 'Stream Auth' },
-        { key: 'drm', label: 'DRM Settings' },
+        { key: 'drm', label: 'DRM Settings', indicator: drmTabIndicator },
     ];
 
-    // Default to 'stream' if the mobile tab isn't relevant to the inspector
     const activeTabKey = ['stream', 'drm'].includes(streamInputActiveMobileTab)
         ? streamInputActiveMobileTab
         : 'stream';
+        
+    let drmContent;
+    if (isDrmInfoLoading) {
+        drmContent = html`<div class="flex items-center justify-center p-8 text-slate-400">
+            <span class="animate-spin mr-2">${icons.spinner}</span>
+            <span>Detecting DRM...</span>
+        </div>`;
+    } else {
+        drmContent = drmAuthSettingsTemplate(activeInput.id, activeInput.drmAuth, detectedDrm, showAllDrmFields);
+    }
 
     return html`
         <div class="flex flex-col h-full">
@@ -316,12 +347,9 @@ export const inspectorPanelTemplate = () => {
                     uiActions.setStreamInputActiveMobileTab
                 )}
 
-                <div class="pt-4 bg-slate-900 p-4">
+                <div class="pt-4 bg-slate-900 p-4 rounded-b-lg">
                     ${activeTabKey === 'drm'
-                        ? drmAuthSettingsTemplate(
-                              activeInput.id,
-                              activeInput.drmAuth
-                          )
+                        ? drmContent
                         : streamAuthSettingsTemplate(
                               activeInput.id,
                               activeInput.auth

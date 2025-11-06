@@ -3,7 +3,7 @@ import { parseScte35 } from '../../scte35/parser.js';
 
 /**
  * Parses the 'emsg' (Event Message) box.
- * @param {import('../parser.js').Box} box
+ * @param {import('@/types.js').Box} box
  * @param {DataView} view
  */
 export function parseEmsg(box, view) {

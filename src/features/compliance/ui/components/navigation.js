@@ -4,7 +4,14 @@ import { analysisActions } from '@/state/analysisStore';
 export const navigationTemplate = (stream) => {
     if (stream.manifest.type !== 'dynamic') return html``;
 
-    const { manifestUpdates, activeManifestUpdateIndex } = stream;
+    const { manifestUpdates, activeManifestUpdateId } = stream;
+    const activeManifestUpdateIndex = manifestUpdates.findIndex(
+        (u) => u.id === activeManifestUpdateId
+    );
+
+    // If for some reason the ID isn't found, render nothing to prevent errors.
+    if (activeManifestUpdateIndex === -1) return html``;
+
     const updateCount = manifestUpdates.length;
     const hasNewIssues =
         manifestUpdates[0]?.hasNewIssues && activeManifestUpdateIndex > 0;

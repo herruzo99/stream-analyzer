@@ -126,9 +126,6 @@ async function resolveAdAvail(stream, scte35Event) {
             `[resolveAdAvailUseCase] Failed to fetch or parse VAST from ${adManifestUrl}:`,
             e
         );
-        // --- ARCHITECTURAL FIX ---
-        // Even if VAST fetch fails, we should still show the ad opportunity.
-        // Fall back to creating a partial avail, which preserves the signaled opportunity in the state.
         createPartialAdAvail(stream, scte35Event);
     }
 }
@@ -141,21 +138,11 @@ function handleInbandEventsAdded({ streamId, newEvents }) {
 
     for (const event of newEvents) {
         if (event.scte35) {
-            // The `startTime` for in-band emsg boxes needs to be calculated based on their presentation time.
-            // For now, we'll assume the parser has populated this correctly.
             resolveAdAvail(stream, event);
         }
     }
 }
 
 export function initializeResolveAdAvailUseCase() {
-    // --- ARCHITECTURAL REMEDIATION ---
-    // The responsibility for handling the *initial* set of in-band events has been moved
-    // synchronously into the worker's `analysisHandler`. This main-thread use case is
-    // now redundant for the initial load.
-    //
-    // This listener is being disabled to prevent duplicate processing. It could be
-    // re-enabled later if we need to process in-band events from *newly added* live segments.
-    // eventBus.subscribe('state:inband-events-added', handleInbandEventsAdded);
-    // --- END REMEDIATION ---
+    eventBus.subscribe('state:inband-events-added', handleInbandEventsAdded);
 }

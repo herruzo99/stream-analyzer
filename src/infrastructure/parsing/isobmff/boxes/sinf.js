@@ -1,7 +1,7 @@
 /**
  * Parses the 'sinf' (Protection Scheme Information) container box.
  * This box is a container for protection-related boxes like 'frma', 'schm', and 'schi'.
- * @param {import('../parser.js').Box} box
+ * @param {import('@/types.js').Box} box
  * @param {DataView} view
  */
 export function parseSinf(box, view) {

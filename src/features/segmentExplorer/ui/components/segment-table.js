@@ -76,7 +76,7 @@ export const segmentTableTemplate = ({
                 seg,
                 stream,
                 segmentFormat,
-                id,
+                rawId,
                 currentSegmentUrls,
                 cacheEntry,
                 segmentExplorerTargetTime,

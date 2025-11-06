@@ -5,7 +5,7 @@
  */
 export class BoxParser {
     /**
-     * @param {import('./parser.js').Box} box The box object to be populated.
+     * @param {import('../../../types.ts').Box} box The box object to be populated.
      * @param {DataView} view The DataView for the box's content, starting from the beginning of the box.
      */
     constructor(box, view) {
@@ -309,9 +309,9 @@ export class BoxParser {
 
 /**
  * Recursively finds the first box of a given type.
- * @param {import('./parser.js').Box[]} boxes
+ * @param {import('../../../types.ts').Box[]} boxes
  * @param {string} type
- * @returns {import('./parser.js').Box | null}
+ * @returns {import('../../../types.ts').Box | null}
  */
 export function findBoxRecursive(boxes, type) {
     if (!boxes) return null;

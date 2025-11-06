@@ -4,8 +4,11 @@
  * @typedef {import('@/types.ts').SecuritySummary} SecuritySummary
  */
 
+import { findChildrenRecursive, resolveBaseUrl } from '../dash/recursive-parser.js';
 import { formatBitrate } from '@/ui/shared/format';
 import { isCodecSupported } from '../utils/codec-support.js';
+import { debugLog } from '@/shared/utils/debug';
+import { getDrmSystemName } from '../utils/drm.js';
 
 const findBoxRecursive = (boxes, predicateOrType) => {
     const predicate =
@@ -36,6 +39,7 @@ const findBoxRecursive = (boxes, predicateOrType) => {
 export async function generateHlsSummary(manifestIR, context) {
     const { serializedManifest: rawElement } = manifestIR;
     const isMaster = manifestIR.isMaster;
+    let mediaPlaylistIRForEnrichment = null;
 
     // --- ENRICHMENT STEP ---
     if (isMaster && context?.fetchWithAuth && context?.parseHlsManifest) {
@@ -52,6 +56,8 @@ export async function generateHlsSummary(manifestIR, context) {
                         firstVariant.resolvedUri,
                         manifestIR.hlsDefinedVariables
                     );
+
+                mediaPlaylistIRForEnrichment = mediaPlaylistIR;
 
                 // Enrich the master manifest IR with data from the media playlist
                 manifestIR.duration = mediaPlaylistIR.duration;
@@ -100,7 +106,7 @@ export async function generateHlsSummary(manifestIR, context) {
                     : [],
                 scanType: null,
                 videoRange: rep.videoRange || null,
-                roles: [],
+                roles: as.roles.map((r) => r.value),
                 __variantUri: rep.__variantUri,
             }))
         );
@@ -176,26 +182,51 @@ export async function generateHlsSummary(manifestIR, context) {
             };
         });
 
-    const allContentProtection = allAdaptationSets.flatMap(
-        (as) => as.contentProtection
+    const keyTagsFromMaster = (manifestIR.tags || []).filter(
+        (t) => t.name === 'EXT-X-KEY' || t.name === 'EXT-X-SESSION-KEY'
     );
+    const keyTagsFromMedia =
+        mediaPlaylistIRForEnrichment?.tags?.filter(
+            (t) => t.name === 'EXT-X-KEY'
+        ) || [];
+    const allKeyTags = [...keyTagsFromMaster, ...keyTagsFromMedia];
+
+    const contentProtectionIRs = allKeyTags
+        .filter((tag) => tag.value.METHOD && tag.value.METHOD !== 'NONE')
+        .map((tag) => {
+            const schemeIdUri = tag.value.KEYFORMAT || 'identity';
+            return {
+                schemeIdUri: schemeIdUri,
+                system: getDrmSystemName(schemeIdUri) || tag.value.METHOD,
+                defaultKid: tag.value.KEYID || null,
+            };
+        });
+
     const security = /** @type {SecuritySummary} */ ({
-        isEncrypted: allContentProtection.length > 0,
-        systems: [], // HLS does not use PSSH, so this remains empty.
+        isEncrypted: contentProtectionIRs.length > 0,
+        systems: contentProtectionIRs.map(
+            (cp) =>
+                /** @type {import('@/types').PsshInfo} */ ({
+                    systemId: cp.schemeIdUri,
+                    kids: cp.defaultKid ? [cp.defaultKid] : [],
+                })
+        ),
         kids: [
             ...new Set(
-                allContentProtection.map((cp) => cp.defaultKid).filter(Boolean)
+                contentProtectionIRs.map((cp) => cp.defaultKid).filter(Boolean)
             ),
         ],
         hlsEncryptionMethod: null,
     });
 
     if (security.isEncrypted) {
-        const methods = new Set(allContentProtection.map((cp) => cp.system));
+        const methods = new Set(contentProtectionIRs.map((cp) => cp.system));
         if (methods.has('SAMPLE-AES')) {
             security.hlsEncryptionMethod = 'SAMPLE-AES';
         } else if (methods.has('AES-128')) {
             security.hlsEncryptionMethod = 'AES-128';
+        } else if (methods.size > 0) {
+            security.hlsEncryptionMethod = [...methods][0];
         }
     }
 

@@ -496,6 +496,11 @@ export const hlsTooltipData = {
         category: 'Multivariant Playlist',
         isoRef: 'HLS 2nd Ed: 4.4.6.3',
     },
+    'EXT-X-I-FRAME-STREAM-INF@VIDEO-RANGE': {
+        text: 'Specifies the video dynamic range for the I-Frame stream. Valid values are SDR, HLG, and PQ.',
+        category: 'Multivariant Playlist',
+        isoRef: 'HLS 2nd Ed: 4.4.6.3',
+    },
     'EXT-X-SESSION-DATA': {
         text: 'Allows arbitrary session data (e.g., a JSON object) to be carried in a Multivariant Playlist. Used for features like Localization Dictionaries or Custom Media Selection.',
         category: 'Multivariant Playlist',

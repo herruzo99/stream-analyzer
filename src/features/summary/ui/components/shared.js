@@ -140,7 +140,17 @@ const trackCardTemplate = (track, type, gridColumns) => {
         application: icons.fileText,
     }[type];
 
-    const roles = track.roles?.join(', ') || 'N/A';
+    let roles = track.roles?.join(', ') || 'N/A';
+
+    // --- NEW: Add visual indicator for trick play tracks ---
+    const isTrickPlay = track.roles?.includes('trick');
+    if (isTrickPlay) {
+        roles = html`<span
+            class="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-800 text-orange-200"
+            >Trick Play</span
+        >`;
+    }
+    // --- END NEW ---
 
     const codecsToRender = [];
     if (type === 'text' || type === 'application') {
@@ -168,8 +178,6 @@ const trackCardTemplate = (track, type, gridColumns) => {
     let contentTemplate;
 
     if (type === 'video') {
-        // --- ARCHITECTURAL IMPROVEMENT ---
-        // Display both effective (from btrt) and manifest bandwidth if they differ.
         const effectiveBitrate = formatBitrate(track.bandwidth);
         const manifestBitrate = formatBitrate(track.manifestBandwidth);
         let bitrate;
@@ -186,7 +194,6 @@ const trackCardTemplate = (track, type, gridColumns) => {
         } else {
             bitrate = effectiveBitrate;
         }
-        // --- END IMPROVEMENT ---
 
         let resolution = 'N/A';
         if (track.resolutions && track.resolutions.length > 0) {
@@ -270,7 +277,6 @@ const trackCardTemplate = (track, type, gridColumns) => {
 export const trackTableTemplate = (tracks, type) => {
     if (!tracks || tracks.length === 0) return '';
 
-    // --- ARCHITECTURAL REFINEMENT: Sort video tracks by resolution ---
     const sortedTracks = [...tracks];
     if (type === 'video') {
         sortedTracks.sort((a, b) => {
@@ -279,13 +285,11 @@ export const trackTableTemplate = (tracks, type) => {
             if (heightA !== heightB) {
                 return heightA - heightB;
             }
-            // If heights are the same, sort by width
             const widthA = a.width?.value || 0;
             const widthB = b.width?.value || 0;
             return widthA - widthB;
         });
     }
-    // --- END REFINEMENT ---
 
     let gridColumns;
     let headerTemplate;

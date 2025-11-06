@@ -30,7 +30,7 @@ const SAMPLE_HAS_REDUNDANCY_MAP = {
 
 /**
  * Parses the 'sdtp' (Sample Dependency Type) box.
- * @param {import('../parser.js').Box} box
+ * @param {import('@/types.js').Box} box
  * @param {DataView} view
  */
 export function parseSdtp(box, view) {

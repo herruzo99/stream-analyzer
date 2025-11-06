@@ -9,6 +9,7 @@ import {
 } from '@/infrastructure/parsing/dash/recursive-parser';
 import * as icons from '@/ui/icons';
 import { streamHeaderTemplate } from './components/stream-header.js';
+import '@/features/comparison/ui/components/abr-ladder-chart.js';
 
 const programInfoTemplate = (stream) => {
     const programInfo = stream.manifest.programInformations?.[0];
@@ -55,6 +56,24 @@ export function getDashSummaryTemplate(stream) {
               'value'
           )}`
         : null;
+
+    const allVideoReps = stream.manifest.periods
+        .flatMap((p) => p.adaptationSets)
+        .filter((as) => as.contentType === 'video')
+        .flatMap((as) => as.representations);
+
+    const abrLadderData = [
+        {
+            name: stream.name,
+            tracks: allVideoReps
+                .map((rep) => ({
+                    width: rep.width.value,
+                    height: rep.height.value,
+                    bandwidth: rep.bandwidth,
+                }))
+                .filter((t) => t.width && t.height && t.bandwidth),
+        },
+    ];
 
     return html`
         <div class="space-y-8">
@@ -150,6 +169,18 @@ export function getDashSummaryTemplate(stream) {
             <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
                 ${dashComplianceSummaryTemplate(stream)}
                 ${cmafValidationSummaryTemplate(stream)}
+                <div class="md:col-span-2">
+                    <h3 class="text-xl font-bold mb-4 text-slate-100">
+                        ABR Bitrate Ladder
+                    </h3>
+                    <div
+                        class="bg-slate-800 p-4 rounded-lg border border-slate-700 h-80"
+                    >
+                        <abr-ladder-chart
+                            .data=${abrLadderData}
+                        ></abr-ladder-chart>
+                    </div>
+                </div>
             </div>
 
             ${dashStructureTemplate(summary)}

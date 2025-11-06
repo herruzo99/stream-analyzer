@@ -7,6 +7,7 @@ import {
     restoreFromStorage,
 } from '@/infrastructure/persistence/streamStorage';
 import { useMultiPlayerStore } from './multiPlayerStore.js';
+import { showToast } from '@/ui/components/toast.js';
 
 // --- Type Definitions ---
 /** @typedef {import('@/types.ts').Stream} Stream */
@@ -14,7 +15,7 @@ import { useMultiPlayerStore } from './multiPlayerStore.js';
 /** @typedef {import('@/types.ts').Event} Event */
 /** @typedef {import('@/types.ts').AuthInfo} AuthInfo */
 /** @typedef {import('@/types.ts').DrmAuthInfo} DrmAuthInfo */
-/** @typedef {{id: number, url: string, name: string, file: File | null, auth: AuthInfo, drmAuth: DrmAuthInfo}} StreamInput */
+/** @typedef {import('@/types.ts').StreamInput} StreamInput */
 /** @typedef {{streamId: number, repId: string, segmentUniqueId: string}} SegmentToCompare */
 /** @typedef {import('@/types').MediaSegment} MediaSegment */
 
@@ -33,7 +34,7 @@ import { useMultiPlayerStore } from './multiPlayerStore.js';
 /**
  * @typedef {object} AnalysisActions
  * @property {() => void} startAnalysis
- * @property {(streams: Stream[], urlAuthMapArray: [string, {streamId: number, auth: AuthInfo}][], inputs: StreamInput[]) => void} completeAnalysis
+ * @property {(streams: Stream[], urlAuthMapArray: [string, {streamId: number, auth: AuthInfo}][], inputs: Partial<StreamInput>[]) => void} completeAnalysis
  * @property {(streamId: number) => void} setActiveStreamId
  * @property {(updateId: string) => void} setActiveManifestUpdate
  * @property {(id: string) => void} setActiveSegmentUrl
@@ -89,6 +90,15 @@ export const useAnalysisStore = createStore((set, get) => ({
     },
 
     completeAnalysis: (streams, urlAuthMapArray, inputs) => {
+        const hydratedInputs = inputs.map(
+            (input) =>
+                /** @type {StreamInput} */ ({
+                    ...input,
+                    detectedDrm: null,
+                    isDrmInfoLoading: false,
+                })
+        );
+
         const fullyFormedStreams = streams.map((s) => {
             const newStream = { ...s };
 
@@ -155,8 +165,8 @@ export const useAnalysisStore = createStore((set, get) => ({
             streams: fullyFormedStreams,
             activeStreamId: fullyFormedStreams[0]?.id ?? null,
             urlAuthMap: new Map(urlAuthMapArray),
-            streamInputs: inputs,
-            activeStreamInputId: inputs.length > 0 ? inputs[0].id : null,
+            streamInputs: hydratedInputs,
+            activeStreamInputId: hydratedInputs.length > 0 ? hydratedInputs[0].id : null,
         });
         
         useMultiPlayerStore.getState().initializePlayers(fullyFormedStreams);
@@ -200,6 +210,8 @@ export const useAnalysisStore = createStore((set, get) => ({
                     headers: [],
                     queryParams: [],
                 },
+                detectedDrm: null,
+                isDrmInfoLoading: false,
             };
             return {
                 streamInputs: [...state.streamInputs, newStreamInput],
@@ -210,34 +222,63 @@ export const useAnalysisStore = createStore((set, get) => ({
     },
 
     addStreamInputFromPreset: (preset) => {
-        set((state) => {
-            const newId = state.streamIdCounter;
-            // Deep clone auth objects to prevent reference sharing
-            const auth = preset.auth
-                ? JSON.parse(JSON.stringify(preset.auth))
-                : { headers: [], queryParams: [] };
-            const drmAuth = preset.drmAuth
-                ? restoreFromStorage(prepareForStorage(preset.drmAuth))
-                : {
-                      licenseServerUrl: '',
-                      serverCertificate: null,
-                      headers: [],
-                      queryParams: [],
-                  };
+        const state = get();
 
-            const newStreamInput = {
-                id: newId,
-                url: preset.url || '',
-                name: preset.name || '',
-                file: null,
-                auth,
-                drmAuth,
-            };
-            return {
-                streamInputs: [...state.streamInputs, newStreamInput],
-                streamIdCounter: newId + 1,
-                activeStreamInputId: newId,
-            };
+        // Create a canonical, comparable object from the new preset.
+        const getComparable = (input) => {
+            const storable = prepareForStorage(input);
+            // Delete client-side and transient state properties before comparison
+            delete storable.id;
+            delete storable.detectedDrm;
+            delete storable.isDrmInfoLoading;
+            return JSON.stringify(storable);
+        };
+        
+        const newComparable = getComparable({
+            url: preset.url || '',
+            name: preset.name || '',
+            file: null,
+            auth: preset.auth || { headers: [], queryParams: [] },
+            drmAuth: preset.drmAuth || {
+                licenseServerUrl: '',
+                serverCertificate: null,
+                headers: [],
+                queryParams: [],
+            },
+        });
+        
+        const existingInput = state.streamInputs.find(input => getComparable(input) === newComparable);
+
+        if (existingInput) {
+            showToast({
+                message: 'This stream configuration already exists in the workspace.',
+                type: 'warn',
+            });
+            set({ activeStreamInputId: existingInput.id }); // Focus the existing one
+            return;
+        }
+
+        set({
+            streamInputs: [
+                ...state.streamInputs,
+                {
+                    id: state.streamIdCounter,
+                    url: preset.url || '',
+                    name: preset.name || '',
+                    file: null,
+                    auth: preset.auth ? JSON.parse(JSON.stringify(preset.auth)) : { headers: [], queryParams: [] },
+                    drmAuth: preset.drmAuth ? restoreFromStorage(prepareForStorage(preset.drmAuth)) : {
+                        licenseServerUrl: '',
+                        serverCertificate: null,
+                        headers: [],
+                        queryParams: [],
+                    },
+                    detectedDrm: null,
+                    isDrmInfoLoading: !!preset.url,
+                },
+            ],
+            streamIdCounter: state.streamIdCounter + 1,
+            activeStreamInputId: state.streamIdCounter,
         });
     },
 
@@ -282,6 +323,8 @@ export const useAnalysisStore = createStore((set, get) => ({
                 headers: [],
                 queryParams: [],
             },
+            detectedDrm: null,
+            isDrmInfoLoading: !!input.url,
         }));
         set({
             streamInputs: newInputs,
@@ -291,11 +334,20 @@ export const useAnalysisStore = createStore((set, get) => ({
     },
 
     updateStreamInput: (id, field, value) => {
-        set((state) => ({
-            streamInputs: state.streamInputs.map((input) =>
-                input.id === id ? { ...input, [field]: value } : input
-            ),
-        }));
+        set((state) => {
+            const updatedInputs = state.streamInputs.map((input) => {
+                if (input.id === id) {
+                    const updatedInput = { ...input, [field]: value };
+                    if (field === 'url') {
+                        updatedInput.isDrmInfoLoading = !!value; // Start loading on URL change
+                        updatedInput.detectedDrm = null;
+                    }
+                    return updatedInput;
+                }
+                return input;
+            });
+            return { streamInputs: updatedInputs };
+        });
     },
 
     addAuthParam: (inputId, type) => {
@@ -414,6 +466,8 @@ export const useAnalysisStore = createStore((set, get) => ({
                             ...pristineDrmAuth,
                             ...(preset.drmAuth || {}),
                         },
+                        detectedDrm: null,
+                        isDrmInfoLoading: !!preset.url,
                     };
                 }
                 return input;

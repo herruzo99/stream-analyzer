@@ -1,7 +1,7 @@
 /**
  * Parses the 'schi' (Scheme Information) container box.
  * This box is a container for scheme-specific data.
- * @param {import('../parser.js').Box} box
+ * @param {import('@/types.js').Box} box
  * @param {DataView} view
  */
 export function parseSchi(box, view) {

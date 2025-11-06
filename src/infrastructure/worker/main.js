@@ -7,9 +7,10 @@ import {
     handleFetchKey,
     handleFullSegmentAnalysis,
 } from './parsingService.js';
-import { handleShakaResourceFetch } from './handlers/shakaResourceHandler.js.js';
+import { handleShakaResourceFetch } from './handlers/shakaResourceHandler.js';
 import { handleShakaManifestFetch } from './handlers/shakaManifestHandler.js';
 import { handleCalculateMemoryReport } from './handlers/memoryReportHandler.js';
+import { handleGetStreamDrmInfo } from './handlers/drmDetectionHandler.js';
 import { debugLog } from '@/shared/utils/debug';
 
 const inFlightTasks = new Map();
@@ -58,6 +59,7 @@ const handlers = {
     'start-analysis': (payload, signal) =>
         handleStartAnalysis({ ...payload, now: Date.now() }, signal),
     'get-manifest-metadata': handleGetManifestMetadata,
+    'get-stream-drm-info': handleGetStreamDrmInfo,
     'parse-segment-structure': handleParseSegmentStructure,
     'full-segment-analysis': handleFullSegmentAnalysis,
     'segment-fetch-and-parse': handleFetchAndParseSegment,

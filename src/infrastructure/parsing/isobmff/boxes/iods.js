@@ -31,7 +31,7 @@ function parseDescriptorSize(p, fieldName) {
 
 /**
  * Parses the 'iods' (Initial Object Descriptor) box.
- * @param {import('../parser.js').Box} box
+ * @param {import('@/types.js').Box} box
  * @param {DataView} view
  */
 export function parseIods(box, view) {

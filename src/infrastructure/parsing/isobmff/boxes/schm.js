@@ -6,7 +6,7 @@ const SCHM_FLAGS_SCHEMA = {
 
 /**
  * Parses the 'schm' (Scheme Type) box.
- * @param {import('../parser.js').Box} box
+ * @param {import('@/types.js').Box} box
  * @param {DataView} view
  */
 export function parseSchm(box, view) {

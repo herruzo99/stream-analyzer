@@ -6,7 +6,7 @@ const SENC_FLAGS_SCHEMA = {
 
 /**
  * Parses the 'senc' (Sample Encryption) box.
- * @param {import('../parser.js').Box} box
+ * @param {import('@/types').Box} box
  * @param {DataView} view
  */
 export function parseSenc(box, view) {
@@ -43,8 +43,10 @@ export function parseSenc(box, view) {
             if (p.stopped) break;
 
             const sampleEntry = {
-                iv: null,
-                subsamples: [],
+                encryption: {
+                    iv: null,
+                    subsamples: [],
+                },
             };
 
             const ivField = `sample_${i}_iv`;
@@ -56,7 +58,7 @@ export function parseSenc(box, view) {
                         p.view.byteOffset + p.offset,
                         perSampleIvSize
                     );
-                    sampleEntry.iv = ivBytes;
+                    sampleEntry.encryption.iv = ivBytes;
                     p.box.details[ivField] = {
                         value: `[${perSampleIvSize} bytes]`,
                         offset: p.box.offset + p.offset,
@@ -98,7 +100,7 @@ export function parseSenc(box, view) {
                         p.box.details[clearBytesField].internal = true;
                         p.box.details[protectedBytesField].internal = true;
 
-                        sampleEntry.subsamples.push({
+                        sampleEntry.encryption.subsamples.push({
                             BytesOfClearData,
                             BytesOfProtectedData,
                         });

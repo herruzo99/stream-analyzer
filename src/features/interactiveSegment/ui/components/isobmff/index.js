@@ -10,9 +10,9 @@ const allIsoTooltipData = getAllIsoTooltipData();
 
 /**
  * Recursively finds the first occurrence of a box that satisfies the predicate.
- * @param {import('@/infrastructure/parsing/isobmff/parser.js').Box[]} boxes
- * @param {string | ((box: import('@/infrastructure/parsing/isobmff/parser.js').Box) => boolean)} predicateOrType
- * @returns {import('@/infrastructure/parsing/isobmff/parser.js').Box | null}
+ * @param {import('@/types.js').Box[]} boxes
+ * @param {string | ((box: import('@/types.js').Box) => boolean)} predicateOrType
+ * @returns {import('@/types.js').Box | null}
  */
 function findBoxRecursive(boxes, predicateOrType) {
     const predicate =

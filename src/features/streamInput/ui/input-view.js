@@ -43,7 +43,9 @@ export const inputViewTemplate = () => {
     };
 
     return html`
-        <div class="w-full h-full flex flex-col p-4 sm:p-6 lg:p-8">
+        <div
+            class="w-full h-full max-w-7xl mx-auto flex flex-col p-4 sm:p-6 lg:p-8"
+        >
             <header
                 class="flex items-start justify-between gap-4 mb-6 shrink-0"
             >

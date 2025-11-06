@@ -4,7 +4,7 @@ import { BoxParser } from '../utils.js';
  * Parses the 'tref' (Track Reference) container box.
  * This box does not have its own fields but contains other boxes
  * whose type indicates the reference type (e.g., 'hint', 'cdsc').
- * @param {import('../parser.js').Box} box
+ * @param {import('@/types.js').Box} box
  * @param {DataView} view
  */
 export function parseTref(box, view) {
@@ -15,7 +15,7 @@ export function parseTref(box, view) {
 
 /**
  * A generic parser for boxes within a 'tref' box.
- * @param {import('../parser.js').Box} box
+ * @param {import('@/types.js').Box} box
  * @param {DataView} view
  */
 function parseTrefTypeBox(box, view) {

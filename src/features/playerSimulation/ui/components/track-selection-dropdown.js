@@ -94,7 +94,7 @@ export const videoSelectionPanelTemplate = (
 
     return html`
         <div
-            class="dropdown-panel bg-slate-800 border border-slate-700 rounded-lg shadow-xl w-80 p-2 space-y-2"
+            class="dropdown-panel bg-slate-800 border border-slate-700 rounded-lg shadow-xl w-80 p-2 space-y-2 max-h-[60vh] overflow-y-auto"
         >
             ${trackCardTemplate({
                 label: 'Auto (ABR)',

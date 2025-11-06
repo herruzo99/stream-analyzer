@@ -6,25 +6,7 @@ import { getShaka } from '@/infrastructure/player/shaka';
 import { formatBitrate } from '@/ui/shared/format';
 import { StallCalculator } from '@/features/multiPlayer/domain/stall-calculator';
 import { parseShakaError } from '@/infrastructure/player/shaka-error';
-import { schemeIdUriToKeySystem } from '@/infrastructure/parsing/utils/drm';
-
-async function fetchCertificate(url) {
-    try {
-        if (!url) {
-            return null;
-        }
-        const response = await fetch(url);
-        if (!response.ok) {
-            throw new Error(
-                `HTTP error ${response.status} fetching certificate`
-            );
-        }
-        return await response.arrayBuffer();
-    } catch (e) {
-        console.error('Failed to fetch DRM service certificate:', e);
-        throw e;
-    }
-}
+import { playerConfigService } from '@/features/multiPlayer/application/playerConfigService';
 
 class PlayerService {
     constructor() {
@@ -250,9 +232,13 @@ class PlayerService {
                 rate: videoElement.playbackRate,
             })
         );
-        this.player.addEventListener('emsg', (e) =>
-            eventBus.dispatch('player:emsg', /** @type {any} */ (e).detail)
-        );
+        this.player.addEventListener('emsg', (e) => {
+            const { streams, activeStreamId } = useAnalysisStore.getState();
+            const stream = streams.find((s) => s.id === activeStreamId);
+            if (stream) {
+                eventBus.dispatch('player:emsg', { ...e.detail, stream });
+            }
+        });
         this.player.addEventListener('texttrackvisibility', (e) =>
             eventBus.dispatch(
                 'player:texttrackvisibility',
@@ -348,8 +334,7 @@ class PlayerService {
     }
 
     async load(stream, autoPlay = false) {
-        if (!this.isInitialized || !this.player || !stream || !stream.drmAuth)
-            return;
+        if (!this.isInitialized || !this.player || !stream) return;
 
         this.stallCalculator.reset();
 
@@ -364,84 +349,10 @@ class PlayerService {
             activeStreamIds: this.activeStreamIds,
         });
 
-        const security = stream.manifest?.summary?.security;
-
-        if (security?.isEncrypted) {
-            const licenseRequestHeaders = {};
-            stream.drmAuth?.headers?.forEach((h) => {
-                if (h.key) licenseRequestHeaders[h.key] = h.value;
-            });
-
-            try {
-                let serverCertificate;
-                const certSource = stream.drmAuth.serverCertificate;
-
-                if (certSource instanceof ArrayBuffer) {
-                    serverCertificate = certSource;
-                } else if (typeof certSource === 'string' && certSource) {
-                    serverCertificate = await fetchCertificate(certSource);
-                }
-
-                const drmConfig = {
-                    servers: {},
-                    advanced: {},
-                };
-
-                for (const system of security.systems) {
-                    const keySystem = schemeIdUriToKeySystem[system.systemId];
-                    if (keySystem) {
-                        // Prioritize user-provided URL for this specific key system.
-                        const licenseServerUrl =
-                            typeof stream.drmAuth.licenseServerUrl === 'object'
-                                ? stream.drmAuth.licenseServerUrl[keySystem]
-                                : typeof stream.drmAuth.licenseServerUrl ===
-                                    'string'
-                                  ? stream.drmAuth.licenseServerUrl
-                                  : null;
-
-                        // Fallback to discovered URL if no user-provided one exists.
-                        const finalUrl =
-                            licenseServerUrl ||
-                            security.licenseServerUrls?.[0] ||
-                            '';
-
-                        if (finalUrl) {
-                            drmConfig.servers[keySystem] = finalUrl;
-                            drmConfig.advanced[keySystem] = {
-                                serverCertificate: serverCertificate
-                                    ? new Uint8Array(serverCertificate)
-                                    : undefined,
-                                headers: licenseRequestHeaders,
-                            };
-                        }
-                    }
-                }
-
-                if (Object.keys(drmConfig.servers).length === 0) {
-                    this.onError({
-                        code: 6012, // NO_LICENSE_SERVER_GIVEN
-                        message:
-                            'No license server was configured for the detected DRM systems.',
-                        data: security.systems.map((s) => s.systemId),
-                    });
-                    playerActions.setLoadedState(false);
-                    return;
-                }
-
-                this.player.configure({ drm: drmConfig });
-            } catch (e) {
-                this.onError({
-                    code: 6017, // SERVER_CERTIFICATE_REQUEST_FAILED
-                    message: `Failed to fetch or process the DRM service certificate: ${e.message}`,
-                });
-                playerActions.setLoadedState(false);
-                return;
-            }
-        } else {
-            this.player.configure({ drm: { servers: {} } });
-        }
-
         try {
+            const drmConfig = await playerConfigService.buildDrmConfig(stream);
+            this.player.configure({ drm: drmConfig });
+
             await this.player.load(stream.originalUrl);
 
             const rawVariantTracks = this.player.getVariantTracks();
@@ -485,7 +396,7 @@ class PlayerService {
             const streamId = this.player.streamAnalyzerStreamId;
             this.stopStatsCollection();
             await this.player.unload();
-            playerActions.setLoadedState(false);
+            playerActions.reset(); // Reset the UI state
             this.stallCalculator.reset();
             if (streamId !== undefined) {
                 this.activeStreamIds.delete(streamId);

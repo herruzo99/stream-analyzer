@@ -103,7 +103,29 @@ const adCreativeCardTemplate = (creative) => html`
     </details>
 `;
 
+const unconfirmedInbandTemplate = () => html`
+    <div
+        class="bg-slate-900 rounded-lg border-l-4 border-purple-500 text-center p-6 border border-dashed border-slate-700"
+    >
+        <div class="text-purple-400 mx-auto w-10 h-10 animate-pulse">
+            ${icons.searchCode}
+        </div>
+        <p class="text-sm font-semibold text-purple-300 mt-2">
+            In-Band Ad Signals Detected
+        </p>
+        <p class="text-xs text-slate-400 mt-2">
+            The manifest declares in-band SCTE-35 event streams. Play the content or
+            load individual segments in the explorer to discover specific ad avails as
+            they appear.
+        </p>
+    </div>
+`;
+
 const adAvailCardTemplate = (avail) => {
+    if (avail.id === 'unconfirmed-inband-scte35') {
+        return unconfirmedInbandTemplate();
+    }
+
     const tabs = [
         { key: 'creatives', label: `Creatives (${avail.creatives.length})` },
         { key: 'scte35', label: 'SCTE-35 Signal' },
@@ -217,12 +239,18 @@ const adAvailCardTemplate = (avail) => {
                 <div class="grid grid-cols-2 gap-4 mt-4">
                     ${statCardTemplate({
                         label: 'Start Time',
-                        value: `${avail.startTime.toFixed(2)}s`,
+                        value:
+                            avail.startTime !== undefined
+                                ? `${avail.startTime.toFixed(2)}s`
+                                : 'N/A',
                         icon: icons.timer,
                     })}
                     ${statCardTemplate({
                         label: 'Duration',
-                        value: `${avail.duration.toFixed(2)}s`,
+                        value:
+                            avail.duration !== undefined
+                                ? `${avail.duration.toFixed(2)}s`
+                                : 'N/A',
                         icon: icons.clock,
                     })}
                 </div>
@@ -269,7 +297,11 @@ function renderAdvertisingReport() {
     const sortedAvails = [...stream.adAvails].sort(
         (a, b) => a.startTime - b.startTime
     );
-    const totalAdDuration = sortedAvails.reduce(
+    const confirmedAvails = sortedAvails.filter(
+        (a) => a.id !== 'unconfirmed-inband-scte35'
+    );
+
+    const totalAdDuration = confirmedAvails.reduce(
         (sum, a) => sum + a.duration,
         0
     );
@@ -278,7 +310,7 @@ function renderAdvertisingReport() {
         <div class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(250px,1fr))]">
             ${statCardTemplate({
                 label: 'Total Ad Avails',
-                value: sortedAvails.length,
+                value: confirmedAvails.length,
                 tooltip:
                     'The total number of ad insertion opportunities detected.',
                 icon: icons.advertising,

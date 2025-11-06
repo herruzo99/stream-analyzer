@@ -3,7 +3,7 @@ import { BoxParser } from '../utils.js';
 /**
  * A generic parser for simple container boxes that have no fields of their own.
  * Their children are parsed by the main parser loop.
- * @param {import('../parser.js').Box} box
+ * @param {import('@/types.js').Box} box
  * @param {DataView} view
  */
 function parseSimpleContainer(box, view) {
@@ -13,7 +13,7 @@ function parseSimpleContainer(box, view) {
 /**
  * A generic parser for simple container boxes that are also "Full Boxes"
  * (i.e., they have version and flags).
- * @param {import('../parser.js').Box} box
+ * @param {import('@/types.js').Box} box
  * @param {DataView} view
  */
 function parseFullBoxContainer(box, view) {

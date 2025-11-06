@@ -27,6 +27,26 @@ function parseAttributeList(attrString) {
     return attributes;
 }
 
+/**
+ * Resolves a key URI from an HLS manifest.
+ * If the URI has a scheme (e.g., http:, https:, skd:), it's treated as absolute.
+ * Otherwise, it's treated as a relative path and resolved against the base URL.
+ * @param {string} uri The URI string from the manifest.
+ * @param {string} baseUrl The base URL of the manifest.
+ * @returns {string} The resolved or original URI.
+ */
+function resolveKeyUri(uri, baseUrl) {
+    if (/^[a-z]+:/i.test(uri)) {
+        return uri;
+    }
+    try {
+        return new URL(uri, baseUrl).href;
+    } catch (e) {
+        // Fallback for cases where baseUrl might also be malformed, return original uri.
+        return uri;
+    }
+}
+
 function applyVariableSubstitution(
     lines,
     playlistUrl,
@@ -177,7 +197,7 @@ export async function parseManifest(
                 case 'EXT-X-MEDIA':
                     parsed.isMaster = true;
                     parsed.media.push({
-                        ...parseAttributeList(tagValue),
+                        value: parseAttributeList(tagValue),
                         lineNumber: i,
                     });
                     break;
@@ -239,13 +259,26 @@ export async function parseManifest(
                         if (keyAttributes.METHOD === 'NONE') {
                             currentEncryptionInfo = null;
                         } else {
+                            let keyUri = String(keyAttributes.URI);
+                            let iv = String(keyAttributes.IV || null);
+
+                            // --- ARCHITECTURAL FIX: Extract IV from URI for certain schemes ---
+                            const lastColonIndex = keyUri.lastIndexOf(':');
+                            if (
+                                keyUri.startsWith('skd:') &&
+                                lastColonIndex > 'skd://'.length
+                            ) {
+                                iv = '0x' + keyUri.substring(lastColonIndex + 1);
+                                keyUri = keyUri.substring(0, lastColonIndex);
+                            }
+                            // --- END FIX ---
+
                             currentEncryptionInfo = {
                                 method: /** @type {'AES-128'} */ (
                                     keyAttributes.METHOD
                                 ),
-                                uri: new URL(String(keyAttributes.URI), baseUrl)
-                                    .href,
-                                iv: String(keyAttributes.IV || null),
+                                uri: resolveKeyUri(keyUri, baseUrl),
+                                iv: iv,
                                 keyFormat: String(
                                     keyAttributes.KEYFORMAT || 'identity'
                                 ),

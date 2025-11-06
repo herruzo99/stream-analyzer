@@ -157,6 +157,7 @@ export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
             oldHlsVariantState: Array.from(
                 currentStream?.hlsVariantState.entries() || []
             ),
+            oldAdAvails: currentStream?.adAvails || [],
         };
     } else {
         taskType = 'shaka-fetch-resource';
