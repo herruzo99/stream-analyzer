@@ -1,7 +1,7 @@
 import { BoxParser } from '../utils.js';
 
 /**
- * @param {import('../parser.js').Box} box
+ * @param {import('@/types.js').Box} box
  * @param {DataView} view
  */
 export function parseStsc(box, view) {

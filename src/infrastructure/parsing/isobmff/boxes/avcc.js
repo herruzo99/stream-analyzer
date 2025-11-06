@@ -3,7 +3,7 @@ import { parseSPS } from './sps.js';
 
 /**
  * Parses the 'avcC' (AVC Configuration) box.
- * @param {import('../parser.js').Box} box
+ * @param {import('@/types.js').Box} box
  * @param {DataView} view
  */
 export function parseAvcc(box, view) {

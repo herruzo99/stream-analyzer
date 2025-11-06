@@ -6,6 +6,7 @@ import { hlsMediaPlaylistTemplate } from './components/hls-media-playlist.js';
 import { statCardTemplate } from './components/shared.js';
 import * as icons from '@/ui/icons';
 import { streamHeaderTemplate } from './components/stream-header.js';
+import '@/features/comparison/ui/components/abr-ladder-chart.js';
 
 export function getHlsSummaryTemplate(stream) {
     const summary = stream.manifest.summary;
@@ -16,6 +17,24 @@ export function getHlsSummaryTemplate(stream) {
             <p class="font-bold">Summary data is incomplete for this view.</p>
         </div>`;
     }
+
+    const allVideoReps = stream.manifest.periods
+        .flatMap((p) => p.adaptationSets)
+        .filter((as) => as.contentType === 'video' && as.roles.every(r => r.value !== 'trick'))
+        .flatMap((as) => as.representations);
+
+    const abrLadderData = [
+        {
+            name: stream.name,
+            tracks: allVideoReps
+                .map((rep) => ({
+                    width: rep.width.value,
+                    height: rep.height.value,
+                    bandwidth: rep.bandwidth,
+                }))
+                .filter((t) => t.width && t.height && t.bandwidth),
+        },
+    ];
 
     return html`
         <div class="space-y-8">
@@ -128,6 +147,18 @@ export function getHlsSummaryTemplate(stream) {
                             icon: icons.shieldCheck,
                         })}
                     </dl>
+                </div>
+                <div class="md:col-span-2">
+                    <h3 class="text-xl font-bold mb-4 text-slate-100">
+                        ABR Bitrate Ladder
+                    </h3>
+                    <div
+                        class="bg-slate-800 p-4 rounded-lg border border-slate-700 h-80"
+                    >
+                        <abr-ladder-chart
+                            .data=${abrLadderData}
+                        ></abr-ladder-chart>
+                    </div>
                 </div>
             </div>
 

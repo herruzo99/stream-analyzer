@@ -7,7 +7,7 @@ const TKHD_FLAGS_SCHEMA = {
 };
 
 /**
- * @param {import('../parser.js').Box} box
+ * @param {import('@/types.js').Box} box
  * @param {DataView} view
  */
 export function parseTkhd(box, view) {

@@ -3,7 +3,7 @@ import { BoxParser } from '../utils.js';
 /**
  * Parser for the 'ftyp' (File Type Box) and 'styp' (Segment Type Box).
  * ISO/IEC 14496-12
- * @param {import('../parser.js').Box} box
+ * @param {import('@/types.js').Box} box
  * @param {DataView} view
  */
 export function parseFtypStyp(box, view) {

@@ -2,7 +2,7 @@ import { BoxParser } from '../utils.js';
 
 /**
  * Parses the 'stz2' (Compact Sample Size) box.
- * @param {import('../parser.js').Box} box
+ * @param {import('@/types.js').Box} box
  * @param {DataView} view
  */
 export function parseStz2(box, view) {

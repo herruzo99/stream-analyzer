@@ -1,6 +1,4 @@
-/**
- * @typedef {import('@/types').Box} Box
- */
+/** @typedef {import('@/types').Box} Box */
 
 import { getTooltipData as getAllIsoTooltipData } from '@/infrastructure/parsing/isobmff/index';
 const allIsoTooltipData = getAllIsoTooltipData();

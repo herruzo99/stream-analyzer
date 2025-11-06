@@ -74,6 +74,7 @@ const createInitialUiState = () => ({
         targetFeatureName: null,
     },
     inactivityTimeoutOverride: null,
+    showAllDrmFields: false,
 });
 
 export const useUiStore = createStore((set, get) => ({
@@ -250,6 +251,8 @@ export const useUiStore = createStore((set, get) => ({
     },
     setInactivityTimeoutOverride: (durationMs) =>
         set({ inactivityTimeoutOverride: durationMs }),
+    toggleShowAllDrmFields: () =>
+        set((state) => ({ showAllDrmFields: !state.showAllDrmFields })),
     reset: () => set(createInitialUiState()),
 }));
 

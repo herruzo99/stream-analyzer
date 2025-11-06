@@ -23,6 +23,7 @@ import { initializeUiOrchestration } from '@/ui/services/uiOrchestrationService'
 import { initializeNetworkEnrichmentService } from '@/infrastructure/http/networkEnrichmentService';
 import { eventBus } from './event-bus.js';
 import { tickerService } from './services/tickerService.js';
+import { playerEventOrchestratorService } from './services/playerEventOrchestratorService.js';
 
 // Feature Initializers
 import { initializeAdvertisingFeature } from '@/features/advertising/index';
@@ -119,6 +120,7 @@ export async function startApp() {
     keyManagerService.initialize();
     initializeInbandEventMonitor();
     initializeNetworkEnrichmentService();
+    playerEventOrchestratorService.initialize(); // <-- ADDED INITIALIZATION
 
     // --- Layer 4: Feature Initialization & UI Orchestration ---
     initializeUiOrchestration();

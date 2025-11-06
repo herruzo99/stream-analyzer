@@ -21,9 +21,7 @@ const workspaceCardTemplate = (input, isActive) => {
         uiActions.setStreamInputActiveMobileTab('inspector');
     };
 
-    const urlPath = input.url
-        ? input.url.split('/').pop() || input.url
-        : 'No URL';
+    const urlPath = input.url || 'No URL';
 
     return html`
         <div
@@ -33,7 +31,7 @@ const workspaceCardTemplate = (input, isActive) => {
                 : 'border-slate-700'}"
             style="animation-delay: ${input.id * 50}ms;"
         >
-            <div class="flex justify-between items-start">
+            <div class="flex justify-between items-start gap-2">
                 <div class="min-w-0">
                     <p
                         class="font-bold text-white truncate"
@@ -42,7 +40,7 @@ const workspaceCardTemplate = (input, isActive) => {
                         ${input.name || `Stream ${input.id + 1}`}
                     </p>
                     <p
-                        class="text-xs text-slate-400 font-mono truncate"
+                        class="text-xs text-slate-400 max-w-md font-mono truncate"
                         title=${input.url}
                     >
                         ${urlPath}

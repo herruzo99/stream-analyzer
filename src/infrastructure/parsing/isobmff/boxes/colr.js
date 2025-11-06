@@ -2,7 +2,7 @@ import { BoxParser } from '../utils.js';
 
 /**
  * Parses the 'colr' (Colour Information) box.
- * @param {import('../parser.js').Box} box
+ * @param {import('@/types.js').Box} box
  * @param {DataView} view
  */
 export function parseColr(box, view) {

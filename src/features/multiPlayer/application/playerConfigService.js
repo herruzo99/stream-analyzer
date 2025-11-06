@@ -1,6 +1,68 @@
 import { useMultiPlayerStore } from '@/state/multiPlayerStore';
 import { debugLog } from '@/shared/utils/debug';
 import { showToast } from '@/ui/components/toast';
+import { schemeIdUriToKeySystem } from '@/infrastructure/parsing/utils/drm';
+
+async function fetchCertificate(url) {
+    try {
+        if (!url) return null;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return await response.arrayBuffer();
+    } catch (e) {
+        console.error('Failed to fetch DRM service certificate:', e);
+        throw e;
+    }
+}
+
+async function buildDrmConfig(streamDef) {
+    const security = streamDef.manifest?.summary?.security;
+    const drmConfig = { servers: {}, advanced: {}, clearKeys: {} };
+
+    if (!security?.isEncrypted) {
+        return drmConfig;
+    }
+
+    const licenseRequestHeaders = {};
+    (streamDef.drmAuth?.headers || []).forEach((h) => {
+        if (h.key) licenseRequestHeaders[h.key] = h.value;
+    });
+
+    let cert;
+    if (
+        streamDef.drmAuth?.serverCertificate &&
+        typeof streamDef.drmAuth.serverCertificate === 'string'
+    ) {
+        cert = await fetchCertificate(streamDef.drmAuth.serverCertificate);
+    } else if (streamDef.drmAuth?.serverCertificate) {
+        cert = streamDef.drmAuth.serverCertificate;
+    }
+
+    for (const system of security.systems) {
+        const keySystem =
+            schemeIdUriToKeySystem[system.systemId.toLowerCase()];
+        if (keySystem) {
+            const licenseServerUrl =
+                typeof streamDef.drmAuth.licenseServerUrl === 'object'
+                    ? streamDef.drmAuth.licenseServerUrl[keySystem]
+                    : typeof streamDef.drmAuth.licenseServerUrl === 'string'
+                      ? streamDef.drmAuth.licenseServerUrl
+                      : null;
+
+            const finalUrl =
+                licenseServerUrl || system.pssh?.licenseServerUrl || '';
+
+            if (finalUrl) {
+                drmConfig.servers[keySystem] = finalUrl;
+                drmConfig.advanced[keySystem] = {
+                    serverCertificate: cert ? new Uint8Array(cert) : undefined,
+                    headers: licenseRequestHeaders,
+                };
+            }
+        }
+    }
+    return drmConfig;
+}
 
 function setAbrEnabled(player, enabled) {
     if (!player) return;
@@ -49,6 +111,7 @@ function selectTrack(player, type, selectionCriteria) {
     } else if (type === 'text') {
         const track = selectionCriteria;
         player.selectTextTrack(track);
+        player.setTextTrackVisibility(!!track);
     }
 }
 
@@ -115,6 +178,7 @@ function setGlobalTrackByHeight(player, height) {
 }
 
 export const playerConfigService = {
+    buildDrmConfig,
     setAbrEnabled,
     selectTrack,
     applyStreamConfig,

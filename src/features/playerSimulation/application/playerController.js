@@ -67,11 +67,10 @@ function onBuffering({ buffering }) {
     playerActions.logEvent({ timestamp: time, type, details });
 }
 
-function onPlayerError({ error }) {
+function onPlayerError({ message }) {
     const time = new Date().toLocaleTimeString();
     const type = 'error';
-    const details = `Error code ${error.code}: ${error.message}`;
-    playerActions.logEvent({ timestamp: time, type, details });
+    playerActions.logEvent({ timestamp: time, type, details: message });
 }
 
 function onPipChanged({ isInPiP }) {

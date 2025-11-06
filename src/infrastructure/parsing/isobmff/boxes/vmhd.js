@@ -5,7 +5,7 @@ const VMHD_FLAGS_SCHEMA = {
 };
 
 /**
- * @param {import('../parser.js').Box} box
+ * @param {import('@/types.js').Box} box
  * @param {DataView} view
  */
 export function parseVmhd(box, view) {

@@ -8,7 +8,7 @@ const ID32_FLAGS_SCHEMA = {
 
 /**
  * Parses the 'ID32' (ID3v2 Metadata) box.
- * @param {import('../parser.js').Box} box
+ * @param {import('@/types.js').Box} box
  * @param {DataView} view
  */
 export function parseId32(box, view) {

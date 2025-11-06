@@ -132,12 +132,6 @@ export function getNavGroups() {
                     visible: true,
                 },
                 {
-                    key: 'timeline-visuals',
-                    label: 'Timeline',
-                    icon: icons.timeline,
-                    visible: true,
-                },
-                {
                     key: 'advertising',
                     label: 'Advertising',
                     icon: icons.advertising,

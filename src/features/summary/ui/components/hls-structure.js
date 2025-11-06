@@ -2,26 +2,18 @@ import { html } from 'lit-html';
 import { trackTableTemplate } from './shared.js';
 
 export const hlsStructureTemplate = (summary) => {
-    const hasVideo = summary.videoTracks.length > 0;
+    // --- REFACTOR: Separate video tracks from trick-play (I-Frame) tracks ---
+    const videoTracks = summary.videoTracks.filter(
+        (track) => !track.roles?.includes('trick')
+    );
+    const iFramePlaylists = summary.videoTracks.filter((track) =>
+        track.roles?.includes('trick')
+    );
+    // --- END REFACTOR ---
+
+    const hasVideo = videoTracks.length > 0;
     const hasAudio = summary.audioTracks.length > 0;
     const hasText = summary.textTracks.length > 0;
-
-    const iFramePlaylists =
-        summary.hls.iFramePlaylists > 0 && summary.hls.hlsParsed?.tags
-            ? summary.hls.hlsParsed.tags
-                  .filter((t) => t.name === 'EXT-X-I-FRAME-STREAM-INF')
-                  .map((t) => ({
-                      id: 'I-Frame',
-                      bitrateRange: t.value.BANDWIDTH,
-                      resolutions: t.value.RESOLUTION
-                          ? [{ value: t.value.RESOLUTION, source: 'manifest' }]
-                          : [],
-                      codecs: t.value.CODECS
-                          ? [{ value: t.value.CODECS, source: 'manifest' }]
-                          : [],
-                      roles: [],
-                  }))
-            : [];
     const hasIFrame = iFramePlaylists.length > 0;
 
     if (!hasVideo && !hasAudio && !hasText && !hasIFrame) {
@@ -46,7 +38,7 @@ export const hlsStructureTemplate = (summary) => {
                           <h4 class="text-lg font-bold mb-2 text-slate-200">
                               Video Tracks
                           </h4>
-                          ${trackTableTemplate(summary.videoTracks, 'video')}
+                          ${trackTableTemplate(videoTracks, 'video')}
                       </div>`
                     : ''}
                 ${hasAudio

@@ -18,7 +18,7 @@ function getWidevineLicenseUrl(data) {
 }
 
 /**
- * @param {import('../parser.js').Box} box
+ * @param {import('@/types.js').Box} box
  * @param {DataView} view
  */
 export function parsePssh(box, view) {

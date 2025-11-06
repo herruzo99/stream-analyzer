@@ -10,7 +10,6 @@ import './components/app-shell.js';
 import { summaryView } from '@/features/summary/ui/index';
 import { comparisonView } from '@/features/comparison/ui/index';
 import { integratorsReportView } from '@/features/integratorsReport/ui/index';
-import { timelineView } from '@/features/timelineVisuals/ui/index';
 import { featuresView } from '@/features/featureAnalysis/ui/index';
 import { complianceView } from '@/features/compliance/ui/index';
 import { advertisingView } from '@/features/advertising/ui/index';
@@ -37,7 +36,6 @@ const viewMap = {
     network: networkAnalysisView,
     explorer: segmentExplorerView,
     'interactive-segment': interactiveSegmentView,
-    'timeline-visuals': timelineView,
     'interactive-manifest': interactiveManifestView,
     updates: manifestUpdatesView,
     'segment-comparison': segmentComparisonView,

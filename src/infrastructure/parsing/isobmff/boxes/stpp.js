@@ -2,7 +2,7 @@ import { BoxParser } from '../utils.js';
 
 /**
  * Parses the 'mime' (MIME Type) box.
- * @param {import('../parser.js').Box} box
+ * @param {import('@/types.js').Box} box
  * @param {DataView} view
  */
 function parseMime(box, view) {
@@ -16,7 +16,7 @@ function parseMime(box, view) {
 
 /**
  * Parses the 'stpp' (XML Subtitle Sample Entry) box. This is a container.
- * @param {import('../parser.js').Box} box
+ * @param {import('@/types.js').Box} box
  * @param {DataView} view
  */
 export function parseStpp(box, view) {

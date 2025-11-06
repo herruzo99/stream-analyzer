@@ -2,7 +2,7 @@ import { BoxParser } from '../utils.js';
 
 /**
  * Parses the 'enca' (Encrypted Audio Sample Entry) box.
- * @param {import('../parser.js').Box} box
+ * @param {import('@/types.js').Box} box
  * @param {DataView} view
  */
 export function parseEnca(box, view) {

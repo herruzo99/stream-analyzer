@@ -3,7 +3,7 @@ import { BoxParser } from '../utils.js';
 /**
  * Parses the 'stsd' (Sample Description) box. This is a container for sample entries.
  * The sample entries themselves do not have standard box headers, so they are parsed specially.
- * @param {import('../parser.js').Box} box
+ * @param {import('@/types.js').Box} box
  * @param {DataView} view
  */
 export function parseStsd(box, view) {

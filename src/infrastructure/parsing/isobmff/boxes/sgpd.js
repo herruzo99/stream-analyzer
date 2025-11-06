@@ -2,7 +2,7 @@ import { BoxParser } from '../utils.js';
 
 /**
  * Parses the 'sgpd' (Sample Group Description) box.
- * @param {import('../parser.js').Box} box
+ * @param {import('@/types.js').Box} box
  * @param {DataView} view
  */
 export function parseSgpd(box, view) {

@@ -6,7 +6,7 @@ const URL_FLAGS_SCHEMA = {
 
 /**
  * Parses the 'dref' (Data Reference) box. It's a container for 'url ' or 'urn ' boxes.
- * @param {import('../parser.js').Box} box
+ * @param {import('@/types.js').Box} box
  * @param {DataView} view
  */
 export function parseDref(box, view) {
@@ -18,7 +18,7 @@ export function parseDref(box, view) {
 
 /**
  * Parses a 'url ' (Data Entry URL) box.
- * @param {import('../parser.js').Box} box
+ * @param {import('@/types.js').Box} box
  * @param {DataView} view
  */
 export function parseUrl(box, view) {
@@ -33,7 +33,7 @@ export function parseUrl(box, view) {
 
 /**
  * Parses a 'urn ' (Data Entry URN) box.
- * @param {import('../parser.js').Box} box
+ * @param {import('@/types.js').Box} box
  * @param {DataView} view
  */
 export function parseUrn(box, view) {

@@ -1,25 +1,5 @@
 import { boxParsers } from './index.js';
 
-/**
- * @typedef {object} Box
- * @property {string} type
- * @property {number} size
- * @property {number} offset
- * @property {number} contentOffset
- * @property {number} headerSize
- * @property {Record<string, {value: any, offset: number, length: number, internal?: boolean}>} details
- * @property {Box[]} children
- * @property {object[]=} samples
- * @property {any[]=} entries
- * @property {{type: 'error' | 'warn', message: string}[]=} issues
- * @property {boolean=} isChunk - Dynamically added property for view model
- * @property {object=} color - Dynamically added property for view model
- * @property {string=} systemId - For 'pssh' boxes
- * @property {string[]=} kids - For 'pssh' boxes (version > 0)
- * @property {string=} data - For 'pssh' boxes (base64 encoded)
- * @property {object=} scte35 - Parsed SCTE-35 data if the emsg box contains it.
- */
-
 const knownContainerBoxes = new Set([
     'moof',
     'traf',
@@ -48,9 +28,9 @@ const knownContainerBoxes = new Set([
 
 /**
  * Recursively finds the first occurrence of a box that satisfies a predicate.
- * @param {Box[]} boxes The list of boxes to search.
- * @param {(box: Box) => boolean} predicate The predicate function to match a box.
- * @returns {Box | null} The found box or null.
+ * @param {import('../../../types.ts').Box[]} boxes The list of boxes to search.
+ * @param {(box: import('../../../types.ts').Box) => boolean} predicate The predicate function to match a box.
+ * @returns {import('../../../types.ts').Box | null} The found box or null.
  */
 function findBoxRecursive(boxes, predicate) {
     if (!boxes) return null;
@@ -66,7 +46,7 @@ function findBoxRecursive(boxes, predicate) {
 
 /**
  * Calculates raw timing information for a CMAF Chunk from its 'moof' box.
- * @param {Box} moofBox The parsed 'moof' box of the chunk.
+ * @param {import('../../../types.ts').Box} moofBox The parsed 'moof' box of the chunk.
  * @returns {{baseTime: number, duration: number, sampleCount: number}}
  */
 function calculateChunkTiming(moofBox) {
@@ -98,8 +78,8 @@ function calculateChunkTiming(moofBox) {
 
 /**
  * Groups a flat list of boxes into logical CMAF Chunks ('moof' + 'mdat').
- * @param {Box[]} boxes A flat list of parsed ISOBMFF boxes.
- * @returns {Box[]} A structured list containing Chunk objects and other top-level boxes.
+ * @param {import('../../../types.ts').Box[]} boxes A flat list of parsed ISOBMFF boxes.
+ * @returns {import('../../../types.ts').Box[]} A structured list containing Chunk objects and other top-level boxes.
  */
 function groupAndCalcTimingForChunks(boxes) {
     if (!boxes) return [];
@@ -280,8 +260,8 @@ function decorateSamples(samples, parsedData) {
                 }
             }
         }
-        if (senc?.samples?.[i]) {
-            sample.encryption = senc.samples[i];
+        if (senc?.samples?.[i]?.encryption) {
+            sample.encryption = senc.samples[i].encryption;
         }
     });
 }
@@ -290,7 +270,7 @@ function decorateSamples(samples, parsedData) {
  * @param {ArrayBuffer} buffer
  * @param {number} baseOffset
  * @param {object} [context={}]
- * @returns {{format: 'isobmff', data: {boxes: Box[], issues: {type: 'error' | 'warn', message: string}[], events: object[]}, samples?: object[]}}
+ * @returns {{format: 'isobmff', data: {boxes: import('../../../types.ts').Box[], issues: {type: 'error' | 'warn', message: string}[], events: object[]}, samples?: object[]}}
  */
 export function parseISOBMFF(buffer, baseOffset = 0, context = {}) {
     const result = {
@@ -352,7 +332,7 @@ export function parseISOBMFF(buffer, baseOffset = 0, context = {}) {
             break;
         }
 
-        /** @type {Box} */
+        /** @type {import('../../../types.ts').Box} */
         const box = {
             type,
             size,
@@ -465,7 +445,7 @@ export function parseISOBMFF(buffer, baseOffset = 0, context = {}) {
 }
 
 /**
- * @param {Box} box
+ * @param {import('../../../types.ts').Box} box
  * @param {DataView} view
  * @param {object} context
  */

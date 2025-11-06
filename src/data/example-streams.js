@@ -51,27 +51,15 @@ const createDrmAuth = (token) => ({
     headers: [{ id: 1, key: 'X-AxDRM-Message', value: token }],
 });
 
-const appleFairPlayDrmAuth = {
-    licenseServerUrl: {
-        'com.apple.fps':
-            'https://drm-fairplay-licensing.axprod.net/AcquireLicense',
-    },
-    serverCertificate:
-        'https://fp-keyos.licensekeyserver.com/cert/a32f2762391043329972379354a32b31.der',
-    headers: [],
-    queryParams: [],
-};
-
 export const exampleStreams = [
     // --- DASH VOD ---
     {
-        name: 'V10: H.264 Single-Key (DASH)',
-        url: 'https://media.axprod.net/TestVectors/Dash/protected_dash_1080p_h264_singlekey/manifest.mpd',
+        name: 'DASH-IF: Bare Minimum VOD',
+        url: 'https://livesim2.dashif.org/livesim2/testpic_2s/Manifest.mpd',
         protocol: 'dash',
         type: 'vod',
-        source: 'Axinom',
+        source: 'DASH-IF',
         category: 'DASH VOD',
-        drmAuth: createDrmAuth(v10Tokens.dashH264SingleKey),
     },
     {
         name: 'V10: H.264 Multi-Key (DASH)',
@@ -91,74 +79,12 @@ export const exampleStreams = [
         category: 'DASH VOD',
     },
     {
-        name: 'V10: H.265 Single-Key (DASH)',
-        url: 'https://media.axprod.net/TestVectors/H265/protected_dash_1080p_h265_singlekey/manifest.mpd',
-        protocol: 'dash',
-        type: 'vod',
-        source: 'Axinom',
-        category: 'DASH VOD',
-        drmAuth: createDrmAuth(v10Tokens.dashH265SingleKey),
-    },
-    {
-        name: 'V10: H.265 Multi-Key (DASH)',
-        url: 'https://media.axprod.net/TestVectors/H265/protected_dash_1080p_h265_multikey/manifest.mpd',
-        protocol: 'dash',
-        type: 'vod',
-        source: 'Axinom',
-        category: 'DASH VOD',
-        drmAuth: createDrmAuth(v10Tokens.dashH265MultiKey),
-    },
-    {
         name: 'V10: H.265 Clear (DASH)',
         url: 'https://media.axprod.net/TestVectors/H265/clear_dash_1080p_h265/manifest.mpd',
         protocol: 'dash',
         type: 'vod',
         source: 'Axinom',
         category: 'DASH VOD',
-    },
-    {
-        name: 'V10: H.264 Single-Key (CMAF/DASH)',
-        url: 'https://media.axprod.net/TestVectors/Cmaf/protected_1080p_h264_cbcs/manifest.mpd',
-        protocol: 'dash',
-        type: 'vod',
-        source: 'Axinom',
-        category: 'DASH VOD',
-        drmAuth: createDrmAuth(v10Tokens.h264SingleKey),
-    },
-    {
-        name: 'V10: H.264 Multi-Key (CMAF/DASH)',
-        url: 'https://media.axprod.net/TestVectors/MultiKey/Cmaf_h264_1080p_cbcs/manifest.mpd',
-        protocol: 'dash',
-        type: 'vod',
-        source: 'Axinom',
-        category: 'DASH VOD',
-        drmAuth: createDrmAuth(v10Tokens.h264MultiKey),
-    },
-    {
-        name: 'V10: H.264 Clear (CMAF/DASH)',
-        url: 'https://media.axprod.net/TestVectors/Cmaf/clear_1080p_h264/manifest.mpd',
-        protocol: 'dash',
-        type: 'vod',
-        source: 'Axinom',
-        category: 'DASH VOD',
-    },
-    {
-        name: 'V10: H.265 Single-Key (CMAF/DASH)',
-        url: 'https://media.axprod.net/TestVectors/H265/protected_cmaf_1080p_h265_singlekey/manifest.mpd',
-        protocol: 'dash',
-        type: 'vod',
-        source: 'Axinom',
-        category: 'DASH VOD',
-        drmAuth: createDrmAuth(v10Tokens.h265SingleKey),
-    },
-    {
-        name: 'V10: H.265 Multi-Key (CMAF/DASH)',
-        url: 'https://media.axprod.net/TestVectors/H265/protected_cmaf_1080p_h265_multikey/manifest.mpd',
-        protocol: 'dash',
-        type: 'vod',
-        source: 'Axinom',
-        category: 'DASH VOD',
-        drmAuth: createDrmAuth(v10Tokens.h265MultiKey),
     },
     {
         name: 'V10: H.265 Clear (CMAF/DASH)',
@@ -171,6 +97,22 @@ export const exampleStreams = [
 
     // --- DASH Live ---
     {
+        name: 'DASH-IF: SCTE-35 Ad Insertion (Live)',
+        url: 'https://livesim2.dashif.org/livesim2/scte35_2/testpic_2s/Manifest.mpd?url_append_rand=1',
+        protocol: 'dash',
+        type: 'live',
+        source: 'DASH-IF',
+        category: 'DASH Live',
+    },
+    {
+        name: 'DASH-IF: Complex Feature Test (Live)',
+        url: 'https://livesim2.dashif.org/livesim2/periods_3/chunkdur_0.2/ato_inf/drm_eccp-cbcs/scte35_1/utc_direct/testpic_2s/Manifest.mpd?url_append_rand=1',
+        protocol: 'dash',
+        type: 'live',
+        source: 'DASH-IF',
+        category: 'DASH Live',
+    },
+    {
         name: 'DASH-IF: Live Simulation',
         url: 'https://livesim.dashif.org/livesim/testpic_2s/Manifest.mpd',
         protocol: 'dash',
@@ -178,25 +120,8 @@ export const exampleStreams = [
         source: 'DASH-IF',
         category: 'DASH Live',
     },
-    {
-        name: 'DASH-IF: SCTE-35 Ad Insertion (Live)',
-        url: 'https://livesim.dashif.org/livesim/scte35_2/testpic_2s/Manifest.mpd',
-        protocol: 'dash',
-        type: 'live',
-        source: 'DASH-IF',
-        category: 'DASH Live',
-    },
 
     // --- HLS VOD ---
-    {
-        name: 'V10: H.264 Single-Key (HLS)',
-        url: 'https://media.axprod.net/TestVectors/Hls/protected_hls_1080p_h264_singlekey/manifest.m3u8',
-        protocol: 'hls',
-        type: 'vod',
-        source: 'Axinom',
-        category: 'HLS VOD',
-        drmAuth: createDrmAuth(v10Tokens.dashH264SingleKey),
-    },
     {
         name: 'V10: H.264 Multi-Key (HLS)',
         url: 'https://media.axprod.net/TestVectors/MultiKey/Hls_h264_1080p_cenc/manifest.m3u8',
@@ -215,74 +140,12 @@ export const exampleStreams = [
         category: 'HLS VOD',
     },
     {
-        name: 'V10: H.265 Single-Key (HLS)',
-        url: 'https://media.axprod.net/TestVectors/H265/protected_hls_1080p_h265_singlekey/manifest.m3u8',
-        protocol: 'hls',
-        type: 'vod',
-        source: 'Axinom',
-        category: 'HLS VOD',
-        drmAuth: createDrmAuth(v10Tokens.dashH265SingleKey),
-    },
-    {
-        name: 'V10: H.265 Multi-Key (HLS)',
-        url: 'https://media.axprod.net/TestVectors/H265/protected_hls_1080p_h265_multikey/manifest.m3u8',
-        protocol: 'hls',
-        type: 'vod',
-        source: 'Axinom',
-        category: 'HLS VOD',
-        drmAuth: createDrmAuth(v10Tokens.dashH265MultiKey),
-    },
-    {
         name: 'V10: H.265 Clear (HLS)',
         url: 'https://media.axprod.net/TestVectors/H265/clear_hls_1080p_h265/manifest.m3u8',
         protocol: 'hls',
         type: 'vod',
         source: 'Axinom',
         category: 'HLS VOD',
-    },
-    {
-        name: 'V10: H.264 Single-Key (CMAF/HLS)',
-        url: 'https://media.axprod.net/TestVectors/Cmaf/protected_1080p_h264_cbcs/manifest.m3u8',
-        protocol: 'hls',
-        type: 'vod',
-        source: 'Axinom',
-        category: 'HLS VOD',
-        drmAuth: createDrmAuth(v10Tokens.h264SingleKey),
-    },
-    {
-        name: 'V10: H.264 Multi-Key (CMAF/HLS)',
-        url: 'https://media.axprod.net/TestVectors/MultiKey/Cmaf_h264_1080p_cbcs/manifest.m3u8',
-        protocol: 'hls',
-        type: 'vod',
-        source: 'Axinom',
-        category: 'HLS VOD',
-        drmAuth: createDrmAuth(v10Tokens.h264MultiKey),
-    },
-    {
-        name: 'V10: H.264 Clear (CMAF/HLS)',
-        url: 'https://media.axprod.net/TestVectors/Cmaf/clear_1080p_h264/manifest.m3u8',
-        protocol: 'hls',
-        type: 'vod',
-        source: 'Axinom',
-        category: 'HLS VOD',
-    },
-    {
-        name: 'V10: H.265 Single-Key (CMAF/HLS)',
-        url: 'https://media.axprod.net/TestVectors/H265/protected_cmaf_1080p_h265_singlekey/manifest.m3u8',
-        protocol: 'hls',
-        type: 'vod',
-        source: 'Axinom',
-        category: 'HLS VOD',
-        drmAuth: createDrmAuth(v10Tokens.h265SingleKey),
-    },
-    {
-        name: 'V10: H.265 Multi-Key (CMAF/HLS)',
-        url: 'https://media.axprod.net/TestVectors/H265/protected_cmaf_1080p_h265_multikey/manifest.m3u8',
-        protocol: 'hls',
-        type: 'vod',
-        source: 'Axinom',
-        category: 'HLS VOD',
-        drmAuth: createDrmAuth(v10Tokens.h265MultiKey),
     },
     {
         name: 'V10: H.265 Clear (CMAF/HLS)',
@@ -299,15 +162,6 @@ export const exampleStreams = [
         type: 'vod',
         source: 'Apple',
         category: 'HLS VOD',
-    },
-    {
-        name: 'Apple: FairPlay DRM',
-        url: 'https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_encrypted/master.m3u8',
-        protocol: 'hls',
-        type: 'vod',
-        source: 'Apple',
-        category: 'HLS VOD',
-        drmAuth: appleFairPlayDrmAuth,
     },
 
     // --- HLS Live ---

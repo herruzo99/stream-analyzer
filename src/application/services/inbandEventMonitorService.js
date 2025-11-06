@@ -18,8 +18,6 @@ async function checkForInbandEvents(stream) {
     // This function might be repurposed later to handle discovery of in-band
     // events in *newly added* segments of a live stream, but for now, it
     // should do nothing to prevent duplicate fetches.
-    return;
-    // --- END REMEDIATION ---
 }
 
 function handleAnalysisComplete({ streams }) {

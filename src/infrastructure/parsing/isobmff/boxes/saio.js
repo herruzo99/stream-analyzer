@@ -6,7 +6,7 @@ const SAIO_FLAGS_SCHEMA = {
 
 /**
  * Parses the 'saio' (Sample Auxiliary Information Offsets) box.
- * @param {import('../parser.js').Box} box
+ * @param {import('@/types.js').Box} box
  * @param {DataView} view
  */
 export function parseSaio(box, view) {

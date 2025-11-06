@@ -129,7 +129,7 @@ export interface Representation {
 export interface PsshInfo {
     systemId: string;
     kids: string[];
-    data: string; // Base64 encoded PSSH box data
+    data?: string; // Base64 encoded PSSH box data
     licenseServerUrl?: string | null;
 }
 
@@ -624,7 +624,24 @@ export interface DecodedAacFrame {
 
 export type DecodedSample = DecodedH264Sample | DecodedAacFrame;
 
-// This is the TypeScript interface for the JSDoc @typedef in parser.js
+export interface Sample {
+    duration?: number;
+    size?: number;
+    sampleFlags?: object;
+    compositionTimeOffset?: number;
+    isSample?: boolean;
+    index?: number;
+    offset?: number;
+    trunOffset?: number;
+    color?: { bgClass: string };
+    baseMediaDecodeTime?: number;
+    trackId?: number;
+    dependsOn?: string;
+    degradationPriority?: number;
+    sampleGroup?: number;
+    encryption?: any;
+}
+
 export interface Box {
     type: string;
     size: number;
@@ -641,7 +658,7 @@ export interface Box {
         }
     >;
     children: Box[];
-    samples?: object[];
+    samples?: Sample[];
     entries?: any[];
     issues?: { type: 'error' | 'warn'; message: string }[];
     isChunk?: boolean;
@@ -650,6 +667,8 @@ export interface Box {
     kids?: string[];
     data?: string;
     scte35?: object;
+    spsList?: any[];
+    ppsList?: any[];
 }
 
 export interface SegmentToCompare {
@@ -683,6 +702,8 @@ export interface StreamInput {
     file: File | null;
     auth: AuthInfo;
     drmAuth: DrmAuthInfo;
+    detectedDrm: string[] | null;
+    isDrmInfoLoading: boolean;
 }
 
 export interface Stream {
@@ -916,6 +937,7 @@ export interface UiState {
     segmentAnalysisActiveTab: 'structure' | 'semantic';
     conditionalPolling: ConditionalPollingState;
     inactivityTimeoutOverride: number | null;
+    showAllDrmFields: boolean;
 }
 
 export interface UiActions {

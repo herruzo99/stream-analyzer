@@ -170,12 +170,99 @@ async function buildStreamObject(
         hlsDefinedVariables: manifestIR.hlsDefinedVariables,
         semanticData: semanticData,
         coverageReport,
-        adAvails: manifestIR.adAvails || [], // Propagate any out-of-band ad avails
+        adAvails: manifestIR.adAvails || [],
         inbandEvents: [],
         adaptationEvents: [],
     };
 
     debugLog('buildStreamObject', 'Constructed stream object:', streamObject);
+
+    let segmentsByCompositeKey = {};
+    if (input.protocol === 'dash') {
+        segmentsByCompositeKey = await parseDashSegments(
+            serializedManifestObject,
+            streamObject.baseUrl,
+            { auth: input.auth, now: Date.now() }
+        );
+    }
+
+    // --- ARCHITECTURAL FIX: Proactive In-band Event Discovery ---
+    const segmentFetchPromises = [];
+    manifestIR.periods.forEach((period, periodIndex) => {
+        for (const as of period.adaptationSets) {
+            const hasScte35 = (as.inbandEventStreams || []).some(
+                (ies) => ies.schemeIdUri === SCTE35_SCHEME_ID
+            );
+            if (hasScte35) {
+                // Fetch the first segment of the first representation in this AdaptationSet
+                const rep = as.representations[0];
+                if (rep) {
+                    const compositeKey = `${period.id ?? periodIndex}-${rep.id}`;
+                    const repState = segmentsByCompositeKey[compositeKey];
+                    const firstMediaSegment = (repState?.segments || []).find(
+                        (s) => s.type === 'Media'
+                    );
+
+                    if (firstMediaSegment) {
+                        segmentFetchPromises.push(
+                            fetchAndParseSegment(
+                                firstMediaSegment.resolvedUrl,
+                                'isobmff', // Assume isobmff for inband events for now
+                                firstMediaSegment.range,
+                                streamObject.auth
+                            ).catch((e) => {
+                                debugLog(
+                                    'analysisHandler',
+                                    `Failed to pre-fetch/parse segment for in-band events: ${e.message}`
+                                );
+                                return null;
+                            })
+                        );
+                    }
+                }
+            }
+        }
+    });
+
+    const parsedSegments = await Promise.all(segmentFetchPromises);
+    for (const parsedSegment of parsedSegments) {
+        if (
+            parsedSegment &&
+            parsedSegment.data.events &&
+            parsedSegment.data.events.length > 0
+        ) {
+            streamObject.inbandEvents.push(...parsedSegment.data.events);
+        }
+    }
+    // --- END FIX ---
+
+    if (streamObject.inbandEvents.length > 0) {
+        const inbandAdAvails = streamObject.inbandEvents
+            .filter((e) => e.scte35)
+            .map((event) => ({
+                id:
+                    String(
+                        event.scte35?.splice_command?.splice_event_id ||
+                            event.scte35?.descriptors?.[0]
+                                ?.segmentation_event_id
+                    ) || String(event.startTime),
+                startTime: event.startTime,
+                duration:
+                    event.duration ||
+                    (event.scte35?.splice_command?.break_duration?.duration ||
+                        0) / 90000,
+                scte35Signal: event.scte35,
+                adManifestUrl:
+                    event.scte35?.descriptors?.[0]?.segmentation_upid_type ===
+                    0x0c
+                        ? event.scte35.descriptors[0].segmentation_upid
+                        : null,
+                creatives: [],
+            }));
+        const resolvedInbandAvails =
+            await resolveAdAvailsInWorker(inbandAdAvails);
+        streamObject.adAvails.push(...resolvedInbandAvails);
+    }
 
     if (input.protocol === 'hls') {
         if (manifestIR.isMaster) {
@@ -184,17 +271,15 @@ async function buildStreamObject(
                 rawManifest: streamObject.rawManifest,
                 lastFetched: new Date(),
             });
+
             const allAdaptationSets = manifestIR.periods.flatMap(
                 (p) => p.adaptationSets
             );
             for (const as of allAdaptationSets) {
-                const representation = as.representations[0];
-                if (
-                    representation &&
-                    representation.serializedManifest.resolvedUri
-                ) {
-                    const uri = representation.serializedManifest.resolvedUri;
-                    if (!streamObject.hlsVariantState.has(uri)) {
+                for (const rep of as.representations) {
+                    const uri =
+                        rep.serializedManifest?.resolvedUri || rep.__variantUri;
+                    if (uri && !streamObject.hlsVariantState.has(uri)) {
                         streamObject.hlsVariantState.set(uri, {
                             segments: [],
                             currentSegmentUrls: new Set(),
@@ -224,11 +309,6 @@ async function buildStreamObject(
             });
         }
     } else if (input.protocol === 'dash') {
-        const segmentsByCompositeKey = await parseDashSegments(
-            serializedManifestObject,
-            streamObject.baseUrl,
-            { auth: input.auth, now: Date.now() } // Pass auth context for sidx fetches
-        );
         for (const [key, data] of Object.entries(segmentsByCompositeKey)) {
             const mediaSegments = data.segments || [];
             const allSegments = [data.initSegment, ...mediaSegments].filter(
@@ -243,82 +323,6 @@ async function buildStreamObject(
             });
         }
     }
-
-    // --- ARCHITECTURAL FIX: In-band Event Discovery in Worker ---
-    if (streamObject.protocol === 'dash') {
-        for (const period of manifestIR.periods) {
-            for (const as of period.adaptationSets) {
-                const hasScte35 = (as.inbandEventStreams || []).some(
-                    (ies) => ies.schemeIdUri === SCTE35_SCHEME_ID
-                );
-                if (hasScte35) {
-                    for (const rep of as.representations) {
-                        const compositeKey = `${period.id || 0}-${rep.id}`;
-                        const repState =
-                            streamObject.dashRepresentationState.get(
-                                compositeKey
-                            );
-                        const firstMediaSegment = (
-                            repState?.segments || []
-                        ).find((s) => s.type === 'Media');
-                        if (firstMediaSegment) {
-                            try {
-                                const parsedSegment =
-                                    await fetchAndParseSegment(
-                                        firstMediaSegment.resolvedUrl,
-                                        'isobff',
-                                        null,
-                                        streamObject.auth
-                                    );
-                                if (
-                                    parsedSegment.data.events &&
-                                    parsedSegment.data.events.length > 0
-                                ) {
-                                    streamObject.inbandEvents.push(
-                                        ...parsedSegment.data.events
-                                    );
-                                }
-                            } catch (e) {
-                                debugLog(
-                                    'analysisHandler',
-                                    `Failed to pre-fetch/parse segment for in-band events: ${e.message}`
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    if (streamObject.inbandEvents.length > 0) {
-        const inbandAdAvails = streamObject.inbandEvents
-            .filter((e) => e.scte35)
-            .map((event) => ({
-                id:
-                    String(
-                        event.scte35?.splice_command?.splice_event_id ||
-                            event.scte35?.descriptors?.[0]
-                                ?.segmentation_event_id
-                    ) || String(event.startTime),
-                startTime: event.startTime,
-                duration:
-                    event.duration ||
-                    (event.scte35?.splice_command?.break_duration?.duration ||
-                        0) / 90000,
-                scte35Signal: event.scte35,
-                adManifestUrl:
-                    event.scte35?.descriptors?.[0]?.segmentation_upid_type ===
-                    0x0c
-                        ? event.scte35.descriptors[0].segmentation_upid
-                        : null,
-                creatives: [],
-            }));
-        const resolvedInbandAvails =
-            await resolveAdAvailsInWorker(inbandAdAvails);
-        streamObject.adAvails.push(...resolvedInbandAvails);
-    }
-    // --- END FIX ---
 
     let formattedInitial = streamObject.rawManifest;
     if (streamObject.protocol === 'dash') {

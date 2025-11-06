@@ -6,7 +6,7 @@ const SAIZ_FLAGS_SCHEMA = {
 
 /**
  * Parses the 'saiz' (Sample Auxiliary Information Sizes) box.
- * @param {import('../parser.js').Box} box
+ * @param {import('@/types.js').Box} box
  * @param {DataView} view
  */
 export function parseSaiz(box, view) {

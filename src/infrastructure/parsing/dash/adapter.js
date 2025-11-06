@@ -774,6 +774,27 @@ function parsePeriod(periodEl, parentMergedEl, previousPeriod = null) {
 
     adaptationSets.sort(sortAdaptationSets);
 
+    // --- ARCHITECTURAL FIX: Proactive In-band Ad Signal ---
+    if (
+        adaptationSets.some((as) =>
+            (as.inbandEventStreams || []).some(
+                (ies) =>
+                    ies.schemeIdUri === 'urn:scte:scte35:2013:bin' ||
+                    ies.schemeIdUri === 'urn:scte:scte35:2014:xml+bin'
+            )
+        )
+    ) {
+        adAvails.push({
+            id: 'unconfirmed-inband-scte35',
+            startTime: -1,
+            duration: -1,
+            scte35Signal: { type: 'Unconfirmed In-band Signal' },
+            adManifestUrl: null,
+            creatives: [],
+        });
+    }
+    // --- END FIX ---
+
     /** @type {Period} */
     const periodIR = {
         id: periodId,

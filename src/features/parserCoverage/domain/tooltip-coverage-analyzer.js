@@ -19,14 +19,14 @@ function findDashMissingTooltips(serializedManifest) {
         const attrs = node[':@'] || {};
         for (const attrName in attrs) {
             const attrKey = `${tagName}@${attrName}`;
-            const isIgnored = [
+            const isIgnoredAttr = [
                 'xmlns',
                 'xmlns:xsi',
                 'xsi:schemaLocation',
                 'xmlns:cenc',
                 'xmlns:xlink',
             ].includes(attrName);
-            if (!dashTooltipData[attrKey] && !isIgnored && !seen.has(attrKey)) {
+            if (!dashTooltipData[attrKey] && !isIgnoredAttr && !seen.has(attrKey)) {
                 missing.push({ type: 'Attribute', name: attrKey });
                 seen.add(attrKey);
             }
@@ -75,7 +75,7 @@ function findHlsMissingTooltips(serializedManifest) {
         checkAttributes(tagName, tag.value);
     });
     (serializedManifest.media || []).forEach((mediaTag) => {
-        checkAttributes('EXT-X-MEDIA', mediaTag);
+        checkAttributes('EXT-X-MEDIA', mediaTag.value);
     });
     (serializedManifest.variants || []).forEach((variant) => {
         checkAttributes('EXT-X-STREAM-INF', variant.attributes);

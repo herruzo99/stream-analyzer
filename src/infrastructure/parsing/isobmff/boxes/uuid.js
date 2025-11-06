@@ -3,7 +3,7 @@ import { formatUUID } from '../../utils/drm.js';
 
 /**
  * Parses the 'uuid' (User-defined Extension) box.
- * @param {import('../parser.js').Box} box
+ * @param {import('@/types.js').Box} box
  * @param {DataView} view
  */
 export function parseUuid(box, view) {

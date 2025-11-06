@@ -11,7 +11,7 @@ const TFHD_FLAGS_SCHEMA = {
 };
 
 /**
- * @param {import('../parser.js').Box} box
+ * @param {import('@/types.js').Box} box
  * @param {DataView} view
  */
 export function parseTfhd(box, view) {

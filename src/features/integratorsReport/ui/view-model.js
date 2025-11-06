@@ -56,11 +56,23 @@ function getNetworkInfo(stream) {
                             t.value.URI &&
                             !t.value.URI.startsWith('data:')
                     )
-                    .forEach((t) =>
-                        hostnames.key.add(
-                            new URL(t.value.URI, playlistBaseUrl).hostname
-                        )
-                    );
+                    .forEach((t) => {
+                        try {
+                            hostnames.key.add(
+                                new URL(t.value.URI, playlistBaseUrl).hostname
+                            );
+                        } catch (e) {
+                            // Gracefully handle non-HTTP URIs like 'skd://'
+                            const schemeMatch = String(t.value.URI).match(
+                                /^([a-z]+):/
+                            );
+                            if (schemeMatch) {
+                                hostnames.key.add(
+                                    `Custom Scheme: ${schemeMatch[1]}`
+                                );
+                            }
+                        }
+                    });
             }
         }
     } catch (e) {
@@ -207,8 +219,17 @@ function getUnifiedLicenseUrls(stream) {
     const userOverrideUrl = stream.drmAuth?.licenseServerUrl;
 
     if (userOverrideUrl) {
-        urls.add(userOverrideUrl);
-        result.push(`${userOverrideUrl} (User Override)`);
+        if (typeof userOverrideUrl === 'string') {
+            urls.add(userOverrideUrl);
+            result.push(`${userOverrideUrl} (User Override)`);
+        } else {
+            Object.values(userOverrideUrl).forEach((url) => {
+                if (!urls.has(url)) {
+                    urls.add(url);
+                    result.push(`${url} (User Override)`);
+                }
+            });
+        }
     }
 
     discoveredUrls.forEach((url) => {

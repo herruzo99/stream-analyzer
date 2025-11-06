@@ -228,7 +228,7 @@ export const entriesTableTemplate = (box) => {
 
 /**
  * Renders the detailed view of a single ISOBMFF box for the inspector panel.
- * @param {import('@/infrastructure/parsing/isobmff/parser.js').Box} box The box to render.
+ * @param {import('@/types.js').Box} box The box to render.
  * @param {object} rootData The root of the parsed segment data for context.
  * @param {string | null} [fieldForDisplay=null] The name of a field to highlight.
  * @returns {import('lit-html').TemplateResult}
@@ -315,7 +315,7 @@ export const inspectorDetailsTemplate = (
 
 /**
  * Renders a full, recursive tree of ISOBMFF boxes.
- * @param {import('@/infrastructure/parsing/isobmff/parser.js').Box} box The box to render.
+ * @param {import('@/types.js').Box} box The box to render.
  * @returns {import('lit-html').TemplateResult}
  */
 export const isoBoxTreeTemplate = (box) => {

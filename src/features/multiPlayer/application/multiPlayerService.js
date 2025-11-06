@@ -7,22 +7,9 @@ import { showToast } from '@/ui/components/toast';
 import { eventBus } from '@/application/event-bus';
 import { StallCalculator } from '../domain/stall-calculator.js';
 import { parseShakaError } from '@/infrastructure/player/shaka-error';
-import { schemeIdUriToKeySystem } from '@/infrastructure/parsing/utils/drm';
 import { playerConfigService } from './playerConfigService.js';
 
 const FRAME_DURATION = 1 / 30; // Assume 30fps for frame-stepping
-
-async function fetchCertificate(url) {
-    try {
-        if (!url) return null;
-        const response = await fetch(url);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        return await response.arrayBuffer();
-    } catch (e) {
-        console.error('Failed to fetch DRM service certificate:', e);
-        throw e;
-    }
-}
 
 class MultiPlayerService {
     #loadQueue = Promise.resolve();
@@ -82,6 +69,19 @@ class MultiPlayerService {
                 this._handlePlayerError(streamId, /** @type {any} */ (e).detail)
             );
 
+            player.addEventListener('emsg', (e) => {
+                const { streams } = useAnalysisStore.getState();
+                const streamDef = streams.find(
+                    (s) => s.id === playerState.sourceStreamId
+                );
+                if (streamDef) {
+                    eventBus.dispatch('player:emsg', {
+                        ...e.detail,
+                        stream: streamDef,
+                    });
+                }
+            });
+
             const { streams } = useAnalysisStore.getState();
             const streamDef = streams.find(
                 (s) => s.id === playerState.sourceStreamId
@@ -130,48 +130,10 @@ class MultiPlayerService {
                 'MultiPlayerService.loadStreamIntoPlayer',
                 `[START LOAD] for stream ${uniqueStreamId}`
             );
-            const security = streamDef.manifest?.summary?.security;
-            const drmConfig = { servers: {}, advanced: {} };
 
-            if (security?.isEncrypted) {
-                const licenseRequestHeaders = {};
-                (streamDef.drmAuth?.headers || []).forEach((h) => {
-                    if (h.key) licenseRequestHeaders[h.key] = h.value;
-                });
-                const cert = await fetchCertificate(
-                    streamDef.drmAuth.serverCertificate
-                );
-
-                for (const system of security.systems) {
-                    const keySystem = schemeIdUriToKeySystem[system.systemId];
-                    if (keySystem) {
-                        const licenseServerUrl =
-                            typeof streamDef.drmAuth.licenseServerUrl ===
-                            'object'
-                                ? streamDef.drmAuth.licenseServerUrl[keySystem]
-                                : typeof streamDef.drmAuth.licenseServerUrl ===
-                                    'string'
-                                  ? streamDef.drmAuth.licenseServerUrl
-                                  : null;
-
-                        const finalUrl =
-                            licenseServerUrl ||
-                            security.licenseServerUrls?.[0] ||
-                            '';
-
-                        if (finalUrl) {
-                            drmConfig.servers[keySystem] = finalUrl;
-                            drmConfig.advanced[keySystem] = {
-                                serverCertificate: cert
-                                    ? new Uint8Array(cert)
-                                    : undefined,
-                                headers: licenseRequestHeaders,
-                            };
-                        }
-                    }
-                }
-            }
-
+            const drmConfig = await playerConfigService.buildDrmConfig(
+                streamDef
+            );
             player.configure({ drm: drmConfig });
             this.applyStreamConfig(uniqueStreamId);
 
