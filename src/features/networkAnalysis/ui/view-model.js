@@ -128,27 +128,30 @@ export function createNetworkViewModel(filteredEvents, allEvents, stream) {
         chartStartTime
     );
 
-    const waterfallData = filteredEvents.map((event) => {
-        const downloadDurationSeconds = (event.timing.duration || 1) / 1000;
-        const mediaDuration = event.segmentDuration || 0;
+    const waterfallData = filteredEvents
+        .map((event) => {
+            const downloadDurationSeconds = (event.timing.duration || 1) / 1000;
+            const mediaDuration = event.segmentDuration || 0;
 
-        const downloadRatio =
-            mediaDuration > 0 && downloadDurationSeconds > 0
-                ? mediaDuration / downloadDurationSeconds
-                : null;
+            const downloadRatio =
+                mediaDuration > 0 && downloadDurationSeconds > 0
+                    ? mediaDuration / downloadDurationSeconds
+                    : null;
 
-        const throughput =
-            event.response.contentLength > 0 && downloadDurationSeconds > 0
-                ? (event.response.contentLength * 8) / downloadDurationSeconds
-                : 0;
+            const throughput =
+                event.response.contentLength > 0 && downloadDurationSeconds > 0
+                    ? (event.response.contentLength * 8) /
+                      downloadDurationSeconds
+                    : 0;
 
-        return {
-            ...event,
-            downloadRatio,
-            size: event.response.contentLength,
-            throughput,
-        };
-    });
+            return {
+                ...event,
+                downloadRatio,
+                size: event.response.contentLength,
+                throughput,
+            };
+        })
+        .reverse(); // <-- FIX: Reverse the array for top-down rendering.
 
     return {
         summary,

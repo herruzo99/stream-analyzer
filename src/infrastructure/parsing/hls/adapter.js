@@ -288,7 +288,6 @@ export async function adaptHlsToIr(hlsParsed, context) {
                             contentType = 'text';
                         }
 
-
                         /** @type {Representation} */
                         const representation = {
                             id:
@@ -337,10 +336,8 @@ export async function adaptHlsToIr(hlsParsed, context) {
                             serializedManifest: {
                                 ...mediaValue,
                                 resolvedUri: mediaValue.URI
-                                    ? new URL(
-                                          mediaValue.URI,
-                                          hlsParsed.baseUrl
-                                      ).href
+                                    ? new URL(mediaValue.URI, hlsParsed.baseUrl)
+                                          .href
                                     : null,
                             },
                             audioSamplingRate: null,
@@ -401,21 +398,31 @@ export async function adaptHlsToIr(hlsParsed, context) {
             );
         });
 
-        const variantsByUri = (hlsParsed.variants || []).reduce((acc, variant) => {
-            if (!acc[variant.resolvedUri]) {
-                acc[variant.resolvedUri] = [];
-            }
-            acc[variant.resolvedUri].push(variant);
-            return acc;
-        }, {});
+        const variantsByUri = (hlsParsed.variants || []).reduce(
+            (acc, variant) => {
+                if (!acc[variant.resolvedUri]) {
+                    acc[variant.resolvedUri] = [];
+                }
+                acc[variant.resolvedUri].push(variant);
+                return acc;
+            },
+            {}
+        );
 
         Object.values(variantsByUri).forEach((variantGroup, groupIndex) => {
             const firstVariant = variantGroup[0];
             const resolution = firstVariant.attributes.RESOLUTION;
             const codecs = (firstVariant.attributes.CODECS || '').toLowerCase();
-            const hasVideoCodec = codecs.includes('avc1') || codecs.includes('hvc1') || codecs.includes('hev1') || codecs.includes('dvh1');
-            const hasAudioCodec = codecs.includes('mp4a') || codecs.includes('ac-3') || codecs.includes('ec-3');
-            
+            const hasVideoCodec =
+                codecs.includes('avc1') ||
+                codecs.includes('hvc1') ||
+                codecs.includes('hev1') ||
+                codecs.includes('dvh1');
+            const hasAudioCodec =
+                codecs.includes('mp4a') ||
+                codecs.includes('ac-3') ||
+                codecs.includes('ec-3');
+
             /** @type {'video' | 'audio' | 'unknown'} */
             let contentType = 'video';
             if (!hasVideoCodec && hasAudioCodec) {
@@ -424,22 +431,70 @@ export async function adaptHlsToIr(hlsParsed, context) {
 
             /** @type {Representation} */
             const rep = {
-                id: firstVariant.attributes['STABLE-VARIANT-ID'] || `variant-${groupIndex}-rep-0`,
-                codecs: { value: firstVariant.attributes.CODECS || null, source: 'manifest' },
+                id:
+                    firstVariant.attributes['STABLE-VARIANT-ID'] ||
+                    `variant-${groupIndex}-rep-0`,
+                codecs: {
+                    value: firstVariant.attributes.CODECS || null,
+                    source: 'manifest',
+                },
                 bandwidth: firstVariant.attributes.BANDWIDTH,
-                width: { value: resolution ? parseInt(String(resolution).split('x')[0], 10) : null, source: 'manifest' },
-                height: { value: resolution ? parseInt(String(resolution).split('x')[1], 10) : null, source: 'manifest' },
+                width: {
+                    value: resolution
+                        ? parseInt(String(resolution).split('x')[0], 10)
+                        : null,
+                    source: 'manifest',
+                },
+                height: {
+                    value: resolution
+                        ? parseInt(String(resolution).split('x')[1], 10)
+                        : null,
+                    source: 'manifest',
+                },
                 frameRate: firstVariant.attributes['FRAME-RATE'] || null,
                 videoRange: firstVariant.attributes['VIDEO-RANGE'] || null,
-                supplementalCodecs: firstVariant.attributes['SUPPLEMENTAL-CODECS'] || null,
-                reqVideoLayout: firstVariant.attributes['REQ-VIDEO-LAYOUT'] || null,
+                supplementalCodecs:
+                    firstVariant.attributes['SUPPLEMENTAL-CODECS'] || null,
+                reqVideoLayout:
+                    firstVariant.attributes['REQ-VIDEO-LAYOUT'] || null,
                 pathwayId: firstVariant.attributes['PATHWAY-ID'] || null,
-                stableVariantId: firstVariant.attributes['STABLE-VARIANT-ID'] || null,
+                stableVariantId:
+                    firstVariant.attributes['STABLE-VARIANT-ID'] || null,
                 sar: null,
                 qualityRanking: firstVariant.attributes.SCORE,
                 serializedManifest: firstVariant,
                 __variantUri: firstVariant.resolvedUri,
-                dependencyId: null, associationId: null, associationType: null, mimeType: null, profiles: null, selectionPriority: 0, codingDependency: null, scanType: null, mediaStreamStructureId: null, maximumSAPPeriod: null, startWithSAP: null, maxPlayoutRate: null, tag: null, eptDelta: null, pdDelta: null, representationIndex: null, failoverContent: null, contentProtection: [], audioChannelConfigurations: [], framePackings: [], ratings: [], viewpoints: [], accessibility: [], labels: [], groupLabels: [], subRepresentations: [], resyncs: [], outputProtection: null, extendedBandwidth: null, audioSamplingRate: null, segmentProfiles: null,
+                dependencyId: null,
+                associationId: null,
+                associationType: null,
+                mimeType: null,
+                profiles: null,
+                selectionPriority: 0,
+                codingDependency: null,
+                scanType: null,
+                mediaStreamStructureId: null,
+                maximumSAPPeriod: null,
+                startWithSAP: null,
+                maxPlayoutRate: null,
+                tag: null,
+                eptDelta: null,
+                pdDelta: null,
+                representationIndex: null,
+                failoverContent: null,
+                contentProtection: [],
+                audioChannelConfigurations: [],
+                framePackings: [],
+                ratings: [],
+                viewpoints: [],
+                accessibility: [],
+                labels: [],
+                groupLabels: [],
+                subRepresentations: [],
+                resyncs: [],
+                outputProtection: null,
+                extendedBandwidth: null,
+                audioSamplingRate: null,
+                segmentProfiles: null,
             };
 
             const asIR = {
@@ -450,27 +505,112 @@ export async function adaptHlsToIr(hlsParsed, context) {
                 representations: [rep],
                 contentProtection: contentProtectionIRs,
                 serializedManifest: firstVariant,
-                segmentAlignment: false, subsegmentAlignment: false, subsegmentStartsWithSAP: null, sar: null, maximumSAPPeriod: null, audioSamplingRate: null, width: rep.width.value, height: rep.height.value, inbandEventStreams: [], audioChannelConfigurations: [], roles: [], profiles: null, group: null, bitstreamSwitching: null, maxWidth: null, maxHeight: null, maxFrameRate: null, framePackings: [], ratings: [], viewpoints: [], accessibility: [], labels: [], groupLabels: [], contentComponents: [], resyncs: [], outputProtection: null, stableRenditionId: null, bitDepth: null, sampleRate: null, channels: null, assocLanguage: null, characteristics: null, forced: false,
+                segmentAlignment: false,
+                subsegmentAlignment: false,
+                subsegmentStartsWithSAP: null,
+                sar: null,
+                maximumSAPPeriod: null,
+                audioSamplingRate: null,
+                width: rep.width.value,
+                height: rep.height.value,
+                inbandEventStreams: [],
+                audioChannelConfigurations: [],
+                roles: [],
+                profiles: null,
+                group: null,
+                bitstreamSwitching: null,
+                maxWidth: null,
+                maxHeight: null,
+                maxFrameRate: null,
+                framePackings: [],
+                ratings: [],
+                viewpoints: [],
+                accessibility: [],
+                labels: [],
+                groupLabels: [],
+                contentComponents: [],
+                resyncs: [],
+                outputProtection: null,
+                stableRenditionId: null,
+                bitDepth: null,
+                sampleRate: null,
+                channels: null,
+                assocLanguage: null,
+                characteristics: null,
+                forced: false,
             };
             periodIR.adaptationSets.push(asIR);
         });
 
-        const iFrameTags = hlsParsed.tags.filter(t => t.name === 'EXT-X-I-FRAME-STREAM-INF');
+        const iFrameTags = hlsParsed.tags.filter(
+            (t) => t.name === 'EXT-X-I-FRAME-STREAM-INF'
+        );
         if (iFrameTags.length > 0) {
             const iFrameReps = iFrameTags.map((tag, index) => {
                 const resolution = tag.value.RESOLUTION;
-                const resolvedUri = new URL(tag.value.URI, hlsParsed.baseUrl).href;
+                const resolvedUri = new URL(tag.value.URI, hlsParsed.baseUrl)
+                    .href;
                 /** @type {Representation} */
                 const rep = {
                     id: resolvedUri,
-                    codecs: { value: tag.value.CODECS || null, source: 'manifest' },
+                    codecs: {
+                        value: tag.value.CODECS || null,
+                        source: 'manifest',
+                    },
                     bandwidth: tag.value.BANDWIDTH,
-                    width: { value: resolution ? parseInt(String(resolution).split('x')[0], 10) : null, source: 'manifest' },
-                    height: { value: resolution ? parseInt(String(resolution).split('x')[1], 10) : null, source: 'manifest' },
+                    width: {
+                        value: resolution
+                            ? parseInt(String(resolution).split('x')[0], 10)
+                            : null,
+                        source: 'manifest',
+                    },
+                    height: {
+                        value: resolution
+                            ? parseInt(String(resolution).split('x')[1], 10)
+                            : null,
+                        source: 'manifest',
+                    },
                     videoRange: tag.value['VIDEO-RANGE'] || null,
                     serializedManifest: { ...tag.value, resolvedUri },
                     __variantUri: resolvedUri,
-                    dependencyId: null, associationId: null, associationType: null, mimeType: null, profiles: null, qualityRanking: null, selectionPriority: 0, codingDependency: null, scanType: null, mediaStreamStructureId: null, maximumSAPPeriod: null, startWithSAP: null, maxPlayoutRate: null, tag: null, eptDelta: null, pdDelta: null, representationIndex: null, failoverContent: null, contentProtection: [], audioChannelConfigurations: [], framePackings: [], ratings: [], viewpoints: [], accessibility: [], labels: [], groupLabels: [], subRepresentations: [], resyncs: [], outputProtection: null, extendedBandwidth: null, audioSamplingRate: null, frameRate: null, sar: null, stableVariantId: null, pathwayId: null, supplementalCodecs: null, reqVideoLayout: null, segmentProfiles: null,
+                    dependencyId: null,
+                    associationId: null,
+                    associationType: null,
+                    mimeType: null,
+                    profiles: null,
+                    qualityRanking: null,
+                    selectionPriority: 0,
+                    codingDependency: null,
+                    scanType: null,
+                    mediaStreamStructureId: null,
+                    maximumSAPPeriod: null,
+                    startWithSAP: null,
+                    maxPlayoutRate: null,
+                    tag: null,
+                    eptDelta: null,
+                    pdDelta: null,
+                    representationIndex: null,
+                    failoverContent: null,
+                    contentProtection: [],
+                    audioChannelConfigurations: [],
+                    framePackings: [],
+                    ratings: [],
+                    viewpoints: [],
+                    accessibility: [],
+                    labels: [],
+                    groupLabels: [],
+                    subRepresentations: [],
+                    resyncs: [],
+                    outputProtection: null,
+                    extendedBandwidth: null,
+                    audioSamplingRate: null,
+                    frameRate: null,
+                    sar: null,
+                    stableVariantId: null,
+                    pathwayId: null,
+                    supplementalCodecs: null,
+                    reqVideoLayout: null,
+                    segmentProfiles: null,
                 };
                 return rep;
             });
@@ -478,11 +618,50 @@ export async function adaptHlsToIr(hlsParsed, context) {
             const asIR = {
                 id: 'iframe-set-0',
                 contentType: 'video',
-                roles: [{id: null, schemeIdUri: 'urn:mpeg:dash:role:2011', value: 'trick' }],
+                roles: [
+                    {
+                        id: null,
+                        schemeIdUri: 'urn:mpeg:dash:role:2011',
+                        value: 'trick',
+                    },
+                ],
                 representations: iFrameReps,
                 contentProtection: contentProtectionIRs,
                 serializedManifest: { attributes: { ID: 'iframe-set-0' } },
-                lang: null, mimeType: getMimeType('video', segmentFormat), segmentAlignment: false, subsegmentAlignment: false, subsegmentStartsWithSAP: null, sar: null, maximumSAPPeriod: null, audioSamplingRate: null, width: null, height: null, inbandEventStreams: [], audioChannelConfigurations: [], profiles: null, group: null, bitstreamSwitching: null, maxWidth: null, maxHeight: null, maxFrameRate: null, framePackings: [], ratings: [], viewpoints: [], accessibility: [], labels: [], groupLabels: [], contentComponents: [], resyncs: [], outputProtection: null, stableRenditionId: null, bitDepth: null, sampleRate: null, channels: null, assocLanguage: null, characteristics: null, forced: false,
+                lang: null,
+                mimeType: getMimeType('video', segmentFormat),
+                segmentAlignment: false,
+                subsegmentAlignment: false,
+                subsegmentStartsWithSAP: null,
+                sar: null,
+                maximumSAPPeriod: null,
+                audioSamplingRate: null,
+                width: null,
+                height: null,
+                inbandEventStreams: [],
+                audioChannelConfigurations: [],
+                profiles: null,
+                group: null,
+                bitstreamSwitching: null,
+                maxWidth: null,
+                maxHeight: null,
+                maxFrameRate: null,
+                framePackings: [],
+                ratings: [],
+                viewpoints: [],
+                accessibility: [],
+                labels: [],
+                groupLabels: [],
+                contentComponents: [],
+                resyncs: [],
+                outputProtection: null,
+                stableRenditionId: null,
+                bitDepth: null,
+                sampleRate: null,
+                channels: null,
+                assocLanguage: null,
+                characteristics: null,
+                forced: false,
             };
             periodIR.adaptationSets.push(asIR);
         }

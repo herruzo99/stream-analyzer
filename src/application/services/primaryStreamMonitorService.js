@@ -93,12 +93,18 @@ function startMonitoring(stream) {
         };
 
         // Subscribe to the unified ticker instead of using setInterval.
-        poller.tickSubscription = eventBus.subscribe('ticker:one-second-tick', () => {
-            if (performance.now() - poller.lastPollTime > poller.pollInterval) {
-                poller.lastPollTime = performance.now();
-                monitorStream(stream.id);
+        poller.tickSubscription = eventBus.subscribe(
+            'ticker:one-second-tick',
+            () => {
+                if (
+                    performance.now() - poller.lastPollTime >
+                    poller.pollInterval
+                ) {
+                    poller.lastPollTime = performance.now();
+                    monitorStream(stream.id);
+                }
             }
-        });
+        );
 
         pollers.set(stream.id, poller);
     }

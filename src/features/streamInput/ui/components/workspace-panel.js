@@ -198,8 +198,7 @@ export const workspacePanelTemplate = () => {
                                       <span class="text-sm text-slate-400"
                                           >Editing:</span
                                       >
-                                      <span
-                                          class="font-semibold text-teal-300"
+                                      <span class="font-semibold text-teal-300"
                                           >${loadedWorkspaceName}</span
                                       >
                                       <button

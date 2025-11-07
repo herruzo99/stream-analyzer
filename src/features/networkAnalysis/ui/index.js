@@ -60,24 +60,34 @@ function renderNetworkView() {
     }, 0);
 
     const template = html`
-        <div>
-            <h3 class="text-xl font-bold mb-4">Network Analysis</h3>
-            ${networkToolbarTemplate()}
-            ${summaryCardsTemplate(viewModel.summary)}
-            <div class="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6 mt-6">
-                <div class="space-y-6">
-                    <div class="bg-gray-800 p-4 rounded-lg">
+        <div class="flex flex-col h-full">
+            <div class="shrink-0">
+                <h3 class="text-xl font-bold mb-4">Network Analysis</h3>
+                ${networkToolbarTemplate()}
+                <div class="mt-6">
+                    ${summaryCardsTemplate(viewModel.summary)}
+                </div>
+            </div>
+            <div
+                class="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6 mt-6 grow min-h-0"
+            >
+                <div class="flex flex-col gap-6 min-h-0">
+                    <div class="bg-gray-800 p-4 rounded-lg shrink-0">
                         <h4 class="font-bold text-gray-300 mb-2">
                             Throughput Over Time
                         </h4>
                         <div id="throughput-chart-container" class="h-48"></div>
                     </div>
-                    ${waterfallChartTemplate(
-                        viewModel.waterfallData,
-                        viewModel.timeline
-                    )}
+                    <div class="grow min-h-0">
+                        ${waterfallChartTemplate(
+                            viewModel.waterfallData,
+                            viewModel.timeline
+                        )}
+                    </div>
                 </div>
-                <div>${networkDetailsPanelTemplate(selectedEvent)}</div>
+                <div class="min-h-0">
+                    ${networkDetailsPanelTemplate(selectedEvent)}
+                </div>
             </div>
         </div>
     `;

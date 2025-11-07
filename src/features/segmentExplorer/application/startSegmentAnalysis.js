@@ -94,7 +94,8 @@ export async function startSegmentAnalysisUseCase({ files }) {
             patchLocations: [],
             serviceDescriptions: [],
             initializationSets: [],
-            segmentFormat: parsedSegmentsInfo[0]?.parsedData?.format || 'unknown',
+            segmentFormat:
+                parsedSegmentsInfo[0]?.parsedData?.format || 'unknown',
             periods: [],
             events: [],
             serializedManifest: {},
@@ -132,19 +133,21 @@ export async function startSegmentAnalysisUseCase({ files }) {
                 queryParams: [],
             },
             licenseServerUrl: '',
-            segments: parsedSegmentsInfo.map(({ uniqueId, parsedData }, index) => ({
-                repId: 'local-rep',
-                type: 'Media',
-                number: index + 1,
-                uniqueId: uniqueId,
-                resolvedUrl: `local://segment_${index}`,
-                template: parsedData.url,
-                time: 0,
-                duration: 0,
-                timescale: 1,
-                gap: false,
-                flags: [],
-            })),
+            segments: parsedSegmentsInfo.map(
+                ({ uniqueId, parsedData }, index) => ({
+                    repId: 'local-rep',
+                    type: 'Media',
+                    number: index + 1,
+                    uniqueId: uniqueId,
+                    resolvedUrl: `local://segment_${index}`,
+                    template: parsedData.url,
+                    time: 0,
+                    duration: 0,
+                    timescale: 1,
+                    gap: false,
+                    flags: [],
+                })
+            ),
         };
 
         const allSegmentUrls = new Set(

@@ -1,5 +1,5 @@
 import { eventBus } from '@/application/event-bus';
-import { useAnalysisStore } from '@/state/analysisStore';
+import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
 import { playerActions, usePlayerStore } from '@/state/playerStore';
 import { debugLog } from '@/shared/utils/debug';
 import { getShaka } from '@/infrastructure/player/shaka';
@@ -278,6 +278,16 @@ class PlayerService {
         this.isInitialized = true;
     }
 
+    async reinitializeAndLoad(videoEl, videoContainer, stream) {
+        if (this.isInitialized) {
+            await this.destroy();
+        }
+        await this.initialize(videoEl, videoContainer);
+        if (stream) {
+            await this.load(stream, true);
+        }
+    }
+
     togglePlay() {
         const video = this.player?.getMediaElement();
         if (video) {
@@ -348,6 +358,10 @@ class PlayerService {
         eventBus.dispatch('player:active-streams-changed', {
             activeStreamIds: this.activeStreamIds,
         });
+
+        if (stream.manifest?.type === 'dynamic') {
+            analysisActions.setStreamPolling(stream.id, true);
+        }
 
         try {
             const drmConfig = await playerConfigService.buildDrmConfig(stream);
@@ -423,7 +437,7 @@ class PlayerService {
         eventBus.dispatch('player:active-streams-changed', {
             activeStreamIds: this.activeStreamIds,
         });
-        playerActions.setLoadedState(false);
+        playerActions.reset();
         this.stallCalculator.reset();
     }
 

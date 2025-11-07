@@ -530,9 +530,7 @@ export async function parseAllSegmentUrls(
                                     sidxBox.details.first_offset.value
                                 );
                                 let currentOffset =
-                                    sidxBox.offset +
-                                    sidxBox.size +
-                                    firstOffset;
+                                    sidxBox.offset + sidxBox.size + firstOffset;
                                 let currentTime = Number(
                                     sidxBox.details.earliest_presentation_time
                                         .value
@@ -558,9 +556,7 @@ export async function parseAllSegmentUrls(
                                         encryptionInfo,
                                         flags: [
                                             ...(entry.startsWithSap
-                                                ? [
-                                                      `sap-type-${entry.sapType}`,
-                                                  ]
+                                                ? [`sap-type-${entry.sapType}`]
                                                 : []),
                                             ...flags,
                                         ],

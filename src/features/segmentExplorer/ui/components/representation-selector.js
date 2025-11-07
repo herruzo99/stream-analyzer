@@ -56,7 +56,12 @@ const dashRepresentationCardTemplate = (rep, activeRepId, compositeKey) => {
     `;
 };
 
-const dashAdaptationSetGroupTemplate = (as, periodId, activeRepId, sortedReps) => {
+const dashAdaptationSetGroupTemplate = (
+    as,
+    periodId,
+    activeRepId,
+    sortedReps
+) => {
     if (sortedReps.length === 0) return '';
 
     let title, value;
@@ -165,9 +170,7 @@ const hlsRepresentationCardTemplate = (rep, activeRepId) => {
         details = formatBitrate(rep.bandwidth);
     } else if (rep.contentType === 'audio' || rep.contentType === 'text') {
         label =
-            rep.serializedManifest.NAME ||
-            rep.lang ||
-            `Rendition ${rep.id}`;
+            rep.serializedManifest.NAME || rep.lang || `Rendition ${rep.id}`;
         details = `Lang: ${rep.lang || 'und'}`;
     }
 
@@ -278,7 +281,7 @@ export const representationSelectorTemplate = (stream) => {
             const iFrameReps = allReps.filter(
                 (r) => r.contentType === 'video' && r.roles.includes('trick')
             );
-            
+
             const videoGroups = videoReps.reduce((acc, rep) => {
                 const groupKey = rep.videoRange || 'SDR';
                 if (!acc[groupKey]) acc[groupKey] = [];
@@ -286,7 +289,7 @@ export const representationSelectorTemplate = (stream) => {
                 return acc;
             }, {});
 
-             const iFrameGroups = iFrameReps.reduce((acc, rep) => {
+            const iFrameGroups = iFrameReps.reduce((acc, rep) => {
                 const groupKey = rep.videoRange || 'SDR';
                 if (!acc[groupKey]) acc[groupKey] = [];
                 acc[groupKey].push(rep);
@@ -321,8 +324,7 @@ export const representationSelectorTemplate = (stream) => {
                         r.contentType === 'subtitles')
             );
             const groups = repsForTab.reduce((acc, rep) => {
-                const groupId =
-                    rep.serializedManifest['GROUP-ID'] || 'default';
+                const groupId = rep.serializedManifest['GROUP-ID'] || 'default';
                 if (!acc[groupId]) acc[groupId] = [];
                 acc[groupId].push(rep);
                 return acc;

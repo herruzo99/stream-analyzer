@@ -26,7 +26,11 @@ function findDashMissingTooltips(serializedManifest) {
                 'xmlns:cenc',
                 'xmlns:xlink',
             ].includes(attrName);
-            if (!dashTooltipData[attrKey] && !isIgnoredAttr && !seen.has(attrKey)) {
+            if (
+                !dashTooltipData[attrKey] &&
+                !isIgnoredAttr &&
+                !seen.has(attrKey)
+            ) {
                 missing.push({ type: 'Attribute', name: attrKey });
                 seen.add(attrKey);
             }

@@ -48,11 +48,11 @@ const globalControlsTemplate = ({ state, isAnyPlayerLoading }) => {
                         @click=${handleAbrToggle}
                         class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
                     >
-                         <span class="absolute inset-0 rounded-full ${
-                             state.globalAbrEnabled
-                                 ? 'bg-blue-600'
-                                 : 'bg-slate-600'
-                         }"></span>
+                        <span
+                            class="absolute inset-0 rounded-full ${state.globalAbrEnabled
+                                ? 'bg-blue-600'
+                                : 'bg-slate-600'}"
+                        ></span>
                         <span
                             class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${state.globalAbrEnabled
                                 ? 'translate-x-6'
@@ -100,10 +100,22 @@ const globalControlsTemplate = ({ state, isAnyPlayerLoading }) => {
                               class="bg-slate-700 hover:bg-slate-600 text-white rounded-md p-1 text-sm border border-slate-600 w-full max-w-[10rem] flex justify-between items-center disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                               <span>Select Quality...</span>
-                              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                              <svg
+                                  class="w-4 h-4"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                              >
+                                  <path
+                                      stroke-linecap="round"
+                                      stroke-linejoin="round"
+                                      stroke-width="2"
+                                      d="M19 9l-7 7-7-7"
+                                  ></path>
+                              </svg>
                           </button>
                       </labeled-control-component>`}
-                 <labeled-control-component label="Global Audio Language">
+                <labeled-control-component label="Global Audio Language">
                     <select
                         @change=${(e) =>
                             eventBus.dispatch(
@@ -173,11 +185,13 @@ export class GlobalControlsComponent extends HTMLElement {
     connectedCallback() {
         this.render();
         // Subscribe to any changes in the players map to re-render.
-        this.unsubscribe = useMultiPlayerStore.subscribe((newState, oldState) => {
-            if (newState.players !== oldState.players) {
-                this.render();
+        this.unsubscribe = useMultiPlayerStore.subscribe(
+            (newState, oldState) => {
+                if (newState.players !== oldState.players) {
+                    this.render();
+                }
             }
-        });
+        );
     }
 
     disconnectedCallback() {

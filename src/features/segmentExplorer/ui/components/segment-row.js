@@ -153,7 +153,8 @@ export const segmentRowTemplate = (
     const isChecked = segmentsForCompare.some(
         (s) => s.segmentUniqueId === seg.uniqueId
     );
-    const isLoaded = cacheEntry && cacheEntry.status >= 200 && cacheEntry.status < 300;
+    const isLoaded =
+        cacheEntry && cacheEntry.status >= 200 && cacheEntry.status < 300;
     const isInCurrentManifest =
         seg.type === 'Init' || currentSegmentUrls.has(seg.uniqueId);
     const isStaleByTime =

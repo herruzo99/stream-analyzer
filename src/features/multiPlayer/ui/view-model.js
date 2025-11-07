@@ -1,4 +1,3 @@
-
 import { formatBitrate } from '@/ui/shared/format';
 import { multiPlayerService } from '../application/multiPlayerService';
 import { useMultiPlayerStore } from '@/state/multiPlayerStore';
@@ -22,14 +21,7 @@ export function createMultiPlayerGridViewModel(playersMap) {
     }
 
     const cards = players.map((player) => {
-        const {
-            stats,
-            streamName,
-            state,
-            error,
-            streamType,
-            health,
-        } = player;
+        const { stats, streamName, state, error, streamType, health } = player;
 
         const bufferStat = {
             label: 'Buffer',

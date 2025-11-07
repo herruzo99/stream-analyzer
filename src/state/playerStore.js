@@ -201,10 +201,9 @@ export const usePlayerStore = createStore((set, get) => ({
                     mimeType: rep.mimeType,
                     codecs: rep.codecs.value,
                     roles: as.roles.map((r) => r.value),
-                    kind:
-                        as.roles.find((r) => r.value === 'caption')
-                            ? 'caption'
-                            : 'subtitle',
+                    kind: as.roles.find((r) => r.value === 'caption')
+                        ? 'caption'
+                        : 'subtitle',
                     active: false,
                 }))
             );

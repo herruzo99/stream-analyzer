@@ -1,6 +1,7 @@
 import { useAnalysisStore } from '@/state/analysisStore';
 import { workerService } from '@/infrastructure/worker/workerService';
 import { debugLog } from '@/shared/utils/debug';
+import shaka from 'shaka-player/dist/shaka-player.ui.js';
 
 /**
  * A network plugin for Shaka Player.
@@ -177,21 +178,21 @@ export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
 
     const shakaPromise = workerTask.promise.catch((error) => {
         if (error.name === 'AbortError') {
-            throw new window.shaka.util.Error(
-                window.shaka.util.Error.Severity.RECOVERABLE,
-                window.shaka.util.Error.Category.PLAYER,
-                window.shaka.util.Error.Code.OPERATION_ABORTED
+            throw new shaka.util.Error(
+                shaka.util.Error.Severity.RECOVERABLE,
+                shaka.util.Error.Category.PLAYER,
+                shaka.util.Error.Code.OPERATION_ABORTED
             );
         }
-        throw new window.shaka.util.Error(
-            error.severity || window.shaka.util.Error.Severity.CRITICAL,
-            error.category || window.shaka.util.Error.Category.NETWORK,
-            error.code || window.shaka.util.Error.Code.HTTP_ERROR,
+        throw new shaka.util.Error(
+            error.severity || shaka.util.Error.Severity.CRITICAL,
+            error.category || shaka.util.Error.Category.NETWORK,
+            error.code || shaka.util.Error.Code.HTTP_ERROR,
             error.data || null
         );
     });
 
-    return new window.shaka.util.AbortableOperation(shakaPromise, () => {
+    return new shaka.util.AbortableOperation(shakaPromise, () => {
         workerTask.cancel();
         return Promise.resolve();
     });

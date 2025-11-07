@@ -1,5 +1,3 @@
-
-
 declare interface Window {
     shaka: any;
 

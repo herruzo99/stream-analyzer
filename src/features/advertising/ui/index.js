@@ -114,9 +114,9 @@ const unconfirmedInbandTemplate = () => html`
             In-Band Ad Signals Detected
         </p>
         <p class="text-xs text-slate-400 mt-2">
-            The manifest declares in-band SCTE-35 event streams. Play the content or
-            load individual segments in the explorer to discover specific ad avails as
-            they appear.
+            The manifest declares in-band SCTE-35 event streams. Play the
+            content or load individual segments in the explorer to discover
+            specific ad avails as they appear.
         </p>
     </div>
 `;

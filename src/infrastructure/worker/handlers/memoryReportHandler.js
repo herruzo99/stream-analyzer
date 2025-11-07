@@ -48,8 +48,18 @@ const AVG_NETWORK_EVENT_SIZE = estimateObjectSize({
     resourceType: 'video',
     streamId: 1,
     request: { method: 'GET', headers: { Range: 'bytes=0-1023' } },
-    response: { status: 206, statusText: 'Partial Content', headers: { 'content-type': 'video/mp4' }, contentLength: 1024 },
-    timing: { startTime: 12345.67, endTime: 12456.78, duration: 111.11, breakdown: null },
+    response: {
+        status: 206,
+        statusText: 'Partial Content',
+        headers: { 'content-type': 'video/mp4' },
+        contentLength: 1024,
+    },
+    timing: {
+        startTime: 12345.67,
+        endTime: 12456.78,
+        duration: 111.11,
+        breakdown: null,
+    },
 });
 
 const AVG_PLAYER_EVENT_SIZE = estimateObjectSize({

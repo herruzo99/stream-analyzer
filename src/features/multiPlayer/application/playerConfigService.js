@@ -39,8 +39,7 @@ async function buildDrmConfig(streamDef) {
     }
 
     for (const system of security.systems) {
-        const keySystem =
-            schemeIdUriToKeySystem[system.systemId.toLowerCase()];
+        const keySystem = schemeIdUriToKeySystem[system.systemId.toLowerCase()];
         if (keySystem) {
             const licenseServerUrl =
                 typeof streamDef.drmAuth.licenseServerUrl === 'object'
@@ -76,7 +75,10 @@ function selectTrack(player, type, selectionCriteria) {
         const tracks = player.getVariantTracks();
         let trackToSelect;
 
-        if (typeof selectionCriteria === 'object' && selectionCriteria !== null) {
+        if (
+            typeof selectionCriteria === 'object' &&
+            selectionCriteria !== null
+        ) {
             // Find by properties
             trackToSelect = tracks.find(
                 (t) =>

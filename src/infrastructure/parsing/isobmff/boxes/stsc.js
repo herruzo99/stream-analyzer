@@ -21,7 +21,9 @@ export function parseStsc(box, view) {
 
             const first_chunk = p.readUint32(firstChunkField);
             const samples_per_chunk = p.readUint32(samplesPerChunkField);
-            const sample_description_index = p.readUint32(descriptionIndexField);
+            const sample_description_index = p.readUint32(
+                descriptionIndexField
+            );
 
             if (
                 first_chunk === null ||

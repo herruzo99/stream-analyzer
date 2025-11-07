@@ -88,7 +88,10 @@ export const videoSelectionPanelTemplate = (
         if ((b.height || 0) !== (a.height || 0)) {
             return (b.height || 0) - (a.height || 0);
         }
-        return (b.videoBandwidth || b.bandwidth || 0) - (a.videoBandwidth || a.bandwidth || 0);
+        return (
+            (b.videoBandwidth || b.bandwidth || 0) -
+            (a.videoBandwidth || a.bandwidth || 0)
+        );
     });
     // --- END OVERHAUL ---
 
@@ -106,8 +109,12 @@ export const videoSelectionPanelTemplate = (
             ${tracksToRender.map((track) => {
                 const details = [
                     formatBitrate(track.videoBandwidth || track.bandwidth),
-                    track.frameRate ? `${parseFloat(track.frameRate).toFixed(2)}fps` : null,
-                ].filter(Boolean).join(' | ');
+                    track.frameRate
+                        ? `${parseFloat(track.frameRate).toFixed(2)}fps`
+                        : null,
+                ]
+                    .filter(Boolean)
+                    .join(' | ');
 
                 return trackCardTemplate({
                     label: `${track.height}p`,
