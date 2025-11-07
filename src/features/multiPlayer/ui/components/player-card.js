@@ -8,7 +8,6 @@ import { statCardTemplate } from '@/features/summary/ui/components/shared';
 import { toggleDropdown } from '@/ui/services/dropdownService';
 import {
     audioSelectionPanelTemplate,
-    textSelectionPanelTemplate,
     videoSelectionPanelTemplate,
 } from '@/features/playerSimulation/ui/components/track-selection-dropdown';
 import { formatBitrate } from '@/ui/shared/format';

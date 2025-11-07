@@ -19,12 +19,10 @@ import { findBoxRecursive } from '../isobmff/utils.js';
 export function createSegmentFromTemplateUrl(url, context) {
     const {
         repId,
-        baseUrl,
         mediaTemplate,
         startNumber,
         timescale,
         segmentDuration,
-        periodStart,
         encryptionInfo,
         flags,
     } = context;
@@ -230,7 +228,7 @@ export async function parseAllSegmentUrls(
                     'SegmentTemplate',
                     hierarchy
                 );
-                const segmentList = getInheritedElement(
+                const _segmentList = getInheritedElement(
                     'SegmentList',
                     hierarchy
                 );

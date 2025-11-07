@@ -1,8 +1,3 @@
-const Severity = {
-    1: 'RECOVERABLE',
-    2: 'CRITICAL',
-};
-
 const Category = {
     1: 'NETWORK',
     2: 'TEXT',

@@ -786,7 +786,7 @@ function parsePeriod(periodEl, parentMergedEl, previousPeriod = null) {
             id: 'unconfirmed-inband-scte35',
             startTime: -1,
             duration: -1,
-            scte35Signal: { type: 'Unconfirmed In-band Signal' },
+            scte35Signal: { error: 'Unconfirmed In-band Signal' },
             adManifestUrl: null,
             creatives: [],
         });

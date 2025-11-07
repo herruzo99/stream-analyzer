@@ -1,6 +1,5 @@
 import { useMultiPlayerStore } from '@/state/multiPlayerStore';
 import { debugLog } from '@/shared/utils/debug';
-import { showToast } from '@/ui/components/toast';
 import { schemeIdUriToKeySystem } from '@/infrastructure/parsing/utils/drm';
 
 async function fetchCertificate(url) {

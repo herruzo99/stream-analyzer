@@ -1,7 +1,6 @@
 import { html } from 'lit-html';
 import { closeDropdown } from '@/ui/services/dropdownService';
 import { formatBitrate } from '@/ui/shared/format';
-import * as icons from '@/ui/icons';
 import { tooltipTriggerClasses } from '@/ui/shared/constants';
 import { eventBus } from '@/application/event-bus';
 

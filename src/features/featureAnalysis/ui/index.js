@@ -5,7 +5,6 @@ import { useAnalysisStore } from '@/state/analysisStore';
 import { eventBus } from '@/application/event-bus';
 import { createFeatureViewModel } from '@/features/featureAnalysis/domain/analyzer';
 import { standardSelectorTemplate } from '@/features/compliance/ui/components/standard-selector';
-import { tooltipTriggerClasses } from '@/ui/shared/constants';
 import * as icons from '@/ui/icons';
 
 let container = null;

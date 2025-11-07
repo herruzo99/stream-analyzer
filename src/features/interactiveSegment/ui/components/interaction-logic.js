@@ -4,7 +4,6 @@ import { eventBus } from '@/application/event-bus';
 let mainContainer = null;
 let keydownListener = null;
 let containerListeners = new Map();
-let currentFormat = null;
 let rootParsedData = null;
 let hoverDebounceTimeout = null;
 
@@ -48,7 +47,6 @@ export function cleanupSegmentViewInteractivity(dom) {
     }
 
     cleanupEventListeners(container);
-    currentFormat = null;
     rootParsedData = null;
     mainContainer = null;
 }
@@ -65,7 +63,6 @@ export function initializeSegmentViewInteractivity(
     if (!container || !parsedSegmentData) return;
 
     cleanupEventListeners(container);
-    currentFormat = format;
     rootParsedData = parsedSegmentData;
 
     const handleHover = (item, field) => {

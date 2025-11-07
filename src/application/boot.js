@@ -2,7 +2,7 @@ import { initializeLiveStreamMonitor } from '@/application/services/primaryStrea
 import { initializeViewManager } from '@/ui/shell/view-manager';
 import { initializeLiveUpdateProcessor } from '@/application/services/liveUpdateProcessor';
 import { initializeHlsVariantPoller } from '@/application/services/hlsVariantPollerService';
-import { initializeRenderer, renderApp } from '@/ui/shell/mainRenderer';
+import { initializeRenderer } from '@/ui/shell/mainRenderer';
 import { initializeConsentManager } from './consent-manager.js';
 import { container } from './container.js';
 import { workerService } from '@/infrastructure/worker/workerService';
@@ -21,7 +21,6 @@ import { keyManagerService } from '@/infrastructure/decryption/keyManagerService
 import { initializeSegmentService } from '@/infrastructure/segments/segmentService';
 import { initializeUiOrchestration } from '@/ui/services/uiOrchestrationService';
 import { initializeNetworkEnrichmentService } from '@/infrastructure/http/networkEnrichmentService';
-import { eventBus } from './event-bus.js';
 import { tickerService } from './services/tickerService.js';
 import { playerEventOrchestratorService } from './services/playerEventOrchestratorService.js';
 

@@ -26,7 +26,7 @@ const esbuildOptions = {
         '@': './src',
     },
     // External libraries that should be loaded as UMD modules and attached to window
-    external: [],  // We want shaka-player to be bundled, not external
+    external: [], // We want shaka-player to be bundled, not external
 };
 
 async function postBuild(meta, cspNonce) {

@@ -4,9 +4,7 @@ import { useAnalysisStore } from '@/state/analysisStore';
 import { usePlayerStore, playerActions } from '@/state/playerStore';
 import { eventBus } from '@/application/event-bus';
 import 'shaka-player/dist/controls.css';
-import * as echarts from 'echarts';
 
-import { disposeChart } from '@/ui/shared/charts/chart-renderer';
 import './sidebar.js';
 import './components/player-controls.js';
 import * as icons from '@/ui/icons';

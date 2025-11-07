@@ -1,5 +1,4 @@
 import { html } from 'lit-html';
-import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { isDebugMode } from '@/shared/utils/env';
 import { segmentTableTemplate } from '../../components/segment-table.js';
 import { useUiStore } from '@/state/uiStore';
@@ -89,8 +88,7 @@ export function getDashExplorerForType(stream, contentType) {
         </p>`;
     }
 
-    const { segmentExplorerSortOrder, segmentExplorerTargetTime } =
-        useUiStore.getState();
+    const { segmentExplorerSortOrder } = useUiStore.getState();
 
     return html`
         <div class="space-y-6">

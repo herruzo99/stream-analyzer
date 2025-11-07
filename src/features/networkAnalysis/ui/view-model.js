@@ -1,5 +1,3 @@
-import { formatBitrate } from '@/ui/shared/format';
-
 /**
  * Calculates summary statistics from a list of network events.
  * @param {import('@/types').NetworkEvent[]} events

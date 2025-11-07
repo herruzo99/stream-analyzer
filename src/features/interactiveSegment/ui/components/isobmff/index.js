@@ -8,29 +8,6 @@ import { entriesTableTemplate } from '@/ui/shared/isobmff-renderer';
 
 const allIsoTooltipData = getAllIsoTooltipData();
 
-/**
- * Recursively finds the first occurrence of a box that satisfies the predicate.
- * @param {import('@/types.js').Box[]} boxes
- * @param {string | ((box: import('@/types.js').Box) => boolean)} predicateOrType
- * @returns {import('@/types.js').Box | null}
- */
-function findBoxRecursive(boxes, predicateOrType) {
-    const predicate =
-        typeof predicateOrType === 'function'
-            ? predicateOrType
-            : (box) => box.type === predicateOrType;
-
-    if (!boxes) return null;
-    for (const box of boxes) {
-        if (predicate(box)) return box;
-        if (box.children?.length > 0) {
-            const found = findBoxRecursive(box.children, predicate);
-            if (found) return found;
-        }
-    }
-    return null;
-}
-
 export function findItemByOffset(parsedData, offset) {
     if (!parsedData) return null;
 
@@ -164,7 +141,6 @@ const sampleInspectorTemplate = (sample) => {
 };
 
 export const inspectorPanelTemplate = (parsedData) => {
-    const rootData = parsedData.data;
     const {
         interactiveSegmentSelectedItem,
         interactiveSegmentHighlightedItem,

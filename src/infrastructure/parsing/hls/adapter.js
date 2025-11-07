@@ -10,26 +10,6 @@ import { getDrmSystemName } from '../utils/drm.js';
 import { inferMediaInfoFromExtension } from '../utils/media-types.js';
 
 // --- Sorter Functions ---
-function sortVideoRepresentations(a, b) {
-    const heightA = a.height?.value || 0;
-    const heightB = b.height?.value || 0;
-    if (heightA !== heightB) {
-        return heightB - heightA; // Descending height
-    }
-
-    const widthA = a.width?.value || 0;
-    const widthB = b.width?.value || 0;
-    if (widthA !== widthB) {
-        return widthB - widthA; // Descending width
-    }
-
-    return (b.bandwidth || 0) - (a.bandwidth || 0); // Descending bandwidth
-}
-
-function sortAudioRepresentations(a, b) {
-    return (b.bandwidth || 0) - (a.bandwidth || 0); // Descending bandwidth
-}
-
 const contentTypeOrder = ['video', 'audio', 'text', 'application'];
 function sortAdaptationSets(a, b) {
     const indexA = contentTypeOrder.indexOf(a.contentType);
@@ -546,7 +526,7 @@ export async function adaptHlsToIr(hlsParsed, context) {
             (t) => t.name === 'EXT-X-I-FRAME-STREAM-INF'
         );
         if (iFrameTags.length > 0) {
-            const iFrameReps = iFrameTags.map((tag, index) => {
+            const iFrameReps = iFrameTags.map((tag) => {
                 const resolution = tag.value.RESOLUTION;
                 const resolvedUri = new URL(tag.value.URI, hlsParsed.baseUrl)
                     .href;

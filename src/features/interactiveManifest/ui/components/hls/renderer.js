@@ -1,6 +1,5 @@
 import { html } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
-import { useUiStore, uiActions } from '@/state/uiStore';
 import { eventBus } from '@/application/event-bus';
 import '@/ui/components/virtualized-list';
 import { isDebugMode } from '@/shared/utils/env';

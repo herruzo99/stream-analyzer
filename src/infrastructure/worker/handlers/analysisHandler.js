@@ -432,7 +432,7 @@ export async function handleStartAnalysis({ inputs }, signal) {
                         parsedUrl.pathname.lastIndexOf('/') + 1
                     );
                     return parsedUrl.href;
-                } catch (e) {
+                } catch (_e) {
                     return url.substring(0, url.lastIndexOf('/') + 1);
                 }
             };

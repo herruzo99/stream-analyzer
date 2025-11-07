@@ -1,9 +1,4 @@
 import { eventBus } from '@/application/event-bus';
-import { analysisActions } from '@/state/analysisStore';
-import { findInitSegmentUrl } from '@/infrastructure/parsing/dash/segment-parser';
-import { resolveBaseUrl } from '@/infrastructure/parsing/dash/recursive-parser';
-import { workerService } from '@/infrastructure/worker/workerService';
-import { useSegmentCacheStore } from '@/state/segmentCacheStore';
 
 /**
  * A service dedicated to enriching stream objects with data from dependent resources

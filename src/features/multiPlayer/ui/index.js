@@ -3,18 +3,15 @@ import {
     useMultiPlayerStore,
     selectIsPlayingAll,
 } from '@/state/multiPlayerStore';
-import { useUiStore, uiActions } from '@/state/uiStore';
+import { useUiStore } from '@/state/uiStore';
 import { multiPlayerService } from '../application/multiPlayerService';
-import { useAnalysisStore } from '@/state/analysisStore';
 import { eventBus } from '@/application/event-bus';
 import { debugLog } from '@/shared/utils/debug';
-import { createMultiPlayerGridViewModel } from './view-model.js';
 
 import { GridViewComponent } from './components/grid-view.js';
 import { SidebarShellComponent } from './components/sidebar-shell.js';
 import { ControlsViewComponent } from './components/controls-view.js';
 import * as icons from '@/ui/icons';
-import { formatPlayerTime } from '@/ui/shared/time-format.js';
 
 let container = null;
 let multiPlayerUnsubscribe = null;

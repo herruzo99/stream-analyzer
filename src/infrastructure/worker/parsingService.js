@@ -4,7 +4,6 @@ import { parseVTT } from '@/infrastructure/parsing/vtt/parser';
 import { debugLog } from '@/shared/utils/debug';
 import { boxParsers } from '@/infrastructure/parsing/isobmff/index';
 import { fetchWithAuth } from './http.js';
-import { inferMediaInfoFromExtension } from '@/infrastructure/parsing/utils/media-types';
 
 // --- Color Generation and Assignment (Co-located with parsing) ---
 const COLOR_NAMES = [
@@ -251,7 +250,7 @@ export async function parseSegment({ data, formatHint, url }) {
                     format: 'aac',
                     data: { message: 'Raw AAC Audio Segment' },
                 };
-        } catch (e) {
+        } catch (_e) {
             // Non-URL string, proceed to byte-sniffing
         }
     }
@@ -260,7 +259,9 @@ export async function parseSegment({ data, formatHint, url }) {
         if (decoder.decode(data.slice(0, 10)).startsWith('WEBVTT')) {
             return { format: 'vtt', data: parseVTT(decoder.decode(data)) };
         }
-    } catch {}
+    } catch (_e) {
+        // Not valid UTF-8, so it's not VTT. Intentionally empty.
+    }
 
     if (data.byteLength >= 8) {
         const size = dataView.getUint32(0);
@@ -382,7 +383,6 @@ export async function handleDecryptAndParseSegment(
     { url, key, iv, formatHint },
     signal
 ) {
-    const { contentType } = inferMediaInfoFromExtension(url);
     const response = await fetchWithAuth(url, null, null, {}, null, signal);
     if (!response.ok) {
         throw new Error(`HTTP error ${response.status} fetching segment`);

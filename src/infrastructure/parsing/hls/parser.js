@@ -41,7 +41,7 @@ function resolveKeyUri(uri, baseUrl) {
     }
     try {
         return new URL(uri, baseUrl).href;
-    } catch (e) {
+    } catch (_e) {
         // Fallback for cases where baseUrl might also be malformed, return original uri.
         return uri;
     }
@@ -182,7 +182,7 @@ export async function parseManifest(
             }
 
             switch (tagName) {
-                case 'EXT-X-STREAM-INF':
+                case 'EXT-X-STREAM-INF': {
                     parsed.isMaster = true;
                     const attributes = parseAttributeList(tagValue);
                     const uri = lines[++i].trim();
@@ -194,6 +194,7 @@ export async function parseManifest(
                         lineNumber: i,
                     });
                     break;
+                }
                 case 'EXT-X-MEDIA':
                     parsed.isMaster = true;
                     parsed.media.push({

@@ -1,6 +1,5 @@
 import { html } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
-import { eventBus } from '@/application/event-bus';
 import { segmentTableTemplate } from '../../components/segment-table.js';
 import { useUiStore } from '@/state/uiStore';
 import { formatBitrate } from '@/ui/shared/format';
@@ -50,8 +49,7 @@ export function stopLiveSegmentHighlighter() {
 
 const renderHlsRendition = (stream, renditionInfo, contentType) => {
     const { title, uri, isMuxed } = renditionInfo;
-    const { segmentExplorerSortOrder, segmentExplorerTargetTime } =
-        useUiStore.getState();
+    const { segmentExplorerSortOrder } = useUiStore.getState();
 
     if (isMuxed) {
         return html`
@@ -123,10 +121,6 @@ const renderHlsRendition = (stream, renditionInfo, contentType) => {
     });
 
     let processedSegments = [...allSegments];
-
-    if (segmentExplorerTargetTime) {
-        // This logic is now handled inside segment-table and segment-row
-    }
 
     processedSegments.sort((a, b) => {
         const order = segmentExplorerSortOrder === 'asc' ? 1 : -1;

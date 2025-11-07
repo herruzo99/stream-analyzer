@@ -8,10 +8,11 @@ import { hasMissingTooltips } from '@/features/parserCoverage/domain/tooltip-cov
 const NavLink = (item, activeTab) => {
     if (!item.visible) return '';
     const isActive = activeTab === item.key;
-    const classes = `w-full flex items-center gap-3 pl-4 pr-3 py-2 text-sm font-medium rounded-md transition-colors ${isActive
+    const classes = `w-full flex items-center gap-3 pl-4 pr-3 py-2 text-sm font-medium rounded-md transition-colors ${
+        isActive
             ? 'bg-blue-600 text-white'
             : 'text-slate-300 hover:bg-slate-700/50 hover:text-white'
-        }`;
+    }`;
 
     const warningIcon = item.hasWarning
         ? html`<span
@@ -27,10 +28,10 @@ const NavLink = (item, activeTab) => {
             class=${classes}
             data-tab=${item.key}
             @click=${(e) => {
-            e.preventDefault();
-            uiActions.setActiveTab(item.key);
-            document.body.classList.remove('primary-sidebar-open');
-        }}
+                e.preventDefault();
+                uiActions.setActiveTab(item.key);
+                document.body.classList.remove('primary-sidebar-open');
+            }}
         >
             ${item.icon}
             <span class="inline truncate min-w-0">${item.label}</span>
@@ -51,7 +52,9 @@ const NavGroup = (group, activeTab) => {
                 ${group.title}
             </h4>
             <ul class="mt-1 space-y-1">
-                ${group.items.map((item) => html`<li>${NavLink(item, activeTab)}</li>`)}
+                ${group.items.map(
+                    (item) => html`<li>${NavLink(item, activeTab)}</li>`
+                )}
             </ul>
         </div>
     `;
@@ -73,7 +76,6 @@ export function getNavGroups() {
         {
             title: 'Overview & Compliance',
             items: [
-
                 {
                     key: 'comparison',
                     label: 'Manifest Comparison',

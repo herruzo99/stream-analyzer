@@ -93,8 +93,6 @@ const descriptorTableTemplate = (descriptors) => {
 const programStructureTemplate = (analysis) => {
     const { summary, packets } = analysis.data;
     const pmtPid = [...summary.pmtPids][0];
-    const program = pmtPid ? summary.programMap[pmtPid] : null;
-
     const pmtPacket = packets.find((p) => p.pid === pmtPid && p.psi);
     if (!pmtPacket) {
         return html`<p class="text-sm text-slate-400">

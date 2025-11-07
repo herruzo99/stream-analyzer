@@ -6,9 +6,7 @@ import { createComparisonModel } from '../domain/comparisonEngine.js';
 import { comparisonHeaderTemplate } from './components/comparisonHeader.js';
 import { comparisonSectionTemplate } from './components/comparisonSection.js';
 import { semanticDiffTemplate } from './components/semanticDiff.js';
-import { debugLog } from '@/shared/utils/debug';
 import { connectedTabBar } from '@/ui/components/tabs';
-import * as icons from '@/ui/icons';
 
 let container = null;
 let analysisUnsubscribe = null;

@@ -12,7 +12,7 @@ function getWidevineLicenseUrl(data) {
         const text = new TextDecoder('utf-8', { fatal: false }).decode(data);
         const match = text.match(/https?:\/\/[^\s'"]+/);
         return match ? match[0] : null;
-    } catch (e) {
+    } catch (_e) {
         return null;
     }
 }

@@ -1,5 +1,5 @@
 import { html } from 'lit-html';
-import { useUiStore, uiActions } from '@/state/uiStore';
+import { uiActions } from '@/state/uiStore';
 import { eventBus } from '@/application/event-bus';
 
 // The logic for highlighting is now correctly handled by the manifest renderer,
