@@ -20,7 +20,11 @@ export function getHlsSummaryTemplate(stream) {
 
     const allVideoReps = stream.manifest.periods
         .flatMap((p) => p.adaptationSets)
-        .filter((as) => as.contentType === 'video' && as.roles.every(r => r.value !== 'trick'))
+        .filter(
+            (as) =>
+                as.contentType === 'video' &&
+                as.roles.every((r) => r.value !== 'trick')
+        )
         .flatMap((as) => as.representations);
 
     const abrLadderData = [

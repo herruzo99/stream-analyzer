@@ -85,9 +85,8 @@ export function parseSenc(box, view) {
                         const protectedBytesField = `sample_${i}_subsample_${j}_BytesOfProtectedData`;
 
                         const BytesOfClearData = p.readUint16(clearBytesField);
-                        const BytesOfProtectedData = p.readUint32(
-                            protectedBytesField
-                        );
+                        const BytesOfProtectedData =
+                            p.readUint32(protectedBytesField);
 
                         if (
                             BytesOfClearData === null ||

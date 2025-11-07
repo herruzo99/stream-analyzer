@@ -25,6 +25,8 @@ const esbuildOptions = {
     alias: {
         '@': './src',
     },
+    // External libraries that should be loaded as UMD modules and attached to window
+    external: [],  // We want shaka-player to be bundled, not external
 };
 
 async function postBuild(meta, cspNonce) {
@@ -56,6 +58,13 @@ async function postBuild(meta, cspNonce) {
 
         await fs.writeFile(path.join('dist', 'index.html'), finalHtml);
         await fs.copyFile('favicon.ico', 'dist/favicon.ico');
+
+        // Copy Shaka Player CSS to dist
+        await fs.copyFile(
+            'node_modules/shaka-player/dist/controls.css',
+            'dist/assets/controls.css'
+        );
+
         console.log('Post-build finished: index.html generated.');
     } catch (error) {
         console.error('Post-build script failed:', error);
@@ -74,6 +83,13 @@ async function prepareDevHtml(cspNonce) {
             .replace(/__CSP_NONCE__/g, cspNonce);
         await fs.writeFile('dist/index.html', devHtml, 'utf-8');
         await fs.copyFile('favicon.ico', 'dist/favicon.ico');
+
+        // Copy Shaka Player CSS for development
+        await fs.copyFile(
+            'node_modules/shaka-player/dist/controls.css',
+            'dist/assets/controls.css'
+        );
+
         console.log('Development index.html regenerated.');
     } catch (e) {
         console.error('Failed to prepare development index.html:', e);

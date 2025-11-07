@@ -260,7 +260,8 @@ const Code = {
     },
     4006: {
         name: 'DASH_UNSUPPORTED_CONTAINER',
-        description: 'The DASH Manifest contained an unsupported container format.',
+        description:
+            'The DASH Manifest contained an unsupported container format.',
     },
     4007: {
         name: 'DASH_PSSH_BAD_ENCODING',
@@ -291,7 +292,8 @@ const Code = {
     },
     4016: {
         name: 'INVALID_HLS_TAG',
-        description: "HLS tag has an invalid name that doesn't start with '#EXT'.",
+        description:
+            "HLS tag has an invalid name that doesn't start with '#EXT'.",
     },
     4017: {
         name: 'HLS_INVALID_PLAYLIST_HIERARCHY',
@@ -319,8 +321,7 @@ const Code = {
     },
     4025: {
         name: 'HLS_COULD_NOT_GUESS_CODECS',
-        description:
-            'The HLS parser was unable to guess codecs of a stream.',
+        description: 'The HLS parser was unable to guess codecs of a stream.',
     },
     4026: {
         name: 'HLS_KEYFORMATS_NOT_SUPPORTED',
@@ -380,7 +381,8 @@ const Code = {
     },
     4045: {
         name: 'CANNOT_ADD_EXTERNAL_THUMBNAILS_TO_LIVE_STREAM',
-        description: 'External thumbnails tracks cannot be added to live streams.',
+        description:
+            'External thumbnails tracks cannot be added to live streams.',
     },
     4046: {
         name: 'MSS_INVALID_XML',
@@ -404,7 +406,8 @@ const Code = {
     },
     4051: {
         name: 'DASH_UNSUPPORTED_AES_128',
-        description: 'The DASH Manifest specifies a unsupported AES-128 encryption.',
+        description:
+            'The DASH Manifest specifies a unsupported AES-128 encryption.',
     },
     4052: {
         name: 'DASH_INVALID_PATCH',
@@ -413,7 +416,8 @@ const Code = {
     },
     4053: {
         name: 'HLS_EMPTY_MEDIA_PLAYLIST',
-        description: 'The media playlist has not segments or all segments are gap.',
+        description:
+            'The media playlist has not segments or all segments are gap.',
     },
     4054: {
         name: 'DASH_MSE_ENCRYPTED_LEGACY_APPLE_MEDIA_KEYS_NOT_SUPPORTED',
@@ -472,7 +476,7 @@ const Code = {
     6008: {
         name: 'LICENSE_RESPONSE_REJECTED',
         description:
-            'The license response was rejected by the CDM. The server\'s response may be invalid or malformed for this CDM.',
+            "The license response was rejected by the CDM. The server's response may be invalid or malformed for this CDM.",
     },
     6010: {
         name: 'ENCRYPTED_CONTENT_WITHOUT_DRM_INFO',
@@ -532,11 +536,13 @@ const Code = {
     },
     7002: {
         name: 'NO_VIDEO_ELEMENT',
-        description: 'The call to Player.load() failed because the Player does not have a video element.',
+        description:
+            'The call to Player.load() failed because the Player does not have a video element.',
     },
     7003: {
         name: 'OBJECT_DESTROYED',
-        description: 'The operation failed because the object has been destroyed.',
+        description:
+            'The operation failed because the object has been destroyed.',
     },
     7004: {
         name: 'CONTENT_NOT_LOADED',
@@ -544,7 +550,8 @@ const Code = {
     },
     7005: {
         name: 'SRC_EQUALS_PRELOAD_NOT_SUPPORTED',
-        description: 'The call to preload failed, due to being called on src= content.',
+        description:
+            'The call to preload failed, due to being called on src= content.',
     },
     7006: {
         name: 'PRELOAD_DESTROYED',
@@ -564,10 +571,14 @@ const Code = {
         name: 'NO_CAST_RECEIVERS',
         description: 'No cast receivers are available at this time.',
     },
-    8002: { name: 'ALREADY_CASTING', description: 'The library is already casting.' },
+    8002: {
+        name: 'ALREADY_CASTING',
+        description: 'The library is already casting.',
+    },
     8003: {
         name: 'UNEXPECTED_CAST_ERROR',
-        description: 'A Cast SDK error that we did not explicitly plan for has occurred.',
+        description:
+            'A Cast SDK error that we did not explicitly plan for has occurred.',
     },
     8004: {
         name: 'CAST_CANCELED_BY_USER',
@@ -606,8 +617,7 @@ const Code = {
     },
     9007: {
         name: 'NO_INIT_DATA_FOR_OFFLINE',
-        description:
-            'There was no init data available for offline storage.',
+        description: 'There was no init data available for offline storage.',
     },
     9008: {
         name: 'LOCAL_PLAYER_INSTANCE_REQUIRED',
@@ -616,7 +626,8 @@ const Code = {
     },
     9011: {
         name: 'NEW_KEY_OPERATION_NOT_SUPPORTED',
-        description: 'The storage cell does not allow new operations that require new keys.',
+        description:
+            'The storage cell does not allow new operations that require new keys.',
     },
     9012: {
         name: 'KEY_NOT_FOUND',
@@ -628,7 +639,8 @@ const Code = {
     },
     9014: {
         name: 'STORAGE_LIMIT_REACHED',
-        description: 'The storage limit defined in downloadSizeCallback has been reached.',
+        description:
+            'The storage limit defined in downloadSizeCallback has been reached.',
     },
     9015: {
         name: 'DOWNLOAD_SIZE_CALLBACK_ERROR',
@@ -636,11 +648,13 @@ const Code = {
     },
     9016: {
         name: 'MODIFY_OPERATION_NOT_SUPPORTED',
-        description: 'The storage cell does not allow new operations that significantly change existing data.',
+        description:
+            'The storage cell does not allow new operations that significantly change existing data.',
     },
     9017: {
         name: 'INDEXED_DB_INIT_TIMED_OUT',
-        description: 'When attempting to open an indexedDB instance, nothing happened for long enough for us to time out.',
+        description:
+            'When attempting to open an indexedDB instance, nothing happened for long enough for us to time out.',
     },
     10000: {
         name: 'CS_IMA_SDK_MISSING',
@@ -674,7 +688,8 @@ const Code = {
     },
     10006: {
         name: 'INTERSTITIAL_AD_MANAGER_NOT_INITIALIZED',
-        description: 'Interstitial Ad Manager needs to be initialized to enable interstitial Ad Insertion.',
+        description:
+            'Interstitial Ad Manager needs to be initialized to enable interstitial Ad Insertion.',
     },
     10007: {
         name: 'VAST_INVALID_XML',
@@ -696,18 +711,25 @@ export function parseShakaError(shakaError) {
     const errorInfo = Code[shakaError.code];
     const codeName = errorInfo?.name || 'UNKNOWN_CODE';
     const description = errorInfo?.description || 'No description available.';
-    
+
     let message = `${codeName} (Code ${shakaError.code}, ${categoryName}): ${description}`;
 
-    if (shakaError.data && Array.isArray(shakaError.data) && shakaError.data.length > 0) {
-        const dataDetails = shakaError.data.map(d => {
-            if (d instanceof Error) return d.message;
-            if (typeof d === 'object' && d !== null) {
-                if (d.uri && d.status) return `[HTTP ${d.status} on ${d.uri}]`;
-                return '[Object]';
-            }
-            return String(d);
-        }).join(', ');
+    if (
+        shakaError.data &&
+        Array.isArray(shakaError.data) &&
+        shakaError.data.length > 0
+    ) {
+        const dataDetails = shakaError.data
+            .map((d) => {
+                if (d instanceof Error) return d.message;
+                if (typeof d === 'object' && d !== null) {
+                    if (d.uri && d.status)
+                        return `[HTTP ${d.status} on ${d.uri}]`;
+                    return '[Object]';
+                }
+                return String(d);
+            })
+            .join(', ');
         message += ` | Details: ${dataDetails}`;
     }
 

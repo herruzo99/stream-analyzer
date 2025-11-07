@@ -11,6 +11,8 @@ import * as icons from '@/ui/icons';
 import { resetApplicationState } from '@/application/use_cases/resetApplicationState';
 import '@/features/memoryMonitor/ui/index';
 import { isDebugMode } from '@/shared/utils/env';
+import { usePlayerStore } from '@/state/playerStore.js';
+import { playerService } from '@/features/playerSimulation/application/playerService.js';
 
 function handleRestartAnalysis() {
     resetApplicationState();
@@ -20,8 +22,13 @@ function handleRestartAnalysis() {
     }
 }
 
+const handleStopAndResetPlayer = () => {
+    playerService.destroy();
+};
+
 export const globalControlsTemplate = () => {
     const { streams, activeStreamId } = useAnalysisStore.getState();
+    const { isPipUnmount } = usePlayerStore.getState();
     if (streams.length === 0) return html``;
     const activeStream = streams.find((s) => s.id === activeStreamId);
 
@@ -60,7 +67,17 @@ export const globalControlsTemplate = () => {
         : 'Cannot poll a manifest loaded from a local file';
 
     return html`
-        <div class="space-y-2 border-t border-gray-700/50 pt-3">
+        <div class="space-y-2 border-t border-gray-700/50">
+            ${isPipUnmount
+                ? html`<button
+                      @click=${handleStopAndResetPlayer}
+                      class="${buttonBaseClasses} w-full text-red-200 bg-red-800 hover:bg-red-700"
+                      title="Stop background player and clear its state"
+                  >
+                      ${icons.xCircle}
+                      <span class="inline">Stop & Reset Player</span>
+                  </button>`
+                : ''}
             ${isPollingVisible
                 ? html`<button
                       @click=${(e) =>
@@ -113,7 +130,7 @@ export const globalControlsTemplate = () => {
                 ${icons.newAnalysis}
                 <span class="inline">New Analysis</span>
             </button>
-            
+
             ${isDebugMode
                 ? html`<button
                       @click=${copyDebugInfoToClipboard}

@@ -21,12 +21,9 @@ export function initializeMultiPlayerController() {
     eventBus.subscribe('ui:multi-player:sync-toggled', () =>
         useMultiPlayerStore.getState().toggleSync()
     );
-    eventBus.subscribe(
-        'ui:multi-player:set-card-tab',
-        ({ streamId, tab }) => {
-            useMultiPlayerStore.getState().setPlayerCardTab(streamId, tab);
-        }
-    );
+    eventBus.subscribe('ui:multi-player:set-card-tab', ({ streamId, tab }) => {
+        useMultiPlayerStore.getState().setPlayerCardTab(streamId, tab);
+    });
     eventBus.subscribe('ui:multi-player:sync-all-to', ({ streamId }) =>
         multiPlayerService.syncAllTo(streamId)
     );
@@ -66,16 +63,19 @@ export function initializeMultiPlayerController() {
     // --- END NEW ---
 
     // --- REFACTORED TRACK SELECTION HANDLERS FOR MULTIPLAYER CONTEXT ---
-    eventBus.subscribe('ui:player:select-video-track', ({ streamId, track }) => {
-        const { players } = useMultiPlayerStore.getState();
-        // This event is now generic, ensure it's for a player in this view
-        if (players.has(streamId)) {
-            multiPlayerService.selectTrack(streamId, 'variant', track);
-            useMultiPlayerStore
-                .getState()
-                .setStreamOverride(streamId, { abr: false });
+    eventBus.subscribe(
+        'ui:player:select-video-track',
+        ({ streamId, track }) => {
+            const { players } = useMultiPlayerStore.getState();
+            // This event is now generic, ensure it's for a player in this view
+            if (players.has(streamId)) {
+                multiPlayerService.selectTrack(streamId, 'variant', track);
+                useMultiPlayerStore
+                    .getState()
+                    .setStreamOverride(streamId, { abr: false });
+            }
         }
-    });
+    );
     eventBus.subscribe(
         'ui:player:select-audio-track',
         ({ streamId, language }) => {

@@ -268,7 +268,8 @@ export async function parseManifest(
                                 keyUri.startsWith('skd:') &&
                                 lastColonIndex > 'skd://'.length
                             ) {
-                                iv = '0x' + keyUri.substring(lastColonIndex + 1);
+                                iv =
+                                    '0x' + keyUri.substring(lastColonIndex + 1);
                                 keyUri = keyUri.substring(0, lastColonIndex);
                             }
                             // --- END FIX ---

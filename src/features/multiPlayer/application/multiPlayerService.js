@@ -131,9 +131,8 @@ class MultiPlayerService {
                 `[START LOAD] for stream ${uniqueStreamId}`
             );
 
-            const drmConfig = await playerConfigService.buildDrmConfig(
-                streamDef
-            );
+            const drmConfig =
+                await playerConfigService.buildDrmConfig(streamDef);
             player.configure({ drm: drmConfig });
             this.applyStreamConfig(uniqueStreamId);
 
@@ -372,7 +371,8 @@ class MultiPlayerService {
                             health,
                             variantTracks: videoTracks,
                             activeVideoTrack: activeVideoTrack,
-                            audioTracks: shakaPlayer.getAudioLanguagesAndRoles(),
+                            audioTracks:
+                                shakaPlayer.getAudioLanguagesAndRoles(),
                             textTracks: shakaPlayer.getTextTracks(),
                             seekableRange: seekableRange,
                             normalizedPlayheadTime: normalizedPlayheadTime,
@@ -607,7 +607,9 @@ class MultiPlayerService {
         let appliedCount = 0;
 
         for (const [streamId, shakaPlayer] of this.players.entries()) {
-            if (playerConfigService.setGlobalTrackByHeight(shakaPlayer, height)) {
+            if (
+                playerConfigService.setGlobalTrackByHeight(shakaPlayer, height)
+            ) {
                 setStreamOverride(streamId, { abr: false });
                 appliedCount++;
             }

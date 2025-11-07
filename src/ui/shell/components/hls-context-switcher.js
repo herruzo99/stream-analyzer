@@ -212,7 +212,8 @@ export const hlsContextSwitcherTemplate = (stream) => {
     return html`
         <div class="relative w-full overflow-hidden">
             <button
-                @click=${(e) => toggleDropdown(e.currentTarget, panelTemplate, e)}
+                @click=${(e) =>
+                    toggleDropdown(e.currentTarget, panelTemplate, e)}
                 class="bg-gray-800/50 hover:bg-gray-700/50 text-white rounded-md border border-gray-600/50 p-2 w-full text-left flex items-center justify-between transition-colors"
             >
                 <span class="truncate min-w-0"

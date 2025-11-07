@@ -8,6 +8,8 @@ import {
 } from '@/infrastructure/persistence/streamStorage';
 import { useMultiPlayerStore } from './multiPlayerStore.js';
 import { showToast } from '@/ui/components/toast.js';
+import { playerService } from '@/features/playerSimulation/application/playerService.js';
+import { usePlayerStore } from './playerStore.js';
 
 // --- Type Definitions ---
 /** @typedef {import('@/types.ts').Stream} Stream */
@@ -166,9 +168,10 @@ export const useAnalysisStore = createStore((set, get) => ({
             activeStreamId: fullyFormedStreams[0]?.id ?? null,
             urlAuthMap: new Map(urlAuthMapArray),
             streamInputs: hydratedInputs,
-            activeStreamInputId: hydratedInputs.length > 0 ? hydratedInputs[0].id : null,
+            activeStreamInputId:
+                hydratedInputs.length > 0 ? hydratedInputs[0].id : null,
         });
-        
+
         useMultiPlayerStore.getState().initializePlayers(fullyFormedStreams);
 
         eventBus.dispatch('state:analysis-complete', {
@@ -233,7 +236,7 @@ export const useAnalysisStore = createStore((set, get) => ({
             delete storable.isDrmInfoLoading;
             return JSON.stringify(storable);
         };
-        
+
         const newComparable = getComparable({
             url: preset.url || '',
             name: preset.name || '',
@@ -246,12 +249,15 @@ export const useAnalysisStore = createStore((set, get) => ({
                 queryParams: [],
             },
         });
-        
-        const existingInput = state.streamInputs.find(input => getComparable(input) === newComparable);
+
+        const existingInput = state.streamInputs.find(
+            (input) => getComparable(input) === newComparable
+        );
 
         if (existingInput) {
             showToast({
-                message: 'This stream configuration already exists in the workspace.',
+                message:
+                    'This stream configuration already exists in the workspace.',
                 type: 'warn',
             });
             set({ activeStreamInputId: existingInput.id }); // Focus the existing one
@@ -266,13 +272,17 @@ export const useAnalysisStore = createStore((set, get) => ({
                     url: preset.url || '',
                     name: preset.name || '',
                     file: null,
-                    auth: preset.auth ? JSON.parse(JSON.stringify(preset.auth)) : { headers: [], queryParams: [] },
-                    drmAuth: preset.drmAuth ? restoreFromStorage(prepareForStorage(preset.drmAuth)) : {
-                        licenseServerUrl: '',
-                        serverCertificate: null,
-                        headers: [],
-                        queryParams: [],
-                    },
+                    auth: preset.auth
+                        ? JSON.parse(JSON.stringify(preset.auth))
+                        : { headers: [], queryParams: [] },
+                    drmAuth: preset.drmAuth
+                        ? restoreFromStorage(prepareForStorage(preset.drmAuth))
+                        : {
+                              licenseServerUrl: '',
+                              serverCertificate: null,
+                              headers: [],
+                              queryParams: [],
+                          },
                     detectedDrm: null,
                     isDrmInfoLoading: !!preset.url,
                 },
@@ -596,6 +606,13 @@ export const useAnalysisStore = createStore((set, get) => ({
     },
 
     setAllLiveStreamsPolling: (isPolling, options = {}) => {
+        if (options.fromInactivity && !isPolling) {
+            const { isLoaded } = usePlayerStore.getState();
+            if (isLoaded) {
+                playerService.destroy();
+            }
+        }
+
         set((state) => ({
             streams: state.streams.map((s) => {
                 if (s.manifest?.type === 'dynamic') {

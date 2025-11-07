@@ -137,9 +137,7 @@ export const segmentTableTemplate = ({
                     </div>
                 </div>
                 <!-- Render Init Segment Separately -->
-                ${initSegment
-                    ? rowRenderer(initSegment)
-                    : ''}
+                ${initSegment ? rowRenderer(initSegment) : ''}
                 <!-- Virtualized List for Media Segments -->
                 <virtualized-list
                     id="vl-${id}"

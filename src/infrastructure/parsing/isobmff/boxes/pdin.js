@@ -21,9 +21,8 @@ export function parsePdin(box, view) {
         if (rate === null || initial_delay === null) break;
 
         box.details[`entry_${box.entries.length}_rate`].internal = true;
-        box.details[
-            `entry_${box.entries.length}_initial_delay`
-        ].internal = true;
+        box.details[`entry_${box.entries.length}_initial_delay`].internal =
+            true;
 
         box.entries.push({ rate, initial_delay });
     }

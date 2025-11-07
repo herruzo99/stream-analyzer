@@ -4,7 +4,10 @@
  * @typedef {import('@/types.ts').SecuritySummary} SecuritySummary
  */
 
-import { findChildrenRecursive, resolveBaseUrl } from '../dash/recursive-parser.js';
+import {
+    findChildrenRecursive,
+    resolveBaseUrl,
+} from '../dash/recursive-parser.js';
 import { formatBitrate } from '@/ui/shared/format';
 import { isCodecSupported } from '../utils/codec-support.js';
 import { debugLog } from '@/shared/utils/debug';

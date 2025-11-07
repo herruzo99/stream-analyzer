@@ -114,8 +114,7 @@ class PlayerControlsComponent extends HTMLElement {
                         maxWidth: maxH === '' ? Infinity : Number(maxH),
                         minHeight: Number(formData.get('minHeight')) || 0,
                         maxHeight: maxH === '' ? Infinity : Number(maxH),
-                        minBandwidth:
-                            Number(formData.get('minBandwidth')) || 0,
+                        minBandwidth: Number(formData.get('minBandwidth')) || 0,
                         maxBandwidth: maxBw === '' ? Infinity : Number(maxBw),
                     },
                 });
@@ -241,7 +240,11 @@ class PlayerControlsComponent extends HTMLElement {
                     (e) =>
                         toggleDropdown(
                             e.currentTarget,
-                            () => textSelectionPanelTemplate(textTracks, streamId),
+                            () =>
+                                textSelectionPanelTemplate(
+                                    textTracks,
+                                    streamId
+                                ),
                             e
                         ),
                     { tooltip: 'Select the active subtitle or caption track.' }

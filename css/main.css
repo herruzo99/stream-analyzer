@@ -1,6 +1,5 @@
 /* --- Tailwind v4 Imports & Config --- */
 @import 'tailwindcss';
-@import 'shaka-player/dist/controls.css';
 @reference "tailwindcss";
 
 @tailwind base;

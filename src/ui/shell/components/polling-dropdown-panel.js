@@ -161,7 +161,11 @@ const renderPollingStreamCard = (stream, targetStreamId, onSelect) => {
     `;
 };
 
-const streamSelectionPanelTemplate = (liveStreams, targetStreamId, onSelect) => html`
+const streamSelectionPanelTemplate = (
+    liveStreams,
+    targetStreamId,
+    onSelect
+) => html`
     <div
         class="dropdown-panel bg-slate-800 border border-slate-700 rounded-lg shadow-xl w-[40rem] p-2"
     >
@@ -345,9 +349,10 @@ export const pollingDropdownPanelTemplate = () => {
     const { inactivityTimeoutOverride } = useUiStore.getState();
     const liveStreams = streams.filter((s) => s.manifest?.type === 'dynamic');
     const isAnyPolling = liveStreams.some((s) => s.isPolling);
-    const activeTimeout = INACTIVITY_TIMEOUT_OPTIONS.find(
-        (opt) => opt.id === inactivityTimeoutOverride
-    ) || INACTIVITY_TIMEOUT_OPTIONS[0];
+    const activeTimeout =
+        INACTIVITY_TIMEOUT_OPTIONS.find(
+            (opt) => opt.id === inactivityTimeoutOverride
+        ) || INACTIVITY_TIMEOUT_OPTIONS[0];
 
     return html`
         <div
@@ -371,23 +376,21 @@ export const pollingDropdownPanelTemplate = () => {
                 >
                     ${icons.moon} Background Polling
                 </h5>
-                ${customDropdownButton(
-                    `Timeout: ${activeTimeout.label}`,
-                    (e) =>
-                        toggleDropdown(
-                            e.currentTarget,
-                            () =>
-                                formattedOptionsDropdownTemplate(
-                                    INACTIVITY_TIMEOUT_OPTIONS,
-                                    inactivityTimeoutOverride,
-                                    (option) => {
-                                        uiActions.setInactivityTimeoutOverride(
-                                            option.id
-                                        );
-                                    }
-                                ),
-                            e
-                        )
+                ${customDropdownButton(`Timeout: ${activeTimeout.label}`, (e) =>
+                    toggleDropdown(
+                        e.currentTarget,
+                        () =>
+                            formattedOptionsDropdownTemplate(
+                                INACTIVITY_TIMEOUT_OPTIONS,
+                                inactivityTimeoutOverride,
+                                (option) => {
+                                    uiActions.setInactivityTimeoutOverride(
+                                        option.id
+                                    );
+                                }
+                            ),
+                        e
+                    )
                 )}
             </div>
             <div class="border-t border-slate-700 pt-3">

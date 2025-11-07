@@ -162,16 +162,13 @@ export function initializePlayerController() {
             }
         }
     );
-    eventBus.subscribe(
-        'ui:player:select-text-track',
-        ({ streamId, track }) => {
-            if (useUiStore.getState().activeTab !== 'player-simulation') return;
-            const { activeStreamId } = useAnalysisStore.getState();
-            if (streamId === activeStreamId) {
-                playerService.selectTextTrack(track);
-            }
+    eventBus.subscribe('ui:player:select-text-track', ({ streamId, track }) => {
+        if (useUiStore.getState().activeTab !== 'player-simulation') return;
+        const { activeStreamId } = useAnalysisStore.getState();
+        if (streamId === activeStreamId) {
+            playerService.selectTextTrack(track);
         }
-    );
+    });
     // --- End Track Selection ---
 
     // --- ARCHITECTURAL FIX: Add listeners for configuration presets ---

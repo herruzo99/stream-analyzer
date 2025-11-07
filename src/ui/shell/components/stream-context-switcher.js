@@ -77,13 +77,11 @@ export const streamContextSwitcherTemplate = (streams, activeStreamId) => {
 
     const panelTemplate = () => html`
         <div
-            class="dropdown-panel bg-gray-800 border border-gray-700 rounded-lg shadow-xl max-h-[60vh] w-full min-w-[20rem] overflow-y-auto"
+            class="dropdown-panel bg-gray-800 border border-gray-700 rounded-lg shadow-xl max-h-[60vh] w-full min-w-[20rem] max-w-5xl overflow-y-auto"
             @click=${handleSelect}
         >
             <div class="p-3">
-                <div
-                    class="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-2"
-                >
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
                     ${streams.map((stream) =>
                         renderStreamContextCard(stream, activeStreamId)
                     )}
@@ -93,9 +91,10 @@ export const streamContextSwitcherTemplate = (streams, activeStreamId) => {
     `;
 
     return html`
-        <div class="relative w-64 overflow-hidden">
+        <div class="space-y-2 border-t border-gray-700/50 pt-3 relative w-full overflow-hidden">
             <button
-                @click=${(e) => toggleDropdown(e.currentTarget, panelTemplate, e)}
+                @click=${(e) =>
+                    toggleDropdown(e.currentTarget, panelTemplate, e)}
                 class="bg-gray-800/50 hover:bg-gray-700/50 text-white rounded-md border border-gray-600/50 p-2 w-full text-left flex items-center justify-between transition-colors"
             >
                 <span class="truncate min-w-0"

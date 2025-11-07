@@ -19,11 +19,15 @@ async function fetchAndParseSegment(
     range = null,
     auth = null
 ) {
-    debugLog('shakaManifestHandler.fetchAndParseSegment', 'Fetching segment...', {
-        url,
-        formatHint,
-        range,
-    });
+    debugLog(
+        'shakaManifestHandler.fetchAndParseSegment',
+        'Fetching segment...',
+        {
+            url,
+            formatHint,
+            range,
+        }
+    );
     const response = await fetchWithAuth(url, auth, range);
     if (!response.ok) {
         throw new Error(`HTTP error ${response.status} for segment ${url}`);
@@ -31,7 +35,6 @@ async function fetchAndParseSegment(
     const data = await response.arrayBuffer();
     return parseSegment({ data, formatHint, url });
 }
-
 
 function detectProtocol(manifestString, hint) {
     if (hint) return hint;
@@ -213,24 +216,42 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
             // --- ARCHITECTURAL FIX: In-band event discovery for new segments ---
             const segmentFetchPromises = [];
             const [periodId, repId] = key.split('-');
-            const period = newManifestObject.periods.find((p, index) => (p.id || String(index)) === periodId);
-            const as = period?.adaptationSets.find(as => as.representations.some(r => r.id === repId));
-            if (as && (as.inbandEventStreams || []).some(ies => ies.schemeIdUri === SCTE35_SCHEME_ID)) {
-                newlyAddedSegmentUrls.forEach(segmentUniqueId => {
-                    const segmentToFetch = mergedSegments.find(s => s.uniqueId === segmentUniqueId);
+            const period = newManifestObject.periods.find(
+                (p, index) => (p.id || String(index)) === periodId
+            );
+            const as = period?.adaptationSets.find((as) =>
+                as.representations.some((r) => r.id === repId)
+            );
+            if (
+                as &&
+                (as.inbandEventStreams || []).some(
+                    (ies) => ies.schemeIdUri === SCTE35_SCHEME_ID
+                )
+            ) {
+                newlyAddedSegmentUrls.forEach((segmentUniqueId) => {
+                    const segmentToFetch = mergedSegments.find(
+                        (s) => s.uniqueId === segmentUniqueId
+                    );
                     if (segmentToFetch) {
                         segmentFetchPromises.push(
-                            fetchAndParseSegment(segmentToFetch.resolvedUrl, 'isobff', segmentToFetch.range, payload.auth)
-                                .catch(e => {
-                                    debugLog('shakaManifestHandler', `Failed to poll new segment for in-band events: ${e.message}`);
-                                    return null;
-                                })
+                            fetchAndParseSegment(
+                                segmentToFetch.resolvedUrl,
+                                'isobff',
+                                segmentToFetch.range,
+                                payload.auth
+                            ).catch((e) => {
+                                debugLog(
+                                    'shakaManifestHandler',
+                                    `Failed to poll new segment for in-band events: ${e.message}`
+                                );
+                                return null;
+                            })
                         );
                     }
                 });
             }
             const parsedNewSegments = await Promise.all(segmentFetchPromises);
-            parsedNewSegments.forEach(parsed => {
+            parsedNewSegments.forEach((parsed) => {
                 if (parsed?.data?.events) {
                     newlyDiscoveredInbandEvents.push(...parsed.data.events);
                 }
@@ -269,18 +290,34 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
     const oldAvailsById = new Map((oldAdAvails || []).map((a) => [a.id, a]));
     const potentialNewAvails = [
         ...(newManifestObject.adAvails || []),
-        ...newlyDiscoveredInbandEvents.filter(e => e.scte35).map(event => ({
-            id: String(event.scte35?.splice_command?.splice_event_id || event.scte35?.descriptors?.[0]?.segmentation_event_id) || String(event.startTime),
-            startTime: event.startTime,
-            duration: event.duration || (event.scte35?.splice_command?.break_duration?.duration || 0) / 90000,
-            scte35Signal: event.scte35,
-            adManifestUrl: event.scte35?.descriptors?.[0]?.segmentation_upid_type === 0x0c ? event.scte35.descriptors[0].segmentation_upid : null,
-            creatives: [],
-        }))
+        ...newlyDiscoveredInbandEvents
+            .filter((e) => e.scte35)
+            .map((event) => ({
+                id:
+                    String(
+                        event.scte35?.splice_command?.splice_event_id ||
+                            event.scte35?.descriptors?.[0]
+                                ?.segmentation_event_id
+                    ) || String(event.startTime),
+                startTime: event.startTime,
+                duration:
+                    event.duration ||
+                    (event.scte35?.splice_command?.break_duration?.duration ||
+                        0) / 90000,
+                scte35Signal: event.scte35,
+                adManifestUrl:
+                    event.scte35?.descriptors?.[0]?.segmentation_upid_type ===
+                    0x0c
+                        ? event.scte35.descriptors[0].segmentation_upid
+                        : null,
+                creatives: [],
+            })),
     ];
-    
+
     // --- ARCHITECTURAL FIX: Replace unconfirmed placeholder ---
-    const hasUnconfirmed = (oldAdAvails || []).some(a => a.id === 'unconfirmed-inband-scte35');
+    const hasUnconfirmed = (oldAdAvails || []).some(
+        (a) => a.id === 'unconfirmed-inband-scte35'
+    );
     const availsToResolve = potentialNewAvails.filter(
         (a) => a.id !== 'unconfirmed-inband-scte35' && !oldAvailsById.has(a.id)
     );
@@ -291,17 +328,18 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
 
     if (newlyResolvedAvails.length > 0 && hasUnconfirmed) {
         // First real event(s) found, remove the placeholder.
-        finalAdAvails = finalAdAvails.filter(a => a.id !== 'unconfirmed-inband-scte35');
+        finalAdAvails = finalAdAvails.filter(
+            (a) => a.id !== 'unconfirmed-inband-scte35'
+        );
     }
-    
+
     // Add newly resolved avails if they aren't already present
-    newlyResolvedAvails.forEach(newAvail => {
-        if (!finalAdAvails.some(a => a.id === newAvail.id)) {
+    newlyResolvedAvails.forEach((newAvail) => {
+        if (!finalAdAvails.some((a) => a.id === newAvail.id)) {
             finalAdAvails.push(newAvail);
         }
     });
     // --- END FIX ---
-
 
     self.postMessage({
         type: 'livestream:manifest-updated',

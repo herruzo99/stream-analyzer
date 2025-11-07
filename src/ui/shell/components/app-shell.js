@@ -113,10 +113,6 @@ class AppShellComponent extends HTMLElement {
                         <h2 class="text-xl font-bold text-white mb-4 px-2">
                             Stream Analyzer
                         </h2>
-                        <div
-                            id="sidebar-context-switchers"
-                            class="space-y-2 px-2"
-                        ></div>
                     </header>
                     <nav
                         id="sidebar-nav"
@@ -171,9 +167,6 @@ class AppShellComponent extends HTMLElement {
             mainContent: this.querySelector('#tab-view-container'),
             sidebarNav: this.querySelector('#sidebar-nav'),
             sidebarFooter: this.querySelector('#sidebar-footer'),
-            sidebarContextSwitchers: this.querySelector(
-                '#sidebar-context-switchers'
-            ),
             contextHeader: this.querySelector('#context-header'),
             mobileHeader: this.querySelector('#mobile-header'),
             sidebarOverlay: this.querySelector('#sidebar-overlay'),
@@ -207,9 +200,7 @@ class AppShellComponent extends HTMLElement {
 
         if (this.dom.mobilePageTitle) {
             const navGroups = getNavGroups();
-            const allNavItems = navGroups.flatMap((g) =>
-                g.items.flatMap((i) => (i.type === 'submenu' ? i.items : i))
-            );
+            const allNavItems = navGroups.flatMap((g) => g.items);
             const currentTab = allNavItems.find(
                 (item) => item.key === activeTab
             );
@@ -228,9 +219,13 @@ class AppShellComponent extends HTMLElement {
             activeSidebar === 'contextual'
         );
 
+        const footerTemplate = html`
+            ${renderContextSwitcher()}
+            ${globalControlsTemplate()}
+        `;
+
         render(sidebarNavTemplate(), this.dom.sidebarNav);
-        render(globalControlsTemplate(), this.dom.sidebarFooter);
-        render(renderContextSwitcher(), this.dom.sidebarContextSwitchers);
+        render(footerTemplate, this.dom.sidebarFooter);
         render(mainContentControlsTemplate(), this.dom.contextHeader);
 
         if (

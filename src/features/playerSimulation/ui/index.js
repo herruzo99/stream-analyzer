@@ -9,6 +9,7 @@ import * as echarts from 'echarts';
 import { disposeChart } from '@/ui/shared/charts/chart-renderer';
 import './sidebar.js';
 import './components/player-controls.js';
+import * as icons from '@/ui/icons';
 
 const viewState = {
     container: null,
@@ -41,17 +42,61 @@ const playerErrorTemplate = (error) => {
     </div>`;
 };
 
+const launchPlayerTemplate = () => {
+    const handleLaunch = () => {
+        const { streams, activeStreamId } = useAnalysisStore.getState();
+        const activeStream = streams.find((s) => s.id === activeStreamId);
+        if (activeStream) {
+            playerService.reinitializeAndLoad(
+                viewState.videoEl,
+                viewState.videoContainer,
+                activeStream
+            );
+        }
+    };
+
+    return html`
+        <div
+            class="absolute inset-0 bg-slate-900/50 flex flex-col items-center justify-center text-center z-10"
+        >
+            <h3 class="text-lg font-semibold text-slate-200">
+                Player is Stopped
+            </h3>
+            <p class="text-sm text-slate-400 mt-1">
+                The player instance has been reset.
+            </p>
+            <button
+                @click=${handleLaunch}
+                class="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition duration-300 flex items-center gap-2"
+            >
+                ${icons.play} Launch Player
+            </button>
+        </div>
+    `;
+};
+
 const playerViewShellTemplate = () => {
     const { lastError } = viewState;
+    const playerIsInitialized = playerService.isInitialized;
 
     return html`
         <div id="player-view-shell" class="flex flex-col h-full gap-4">
             <div
-                id="video-container-element"
                 class="w-full bg-black aspect-video relative shadow-2xl rounded-lg overflow-hidden shrink-0"
             >
+                <div
+                    id="video-container-element"
+                    class="w-full h-full absolute inset-0"
+                >
+                    <video
+                        id="player-video-element"
+                        class="w-full h-full"
+                    ></video>
+                </div>
                 ${lastError ? playerErrorTemplate(lastError) : ''}
-                <video id="player-video-element" class="w-full h-full"></video>
+                ${!playerIsInitialized && !lastError
+                    ? launchPlayerTemplate()
+                    : ''}
             </div>
             <div
                 class="grow bg-slate-800 rounded-lg border border-slate-700 min-h-0"
@@ -66,6 +111,7 @@ export const playerView = {
     hasContextualSidebar: true,
 
     activate(stream) {
+        playerActions.setPipUnmountState(false);
         // Pre-populate the player store with tracks from the manifest IR.
         playerActions.setInitialTracksFromManifest(stream.manifest);
 
@@ -82,28 +128,27 @@ export const playerView = {
                 }
             }
         }
-        // --- FIX START ---
-        // When this view is activated (navigated to), ensure its contextual
-        // sidebar content is re-rendered.
         const contextualSidebar = document.getElementById('contextual-sidebar');
         if (contextualSidebar) {
             render(html`<player-sidebar></player-sidebar>`, contextualSidebar);
         }
-        // --- FIX END ---
     },
 
     deactivate() {
-        // This is called when switching away from the tab but PiP might be active.
-        // The player is not destroyed here, only on full unmount.
+        const { playbackState, isPictureInPicture } = usePlayerStore.getState();
+        const isPlaying =
+            playbackState === 'PLAYING' || playbackState === 'BUFFERING';
 
-        // --- FIX START ---
-        // When this view is deactivated, its sidebar content must be cleared to
-        // make way for the next view's sidebar.
+        if (isPlaying || isPictureInPicture) {
+            playerActions.setPipUnmountState(true);
+        } else {
+            playerService.unload();
+        }
+
         const contextualSidebar = document.getElementById('contextual-sidebar');
         if (contextualSidebar) {
             render(html``, contextualSidebar);
         }
-        // --- FIX END ---
     },
 
     mount(containerElement, { stream }) {
@@ -115,7 +160,24 @@ export const playerView = {
         viewState.subscriptions = [];
 
         renderPlayerView(); // Renders the shell and finds the video element
-        playerService.initialize(viewState.videoEl, viewState.videoContainer);
+
+        // The player is now initialized on-demand by the user if it has been destroyed.
+        if (!playerService.isInitialized) {
+            const playerStateUnsub = usePlayerStore.subscribe(
+                (state, prevState) => {
+                    // Re-render the shell if the loaded state changes, to show/hide the launch button
+                    if (state.isLoaded !== prevState.isLoaded) {
+                        renderPlayerView();
+                    }
+                }
+            );
+            viewState.subscriptions.push(playerStateUnsub);
+        } else {
+            playerService.initialize(
+                viewState.videoEl,
+                viewState.videoContainer
+            );
+        }
 
         const errorSubscription = eventBus.subscribe(
             'player:error',

@@ -66,7 +66,7 @@ export class PlayerSidebarComponent extends HTMLElement {
                     Session Control
                 </h4>
                 <button
-                    @click=${() => playerService.unload()}
+                    @click=${() => playerService.destroy()}
                     ?disabled=${!isLoaded}
                     class="w-full bg-red-800 hover:bg-red-700 text-red-100 font-bold py-2 px-3 rounded-md transition-colors flex items-center justify-center gap-2 disabled:bg-slate-600 disabled:opacity-50"
                 >

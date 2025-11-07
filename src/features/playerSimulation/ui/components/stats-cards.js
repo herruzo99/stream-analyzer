@@ -1,4 +1,3 @@
-
 import { html } from 'lit-html';
 import { formatBitrate } from '@/ui/shared/format';
 import * as icons from '@/ui/icons';

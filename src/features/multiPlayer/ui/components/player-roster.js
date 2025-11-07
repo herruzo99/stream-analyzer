@@ -50,7 +50,9 @@ class PlayerRosterComponent extends HTMLElement {
     _handleToggleAll() {
         const { players } = useMultiPlayerStore.getState();
         const playersArray = Array.from(players.values());
-        const isAllSelected = playersArray.length > 0 && playersArray.every((p) => p.selectedForAction);
+        const isAllSelected =
+            playersArray.length > 0 &&
+            playersArray.every((p) => p.selectedForAction);
 
         if (isAllSelected) {
             eventBus.dispatch('ui:multi-player:deselect-all');
@@ -58,11 +60,11 @@ class PlayerRosterComponent extends HTMLElement {
             eventBus.dispatch('ui:multi-player:select-all');
         }
     }
-    
+
     _handleMouseOver(streamId) {
         useMultiPlayerStore.getState().setHoveredStreamId(streamId);
     }
-    
+
     _handleMouseOut() {
         useMultiPlayerStore.getState().setHoveredStreamId(null);
     }
@@ -78,7 +80,7 @@ class PlayerRosterComponent extends HTMLElement {
             'ring-purple-500': isHovered,
             'bg-slate-800/50': true,
         });
-    
+
         const stateColors = {
             playing: 'bg-green-500',
             paused: 'bg-yellow-500',
@@ -88,19 +90,19 @@ class PlayerRosterComponent extends HTMLElement {
             loading: 'bg-slate-500 animate-pulse',
             idle: 'bg-slate-600',
         };
-    
+
         const progressPercent = player.normalizedPlayheadTime * 100;
-    
+
         const leftTimeLabel =
             player.streamType === 'live'
                 ? formatPlayerTime(player.seekableRange.start)
                 : formatPlayerTime(player.stats.playheadTime);
-    
+
         const rightTimeLabel =
             player.streamType === 'live'
                 ? 'LIVE'
                 : formatPlayerTime(player.seekableRange.end);
-    
+
         return html`
             <div
                 class=${itemClasses}
@@ -113,10 +115,13 @@ class PlayerRosterComponent extends HTMLElement {
                         type="checkbox"
                         .checked=${player.selectedForAction}
                         @click=${(e) => e.stopPropagation()}
-                        @change=${() => this._handleToggleSelection(player.streamId)}
+                        @change=${() =>
+                            this._handleToggleSelection(player.streamId)}
                         class="rounded bg-slate-600 border-slate-500 text-blue-500 focus:ring-blue-600 h-5 w-5 shrink-0"
                     />
-                    <div class="grow font-semibold text-slate-300 truncate text-sm">
+                    <div
+                        class="grow font-semibold text-slate-300 truncate text-sm"
+                    >
                         ${player.streamName}
                     </div>
                     <div
@@ -143,7 +148,9 @@ class PlayerRosterComponent extends HTMLElement {
                             style="left: ${progressPercent}%"
                         ></div>
                     </div>
-                    <div class="flex justify-between text-xs text-slate-400 mt-1">
+                    <div
+                        class="flex justify-between text-xs text-slate-400 mt-1"
+                    >
                         <span>${leftTimeLabel}</span>
                         <span>${rightTimeLabel}</span>
                     </div>
@@ -160,31 +167,36 @@ class PlayerRosterComponent extends HTMLElement {
             playersArray.every((p) => p.selectedForAction);
 
         const template = html`
-        <div class="space-y-3">
-            <div class="flex justify-between items-center">
-                <h4 class="text-md font-bold text-slate-300">Player Roster</h4>
-                <div class="flex items-center gap-2">
-                    <label
-                        for="select-all-toggle"
-                        class="text-sm text-slate-400"
-                        >Select All</label
-                    >
-                    <input
-                        type="checkbox"
-                        id="select-all-toggle"
-                        .checked=${isAllSelected}
-                        @change=${this._handleToggleAll}
-                        class="rounded bg-slate-600 border-slate-500 text-blue-500 focus:ring-blue-600 h-5 w-5"
-                    />
+            <div class="space-y-3">
+                <div class="flex justify-between items-center">
+                    <h4 class="text-md font-bold text-slate-300">
+                        Player Roster
+                    </h4>
+                    <div class="flex items-center gap-2">
+                        <label
+                            for="select-all-toggle"
+                            class="text-sm text-slate-400"
+                            >Select All</label
+                        >
+                        <input
+                            type="checkbox"
+                            id="select-all-toggle"
+                            .checked=${isAllSelected}
+                            @change=${this._handleToggleAll}
+                            class="rounded bg-slate-600 border-slate-500 text-blue-500 focus:ring-blue-600 h-5 w-5"
+                        />
+                    </div>
+                </div>
+                <div class="space-y-2">
+                    ${playersArray.map((p) =>
+                        this._renderRosterItem(
+                            p,
+                            p.streamId === hoveredStreamId
+                        )
+                    )}
                 </div>
             </div>
-            <div class="space-y-2">
-                ${playersArray.map((p) =>
-                    this._renderRosterItem(p, p.streamId === hoveredStreamId)
-                )}
-            </div>
-        </div>
-    `;
+        `;
         render(template, this);
     }
 }

@@ -50,7 +50,6 @@ export function parseSidx(box, view) {
             sapType: (sapInfo >> 28) & 0x07,
             sapDeltaTime: sapInfo & 0x0fffffff,
         });
-        
     }
     p.finalize();
 }

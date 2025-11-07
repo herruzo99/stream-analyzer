@@ -101,9 +101,9 @@ export const waterfallChartTemplate = (events, timeline) => {
             }
         </style>
         <div
-            class="bg-gray-800 border border-gray-700 rounded-lg overflow-hidden"
+            class="bg-gray-800 border border-gray-700 rounded-lg overflow-hidden h-full flex flex-col"
         >
-            <div class="max-h-[60vh] overflow-y-auto">
+            <div class="overflow-y-auto grow">
                 <div class="grid-waterfall sticky top-0 z-10">
                     <!-- Header -->
                     <div

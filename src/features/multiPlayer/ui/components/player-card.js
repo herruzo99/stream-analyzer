@@ -138,9 +138,7 @@ export class PlayerCardComponent extends HTMLElement {
         const globalAbrEnabled = this.lastRenderedState.globalAbrEnabled;
         if (!player) return;
         const isAbrEffectivelyEnabled =
-            player.abrOverride === null
-                ? globalAbrEnabled
-                : player.abrOverride;
+            player.abrOverride === null ? globalAbrEnabled : player.abrOverride;
         const newAbrState = !isAbrEffectivelyEnabled;
         eventBus.dispatch('ui:player:set-abr-enabled', {
             streamId: player.streamId,
@@ -265,9 +263,7 @@ export class PlayerCardComponent extends HTMLElement {
         `;
 
         const isAbrEffectivelyEnabled =
-            player.abrOverride === null
-                ? globalAbrEnabled
-                : player.abrOverride;
+            player.abrOverride === null ? globalAbrEnabled : player.abrOverride;
         const hasOverrides = player.abrOverride !== null;
 
         const tabs = [
@@ -421,7 +417,9 @@ export class PlayerCardComponent extends HTMLElement {
                     <div
                         class="bg-slate-900 rounded-b-lg border-x border-b border-slate-700 min-h-[160px]"
                     >
-                        ${activeTab === 'stats' ? statsContent : controlsContent}
+                        ${activeTab === 'stats'
+                            ? statsContent
+                            : controlsContent}
                     </div>
                 </div>
             </div>

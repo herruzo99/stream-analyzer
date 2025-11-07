@@ -5,15 +5,13 @@ import { isDebugMode } from '@/shared/utils/env';
 import * as icons from '@/ui/icons';
 import { hasMissingTooltips } from '@/features/parserCoverage/domain/tooltip-coverage-analyzer';
 
-const NavLink = (item, activeTab, isSubItem = false) => {
+const NavLink = (item, activeTab) => {
     if (!item.visible) return '';
     const isActive = activeTab === item.key;
-    const paddingClass = isSubItem ? 'pl-6' : 'px-4';
-    const classes = `w-full flex items-center gap-3 ${paddingClass} py-2.5 text-sm font-medium rounded-lg transition-colors ${
-        isActive
+    const classes = `w-full flex items-center gap-3 pl-4 pr-3 py-2 text-sm font-medium rounded-md transition-colors ${isActive
             ? 'bg-blue-600 text-white'
-            : 'text-gray-300 hover:bg-gray-700 hover:text-white'
-    }`;
+            : 'text-slate-300 hover:bg-slate-700/50 hover:text-white'
+        }`;
 
     const warningIcon = item.hasWarning
         ? html`<span
@@ -24,57 +22,38 @@ const NavLink = (item, activeTab, isSubItem = false) => {
         : '';
 
     return html`
-        <li>
-            <a
-                href="#"
-                class=${classes}
-                data-tab=${item.key}
-                @click=${(e) => {
-                    e.preventDefault();
-                    uiActions.setActiveTab(item.key);
-                    document.body.classList.remove('primary-sidebar-open');
-                }}
-            >
-                ${item.icon}
-                <span class="inline truncate min-w-0">${item.label}</span>
-                ${warningIcon}
-            </a>
-        </li>
+        <a
+            href="#"
+            class=${classes}
+            data-tab=${item.key}
+            @click=${(e) => {
+            e.preventDefault();
+            uiActions.setActiveTab(item.key);
+            document.body.classList.remove('primary-sidebar-open');
+        }}
+        >
+            ${item.icon}
+            <span class="inline truncate min-w-0">${item.label}</span>
+            ${warningIcon}
+        </a>
     `;
 };
 
 const NavGroup = (group, activeTab) => {
-    const isGroupVisible = group.items.some((item) => {
-        if (item.type === 'submenu') {
-            return item.items.some((subItem) => subItem.visible);
-        }
-        return item.visible;
-    });
+    const isGroupVisible = group.items.some((item) => item.visible);
     if (!isGroupVisible) return '';
 
-    const isGroupActive = group.items.some((item) =>
-        item.type === 'submenu'
-            ? item.items.some((sub) => sub.key === activeTab)
-            : item.key === activeTab
-    );
-
     return html`
-        <details class="group" open="">
-            <summary
-                class="flex items-center gap-3 px-4 py-2 text-xs font-semibold uppercase tracking-wider rounded-lg cursor-pointer list-none text-gray-400 hover:bg-gray-700/50"
+        <div>
+            <h4
+                class="px-4 pt-4 pb-2 text-xs font-bold uppercase tracking-wider text-slate-500"
             >
-                ${group.icon}
-                <span class="truncate min-w-0">${group.title}</span>
-                <span
-                    class="ml-auto transition-transform duration-200 group-open:rotate-90"
-                >
-                    ${icons.chevronRight}
-                </span>
-            </summary>
-            <ul class="pl-2 mt-1 space-y-1">
-                ${group.items.map((item) => NavLink(item, activeTab, true))}
+                ${group.title}
+            </h4>
+            <ul class="mt-1 space-y-1">
+                ${group.items.map((item) => html`<li>${NavLink(item, activeTab)}</li>`)}
             </ul>
-        </details>
+        </div>
     `;
 };
 
@@ -92,15 +71,9 @@ export function getNavGroups() {
 
     return [
         {
-            title: 'Overviews',
-            icon: icons.summary,
+            title: 'Overview & Compliance',
             items: [
-                {
-                    key: 'summary',
-                    label: 'Summary',
-                    icon: icons.summary,
-                    visible: true,
-                },
+
                 {
                     key: 'comparison',
                     label: 'Manifest Comparison',
@@ -108,33 +81,15 @@ export function getNavGroups() {
                     visible: isMultiStream,
                 },
                 {
+                    key: 'summary',
+                    label: 'Summary',
+                    icon: icons.summary,
+                    visible: true,
+                },
+                {
                     key: 'integrators-report',
                     label: "Integrator's Report",
                     icon: icons.integrators,
-                    visible: true,
-                },
-            ],
-        },
-        {
-            title: 'Analysis',
-            icon: icons.play,
-            items: [
-                {
-                    key: 'player-simulation',
-                    label: 'Player Simulation',
-                    icon: icons.play,
-                    visible: !!activeStream?.originalUrl,
-                },
-                {
-                    key: 'multi-player',
-                    label: 'Multi-Player Dashboard',
-                    icon: icons.viewfinder,
-                    visible: true,
-                },
-                {
-                    key: 'advertising',
-                    label: 'Advertising',
-                    icon: icons.advertising,
                     visible: true,
                 },
                 {
@@ -149,30 +104,52 @@ export function getNavGroups() {
                     icon: icons.compliance,
                     visible: true,
                 },
+            ],
+        },
+        {
+            title: 'Playback & Simulation',
+            items: [
+                {
+                    key: 'player-simulation',
+                    label: 'Player Simulation',
+                    icon: icons.play,
+                    visible: !!activeStream?.originalUrl,
+                },
+                {
+                    key: 'multi-player',
+                    label: 'Multi-Player Dashboard',
+                    icon: icons.viewfinder,
+                    visible: streams.length > 0, // Visible for 1 or more streams
+                },
+                {
+                    key: 'advertising',
+                    label: 'Advertising',
+                    icon: icons.advertising,
+                    visible: true,
+                },
+            ],
+        },
+        {
+            title: 'Deep Dive & Exploration',
+            items: [
                 {
                     key: 'network',
                     label: 'Network',
                     icon: icons.network,
                     visible: true,
                 },
-            ],
-        },
-        {
-            title: 'Exploration',
-            icon: icons.explorer,
-            items: [
+                {
+                    key: 'updates',
+                    label: 'Live Updates',
+                    icon: icons.updates,
+                    visible: true,
+                },
                 {
                     key: 'interactive-manifest',
                     label: 'Interactive Manifest',
                     icon: icons.interactiveManifest,
                     visible: true,
                     hasWarning: showManifestWarning,
-                },
-                {
-                    key: 'updates',
-                    label: 'Live Updates',
-                    icon: icons.updates,
-                    visible: true,
                 },
                 {
                     key: 'explorer',
@@ -196,7 +173,6 @@ export function getNavGroups() {
         },
         {
             title: 'Developer',
-            icon: icons.debug,
             items: [
                 {
                     key: 'parser-coverage',
@@ -213,5 +189,9 @@ export function getNavGroups() {
 export const sidebarNavTemplate = () => {
     const { activeTab } = useUiStore.getState();
     const navGroups = getNavGroups();
-    return html` ${navGroups.map((group) => NavGroup(group, activeTab))} `;
+    return html`
+        <div class="px-2 space-y-2">
+            ${navGroups.map((group) => NavGroup(group, activeTab))}
+        </div>
+    `;
 };

@@ -47,7 +47,10 @@ function scanForDrm(manifestString) {
     const hlsLines = manifestString.split('\n');
     for (const line of hlsLines) {
         const trimmedLine = line.trim();
-        if (trimmedLine.startsWith('#EXT-X-KEY') || trimmedLine.startsWith('#EXT-X-SESSION-KEY')) {
+        if (
+            trimmedLine.startsWith('#EXT-X-KEY') ||
+            trimmedLine.startsWith('#EXT-X-SESSION-KEY')
+        ) {
             const attributes = parseHlsAttributes(trimmedLine);
             const method = attributes.METHOD;
             const keyFormat = attributes.KEYFORMAT;
@@ -80,17 +83,26 @@ function scanForDrm(manifestString) {
  * @returns {Promise<string[]>} A promise that resolves to an array of detected DRM system names.
  */
 export async function handleGetStreamDrmInfo({ url, auth }, signal) {
-    debugLog('drmDetectionHandler', `Stage 1: Fetching initial manifest for DRM detection: ${url}`);
+    debugLog(
+        'drmDetectionHandler',
+        `Stage 1: Fetching initial manifest for DRM detection: ${url}`
+    );
     try {
         const response = await fetchWithAuth(url, auth, null, {}, null, signal);
         if (!response.ok) throw new Error(`HTTP error ${response.status}`);
-        
+
         const manifestString = await response.text();
         const detectedSystems = scanForDrm(manifestString);
 
         // If no DRM is found and it's an HLS master playlist, we need to dig deeper.
-        if (detectedSystems.size === 0 && manifestString.includes('#EXT-X-STREAM-INF')) {
-            debugLog('drmDetectionHandler', 'Stage 2: HLS master detected, scanning first media playlist.');
+        if (
+            detectedSystems.size === 0 &&
+            manifestString.includes('#EXT-X-STREAM-INF')
+        ) {
+            debugLog(
+                'drmDetectionHandler',
+                'Stage 2: HLS master detected, scanning first media playlist.'
+            );
             const hlsLines = manifestString.split('\n');
             let firstVariantUri = null;
 
@@ -109,19 +121,36 @@ export async function handleGetStreamDrmInfo({ url, auth }, signal) {
             }
 
             if (firstVariantUri) {
-                const mediaPlaylistUrl = new URL(firstVariantUri, response.url).href;
-                debugLog('drmDetectionHandler', `Stage 3: Fetching media playlist: ${mediaPlaylistUrl}`);
-                const mediaResponse = await fetchWithAuth(mediaPlaylistUrl, auth, null, {}, null, signal);
+                const mediaPlaylistUrl = new URL(firstVariantUri, response.url)
+                    .href;
+                debugLog(
+                    'drmDetectionHandler',
+                    `Stage 3: Fetching media playlist: ${mediaPlaylistUrl}`
+                );
+                const mediaResponse = await fetchWithAuth(
+                    mediaPlaylistUrl,
+                    auth,
+                    null,
+                    {},
+                    null,
+                    signal
+                );
                 if (mediaResponse.ok) {
                     const mediaPlaylistString = await mediaResponse.text();
                     const mediaDrmSystems = scanForDrm(mediaPlaylistString);
-                    mediaDrmSystems.forEach(system => detectedSystems.add(system));
+                    mediaDrmSystems.forEach((system) =>
+                        detectedSystems.add(system)
+                    );
                 }
             }
         }
 
         const result = Array.from(detectedSystems);
-        debugLog('drmDetectionHandler', `Detection complete for ${url}. Systems found:`, result);
+        debugLog(
+            'drmDetectionHandler',
+            `Detection complete for ${url}. Systems found:`,
+            result
+        );
         return result;
     } catch (error) {
         if (error.name === 'AbortError') {

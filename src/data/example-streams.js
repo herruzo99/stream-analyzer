@@ -23,8 +23,7 @@ const v10LicenseServers = {
         'https://drm-widevine-licensing.axprod.net/AcquireLicense',
     'com.microsoft.playready':
         'https://drm-playready-licensing.axprod.net/AcquireLicense',
-    'com.apple.fps':
-        'https://drm-fairplay-licensing.axprod.net/AcquireLicense',
+    'com.apple.fps': 'https://drm-fairplay-licensing.axprod.net/AcquireLicense',
 };
 
 const v10Tokens = {

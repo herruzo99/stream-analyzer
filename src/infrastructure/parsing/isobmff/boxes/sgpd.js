@@ -49,9 +49,8 @@ export function parseSgpd(box, view) {
                     entry.roll_distance = p.readInt16(
                         `entry_${i + 1}_roll_distance`
                     );
-                    p.box.details[
-                        `entry_${i + 1}_roll_distance`
-                    ].internal = true;
+                    p.box.details[`entry_${i + 1}_roll_distance`].internal =
+                        true;
                     if (version === 0) descriptionLength = 2;
                     break;
                 default:
