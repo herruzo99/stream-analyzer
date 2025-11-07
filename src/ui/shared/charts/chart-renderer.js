@@ -1,8 +1,4 @@
-import {
-    getInstanceByDom,
-    init as initChart,
-    use as useEchartsModules,
-} from 'echarts/core';
+import { init as initChart, use as useEchartsModules } from 'echarts/core';
 import { LineChart, BarChart, CustomChart } from 'echarts/charts';
 import {
     GridComponent,
@@ -52,8 +48,7 @@ function showCustomTooltip(chartEvent, chartContainer) {
     if (!tooltipProxyEl) createTooltipProxy();
 
     let tooltipContent = '';
-    const { seriesName, value, name, componentType, data, seriesType } =
-        chartEvent;
+    const { seriesName, data } = chartEvent;
 
     // --- ENHANCED TOOLTIP LOGIC ---
     if (data && data.segment) {
@@ -188,7 +183,7 @@ export function renderChart(container, options, onClick) {
 
 /**
  * Disposes of a chart instance and cleans up resources.
- * @param {HTMLElement | echarts.ECharts} chartOrContainer - The container or the chart instance to dispose.
+ * @param {HTMLElement | import('echarts/core').ECharts} chartOrContainer - The container or the chart instance to dispose.
  */
 export function disposeChart(chartOrContainer) {
     if (!chartOrContainer) return;

@@ -3,7 +3,7 @@ import { classMap } from 'lit-html/directives/class-map.js';
 import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
 import { useSegmentCacheStore } from '@/state/segmentCacheStore';
 import { useDecryptionStore } from '@/state/decryptionStore';
-import { uiActions, useUiStore } from '@/state/uiStore';
+import { uiActions } from '@/state/uiStore';
 import { eventBus } from '@/application/event-bus';
 import { copyTextToClipboard } from '@/ui/shared/clipboard';
 import { downloadBuffer } from '@/ui/shared/download';

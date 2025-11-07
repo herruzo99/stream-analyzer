@@ -3,7 +3,6 @@ import { comparisonRowTemplate } from './comparisonRow.js';
 import { tableComparisonTemplate } from './tableComparison.js';
 import { useUiStore, uiActions } from '@/state/uiStore';
 import * as icons from '@/ui/icons';
-import { tooltipTriggerClasses } from '@/ui/shared/constants';
 
 /**
  * Renders a section of comparison rows with a title.

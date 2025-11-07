@@ -3,7 +3,6 @@ import { classMap } from 'lit-html/directives/class-map.js';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
 import { copyTextToClipboard } from '@/ui/shared/clipboard';
-import { debugLog } from '@/shared/utils/debug';
 import * as icons from '@/ui/icons';
 
 let container = null;

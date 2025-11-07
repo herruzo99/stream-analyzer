@@ -24,14 +24,8 @@ async function initializeShaka() {
     );
 
     // Configure Shaka Player networking
-    shaka.net.NetworkingEngine.registerScheme(
-        'http',
-        shakaNetworkPlugin
-    );
-    shaka.net.NetworkingEngine.registerScheme(
-        'https',
-        shakaNetworkPlugin
-    );
+    shaka.net.NetworkingEngine.registerScheme('http', shakaNetworkPlugin);
+    shaka.net.NetworkingEngine.registerScheme('https', shakaNetworkPlugin);
 
     shakaSingleton = shaka;
     return shakaSingleton;

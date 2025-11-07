@@ -1,6 +1,5 @@
 import { html } from 'lit-html';
 import { statCardTemplate } from '@/features/summary/ui/components/shared';
-import { useUiStore } from '@/state/uiStore';
 import { cmafTrackRules } from '@/features/compliance/domain/cmaf/rules';
 import { validateCmafProfiles } from '@/features/compliance/domain/cmaf/profile-validator';
 import * as icons from '@/ui/icons';
@@ -112,7 +111,9 @@ export const isobmffAnalysisTemplate = (parsedData) => {
             try {
                 const result = rule(initDataForRules, mediaDataForRules);
                 if (result) cmafResults.push(result);
-            } catch (e) {}
+            } catch (_e) {
+                // Ignore errors from rules that don't apply
+            }
         });
         if (isInitSegment) {
             cmafResults.push(

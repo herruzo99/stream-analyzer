@@ -10,7 +10,6 @@ import * as icons from '@/ui/icons';
 import { useUiStore, uiActions } from '@/state/uiStore';
 import { exampleStreams } from '@/data/example-streams';
 import { connectedTabBar } from '@/ui/components/tabs';
-import { schemeIdUriToKeySystem } from '@/infrastructure/parsing/utils/drm';
 
 const authParamRowTemplate = (param, inputId, type, isDrm) => {
     const updateAction = isDrm

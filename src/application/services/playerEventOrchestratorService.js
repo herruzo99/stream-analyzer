@@ -11,11 +11,8 @@ function initializePlayerEventOrchestrator() {
         const {
             schemeIdUri,
             startTime,
-            endTime,
             timescale,
-            presentationTimeDelta,
             eventDuration,
-            id,
             messageData,
         } = emsg;
         const streamId = emsg.stream.id;

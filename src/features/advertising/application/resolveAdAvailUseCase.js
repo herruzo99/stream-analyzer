@@ -65,7 +65,7 @@ async function resolveAdAvail(stream, scte35Event) {
     let adManifestUrl;
     try {
         adManifestUrl = new URL(descriptor.segmentation_upid).href;
-    } catch (e) {
+    } catch (_e) {
         // UPID is not a valid URL, treat it as a partial avail.
         createPartialAdAvail(stream, scte35Event);
         return;

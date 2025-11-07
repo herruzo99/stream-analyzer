@@ -91,7 +91,9 @@ export const streamContextSwitcherTemplate = (streams, activeStreamId) => {
     `;
 
     return html`
-        <div class="space-y-2 border-t border-gray-700/50 pt-3 relative w-full overflow-hidden">
+        <div
+            class="space-y-2 border-t border-gray-700/50 pt-3 relative w-full overflow-hidden"
+        >
             <button
                 @click=${(e) =>
                     toggleDropdown(e.currentTarget, panelTemplate, e)}

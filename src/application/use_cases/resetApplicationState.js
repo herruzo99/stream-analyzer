@@ -1,7 +1,6 @@
 import { stopAllMonitoring } from '@/application/services/primaryStreamMonitorService';
 import { stopAllHlsVariantPolling } from '@/application/services/hlsVariantPollerService';
 import { useAnalysisStore } from '@/state/analysisStore';
-import { useUiStore } from '@/state/uiStore';
 import { useSegmentCacheStore } from '@/state/segmentCacheStore';
 import { useDecryptionStore } from '@/state/decryptionStore';
 import { usePlayerStore } from '@/state/playerStore';

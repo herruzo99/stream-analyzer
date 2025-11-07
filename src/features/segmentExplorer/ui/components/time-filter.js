@@ -11,7 +11,7 @@ const toDateTimeLocal = (date) => {
             date.getTime() - date.getTimezoneOffset() * 60000
         );
         return adjustedDate.toISOString().slice(0, 19);
-    } catch (e) {
+    } catch (_e) {
         return '';
     }
 };

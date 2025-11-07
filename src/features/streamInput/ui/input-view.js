@@ -1,4 +1,4 @@
-import { html, render } from 'lit-html';
+import { html } from 'lit-html';
 import { classMap } from 'lit-html/directives/class-map.js';
 import { useUiStore, uiActions } from '@/state/uiStore';
 import { libraryPanelTemplate } from '@/features/streamInput/ui/components/library-panel';

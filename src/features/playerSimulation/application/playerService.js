@@ -1,7 +1,6 @@
 import { eventBus } from '@/application/event-bus';
 import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
 import { playerActions, usePlayerStore } from '@/state/playerStore';
-import { debugLog } from '@/shared/utils/debug';
 import { getShaka } from '@/infrastructure/player/shaka';
 import { formatBitrate } from '@/ui/shared/format';
 import { StallCalculator } from '@/features/multiPlayer/domain/stall-calculator';

@@ -1,7 +1,6 @@
 import { eventBus } from '@/application/event-bus';
 import { multiPlayerService } from './multiPlayerService.js';
 import { useMultiPlayerStore } from '@/state/multiPlayerStore';
-import { useAnalysisStore } from '@/state/analysisStore.js';
 
 export function initializeMultiPlayerController() {
     eventBus.subscribe('ui:multi-player:play-all', () =>

@@ -60,7 +60,6 @@ export function renderApp() {
     const {
         viewState,
         activeTab,
-        activeSidebar,
         segmentExplorerActiveRepId,
         segmentExplorerActiveTab,
     } = useUiStore.getState();

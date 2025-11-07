@@ -1,4 +1,3 @@
-import { usePlayerStore } from '@/state/playerStore';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { formatBitrate } from '../format';
 

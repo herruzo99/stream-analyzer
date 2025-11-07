@@ -46,8 +46,7 @@ function renderInteractiveSegment() {
     if (!container) return;
 
     const { activeSegmentUrl, isByteMapLoading } = useUiStore.getState();
-    const { get: getFromCache, set: setInCache } =
-        useSegmentCacheStore.getState();
+    const { get: getFromCache } = useSegmentCacheStore.getState();
 
     if (!activeSegmentUrl) {
         render(html``, container);

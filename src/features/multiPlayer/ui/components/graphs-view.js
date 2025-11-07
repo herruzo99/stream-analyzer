@@ -1,4 +1,3 @@
-import { html, render } from 'lit-html';
 import { useMultiPlayerStore } from '@/state/multiPlayerStore';
 import { useUiStore } from '@/state/uiStore';
 import { renderChart, disposeChart } from '@/ui/shared/charts/chart-renderer';

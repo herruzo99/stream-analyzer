@@ -4,31 +4,9 @@
  * @typedef {import('@/types.ts').SecuritySummary} SecuritySummary
  */
 
-import {
-    findChildrenRecursive,
-    resolveBaseUrl,
-} from '../dash/recursive-parser.js';
 import { formatBitrate } from '@/ui/shared/format';
 import { isCodecSupported } from '../utils/codec-support.js';
-import { debugLog } from '@/shared/utils/debug';
 import { getDrmSystemName } from '../utils/drm.js';
-
-const findBoxRecursive = (boxes, predicateOrType) => {
-    const predicate =
-        typeof predicateOrType === 'function'
-            ? predicateOrType
-            : (box) => box.type === predicateOrType;
-
-    if (!boxes) return null;
-    for (const box of boxes) {
-        if (predicate(box)) return box;
-        if (box.children?.length > 0) {
-            const found = findBoxRecursive(box.children, predicate);
-            if (found) return found;
-        }
-    }
-    return null;
-};
 
 /**
  * Creates a protocol-agnostic summary view-model from an HLS manifest.
@@ -142,7 +120,7 @@ export async function generateHlsSummary(manifestIR, context) {
                 isDefault:
                     /** @type {any} */ (as.serializedManifest).DEFAULT ===
                     'YES',
-                isForced: as.forced,
+                isForced: false,
                 roles: [],
             };
         });

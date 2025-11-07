@@ -315,8 +315,6 @@ export const representationSelectorTemplate = (stream) => {
                 )}
             `;
         } else {
-            const groupType =
-                segmentExplorerActiveTab === 'audio' ? 'AUDIO' : 'SUBTITLES';
             const repsForTab = allReps.filter(
                 (r) =>
                     r.contentType === segmentExplorerActiveTab ||

@@ -1,4 +1,4 @@
-import { html, render } from 'lit-html';
+import { html } from 'lit-html';
 import { classMap } from 'lit-html/directives/class-map.js';
 import { useUiStore } from '@/state/uiStore';
 import { getTooltipData as getTsTooltipData } from '@/infrastructure/parsing/ts/index';
@@ -6,8 +6,6 @@ import * as icons from '@/ui/icons';
 import { tooltipTriggerClasses } from '@/ui/shared/constants';
 import '@/ui/components/virtualized-list';
 
-let packetCurrentPage = 1;
-const PACKETS_PER_PAGE = 50;
 const allTsTooltipData = getTsTooltipData();
 
 export function findPacketByOffset(parsedData, offset) {
@@ -20,17 +18,6 @@ export function findPacketByOffset(parsedData, offset) {
         ) || null
     );
 }
-
-const groupPackets = (packets) => {
-    return packets.reduce((acc, packet) => {
-        const type = packet.payloadType || 'Unknown';
-        if (!acc[type]) {
-            acc[type] = [];
-        }
-        acc[type].push(packet);
-        return acc;
-    }, {});
-};
 
 const inspectorFieldTemplate = (packet, section, key, field) => {
     const { interactiveSegmentHighlightedItem } = useUiStore.getState();

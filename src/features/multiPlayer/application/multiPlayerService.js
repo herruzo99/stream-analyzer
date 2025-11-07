@@ -1,6 +1,5 @@
 import { useAnalysisStore } from '@/state/analysisStore';
 import { useMultiPlayerStore } from '@/state/multiPlayerStore';
-import { workerService } from '@/infrastructure/worker/workerService';
 import { debugLog } from '@/shared/utils/debug';
 import { getShaka } from '@/infrastructure/player/shaka';
 import { showToast } from '@/ui/components/toast';
@@ -479,16 +478,12 @@ class MultiPlayerService {
         if (!sourcePlayerState || !sourceVideo) return;
 
         let syncedCount = 0;
-        let skippedCount = 0;
 
         if (sourcePlayerState.streamType === 'live') {
             const sourceLatency =
                 sourcePlayerState.seekableRange.end - sourceVideo.currentTime;
 
-            for (const [
-                targetId,
-                targetVideo,
-            ] of this.videoElements.entries()) {
+            for (const [targetId] of this.videoElements.entries()) {
                 if (targetId === sourceStreamId) continue;
                 const targetPlayerState = players.get(targetId);
 
@@ -500,11 +495,7 @@ class MultiPlayerService {
                     ) {
                         this.seek(targetSeekTime, targetId);
                         syncedCount++;
-                    } else {
-                        skippedCount++; // Target DVR window doesn't contain the sync point
                     }
-                } else {
-                    skippedCount++; // Mismatched type
                 }
             }
             showToast({
@@ -516,18 +507,13 @@ class MultiPlayerService {
         } else {
             // Source is VOD
             const targetTime = sourceVideo.currentTime;
-            for (const [
-                targetId,
-                targetVideo,
-            ] of this.videoElements.entries()) {
+            for (const [targetId] of this.videoElements.entries()) {
                 if (targetId === sourceStreamId) continue;
                 const targetPlayerState = players.get(targetId);
 
                 if (targetPlayerState?.streamType === 'vod') {
                     this.seek(targetTime, targetId);
                     syncedCount++;
-                } else {
-                    skippedCount++; // Mismatched type
                 }
             }
             showToast({
@@ -603,7 +589,7 @@ class MultiPlayerService {
     }
 
     setGlobalTrackByHeight(height) {
-        const { players, setStreamOverride } = useMultiPlayerStore.getState();
+        const { setStreamOverride } = useMultiPlayerStore.getState();
         let appliedCount = 0;
 
         for (const [streamId, shakaPlayer] of this.players.entries()) {

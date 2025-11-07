@@ -1,7 +1,4 @@
 import { eventBus } from '@/application/event-bus';
-import { getParsedSegment } from '@/infrastructure/segments/segmentService';
-
-const SCTE35_SCHEME_ID = 'urn:scte:scte35:2013:bin';
 
 /**
  * Scans a single media segment for in-band event messages ('emsg' boxes).

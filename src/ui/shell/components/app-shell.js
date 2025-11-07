@@ -220,8 +220,7 @@ class AppShellComponent extends HTMLElement {
         );
 
         const footerTemplate = html`
-            ${renderContextSwitcher()}
-            ${globalControlsTemplate()}
+            ${renderContextSwitcher()} ${globalControlsTemplate()}
         `;
 
         render(sidebarNavTemplate(), this.dom.sidebarNav);

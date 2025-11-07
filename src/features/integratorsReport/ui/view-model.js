@@ -61,7 +61,7 @@ function getNetworkInfo(stream) {
                             hostnames.key.add(
                                 new URL(t.value.URI, playlistBaseUrl).hostname
                             );
-                        } catch (e) {
+                        } catch (_e) {
                             // Gracefully handle non-HTTP URIs like 'skd://'
                             const schemeMatch = String(t.value.URI).match(
                                 /^([a-z]+):/

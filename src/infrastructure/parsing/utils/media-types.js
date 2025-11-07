@@ -76,7 +76,7 @@ export function inferMediaInfoFromExtension(filename) {
                 return info;
             }
         }
-    } catch (e) {
+    } catch (_e) {
         // Fallback for non-URL strings or parsing errors
         for (const [pattern, info] of extensionPatterns) {
             if (lowerFilename.endsWith(pattern)) {

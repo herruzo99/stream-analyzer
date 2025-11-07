@@ -1,11 +1,5 @@
 import { BoxParser } from '../utils.js';
 
-// The ID32 box uses a 15-bit packed language code in its flags.
-// There is no standard schema name for this, but we define it for clarity.
-const ID32_FLAGS_SCHEMA = {
-    0x000000: 'language_code', // This isn't a bitmask, but a placeholder for the logic
-};
-
 /**
  * Parses the 'ID32' (ID3v2 Metadata) box.
  * @param {import('@/types.js').Box} box
