@@ -2,7 +2,7 @@ import { html, render } from 'lit-html';
 import { useMultiPlayerStore } from '@/state/multiPlayerStore';
 import { eventBus } from '@/application/event-bus';
 
-export class EventLogComponent extends HTMLElement {
+class EventLogComponent extends HTMLElement {
     constructor() {
         super();
         this.unsubscribeStore = null;
@@ -150,4 +150,8 @@ export class EventLogComponent extends HTMLElement {
         `;
         render(template, this);
     }
+}
+
+if (!customElements.get('event-log-component')) {
+    customElements.define('event-log-component', EventLogComponent);
 }

@@ -11,15 +11,23 @@ import { handleShakaResourceFetch } from './handlers/shakaResourceHandler.js';
 import { handleShakaManifestFetch } from './handlers/shakaManifestHandler.js';
 import { handleCalculateMemoryReport } from './handlers/memoryReportHandler.js';
 import { handleGetStreamDrmInfo } from './handlers/drmDetectionHandler.js';
-import { debugLog } from '@/shared/utils/debug';
+import { appLog } from '@/shared/utils/debug';
 
 const inFlightTasks = new Map();
 
 async function handleFetchHlsMediaPlaylist(
-    { streamId, variantUri, hlsDefinedVariables, auth, oldSegments },
+    {
+        streamId,
+        variantUri,
+        hlsDefinedVariables,
+        auth,
+        oldSegments,
+        proactiveFetch,
+    },
     signal
 ) {
     const { fetchWithAuth } = await import('./http.js');
+    const { parseSegment } = await import('./parsingService.js');
     const response = await fetchWithAuth(
         variantUri,
         auth,
@@ -44,14 +52,54 @@ async function handleFetchHlsMediaPlaylist(
         (id) => !oldSegmentIds.has(id)
     );
 
+    let inbandEvents = [];
+    let proactivelyParsedSegments = [];
+    if (proactiveFetch && newSegmentUrls.length > 0) {
+        const fetchAndParsePromises = newSegmentUrls.map(
+            async (uniqueId) => {
+                const segment = newSegments.find((s) => s.uniqueId === uniqueId);
+                if (!segment) return null;
+                try {
+                    const res = await fetchWithAuth(
+                        segment.resolvedUrl,
+                        auth,
+                        segment.range
+                    );
+                    if (!res.ok) return null;
+                    const data = await res.arrayBuffer();
+                    const parsedData = await parseSegment({
+                        data,
+                        formatHint: 'ts',
+                        url: segment.resolvedUrl,
+                        context: {},
+                    });
+                    return { uniqueId, data, parsedData, status: 200 };
+                } catch {
+                    return null;
+                }
+            }
+        );
+
+        const results = await Promise.all(fetchAndParsePromises);
+        results.forEach((result) => {
+            if (result) {
+                proactivelyParsedSegments.push(result);
+                if (result.parsedData?.data?.events) {
+                    inbandEvents.push(...result.parsedData.data.events);
+                }
+            }
+        });
+    }
+
     return {
         streamId,
         variantUri,
         manifest,
         manifestString,
-        segments: newSegments,
         currentSegmentUrls,
         newSegmentUrls,
+        inbandEvents,
+        proactivelyParsedSegments,
     };
 }
 
@@ -79,7 +127,11 @@ self.addEventListener('message', async (event) => {
             const { abortController } = inFlightTasks.get(id);
             if (abortController) {
                 abortController.abort();
-                debugLog('Worker', `Task ${id} aborted by main thread.`);
+                appLog(
+                    'Worker',
+                    'info',
+                    `Task ${id} aborted by main thread.`
+                );
             }
             inFlightTasks.delete(id);
         }
@@ -94,12 +146,21 @@ self.addEventListener('message', async (event) => {
         return;
     }
 
-    debugLog('Worker', `Received task. ID: ${id}, Type: ${type}`, payload);
+    appLog(
+        'Worker',
+        'info',
+        `Received task. ID: ${id}, Type: ${type}`,
+        payload
+    );
 
     const handler = handlers[type];
 
     if (!handler) {
-        debugLog('Worker', `No handler found for task type: ${type}`);
+        appLog(
+            'Worker',
+            'warn',
+            `No handler found for task type: ${type}`
+        );
         self.postMessage({
             id,
             error: { message: `Unknown task type: ${type}` },
@@ -114,13 +175,15 @@ self.addEventListener('message', async (event) => {
         const result = await handler(payload, abortController.signal);
 
         if (abortController.signal.aborted) {
-            debugLog(
+            appLog(
                 'Worker',
+                'info',
                 `Task ${id} (${type}) completed but was already aborted.`
             );
         } else {
-            debugLog(
+            appLog(
                 'Worker',
+                'log',
                 `Task ${id} (${type}) completed successfully. Posting result.`,
                 result
             );
@@ -128,8 +191,9 @@ self.addEventListener('message', async (event) => {
         }
     } catch (e) {
         if (e.name !== 'AbortError') {
-            debugLog(
+            appLog(
                 'Worker',
+                'error',
                 `Task ${id} (${type}) failed. Posting error.`,
                 e
             );

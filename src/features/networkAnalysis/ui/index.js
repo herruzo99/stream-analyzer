@@ -1,5 +1,5 @@
 import { html, render } from 'lit-html';
-import { useNetworkStore } from '@/state/networkStore';
+import { useNetworkStore, networkActions } from '@/state/networkStore';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { createNetworkViewModel } from './view-model.js';
 import { networkToolbarTemplate } from './components/network-toolbar.js';
@@ -18,22 +18,26 @@ let analysisUnsubscribe = null;
 function renderNetworkView() {
     if (!container) return;
 
-    const { streams, activeStreamId } = useAnalysisStore.getState();
-    const stream = streams.find((s) => s.id === activeStreamId);
-    if (!stream) {
+    const { streams } = useAnalysisStore.getState();
+    if (streams.length === 0) {
         networkAnalysisView.unmount();
         return;
     }
 
-    const { events, selectedEventId, filters } = useNetworkStore.getState();
+    const { events, selectedEventId, filters, visibleStreamIds } =
+        useNetworkStore.getState();
 
-    const allStreamEvents = events.filter(
-        (event) => event.streamId === stream.id
+    // --- ARCHITECTURAL FIX: Filter out internal app requests ---
+    // Only include events that have a non-null streamId and are in the visible set.
+    const allVisibleStreamEvents = events.filter(
+        (event) =>
+            event.streamId !== null && visibleStreamIds.has(event.streamId)
     );
+    // --- END FIX ---
 
-    let filteredStreamEvents = allStreamEvents;
+    let filteredStreamEvents = allVisibleStreamEvents;
     if (filters.type !== 'all') {
-        filteredStreamEvents = allStreamEvents.filter(
+        filteredStreamEvents = allVisibleStreamEvents.filter(
             (event) => event.resourceType === filters.type
         );
     }
@@ -44,8 +48,7 @@ function renderNetworkView() {
 
     const viewModel = createNetworkViewModel(
         filteredStreamEvents,
-        allStreamEvents,
-        stream
+        allVisibleStreamEvents
     );
 
     const chartOpts = throughputChartOptions(viewModel.throughputData);
@@ -95,11 +98,15 @@ function renderNetworkView() {
 }
 
 export const networkAnalysisView = {
-    mount(containerElement, { stream }) {
+    mount(containerElement) {
         container = containerElement;
 
         if (networkUnsubscribe) networkUnsubscribe();
         if (analysisUnsubscribe) analysisUnsubscribe();
+
+        const { streams } = useAnalysisStore.getState();
+        const allStreamIds = streams.map((s) => s.id);
+        networkActions.setVisibleStreamIds(allStreamIds);
 
         networkUnsubscribe = useNetworkStore.subscribe(renderNetworkView);
         analysisUnsubscribe = useAnalysisStore.subscribe(renderNetworkView);

@@ -100,6 +100,62 @@ function applyVariableSubstitution(
     return { substitutedLines, definedVariables: variables };
 }
 
+/**
+ * Finalizes a segment object by calculating byterange, setting URI, and generating unique ID.
+ * @param {HlsSegment} segment - The segment object being finalized.
+ * @param {object | null} byteRange - The byte range object for this segment.
+ * @param {string | null} uri - The explicit or implicit URI for this segment.
+ * @param {{uri: string | null, end: number}} lastRangeState - State of the last byterange segment.
+ * @param {string} baseUrl - The base URL for resolving relative URIs.
+ * @returns {{finalizedSegment: HlsSegment, nextRangeState: {uri: string | null, end: number}}} The updated byterange state.
+ */
+function finalizeCurrentSegment(segment, byteRange, uri, lastRangeState, baseUrl) {
+    if (!segment || !uri) {
+        return { finalizedSegment: segment, nextRangeState: lastRangeState };
+    }
+
+    segment.uri = uri;
+    segment.resolvedUrl = new URL(uri, baseUrl).href;
+
+    let nextContinuationOffset = lastRangeState.end;
+    if (segment.resolvedUrl !== lastRangeState.uri) {
+        nextContinuationOffset = 0;
+    }
+
+    let newEndOffset = 0;
+
+    if (byteRange) {
+        let startOffset;
+        if (byteRange.offset !== null) {
+            startOffset = byteRange.offset;
+        } else {
+            startOffset = nextContinuationOffset;
+        }
+
+        segment.byteRange = {
+            length: byteRange.length,
+            offset: startOffset,
+        };
+
+        newEndOffset = startOffset + byteRange.length;
+    } else {
+        newEndOffset = 0;
+    }
+
+    if (segment.byteRange) {
+        const start = segment.byteRange.offset;
+        const end = start + segment.byteRange.length - 1;
+        segment.uniqueId = `${segment.resolvedUrl}@media@${start}-${end}`;
+    } else {
+        segment.uniqueId = segment.resolvedUrl;
+    }
+
+    return {
+        finalizedSegment: segment,
+        nextRangeState: { uri: segment.resolvedUrl, end: newEndOffset },
+    };
+}
+
 export async function parseManifest(
     manifestString,
     baseUrl,
@@ -118,20 +174,35 @@ export async function parseManifest(
         applyVariableSubstitution(linesForParsing, baseUrl, parentVariables);
 
     const isMaster = lines.some((line) => line.startsWith('#EXT-X-STREAM-INF'));
-    let isLive = !lines.some((line) => line.startsWith('#EXT-X-ENDLIST'));
+
+    const playlistTypeTag = lines.find((line) =>
+        line.startsWith('#EXT-X-PLAYLIST-TYPE')
+    );
+    const hasEndlist = lines.some((line) => line.startsWith('#EXT-X-ENDLIST'));
+    let isLive;
+
+    if (playlistTypeTag && playlistTypeTag.includes('EVENT')) {
+        isLive = true;
+    } else if (isMaster) {
+        isLive = false;
+    } else {
+        isLive = !hasEndlist;
+    }
 
     const parsed = {
         isMaster: isMaster,
         version: 1,
         tags: [],
-        segments: [],
+        segmentGroups: [[]],
         variants: [],
+        iframeStreams: [],
         media: [],
         raw: manifestString,
         baseUrl: baseUrl,
         isLive: isLive,
         preloadHints: [],
         renditionReports: [],
+        segments: [], // Deprecated, use segmentGroups
     };
 
     /** @type {HlsSegment | null} */
@@ -143,8 +214,10 @@ export async function parseManifest(
     let isGap = false;
     let currentByteRange = null;
     let lastSeenUri = null;
+    let lastRangeState = { uri: null, end: 0 };
+    let cumulativeDuration = 0;
 
-    for (let i = 1; i < lines.length; i++) {
+    for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim();
         if (!line) continue;
 
@@ -160,62 +233,85 @@ export async function parseManifest(
                 tagValue = line.substring(separatorIndex + 1);
             }
 
-            // This is a temporary object to hold the parsed tag before it's pushed
             let currentTag = {
                 name: tagName,
                 value: null,
-                lineNumber: i,
+                lineNumber: i + 1,
             };
 
             if (tagValue === null) {
                 currentTag.value = null;
-            } else if (tagValue.includes('=')) {
-                currentTag.value = parseAttributeList(tagValue);
             } else {
-                const parts = tagValue.split(',');
-                currentTag.value =
-                    parts.length > 1 && !isNaN(parseFloat(parts[0]))
-                        ? tagValue
-                        : !isNaN(parseFloat(tagValue))
-                          ? parseFloat(tagValue)
-                          : tagValue;
+                const isQuotedString = tagValue.startsWith('"') && tagValue.endsWith('"');
+                if (isQuotedString) {
+                    currentTag.value = tagValue.substring(1, tagValue.length - 1);
+                } else if (tagValue.includes('=')) {
+                    currentTag.value = parseAttributeList(tagValue);
+                } else {
+                    const numValue = parseFloat(tagValue);
+                    currentTag.value = !isNaN(numValue) ? numValue : tagValue;
+                }
             }
 
-            switch (tagName) {
-                case 'EXT-X-STREAM-INF': {
-                    parsed.isMaster = true;
-                    const attributes = parseAttributeList(tagValue);
-                    const uri = lines[++i].trim();
-                    lastSeenUri = uri;
+            if (tagName === 'EXT-X-STREAM-INF') {
+                const attributes = parseAttributeList(String(tagValue));
+                let uri = '';
+                for (let j = i + 1; j < lines.length; j++) {
+                    const nextLine = lines[j].trim();
+                    if (nextLine && !nextLine.startsWith('#')) {
+                        uri = nextLine;
+                        i = j; // Advance the main loop counter
+                        break;
+                    }
+                }
+                if (uri) {
                     parsed.variants.push({
                         attributes,
                         uri,
                         resolvedUri: new URL(uri, baseUrl).href,
-                        lineNumber: i,
+                        lineNumber: i, // The line number of the URI
                     });
-                    break;
                 }
-                case 'EXT-X-MEDIA':
-                    parsed.isMaster = true;
-                    parsed.media.push({
-                        value: parseAttributeList(tagValue),
-                        lineNumber: i,
-                    });
-                    break;
+                continue; // Skip adding to generic tags
+            }
+
+            if (tagName === 'EXT-X-I-FRAME-STREAM-INF') {
+                parsed.iframeStreams.push({
+                    value: parseAttributeList(String(tagValue)),
+                    lineNumber: i + 1,
+                });
+                continue; // Skip adding to generic tags
+            }
+
+            switch (tagName) {
                 case 'EXTINF': {
-                    const [durationStr, title] = tagValue.split(',');
-                    let duration = parseFloat(durationStr);
-                    if (isNaN(duration)) {
-                        duration = 0;
+                    if (currentSegment) {
+                        const { finalizedSegment, nextRangeState } =
+                            finalizeCurrentSegment(
+                                currentSegment,
+                                currentByteRange,
+                                lastSeenUri,
+                                lastRangeState,
+                                baseUrl
+                            );
+                        parsed.segmentGroups[
+                            parsed.segmentGroups.length - 1
+                        ].push(finalizedSegment);
+                        lastRangeState = nextRangeState;
+                        cumulativeDuration += currentSegment.duration;
                     }
+
+                    const [durationStr, title] = String(
+                        currentTag.value
+                    ).split(',');
                     currentSegment = {
                         repId: 'hls-media',
-                        number: 0, // Placeholder, will be calculated from mediaSequence
-                        uniqueId: '', // Placeholder, will be set when URI is parsed
-                        resolvedUrl: '', // Placeholder
-                        time: 0, // Placeholder, will be calculated from durations
-                        timescale: 90000,
-                        duration,
+                        number: 0,
+                        uniqueId: '',
+                        resolvedUrl: '',
+                        time: cumulativeDuration,
+                        timescale: 1, // Represents seconds
+                        duration: parseFloat(durationStr),
                         title: title || '',
                         tags: [],
                         flags: [],
@@ -223,10 +319,10 @@ export async function parseManifest(
                         bitrate: currentBitrate,
                         gap: false,
                         type: 'Media',
-                        extinfLineNumber: i,
+                        extinfLineNumber: i + 1,
                         discontinuity,
                         encryptionInfo: currentEncryptionInfo,
-                        byteRange: currentByteRange,
+                        byteRange: null,
                     };
                     if (discontinuity) {
                         currentSegment.flags.push('discontinuity');
@@ -234,130 +330,174 @@ export async function parseManifest(
                     if (currentEncryptionInfo) {
                         currentSegment.flags.push('key-change');
                     }
-                    discontinuity = false; // Consume the flag
+                    discontinuity = false;
                     break;
                 }
-                case 'EXT-X-BYTERANGE':
-                    {
-                        const [length, offset] = tagValue
-                            .split('@')
-                            .map((v) => parseInt(v, 10));
-                        currentByteRange = { length, offset: offset || null };
-                    }
+                case 'EXT-X-MEDIA':
+                    parsed.media.push({
+                        value: parseAttributeList(String(tagValue)),
+                        lineNumber: i + 1,
+                    });
                     break;
+                case 'EXT-X-BYTERANGE': {
+                    const parts = String(tagValue).split('@');
+                    const length = parseInt(parts[0], 10);
+                    let offset = null;
+                    if (parts.length > 1) {
+                        offset = parseInt(parts[1], 10);
+                    }
+                    currentByteRange = { length, offset };
+                    break;
+                }
                 case 'EXT-X-GAP':
                     isGap = true;
                     break;
                 case 'EXT-X-DISCONTINUITY':
                     discontinuity = true;
+                    lastRangeState = { uri: null, end: 0 };
+                    if (
+                        parsed.segmentGroups[parsed.segmentGroups.length - 1]
+                            .length > 0
+                    ) {
+                        parsed.segmentGroups.push([]);
+                    }
                     break;
                 case 'EXT-X-BITRATE':
-                    currentBitrate = parseInt(tagValue, 10);
+                    currentBitrate = parseInt(String(tagValue), 10);
                     break;
-                case 'EXT-X-KEY':
-                    {
-                        const keyAttributes = parseAttributeList(tagValue);
-                        if (keyAttributes.METHOD === 'NONE') {
-                            currentEncryptionInfo = null;
-                        } else {
-                            let keyUri = String(keyAttributes.URI);
-                            let iv = String(keyAttributes.IV || null);
+                case 'EXT-X-KEY': {
+                    const keyAttributes = parseAttributeList(String(tagValue));
+                    if (keyAttributes.METHOD === 'NONE') {
+                        currentEncryptionInfo = null;
+                    } else {
+                        let keyUri = String(keyAttributes.URI);
+                        let iv = String(keyAttributes.IV || null);
+                        const lastColonIndex = keyUri.lastIndexOf(':');
+                        if (
+                            keyUri.startsWith('skd:') &&
+                            lastColonIndex > 'skd://'.length
+                        ) {
+                            iv = '0x' + keyUri.substring(lastColonIndex + 1);
+                            keyUri = keyUri.substring(0, lastColonIndex);
+                        }
+                        currentEncryptionInfo = {
+                            method: /** @type {'AES-128'} */ (
+                                keyAttributes.METHOD
+                            ),
+                            uri: resolveKeyUri(keyUri, baseUrl),
+                            iv: iv,
+                            keyFormat: String(
+                                keyAttributes.KEYFORMAT || 'identity'
+                            ),
+                            keyFormatVersions: String(
+                                keyAttributes.KEYFORMATVERSIONS || '1'
+                            ),
+                        };
+                    }
+                    break;
+                }
+                case 'EXT-X-MAP': {
+                    parsed.map = {
+                        ...parseAttributeList(String(tagValue)),
+                        lineNumber: i + 1,
+                    };
+                    const mapUri = parsed.map.URI;
+                    const mapByteRangeStr = parsed.map.BYTERANGE;
+                    if (mapUri && mapByteRangeStr) {
+                        const [lengthStr, offsetStr] =
+                            String(mapByteRangeStr).split('@');
+                        const length = parseInt(lengthStr, 10);
+                        const offset = parseInt(offsetStr, 10);
 
-                            // --- ARCHITECTURAL FIX: Extract IV from URI for certain schemes ---
-                            const lastColonIndex = keyUri.lastIndexOf(':');
-                            if (
-                                keyUri.startsWith('skd:') &&
-                                lastColonIndex > 'skd://'.length
-                            ) {
-                                iv =
-                                    '0x' + keyUri.substring(lastColonIndex + 1);
-                                keyUri = keyUri.substring(0, lastColonIndex);
-                            }
-                            // --- END FIX ---
-
-                            currentEncryptionInfo = {
-                                method: /** @type {'AES-128'} */ (
-                                    keyAttributes.METHOD
-                                ),
-                                uri: resolveKeyUri(keyUri, baseUrl),
-                                iv: iv,
-                                keyFormat: String(
-                                    keyAttributes.KEYFORMAT || 'identity'
-                                ),
-                                keyFormatVersions: String(
-                                    keyAttributes.KEYFORMATVERSIONS || '1'
-                                ),
+                        if (!isNaN(length) && !isNaN(offset)) {
+                            const resolvedUrl = new URL(mapUri, baseUrl).href;
+                            const uniqueId = `${resolvedUrl}@init@${offset}-${
+                                offset + length - 1
+                            }`;
+                            /** @type {HlsSegment} */
+                            const initSegment = {
+                                repId: 'hls-media-init',
+                                type: 'Init',
+                                number: 0,
+                                uniqueId,
+                                resolvedUrl,
+                                template: mapUri,
+                                time: -1,
+                                duration: 0,
+                                timescale: 90000,
+                                gap: false,
+                                flags: [],
+                                title: 'Initialization Segment',
+                                tags: [currentTag],
+                                parts: [],
+                                bitrate: null,
+                                byteRange: { length, offset },
+                                encryptionInfo: currentEncryptionInfo,
+                                extinfLineNumber: currentTag.lineNumber,
+                                discontinuity: false,
+                                uriLineNumber: currentTag.lineNumber,
                             };
+                            parsed.segmentGroups[
+                                parsed.segmentGroups.length - 1
+                            ].push(initSegment);
                         }
                     }
                     break;
-                case 'EXT-X-MAP':
-                    parsed.map = {
-                        ...parseAttributeList(tagValue),
-                        lineNumber: i,
-                    };
-                    break;
+                }
                 case 'EXT-X-PROGRAM-DATE-TIME':
                     if (currentSegment) {
-                        currentSegment.dateTime = tagValue;
+                        currentSegment.dateTime = String(tagValue);
                         currentSegment.flags.push('pdt');
                     }
                     break;
                 case 'EXT-X-TARGETDURATION':
-                    parsed.targetDuration = parseInt(tagValue, 10);
+                    parsed.targetDuration = parseInt(String(tagValue), 10);
                     break;
                 case 'EXT-X-MEDIA-SEQUENCE':
-                    parsed.mediaSequence = parseInt(tagValue, 10);
+                    parsed.mediaSequence = parseInt(String(tagValue), 10);
                     break;
                 case 'EXT-X-PLAYLIST-TYPE':
-                    parsed.playlistType = tagValue;
-                    if (tagValue === 'VOD') {
-                        parsed.isLive = false;
-                    } else if (tagValue === 'EVENT') {
-                        parsed.isLive = true;
-                    }
+                    parsed.playlistType = String(tagValue);
+                    if (String(tagValue) === 'VOD') parsed.isLive = false;
+                    else if (String(tagValue) === 'EVENT') parsed.isLive = true;
                     break;
                 case 'EXT-X-ENDLIST':
                     parsed.isLive = false;
                     break;
                 case 'EXT-X-VERSION':
-                    parsed.version = parseInt(tagValue, 10);
+                    parsed.version = parseInt(String(tagValue), 10);
                     break;
                 case 'EXT-X-PART-INF':
-                    parsed.partInf = parseAttributeList(tagValue);
+                    parsed.partInf = parseAttributeList(String(tagValue));
                     break;
                 case 'EXT-X-SERVER-CONTROL':
-                    parsed.serverControl = parseAttributeList(tagValue);
+                    parsed.serverControl = parseAttributeList(String(tagValue));
                     break;
                 case 'EXT-X-PRELOAD-HINT':
                     parsed.preloadHints.push({
-                        ...parseAttributeList(tagValue),
-                        lineNumber: i,
+                        ...parseAttributeList(String(tagValue)),
+                        lineNumber: i + 1,
                     });
                     break;
                 case 'EXT-X-RENDITION-REPORT':
                     parsed.renditionReports.push({
-                        ...parseAttributeList(tagValue),
-                        lineNumber: i,
+                        ...parseAttributeList(String(tagValue)),
+                        lineNumber: i + 1,
                     });
                     break;
                 case 'EXT-X-PART':
                     if (currentSegment) {
-                        const partAttrs = parseAttributeList(tagValue);
+                        const partAttrs = parseAttributeList(String(tagValue));
                         currentSegment.parts.push({
                             ...partAttrs,
                             resolvedUri: new URL(String(partAttrs.URI), baseUrl)
                                 .href,
-                            lineNumber: i,
+                            lineNumber: i + 1,
                         });
                     }
                     break;
-                default:
-                    // This is where unhandled tags are stored
-                    break;
             }
 
-            // Always add the raw tag to the tags array for full traceability
             if (currentSegment) {
                 currentSegment.tags.push(currentTag);
             } else {
@@ -366,45 +506,47 @@ export async function parseManifest(
         } else if (!line.startsWith('#')) {
             lastSeenUri = line;
             if (currentSegment) {
-                currentSegment.uri = line;
-                currentSegment.resolvedUrl = new URL(line, baseUrl).href;
-                currentSegment.uriLineNumber = i;
+                currentSegment.uriLineNumber = i + 1;
                 if (isGap) {
                     currentSegment.gap = true;
                     currentSegment.flags.push('gap');
-                    isGap = false; // consume it
                 }
-                const rangeStr = currentSegment.byteRange
-                    ? `@${currentSegment.byteRange.offset || 0}-${
-                          currentSegment.byteRange.length
-                      }`
-                    : '';
-                currentSegment.uniqueId = `${currentSegment.resolvedUrl}${rangeStr}`;
-                parsed.segments.push(currentSegment);
+                const { finalizedSegment, nextRangeState } =
+                    finalizeCurrentSegment(
+                        currentSegment,
+                        currentByteRange,
+                        lastSeenUri,
+                        lastRangeState,
+                        baseUrl
+                    );
+                parsed.segmentGroups[parsed.segmentGroups.length - 1].push(
+                    finalizedSegment
+                );
+                lastRangeState = nextRangeState;
+                cumulativeDuration += currentSegment.duration;
                 currentSegment = null;
-                // ByteRange applies only to the next segment
-                if (currentByteRange) {
-                    currentByteRange = null;
-                }
-            }
-        } else if (currentSegment && lastSeenUri) {
-            // This is a byte-range segment without its own URI line
-            currentSegment.uri = lastSeenUri;
-            currentSegment.resolvedUrl = new URL(lastSeenUri, baseUrl).href;
-            currentSegment.uriLineNumber = i; // Best guess
-            const rangeStr = currentSegment.byteRange
-                ? `@${currentSegment.byteRange.offset || 0}-${
-                      currentSegment.byteRange.length
-                  }`
-                : '';
-            currentSegment.uniqueId = `${currentSegment.resolvedUrl}${rangeStr}`;
-            parsed.segments.push(currentSegment);
-            currentSegment = null;
-            if (currentByteRange) {
-                currentByteRange = null;
+                isGap = false;
             }
         }
     }
+
+    if (currentSegment) {
+        const { finalizedSegment, nextRangeState } = finalizeCurrentSegment(
+            currentSegment,
+            currentByteRange,
+            lastSeenUri,
+            lastRangeState,
+            baseUrl
+        );
+        parsed.segmentGroups[parsed.segmentGroups.length - 1].push(
+            finalizedSegment
+        );
+        lastRangeState = nextRangeState;
+        cumulativeDuration += currentSegment.duration;
+    }
+
+    // Flatten segmentGroups into segments for the adapter
+    parsed.segments = parsed.segmentGroups.flat();
 
     const manifest = await adaptHlsToIr(parsed, context);
     return { manifest, definedVariables, baseUrl };

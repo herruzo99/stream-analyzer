@@ -3,6 +3,7 @@ import { getTooltipData as getAllIsoTooltipData } from '@/infrastructure/parsing
 import { tooltipTriggerClasses } from '@/ui/shared/constants';
 import { isDebugMode } from '@/shared/utils/env';
 import '@/ui/components/virtualized-list'; // Import for side-effect of registration
+import * as icons from '@/ui/icons';
 
 const allIsoTooltipData = getAllIsoTooltipData();
 
@@ -57,12 +58,13 @@ const renderTrunSampleFlags = (flags) => {
     }
     const isSync = !flags.sample_is_non_sync_sample;
     const syncClass = isSync ? 'text-green-400' : 'text-yellow-400';
-    const dependsOn = flags.sample_depends_on.includes('not') ? 'No' : 'Yes';
+    // Correctly interpret the numeric value. 1 means it depends.
+    const dependsOn = flags.sample_depends_on === 1 ? 'Yes' : 'No';
 
     return html`
         <div
             class="grid grid-cols-2 gap-x-2 text-left"
-            title="Depends On: ${flags.sample_depends_on} | Is Depended On: ${flags.sample_is_depended_on} | Is Leading: ${flags.is_leading}"
+            title="is_leading: ${flags.is_leading}, sample_depends_on: ${flags.sample_depends_on}, sample_is_depended_on: ${flags.sample_is_depended_on}"
         >
             <span class="${syncClass}">${isSync ? 'Sync' : 'Non-Sync'}</span>
             <span>Dep: ${dependsOn}</span>
@@ -155,6 +157,9 @@ export const entriesTableTemplate = (box) => {
                 rowBgClass = `bg-${parts[1]}-900/30`;
             }
         }
+        if (entry.has_emsg) {
+            rowBgClass = 'bg-purple-900/40';
+        }
 
         return html`
             <div
@@ -177,6 +182,14 @@ export const entriesTableTemplate = (box) => {
                         </div>
                     `
                 )}
+                ${entry.has_emsg
+                    ? html`<div
+                          class="absolute right-2 top-1/2 -translate-y-1/2 text-purple-400 ${tooltipTriggerClasses}"
+                          data-tooltip="This sample contains or is associated with an in-band Event Message (emsg) box."
+                      >
+                          ${icons.advertising}
+                      </div>`
+                    : ''}
             </div>
         `;
     };
@@ -316,19 +329,28 @@ export const inspectorDetailsTemplate = (
 /**
  * Renders a full, recursive tree of ISOBMFF boxes.
  * @param {import('@/types.js').Box} box The box to render.
+ * @param {{isIFrame?: boolean}} [context={}]
  * @returns {import('lit-html').TemplateResult}
  */
-export const isoBoxTreeTemplate = (box) => {
+export const isoBoxTreeTemplate = (box, context = {}) => {
+    const { isIFrame = false } = context;
     const boxInfo = allIsoTooltipData[box.type] || {};
 
+    let issues = box.issues || [];
+    if (isIFrame && box.type === 'mdat') {
+        issues = issues.filter(
+            (issue) => !issue.message.includes('truncated')
+        );
+    }
+
     const warningIcon =
-        isDebugMode && box.issues && box.issues.length > 0
+        isDebugMode && issues.length > 0
             ? html`<svg
                   xmlns="http://www.w3.org/2000/svg"
                   class="h-5 w-5 text-yellow-400 shrink-0 ${tooltipTriggerClasses}"
                   viewBox="0 0 20 20"
                   fill="currentColor"
-                  data-tooltip="${box.issues
+                  data-tooltip="${issues
                       .map((i) => `[${i.type}] ${i.message}`)
                       .join('\n')}"
               >
@@ -399,7 +421,10 @@ export const isoBoxTreeTemplate = (box) => {
             ? html`<div class="pl-4 mt-2 border-l-2 border-gray-600">
                   <ul class="list-none space-y-2">
                       ${box.children.map(
-                          (child) => html`<li>${isoBoxTreeTemplate(child)}</li>`
+                          (child) =>
+                              html`<li>
+                                  ${isoBoxTreeTemplate(child, context)}
+                              </li>`
                       )}
                   </ul>
               </div>`

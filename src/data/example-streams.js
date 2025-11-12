@@ -13,7 +13,7 @@
  * @property {object} [auth] - Authentication details.
  * @property {object} [drmAuth] - DRM authentication details.
  * @property {string | {[key: string]: string}} [drmAuth.licenseServerUrl] - The license server URL(s) for Widevine/PlayReady. Can be a single string or an object mapping key system names to URLs.
- * @property {string | File | ArrayBuffer | null} [drmAuth.serverCertificate] - The certificate for FairPlay.
+ * @property {string | File | ArrayBuffer | {[key: string]: string | File | ArrayBuffer} | null} [drmAuth.serverCertificate] - The DRM server certificate. Can be a single value for all systems, or an object mapping key system names to specific certificates.
  * @property {object} [drmAuth.clearKeys] - Clear Key configuration.
  * @property {Array<{id: number, key: string, value: string}>} [drmAuth.headers] - Headers for the license request.
  */
@@ -53,14 +53,6 @@ const createDrmAuth = (token) => ({
 export const exampleStreams = [
     // --- DASH VOD ---
     {
-        name: 'DASH-IF: Bare Minimum VOD',
-        url: 'https://livesim2.dashif.org/livesim2/testpic_2s/Manifest.mpd',
-        protocol: 'dash',
-        type: 'vod',
-        source: 'DASH-IF',
-        category: 'DASH VOD',
-    },
-    {
         name: 'V10: H.264 Multi-Key (DASH)',
         url: 'https://media.axprod.net/TestVectors/MultiKey/Dash_h264_1080p_cenc/manifest.mpd',
         protocol: 'dash',
@@ -68,22 +60,6 @@ export const exampleStreams = [
         source: 'Axinom',
         category: 'DASH VOD',
         drmAuth: createDrmAuth(v10Tokens.dashH264MultiKey),
-    },
-    {
-        name: 'V10: H.264 Clear (DASH)',
-        url: 'https://media.axprod.net/TestVectors/Dash/not_protected_dash_1080p_h264/manifest.mpd',
-        protocol: 'dash',
-        type: 'vod',
-        source: 'Axinom',
-        category: 'DASH VOD',
-    },
-    {
-        name: 'V10: H.265 Clear (DASH)',
-        url: 'https://media.axprod.net/TestVectors/H265/clear_dash_1080p_h265/manifest.mpd',
-        protocol: 'dash',
-        type: 'vod',
-        source: 'Axinom',
-        category: 'DASH VOD',
     },
     {
         name: 'V10: H.265 Clear (CMAF/DASH)',
@@ -95,6 +71,14 @@ export const exampleStreams = [
     },
 
     // --- DASH Live ---
+    {
+        name: 'DASH-IF: Bare Minimum VOD',
+        url: 'https://livesim2.dashif.org/livesim2/testpic_2s/Manifest.mpd',
+        protocol: 'dash',
+        type: 'live',
+        source: 'DASH-IF',
+        category: 'DASH lvie',
+    },
     {
         name: 'DASH-IF: SCTE-35 Ad Insertion (Live)',
         url: 'https://livesim2.dashif.org/livesim2/scte35_2/testpic_2s/Manifest.mpd?url_append_rand=1',
@@ -122,28 +106,10 @@ export const exampleStreams = [
 
     // --- HLS VOD ---
     {
-        name: 'V10: H.264 Multi-Key (HLS)',
-        url: 'https://media.axprod.net/TestVectors/MultiKey/Hls_h264_1080p_cenc/manifest.m3u8',
+        name: 'Big Buck Bunny (fMP4)',
+        url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
         protocol: 'hls',
         type: 'vod',
-        source: 'Axinom',
-        category: 'HLS VOD',
-        drmAuth: createDrmAuth(v10Tokens.dashH264MultiKey),
-    },
-    {
-        name: 'V10: H.264 Clear (HLS)',
-        url: 'https://media.axprod.net/TestVectors/Hls/not_protected_hls_1080p_h264/manifest.m3u8',
-        protocol: 'hls',
-        type: 'vod',
-        source: 'Axinom',
-        category: 'HLS VOD',
-    },
-    {
-        name: 'V10: H.265 Clear (HLS)',
-        url: 'https://media.axprod.net/TestVectors/H265/clear_hls_1080p_h265/manifest.m3u8',
-        protocol: 'hls',
-        type: 'vod',
-        source: 'Axinom',
         category: 'HLS VOD',
     },
     {
@@ -165,11 +131,11 @@ export const exampleStreams = [
 
     // --- HLS Live ---
     {
-        name: 'Apple: Advanced stream (Live)',
+        name: 'Apple: Advanced stream',
         url: 'https://devstreaming-cdn.apple.com/videos/streaming/examples/adv_dv_atmos/main.m3u8',
         protocol: 'hls',
-        type: 'live',
+        type: 'vod',
         source: 'Apple',
-        category: 'HLS Live',
+        category: 'HLS VOF',
     },
 ];

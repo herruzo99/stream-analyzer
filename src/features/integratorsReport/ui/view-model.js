@@ -3,6 +3,7 @@ import {
     getInheritedElement,
     getAttr,
 } from '@/infrastructure/parsing/dash/recursive-parser';
+import { parseDuration } from '@/shared/utils/time';
 
 /**
  * @typedef {import('@/types.ts').Stream} Stream
@@ -83,6 +84,7 @@ function getNetworkInfo(stream) {
     let totalSizeBytes = 0;
     let segmentInfoCount = 0;
 
+    // --- ARCHITECTURAL FIX: Robust Segment Metric Calculation ---
     if (stream.protocol === 'dash' && stream.manifest.periods) {
         for (const period of stream.manifest.periods) {
             for (const as of period.adaptationSets) {
@@ -91,31 +93,35 @@ function getNetworkInfo(stream) {
                         rep.serializedManifest,
                         as.serializedManifest,
                         period.serializedManifest,
+                        stream.manifest.serializedManifest,
                     ];
                     const template = getInheritedElement(
                         'SegmentTemplate',
                         hierarchy
                     );
 
-                    if (
-                        template &&
-                        getAttr(template, 'duration') &&
-                        getAttr(template, 'timescale')
-                    ) {
-                        const duration = parseInt(
-                            getAttr(template, 'duration'),
-                            10
-                        );
-                        const timescale = parseInt(
-                            getAttr(template, 'timescale'),
-                            10
-                        );
-                        const bandwidth = rep.bandwidth;
+                    const durationStr =
+                        getAttr(template, 'duration') ||
+                        stream.manifest.maxSegmentDuration;
+                    const timescale =
+                        getAttr(template, 'timescale') ||
+                        rep.audioSamplingRate ||
+                        1;
 
-                        if (duration > 0 && timescale > 0 && bandwidth > 0) {
-                            const durationSec = duration / timescale;
-                            totalDurationSeconds += durationSec;
-                            totalSizeBytes += (bandwidth / 8) * durationSec;
+                    if (durationStr && timescale > 0 && rep.bandwidth > 0) {
+                        // The duration attribute in SegmentTemplate is in timescale units,
+                        // not seconds like maxSegmentDuration.
+                        const durationInSeconds =
+                            typeof durationStr === 'string'
+                                ? parseDuration(durationStr) ||
+                                  parseInt(durationStr, 10) /
+                                      parseInt(timescale, 10)
+                                : durationStr / parseInt(timescale, 10);
+
+                        if (durationInSeconds > 0) {
+                            totalDurationSeconds += durationInSeconds;
+                            totalSizeBytes +=
+                                (rep.bandwidth / 8) * durationInSeconds;
                             segmentInfoCount++;
                         }
                     }
@@ -123,22 +129,26 @@ function getNetworkInfo(stream) {
             }
         }
     } else if (stream.protocol === 'hls' && stream.manifest) {
-        const targetDuration = stream.manifest.summary?.hls?.targetDuration;
+        const targetDuration =
+            stream.manifest.summary?.hls?.targetDuration ||
+            stream.manifest.maxSegmentDuration;
+
         if (targetDuration) {
-            for (const period of stream.manifest.periods) {
-                for (const as of period.adaptationSets) {
-                    for (const rep of as.representations) {
-                        const bandwidth = rep.bandwidth;
-                        if (bandwidth > 0) {
-                            totalDurationSeconds += targetDuration;
-                            totalSizeBytes += (bandwidth / 8) * targetDuration;
-                            segmentInfoCount++;
-                        }
-                    }
+            const allReps = stream.manifest.periods
+                .flatMap((p) => p.adaptationSets)
+                .flatMap((as) => as.representations);
+
+            for (const rep of allReps) {
+                const bandwidth = rep.bandwidth;
+                if (bandwidth > 0) {
+                    totalDurationSeconds += targetDuration;
+                    totalSizeBytes += (bandwidth / 8) * targetDuration;
+                    segmentInfoCount++;
                 }
             }
         }
     }
+    // --- END FIX ---
 
     const avgSegmentDuration =
         segmentInfoCount > 0 ? totalDurationSeconds / segmentInfoCount : null;

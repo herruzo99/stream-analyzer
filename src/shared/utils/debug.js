@@ -44,17 +44,32 @@ function safeStringify(obj) {
 }
 
 /**
- * Logs a message to the console's "debug" channel only if debugging is enabled via `?debug=1` in the URL.
+ * Logs a message to the console only if debugging is enabled.
+ * Supports different console levels for richer logging.
+ * Ensures 'error' messages are always logged outside of any group.
  * @param {string} component The name of the component/module logging the message.
+ * @param {'log' | 'info' | 'warn' | 'error' | 'table' } level The console log level.
  * @param {...any} args The arguments to log.
  */
-export function debugLog(component, ...args) {
-    if (DEBUG_ENABLED) {
-        const processedArgs = args.map((arg) =>
-            typeof arg === 'object' && arg !== null
-                ? JSON.parse(safeStringify(arg))
-                : arg
-        );
-        console.debug(`[DEBUG - ${component}]`, ...processedArgs);
+export function appLog(component, level, ...args) {
+    if (!DEBUG_ENABLED) {
+        return;
     }
+
+    const logFn = console[level] || console.debug;
+    const label = `[${component}]`;
+
+    const processedArgs = args.map((arg) =>
+        typeof arg === 'object' && arg !== null && level !== 'table'
+            ? JSON.parse(safeStringify(arg))
+            : arg
+    );
+
+    if (level === 'table') {
+        console.log(label, ...processedArgs.slice(1));
+        logFn(processedArgs[0]);
+        return;
+    }
+
+    logFn(label, ...processedArgs);
 }

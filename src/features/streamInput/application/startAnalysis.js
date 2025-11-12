@@ -1,5 +1,5 @@
 import { isDebugMode } from '@/shared/utils/env';
-import { debugLog } from '@/shared/utils/debug';
+import { appLog } from '@/shared/utils/debug';
 
 /**
  * Orchestrates the business logic of starting a new stream analysis.
@@ -15,7 +15,11 @@ import { debugLog } from '@/shared/utils/debug';
 export async function startAnalysisUseCase({ inputs }, services) {
     const { storage, workerService, eventBus, analysisActions } = services;
     const analysisStartTime = performance.now();
-    debugLog('startAnalysisUseCase', 'Starting analysis pipeline...');
+    appLog(
+        'startAnalysisUseCase',
+        'info',
+        'Starting analysis pipeline...'
+    );
     analysisActions.startAnalysis();
     eventBus.dispatch('analysis:started');
 
@@ -48,12 +52,31 @@ export async function startAnalysisUseCase({ inputs }, services) {
         };
 
         if (input.drmAuth.serverCertificate instanceof File) {
-            debugLog(
+            appLog(
                 'startAnalysisUseCase',
+                'info',
                 `Reading certificate file "${input.drmAuth.serverCertificate.name}" into ArrayBuffer.`
             );
             workerInput.drmAuth.serverCertificate =
                 await input.drmAuth.serverCertificate.arrayBuffer();
+        } else if (
+            typeof input.drmAuth.serverCertificate === 'object' &&
+            input.drmAuth.serverCertificate !== null &&
+            !(input.drmAuth.serverCertificate instanceof ArrayBuffer)
+        ) {
+            // Handle the new object-based structure for multiple certificates
+            const certObject = input.drmAuth.serverCertificate;
+            /** @type {{ [keySystem: string]: string | ArrayBuffer | File; }} */
+            const processedCerts = {};
+            for (const key in certObject) {
+                const certValue = certObject[key];
+                if (certValue instanceof File) {
+                    processedCerts[key] = await certValue.arrayBuffer();
+                } else {
+                    processedCerts[key] = certValue;
+                }
+            }
+            workerInput.drmAuth.serverCertificate = processedCerts;
         }
 
         return workerInput;
@@ -61,8 +84,9 @@ export async function startAnalysisUseCase({ inputs }, services) {
 
     const workerInputs = await Promise.all(workerInputsPromises);
 
-    debugLog(
+    appLog(
         'startAnalysisUseCase',
+        'info',
         `Dispatching ${workerInputs.length} stream(s) to worker for fetching and analysis.`,
         workerInputs
     );
@@ -100,8 +124,9 @@ export async function startAnalysisUseCase({ inputs }, services) {
 
         analysisActions.completeAnalysis(streams, urlAuthMapArray, validInputs);
         const tEndTotal = performance.now();
-        debugLog(
+        appLog(
             'startAnalysisUseCase',
+            'info',
             `Initial Analysis Pipeline (success): ${(
                 tEndTotal - analysisStartTime
             ).toFixed(2)}ms`
@@ -112,5 +137,5 @@ export async function startAnalysisUseCase({ inputs }, services) {
             error,
         });
         eventBus.dispatch('analysis:failed');
-    }
+    } 
 }

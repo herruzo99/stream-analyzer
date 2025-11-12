@@ -7,7 +7,7 @@ import { useDecryptionStore } from '@/state/decryptionStore';
 import { useMemoryStore, memoryActions } from '@/state/memoryStore';
 import { workerService } from '@/infrastructure/worker/workerService';
 import { useMultiPlayerStore } from '@/state/multiPlayerStore';
-import { debugLog } from '@/shared/utils/debug';
+import { appLog } from '@/shared/utils/debug';
 import { eventBus } from '@/application/event-bus';
 
 let tickerSubscription = null;
@@ -185,7 +185,7 @@ export const memoryService = {
         if (tickerSubscription) {
             return; // Already running
         }
-        debugLog('MemoryService', 'Starting periodic memory analysis.');
+        appLog('MemoryService', 'info', 'Starting periodic memory analysis.');
         dispatchAndProcessMemoryCalculation(); // Run once immediately
         tickerSubscription = eventBus.subscribe(
             'ticker:two-second-tick',
@@ -198,8 +198,9 @@ export const memoryService = {
      */
     stop() {
         if (tickerSubscription) {
-            debugLog(
+            appLog(
                 'MemoryService',
+                'info',
                 'Stopping periodic memory analysis to yield to playback.'
             );
             tickerSubscription();

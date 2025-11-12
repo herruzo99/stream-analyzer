@@ -1,6 +1,6 @@
 import { eventBus } from '@/application/event-bus';
 import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
-import { debugLog } from '@/shared/utils/debug';
+import { appLog } from '@/shared/utils/debug';
 import { playerService } from '@/features/playerSimulation/application/playerService';
 
 const pollers = new Map();
@@ -15,8 +15,9 @@ export async function pollHlsVariant(streamId, variantUri) {
         return;
     }
 
-    debugLog(
+    appLog(
         'HlsVariantPoller',
+        'info',
         `Dispatching hls:media-playlist-fetch-request for stream ${streamId}`,
         { variantUri }
     );
@@ -132,8 +133,9 @@ export function initializeHlsVariantPoller() {
 
             for (const [uri, state] of newVariantState.entries()) {
                 newVariantState.set(uri, { ...state, isLoading: true });
-                debugLog(
+                appLog(
                     'HlsVariantPoller',
+                    'info',
                     `Dispatching initial hls:media-playlist-fetch-request for stream ${stream.id}`,
                     { variantUri: uri }
                 );

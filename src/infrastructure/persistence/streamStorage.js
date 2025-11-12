@@ -26,6 +26,21 @@ export function prepareForStorage(input) {
             name: file.name,
             type: file.type,
         };
+    } else if (
+        typeof storableInput.drmAuth?.serverCertificate === 'object' &&
+        storableInput.drmAuth.serverCertificate !== null
+    ) {
+        const certObject = storableInput.drmAuth.serverCertificate;
+        for (const key in certObject) {
+            if (certObject[key] instanceof File) {
+                const file = /** @type {File} */ (certObject[key]);
+                certObject[key] = {
+                    isFilePlaceholder: true,
+                    name: file.name,
+                    type: file.type,
+                };
+            }
+        }
     }
     return storableInput;
 }
@@ -41,6 +56,17 @@ export function restoreFromStorage(storedInput) {
         // Create a stub File object. The lack of content (size=0) will be our
         // signal in the UI to prompt for re-selection.
         storedInput.drmAuth.serverCertificate = new File([], name, { type });
+    } else if (
+        typeof storedInput.drmAuth?.serverCertificate === 'object' &&
+        storedInput.drmAuth.serverCertificate !== null
+    ) {
+        const certObject = storedInput.drmAuth.serverCertificate;
+        for (const key in certObject) {
+            if (certObject[key]?.isFilePlaceholder) {
+                const { name, type } = certObject[key];
+                certObject[key] = new File([], name, { type });
+            }
+        }
     }
     return storedInput;
 }

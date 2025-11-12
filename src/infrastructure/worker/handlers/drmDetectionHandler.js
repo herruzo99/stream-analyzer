@@ -1,6 +1,6 @@
 import { fetchWithAuth } from '../http.js';
 import { getDrmSystemName } from '@/infrastructure/parsing/utils/drm.js';
-import { debugLog } from '@/shared/utils/debug';
+import { appLog } from '@/shared/utils/debug';
 
 /**
  * Parses attributes from an HLS tag line.
@@ -62,7 +62,12 @@ function scanForDrm(manifestString) {
                         detectedSystems.add(systemName);
                     }
                 } else if (method === 'SAMPLE-AES') {
-                    detectedSystems.add('FairPlay');
+                    // ARCHITECTURAL FIX: Use a more reliable heuristic for legacy FairPlay.
+                    // The 'skd://' URI scheme is a strong indicator of FairPlay when KEYFORMAT is absent.
+                    // Avoid defaulting all SAMPLE-AES to FairPlay to prevent misidentifying CENC streams.
+                    if (attributes.URI && attributes.URI.startsWith('skd://')) {
+                        detectedSystems.add('FairPlay');
+                    }
                 } else if (method === 'AES-128') {
                     detectedSystems.add('AES-128');
                 }
@@ -83,8 +88,9 @@ function scanForDrm(manifestString) {
  * @returns {Promise<string[]>} A promise that resolves to an array of detected DRM system names.
  */
 export async function handleGetStreamDrmInfo({ url, auth }, signal) {
-    debugLog(
+    appLog(
         'drmDetectionHandler',
+        'info',
         `Stage 1: Fetching initial manifest for DRM detection: ${url}`
     );
     try {
@@ -99,8 +105,9 @@ export async function handleGetStreamDrmInfo({ url, auth }, signal) {
             detectedSystems.size === 0 &&
             manifestString.includes('#EXT-X-STREAM-INF')
         ) {
-            debugLog(
+            appLog(
                 'drmDetectionHandler',
+                'info',
                 'Stage 2: HLS master detected, scanning first media playlist.'
             );
             const hlsLines = manifestString.split('\n');
@@ -123,8 +130,9 @@ export async function handleGetStreamDrmInfo({ url, auth }, signal) {
             if (firstVariantUri) {
                 const mediaPlaylistUrl = new URL(firstVariantUri, response.url)
                     .href;
-                debugLog(
+                appLog(
                     'drmDetectionHandler',
+                    'info',
                     `Stage 3: Fetching media playlist: ${mediaPlaylistUrl}`
                 );
                 const mediaResponse = await fetchWithAuth(
@@ -146,15 +154,20 @@ export async function handleGetStreamDrmInfo({ url, auth }, signal) {
         }
 
         const result = Array.from(detectedSystems);
-        debugLog(
+        appLog(
             'drmDetectionHandler',
+            'info',
             `Detection complete for ${url}. Systems found:`,
             result
         );
         return result;
     } catch (error) {
         if (error.name === 'AbortError') {
-            debugLog('drmDetectionHandler', 'DRM detection aborted.');
+            appLog(
+                'drmDetectionHandler',
+                'info',
+                'DRM detection aborted.'
+            );
             return [];
         }
         console.error(`Error during DRM detection for ${url}:`, error);

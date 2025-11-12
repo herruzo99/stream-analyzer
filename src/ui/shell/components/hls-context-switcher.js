@@ -63,6 +63,10 @@ const getActiveHlsContextLabel = (stream) => {
         stream.manifest.periods[0]?.adaptationSets.filter(
             (as) => as.contentType !== 'video'
         ) || [];
+    const iFramePlaylists =
+        stream.manifest.periods[0]?.adaptationSets.find((as) =>
+            as.roles.some((r) => r.value === 'trick')
+        ) || { representations: [] };
 
     const activeVariant = allVariants.find(
         (v) => v.resolvedUri === activeMediaPlaylistUrl
@@ -82,6 +86,13 @@ const getActiveHlsContextLabel = (stream) => {
         return `${activeRendition.contentType.toUpperCase()}: ${
             activeRendition.lang || activeRendition.id
         }`;
+    }
+
+    const activeIFrame = iFramePlaylists.representations.find(
+        (r) => r.serializedManifest.resolvedUri === activeMediaPlaylistUrl
+    );
+    if (activeIFrame) {
+        return `I-Frame: ${activeIFrame.width.value}x${activeIFrame.height.value}`;
     }
 
     return 'Select View...';
@@ -122,6 +133,24 @@ export const hlsContextSwitcherTemplate = (stream) => {
             },
         ],
     }));
+
+    const iFrameReps =
+        stream.manifest.periods[0]?.adaptationSets
+            .find((as) => as.roles.some((r) => r.value === 'trick'))
+            ?.representations.map((r) => ({
+                url: r.serializedManifest.resolvedUri,
+                label: `I-Frame Stream`,
+                badges: [
+                    {
+                        text: `${(r.bandwidth / 1000).toFixed(0)}k`,
+                        classes: 'bg-orange-800 text-orange-200',
+                    },
+                    {
+                        text: `${r.width.value}x${r.height.value}`,
+                        classes: 'bg-gray-600 text-gray-300',
+                    },
+                ],
+            })) || [];
 
     const audioRenditions = (stream.manifest.periods[0]?.adaptationSets || [])
         .filter((as) => as.contentType === 'audio')
@@ -196,6 +225,11 @@ export const hlsContextSwitcherTemplate = (stream) => {
         >
             ${renderHlsContextGroup('Master', [masterItem], activeUrl)}
             ${renderHlsContextGroup('Variant Streams', variants, activeUrl)}
+            ${renderHlsContextGroup(
+                'I-Frame Playlists',
+                iFrameReps,
+                activeUrl
+            )}
             ${renderHlsContextGroup(
                 'Audio Renditions',
                 audioRenditions,

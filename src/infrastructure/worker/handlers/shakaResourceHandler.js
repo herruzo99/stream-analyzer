@@ -1,6 +1,6 @@
 import { fetchWithAuth } from '../http.js';
 import { inferMediaInfoFromExtension } from '@/infrastructure/parsing/utils/media-types';
-import { debugLog } from '@/shared/utils/debug';
+import { appLog } from '@/shared/utils/debug';
 import { handleParseSegmentStructure } from '../parsingService.js';
 
 /**
@@ -30,7 +30,7 @@ function mapShakaRequestType(request, requestType) {
             }
             return ['video', 'audio', 'text'].includes(contentType)
                 ? /** @type {import('@/types').ResourceType} */ (contentType)
-                : 'other';
+                : 'video'; // Default to video for segments if inference fails
         }
         default:
             return 'other';
@@ -59,10 +59,17 @@ export async function handleShakaResourceFetch(
     const url = request.uris[0];
     const uniqueIdToUse = segmentUniqueId || url;
 
-    debugLog('shakaResourceHandler', `Fetching resource from network: ${url}.`);
+    appLog(
+        'shakaResourceHandler',
+        'info',
+        `Fetching resource from network: ${url}.`
+    );
 
     try {
         const body = /** @type {BodyInit | null} */ (request.body || null);
+
+        const resourceType = mapShakaRequestType(request, requestType);
+        const loggingContext = { streamId, resourceType };
 
         const response = await fetchWithAuth(
             url,
@@ -71,19 +78,19 @@ export async function handleShakaResourceFetch(
             request.headers,
             body,
             signal,
-            {
-                // Provide context for the network logger
-                streamId,
-                resourceType: mapShakaRequestType(request, requestType),
-            }
+            loggingContext
         );
 
         if (!response.ok) {
+            const responseHeaders = {};
+            Object.entries(response.headers).forEach(
+                ([key, value]) => (responseHeaders[key] = value)
+            );
             return {
                 uri: response.url,
                 originalUri: url,
                 data: new ArrayBuffer(0),
-                headers: response.headers,
+                headers: responseHeaders,
                 status: response.status,
                 originalRequest: request,
             };
@@ -91,10 +98,9 @@ export async function handleShakaResourceFetch(
 
         const data = await response.arrayBuffer();
 
-        // --- ARCHITECTURAL FIX: Non-blocking segment caching with canonical ID ---
+        // --- Non-blocking segment caching (no longer dispatches events) ---
         (async () => {
             try {
-                const resourceType = mapShakaRequestType(request, requestType);
                 const formatHint =
                     resourceType === 'video' || resourceType === 'audio'
                         ? 'isobff'
@@ -103,6 +109,7 @@ export async function handleShakaResourceFetch(
                     data: data.slice(0),
                     url,
                     formatHint,
+                    context: {},
                 });
 
                 self.postMessage({
@@ -122,23 +129,32 @@ export async function handleShakaResourceFetch(
                 );
             }
         })();
-        // --- END FIX ---
+
+        const responseHeaders = {};
+        Object.entries(response.headers).forEach(
+            ([key, value]) => (responseHeaders[key] = value)
+        );
 
         return {
             uri: response.url,
             originalUri: url,
             data,
-            headers: response.headers,
+            headers: responseHeaders,
             status: response.status,
             originalRequest: request,
         };
     } catch (error) {
         if (error.name === 'AbortError') {
-            debugLog('shakaResourceHandler', `Fetch aborted for ${url}`);
+            appLog(
+                'shakaResourceHandler',
+                'info',
+                `Fetch aborted for ${url}`
+            );
             throw error;
         }
-        debugLog(
+        appLog(
             'shakaResourceHandler',
+            'error',
             'Caught catastrophic fetch error, re-throwing as Shaka-compatible object.',
             error
         );

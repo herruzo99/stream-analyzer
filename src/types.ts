@@ -118,12 +118,10 @@ export interface Representation {
     pathwayId: string | null;
     supplementalCodecs: string | null;
     reqVideoLayout: string | null;
-    serializedManifest: object;
+    serializedManifest: any;
     __variantUri?: string; // Internal property for HLS enrichment
-    // --- ARCHITECTURAL FIX: Add missing properties ---
     tag: string | null;
     segmentProfiles: string | null;
-    // --- END FIX ---
 }
 
 export interface PsshInfo {
@@ -268,6 +266,7 @@ export interface Event {
     type: string;
     cue: string | null;
     scte35?: Scte35SpliceInfoSection | { error: string };
+    sourceSegmentId?: string; // Link back to the source segment
 }
 
 export interface EventStream {
@@ -393,7 +392,7 @@ export interface PeriodSummary {
 export interface SecuritySummary {
     isEncrypted: boolean;
     systems: PsshInfo[];
-    hlsEncryptionMethod?: 'AES-128' | 'SAMPLE-AES' | null;
+    hlsEncryptionMethod?: 'AES-128' | 'SAMPLE-AES' | 'FairPlay' | null;
     kids?: string[];
     licenseServerUrls?: string[];
 }
@@ -489,6 +488,7 @@ export interface MediaSegment {
     range?: string | null;
     indexRange?: string | null;
     parsedData?: any; // For local segment analysis
+    inbandEvents?: Event[]; // Events found within this segment
 }
 
 export interface HlsSegment extends MediaSegment {
@@ -541,201 +541,6 @@ export interface Manifest {
     mediaSequence?: number;
 }
 
-export type MediaPlaylist = {
-    manifest: Manifest;
-    rawManifest: string;
-    lastFetched: Date;
-};
-
-export interface FeatureAnalysisResult {
-    used: boolean;
-    details: string;
-}
-
-export interface FeatureAnalysisState {
-    results: Map<string, FeatureAnalysisResult>;
-    manifestCount: number;
-}
-
-export interface HlsVariantState {
-    segments: HlsSegment[];
-    currentSegmentUrls: Set<string>;
-    newlyAddedSegmentUrls: Set<string>;
-    isLoading: boolean;
-    isPolling: boolean;
-    isExpanded: boolean;
-    displayMode: 'all' | 'last10';
-    error: string | null;
-}
-
-export interface DashRepresentationState {
-    segments: MediaSegment[];
-    currentSegmentUrls: Set<string>;
-    newlyAddedSegmentUrls: Set<string>;
-    diagnostics: object;
-}
-
-export interface ComplianceResult {
-    id: string;
-    text: string;
-    status: 'pass' | 'fail' | 'warn' | 'info';
-    details: string;
-    isoRef: string;
-    category: string;
-    location: { startLine?: number; endLine?: number; path?: string };
-}
-
-export interface ManifestUpdate {
-    id: string;
-    sequenceNumber: number;
-    timestamp: string;
-    diffHtml: string;
-    rawManifest: string;
-    complianceResults: ComplianceResult[];
-    hasNewIssues: boolean;
-    serializedManifest: object;
-    changes: {
-        additions: number;
-        removals: number;
-        modifications: number;
-    };
-}
-
-export interface DecodedNalUnit {
-    type: string;
-    size: number;
-}
-
-export interface DecodedH264Sample {
-    format: 'H.264';
-    frameType: 'key' | 'delta';
-    duration: number;
-    timestamp: number;
-    nalUnits: DecodedNalUnit[];
-}
-
-export interface DecodedAacFrame {
-    format: 'AAC';
-    objectType: string;
-    samplingFrequency: number;
-    channelCount: number;
-    frameLength: number;
-}
-
-export type DecodedSample = DecodedH264Sample | DecodedAacFrame;
-
-export interface Sample {
-    duration?: number;
-    size?: number;
-    sampleFlags?: object;
-    compositionTimeOffset?: number;
-    isSample?: boolean;
-    index?: number;
-    offset?: number;
-    trunOffset?: number;
-    color?: { bgClass: string };
-    baseMediaDecodeTime?: number;
-    trackId?: number;
-    dependsOn?: string;
-    degradationPriority?: number;
-    sampleGroup?: number;
-    encryption?: any;
-}
-
-export interface Box {
-    type: string;
-    size: number;
-    offset: number;
-    contentOffset: number;
-    headerSize: number;
-    details: Record<
-        string,
-        {
-            value: any;
-            offset: number;
-            length: number;
-            internal?: boolean;
-        }
-    >;
-    children: Box[];
-    samples?: Sample[];
-    entries?: any[];
-    issues?: { type: 'error' | 'warn'; message: string }[];
-    isChunk?: boolean;
-    color?: object;
-    systemId?: string;
-    kids?: string[];
-    data?: string;
-    scte35?: object;
-    spsList?: any[];
-    ppsList?: any[];
-}
-
-export interface SegmentToCompare {
-    streamId: number;
-    repId: string;
-    segmentUniqueId: string;
-}
-
-export interface KeyValuePair {
-    id: number;
-    key: string;
-    value: string;
-}
-
-export interface AuthInfo {
-    headers: KeyValuePair[];
-    queryParams: KeyValuePair[];
-}
-
-export interface DrmAuthInfo {
-    licenseServerUrl: string | { [key: string]: string };
-    serverCertificate: string | File | ArrayBuffer | null;
-    headers: KeyValuePair[];
-    queryParams: KeyValuePair[];
-}
-
-export interface StreamInput {
-    id: number;
-    url: string;
-    name: string;
-    file: File | null;
-    auth: AuthInfo;
-    drmAuth: DrmAuthInfo;
-    detectedDrm: string[] | null;
-    isDrmInfoLoading: boolean;
-}
-
-export interface Stream {
-    id: number;
-    name: string;
-    originalUrl: string;
-    baseUrl: string;
-    protocol: 'dash' | 'hls' | 'local' | 'unknown';
-    isPolling: boolean;
-    wasStoppedByInactivity?: boolean;
-    manifest: Manifest | null;
-    rawManifest: string;
-    steeringInfo: object | null;
-    manifestUpdates: ManifestUpdate[];
-    activeManifestUpdateId: string | null;
-    mediaPlaylists: Map<string, MediaPlaylist>;
-    activeMediaPlaylistUrl: string | null;
-    featureAnalysis: FeatureAnalysisState;
-    hlsVariantState: Map<string, HlsVariantState>;
-    dashRepresentationState: Map<string, DashRepresentationState>;
-    hlsDefinedVariables?: Map<string, { value: string; source: string }>;
-    semanticData: Map<string, any>;
-    coverageReport?: CoverageFinding[];
-    adAvails?: AdAvail[];
-    inbandEvents?: Event[];
-    segments?: MediaSegment[]; // For 'local' protocol
-    auth: AuthInfo;
-    drmAuth: DrmAuthInfo;
-    licenseServerUrl: string;
-    adaptationEvents: AdaptationEvent[];
-}
-
 export interface CoverageFinding {
     status: 'unparsed' | 'drift';
     pathOrLine: string;
@@ -760,6 +565,13 @@ export interface AdAvail {
     scte35Signal: Scte35SpliceInfoSection | { error: string };
     adManifestUrl: string | null;
     creatives: AdCreative[];
+    detectionMethod:
+        | 'SCTE35_INBAND'
+        | 'SCTE35_DATERANGE'
+        | 'ASSET_IDENTIFIER'
+        | 'ENCRYPTION_TRANSITION'
+        | 'STRUCTURAL_DISCONTINUITY'
+        | 'UNKNOWN';
 }
 
 // --- Network Analysis Types ---
@@ -786,7 +598,7 @@ export interface NetworkEvent {
     id: string;
     url: string;
     resourceType: ResourceType;
-    streamId: number;
+    streamId: number | null;
     segmentDuration?: number; // Duration of the media segment in seconds
     request: {
         method: string;
@@ -803,7 +615,7 @@ export interface NetworkEvent {
         startTime: number; // performance.now() relative to analysis start
         endTime: number;
         duration: number;
-        breakdown: TimingBreakdown;
+        breakdown: TimingBreakdown | null;
     };
 }
 
@@ -859,10 +671,10 @@ export interface AbrHistoryEntry {
 
 export interface AdaptationEvent {
     time: number;
-    oldWidth: number;
-    oldHeight: number;
-    newWidth: number;
-    newHeight: number;
+    oldWidth: number | undefined;
+    oldHeight: number | undefined;
+    newWidth: number | undefined;
+    newHeight: number | undefined;
 }
 
 // --- Multi-Player View Types ---
@@ -896,7 +708,10 @@ export interface UiState {
     activeTab: string;
     activeSidebar: 'primary' | 'contextual' | null;
     multiPlayerActiveTab: 'event-log' | 'graphs' | 'controls';
+    multiPlayerViewMode: 'grid' | 'immersive';
     activeSegmentUrl: string | null;
+    activeSegmentHighlightRange: { start: number; end: number } | null;
+    activeSegmentIsIFrame: boolean;
     modalState: {
         isModalOpen: boolean;
         modalTitle: string;
@@ -932,6 +747,8 @@ export interface UiState {
     streamLibrarySearchTerm: string;
     streamInputActiveMobileTab: 'library' | 'workspace' | 'inspector';
     workspaces: any[];
+    presets: any[];
+    history: any[];
     loadedWorkspaceName: string | null;
     isRestoringSession: boolean;
     segmentAnalysisActiveTab: 'structure' | 'semantic';
@@ -952,6 +769,13 @@ export interface UiActions {
         featureName?: string | null;
     }) => void;
     setInactivityTimeoutOverride: (durationMs: number | null) => void;
+    navigateToInteractiveSegment: (
+        segmentUniqueId: string,
+        options?: {
+            highlightRange?: { start: number; end: number } | null;
+            isIFrame?: boolean;
+        }
+    ) => void;
 }
 
 export interface PlaybackHistoryEntry {
@@ -1008,7 +832,189 @@ export interface PlayerActions {
     setActiveTab: (tab: 'controls' | 'stats' | 'log' | 'graphs') => void;
     reset: () => void;
 }
-// --- FIX: Moved SerializedStream to after Stream is defined ---
+export interface Box {
+    type: string;
+    size: number;
+    offset: number;
+    contentOffset: number;
+    headerSize: number;
+    details: Record<
+        string,
+        {
+            value: any;
+            offset: number;
+            length: number;
+            internal?: boolean;
+        }
+    >;
+    children: Box[];
+    samples?: Sample[];
+    entries?: any[];
+    issues?: { type: 'error' | 'warn'; message: string }[];
+    isChunk?: boolean;
+    color?: object;
+    systemId?: string;
+    kids?: string[];
+    data?: string;
+    scte35?: object;
+    spsList?: any[];
+    ppsList?: any[];
+    nal_unit_arrays?: any[];
+    messagePayloadType?: 'xml' | 'scte35' | 'id3' | 'binary';
+    messagePayload?: any;
+    dataView?: DataView;
+}
+export interface ComplianceResult {
+    id: string;
+    text: string;
+    status: 'pass' | 'fail' | 'warn' | 'info';
+    details: string;
+    isoRef: string;
+    category: string;
+    location: { startLine?: number; endLine?: number; path?: string };
+}
+export interface ManifestUpdate {
+    id: string;
+    sequenceNumber: number;
+    timestamp: string;
+    diffHtml: string;
+    rawManifest: string;
+    complianceResults: ComplianceResult[];
+    hasNewIssues: boolean;
+    serializedManifest: object;
+    changes: {
+        additions: number;
+        removals: number;
+        modifications: number;
+    };
+}
+export type MediaPlaylist = {
+    manifest: Manifest;
+    rawManifest: string;
+    lastFetched: Date;
+};
+export interface FeatureAnalysisResult {
+    used: boolean;
+    details: string;
+}
+export interface FeatureAnalysisState {
+    results: Map<string, FeatureAnalysisResult>;
+    manifestCount: number;
+}
+export interface HlsVariantState {
+    segments: HlsSegment[];
+    currentSegmentUrls: Set<string>;
+    newlyAddedSegmentUrls: Set<string>;
+    isLoading: boolean;
+    isPolling: boolean;
+    isExpanded: boolean;
+    displayMode: 'all' | 'last10';
+    error: string | null;
+}
+export interface DashRepresentationState {
+    segments: MediaSegment[];
+    currentSegmentUrls: Set<string>;
+    newlyAddedSegmentUrls: Set<string>;
+    diagnostics: object;
+}
+export interface DecodedNalUnit {
+    type: string;
+    size: number;
+}
+export interface DecodedH264Sample {
+    format: 'H.264';
+    frameType: 'key' | 'delta';
+    duration: number;
+    timestamp: number;
+    nalUnits: DecodedNalUnit[];
+}
+export interface DecodedAacFrame {
+    format: 'AAC';
+    objectType: string;
+    samplingFrequency: number;
+    channelCount: number;
+    frameLength: number;
+}
+export type DecodedSample = DecodedH264Sample | DecodedAacFrame;
+export interface Sample {
+    duration?: number;
+    size?: number;
+    sampleFlags?: object;
+    compositionTimeOffset?: number;
+    isSample?: boolean;
+    index?: number;
+    offset?: number;
+    trunOffset?: number;
+    color?: { bgClass: string };
+    baseMediaDecodeTime?: number;
+    trackId?: number;
+    dependsOn?: string;
+    degradationPriority?: number;
+    sampleGroup?: number;
+    encryption?: any;
+    has_emsg?: boolean;
+    emsg_ref?: Box;
+}
+export interface KeyValuePair {
+    id: number;
+    key: string;
+    value: string;
+}
+export interface AuthInfo {
+    headers: KeyValuePair[];
+    queryParams: KeyValuePair[];
+}
+export interface DrmAuthInfo {
+    licenseServerUrl: string | { [key: string]: string };
+    serverCertificate:
+        | string
+        | File
+        | ArrayBuffer
+        | { [keySystem: string]: string | File | ArrayBuffer }
+        | null;
+    headers: KeyValuePair[];
+    queryParams: KeyValuePair[];
+}
+export interface StreamInput {
+    id: number;
+    url: string;
+    name: string;
+    file: File | null;
+    auth: AuthInfo;
+    drmAuth: DrmAuthInfo;
+    detectedDrm: string[] | null;
+    isDrmInfoLoading: boolean;
+}
+export interface Stream {
+    id: number;
+    name: string;
+    originalUrl: string | null;
+    baseUrl: string;
+    protocol: 'dash' | 'hls' | 'local' | 'unknown';
+    isPolling: boolean;
+    wasStoppedByInactivity?: boolean;
+    manifest: Manifest | null;
+    rawManifest: string;
+    steeringInfo: object | null;
+    manifestUpdates: ManifestUpdate[];
+    activeManifestUpdateId: string | null;
+    mediaPlaylists: Map<string, MediaPlaylist>;
+    activeMediaPlaylistUrl: string | null;
+    featureAnalysis: FeatureAnalysisState;
+    hlsVariantState: Map<string, HlsVariantState>;
+    dashRepresentationState: Map<string, DashRepresentationState>;
+    hlsDefinedVariables?: Map<string, { value: string; source: string }>;
+    semanticData: Map<string, any>;
+    coverageReport?: CoverageFinding[];
+    adAvails?: AdAvail[];
+    inbandEvents?: Event[];
+    segments?: MediaSegment[]; // For 'local' protocol
+    auth: AuthInfo;
+    drmAuth: DrmAuthInfo;
+    licenseServerUrl: string;
+    adaptationEvents: AdaptationEvent[];
+    segmentPollingReps: Set<string>;
+}
 export type SerializedStream = Omit<
     Stream,
     | 'mediaPlaylists'
@@ -1017,6 +1023,7 @@ export type SerializedStream = Omit<
     | 'dashRepresentationState'
     | 'hlsDefinedVariables'
     | 'semanticData'
+    | 'segmentPollingReps'
 > & {
     mediaPlaylists: [string, MediaPlaylist][];
     featureAnalysis: {
@@ -1028,4 +1035,5 @@ export type SerializedStream = Omit<
     hlsDefinedVariables: [string, { value: string; source: string }][];
     semanticData: [string, any][];
     coverageReport: CoverageFinding[];
+    segmentPollingReps: string[];
 };

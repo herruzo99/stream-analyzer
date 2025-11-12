@@ -3,10 +3,9 @@ import { useMultiPlayerStore } from '@/state/multiPlayerStore';
 import './global-controls.js';
 import './player-roster.js';
 import './playback-controls.js';
-import './session-management.js';
 import '@/ui/components/labeled-control';
 
-export class ControlsViewComponent extends HTMLElement {
+class ControlsViewComponent extends HTMLElement {
     constructor() {
         super();
         this.unsubscribe = null;
@@ -52,9 +51,12 @@ export class ControlsViewComponent extends HTMLElement {
                 <playback-controls
                     selected-count=${selectedCount}
                 ></playback-controls>
-                <session-management></session-management>
             </div>
         `;
         render(template, this);
     }
+}
+
+if (!customElements.get('controls-view-component')) {
+    customElements.define('controls-view-component', ControlsViewComponent);
 }

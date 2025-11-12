@@ -1,10 +1,14 @@
 import { html } from 'lit-html';
+import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { classMap } from 'lit-html/directives/class-map.js';
 import { useUiStore } from '@/state/uiStore';
 import { getTooltipData as getAllIsoTooltipData } from '@/infrastructure/parsing/isobmff/index';
 import * as icons from '@/ui/icons';
 import { tooltipTriggerClasses } from '@/ui/shared/constants';
 import { entriesTableTemplate } from '@/ui/shared/isobmff-renderer';
+import { scte35DetailsTemplate } from '@/ui/shared/scte35-details.js';
+import { highlightDash } from '@/ui/shared/syntax-highlighter.js';
+import xmlFormatter from 'xml-formatter';
 
 const allIsoTooltipData = getAllIsoTooltipData();
 
@@ -54,6 +58,64 @@ const renderObjectValue = (obj) => {
                     </div>
                 `
             )}
+        </div>
+    `;
+};
+
+const messagePayloadTemplate = (box) => {
+    let payloadContent;
+    switch (box.messagePayloadType) {
+        case 'xml':
+            try {
+                const formattedXml = xmlFormatter(box.messagePayload, {
+                    indentation: '  ',
+                    lineSeparator: '\n',
+                });
+                payloadContent = html`<pre
+                    class="language-xml text-xs"
+                ><code>${unsafeHTML(highlightDash(formattedXml))}</code></pre>`;
+            } catch (e) {
+                // Fallback if formatter fails
+                payloadContent = html`<pre
+                    class="language-xml text-xs"
+                ><code>${unsafeHTML(
+                    highlightDash(box.messagePayload)
+                )}</code></pre>`;
+            }
+            break;
+        case 'scte35':
+            payloadContent = scte35DetailsTemplate(box.messagePayload);
+            break;
+        case 'id3':
+        case 'binary':
+        default:
+            const hex = Array.from(box.messagePayload)
+                .map((b) => b.toString(16).padStart(2, '0'))
+                .join(' ');
+            payloadContent = html`<div
+                class="font-mono text-xs text-slate-400 break-all"
+            >
+                ${hex}
+            </div>`;
+            if (box.messagePayloadType === 'id3') {
+                payloadContent = html`<div>
+                    <p class="text-sm text-slate-300 mb-2">
+                        ID3v2 Tag Data (Hex)
+                    </p>
+                    ${payloadContent}
+                </div>`;
+            }
+            break;
+    }
+
+    return html`
+        <div class="p-3 border-t border-slate-700">
+            <h4 class="font-bold text-sm mb-2 text-slate-300">
+                Message Payload
+            </h4>
+            <div class="bg-slate-900/50 p-2 rounded-md overflow-x-auto">
+                ${payloadContent}
+            </div>
         </div>
     `;
 };
@@ -109,7 +171,7 @@ const sampleInspectorTemplate = (sample) => {
                 <h4
                     class="font-bold text-lg text-white font-mono flex items-center gap-2"
                 >
-                    Sample #${sample.index}
+                    Sample #${sample.index + 1}
                     <span class="text-sm font-normal text-slate-400"
                         >(${sample.size} bytes)</span
                     >
@@ -175,17 +237,12 @@ export const inspectorPanelTemplate = (parsedData) => {
         ([key, field]) => !field.internal
     );
 
-    let boxForTable = box;
-    if (box.type === 'trun') {
-        boxForTable = {
-            ...box,
-            // CRITICAL FIX: The `trun` box's own `samples` array is a raw parse
-            // without correct offsets or indices. The canonical, enriched `samples`
-            // list lives at the top level of the parsed data structure. We must
-            // substitute it here for the table renderer.
-            samples: parsedData.samples,
-        };
-    }
+    // --- ARCHITECTURAL FIX ---
+    // The `trun` box should display its own samples, not the entire segment's.
+    // The `box.samples` or `box.entries` array is populated by the parser for this purpose.
+    // The `entriesTableTemplate` correctly handles this if it's just passed the box itself.
+    const boxForTable = box;
+    // --- END FIX ---
 
     return html`
         <div
@@ -209,6 +266,9 @@ export const inspectorPanelTemplate = (parsedData) => {
                 ${fieldsToRender.map(([key, field]) =>
                     inspectorFieldTemplate(box, key, field)
                 )}
+                ${box.type === 'emsg' && box.messagePayload
+                    ? messagePayloadTemplate(box)
+                    : ''}
                 ${entriesTableTemplate(boxForTable)}
             </div>
         </div>

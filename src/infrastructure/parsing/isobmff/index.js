@@ -17,6 +17,8 @@ import { parseStco, stcoTooltip } from './boxes/stco.js';
 import { parseElst, elstTooltip } from './boxes/elst.js';
 import { parseTrex, trexTooltip } from './boxes/trex.js';
 import { parseAvcc, avccTooltip } from './boxes/avcc.js';
+import { parseHvc1, hvc1Tooltip } from './boxes/hvc1.js';
+import { parseHvcC, hvcCTooltip } from './boxes/hvcC.js';
 import { parseEsds, esdsTooltip } from './boxes/esds.js';
 import { parseSmhd, smhdTooltip } from './boxes/smhd.js';
 import { parsePssh, psshTooltip } from './boxes/pssh.js';
@@ -101,6 +103,9 @@ export const boxParsers = {
     pssh: parsePssh,
     avcC: parseAvcc,
     avc1: parseAvc1,
+    hvc1: parseHvc1,
+    hev1: parseHvc1, // Another common fourcc for HEVC
+    hvcC: parseHvcC,
     mp4a: parseMp4a,
     esds: parseEsds,
     btrt: parseBtrt,
@@ -187,6 +192,9 @@ const tooltipData = {
     ...psshTooltip,
     ...avccTooltip,
     ...avc1Tooltip,
+    ...hvc1Tooltip,
+    ...hvcCTooltip,
+    hev1: { ...hvc1Tooltip.hvc1, name: 'HEVC Sample Entry (hev1)' },
     ...mp4aTooltip,
     ...esdsTooltip,
     ...btrtTooltip,

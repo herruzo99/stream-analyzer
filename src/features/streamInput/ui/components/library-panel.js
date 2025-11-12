@@ -1,13 +1,6 @@
 import { html } from 'lit-html';
 import { analysisActions } from '@/state/analysisStore';
 import { useUiStore, uiActions } from '@/state/uiStore';
-import {
-    getHistory,
-    getPresets,
-    deleteWorkspace,
-    deleteHistoryItem,
-    deletePreset,
-} from '@/infrastructure/persistence/streamStorage';
 import { exampleStreams } from '@/data/example-streams';
 import * as icons from '@/ui/icons';
 import { connectedTabBar } from '@/ui/components/tabs';
@@ -45,13 +38,10 @@ const renderStreamListItem = (stream, context) => {
         e.stopPropagation();
         if (confirm(`Are you sure you want to delete "${stream.name}"?`)) {
             if (context === 'history') {
-                deleteHistoryItem(stream.url);
+                uiActions.deleteAndReloadHistoryItem(stream.url);
             } else if (context === 'presets') {
-                deletePreset(stream.url);
+                uiActions.deleteAndReloadPreset(stream.url);
             }
-            // Trigger a re-render of the panel
-            const currentTab = useUiStore.getState().streamLibraryActiveTab;
-            uiActions.setStreamLibraryTab(currentTab);
         }
     };
 
@@ -107,7 +97,7 @@ const renderWorkspaceListItem = (workspace) => {
                 `Are you sure you want to delete the "${workspace.name}" workspace?`
             )
         ) {
-            deleteWorkspace(workspace.name);
+            uiActions.deleteAndReloadWorkspace(workspace.name);
         }
     };
 
@@ -162,8 +152,13 @@ const renderListSection = (title, items, itemTemplate, context) => {
 };
 
 export const libraryPanelTemplate = () => {
-    const { streamLibraryActiveTab, streamLibrarySearchTerm, workspaces } =
-        useUiStore.getState();
+    const {
+        streamLibraryActiveTab,
+        streamLibrarySearchTerm,
+        workspaces,
+        presets,
+        history,
+    } = useUiStore.getState();
     const lowerSearch = streamLibrarySearchTerm.toLowerCase();
 
     let content;
@@ -173,12 +168,12 @@ export const libraryPanelTemplate = () => {
         const filteredWorkspaces = workspaces.filter((w) =>
             w.name.toLowerCase().includes(lowerSearch)
         );
-        const filteredPresets = getPresets().filter(
+        const filteredPresets = presets.filter(
             (s) =>
                 s.name.toLowerCase().includes(lowerSearch) ||
                 s.url.toLowerCase().includes(lowerSearch)
         );
-        const filteredHistory = getHistory().filter(
+        const filteredHistory = history.filter(
             (s) =>
                 s.name.toLowerCase().includes(lowerSearch) ||
                 s.url.toLowerCase().includes(lowerSearch)
@@ -241,14 +236,14 @@ export const libraryPanelTemplate = () => {
         } else if (streamLibraryActiveTab === 'presets') {
             content = renderListSection(
                 'Presets',
-                getPresets(),
+                presets,
                 renderStreamListItem,
                 'presets'
             );
         } else if (streamLibraryActiveTab === 'history') {
             content = renderListSection(
                 'History',
-                getHistory(),
+                history,
                 renderStreamListItem,
                 'history'
             );
@@ -264,8 +259,8 @@ export const libraryPanelTemplate = () => {
 
     const tabs = [
         { key: 'workspaces', label: 'Workspaces', count: workspaces.length },
-        { key: 'presets', label: 'Presets' },
-        { key: 'history', label: 'History' },
+        { key: 'presets', label: 'Presets', count: presets.length },
+        { key: 'history', label: 'History', count: history.length },
         { key: 'examples', label: 'Examples' },
     ];
 

@@ -24,29 +24,27 @@ export function diffManifest(oldManifest, newManifest, protocol) {
         if (part.removed && nextPart && nextPart.added) {
             changes.modifications += 1;
 
-            // --- ARCHITECTURAL FIX: Preserve Indentation ---
-            // 1. Capture the leading whitespace from the original (removed) line.
             const indentationMatch = part.value.match(/^(\s*)/);
             const indentation = indentationMatch ? indentationMatch[1] : '';
-            // --- END FIX ---
 
-            const wordDiffs = diffWords(
-                part.value.trim(),
-                nextPart.value.trim()
-            );
+            // --- ARCHITECTURAL FIX: Highlight first, then diff ---
+            // 1. Apply syntax highlighting to the full original and new lines.
+            const oldLineHighlighted = highlightFn(part.value.trim());
+            const newLineHighlighted = highlightFn(nextPart.value.trim());
 
+            // 2. Perform a word-level diff on the resulting HTML strings.
+            const wordDiffs = diffWords(oldLineHighlighted, newLineHighlighted);
             let lineHtml = '';
             wordDiffs.forEach((wordPart) => {
-                const highlightedValue = highlightFn(wordPart.value);
                 if (wordPart.added) {
-                    lineHtml += `<ins class="bg-yellow-700/60 text-yellow-100 rounded-sm px-1 no-underline">${highlightedValue}</ins>`;
+                    lineHtml += `<ins class="bg-yellow-700/60 text-yellow-100 rounded-sm no-underline">${wordPart.value}</ins>`;
                 } else if (!wordPart.removed) {
-                    lineHtml += highlightedValue;
+                    lineHtml += wordPart.value;
                 }
             });
-            // --- ARCHITECTURAL FIX: Prepend the preserved indentation ---
-            html += `<span>${indentation}${lineHtml}</span>\n`;
             // --- END FIX ---
+
+            html += `<span>${indentation}${lineHtml}</span>\n`;
             i++; // Skip the next part since we've processed it
             continue;
         }
@@ -56,18 +54,35 @@ export function diffManifest(oldManifest, newManifest, protocol) {
             changes.additions += part.count;
             const lines = part.value.trimEnd().split('\n');
             lines.forEach((line) => {
-                html += `<span class="bg-green-900/40 text-green-200">${highlightFn(
-                    line
+                const indentationMatch = line.match(/^(\s*)/);
+                const indentation = indentationMatch ? indentationMatch[1] : '';
+                const content = line.trim();
+                // Separate indentation from the styled content
+                html += `<span>${indentation}</span><span class="bg-green-900/40 text-green-200">${highlightFn(
+                    content
                 )}</span>\n`;
             });
         } else if (part.removed) {
             changes.removals += part.count;
-            // Do not render removed lines, as per user requirement.
+            const lines = part.value.trimEnd().split('\n');
+            lines.forEach((line) => {
+                const indentationMatch = line.match(/^(\s*)/);
+                const indentation = indentationMatch ? indentationMatch[1] : '';
+                const content = line.trim();
+                // Separate indentation from the styled content
+                html += `<span>${indentation}</span><span class="bg-red-900/40 text-red-300 line-through">${highlightFn(
+                    content
+                )}</span>\n`;
+            });
         } else {
             // Unchanged lines
             const lines = part.value.trimEnd().split('\n');
             lines.forEach((line) => {
-                html += `<span>${highlightFn(line)}</span>\n`;
+                const indentationMatch = line.match(/^(\s*)/);
+                const indentation = indentationMatch ? indentationMatch[1] : '';
+                html += `<span>${indentation}${highlightFn(
+                    line.trim()
+                )}</span>\n`;
             });
         }
     }

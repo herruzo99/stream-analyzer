@@ -18,6 +18,7 @@ import { createStore } from 'zustand/vanilla';
  * @typedef {object} PlayerState
  * @property {boolean} isLoaded
  * @property {boolean} isAbrEnabled
+ * @property {boolean} isAutoResetEnabled
  * @property {boolean} isPictureInPicture
  * @property {boolean} isPipUnmount - True when the view is unmounted but player persists in PiP.
  * @property {boolean} isMuted
@@ -34,12 +35,14 @@ import { createStore } from 'zustand/vanilla';
  * @property {AbrHistoryEntry[]} abrHistory
  * @property {PlaybackHistoryEntry[]} playbackHistory
  * @property {'controls' | 'stats' | 'log' | 'graphs'} activeTab
+ * @property {number} retryCount
  */
 
 /**
  * @typedef {object} PlayerActions
  * @property {(isLoaded: boolean) => void} setLoadedState
  * @property {(isEnabled: boolean) => void} setAbrEnabled
+ * @property {() => void} toggleAutoReset
  * @property {(isInPiP: boolean) => void} setPictureInPicture
  * @property {(isPipUnmount: boolean) => void} setPipUnmountState
  * @property {(isMuted: boolean) => void} setMutedState
@@ -51,12 +54,14 @@ import { createStore } from 'zustand/vanilla';
  * @property {() => void} reset
  * @property {(tracks: {videoTracks: object[], audioTracks: object[], textTracks: object[], isAbrEnabled: boolean}) => void} setPlayerLoadedWithTracks
  * @property {(manifest: import('@/types').Manifest) => void} setInitialTracksFromManifest
+ * @property {(count: number) => void} setRetryCount
  */
 
 /** @returns {PlayerState} */
 const createInitialPlayerState = () => ({
     isLoaded: false,
     isAbrEnabled: true,
+    isAutoResetEnabled: false,
     isPictureInPicture: false,
     isPipUnmount: false,
     isMuted: true,
@@ -73,6 +78,7 @@ const createInitialPlayerState = () => ({
     abrHistory: [],
     playbackHistory: [],
     activeTab: 'stats',
+    retryCount: 0,
 });
 
 /**
@@ -85,6 +91,9 @@ export const usePlayerStore = createStore((set, get) => ({
     setLoadedState: (isLoaded) => set({ isLoaded }),
 
     setAbrEnabled: (isAbrEnabled) => set({ isAbrEnabled }),
+
+    toggleAutoReset: () =>
+        set((state) => ({ isAutoResetEnabled: !state.isAutoResetEnabled })),
 
     setPictureInPicture: (isInPiP) => set({ isPictureInPicture: isInPiP }),
 
@@ -147,6 +156,7 @@ export const usePlayerStore = createStore((set, get) => ({
             activeVideoTrack: videoTracks.find((t) => t.active),
             activeAudioTrack: audioTracks.find((t) => t.active),
             activeTextTrack: textTracks.find((t) => t.active),
+            retryCount: 0, // Reset retry count on successful load
         });
     },
 
@@ -187,6 +197,24 @@ export const usePlayerStore = createStore((set, get) => ({
                 }))
             );
 
+        // --- ARCHITECTURAL FIX: Implement default audio track selection ---
+        let activeAudioTrack = null;
+        if (audioTracks.length > 0) {
+            // Prefer the first track with the 'main' role.
+            const mainTrack = audioTracks.find((t) =>
+                t.roles.includes('main')
+            );
+            if (mainTrack) {
+                mainTrack.active = true;
+                activeAudioTrack = mainTrack;
+            } else {
+                // Otherwise, fall back to the very first audio track.
+                audioTracks[0].active = true;
+                activeAudioTrack = audioTracks[0];
+            }
+        }
+        // --- END FIX ---
+
         const textTracks = allAdaptationSets
             .filter(
                 (as) =>
@@ -208,8 +236,10 @@ export const usePlayerStore = createStore((set, get) => ({
                 }))
             );
 
-        set({ videoTracks, audioTracks, textTracks });
+        set({ videoTracks, audioTracks, textTracks, activeAudioTrack });
     },
+
+    setRetryCount: (count) => set({ retryCount: count }),
 }));
 
 export const playerActions = usePlayerStore.getState();

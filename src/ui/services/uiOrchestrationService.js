@@ -12,7 +12,7 @@ import { useSegmentCacheStore } from '@/state/segmentCacheStore';
 export function initializeUiOrchestration() {
     eventBus.subscribe(
         'ui:show-segment-analysis-modal',
-        ({ uniqueId, format }) => {
+        ({ uniqueId, format, isIFrame }) => {
             const { activeStreamId } = useAnalysisStore.getState();
             const cachedEntry = useSegmentCacheStore.getState().get(uniqueId);
 
@@ -23,7 +23,10 @@ export function initializeUiOrchestration() {
                     url: uniqueId,
                     content: {
                         type: 'segmentAnalysis',
-                        data: { parsedData: cachedEntry.parsedData },
+                        data: {
+                            parsedData: cachedEntry.parsedData,
+                            isIFrame: isIFrame,
+                        },
                     },
                 });
                 return;
@@ -31,7 +34,9 @@ export function initializeUiOrchestration() {
 
             // Otherwise, trigger the full fetch/parse flow.
             showLoader('Analyzing segment...');
-            getParsedSegment(uniqueId, activeStreamId, format)
+            getParsedSegment(uniqueId, activeStreamId, format, {
+                isIFrame,
+            })
                 .then((parsedData) => {
                     hideLoader();
                     openModalWithContent({
@@ -39,7 +44,7 @@ export function initializeUiOrchestration() {
                         url: uniqueId,
                         content: {
                             type: 'segmentAnalysis',
-                            data: { parsedData: parsedData },
+                            data: { parsedData: parsedData, isIFrame },
                         },
                     });
                 })

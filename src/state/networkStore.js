@@ -1,5 +1,5 @@
 import { createStore } from 'zustand/vanilla';
-import { debugLog } from '@/shared/utils/debug';
+import { appLog } from '@/shared/utils/debug';
 
 /** @typedef {import('@/types').NetworkEvent} NetworkEvent */
 /** @typedef {import('@/types').ResourceType | 'all'} ResourceFilterType */
@@ -9,6 +9,7 @@ import { debugLog } from '@/shared/utils/debug';
  * @property {NetworkEvent[]} events
  * @property {string | null} selectedEventId
  * @property {{type: ResourceFilterType}} filters
+ * @property {Set<number>} visibleStreamIds
  */
 
 /**
@@ -18,6 +19,8 @@ import { debugLog } from '@/shared/utils/debug';
  * @property {(eventId: string | null) => void} setSelectedEventId
  * @property {() => void} clearEvents
  * @property {(newFilters: Partial<{type: ResourceFilterType}>) => void} setFilters
+ * @property {(streamIds: number[]) => void} setVisibleStreamIds
+ * @property {(streamId: number) => void} toggleVisibleStreamId
  * @property {() => void} reset
  * @property {() => NetworkState} get
  */
@@ -29,6 +32,7 @@ const createInitialNetworkState = () => ({
     filters: {
         type: 'all',
     },
+    visibleStreamIds: new Set(),
 });
 
 /**
@@ -39,8 +43,9 @@ export const useNetworkStore = createStore((set, get) => ({
     ...createInitialNetworkState(),
 
     logEvent: (event) => {
-        debugLog(
+        appLog(
             'NetworkStore',
+            'info',
             'logEvent action called. Adding event to state.',
             event
         );
@@ -69,21 +74,25 @@ export const useNetworkStore = createStore((set, get) => ({
         }));
     },
 
+    setVisibleStreamIds: (streamIds) => {
+        set({ visibleStreamIds: new Set(streamIds) });
+    },
+
+    toggleVisibleStreamId: (streamId) => {
+        set((state) => {
+            const newSet = new Set(state.visibleStreamIds);
+            if (newSet.has(streamId)) {
+                newSet.delete(streamId);
+            } else {
+                newSet.add(streamId);
+            }
+            return { visibleStreamIds: newSet };
+        });
+    },
+
     reset: () => set(createInitialNetworkState()),
 
     get: get,
 }));
 
-// --- BUG FIX: Expose all necessary actions on the exported object ---
-export const networkActions = {
-    logEvent: (event) => useNetworkStore.getState().logEvent(event),
-    updateEvent: (updatedEvent) =>
-        useNetworkStore.getState().updateEvent(updatedEvent),
-    setSelectedEventId: (eventId) =>
-        useNetworkStore.getState().setSelectedEventId(eventId),
-    clearEvents: () => useNetworkStore.getState().clearEvents(),
-    setFilters: (newFilters) =>
-        useNetworkStore.getState().setFilters(newFilters),
-    reset: () => useNetworkStore.getState().reset(),
-    get: () => useNetworkStore.getState().get(),
-};
+export const networkActions = useNetworkStore.getState();

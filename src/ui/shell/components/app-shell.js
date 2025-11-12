@@ -1,6 +1,7 @@
 import { html, render } from 'lit-html';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { useUiStore, uiActions } from '@/state/uiStore';
+import { usePlayerStore } from '@/state/playerStore'; // <-- IMPORT a
 import { sidebarNavTemplate, getNavGroups } from './sidebar-nav.js';
 import { renderContextSwitcher } from './context-switcher.js';
 import { globalControlsTemplate } from './global-controls.js';
@@ -14,22 +15,27 @@ class AppShellComponent extends HTMLElement {
         this.dom = {};
         this.uiUnsubscribe = null;
         this.analysisUnsubscribe = null;
+        this.playerUnsubscribe = null; // <-- ADDED property
     }
 
     connectedCallback() {
         this.render();
-        // --- ARCHITECTURAL FIX: Subscribe to stores for reactivity ---
         this.uiUnsubscribe = useUiStore.subscribe(() => this.updateDOM());
         this.analysisUnsubscribe = useAnalysisStore.subscribe(() =>
+            this.updateDOM()
+        );
+        // --- ARCHITECTURAL FIX: Subscribe to player store for reactivity ---
+        this.playerUnsubscribe = usePlayerStore.subscribe(() =>
             this.updateDOM()
         );
     }
 
     disconnectedCallback() {
         this.removeEventListeners();
-        // --- ARCHITECTURAL FIX: Unsubscribe to prevent memory leaks ---
         if (this.uiUnsubscribe) this.uiUnsubscribe();
         if (this.analysisUnsubscribe) this.analysisUnsubscribe();
+        // --- ARCHITECTURAL FIX: Unsubscribe to prevent memory leaks ---
+        if (this.playerUnsubscribe) this.playerUnsubscribe();
     }
 
     removeEventListeners() {
@@ -125,7 +131,7 @@ class AppShellComponent extends HTMLElement {
                 </aside>
                 <div
                     id="app-shell"
-                    class="h-full flex flex-col min-h-0 bg-slate-900"
+                    class="h-full flex flex-col min-h-0 bg-slate-900 min-w-0"
                 >
                     <div
                         id="main-content-wrapper"
@@ -162,7 +168,6 @@ class AppShellComponent extends HTMLElement {
         `;
         render(appShellTemplate, this);
 
-        // After render, query for DOM elements within the component's scope
         this.dom = {
             mainContent: this.querySelector('#tab-view-container'),
             sidebarNav: this.querySelector('#sidebar-nav'),
@@ -220,7 +225,8 @@ class AppShellComponent extends HTMLElement {
         );
 
         const footerTemplate = html`
-            ${renderContextSwitcher()} ${globalControlsTemplate()}
+            ${renderContextSwitcher()}
+            ${globalControlsTemplate()}
         `;
 
         render(sidebarNavTemplate(), this.dom.sidebarNav);

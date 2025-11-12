@@ -1,4 +1,4 @@
-import { debugLog } from '@/shared/utils/debug';
+import { appLog } from '@/shared/utils/debug';
 import { eventBus } from '@/application/event-bus';
 
 const TASK_TIMEOUT = 30000; // 30 seconds
@@ -41,8 +41,9 @@ export class WorkerService {
         const { id, result, error, type, payload } = event.data;
 
         if (type && id === undefined) {
-            debugLog(
+            appLog(
                 'WorkerService',
+                'info',
                 `Received global event from worker: ${type}. Dispatching to event bus.`,
                 payload
             );
@@ -86,7 +87,11 @@ export class WorkerService {
             reject(abortError);
 
             this.pendingTasks.delete(id);
-            debugLog('WorkerService', `Task ${id} cancelled by main thread.`);
+            appLog(
+                'WorkerService',
+                'info',
+                `Task ${id} cancelled by main thread.`
+            );
         }
     }
 

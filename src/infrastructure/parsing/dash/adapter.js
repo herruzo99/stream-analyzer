@@ -13,7 +13,6 @@
  * @typedef {import('@/types.ts').ExtendedBandwidth} ExtendedBandwidth
  * @typedef {import('@/types.ts').ServiceDescription} ServiceDescription
  * @typedef {import('@/types.ts').InitializationSet} InitializationSet
- * @typedef {import('@/types.ts').AdAvail} AdAvail
  */
 
 import { getDrmSystemName } from '@/infrastructure/parsing/utils/drm';
@@ -24,8 +23,9 @@ import {
     findChildrenRecursive,
     mergeElements,
 } from './recursive-parser.js';
-import { parseScte35 } from '@/infrastructure/parsing/scte35/parser';
+import { parseScte35 } from '../scte35/parser.js';
 import { inferMediaInfoFromExtension } from '../utils/media-types.js';
+import { AdAvail } from '@/features/advertising/domain/AdAvail.js';
 
 // --- Sorter Functions ---
 function sortVideoRepresentations(a, b) {
@@ -380,7 +380,9 @@ function parseContentComponent(ccEl, parentEl) {
             parseGenericDescriptor
         ),
         roles: findChildren(mergedEl, 'Role').map(parseGenericDescriptor),
-        ratings: findChildren(mergedEl, 'Rating').map(parseGenericDescriptor),
+        ratings: findChildren(mergedEl, 'Rating').map(
+            parseGenericDescriptor
+        ),
         viewpoints: findChildren(mergedEl, 'Viewpoint').map(
             parseGenericDescriptor
         ),
@@ -400,6 +402,12 @@ function parseAdaptationSet(asEl, parentMergedEl) {
         if (firstRep) {
             contentType = getAttr(firstRep, 'mimeType')?.split('/')[0];
         }
+    }
+
+    const labels = findChildren(asEl, 'Label').map(parseLabel);
+    const attributeLabel = getAttr(asEl, 'label');
+    if (labels.length === 0 && attributeLabel) {
+        labels.push({ id: null, lang: null, text: attributeLabel });
     }
 
     let contentComponents;
@@ -511,14 +519,16 @@ function parseAdaptationSet(asEl, parentMergedEl) {
         framePackings: findChildren(mergedAsEl, 'FramePacking').map(
             parseGenericDescriptor
         ),
-        ratings: findChildren(mergedAsEl, 'Rating').map(parseGenericDescriptor),
+        ratings: findChildren(mergedAsEl, 'Rating').map(
+            parseGenericDescriptor
+        ),
         viewpoints: findChildren(mergedAsEl, 'Viewpoint').map(
             parseGenericDescriptor
         ),
         accessibility: findChildren(mergedAsEl, 'Accessibility').map(
             parseGenericDescriptor
         ),
-        labels: findChildren(mergedAsEl, 'Label').map(parseLabel),
+        labels: labels, // Use the new labels array
         groupLabels: findChildren(mergedAsEl, 'GroupLabel').map(parseLabel),
         roles: findChildren(mergedAsEl, 'Role').map(parseGenericDescriptor),
         contentComponents: contentComponents,
@@ -555,7 +565,9 @@ function parsePreselection(preselectionEl, parentMergedEl) {
             parseGenericDescriptor
         ),
         roles: findChildren(mergedEl, 'Role').map(parseGenericDescriptor),
-        ratings: findChildren(mergedEl, 'Rating').map(parseGenericDescriptor),
+        ratings: findChildren(mergedEl, 'Rating').map(
+            parseGenericDescriptor
+        ),
         viewpoints: findChildren(mergedEl, 'Viewpoint').map(
             parseGenericDescriptor
         ),
@@ -590,7 +602,12 @@ const parseServiceDescription = (sdEl) => ({
 
 const getText = (el) => el?.['#text'] || null;
 
-function parsePeriod(periodEl, parentMergedEl, previousPeriod = null) {
+function parsePeriod(
+    periodEl,
+    parentMergedEl,
+    previousPeriod = null,
+    existingAdAvails = []
+) {
     const mergedPeriodEl = mergeElements(parentMergedEl, periodEl);
     const assetIdentifierEl = findChildren(periodEl, 'AssetIdentifier')[0];
     const subsets = findChildren(periodEl, 'Subset');
@@ -667,80 +684,43 @@ function parsePeriod(periodEl, parentMergedEl, previousPeriod = null) {
         };
     });
 
-    // --- ARCHITECTURAL REFACTOR: REFINED AD DETECTION HEURISTICS ---
-    let isAdPeriod = false;
+    // --- HEURISTIC AD DETECTION (STATEFUL UPDATE LOGIC) ---
+    const existingAvail = existingAdAvails.find((a) => a.id === periodId);
 
-    // Heuristic 1 (Strongest): AssetIdentifier changes between periods.
-    const currentAssetId = assetIdentifierEl
-        ? getAttr(assetIdentifierEl, 'value')
-        : null;
-    const prevAssetId = previousPeriod?.assetIdentifier?.value ?? null;
-    if (
-        currentAssetId !== null &&
-        prevAssetId !== null &&
-        currentAssetId !== prevAssetId
-    ) {
-        isAdPeriod = true;
-    }
+    if (existingAvail && existingAvail.duration === null && periodDuration) {
+        // This is a retroactive update. Mutate the existing object.
+        existingAvail.duration = periodDuration;
+    } else if (!existingAvail && previousPeriod) {
+        // This is a new period transition. Create a new AdAvail.
+        let detectionMethod = 'STRUCTURAL_DISCONTINUITY';
 
-    // Heuristic 2 (Strong): Period ID matches known SSAI vendor prefixes.
-    if (!isAdPeriod && periodId) {
-        const upperPeriodId = periodId.toUpperCase();
-        if (
-            KNOWN_SSAI_PREFIXES.some((prefix) =>
-                upperPeriodId.startsWith(prefix)
-            )
-        ) {
-            isAdPeriod = true;
+        const isCurrentEncrypted =
+            findChildrenRecursive(periodEl, 'ContentProtection').length > 0;
+        const isPrevEncrypted =
+            findChildrenRecursive(
+                previousPeriod.serializedManifest,
+                'ContentProtection'
+            ).length > 0;
+        if (isCurrentEncrypted !== isPrevEncrypted) {
+            detectionMethod = 'ENCRYPTION_TRANSITION';
         }
+
+        adAvails.push(
+            new AdAvail({
+                id: periodId || `ad-break-${periodStart}`,
+                startTime: periodStart,
+                duration: periodDuration || null,
+                scte35Signal: null,
+                adManifestUrl: null,
+                creatives: [],
+                detectionMethod: /** @type {any} */ (detectionMethod),
+            })
+        );
     }
-
-    if (isAdPeriod && periodDuration) {
-        // --- FIX: Robustly parse numeric ID from periodId ---
-        const idMatch = periodId.match(/\d+/g);
-        const numericId = idMatch ? parseInt(idMatch.join(''), 10) : null;
-        const spliceEventId = numericId !== null ? numericId : Date.now();
-        // --- END FIX ---
-
-        const adManifestUrl = null; // SSAI periods are server-stitched.
-
-        /** @type {import('@/types.ts').Scte35SpliceCommand} */
-        const splice_command = {
-            type: 'Splice Insert',
-            splice_event_id: spliceEventId,
-            duration_flag: 1,
-            break_duration: {
-                auto_return: true,
-                duration: periodDuration * 90000,
-            },
-        };
-
-        /** @type {AdAvail} */
-        const adAvail = {
-            id: String(spliceEventId),
-            startTime: periodStart,
-            duration: periodDuration,
-            scte35Signal: {
-                table_id: 0xfc,
-                protocol_version: 0,
-                pts_adjustment: 0,
-                cw_index: 0,
-                tier: 0xfff,
-                splice_command_type: 'Splice Insert',
-                crc_32: 0,
-                splice_command,
-                descriptors: [],
-            },
-            adManifestUrl: adManifestUrl,
-            creatives: [],
-        };
-        adAvails.push(adAvail);
-    }
-    // --- END REFACTOR ---
+    // --- END HEURISTIC ---
 
     const rawAdaptationSets = findChildren(periodEl, 'AdaptationSet');
 
-    // Group AdaptationSets by content type
     const asGroups = rawAdaptationSets.reduce((acc, asEl) => {
         let contentType =
             getAttr(asEl, 'contentType') ||
@@ -760,7 +740,6 @@ function parsePeriod(periodEl, parentMergedEl, previousPeriod = null) {
 
     const adaptationSets = [];
 
-    // --- ARCHITECTURAL FIX: Process all AdaptationSet types individually ---
     for (const type of ['video', 'audio', 'text', 'application']) {
         if (asGroups[type]) {
             asGroups[type].forEach((asEl) => {
@@ -768,11 +747,9 @@ function parsePeriod(periodEl, parentMergedEl, previousPeriod = null) {
             });
         }
     }
-    // --- END FIX ---
 
     adaptationSets.sort(sortAdaptationSets);
 
-    // --- ARCHITECTURAL FIX: Proactive In-band Ad Signal ---
     if (
         adaptationSets.some((as) =>
             (as.inbandEventStreams || []).some(
@@ -789,9 +766,9 @@ function parsePeriod(periodEl, parentMergedEl, previousPeriod = null) {
             scte35Signal: { error: 'Unconfirmed In-band Signal' },
             adManifestUrl: null,
             creatives: [],
+            detectionMethod: /** @type {const} */ ('SCTE35_INBAND'),
         });
     }
-    // --- END FIX ---
 
     /** @type {Period} */
     const periodIR = {
@@ -955,20 +932,34 @@ export async function adaptDashToIr(manifestElement, baseUrl, context) {
         serializedManifest: manifestElement,
         metrics: [],
         events: [],
-        adAvails: [],
+        adAvails: context?.oldAdAvails ? [...context.oldAdAvails] : [],
         summary: null,
         serverControl: null,
     };
 
     let previousPeriod = null;
     manifestIR.periods = findChildren(manifestCopy, 'Period').map((p) => {
-        const periodIR = parsePeriod(p, manifestCopy, previousPeriod);
+        const periodIR = parsePeriod(
+            p,
+            manifestCopy,
+            previousPeriod,
+            manifestIR.adAvails
+        );
         previousPeriod = periodIR;
         return periodIR;
     });
 
-    manifestIR.events = manifestIR.periods.flatMap((p) => p.events);
-    manifestIR.adAvails = manifestIR.periods.flatMap((p) => p.adAvails);
+    manifestIR.events.push(...manifestIR.periods.flatMap((p) => p.events));
+    // Merge adAvails from all periods into the top-level array
+    for (const period of manifestIR.periods) {
+        if (period.adAvails) {
+            for (const newAvail of period.adAvails) {
+                if (!manifestIR.adAvails.some((a) => a.id === newAvail.id)) {
+                    manifestIR.adAvails.push(newAvail);
+                }
+            }
+        }
+    }
 
     return manifestIR;
 }

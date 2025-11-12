@@ -23,7 +23,7 @@ export function getHlsSummaryTemplate(stream) {
         .filter(
             (as) =>
                 as.contentType === 'video' &&
-                as.roles.every((r) => r.value !== 'trick')
+                (as.roles || []).every((r) => r.value !== 'trick')
         )
         .flatMap((as) => as.representations);
 
@@ -32,8 +32,8 @@ export function getHlsSummaryTemplate(stream) {
             name: stream.name,
             tracks: allVideoReps
                 .map((rep) => ({
-                    width: rep.width.value,
-                    height: rep.height.value,
+                    width: rep.width?.value,
+                    height: rep.height?.value,
                     bandwidth: rep.bandwidth,
                 }))
                 .filter((t) => t.width && t.height && t.bandwidth),

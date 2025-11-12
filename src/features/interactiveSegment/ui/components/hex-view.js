@@ -21,9 +21,17 @@ const escapeHtml = (str) => {
  * @param {Uint8Array} view - The byte array view.
  * @param {Map<number, object>} fullByteMap - The pre-built map of all byte properties for the segment.
  * @param {object} allTooltips - The aggregated tooltip data for all formats.
+ * @param {{start: number, end: number} | null} highlightRange - An optional range to highlight (for I-Frames).
  * @returns {import('lit-html').TemplateResult}
  */
-const renderHexRow = (row, index, view, fullByteMap, allTooltips) => {
+const renderHexRow = (
+    row,
+    index,
+    view,
+    fullByteMap,
+    allTooltips,
+    highlightRange
+) => {
     const {
         interactiveSegmentSelectedItem,
         interactiveSegmentHighlightedItem,
@@ -69,6 +77,10 @@ const renderHexRow = (row, index, view, fullByteMap, allTooltips) => {
             interactiveSegmentHighlightedItem?.item?.offset === item.offset;
         const isFieldHovered =
             isHovered && interactiveSegmentHighlightedItem?.field === fieldName;
+        const isIFrameRange =
+            highlightRange &&
+            byteOffset >= highlightRange.start &&
+            byteOffset <= highlightRange.end;
 
         const baseClasses = {
             relative: true,
@@ -76,6 +88,7 @@ const renderHexRow = (row, index, view, fullByteMap, allTooltips) => {
             'highlight-hover-field': isFieldHovered,
             'highlight-select-box': isSelected,
             'highlight-hover-box': isHovered && !isFieldHovered,
+            'highlight-iframe-range': isIFrameRange,
         };
 
         const hexClasses = { ...baseClasses, 'hex-byte': true };
@@ -120,7 +133,12 @@ const renderHexRow = (row, index, view, fullByteMap, allTooltips) => {
     `;
 };
 
-export const hexViewTemplate = (buffer, fullByteMap, allTooltips) => {
+export const hexViewTemplate = (
+    buffer,
+    fullByteMap,
+    allTooltips,
+    highlightRange
+) => {
     const view = new Uint8Array(buffer);
     const rowCount = Math.ceil(view.length / 16);
     const rows = Array.from({ length: rowCount }, (_, i) => ({
@@ -144,7 +162,7 @@ export const hexViewTemplate = (buffer, fullByteMap, allTooltips) => {
     };
 
     const rowRenderer = (row, index) =>
-        renderHexRow(row, index, view, fullByteMap, allTooltips);
+        renderHexRow(row, index, view, fullByteMap, allTooltips, highlightRange);
 
     return html`
         <style>

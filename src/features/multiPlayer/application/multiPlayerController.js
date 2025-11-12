@@ -1,6 +1,7 @@
 import { eventBus } from '@/application/event-bus';
 import { multiPlayerService } from './multiPlayerService.js';
 import { useMultiPlayerStore } from '@/state/multiPlayerStore';
+import { uiActions } from '@/state/uiStore.js';
 
 export function initializeMultiPlayerController() {
     eventBus.subscribe('ui:multi-player:play-all', () =>
@@ -32,6 +33,21 @@ export function initializeMultiPlayerController() {
     eventBus.subscribe('ui:multi-player:clear-all', () =>
         multiPlayerService.clearAndResetPlayers()
     );
+    eventBus.subscribe('ui:multi-player:reset-failed', () => {
+        multiPlayerService.resetFailedPlayers();
+    });
+    eventBus.subscribe(
+        'ui:multi-player:reset-single',
+        ({ streamId }) => {
+            multiPlayerService.resetSinglePlayer(streamId);
+        }
+    );
+    eventBus.subscribe('ui:multi-player:toggle-auto-reset', () => {
+        useMultiPlayerStore.getState().toggleAutoReset();
+    });
+    eventBus.subscribe('ui:multi-player:toggle-immersive-view', () => {
+        uiActions.toggleMultiPlayerViewMode();
+    });
 
     // Global Control Listeners
     eventBus.subscribe('ui:multi-player:set-global-abr', ({ enabled }) => {
@@ -52,21 +68,18 @@ export function initializeMultiPlayerController() {
             multiPlayerService.setGlobalMaxHeight(height);
         }
     );
-    // --- NEW: Listener for global track selection ---
     eventBus.subscribe(
         'ui:multi-player:set-global-video-track-by-height',
         ({ height }) => {
             multiPlayerService.setGlobalTrackByHeight(height);
         }
     );
-    // --- END NEW ---
 
-    // --- REFACTORED TRACK SELECTION HANDLERS FOR MULTIPLAYER CONTEXT ---
+    // Per-stream and Group Action Listeners
     eventBus.subscribe(
         'ui:player:select-video-track',
         ({ streamId, track }) => {
             const { players } = useMultiPlayerStore.getState();
-            // This event is now generic, ensure it's for a player in this view
             if (players.has(streamId)) {
                 multiPlayerService.selectTrack(streamId, 'variant', track);
                 useMultiPlayerStore
@@ -93,9 +106,7 @@ export function initializeMultiPlayerController() {
                 .setStreamOverride(streamId, { abr: enabled });
         }
     });
-    // --- END REFACTOR ---
 
-    // Per-stream and Group Action Listeners
     eventBus.subscribe('ui:multi-player:toggle-selection', ({ streamId }) => {
         useMultiPlayerStore.getState().toggleStreamSelection(streamId);
     });
@@ -120,9 +131,6 @@ export function initializeMultiPlayerController() {
     eventBus.subscribe('ui:multi-player:apply-to-selected', ({ action }) => {
         multiPlayerService.applyActionToSelected(action);
     });
-    // --- STATE MANAGEMENT REFACTOR ---
-    // The UI event now dispatches a state change directly to the store.
-    // The component's unmount will trigger the service to clean up resources.
     eventBus.subscribe('ui:multi-player:remove-stream', ({ streamId }) => {
         useMultiPlayerStore.getState().removePlayer(streamId);
     });

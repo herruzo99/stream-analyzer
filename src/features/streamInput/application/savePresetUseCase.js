@@ -5,7 +5,7 @@ import {
 } from '@/infrastructure/persistence/streamStorage';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { showToast } from '@/ui/components/toast';
-import { uiActions, useUiStore } from '@/state/uiStore';
+import { uiActions } from '@/state/uiStore';
 
 function handleSavePresetRequest({ name, url, button, isPreset }) {
     button.disabled = true;
@@ -43,10 +43,8 @@ function handleSavePresetRequest({ name, url, button, isPreset }) {
                 button.disabled = false;
             }, 1500);
 
-            // Trigger a re-render of the library panel to show the new/updated preset
-            uiActions.setStreamLibraryTab(
-                useUiStore.getState().streamLibraryActiveTab
-            );
+            // Trigger a re-render of the library panel by reloading the presets into the UI store.
+            uiActions.loadPresets();
         })
         .catch((err) => {
             console.error('Failed to save preset:', err);

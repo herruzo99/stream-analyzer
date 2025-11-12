@@ -1,6 +1,7 @@
 import { html, render } from 'lit-html';
 import { classMap } from 'lit-html/directives/class-map.js';
 import { useMultiPlayerStore } from '@/state/multiPlayerStore';
+import { useUiStore } from '@/state/uiStore';
 import { createMultiPlayerGridViewModel } from '../view-model';
 import { eventBus } from '@/application/event-bus';
 import * as icons from '@/ui/icons';
@@ -41,6 +42,7 @@ export class PlayerCardComponent extends HTMLElement {
         this.streamId = -1;
         this.isLastInGroup = false;
         this.unsubscribe = null;
+        this.uiUnsubscribe = null;
         this.videoElementContainer = document.createElement('div');
         this.lastRenderedState = {};
 
@@ -50,6 +52,7 @@ export class PlayerCardComponent extends HTMLElement {
         this._handleSync = this._handleSync.bind(this);
         this._handleDuplicate = this._handleDuplicate.bind(this);
         this._handleRemove = this._handleRemove.bind(this);
+        this._handleReset = this._handleReset.bind(this);
         this._handleMouseOver = this._handleMouseOver.bind(this);
         this._handleMouseOut = this._handleMouseOut.bind(this);
     }
@@ -62,6 +65,7 @@ export class PlayerCardComponent extends HTMLElement {
         if (name === 'stream-id' && oldValue !== newValue) {
             this.streamId = parseInt(newValue, 10);
             if (this.unsubscribe) this.unsubscribe();
+            if (this.uiUnsubscribe) this.uiUnsubscribe();
             this.subscribeToState();
         }
     }
@@ -77,7 +81,10 @@ export class PlayerCardComponent extends HTMLElement {
             this.unsubscribe();
             this.unsubscribe = null;
         }
-        // When the card is removed from the DOM, destroy its associated player.
+        if (this.uiUnsubscribe) {
+            this.uiUnsubscribe();
+            this.uiUnsubscribe = null;
+        }
         multiPlayerService.destroyPlayer(this.streamId);
         const videoElement = multiPlayerService.videoElements.get(
             this.streamId
@@ -91,15 +98,17 @@ export class PlayerCardComponent extends HTMLElement {
     }
 
     subscribeToState() {
-        const selector = (state) => ({
-            player: state.players.get(this.streamId),
-            isHovered: state.hoveredStreamId === this.streamId,
-            globalAbrEnabled: state.globalAbrEnabled,
-            activeTab: state.playerCardTabs.get(this.streamId) || 'stats',
+        const selector = (multiPlayerState) => ({
+            player: multiPlayerState.players.get(this.streamId),
+            isHovered: multiPlayerState.hoveredStreamId === this.streamId,
+            globalAbrEnabled: multiPlayerState.globalAbrEnabled,
+            activeTab:
+                multiPlayerState.playerCardTabs.get(this.streamId) || 'stats',
+            viewMode: useUiStore.getState().multiPlayerViewMode,
         });
 
-        const listener = (state) => {
-            const newState = selector(state);
+        const listener = () => {
+            const newState = selector(useMultiPlayerStore.getState());
 
             if (
                 newState.player &&
@@ -119,7 +128,8 @@ export class PlayerCardComponent extends HTMLElement {
                 newState.activeTab !== this.lastRenderedState.activeTab ||
                 newState.globalAbrEnabled !==
                     this.lastRenderedState.globalAbrEnabled ||
-                tracksChanged
+                tracksChanged ||
+                newState.viewMode !== this.lastRenderedState.viewMode
             ) {
                 this.lastRenderedState = newState;
                 this.renderComponent(newState);
@@ -127,11 +137,11 @@ export class PlayerCardComponent extends HTMLElement {
         };
 
         this.unsubscribe = useMultiPlayerStore.subscribe(listener);
+        this.uiUnsubscribe = useUiStore.subscribe(listener);
 
-        listener(useMultiPlayerStore.getState());
+        listener();
     }
 
-    // --- STABLE EVENT HANDLERS ---
     _handleAbrToggle() {
         const player = this.lastRenderedState.player;
         const globalAbrEnabled = this.lastRenderedState.globalAbrEnabled;
@@ -174,6 +184,12 @@ export class PlayerCardComponent extends HTMLElement {
         });
     }
 
+    _handleReset() {
+        eventBus.dispatch('ui:multi-player:reset-single', {
+            streamId: this.streamId,
+        });
+    }
+
     _handleMouseOver() {
         useMultiPlayerStore.getState().setHoveredStreamId(this.streamId);
     }
@@ -181,13 +197,20 @@ export class PlayerCardComponent extends HTMLElement {
     _handleMouseOut() {
         useMultiPlayerStore.getState().setHoveredStreamId(null);
     }
-    // --- END STABLE EVENT HANDLERS ---
 
-    renderComponent({ player, isHovered, globalAbrEnabled, activeTab }) {
+    renderComponent({
+        player,
+        isHovered,
+        globalAbrEnabled,
+        activeTab,
+        viewMode,
+    }) {
         if (!player) {
             render(html``, this);
             return;
         }
+
+        const isImmersive = viewMode === 'immersive';
 
         const videoElement = multiPlayerService.videoElements.get(
             player.streamId
@@ -226,7 +249,7 @@ export class PlayerCardComponent extends HTMLElement {
             critical: 'border-red-500',
         };
 
-        const cardClasses = classMap({
+        const cardClasses = {
             'player-card': true,
             'bg-slate-800': true,
             'rounded-lg': true,
@@ -234,16 +257,26 @@ export class PlayerCardComponent extends HTMLElement {
             flex: true,
             'flex-col': true,
             'transition-all': true,
-            'w-[420px]': true,
+            'w-[420px]': !isImmersive,
+            'h-fit': isImmersive, // Use fit-content for height
+            'w-full': isImmersive,
             [healthColors[vm.health]]: true,
             'ring-2': isHovered,
             'ring-purple-400': isHovered,
-        });
+        };
+
+        const videoContainerClasses = {
+            relative: true,
+            'bg-black': true,
+            'overflow-hidden': true,
+            'aspect-video': true,
+            'w-full': true,
+            'rounded-lg': isImmersive,
+            'rounded-t-lg': !isImmersive,
+        };
 
         const videoContainer = html`
-            <div
-                class="relative aspect-video bg-black rounded-t-lg overflow-hidden"
-            >
+            <div class=${classMap(videoContainerClasses)}>
                 ${this.videoElementContainer}
                 ${vm.error
                     ? html`<div
@@ -338,21 +371,26 @@ export class PlayerCardComponent extends HTMLElement {
             ${statCardTemplate(vm.stats.bandwidth)}
         </div>`;
 
-        const actionButton = (icon, title, action, disabled = false) => {
-            const classes = classMap({
-                'text-slate-400': !disabled,
-                'hover:text-white': !disabled,
+        const actionButton = (
+            icon,
+            title,
+            action,
+            { disabled = false, colorClass = 'text-slate-400' } = {}
+        ) => {
+            const classes = {
+                [colorClass]: !disabled,
+                'hover:text-white': !disabled && colorClass === 'text-slate-400',
                 'hover:bg-slate-700': !disabled,
                 'text-slate-600': disabled,
                 'cursor-not-allowed': disabled,
                 'p-1.5': true,
                 'rounded-full': true,
                 'transition-colors': true,
-            });
+            };
             return html`<button
                 @click=${disabled ? null : action}
                 title=${title}
-                class=${classes}
+                class=${classMap(classes)}
                 ?disabled=${disabled}
             >
                 ${icon}
@@ -366,61 +404,76 @@ export class PlayerCardComponent extends HTMLElement {
                 }
             </style>
             <div
-                class=${cardClasses}
+                class=${classMap(cardClasses)}
                 @mouseover=${this._handleMouseOver}
                 @mouseout=${this._handleMouseOut}
             >
                 ${videoContainer}
-                <div class="p-3 text-xs">
-                    <header class="flex items-start justify-between gap-2">
-                        <h4
-                            class="font-bold text-slate-200 text-sm truncate"
-                            title=${vm.streamName}
-                        >
-                            ${vm.streamName}
-                        </h4>
-                        <div class="flex items-center gap-1 shrink-0">
-                            <span
-                                class="font-semibold ${vm.error
-                                    ? 'text-red-400'
-                                    : 'text-slate-300'}"
-                                >${vm.state.toUpperCase()}</span
-                            >
-                            <div
-                                class="w-3 h-3 rounded-full ${stateColors[
-                                    vm.state
-                                ] || 'bg-slate-600'}"
-                                title="Status: ${vm.state}"
-                            ></div>
-                            ${actionButton(
-                                icons.syncMaster,
-                                'Sync All to This',
-                                this._handleSync
-                            )}
-                            ${actionButton(
-                                icons.clipboardCopy,
-                                'Duplicate Player',
-                                this._handleDuplicate
-                            )}
-                            ${actionButton(
-                                icons.xCircle,
-                                'Remove Player',
-                                this._handleRemove,
-                                this.isLastInGroup
-                            )}
-                        </div>
-                    </header>
-                </div>
-                <div class="border-t border-slate-700 mt-auto">
-                    ${connectedTabBar(tabs, activeTab, onTabClick)}
-                    <div
-                        class="bg-slate-900 rounded-b-lg border-x border-b border-slate-700 min-h-[160px]"
-                    >
-                        ${activeTab === 'stats'
-                            ? statsContent
-                            : controlsContent}
-                    </div>
-                </div>
+                ${!isImmersive
+                    ? html` <div class="p-3 text-xs">
+                              <header
+                                  class="flex items-start justify-between gap-2"
+                              >
+                                  <h4
+                                      class="font-bold text-slate-200 text-sm truncate"
+                                      title=${vm.streamName}
+                                  >
+                                      ${vm.streamName}
+                                  </h4>
+                                  <div
+                                      class="flex items-center gap-1 shrink-0"
+                                  >
+                                      <span
+                                          class="font-semibold ${vm.error
+                                              ? 'text-red-400'
+                                              : 'text-slate-300'}"
+                                          >${vm.state.toUpperCase()}</span
+                                      >
+                                      <div
+                                          class="w-3 h-3 rounded-full ${stateColors[
+                                              vm.state
+                                          ] || 'bg-slate-600'}"
+                                          title="Status: ${vm.state}"
+                                      ></div>
+                                      ${actionButton(
+                                          icons.sync,
+                                          'Reset Player',
+                                          this._handleReset,
+                                          {
+                                              disabled: player.state !== 'error',
+                                              colorClass: 'text-red-400',
+                                          }
+                                      )}
+                                      ${actionButton(
+                                          icons.syncMaster,
+                                          'Sync All to This',
+                                          this._handleSync
+                                      )}
+                                      ${actionButton(
+                                          icons.clipboardCopy,
+                                          'Duplicate Player',
+                                          this._handleDuplicate
+                                      )}
+                                      ${actionButton(
+                                          icons.xCircle,
+                                          'Remove Player',
+                                          this._handleRemove,
+                                          { disabled: this.isLastInGroup }
+                                      )}
+                                  </div>
+                              </header>
+                          </div>
+                          <div class="border-t border-slate-700 mt-auto">
+                              ${connectedTabBar(tabs, activeTab, onTabClick)}
+                              <div
+                                  class="bg-slate-900 rounded-b-lg border-x border-b border-slate-700 min-h-[160px]"
+                              >
+                                  ${activeTab === 'stats'
+                                      ? statsContent
+                                      : controlsContent}
+                              </div>
+                          </div>`
+                    : ''}
             </div>
         `;
         render(template, this);

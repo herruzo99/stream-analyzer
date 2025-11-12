@@ -7,6 +7,7 @@
 import { formatBitrate } from '@/ui/shared/format';
 import { isCodecSupported } from '../utils/codec-support.js';
 import { getDrmSystemName } from '../utils/drm.js';
+import { determineSegmentFormat } from './adapter.js';
 
 /**
  * Creates a protocol-agnostic summary view-model from an HLS manifest.
@@ -22,40 +23,65 @@ export async function generateHlsSummary(manifestIR, context) {
     const isMaster = manifestIR.isMaster;
     let mediaPlaylistIRForEnrichment = null;
 
+    const allKeyTags = new Set();
+
     // --- ENRICHMENT STEP ---
     if (isMaster && context?.fetchWithAuth && context?.parseHlsManifest) {
-        const firstVariant = manifestIR.variants?.[0];
-        if (firstVariant?.resolvedUri) {
-            try {
-                const response = await context.fetchWithAuth(
-                    firstVariant.resolvedUri
-                );
-                const mediaPlaylistString = await response.text();
-                const { manifest: mediaPlaylistIR } =
-                    await context.parseHlsManifest(
-                        mediaPlaylistString,
-                        firstVariant.resolvedUri,
-                        manifestIR.hlsDefinedVariables
-                    );
+        // Collect all unique media playlist URIs from variants and renditions
+        const allUris = new Set();
+        (manifestIR.variants || []).forEach((v) => v.resolvedUri && allUris.add(v.resolvedUri));
+        (manifestIR.periods || [])
+            .flatMap((p) => p.adaptationSets)
+            .flatMap((as) => as.representations)
+            .forEach((r) => (r.serializedManifest)?.resolvedUri && allUris.add((r.serializedManifest).resolvedUri));
 
-                mediaPlaylistIRForEnrichment = mediaPlaylistIR;
+        const fetchPromises = Array.from(allUris).map(uri =>
+            context.fetchWithAuth(uri)
+                .then(res => res.text())
+                .then(text => context.parseHlsManifest(text, uri, manifestIR.hlsDefinedVariables))
+                .catch(e => {
+                    console.warn(`[HLS Summary Enrichment] Failed to fetch/parse playlist ${uri}: ${e.message}`);
+                    return null;
+                })
+        );
 
-                // Enrich the master manifest IR with data from the media playlist
-                manifestIR.duration = mediaPlaylistIR.duration;
-                manifestIR.minBufferTime = mediaPlaylistIR.minBufferTime; // This is targetDuration
-                (manifestIR.tags = manifestIR.tags || []).push(
-                    ...(mediaPlaylistIR.tags || [])
-                );
-                manifestIR.segments = mediaPlaylistIR.segments;
-                manifestIR.type = mediaPlaylistIR.type;
-            } catch (e) {
-                console.warn(
-                    `[HLS Summary Enrichment] Failed to fetch or parse media playlist: ${e.message}`
-                );
-            }
+        const allPlaylists = (await Promise.all(fetchPromises)).filter(Boolean);
+
+        // Use the first fetched media playlist for general enrichment (duration, etc.)
+        if (allPlaylists.length > 0) {
+            mediaPlaylistIRForEnrichment = allPlaylists[0].manifest;
+            manifestIR.duration = mediaPlaylistIRForEnrichment.duration;
+            manifestIR.minBufferTime = mediaPlaylistIRForEnrichment.minBufferTime; // This is targetDuration
+            (manifestIR.tags = manifestIR.tags || []).push(...(mediaPlaylistIRForEnrichment.tags || []));
+            manifestIR.segments = mediaPlaylistIRForEnrichment.segments;
+            manifestIR.type = mediaPlaylistIRForEnrichment.type;
         }
+
+        // Aggregate all key tags from all fetched playlists
+        allPlaylists.forEach(({ manifest }) => {
+            (manifest.tags || []).forEach(tag => {
+                if (tag.name === 'EXT-X-KEY' || tag.name === 'EXT-X-SESSION-KEY') {
+                    allKeyTags.add(JSON.stringify(tag.value)); // Use stringify for object comparison
+                }
+            });
+        });
+    } else {
+         // For single media playlists or non-enrichment context
+        (manifestIR.tags || []).forEach(tag => {
+            if (tag.name === 'EXT-X-KEY' || tag.name === 'EXT-X-SESSION-KEY') {
+                allKeyTags.add(JSON.stringify(tag.value));
+            }
+        });
     }
     // --- END ENRICHMENT ---
+
+    let finalSegmentFormat = manifestIR.segmentFormat;
+    let finalHlsParsed = rawElement; // Default to the original parsed object
+
+    if (mediaPlaylistIRForEnrichment) {
+        finalSegmentFormat = determineSegmentFormat(mediaPlaylistIRForEnrichment.serializedManifest);
+        finalHlsParsed = mediaPlaylistIRForEnrichment.serializedManifest; // Use the enriched object
+    }
 
     const allAdaptationSets = manifestIR.periods.flatMap(
         (p) => p.adaptationSets
@@ -68,7 +94,7 @@ export async function generateHlsSummary(manifestIR, context) {
                 id: rep.stableVariantId || rep.id,
                 profiles: null,
                 bitrateRange: formatBitrate(rep.bandwidth),
-                resolutions: rep.width.value
+                resolutions: rep.width?.value
                     ? [
                           {
                               value: `${rep.width.value}x${rep.height.value}`,
@@ -87,7 +113,7 @@ export async function generateHlsSummary(manifestIR, context) {
                     : [],
                 scanType: null,
                 videoRange: rep.videoRange || null,
-                roles: as.roles.map((r) => r.value),
+                roles: as.roles.map((r) => r.value).filter(Boolean),
                 __variantUri: rep.__variantUri,
             }))
         );
@@ -163,23 +189,15 @@ export async function generateHlsSummary(manifestIR, context) {
             };
         });
 
-    const keyTagsFromMaster = (manifestIR.tags || []).filter(
-        (t) => t.name === 'EXT-X-KEY' || t.name === 'EXT-X-SESSION-KEY'
-    );
-    const keyTagsFromMedia =
-        mediaPlaylistIRForEnrichment?.tags?.filter(
-            (t) => t.name === 'EXT-X-KEY'
-        ) || [];
-    const allKeyTags = [...keyTagsFromMaster, ...keyTagsFromMedia];
-
-    const contentProtectionIRs = allKeyTags
-        .filter((tag) => tag.value.METHOD && tag.value.METHOD !== 'NONE')
-        .map((tag) => {
-            const schemeIdUri = tag.value.KEYFORMAT || 'identity';
+    const parsedKeyTags = Array.from(allKeyTags).map(tagStr => JSON.parse(/** @type {string} */(tagStr)));
+    const contentProtectionIRs = parsedKeyTags
+        .filter((value) => value.METHOD && value.METHOD !== 'NONE')
+        .map((value) => {
+            const schemeIdUri = value.KEYFORMAT || 'identity';
             return {
                 schemeIdUri: schemeIdUri,
-                system: getDrmSystemName(schemeIdUri) || tag.value.METHOD,
-                defaultKid: tag.value.KEYID || null,
+                system: getDrmSystemName(schemeIdUri) || value.METHOD,
+                defaultKid: value.KEYID || null,
             };
         });
 
@@ -202,7 +220,9 @@ export async function generateHlsSummary(manifestIR, context) {
 
     if (security.isEncrypted) {
         const methods = new Set(contentProtectionIRs.map((cp) => cp.system));
-        if (methods.has('SAMPLE-AES')) {
+        if (methods.has('FairPlay')) {
+             security.hlsEncryptionMethod = 'FairPlay';
+        } else if (methods.has('SAMPLE-AES')) {
             security.hlsEncryptionMethod = 'SAMPLE-AES';
         } else if (methods.has('AES-128')) {
             security.hlsEncryptionMethod = 'AES-128';
@@ -212,12 +232,18 @@ export async function generateHlsSummary(manifestIR, context) {
     }
 
     let mediaPlaylistDetails = null;
-    if (!isMaster || manifestIR.segments?.length > 0) {
-        const segmentCount = (manifestIR.segments || []).length;
-        const totalDuration = (manifestIR.segments || []).reduce(
+    const allSegments = manifestIR.periods.flatMap(
+        (p) =>
+            p.adaptationSets[0]?.representations[0]?.serializedManifest
+                ?.segments || []
+    );
+    if (!isMaster || allSegments.length > 0) {
+        const segmentCount = allSegments.length;
+        const totalDuration = allSegments.reduce(
             (sum, seg) => sum + seg.duration,
             0
         );
+        const isIFrameOnly = (manifestIR.tags || []).some(t => t.name === 'EXT-X-I-FRAMES-ONLY');
 
         mediaPlaylistDetails = {
             segmentCount: segmentCount,
@@ -226,15 +252,11 @@ export async function generateHlsSummary(manifestIR, context) {
             hasDiscontinuity: (manifestIR.segments || []).some(
                 (s) => s.discontinuity
             ),
-            isIFrameOnly: (manifestIR.tags || []).some(
-                (t) => t.name === 'EXT-X-I-FRAMES-ONLY'
-            ),
+            isIFrameOnly: isIFrameOnly,
         };
     }
 
-    const iFramePlaylists = (manifestIR.tags || []).filter(
-        (t) => t.name === 'EXT-X-I-FRAME-STREAM-INF'
-    ).length;
+    const iFramePlaylists = (/** @type {any} */ (rawElement).iframeStreams || []).length;
 
     /** @type {import('@/types.ts').ManifestSummary} */
     const summary = {
@@ -249,7 +271,7 @@ export async function generateHlsSummary(manifestIR, context) {
                     ? 'text-red-400'
                     : 'text-blue-500',
             duration: manifestIR.duration,
-            segmentFormat: manifestIR.segmentFormat.toLowerCase(),
+            segmentFormat: finalSegmentFormat.toLowerCase(),
             title: null,
             locations: [],
             segmenting: 'Segment List',
@@ -262,7 +284,7 @@ export async function generateHlsSummary(manifestIR, context) {
             mediaPlaylistDetails,
             dvrWindow:
                 manifestIR.type === 'dynamic' ? manifestIR.duration : null,
-            hlsParsed: rawElement,
+            hlsParsed: finalHlsParsed,
         },
         lowLatency: {
             isLowLatency: !!manifestIR.partInf,

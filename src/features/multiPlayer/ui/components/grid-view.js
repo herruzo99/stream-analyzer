@@ -1,46 +1,75 @@
 import { html, render } from 'lit-html';
 import { useMultiPlayerStore } from '@/state/multiPlayerStore';
+import { useUiStore } from '@/state/uiStore';
+import { classMap } from 'lit-html/directives/class-map.js';
 import './player-card.js';
 
-export class GridViewComponent extends HTMLElement {
+class GridViewComponent extends HTMLElement {
     constructor() {
         super();
-        this.unsubscribe = null;
+        this.unsubscribeMultiPlayer = null;
+        this.unsubscribeUi = null;
         this.lastPlayerIds = [];
+        this.lastViewMode = 'grid';
     }
 
     connectedCallback() {
-        const listener = (state) => {
-            // Only re-render if the list of players has changed.
-            // This prevents re-rendering on every stats update.
-            const playerIds = Array.from(state.players.keys());
-            const hasChanged =
+        const listener = () => {
+            const multiPlayerState = useMultiPlayerStore.getState();
+            const uiState = useUiStore.getState();
+
+            const playerIds = Array.from(multiPlayerState.players.keys());
+            const viewMode = uiState.multiPlayerViewMode;
+
+            const hasPlayerListChanged =
                 playerIds.length !== this.lastPlayerIds.length ||
                 playerIds.some((id, i) => id !== this.lastPlayerIds[i]);
 
-            if (hasChanged) {
+            const hasViewModeChanged = viewMode !== this.lastViewMode;
+
+            if (hasPlayerListChanged || hasViewModeChanged) {
                 this.lastPlayerIds = playerIds;
-                this.renderComponent(playerIds);
+                this.lastViewMode = viewMode;
+                this.renderComponent(playerIds, viewMode);
             }
         };
 
-        this.unsubscribe = useMultiPlayerStore.subscribe(listener);
+        this.unsubscribeMultiPlayer = useMultiPlayerStore.subscribe(listener);
+        this.unsubscribeUi = useUiStore.subscribe(listener);
 
-        // Initial render
-        listener(useMultiPlayerStore.getState());
+        listener();
     }
 
     disconnectedCallback() {
-        if (this.unsubscribe) {
-            this.unsubscribe();
-        }
+        if (this.unsubscribeMultiPlayer) this.unsubscribeMultiPlayer();
+        if (this.unsubscribeUi) this.unsubscribeUi();
     }
 
-    renderComponent(playerIds) {
+    renderComponent(playerIds, viewMode) {
+        const isImmersive = viewMode === 'immersive';
+
+        const gridClasses = {
+            flex: !isImmersive,
+            'flex-wrap': !isImmersive,
+            'justify-center': !isImmersive,
+            'gap-4': !isImmersive,
+            'content-start': !isImmersive,
+            'h-full': !isImmersive,
+            grid: isImmersive,
+            'gap-2': isImmersive,
+            'w-full': isImmersive,
+            'items-start': isImmersive, // Align items to the top of the grid cell
+        };
+
+        const gridStyle = isImmersive
+            ? `grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));`
+            : '';
+
         const template = html`
             <div
                 id="player-grid-container"
-                class="flex flex-wrap justify-center gap-4 content-start h-full"
+                class=${classMap(gridClasses)}
+                style=${gridStyle}
             >
                 ${playerIds.map(
                     (streamId) =>
@@ -52,4 +81,8 @@ export class GridViewComponent extends HTMLElement {
         `;
         render(template, this);
     }
+}
+
+if (!customElements.get('grid-view-component')) {
+    customElements.define('grid-view-component', GridViewComponent);
 }

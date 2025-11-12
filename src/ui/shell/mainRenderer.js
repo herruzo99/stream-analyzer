@@ -1,8 +1,8 @@
 import { render, html } from 'lit-html';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { useUiStore, uiActions } from '@/state/uiStore';
-import { inputViewTemplate } from '@/features/streamInput/ui/input-view';
-import { debugLog } from '@/shared/utils/debug';
+import { inputView } from '@/features/streamInput/ui/input-view';
+import { appLog } from '@/shared/utils/debug';
 
 // Import the component class for its side-effect (registration)
 import './components/app-shell.js';
@@ -70,6 +70,10 @@ export function renderApp() {
     initialDomContext.appRoot.classList.toggle('hidden', !isResultsView);
 
     if (isResultsView) {
+        if (currentMountedViewKey === 'input') {
+            inputView.unmount();
+        }
+
         if (!isShellRendered) {
             render(
                 html`<app-shell-component></app-shell-component>`,
@@ -101,8 +105,9 @@ export function renderApp() {
             activeStream && activeStream.id !== currentMountedStreamId;
 
         if (currentViewKey !== previousViewKey || streamIdChanged) {
-            debugLog(
+            appLog(
                 'MainRenderer',
+                'info',
                 `View change detected. From: ${previousViewKey}, To: ${currentViewKey}. Stream changed: ${streamIdChanged}`
             );
 
@@ -128,8 +133,9 @@ export function renderApp() {
                     (previousViewKey === 'multi-player' &&
                         newView !== multiPlayerView)
                 ) {
-                    debugLog(
+                    appLog(
                         'MainRenderer',
+                        'info',
                         `Deactivating persistent view: ${previousViewKey}`
                     );
                     oldView.deactivate?.();
@@ -137,8 +143,9 @@ export function renderApp() {
                     oldView !== playerView &&
                     oldView !== multiPlayerView
                 ) {
-                    debugLog(
+                    appLog(
                         'MainRenderer',
+                        'info',
                         `Unmounting view: ${previousViewKey}`
                     );
                     oldView.unmount?.();
@@ -156,8 +163,9 @@ export function renderApp() {
                 );
 
                 if (newView === playerView || newView === multiPlayerView) {
-                    debugLog(
+                    appLog(
                         'MainRenderer',
+                        'info',
                         `Activating persistent view: ${currentViewKey}`
                     );
                     if (newView === playerView) {
@@ -167,8 +175,9 @@ export function renderApp() {
                         newView.activate?.(mainContentContainer);
                     }
                 } else {
-                    debugLog(
+                    appLog(
                         'MainRenderer',
+                        'info',
                         `Mounting view: ${currentViewKey}`
                     );
                     newView.mount?.(mainContentContainer, {
@@ -189,8 +198,9 @@ export function renderApp() {
         }
     } else {
         if (isShellRendered) {
-            debugLog(
+            appLog(
                 'MainRenderer',
+                'info',
                 'Transitioning from results to input view. Unmounting persistent views.'
             );
             playerView.unmount();
@@ -198,14 +208,14 @@ export function renderApp() {
             if (viewMap[currentMountedViewKey]) {
                 viewMap[currentMountedViewKey].unmount?.();
             }
+            isShellRendered = false;
+            currentMountedViewKey = null;
+            currentMountedStreamId = null;
         }
-        isShellRendered = false;
-        currentMountedViewKey = null;
-        currentMountedStreamId = null;
 
-        if (initialDomContext.appRoot.innerHTML)
-            render(html``, initialDomContext.appRoot);
-
-        render(inputViewTemplate(), initialDomContext.inputSection);
+        if (currentMountedViewKey !== 'input') {
+            inputView.mount(initialDomContext.inputSection);
+            currentMountedViewKey = 'input';
+        }
     }
 }

@@ -192,6 +192,11 @@ export const hlsTooltipData = {
         category: 'Media Segment',
         isoRef: 'HLS 2nd Ed: 4.4.4.5',
     },
+    'EXT-X-MAP@BYTERANGE': {
+        text: 'A quoted-string specifying a byte range into the resource identified by the URI attribute. This allows the Media Initialization Section to be a sub-range of a larger file.',
+        category: 'Media Segment',
+        isoRef: 'HLS 2nd Ed: 4.4.4.5',
+    },
     'EXT-X-PROGRAM-DATE-TIME': {
         text: 'Associates the first sample of the next media segment with an absolute wall-clock time (ISO 8601). This provides the anchor for timeline synchronization, seeking, and displaying program guides.',
         category: 'Media Segment',
@@ -493,6 +498,11 @@ export const hlsTooltipData = {
     },
     'EXT-X-I-FRAME-STREAM-INF@RESOLUTION': {
         text: 'The optimal display resolution (width x height) for the video in this I-frame Variant Stream.',
+        category: 'Multivariant Playlist',
+        isoRef: 'HLS 2nd Ed: 4.4.6.3',
+    },
+    'EXT-X-I-FRAME-STREAM-INF@FRAME-RATE': {
+        text: 'The maximum frame rate for all video in the I-Frame playlist, specified as a decimal-floating-point number.',
         category: 'Multivariant Playlist',
         isoRef: 'HLS 2nd Ed: 4.4.6.3',
     },

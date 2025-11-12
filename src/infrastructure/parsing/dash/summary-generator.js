@@ -8,7 +8,7 @@ import { findChildrenRecursive, resolveBaseUrl } from './recursive-parser.js';
 import { formatBitrate } from '@/ui/shared/format';
 import { findInitSegmentUrl } from './segment-parser.js';
 import { isCodecSupported } from '../utils/codec-support.js';
-import { debugLog } from '@/shared/utils/debug';
+import { appLog } from '@/shared/utils/debug';
 
 const getSegmentingStrategy = (serializedManifest) => {
     if (!serializedManifest) return 'unknown';
@@ -153,8 +153,9 @@ export async function generateDashSummary(
                         repBaseUrl
                     );
                     if (initInfo?.url) {
-                        debugLog(
+                        appLog(
                             'summary-generator',
+                            'info',
                             'Dispatching init segment fetch',
                             initInfo
                         );

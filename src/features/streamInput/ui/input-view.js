@@ -1,11 +1,16 @@
-import { html } from 'lit-html';
+import { html, render } from 'lit-html';
 import { classMap } from 'lit-html/directives/class-map.js';
 import { useUiStore, uiActions } from '@/state/uiStore';
+import { useAnalysisStore } from '@/state/analysisStore';
 import { libraryPanelTemplate } from '@/features/streamInput/ui/components/library-panel';
 import { workspacePanelTemplate } from '@/features/streamInput/ui/components/workspace-panel';
 import { inspectorPanelTemplate } from '@/features/streamInput/ui/components/inspector-panel';
 import * as appIcons from '@/ui/icons';
 import { openModalWithContent } from '@/ui/services/modalService';
+
+let container = null;
+let analysisUnsubscribe = null;
+let uiUnsubscribe = null;
 
 const mobileTabButton = (key, label, icon) => {
     const { streamInputActiveMobileTab } = useUiStore.getState();
@@ -23,7 +28,9 @@ const mobileTabButton = (key, label, icon) => {
     `;
 };
 
-export const inputViewTemplate = () => {
+function _renderInputView() {
+    if (!container) return;
+
     const { streamInputActiveMobileTab } = useUiStore.getState();
 
     const aboutClickHandler = (e) => {
@@ -42,9 +49,9 @@ export const inputViewTemplate = () => {
         'w-full': true,
     };
 
-    return html`
+    const template = html`
         <div
-            class="w-full h-full max-w-7xl mx-auto flex flex-col p-4 sm:p-6 lg:p-8"
+            class="w-full h-full max-w-8xl mx-auto flex flex-col p-4 sm:p-6 lg:p-8"
         >
             <header
                 class="flex items-start justify-between gap-4 mb-6 shrink-0"
@@ -117,4 +124,25 @@ export const inputViewTemplate = () => {
             </div>
         </div>
     `;
+
+    render(template, container);
+}
+
+export const inputView = {
+    mount(containerElement) {
+        container = containerElement;
+        _renderInputView();
+        analysisUnsubscribe = useAnalysisStore.subscribe(_renderInputView);
+        uiUnsubscribe = useUiStore.subscribe(_renderInputView);
+    },
+    unmount() {
+        if (analysisUnsubscribe) analysisUnsubscribe();
+        if (uiUnsubscribe) uiUnsubscribe();
+        analysisUnsubscribe = null;
+        uiUnsubscribe = null;
+        if (container) {
+            render(html``, container);
+        }
+        container = null;
+    },
 };

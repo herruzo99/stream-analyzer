@@ -1,3 +1,4 @@
+
 import { html, render } from 'lit-html';
 import { playerService } from '../application/playerService.js';
 import { useAnalysisStore } from '@/state/analysisStore';
@@ -32,11 +33,26 @@ function renderPlayerView() {
 
 const playerErrorTemplate = (error) => {
     const message = error?.message || 'An unknown player error occurred.';
+
+    const handleReload = () => {
+        const { streams, activeStreamId } = useAnalysisStore.getState();
+        const activeStream = streams.find((s) => s.id === activeStreamId);
+        if (activeStream) {
+            playerService.load(activeStream, true);
+        }
+    };
+
     return html`<div
         class="absolute inset-0 bg-red-900/80 text-red-200 p-4 flex flex-col items-center justify-center text-center"
     >
         <h3 class="text-lg font-bold">Playback Error</h3>
         <p class="text-sm mt-2 font-mono">${message}</p>
+        <button
+            @click=${handleReload}
+            class="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition duration-300 flex items-center gap-2"
+        >
+            ${icons.sync} Reload Stream
+        </button>
     </div>`;
 };
 
@@ -128,7 +144,7 @@ export const playerView = {
         }
         const contextualSidebar = document.getElementById('contextual-sidebar');
         if (contextualSidebar) {
-            render(html`<player-sidebar></player-sidebar>`, contextualSidebar);
+            render(html`<player-sidebar class="h-full"></player-sidebar>`, contextualSidebar);
         }
     },
 
@@ -198,7 +214,7 @@ export const playerView = {
 
         const contextualSidebar = document.getElementById('contextual-sidebar');
         if (contextualSidebar) {
-            render(html`<player-sidebar></player-sidebar>`, contextualSidebar);
+            render(html`<player-sidebar class="h-full"></player-sidebar>`, contextualSidebar);
         }
     },
 

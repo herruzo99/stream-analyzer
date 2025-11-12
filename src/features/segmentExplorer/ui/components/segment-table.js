@@ -6,6 +6,9 @@ import '@/ui/components/virtualized-list';
 import { useSegmentCacheStore } from '@/state/segmentCacheStore';
 import { useUiStore, uiActions } from '@/state/uiStore';
 import * as customIcons from '@/ui/icons';
+import { showToast } from '@/ui/components/toast.js';
+import { eventBus } from '@/application/event-bus.js';
+import { inferMediaInfoFromExtension } from '@/infrastructure/parsing/utils/media-types.js';
 
 const flashedSegmentIds = new Map();
 
@@ -30,6 +33,49 @@ export const segmentTableTemplate = ({
     };
     const icon = iconMap[contentType] || customIcons.fileScan;
 
+    const handleDownloadAll = () => {
+        const { get, set } = useSegmentCacheStore.getState();
+        const unloadedSegments = segments.filter((seg) => {
+            if (seg.gap) return false;
+            const entry = get(seg.uniqueId);
+            return !entry || (entry.status !== 200 && entry.status !== -1);
+        });
+
+        if (unloadedSegments.length === 0) {
+            showToast({
+                message: 'All segments are already loaded.',
+                type: 'info',
+            });
+            return;
+        }
+
+        showToast({
+            message: `Queueing ${unloadedSegments.length} segment(s) for download.`,
+            type: 'info',
+        });
+
+        const { isIFrame } = getIsIframe(stream, rawId);
+
+        unloadedSegments.forEach((seg) => {
+            const { contentType: inferredContentType } =
+                inferMediaInfoFromExtension(seg.resolvedUrl);
+            const formatHint =
+                inferredContentType === 'text'
+                    ? 'vtt'
+                    : segmentFormat === 'unknown'
+                      ? null
+                      : segmentFormat;
+
+            set(seg.uniqueId, { status: -1, data: null, parsedData: null });
+            eventBus.dispatch('segment:fetch', {
+                uniqueId: seg.uniqueId,
+                streamId: stream.id,
+                format: formatHint,
+                context: { isIFrame },
+            });
+        });
+    };
+
     let content;
 
     if (isLoading) {
@@ -50,14 +96,14 @@ export const segmentTableTemplate = ({
             No segments found for this representation.
         </div>`;
     } else {
-        // --- ARCHITECTURAL REFACTOR: Separate Init and Media Segments ---
         const initSegment = segments.find((s) => s.type === 'Init');
         const mediaSegments = segments.filter((s) => s.type !== 'Init');
-        // --- END REFACTOR ---
 
         const getFromCache = useSegmentCacheStore.getState().get;
         const { segmentExplorerTargetTime, segmentExplorerScrollToTarget } =
             useUiStore.getState();
+
+        const { isIFrame: isIFrameRepresentation } = getIsIframe(stream, rawId);
 
         if (!flashedSegmentIds.has(id)) {
             flashedSegmentIds.set(id, new Set(segments.map((s) => s.uniqueId)));
@@ -80,7 +126,8 @@ export const segmentTableTemplate = ({
                 currentSegmentUrls,
                 cacheEntry,
                 segmentExplorerTargetTime,
-                shouldFlash
+                shouldFlash,
+                isIFrameRepresentation
             );
         };
 
@@ -162,8 +209,38 @@ export const segmentTableTemplate = ({
                 <h4 class="font-semibold text-slate-200 text-sm">
                     ${unsafeHTML(title)}
                 </h4>
+                <div class="ml-auto">
+                    <button
+                        @click=${handleDownloadAll}
+                        class="text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 font-semibold flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-colors"
+                        title="Download and parse all unloaded segments for this representation"
+                    >
+                        ${customIcons.download}
+                        <span>Download All</span>
+                    </button>
+                </div>
             </header>
             <div class="grow min-h-0 flex flex-col">${content}</div>
         </div>
     `;
 };
+
+function getIsIframe(stream, rawId) {
+    let isIFrameRepresentation = false;
+    if (stream.protocol === 'dash') {
+        const [periodIndex, repId] = rawId.split('-');
+        const period = stream.manifest.periods[parseInt(periodIndex, 10)];
+        const as = period?.adaptationSets.find((as) =>
+            as.representations.some((r) => r.id === repId)
+        );
+        isIFrameRepresentation =
+            as?.roles?.some((r) => r.value === 'trick') || false;
+    } else if (stream.protocol === 'hls') {
+        isIFrameRepresentation =
+            stream.mediaPlaylists.get(rawId)?.manifest?.summary?.hls
+                ?.isIFrameOnly ||
+            (stream.manifest.summary?.hls?.iFramePlaylists > 0 &&
+                rawId.includes('_iframes'));
+    }
+    return { isIFrame: isIFrameRepresentation };
+}

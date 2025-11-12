@@ -22,6 +22,9 @@ import { hexViewTemplate } from './components/hex-view.js';
 import { getTooltipData as getIsobmffTooltipData } from '@/infrastructure/parsing/isobmff/index';
 import { getTooltipData as getTsTooltipData } from '@/infrastructure/parsing/ts/index';
 import * as icons from '@/ui/icons';
+import { getParsedSegment } from '@/infrastructure/segments/segmentService.js';
+import { copyTextToClipboard } from '@/ui/shared/clipboard.js';
+import { showToast } from '@/ui/components/toast.js';
 
 let container = null;
 let uiUnsubscribe = null;
@@ -45,7 +48,12 @@ const loadingTemplate = (message) =>
 function renderInteractiveSegment() {
     if (!container) return;
 
-    const { activeSegmentUrl, isByteMapLoading } = useUiStore.getState();
+    const {
+        activeSegmentUrl,
+        isByteMapLoading,
+        activeSegmentHighlightRange,
+        activeSegmentIsIFrame,
+    } = useUiStore.getState();
     const { get: getFromCache } = useSegmentCacheStore.getState();
 
     if (!activeSegmentUrl) {
@@ -57,9 +65,24 @@ function renderInteractiveSegment() {
 
     let content;
 
+    // --- ARCHITECTURAL FIX: Use getParsedSegment to trigger fetch-on-miss ---
     if (!cachedSegment || cachedSegment.status === -1) {
         content = loadingTemplate('Loading and parsing segment...');
-    } else if (cachedSegment.status !== 200 || !cachedSegment.data) {
+        // If not in cache or pending, trigger the load. The store subscription will re-render.
+        if (!cachedSegment) {
+            getParsedSegment(activeSegmentUrl, null, null, {
+                isIFrame: activeSegmentIsIFrame,
+            }).catch((err) => {
+                console.error(
+                    `[InteractiveSegmentView] Failed to load segment: ${err.message}`
+                );
+                // The cache store will be updated with an error state, triggering a re-render.
+            });
+        }
+    } else if (
+        (cachedSegment.status !== 200 && cachedSegment.status !== 206) ||
+        !cachedSegment.data
+    ) {
         content = html`<div class="text-red-400 p-4">
             Error loading segment: HTTP ${cachedSegment.status}
         </div>`;
@@ -110,7 +133,8 @@ function renderInteractiveSegment() {
                 const hexContent = hexViewTemplate(
                     cachedSegment.data,
                     fullByteMap,
-                    ALL_TOOLTIPS_DATA
+                    ALL_TOOLTIPS_DATA,
+                    activeSegmentHighlightRange
                 );
 
                 content = inspectorLayoutTemplate({
@@ -142,16 +166,78 @@ function renderInteractiveSegment() {
         }
     }
 
+    const handleCopyDebug = () => {
+        if (!cachedSegment?.parsedData) {
+            showToast({ message: 'No parsed data to copy.', type: 'warn' });
+            return;
+        }
+
+        let rawSegmentBase64 = null;
+        if (cachedSegment.data instanceof ArrayBuffer) {
+            const bytes = new Uint8Array(cachedSegment.data);
+            let binary = '';
+            for (let i = 0; i < bytes.byteLength; i++) {
+                binary += String.fromCharCode(bytes[i]);
+            }
+            rawSegmentBase64 = btoa(binary);
+        }
+
+        const replacer = (key, value) => {
+            if (typeof value === 'bigint') {
+                return value.toString() + 'n';
+            }
+            if (value instanceof Uint8Array) {
+                // Return a summary for Uint8Arrays inside the parsed structure,
+                // as the full raw data is now provided separately.
+                return `[Uint8Array of length ${value.length}]`;
+            }
+            if (value instanceof Map) {
+                return Array.from(value.entries());
+            }
+            if (value instanceof Set) {
+                return Array.from(value.values());
+            }
+            return value;
+        };
+
+        try {
+            const debugObject = {
+                parsedData: cachedSegment.parsedData,
+                rawSegmentBase64: rawSegmentBase64,
+            };
+            const debugString = JSON.stringify(debugObject, replacer, 2);
+            copyTextToClipboard(
+                debugString,
+                'Segment debug data copied to clipboard!'
+            );
+        } catch (e) {
+            console.error('Failed to serialize segment debug data:', e);
+            showToast({
+                message: 'Failed to generate debug data.',
+                type: 'fail',
+            });
+        }
+    };
+
     const template = html`
         <div class="flex flex-col h-full gap-y-4">
             <div class="flex justify-between items-center shrink-0">
                 <h3 class="text-xl font-bold text-white">Segment Inspector</h3>
-                <button
-                    @click=${() => uiActions.setActiveTab('explorer')}
-                    class="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-md transition duration-300 text-sm flex items-center gap-2"
-                >
-                    ${icons.arrowLeft} Back to Explorer
-                </button>
+                <div class="flex items-center gap-2">
+                    <button
+                        @click=${handleCopyDebug}
+                        class="bg-yellow-600 hover:bg-yellow-700 text-black font-bold text-xs py-2 px-3 rounded-md transition-colors flex items-center gap-2"
+                        title="Copy all parsed segment data to the clipboard as JSON for debugging."
+                    >
+                        ${icons.debug} Copy Debug Data
+                    </button>
+                    <button
+                        @click=${() => uiActions.setActiveTab('explorer')}
+                        class="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-md transition duration-300 text-sm flex items-center gap-2"
+                    >
+                        ${icons.arrowLeft} Back to Explorer
+                    </button>
+                </div>
             </div>
             <p
                 class="text-sm text-slate-400 -mt-2 mb-2 font-mono break-all bg-slate-800/50 p-2 rounded"

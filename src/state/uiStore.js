@@ -1,5 +1,14 @@
 import { createStore } from 'zustand/vanilla';
-import { getWorkspaces } from '@/infrastructure/persistence/streamStorage';
+import {
+    getWorkspaces,
+    getPresets,
+    getHistory,
+    deletePreset,
+    deleteHistoryItem,
+    deleteWorkspace,
+} from '@/infrastructure/persistence/streamStorage';
+import { useAnalysisStore } from './analysisStore.js';
+import { eventBus } from '@/application/event-bus.js';
 
 /**
  * @typedef {object} ModalState
@@ -17,9 +26,9 @@ import { getWorkspaces } from '@/infrastructure/persistence/streamStorage';
  * @property {string} path - The unique path identifier for the element.
  */
 
-/** @typedef {import('@/types').ConditionalPollingState} ConditionalPollingState */
-/** @typedef {import('@/types').UiState} UiState */
-/** @typedef {import('@/types').UiActions} UiActions */
+/** @typedef {import('@/types.ts').ConditionalPollingState} ConditionalPollingState */
+/** @typedef {import('@/types.ts').UiState} UiState */
+/** @typedef {import('@/types.ts').UiActions} UiActions */
 
 const createInitialUiState = () => ({
     _viewMap: null,
@@ -27,7 +36,10 @@ const createInitialUiState = () => ({
     activeTab: 'summary',
     activeSidebar: 'contextual',
     multiPlayerActiveTab: 'event-log',
+    multiPlayerViewMode: 'grid',
     activeSegmentUrl: null,
+    activeSegmentHighlightRange: null,
+    activeSegmentIsIFrame: false,
     modalState: {
         isModalOpen: false,
         modalTitle: '',
@@ -63,6 +75,8 @@ const createInitialUiState = () => ({
     streamLibrarySearchTerm: '',
     streamInputActiveMobileTab: 'workspace',
     workspaces: [],
+    presets: [],
+    history: [],
     loadedWorkspaceName: null,
     isRestoringSession: false,
     segmentAnalysisActiveTab: 'structure',
@@ -75,6 +89,10 @@ const createInitialUiState = () => ({
     },
     inactivityTimeoutOverride: null,
     showAllDrmFields: false,
+    segmentPollingSelectorState: {
+        expandedStreamIds: new Set(),
+        tabState: new Map(), // Maps streamId to active tab key ('video' or 'audio')
+    },
 });
 
 export const useUiStore = createStore((set, get) => ({
@@ -91,17 +109,110 @@ export const useUiStore = createStore((set, get) => ({
                   ? null
                   : state.activeSidebar;
 
-            return {
+            const newState = {
                 activeTab: tabName,
                 activeSidebar: newSidebarState,
                 interactiveManifestCurrentPage: 1,
                 interactiveManifestHoveredItem: null,
                 interactiveManifestSelectedItem: null,
+                activeSegmentHighlightRange: null, // Clear highlight on tab change
             };
+
+            if (tabName === 'explorer') {
+                const { streams, activeStreamId } =
+                    useAnalysisStore.getState();
+                const activeStream = streams.find(
+                    (s) => s.id === activeStreamId
+                );
+                const { segmentExplorerActiveRepId, segmentExplorerActiveTab } =
+                    get();
+
+                if (activeStream && !segmentExplorerActiveRepId) {
+                    let defaultRepId = null;
+                    if (activeStream.protocol === 'dash') {
+                        const firstPeriod = activeStream.manifest.periods[0];
+                        const firstAs =
+                            firstPeriod?.adaptationSets.find(
+                                (as) =>
+                                    as.contentType === segmentExplorerActiveTab
+                            ) || firstPeriod?.adaptationSets[0];
+                        const firstRep = firstAs?.representations[0];
+
+                        if (firstPeriod && firstRep) {
+                            defaultRepId = `${
+                                firstPeriod.id || 0
+                            }-${firstRep.id}`;
+                        }
+                    } else if (
+                        activeStream.protocol === 'hls' &&
+                        activeStream.manifest?.isMaster
+                    ) {
+                        const asContentType =
+                            segmentExplorerActiveTab === 'text'
+                                ? 'subtitles'
+                                : segmentExplorerActiveTab;
+
+                        const allAdaptationSetsForType =
+                            activeStream.manifest.periods[0].adaptationSets.filter(
+                                (as) => as.contentType === asContentType
+                            );
+
+                        const primaryAdaptationSets =
+                            allAdaptationSetsForType.filter((as) =>
+                                (as.roles || []).every(
+                                    (r) => r.value !== 'trick'
+                                )
+                            );
+
+                        const firstAs =
+                            primaryAdaptationSets[0] ||
+                            allAdaptationSetsForType[0];
+                        const firstRendition = firstAs?.representations[0];
+
+                        defaultRepId =
+                            firstRendition?.__variantUri ||
+                            firstRendition?.serializedManifest.resolvedUri;
+                    } else if (
+                        activeStream.protocol === 'hls' &&
+                        !activeStream.manifest?.isMaster
+                    ) {
+                        defaultRepId = activeStream.originalUrl;
+                    }
+
+                    if (defaultRepId) {
+                        newState.segmentExplorerActiveRepId = defaultRepId;
+
+                        if (
+                            activeStream.protocol === 'hls' &&
+                            !activeStream.mediaPlaylists.has(defaultRepId)
+                        ) {
+                            setTimeout(
+                                () =>
+                                    eventBus.dispatch(
+                                        'hls:media-playlist-fetch-request',
+                                        {
+                                            streamId: activeStream.id,
+                                            variantUri: defaultRepId,
+                                            isBackground: false,
+                                        }
+                                    ),
+                                0
+                            );
+                        }
+                    }
+                }
+            }
+
+            return newState;
         });
     },
     setActiveSidebar: (sidebar) => set({ activeSidebar: sidebar }),
     setMultiPlayerActiveTab: (tab) => set({ multiPlayerActiveTab: tab }),
+    toggleMultiPlayerViewMode: () =>
+        set((state) => ({
+            multiPlayerViewMode:
+                state.multiPlayerViewMode === 'grid' ? 'immersive' : 'grid',
+        })),
     setModalState: (newModalState) =>
         set((state) => ({
             modalState: { ...state.modalState, ...newModalState },
@@ -195,9 +306,14 @@ export const useUiStore = createStore((set, get) => ({
     setSegmentComparisonActiveTab: (tab) =>
         set({ segmentComparisonActiveTab: tab }),
     setPlayerControlMode: (mode) => set({ playerControlMode: mode }),
-    navigateToInteractiveSegment: (segmentUniqueId) =>
+    navigateToInteractiveSegment: (
+        segmentUniqueId,
+        { highlightRange = null, isIFrame = false } = {}
+    ) =>
         set({
             activeSegmentUrl: segmentUniqueId,
+            activeSegmentHighlightRange: highlightRange,
+            activeSegmentIsIFrame: isIFrame,
             activeTab: 'interactive-segment',
             interactiveSegmentCurrentPage: 1,
             isByteMapLoading: false,
@@ -209,8 +325,27 @@ export const useUiStore = createStore((set, get) => ({
         set({ streamLibrarySearchTerm: term }),
     setStreamInputActiveMobileTab: (tab) =>
         set({ streamInputActiveMobileTab: tab }),
-    loadWorkspaces: () => set({ workspaces: getWorkspaces() }),
-    setWorkspaces: (workspaces) => set({ workspaces }),
+    loadWorkspaces: () => {
+        set({
+            workspaces: getWorkspaces(),
+            presets: getPresets(),
+            history: getHistory(),
+        });
+    },
+    loadPresets: () => set({ presets: getPresets() }),
+    loadHistory: () => set({ history: getHistory() }),
+    deleteAndReloadPreset: (url) => {
+        deletePreset(url);
+        get().loadPresets();
+    },
+    deleteAndReloadHistoryItem: (url) => {
+        deleteHistoryItem(url);
+        get().loadHistory();
+    },
+    deleteAndReloadWorkspace: (name) => {
+        deleteWorkspace(name);
+        get().loadWorkspaces();
+    },
     setLoadedWorkspaceName: (name) => set({ loadedWorkspaceName: name }),
     setIsRestoringSession: (isRestoring) =>
         set({ isRestoringSession: isRestoring }),
@@ -243,9 +378,14 @@ export const useUiStore = createStore((set, get) => ({
         set((state) => {
             const currentTarget = state.conditionalPolling;
             const newTarget = { ...currentTarget, ...target };
-            // --- FIX: Do NOT reset feature name when stream changes ---
-            // The UI component is responsible for filtering the feature list,
-            // so we can safely preserve the user's feature selection here.
+
+            if (
+                target.targetStreamId !== undefined &&
+                target.targetStreamId !== currentTarget.targetStreamId
+            ) {
+                newTarget.targetFeatureName = null;
+            }
+
             return { conditionalPolling: newTarget };
         });
     },
@@ -253,6 +393,38 @@ export const useUiStore = createStore((set, get) => ({
         set({ inactivityTimeoutOverride: durationMs }),
     toggleShowAllDrmFields: () =>
         set((state) => ({ showAllDrmFields: !state.showAllDrmFields })),
+    toggleSegmentPollingSelectorGroup: (streamId) => {
+        set((state) => {
+            const newSet = new Set(
+                state.segmentPollingSelectorState.expandedStreamIds
+            );
+            if (newSet.has(streamId)) {
+                newSet.delete(streamId);
+            } else {
+                newSet.add(streamId);
+            }
+            return {
+                segmentPollingSelectorState: {
+                    ...state.segmentPollingSelectorState,
+                    expandedStreamIds: newSet,
+                },
+            };
+        });
+    },
+    setSegmentPollingTab: (streamId, tab) => {
+        set((state) => {
+            const newTabState = new Map(
+                state.segmentPollingSelectorState.tabState
+            );
+            newTabState.set(streamId, tab);
+            return {
+                segmentPollingSelectorState: {
+                    ...state.segmentPollingSelectorState,
+                    tabState: newTabState,
+                },
+            };
+        });
+    },
     reset: () => set(createInitialUiState()),
 }));
 
