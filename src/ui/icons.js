@@ -30,6 +30,9 @@ export const fileScan = icon('file-scan');
 export const searchCode = icon('search-code');
 export const folderTree = icon('folder-tree');
 export const folder = icon('folder');
+export const maximize = icon('maximize');
+export const minimize = icon('minimize');
+export const users = icon('users');
 
 // --- Input View Mobile Nav ---
 export const library = icon('library');
@@ -48,6 +51,7 @@ export const volumeOff = icon('volume-x');
 export const sync = icon('rotate-cw');
 export const table = icon('table-2');
 export const locateFixed = icon('locate-fixed');
+export const settings = icon('settings');
 
 // --- Misc UI Icons ---
 export const plusCircle = icon('plus-circle');
@@ -86,6 +90,7 @@ export const fastForward = icon('fast-forward');
 export const timer = icon('timer');
 export const shieldCheck = icon('shield-check');
 export const puzzle = icon('puzzle');
+export const gripHorizontal = icon('grip-horizontal');
 export const github = icon('github', 'h-4 w-4');
 export const unlink = icon('unlink-2');
 

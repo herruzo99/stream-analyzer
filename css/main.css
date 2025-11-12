@@ -51,6 +51,7 @@
 body {
     background-color: var(--color-bg-base);
     color: var(--color-text-primary);
+    overflow-x: hidden;
 }
 
 /* --- Custom Scrollbar --- */
@@ -231,6 +232,10 @@ details.details-animated[open] > *:not(summary) {
 }
 .highlight-select-box.highlight-hover-box {
     box-shadow: inset 0 0 0 99px rgb(96 165 250 / 0.7);
+}
+.highlight-iframe-range {
+    box-shadow: inset 0 0 0 99px rgb(234 179 8 / 0.4);
+    outline: 1px solid rgb(234 179 8 / 0.7);
 }
 
 .dropzone-active {

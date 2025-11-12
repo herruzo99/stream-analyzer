@@ -7,7 +7,7 @@ import { diffManifest } from '@/ui/shared/diff';
 import xmlFormatter from 'xml-formatter';
 import { fetchWithAuth } from '../http.js';
 import { parseAllSegmentUrls as parseDashSegments } from '@/infrastructure/parsing/dash/segment-parser';
-import { debugLog } from '@/shared/utils/debug';
+import { appLog } from '@/shared/utils/debug';
 import { resolveAdAvailsInWorker } from '@/features/advertising/application/resolveAdAvailWorker';
 import { parseSegment } from '../parsingService.js';
 
@@ -17,23 +17,35 @@ async function fetchAndParseSegment(
     url,
     formatHint,
     range = null,
-    auth = null
+    auth = null,
+    loggingContext = {},
+    context = {}
 ) {
-    debugLog(
+    appLog(
         'shakaManifestHandler.fetchAndParseSegment',
-        'Fetching segment...',
+        'info',
+        'Fetching segment for in-band event discovery...',
         {
             url,
             formatHint,
             range,
         }
     );
-    const response = await fetchWithAuth(url, auth, range);
+    const response = await fetchWithAuth(
+        url,
+        auth,
+        range,
+        {},
+        null,
+        null,
+        loggingContext
+    );
     if (!response.ok) {
         throw new Error(`HTTP error ${response.status} for segment ${url}`);
     }
     const data = await response.arrayBuffer();
-    return parseSegment({ data, formatHint, url });
+    const parsedData = await parseSegment({ data, formatHint, url, context });
+    return { parsedData, rawBuffer: data };
 }
 
 function detectProtocol(manifestString, hint) {
@@ -55,10 +67,12 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
     const {
         streamId,
         oldRawManifest,
+        auth,
         baseUrl,
         hlsDefinedVariables,
         oldDashRepresentationState: oldDashRepStateArray,
         oldAdAvails,
+        segmentPollingReps,
     } = payload;
     const now = Date.now();
     const detectedProtocol = detectProtocol(
@@ -66,8 +80,6 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
         payload.protocol
     );
 
-    // --- REFACTORED LOGIC ---
-    // 1. Unconditionally parse the new manifest and generate its summary.
     let newManifestObject, newSerializedObject;
     if (detectedProtocol === 'hls') {
         const { manifest } = await parseHlsManifest(
@@ -78,10 +90,10 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
         newManifestObject = manifest;
         newSerializedObject = manifest.serializedManifest;
 
-        // --- FIX: Handle media playlist updates directly from the player ---
         if (!newManifestObject.isMaster) {
-            debugLog(
+            appLog(
                 'shakaManifestHandler',
+                'info',
                 'Detected HLS media playlist update from player.'
             );
 
@@ -107,12 +119,11 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
                     segments: newSegments,
                     currentSegmentUrls,
                     newSegmentUrls,
+                    inbandEvents: [],
                 },
             });
-            // Stop further processing for this media playlist update.
             return;
         }
-        // --- END FIX ---
 
         newManifestObject.summary = await generateHlsSummary(newManifestObject);
     } else {
@@ -129,22 +140,22 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
     }
     newManifestObject.serializedManifest = newSerializedObject;
 
-    // 2. Check for changes. If none, ONLY short-circuit for VOD streams.
     if (newManifestString.trim() === oldRawManifest.trim()) {
         if (newManifestObject.type !== 'dynamic') {
-            debugLog(
+            appLog(
                 'shakaManifestHandler',
+                'info',
                 'VOD manifest is unchanged. No update needed.'
             );
-            return; // No changes to a static manifest, so we are done.
+            return;
         }
-        debugLog(
+        appLog(
             'shakaManifestHandler',
+            'info',
             'Live manifest string is unchanged, but proceeding with analysis due to sliding window.'
         );
     }
 
-    // 3. If changed (or live), proceed with full diff, compliance, and segment analysis.
     let formattedOld = oldRawManifest;
     let formattedNew = newManifestString;
     if (detectedProtocol === 'dash') {
@@ -168,107 +179,126 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
 
     let dashRepStateForUpdate, hlsVariantStateForUpdate;
     const newlyDiscoveredInbandEvents = [];
+
     if (detectedProtocol === 'dash') {
         const segmentsByCompositeKey = await parseDashSegments(
             newSerializedObject,
             baseUrl,
             { now }
         );
-        dashRepStateForUpdate = [];
+        const newDashRepState = new Map();
         const oldDashRepState = new Map(oldDashRepStateArray);
+        const activePollingSet = new Set(segmentPollingReps || []);
 
         for (const [key, data] of Object.entries(segmentsByCompositeKey)) {
             const oldRepState = oldDashRepState.get(key);
             const newWindowSegments = data.segments || [];
             const initSegment = data.initSegment;
 
-            // Merge old and new segments using a Map to handle deduplication and updates.
-            const segmentMap = new Map();
-            if (oldRepState?.segments) {
-                oldRepState.segments.forEach((seg) =>
-                    segmentMap.set(seg.uniqueId, seg)
-                );
-            }
-
-            if (initSegment) {
-                segmentMap.set(initSegment.uniqueId, initSegment);
-            }
-
-            newWindowSegments.forEach((seg) =>
-                segmentMap.set(seg.uniqueId, seg)
+            // --- ARCHITECTURAL FIX: Correct state reconciliation logic ---
+            // Create a map of old segments for efficient lookup.
+            const oldSegmentMap = new Map(
+                (oldRepState?.segments || []).map((seg) => [seg.uniqueId, seg])
             );
 
-            const mergedSegments = Array.from(segmentMap.values());
+            // Create the new segment list for the current window, merging with old state.
+            const mergedWindowSegments = newWindowSegments.map((newSeg) => {
+                const oldSeg = oldSegmentMap.get(newSeg.uniqueId);
+                // Merge, preserving properties from oldSeg (like inbandEvents)
+                // that newSeg (from parser) wouldn't have.
+                return { ...oldSeg, ...newSeg };
+            });
+
+            // Re-add the init segment (if it exists) to the final list.
+            const finalSegments = [initSegment, ...mergedWindowSegments].filter(
+                Boolean
+            );
+            // --- END FIX ---
 
             const oldSegmentIds = new Set(
                 (oldRepState?.segments || []).map((s) => s.uniqueId)
             );
-
-            // currentSegmentUrls should represent only the segments in the LATEST manifest window.
             const currentSegmentUrlsInWindow = newWindowSegments.map(
                 (s) => s.uniqueId
             );
-
             const newlyAddedSegmentUrls = currentSegmentUrlsInWindow.filter(
                 (id) => !oldSegmentIds.has(id)
             );
 
-            // --- ARCHITECTURAL FIX: In-band event discovery for new segments ---
-            const segmentFetchPromises = [];
-            const [periodId, repId] = key.split('-');
-            const period = newManifestObject.periods.find(
-                (p, index) => (p.id || String(index)) === periodId
-            );
-            const as = period?.adaptationSets.find((as) =>
-                as.representations.some((r) => r.id === repId)
-            );
-            if (
-                as &&
-                (as.inbandEventStreams || []).some(
-                    (ies) => ies.schemeIdUri === SCTE35_SCHEME_ID
-                )
-            ) {
-                newlyAddedSegmentUrls.forEach((segmentUniqueId) => {
-                    const segmentToFetch = mergedSegments.find(
-                        (s) => s.uniqueId === segmentUniqueId
-                    );
-                    if (segmentToFetch) {
-                        segmentFetchPromises.push(
-                            fetchAndParseSegment(
-                                segmentToFetch.resolvedUrl,
-                                'isobff',
-                                segmentToFetch.range,
-                                payload.auth
-                            ).catch((e) => {
-                                debugLog(
-                                    'shakaManifestHandler',
-                                    `Failed to poll new segment for in-band events: ${e.message}`
-                                );
-                                return null;
+            if (activePollingSet.has(key) && newlyAddedSegmentUrls.length > 0) {
+                appLog(
+                    'shakaManifestHandler',
+                    'info',
+                    `Actively polling rep ${key}. Fetching ${newlyAddedSegmentUrls.length} new segments.`
+                );
+                const segmentsToFetch = newWindowSegments.filter((s) =>
+                    newlyAddedSegmentUrls.includes(s.uniqueId)
+                );
+
+                const fetchPromises = segmentsToFetch.map((segment) =>
+                    fetchAndParseSegment(
+                        segment.resolvedUrl,
+                        'isobff',
+                        segment.range,
+                        auth,
+                        { streamId, resourceType: 'video' }
+                    )
+                        .then((parsed) => ({ ...parsed, segment }))
+                        .catch(() => null)
+                );
+
+                const parsedSegments = await Promise.all(fetchPromises);
+                for (const result of parsedSegments) {
+                    if (
+                        result?.parsedData?.data?.events &&
+                        result.parsedData.data.events.length > 0
+                    ) {
+                        const events = result.parsedData.data.events.map(
+                            (e) => ({
+                                ...e,
+                                sourceSegmentId: result.segment.uniqueId,
                             })
                         );
+                        newlyDiscoveredInbandEvents.push(...events);
                     }
-                });
-            }
-            const parsedNewSegments = await Promise.all(segmentFetchPromises);
-            parsedNewSegments.forEach((parsed) => {
-                if (parsed?.data?.events) {
-                    newlyDiscoveredInbandEvents.push(...parsed.data.events);
                 }
-            });
-            // --- END FIX ---
+            }
 
-            dashRepStateForUpdate.push([
-                key,
-                {
-                    segments: mergedSegments,
-                    currentSegmentUrls: currentSegmentUrlsInWindow,
-                    newlyAddedSegmentUrls,
-                    diagnostics: data.diagnostics,
-                },
-            ]);
+            newDashRepState.set(key, {
+                segments: finalSegments, // Use the correctly merged and filtered list
+                currentSegmentUrls: currentSegmentUrlsInWindow,
+                newlyAddedSegmentUrls,
+                diagnostics: data.diagnostics,
+            });
         }
+
+        const eventsBySegmentId = {};
+        for (const event of newlyDiscoveredInbandEvents) {
+            if (!eventsBySegmentId[event.sourceSegmentId]) {
+                eventsBySegmentId[event.sourceSegmentId] = [];
+            }
+            eventsBySegmentId[event.sourceSegmentId].push(event);
+        }
+
+        for (const repState of newDashRepState.values()) {
+            repState.segments = repState.segments.map((segment) => {
+                const eventsForSeg = eventsBySegmentId[segment.uniqueId];
+                if (eventsForSeg) {
+                    return {
+                        ...segment,
+                        inbandEvents: [
+                            ...(segment.inbandEvents || []),
+                            ...eventsForSeg,
+                        ],
+                    };
+                }
+                return segment;
+            });
+        }
+
+        dashRepStateForUpdate = Array.from(newDashRepState.entries());
     } else {
+        // HLS
         const oldHlsVariantState = new Map(payload.oldHlsVariantState || []);
         hlsVariantStateForUpdate = [];
         for (const variant of newManifestObject.variants || []) {
@@ -278,8 +308,8 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
                 hlsVariantStateForUpdate.push([
                     variantUri,
                     {
-                        ...oldState, // Preserve existing segments, isLoading state, etc.
-                        currentSegmentUrls: [], // This will be calculated on the main thread now
+                        ...oldState,
+                        currentSegmentUrls: [],
                         newlyAddedSegmentUrls: [],
                     },
                 ]);
@@ -311,10 +341,10 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
                         ? event.scte35.descriptors[0].segmentation_upid
                         : null,
                 creatives: [],
+                detectionMethod: /** @type {const} */ ('SCTE35_INBAND'),
             })),
     ];
 
-    // --- ARCHITECTURAL FIX: Replace unconfirmed placeholder ---
     const hasUnconfirmed = (oldAdAvails || []).some(
         (a) => a.id === 'unconfirmed-inband-scte35'
     );
@@ -327,19 +357,16 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
     let finalAdAvails = [...(oldAdAvails || [])];
 
     if (newlyResolvedAvails.length > 0 && hasUnconfirmed) {
-        // First real event(s) found, remove the placeholder.
         finalAdAvails = finalAdAvails.filter(
             (a) => a.id !== 'unconfirmed-inband-scte35'
         );
     }
 
-    // Add newly resolved avails if they aren't already present
     newlyResolvedAvails.forEach((newAvail) => {
         if (!finalAdAvails.some((a) => a.id === newAvail.id)) {
             finalAdAvails.push(newAvail);
         }
     });
-    // --- END FIX ---
 
     self.postMessage({
         type: 'livestream:manifest-updated',
@@ -354,6 +381,7 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
             dashRepresentationState: dashRepStateForUpdate,
             hlsVariantState: hlsVariantStateForUpdate,
             adAvails: finalAdAvails,
+            inbandEvents: newlyDiscoveredInbandEvents,
         },
     });
 }
@@ -361,7 +389,7 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
 export async function handleShakaManifestFetch(payload, signal) {
     const { streamId, url, auth } = payload;
     const startTime = performance.now();
-    debugLog('shakaManifestHandler', `Fetching manifest for ${url}`);
+    appLog('shakaManifestHandler', 'info', `Fetching manifest for ${url}`);
 
     const response = await fetchWithAuth(url, auth, null, {}, null, signal);
     const requestHeadersForLogging = {};
@@ -404,13 +432,11 @@ export async function handleShakaManifestFetch(payload, signal) {
 
     const newManifestString = await response.text();
 
-    // Always trigger the analysis and notification pipeline. The `analyzeUpdateAndNotify`
-    // function is smart enough to differentiate between a VOD manifest that hasn't
-    // changed and a live manifest that needs re-evaluation.
     analyzeUpdateAndNotify(payload, newManifestString, response.url);
 
-    debugLog(
+    appLog(
         'shakaManifestHandler',
+        'info',
         'Returning raw manifest to Shaka player immediately.'
     );
     return {

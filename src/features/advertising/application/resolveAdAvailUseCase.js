@@ -27,6 +27,7 @@ function createPartialAdAvail(stream, scte35Event) {
         scte35Signal: scte35,
         adManifestUrl: null, // Explicitly null as it's unresolved
         creatives: [],
+        detectionMethod: 'SCTE35_INBAND',
     });
 
     // Update the stream state
@@ -105,6 +106,7 @@ async function resolveAdAvail(stream, scte35Event) {
             scte35Signal: scte35Event.scte35,
             adManifestUrl,
             creatives: allCreatives,
+            detectionMethod: 'SCTE35_INBAND',
         });
 
         // Update the stream state

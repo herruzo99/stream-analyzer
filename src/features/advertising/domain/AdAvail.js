@@ -10,6 +10,7 @@ export class AdAvail {
      * @param {object} params.scte35Signal - The parsed SCTE-35 object that signaled this avail.
      * @param {string | null} params.adManifestUrl - The URL of the VAST/VMAP manifest for this avail.
      * @param {import('./AdCreative').AdCreative[]} params.creatives - An array of ad creatives to be played in this avail.
+     * @param {'SCTE35_INBAND' | 'SCTE35_DATERANGE' | 'ASSET_IDENTIFIER' | 'ENCRYPTION_TRANSITION' | 'STRUCTURAL_DISCONTINUITY' | 'UNKNOWN'} params.detectionMethod - The method used to identify this ad avail.
      */
     constructor({
         id,
@@ -18,6 +19,7 @@ export class AdAvail {
         scte35Signal,
         adManifestUrl,
         creatives = [],
+        detectionMethod = 'UNKNOWN',
     }) {
         this.id = id;
         this.startTime = startTime;
@@ -25,5 +27,6 @@ export class AdAvail {
         this.scte35Signal = scte35Signal;
         this.adManifestUrl = adManifestUrl;
         this.creatives = creatives;
+        this.detectionMethod = detectionMethod;
     }
 }

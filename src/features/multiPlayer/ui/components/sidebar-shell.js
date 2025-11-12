@@ -1,17 +1,10 @@
 import { html, render } from 'lit-html';
 import { useUiStore, uiActions } from '@/state/uiStore';
-import { GraphsViewComponent } from './graphs-view.js';
-import { ControlsViewComponent } from './controls-view.js';
-import { EventLogComponent } from './event-log.js';
+import './graphs-view.js';
+import './controls-view.js';
+import './event-log.js';
 
-if (!customElements.get('graphs-view-component'))
-    customElements.define('graphs-view-component', GraphsViewComponent);
-if (!customElements.get('controls-view-component'))
-    customElements.define('controls-view-component', ControlsViewComponent);
-if (!customElements.get('event-log-component'))
-    customElements.define('event-log-component', EventLogComponent);
-
-export class SidebarShellComponent extends HTMLElement {
+class SidebarShellComponent extends HTMLElement {
     constructor() {
         super();
         this.unsubscribe = null;
@@ -67,4 +60,8 @@ export class SidebarShellComponent extends HTMLElement {
         `;
         render(template, this);
     }
+}
+
+if (!customElements.get('sidebar-shell-component')) {
+    customElements.define('sidebar-shell-component', SidebarShellComponent);
 }

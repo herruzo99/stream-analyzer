@@ -14,7 +14,7 @@ import { diffManifest } from '@/ui/shared/diff';
 import { parseSegment } from '../parsingService.js';
 import { fetchWithAuth } from '../http.js';
 import xmlFormatter from 'xml-formatter';
-import { debugLog } from '@/shared/utils/debug';
+import { appLog } from '@/shared/utils/debug';
 import { resolveAdAvailsInWorker } from '@/features/advertising/application/resolveAdAvailWorker';
 
 const SCTE35_SCHEME_ID = 'urn:scte:scte35:2013:bin';
@@ -23,19 +23,35 @@ async function fetchAndParseSegment(
     url,
     formatHint,
     range = null,
-    auth = null
+    auth = null,
+    loggingContext = {},
+    context = {}
 ) {
-    debugLog('analysisHandler.fetchAndParseSegment', 'Fetching segment...', {
+    appLog(
+        'analysisHandler.fetchAndParseSegment',
+        'info',
+        'Fetching segment...',
+        {
+            url,
+            formatHint,
+            range,
+        }
+    );
+    const response = await fetchWithAuth(
         url,
-        formatHint,
+        auth,
         range,
-    });
-    const response = await fetchWithAuth(url, auth, range);
+        {},
+        null,
+        null,
+        loggingContext
+    );
     if (!response.ok) {
         throw new Error(`HTTP error ${response.status} for segment ${url}`);
     }
     const data = await response.arrayBuffer();
-    return parseSegment({ data, formatHint, url });
+    const parsedData = await parseSegment({ data, formatHint, url, context });
+    return { parsedData, rawBuffer: data };
 }
 
 async function preProcessInput(input, signal) {
@@ -45,40 +61,15 @@ async function preProcessInput(input, signal) {
         manifestString = await input.file.text();
         finalUrl = input.file.name;
     } else {
-        const startTime = performance.now();
         const response = await fetchWithAuth(
             input.url,
             input.auth,
             null,
             {},
             null,
-            signal
+            signal,
+            { streamId: input.id, resourceType: 'manifest' }
         );
-
-        self.postMessage({
-            type: 'worker:network-event',
-            payload: {
-                id: crypto.randomUUID(),
-                url: response.url,
-                resourceType: 'manifest',
-                streamId: input.id,
-                request: { method: 'GET', headers: {} },
-                response: {
-                    status: response.status,
-                    statusText: response.statusText,
-                    headers: response.headers,
-                    contentLength:
-                        Number(response.headers['content-length']) || null,
-                    contentType: response.headers['content-type'],
-                },
-                timing: {
-                    startTime,
-                    endTime: performance.now(),
-                    duration: performance.now() - startTime,
-                    breakdown: null,
-                },
-            },
-        });
 
         if (!response.ok) {
             throw new Error(
@@ -90,8 +81,9 @@ async function preProcessInput(input, signal) {
 
         const wasRedirected = response.url !== input.url;
 
-        debugLog(
+        appLog(
             'analysisHandler.preProcessInput',
+            'info',
             `Received manifest content. Length: ${manifestString.length} characters. Was Redirected: ${wasRedirected}. Final URL: ${finalUrl}`
         );
 
@@ -132,7 +124,12 @@ async function buildStreamObject(
     finalBaseUrl,
     analysisResults
 ) {
-    debugLog('buildStreamObject', 'Building stream object from input:', input);
+    appLog(
+        'buildStreamObject',
+        'info',
+        'Building stream object from input:',
+        input
+    );
     const {
         featureAnalysisResults,
         semanticData,
@@ -173,9 +170,15 @@ async function buildStreamObject(
         adAvails: manifestIR.adAvails || [],
         inbandEvents: [],
         adaptationEvents: [],
+        segmentPollingReps: new Set(),
     };
 
-    debugLog('buildStreamObject', 'Constructed stream object:', streamObject);
+    appLog(
+        'buildStreamObject',
+        'info',
+        'Constructed stream object:',
+        streamObject
+    );
 
     let segmentsByCompositeKey = {};
     if (input.protocol === 'dash') {
@@ -186,7 +189,7 @@ async function buildStreamObject(
         );
     }
 
-    // --- ARCHITECTURAL FIX: Proactive In-band Event Discovery ---
+    // --- Proactive In-band Event Discovery ---
     const segmentFetchPromises = [];
     manifestIR.periods.forEach((period, periodIndex) => {
         for (const as of period.adaptationSets) {
@@ -194,7 +197,6 @@ async function buildStreamObject(
                 (ies) => ies.schemeIdUri === SCTE35_SCHEME_ID
             );
             if (hasScte35) {
-                // Fetch the first segment of the first representation in this AdaptationSet
                 const rep = as.representations[0];
                 if (rep) {
                     const compositeKey = `${period.id ?? periodIndex}-${rep.id}`;
@@ -204,19 +206,35 @@ async function buildStreamObject(
                     );
 
                     if (firstMediaSegment) {
+                        appLog(
+                            'analysisHandler',
+                            'info',
+                            `Found SCTE-35 InbandEventStream. Proactively fetching first segment for rep ${rep.id}: ${firstMediaSegment.resolvedUrl}`
+                        );
                         segmentFetchPromises.push(
                             fetchAndParseSegment(
                                 firstMediaSegment.resolvedUrl,
-                                'isobmff', // Assume isobmff for inband events for now
+                                'isobff', // Assume isobff for inband events for now
                                 firstMediaSegment.range,
-                                streamObject.auth
-                            ).catch((e) => {
-                                debugLog(
-                                    'analysisHandler',
-                                    `Failed to pre-fetch/parse segment for in-band events: ${e.message}`
-                                );
-                                return null;
-                            })
+                                streamObject.auth,
+                                {
+                                    streamId: streamObject.id,
+                                    resourceType: 'video',
+                                }, // Assume video for SCTE-35 carrier
+                                {} // Pass empty context
+                            )
+                                .then((parsedSegment) => ({
+                                    ...parsedSegment,
+                                    sourceSegmentId: firstMediaSegment.uniqueId,
+                                }))
+                                .catch((e) => {
+                                    appLog(
+                                        'analysisHandler',
+                                        'warn',
+                                        `Failed to pre-fetch/parse segment for in-band events: ${e.message}`
+                                    );
+                                    return null;
+                                })
                         );
                     }
                 }
@@ -228,15 +246,31 @@ async function buildStreamObject(
     for (const parsedSegment of parsedSegments) {
         if (
             parsedSegment &&
-            parsedSegment.data.events &&
-            parsedSegment.data.events.length > 0
+            parsedSegment.parsedData?.data?.events &&
+            parsedSegment.parsedData.data.events.length > 0
         ) {
-            streamObject.inbandEvents.push(...parsedSegment.data.events);
+            appLog(
+                'analysisHandler',
+                'info',
+                `Found ${parsedSegment.parsedData.data.events.length} SCTE-35 events in segment ${parsedSegment.sourceSegmentId}.`
+            );
+            const eventsWithSource = parsedSegment.parsedData.data.events.map(
+                (event) => ({
+                    ...event,
+                    sourceSegmentId: parsedSegment.sourceSegmentId,
+                })
+            );
+            streamObject.inbandEvents.push(...eventsWithSource);
         }
     }
-    // --- END FIX ---
 
     if (streamObject.inbandEvents.length > 0) {
+        appLog(
+            'analysisHandler',
+            'log',
+            'Generating adAvails from inbandEvents...',
+            streamObject.inbandEvents
+        );
         const inbandAdAvails = streamObject.inbandEvents
             .filter((e) => e.scte35)
             .map((event) => ({
@@ -258,10 +292,17 @@ async function buildStreamObject(
                         ? event.scte35.descriptors[0].segmentation_upid
                         : null,
                 creatives: [],
+                detectionMethod: /** @type {const} */ ('SCTE35_INBAND'),
             }));
         const resolvedInbandAvails =
             await resolveAdAvailsInWorker(inbandAdAvails);
         streamObject.adAvails.push(...resolvedInbandAvails);
+        appLog(
+            'analysisHandler',
+            'log',
+            'Generated adAvails:',
+            resolvedInbandAvails
+        );
     }
 
     if (input.protocol === 'hls') {
@@ -324,6 +365,52 @@ async function buildStreamObject(
         }
     }
 
+    if (streamObject.inbandEvents.length > 0) {
+        appLog(
+            'analysisHandler',
+            'log',
+            `Attaching ${streamObject.inbandEvents.length} events to segments.`
+        );
+        const eventsBySegmentId = streamObject.inbandEvents.reduce(
+            (acc, event) => {
+                if (event.sourceSegmentId) {
+                    if (!acc[event.sourceSegmentId])
+                        acc[event.sourceSegmentId] = [];
+                    acc[event.sourceSegmentId].push(event);
+                }
+                return acc;
+            },
+            {}
+        );
+
+        for (const repState of streamObject.dashRepresentationState.values()) {
+            repState.segments = repState.segments.map((segment) => {
+                const eventsForSeg = eventsBySegmentId[segment.uniqueId];
+                if (eventsForSeg) {
+                    appLog(
+                        'analysisHandler',
+                        'log',
+                        `Attaching ${eventsForSeg.length} events to segment ${segment.uniqueId}`
+                    );
+                    return {
+                        ...segment,
+                        inbandEvents: [
+                            ...(segment.inbandEvents || []),
+                            ...eventsForSeg,
+                        ],
+                    };
+                }
+                return segment;
+            });
+        }
+        appLog(
+            'analysisHandler',
+            'log',
+            'Clearing top-level inbandEvents array after attachment.'
+        );
+        streamObject.inbandEvents = [];
+    }
+
     let formattedInitial = streamObject.rawManifest;
     if (streamObject.protocol === 'dash') {
         formattedInitial = xmlFormatter(formattedInitial, {
@@ -370,14 +457,13 @@ function serializeStreamForTransport(streamObject) {
 
     const dashRepStateArray = [];
     for (const [key, value] of streamObject.dashRepresentationState.entries()) {
-        dashRepStateArray.push([
-            key,
-            {
-                ...value,
-                currentSegmentUrls: Array.from(value.currentSegmentUrls),
-                newlyAddedSegmentUrls: Array.from(value.newlyAddedSegmentUrls),
-            },
-        ]);
+        // --- FIX: Preserve all properties of the value object, including segments with their new inbandEvents. ---
+        const serializedValue = {
+            ...value,
+            currentSegmentUrls: Array.from(value.currentSegmentUrls),
+            newlyAddedSegmentUrls: Array.from(value.newlyAddedSegmentUrls),
+        };
+        dashRepStateArray.push([key, serializedValue]);
     }
     serialized.dashRepresentationState = dashRepStateArray;
 
@@ -396,12 +482,16 @@ function serializeStreamForTransport(streamObject) {
         );
     }
 
+    serialized.segmentPollingReps = Array.from(
+        streamObject.segmentPollingReps || []
+    );
+
     return serialized;
 }
 
 export async function handleStartAnalysis({ inputs }, signal) {
     const analysisStartTime = performance.now();
-    debugLog('handleStartAnalysis', 'Starting analysis pipeline...');
+    appLog('handleStartAnalysis', 'info', 'Starting analysis pipeline...');
 
     try {
         const workerInputsPromises = inputs.map(async (input) => {
@@ -414,14 +504,14 @@ export async function handleStartAnalysis({ inputs }, signal) {
         });
         const workerInputs = await Promise.all(workerInputsPromises);
 
-        debugLog(
+        appLog(
             'handleStartAnalysis',
+            'info',
             `Dispatching ${workerInputs.length} stream(s) for fetching and analysis.`,
             workerInputs
         );
 
         const processingPromises = workerInputs.map(async (input) => {
-            // STEP 1: Pre-process (fetch, detect protocol)
             const preProcessed = await preProcessInput(input, signal);
 
             const getBaseUrlDirectory = (url) => {
@@ -438,7 +528,6 @@ export async function handleStartAnalysis({ inputs }, signal) {
             };
             const baseUrlDirectory = getBaseUrlDirectory(preProcessed.finalUrl);
 
-            // STEP 2: Parse into initial IR
             let manifestIR, serializedManifestObject, finalBaseUrl;
             if (preProcessed.protocol === 'hls') {
                 const { manifest, definedVariables, baseUrl } =
@@ -461,10 +550,10 @@ export async function handleStartAnalysis({ inputs }, signal) {
                 finalBaseUrl = baseUrl;
             }
 
-            // --- ARCHITECTURAL FIX: VAST Enrichment Step ---
             if (manifestIR.adAvails && manifestIR.adAvails.length > 0) {
-                debugLog(
+                appLog(
                     'analysisHandler',
+                    'info',
                     `Found ${manifestIR.adAvails.length} ad avails. Resolving VAST...`
                 );
                 const enrichedAdAvails = await resolveAdAvailsInWorker(
@@ -472,9 +561,7 @@ export async function handleStartAnalysis({ inputs }, signal) {
                 );
                 manifestIR.adAvails = enrichedAdAvails;
             }
-            // --- END FIX ---
 
-            // STEP 3: Run compliance and other sync analyses on PRISTINE IR
             const manifestObjectForChecks =
                 preProcessed.protocol === 'hls'
                     ? manifestIR
@@ -501,12 +588,18 @@ export async function handleStartAnalysis({ inputs }, signal) {
                 : [];
             const semanticData = new Map();
 
-            // STEP 4: Asynchronously enrich the IR with summary data
             const context = {
                 fetchAndParseSegment: (url, format, range) =>
-                    fetchAndParseSegment(url, format, range, input.auth),
+                    fetchAndParseSegment(url, format, range, input.auth, {
+                        streamId: input.id,
+                        resourceType: 'init',
+                    }),
                 manifestUrl: preProcessed.finalUrl,
-                fetchWithAuth: (url) => fetchWithAuth(url, input.auth),
+                fetchWithAuth: (url) =>
+                    fetchWithAuth(url, input.auth, null, {}, null, signal, {
+                        streamId: input.id,
+                        resourceType: 'manifest',
+                    }),
                 parseHlsManifest: (manifestString, baseUrl, parentVars) =>
                     parseHlsManifest(
                         manifestString,
@@ -557,7 +650,6 @@ export async function handleStartAnalysis({ inputs }, signal) {
                 coverageReport,
             };
 
-            // STEP 5: Build the final stream object with enriched IR
             const streamObject = await buildStreamObject(
                 preProcessed,
                 manifestIR,
@@ -611,8 +703,9 @@ export async function handleStartAnalysis({ inputs }, signal) {
             );
         }
 
-        debugLog(
+        appLog(
             'handleStartAnalysis',
+            'info',
             `Initial Analysis Pipeline (success): ${(
                 performance.now() - analysisStartTime
             ).toFixed(2)}ms`
@@ -620,7 +713,12 @@ export async function handleStartAnalysis({ inputs }, signal) {
 
         return { streams: workerResults, urlAuthMapArray };
     } catch (error) {
-        debugLog('handleStartAnalysis', 'Analysis pipeline failed.', error);
+        appLog(
+            'handleStartAnalysis',
+            'error',
+            'Analysis pipeline failed.',
+            error
+        );
         throw error;
     }
 }

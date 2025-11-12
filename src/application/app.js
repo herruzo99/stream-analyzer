@@ -18,6 +18,7 @@ export class Application {
         this.eventBus.subscribe('state:analysis-complete', ({ streams }) => {
             if (streams.length > 0) {
                 saveToHistory(streams[0]);
+                uiActions.loadHistory(); // Reactively update the history list in the UI
                 const defaultTab =
                     streams.length > 1 ? 'comparison' : 'summary';
                 // Only set the default tab if a session isn't being restored, as the session

@@ -215,22 +215,15 @@ export const statsCardsTemplate = (stats) => {
         })}
     `;
 
-    // --- ARCHITECTURAL IMPROVEMENT ---
-    // Use the new, unambiguous buffer object from the PlayerStats model.
-    const bufferTooltip =
-        buffer.label === 'Live Latency'
-            ? {
-                  text: 'Latency from Live Edge',
-                  details:
-                      'For live streams, this is the time difference between the playhead and the live edge of the broadcast. Lower values are better for low-latency streaming.',
-              }
-            : {
-                  text: 'Forward Buffer Duration',
-                  details:
-                      'The amount of playable media, in seconds, currently buffered ahead of the playhead. A healthy buffer prevents stalls.',
-              };
-
-    const bufferColorClass =
+    // --- ARCHITECTURAL FIX: Always show forward buffer, conditionally show latency ---
+    const isLive = buffer.label === 'Live Latency';
+    const forwardBufferColorClass =
+        buffer.forwardBuffer < 5
+            ? 'text-red-400'
+            : buffer.forwardBuffer < 15
+              ? 'text-yellow-400'
+              : 'text-green-400';
+    const latencyColorClass =
         buffer.seconds < 5
             ? 'text-red-400'
             : buffer.seconds < 15
@@ -238,12 +231,29 @@ export const statsCardsTemplate = (stats) => {
               : 'text-green-400';
 
     const bufferContent = html`
+        ${isLive
+            ? statCard({
+                  title: 'Live Latency',
+                  value: buffer.seconds.toFixed(2),
+                  unit: 's',
+                  colorClass: latencyColorClass,
+                  tooltip: {
+                      text: 'Latency from Live Edge',
+                      details:
+                          'The time difference between the playhead and the live edge of the broadcast. Lower values are better for low-latency streaming.',
+                  },
+              })
+            : ''}
         ${statCard({
-            title: buffer.label,
-            value: buffer.seconds.toFixed(2),
+            title: 'Forward Buffer',
+            value: buffer.forwardBuffer.toFixed(2),
             unit: 's',
-            colorClass: bufferColorClass,
-            tooltip: bufferTooltip,
+            colorClass: forwardBufferColorClass,
+            tooltip: {
+                text: 'Forward Buffer Duration',
+                details:
+                    'The amount of playable media, in seconds, currently buffered ahead of the playhead. A healthy buffer prevents stalls.',
+            },
         })}
         ${statCard({
             title: 'Buffer Gaps',
@@ -256,7 +266,7 @@ export const statsCardsTemplate = (stats) => {
             },
         })}
     `;
-    // --- END IMPROVEMENT ---
+    // --- END FIX ---
 
     return html`
         <div class="space-y-6">

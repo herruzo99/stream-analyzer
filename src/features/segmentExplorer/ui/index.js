@@ -111,51 +111,6 @@ function renderExplorer() {
         segmentExplorerActiveTab,
     } = useUiStore.getState();
 
-    let effectiveRepId = segmentExplorerActiveRepId;
-
-    if (!effectiveRepId && stream.protocol !== 'local') {
-        let defaultRepId = null;
-        if (stream.protocol === 'dash') {
-            const firstPeriod = stream.manifest.periods[0];
-            const firstRep =
-                firstPeriod?.adaptationSets.find(
-                    (as) => as.contentType === segmentExplorerActiveTab
-                )?.representations[0] ||
-                firstPeriod?.adaptationSets[0]?.representations[0];
-            if (firstPeriod && firstRep) {
-                defaultRepId = `${firstPeriod.id || 0}-${firstRep.id}`;
-            }
-        } else if (stream.protocol === 'hls' && stream.manifest?.isMaster) {
-            const asContentType =
-                segmentExplorerActiveTab === 'text'
-                    ? 'subtitles'
-                    : segmentExplorerActiveTab;
-            const firstRendition = stream.manifest.periods[0].adaptationSets
-                .filter((as) => as.contentType === asContentType)
-                .flatMap((as) => as.representations)[0];
-            defaultRepId =
-                firstRendition?.__variantUri ||
-                firstRendition?.serializedManifest.resolvedUri;
-        }
-
-        if (defaultRepId) {
-            effectiveRepId = defaultRepId;
-            uiActions.setSegmentExplorerActiveRepId(defaultRepId);
-
-            if (stream.protocol === 'hls') {
-                const variantState = stream.hlsVariantState.get(defaultRepId);
-                const mediaPlaylist = stream.mediaPlaylists.get(defaultRepId);
-                if (variantState && !mediaPlaylist && !variantState.isLoading) {
-                    eventBus.dispatch('hls:media-playlist-fetch-request', {
-                        streamId: stream.id,
-                        variantUri: defaultRepId,
-                        isBackground: false,
-                    });
-                }
-            }
-        }
-    }
-
     if (contextualSidebar) {
         render(representationSelectorTemplate(stream), contextualSidebar);
     }
@@ -183,17 +138,17 @@ function renderExplorer() {
         });
     } else {
         const repState =
-            stream.dashRepresentationState.get(effectiveRepId) ||
-            stream.hlsVariantState.get(effectiveRepId);
+            stream.dashRepresentationState.get(segmentExplorerActiveRepId) ||
+            stream.hlsVariantState.get(segmentExplorerActiveRepId);
 
         const contentType = segmentExplorerActiveTab;
 
         tableContent = segmentTableTemplate({
-            id: effectiveRepId
-                ? effectiveRepId.replace(/[^a-zA-Z0-9]/g, '-')
+            id: segmentExplorerActiveRepId
+                ? segmentExplorerActiveRepId.replace(/[^a-zA-Z0-9]/g, '-')
                 : 'empty',
-            rawId: effectiveRepId,
-            title: `Segments for ${effectiveRepId}`,
+            rawId: segmentExplorerActiveRepId,
+            title: `Segments for ${segmentExplorerActiveRepId}`,
             contentType: contentType,
             segments: (repState?.segments || [])
                 .slice()

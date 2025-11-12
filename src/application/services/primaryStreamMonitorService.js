@@ -1,7 +1,7 @@
 import { eventBus } from '@/application/event-bus';
 import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
 import { workerService } from '@/infrastructure/worker/workerService';
-import { debugLog } from '@/shared/utils/debug';
+import { appLog } from '@/shared/utils/debug';
 import { playerService } from '@/features/playerSimulation/application/playerService';
 import { useUiStore } from '@/state/uiStore';
 
@@ -25,8 +25,9 @@ async function monitorStream(streamId) {
             ? latestUpdate.rawManifest
             : stream.rawManifest;
 
-        debugLog(
+        appLog(
             'PrimaryMonitor',
+            'info',
             `Polling stream ${streamId}. Using manifest from timestamp ${latestUpdate?.timestamp} for comparison.`
         );
 
@@ -47,6 +48,7 @@ async function monitorStream(streamId) {
             ),
             oldHlsVariantState: Array.from(stream.hlsVariantState.entries()),
             oldAdAvails: stream.adAvails || [],
+            segmentPollingReps: Array.from(stream.segmentPollingReps || []),
         };
 
         // This task now triggers a 'livestream:manifest-updated' message on the main thread,
@@ -80,8 +82,9 @@ function startMonitoring(stream) {
     }
     if (stream.manifest?.type === 'dynamic' && stream.originalUrl) {
         const pollInterval = calculatePollInterval(stream);
-        debugLog(
+        appLog(
             'PrimaryMonitor',
+            'info',
             `Starting poller for stream ${stream.id} with interval ${pollInterval}ms.`
         );
 
@@ -112,7 +115,11 @@ function startMonitoring(stream) {
 
 function stopMonitoring(streamId) {
     if (pollers.has(streamId)) {
-        debugLog('PrimaryMonitor', `Stopping poller for stream ${streamId}.`);
+        appLog(
+            'PrimaryMonitor',
+            'info',
+            `Stopping poller for stream ${streamId}.`
+        );
         const poller = pollers.get(streamId);
         if (poller.tickSubscription) {
             poller.tickSubscription(); // Unsubscribe from the ticker
@@ -135,8 +142,9 @@ export function managePollers() {
     dynamicStreams.forEach((stream) => {
         if (playerActiveStreamIds.has(stream.id)) {
             if (pollers.has(stream.id)) {
-                debugLog(
+                appLog(
                     'PrimaryMonitor',
+                    'info',
                     `Ceding polling control of stream ${stream.id} to PlayerService.`
                 );
                 stopMonitoring(stream.id);
@@ -152,8 +160,9 @@ export function managePollers() {
             if (!isCurrentlyPolling) {
                 startMonitoring(stream);
             } else if (poller.pollInterval !== newPollInterval) {
-                debugLog(
+                appLog(
                     'PrimaryMonitor',
+                    'info',
                     `Restarting poller for stream ${stream.id} due to interval change.`
                 );
                 stopMonitoring(stream.id);
@@ -179,8 +188,9 @@ function scheduleOneTimePoll({ streamId, pollTime, reason }) {
         return;
     }
 
-    debugLog(
+    appLog(
         'PrimaryMonitor',
+        'info',
         `Scheduling high-priority poll for stream ${streamId} in ${delay}ms. Reason: ${reason}`
     );
 
@@ -199,8 +209,9 @@ function handleVisibilityChange() {
         const { inactivityTimeoutOverride } = useUiStore.getState();
 
         if (inactivityTimeoutOverride === Infinity) {
-            debugLog(
+            appLog(
                 'PrimaryMonitor',
+                'info',
                 'Inactivity timeout disabled by user override. Polling will continue in background.'
             );
             return; // User has disabled the timeout.
@@ -211,15 +222,25 @@ function handleVisibilityChange() {
                 ? INACTIVITY_TIMEOUT_MS
                 : inactivityTimeoutOverride;
 
-        debugLog(
+        appLog(
             'PrimaryMonitor',
+            'info',
             `Tab is hidden. Setting inactivity timer for ${timeoutMs / 1000} seconds.`
         );
 
         inactivityTimer = setTimeout(() => {
-            analysisActions.setAllLiveStreamsPolling(false, {
-                fromInactivity: true,
-            });
+            const isAnyPolling = useAnalysisStore
+                .getState()
+                .streams.some(
+                    (s) => s.manifest?.type === 'dynamic' && s.isPolling
+                );
+
+            if (isAnyPolling) {
+                analysisActions.setAllLiveStreamsPolling(false, {
+                    fromInactivity: true,
+                });
+                eventBus.dispatch('notify:polling-disabled');
+            }
         }, timeoutMs);
     } else {
         if (inactivityTimer) {

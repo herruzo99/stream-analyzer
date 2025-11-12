@@ -1,5 +1,5 @@
 import { eventBus } from '@/application/event-bus';
-import { debugLog } from '@/shared/utils/debug';
+import { appLog } from '@/shared/utils/debug';
 
 const ONE_SECOND = 1000;
 const TWO_SECONDS = 2000;
@@ -38,7 +38,7 @@ class TickerService {
         this.lastOneSecondTick = performance.now();
         this.lastTwoSecondTick = performance.now();
         this.animationFrameId = requestAnimationFrame(this._tick.bind(this));
-        debugLog('TickerService', 'Started global ticker.');
+        appLog('TickerService', 'info', 'Started global ticker.');
     }
 
     stop() {
@@ -50,7 +50,7 @@ class TickerService {
             cancelAnimationFrame(this.animationFrameId);
         }
         this.animationFrameId = null;
-        debugLog('TickerService', 'Stopped global ticker.');
+        appLog('TickerService', 'info', 'Stopped global ticker.');
     }
 }
 

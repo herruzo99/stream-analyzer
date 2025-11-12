@@ -101,23 +101,73 @@ const streamAuthSettingsTemplate = (inputId, auth) => html`
     </div>
 `;
 
-const drmAuthSettingsTemplate = (inputId, drmAuth, detectedDrm, showAll) => {
-    const cert = drmAuth.serverCertificate;
-    const isFile = cert instanceof File;
-    const isFileStub = isFile && cert.size === 0;
-    const certUrlValue = !isFile ? cert || '' : '';
+const certificateInputTemplate = (
+    label,
+    keySystem,
+    inputId,
+    drmAuth,
+    onUrlChange,
+    onFileChange
+) => {
+    const certs = drmAuth.serverCertificate;
+    let certValue = null;
+    if (typeof certs === 'object' && certs !== null && !Array.isArray(certs)) {
+        certValue = certs[keySystem];
+    } else if (
+        ['com.apple.fps'].includes(keySystem) &&
+        (typeof certs === 'string' || certs instanceof File)
+    ) {
+        // Backward compatibility for FairPlay
+        certValue = certs;
+    }
+
+    const isFile = certValue instanceof File;
+    const isFileStub = isFile && certValue.size === 0;
+    const certUrlValue = !isFile ? certValue || '' : '';
+
     let certFileLabel = 'Upload .der';
     let certFileClasses = 'bg-slate-600 hover:bg-slate-700';
-
     if (isFileStub) {
-        certFileLabel = `RE-SELECT: ${cert.name}`;
+        certFileLabel = `RE-SELECT: ${certValue.name}`;
         certFileClasses =
             'bg-yellow-600 hover:bg-yellow-700 text-yellow-900 animate-pulse';
     } else if (isFile) {
-        certFileLabel = cert.name;
+        certFileLabel = certValue.name;
         certFileClasses = 'bg-green-600 text-white';
     }
 
+    return html`
+        <div>
+            <label class="block text-sm font-medium text-slate-400 mb-1"
+                >${label}</label
+            >
+            <div class="flex items-center gap-2">
+                <input
+                    type="url"
+                    class="bg-slate-800 text-white rounded px-2 py-1.5 text-sm w-full border border-slate-600"
+                    placeholder="Enter URL..."
+                    .value=${certUrlValue}
+                    ?disabled=${isFile}
+                    @input=${(e) => onUrlChange(keySystem, e.target.value)}
+                />
+                <label
+                    for="cert-file-${inputId}-${keySystem}"
+                    class="shrink-0 cursor-pointer ${certFileClasses} text-white font-bold py-2 px-3 rounded-md text-center text-xs truncate"
+                    >${certFileLabel}</label
+                >
+                <input
+                    type="file"
+                    id="cert-file-${inputId}-${keySystem}"
+                    class="hidden"
+                    accept=".der,.cer"
+                    @change=${(e) => onFileChange(keySystem, e.target.files[0])}
+                />
+            </div>
+        </div>
+    `;
+};
+
+const drmAuthSettingsTemplate = (inputId, drmAuth, detectedDrm, showAll) => {
     const handleLicenseUrlInput = (keySystem, value) => {
         let newLicenseServerUrl;
         if (typeof drmAuth.licenseServerUrl === 'string') {
@@ -128,10 +178,26 @@ const drmAuthSettingsTemplate = (inputId, drmAuth, detectedDrm, showAll) => {
                 [keySystem]: value,
             };
         }
-
         analysisActions.updateStreamInput(inputId, 'drmAuth', {
             ...drmAuth,
             licenseServerUrl: newLicenseServerUrl,
+        });
+    };
+
+    const handleCertChange = (keySystem, value) => {
+        let newCerts;
+        if (
+            typeof drmAuth.serverCertificate === 'object' &&
+            drmAuth.serverCertificate !== null &&
+            !Array.isArray(drmAuth.serverCertificate)
+        ) {
+            newCerts = { ...drmAuth.serverCertificate, [keySystem]: value };
+        } else {
+            newCerts = { [keySystem]: value };
+        }
+        analysisActions.updateStreamInput(inputId, 'drmAuth', {
+            ...drmAuth,
+            serverCertificate: newCerts,
         });
     };
 
@@ -187,67 +253,52 @@ const drmAuthSettingsTemplate = (inputId, drmAuth, detectedDrm, showAll) => {
     return html`
         <div class="space-y-4">
             ${showWidevine
-                ? licenseServerInput(
-                      'Widevine License URL',
-                      'com.widevine.alpha'
-                  )
+                ? html`<div>
+                      ${licenseServerInput(
+                          'Widevine License URL',
+                          'com.widevine.alpha'
+                      )}
+                      ${certificateInputTemplate(
+                          'Widevine Certificate',
+                          'com.widevine.alpha',
+                          inputId,
+                          drmAuth,
+                          handleCertChange,
+                          handleCertChange
+                      )}
+                  </div>`
                 : ''}
             ${showPlayReady
-                ? licenseServerInput(
-                      'PlayReady License URL',
-                      'com.microsoft.playready'
-                  )
+                ? html`<div>
+                      ${licenseServerInput(
+                          'PlayReady License URL',
+                          'com.microsoft.playready'
+                      )}
+                      ${certificateInputTemplate(
+                          'PlayReady Certificate',
+                          'com.microsoft.playready',
+                          inputId,
+                          drmAuth,
+                          handleCertChange,
+                          handleCertChange
+                      )}
+                  </div>`
                 : ''}
             ${showFairPlay
-                ? html` ${licenseServerInput(
+                ? html`<div>
+                      ${licenseServerInput(
                           'FairPlay License URL',
                           'com.apple.fps'
                       )}
-                      <div>
-                          <label
-                              class="block text-sm font-medium text-slate-400 mb-1"
-                              >FairPlay Certificate</label
-                          >
-                          <div class="flex items-center gap-2">
-                              <input
-                                  type="url"
-                                  class="bg-slate-800 text-white rounded px-2 py-1.5 text-sm w-full border border-slate-600"
-                                  placeholder="Enter URL..."
-                                  .value=${certUrlValue}
-                                  ?disabled=${isFile}
-                                  @input=${(e) =>
-                                      analysisActions.updateStreamInput(
-                                          inputId,
-                                          'drmAuth',
-                                          {
-                                              ...drmAuth,
-                                              serverCertificate: e.target.value,
-                                          }
-                                      )}
-                              />
-                              <label
-                                  for="cert-file-${inputId}"
-                                  class="shrink-0 cursor-pointer ${certFileClasses} text-white font-bold py-2 px-3 rounded-md text-center text-xs truncate"
-                                  >${certFileLabel}</label
-                              >
-                              <input
-                                  type="file"
-                                  id="cert-file-${inputId}"
-                                  class="hidden"
-                                  accept=".der"
-                                  @change=${(e) =>
-                                      analysisActions.updateStreamInput(
-                                          inputId,
-                                          'drmAuth',
-                                          {
-                                              ...drmAuth,
-                                              serverCertificate:
-                                                  e.target.files[0],
-                                          }
-                                      )}
-                              />
-                          </div>
-                      </div>`
+                      ${certificateInputTemplate(
+                          'FairPlay Certificate',
+                          'com.apple.fps',
+                          inputId,
+                          drmAuth,
+                          handleCertChange,
+                          handleCertChange
+                      )}
+                  </div>`
                 : ''}
             ${authSectionTemplate(
                 'License Request Headers',

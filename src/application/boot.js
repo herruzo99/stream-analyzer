@@ -23,6 +23,7 @@ import { initializeUiOrchestration } from '@/ui/services/uiOrchestrationService'
 import { initializeNetworkEnrichmentService } from '@/infrastructure/http/networkEnrichmentService';
 import { tickerService } from './services/tickerService.js';
 import { playerEventOrchestratorService } from './services/playerEventOrchestratorService.js';
+import { initializeGlobalRequestInterceptor } from '@/infrastructure/http/globalRequestInterceptor.js';
 
 // Feature Initializers
 import { initializeAdvertisingFeature } from '@/features/advertising/index';
@@ -35,6 +36,7 @@ import { initializeStreamInputFeature } from '@/features/streamInput/index';
 import { initializePlayerSimulationFeature } from '@/features/playerSimulation/index';
 import { initializeMemoryMonitorFeature } from '@/features/memoryMonitor/index';
 import { initializeMultiPlayerFeature } from '@/features/multiPlayer/index';
+import { initializeNotificationFeature } from '@/features/notifications/index.js';
 
 // Side-effect driven imports for services that primarily listen to the event bus
 import '@/application/services/streamService';
@@ -90,6 +92,7 @@ export async function startApp() {
     initializeConsentManager();
     initializeRenderer(dom);
     tickerService.start();
+    await initializeGlobalRequestInterceptor(); // <-- FIX: Await initialization to prevent race condition.
 
     // --- ARCHITECTURAL FIX: One-time data load ---
     // Load persisted workspaces into the reactive state store at boot time.
@@ -119,7 +122,7 @@ export async function startApp() {
     keyManagerService.initialize();
     initializeInbandEventMonitor();
     initializeNetworkEnrichmentService();
-    playerEventOrchestratorService.initialize(); // <-- ADDED INITIALIZATION
+    playerEventOrchestratorService.initialize();
 
     // --- Layer 4: Feature Initialization & UI Orchestration ---
     initializeUiOrchestration();
@@ -133,6 +136,7 @@ export async function startApp() {
     initializePlayerSimulationFeature();
     initializeMemoryMonitorFeature();
     initializeMultiPlayerFeature();
+    initializeNotificationFeature();
 
     // --- Layer 5: Start Application Core ---
     app.start();

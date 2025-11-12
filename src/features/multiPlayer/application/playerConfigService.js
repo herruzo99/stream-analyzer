@@ -1,5 +1,5 @@
 import { useMultiPlayerStore } from '@/state/multiPlayerStore';
-import { debugLog } from '@/shared/utils/debug';
+import { appLog } from '@/shared/utils/debug';
 import { schemeIdUriToKeySystem } from '@/infrastructure/parsing/utils/drm';
 
 async function fetchCertificate(url) {
@@ -27,16 +27,6 @@ async function buildDrmConfig(streamDef) {
         if (h.key) licenseRequestHeaders[h.key] = h.value;
     });
 
-    let cert;
-    if (
-        streamDef.drmAuth?.serverCertificate &&
-        typeof streamDef.drmAuth.serverCertificate === 'string'
-    ) {
-        cert = await fetchCertificate(streamDef.drmAuth.serverCertificate);
-    } else if (streamDef.drmAuth?.serverCertificate) {
-        cert = streamDef.drmAuth.serverCertificate;
-    }
-
     for (const system of security.systems) {
         const keySystem = schemeIdUriToKeySystem[system.systemId.toLowerCase()];
         if (keySystem) {
@@ -52,8 +42,33 @@ async function buildDrmConfig(streamDef) {
 
             if (finalUrl) {
                 drmConfig.servers[keySystem] = finalUrl;
+
+                // --- NEW CERTIFICATE LOGIC ---
+                let certSource = null;
+                if (
+                    typeof streamDef.drmAuth.serverCertificate === 'object' &&
+                    streamDef.drmAuth.serverCertificate !== null
+                ) {
+                    certSource = streamDef.drmAuth.serverCertificate[keySystem];
+                } else {
+                    // Fallback to single certificate for backward compatibility
+                    certSource = streamDef.drmAuth.serverCertificate;
+                }
+
+                let certBuffer = null;
+                if (typeof certSource === 'string') {
+                    certBuffer = await fetchCertificate(certSource);
+                } else if (certSource instanceof ArrayBuffer) {
+                    certBuffer = certSource;
+                } else if (certSource instanceof File) {
+                    certBuffer = await certSource.arrayBuffer();
+                }
+                // --- END NEW LOGIC ---
+
                 drmConfig.advanced[keySystem] = {
-                    serverCertificate: cert ? new Uint8Array(cert) : undefined,
+                    serverCertificate: certBuffer
+                        ? new Uint8Array(certBuffer)
+                        : undefined,
                     headers: licenseRequestHeaders,
                 };
             }
@@ -78,7 +93,7 @@ function selectTrack(player, type, selectionCriteria) {
             typeof selectionCriteria === 'object' &&
             selectionCriteria !== null
         ) {
-            // Find by properties
+            // Find by properties, which is necessary when the object doesn't have Shaka's internal properties
             trackToSelect = tracks.find(
                 (t) =>
                     t.bandwidth === selectionCriteria.bandwidth &&
@@ -86,7 +101,7 @@ function selectTrack(player, type, selectionCriteria) {
                     t.width === selectionCriteria.width
             );
         } else {
-            // Find by ID
+            // Find by ID for direct Shaka track objects
             trackToSelect = tracks.find((t) => t.id === selectionCriteria);
         }
 
@@ -94,8 +109,9 @@ function selectTrack(player, type, selectionCriteria) {
             player.configure({ abr: { enabled: false } });
             player.selectVariantTrack(trackToSelect, true);
         } else {
-            debugLog(
+            appLog(
                 'PlayerConfigService.selectTrack',
+                'warn',
                 `Could not find matching variant track for criteria`,
                 selectionCriteria
             );
@@ -111,8 +127,33 @@ function selectTrack(player, type, selectionCriteria) {
         }
     } else if (type === 'text') {
         const track = selectionCriteria;
-        player.selectTextTrack(track);
-        player.setTextTrackVisibility(!!track);
+        // --- ARCHITECTURAL FIX: Use correct Shaka API to disable text tracks ---
+        if (!track) {
+            player.setTextTrackVisibility(false);
+        } else {
+            let trackToSelect = track;
+            // Handle cases where a simplified track object is passed
+            if (typeof track.id !== 'number') {
+                const shakaTracks = player.getTextTracks();
+                trackToSelect = shakaTracks.find(
+                    (t) =>
+                        t.language === track.language && t.kind === track.kind
+                );
+            }
+
+            if (trackToSelect) {
+                player.selectTextTrack(trackToSelect);
+                player.setTextTrackVisibility(true); // Explicitly enable visibility
+            } else {
+                appLog(
+                    'PlayerConfigService.selectTrack',
+                    'warn',
+                    `Could not find matching text track for criteria`,
+                    track
+                );
+            }
+        }
+        // --- END FIX ---
     }
 }
 

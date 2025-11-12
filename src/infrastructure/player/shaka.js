@@ -1,5 +1,5 @@
 import { shakaNetworkPlugin } from './shaka-network-plugin.js';
-import { debugLog } from '@/shared/utils/debug';
+import { appLog } from '@/shared/utils/debug';
 import shaka from 'shaka-player/dist/shaka-player.ui.js';
 
 let shakaSingleton = null;
@@ -18,8 +18,9 @@ async function initializeShaka() {
         throw new Error('Shaka Player module failed to import correctly.');
     }
 
-    debugLog(
+    appLog(
         'shaka-canonical',
+        'info',
         'Shaka Player module imported. Initializing singleton.'
     );
 

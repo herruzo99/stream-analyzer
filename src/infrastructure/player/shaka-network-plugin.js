@@ -1,6 +1,6 @@
 import { useAnalysisStore } from '@/state/analysisStore';
 import { workerService } from '@/infrastructure/worker/workerService';
-import { debugLog } from '@/shared/utils/debug';
+import { appLog } from '@/shared/utils/debug';
 import shaka from 'shaka-player/dist/shaka-player.ui.js';
 
 /**
@@ -17,6 +17,7 @@ import shaka from 'shaka-player/dist/shaka-player.ui.js';
 export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
     const MANIFEST_REQUEST_TYPE = 0;
     const SEGMENT_REQUEST_TYPE = 1;
+    const LICENSE_REQUEST_TYPE = 2;
     const { urlAuthMap, streams } = useAnalysisStore.getState();
 
     let streamId = null;
@@ -24,16 +25,13 @@ export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
     let segmentUniqueId = null;
     const rangeHeader = request.headers['Range']?.replace('bytes=', '');
 
-    // --- ARCHITECTURAL FIX: Always perform deep search for segments ---
-    // This new, consolidated lookup ensures we find the canonical segment object
-    // from our state, which contains the correct `uniqueId` needed for caching.
-
     // Stage 1: Primary. Get ID directly from the NetworkingEngine instance if available.
     const requester = /** @type {any} */ (request['requester']);
     if (requester?.streamAnalyzerStreamId !== undefined) {
         streamId = requester.streamAnalyzerStreamId;
-        debugLog(
+        appLog(
             'shakaNetworkPlugin',
+            'info',
             `[Stage 1] Lookup successful. Found stream ID: ${streamId} directly on networking engine.`
         );
     }
@@ -44,17 +42,63 @@ export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
         if (context) {
             streamId = context.streamId ?? null;
             auth = context.auth ?? null;
-            debugLog(
+            appLog(
                 'shakaNetworkPlugin',
+                'info',
                 `[Stage 2] Lookup successful. Found stream ID: ${streamId} via urlAuthMap for manifest.`
             );
         }
     }
 
-    // Stage 3: Definitive segment search. This must run for all segment requests.
+    // Stage 2.5: License request fallback (origin-based).
+    if (streamId === null && requestType === LICENSE_REQUEST_TYPE) {
+        appLog(
+            'shakaNetworkPlugin',
+            'info',
+            '[Stage 2.5] License request detected. Attempting fallback lookup.'
+        );
+        try {
+            const requestOrigin = new URL(uri).origin;
+            for (const stream of streams) {
+                const licenseUrls = stream.drmAuth?.licenseServerUrl;
+                if (!licenseUrls) continue;
+
+                const urlsToCheck =
+                    typeof licenseUrls === 'string'
+                        ? [licenseUrls]
+                        : Object.values(licenseUrls);
+
+                for (const licenseUrl of urlsToCheck) {
+                    try {
+                        if (new URL(licenseUrl).origin === requestOrigin) {
+                            streamId = stream.id;
+                            auth = stream.auth;
+                            appLog(
+                                'shakaNetworkPlugin',
+                                'info',
+                                `[Stage 2.5] Lookup successful. Matched license URL origin for stream ID: ${streamId}`
+                            );
+                            break;
+                        }
+                    } catch {
+                        // Ignore invalid license URLs in config
+                    }
+                }
+                if (streamId !== null) break;
+            }
+        } catch (e) {
+            appLog(
+                'shakaNetworkPlugin',
+                'warn',
+                '[Stage 2.5] Error during license URL origin matching:',
+                e
+            );
+        }
+    }
+
+    // Stage 3: Definitive segment search.
     if (requestType === SEGMENT_REQUEST_TYPE) {
         for (const stream of streams) {
-            // If we already know the streamId, only search within that stream.
             if (streamId !== null && stream.id !== streamId) {
                 continue;
             }
@@ -79,48 +123,39 @@ export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
             }
 
             if (foundSegment) {
-                streamId = stream.id; // Confirm or set streamId
+                streamId = stream.id;
                 auth = stream.auth;
                 segmentUniqueId = foundSegment.uniqueId;
-                debugLog(
+                appLog(
                     'shakaNetworkPlugin',
+                    'info',
                     `[Stage 3] Definitive lookup successful. Found stream ID: ${streamId} and uniqueId: ${segmentUniqueId} via deep segment search.`
                 );
-                break; // Exit the main stream loop
+                break;
             }
         }
     }
 
-    // Stage 4: Fallback for segments that were not pre-calculated (e.g. some live scenarios)
+    // Stage 4: Last-resort unique ID construction.
     if (segmentUniqueId === null && requestType === SEGMENT_REQUEST_TYPE) {
-        // Find stream context if not already known
-        if (streamId === null) {
-            const streamForAuth = streams.find(
-                (s) => s.baseUrl && uri.startsWith(s.baseUrl)
-            );
-            if (streamForAuth) {
-                streamId = streamForAuth.id;
-                auth = streamForAuth.auth;
-            }
-        }
-        // Construct unique ID as a last resort
         if (rangeHeader) {
             segmentUniqueId = `${uri}@media@${rangeHeader}`;
-            debugLog(
-                'shakaNetworkPlugin',
-                `[Stage 4 - Fallback] Constructed unique ID for byte-ranged request: ${segmentUniqueId}`
-            );
         }
     }
-    // --- END FIX ---
 
     if (streamId !== null && auth === null) {
         const streamForAuth = streams.find((s) => s.id === streamId);
         auth = streamForAuth?.auth ?? null;
     }
 
-    debugLog(
+    // Add to urlAuthMap to prevent the global interceptor from double-logging this request.
+    if (streamId !== null && auth !== null) {
+        urlAuthMap.set(uri, { streamId, auth, isShaka: true });
+    }
+
+    appLog(
         'shakaNetworkPlugin',
+        'info',
         `Intercepted request. Final lookup found stream ID: ${streamId}`,
         { uri, requestType }
     );
@@ -159,6 +194,9 @@ export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
                 currentStream?.hlsVariantState.entries() || []
             ),
             oldAdAvails: currentStream?.adAvails || [],
+            segmentPollingReps: Array.from(
+                currentStream?.segmentPollingReps || []
+            ),
         };
     } else {
         taskType = 'shaka-fetch-resource';
@@ -170,7 +208,7 @@ export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
             auth,
             streamId,
             shakaManifest,
-            segmentUniqueId: segmentUniqueId || uri, // Pass canonical uniqueId, fallback to URI
+            segmentUniqueId: segmentUniqueId || uri,
         };
     }
 

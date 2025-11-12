@@ -87,38 +87,43 @@ const renderHlsRendition = (stream, renditionInfo, contentType) => {
     } = variantState;
 
     const segments = rawSegments || [];
+    const mediaPlaylist = stream.mediaPlaylists.get(uri);
+    const mediaSequence = mediaPlaylist?.manifest?.mediaSequence || 0;
 
+    // --- ARCHITECTURAL FIX: Rely on parser for timing; only transform for rendering ---
     let pdtAnchorTime = 0;
-    let cumulativeDuration = 0;
+    let pdtMediaTime = 0;
+
     const allSegments = segments.map((seg, index) => {
-        if (/** @type {any} */ (seg).dateTime) {
-            pdtAnchorTime = new Date(
-                /** @type {any} */ (seg).dateTime
-            ).getTime();
-            cumulativeDuration = 0;
+        const segmentTime = seg.time || 0;
+        const segmentDuration = seg.duration || 0;
+
+        if (seg.dateTime) {
+            pdtAnchorTime = new Date(seg.dateTime).getTime();
+            pdtMediaTime = segmentTime; // Anchor the media time to this PDT
         }
-        const startTimeUTC = pdtAnchorTime + cumulativeDuration * 1000;
+
+        let startTimeUTC = 0;
+        if (pdtAnchorTime > 0) {
+            startTimeUTC = pdtAnchorTime + (segmentTime - pdtMediaTime) * 1000;
+        }
+
         const endTimeUTC =
-            startTimeUTC + /** @type {any} */ (seg).duration * 1000;
-        const segmentTime = cumulativeDuration;
-        cumulativeDuration += /** @type {any} */ (seg).duration;
+            startTimeUTC > 0 ? startTimeUTC + segmentDuration * 1000 : 0;
+
         return {
+            ...seg,
             repId: 'hls-media',
-            type: /** @type {any} */ (seg).type || 'Media',
-            number: (stream.manifest.mediaSequence || 0) + index,
-            uniqueId: /** @type {any} */ (seg).uniqueId,
-            resolvedUrl: /** @type {any} */ (seg).resolvedUrl,
-            template: /** @type {any} */ (seg).uri,
+            number: mediaSequence + index,
+            // Convert time and duration from seconds (from parser) to timescale units for the template
             time: segmentTime * 90000,
-            duration: /** @type {any} */ (seg).duration * 90000,
+            duration: segmentDuration * 90000,
             timescale: 90000,
-            gap: /** @type {any} */ (seg).gap || false,
             startTimeUTC: startTimeUTC || 0,
             endTimeUTC: endTimeUTC || 0,
-            flags: /** @type {any} */ (seg).flags || [],
-            encryptionInfo: /** @type {any} */ (seg).encryptionInfo,
         };
     });
+    // --- END FIX ---
 
     let processedSegments = [...allSegments];
 

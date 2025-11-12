@@ -9,6 +9,7 @@ import { hlsFeatureDefinitions } from '@/infrastructure/parsing/hls/feature-defi
 import { tooltipTriggerClasses } from '@/ui/shared/constants';
 import * as icons from '@/ui/icons';
 import { formattedOptionsDropdownTemplate } from '@/features/playerSimulation/ui/components/formatted-options-dropdown.js';
+import { segmentPollingSelectorTemplate } from './segment-polling-selector.js';
 
 const getFeatureList = () => {
     const dashFeatures = dashFeatureDefinitions.map((f) => ({
@@ -87,7 +88,7 @@ const individualPollingControls = (liveStreams) => {
                         <button
                             @click=${() =>
                                 handleToggle(stream.id, stream.isPolling)}
-                            class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${stream.isPolling
+                            class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${stream.isPolling
                                 ? 'bg-blue-600'
                                 : 'bg-slate-600'}"
                             title=${stream.isPolling ? 'Pause' : 'Resume'}
@@ -177,6 +178,58 @@ const streamSelectionPanelTemplate = (
     </div>
 `;
 
+const featureGridSelectionPanelTemplate = (
+    applicableFeatures,
+    activeFeatureName,
+    onSelect
+) => {
+    const groupedFeatures = applicableFeatures.reduce((acc, feature) => {
+        const category = feature.category || 'Other';
+        if (!acc[category]) {
+            acc[category] = [];
+        }
+        acc[category].push(feature);
+        return acc;
+    }, {});
+
+    const featureButton = (feature) => {
+        const isActive = feature.name === activeFeatureName;
+        return html`
+            <button
+                type="button"
+                @click=${() => onSelect(feature)}
+                class="p-2 text-xs font-semibold rounded-md transition-colors text-left truncate ${isActive
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-slate-700 hover:bg-slate-600 text-slate-300'}"
+                title=${feature.desc}
+            >
+                ${feature.name}
+            </button>
+        `;
+    };
+
+    return html`
+        <div
+            class="dropdown-panel bg-slate-800 border border-slate-700 rounded-lg shadow-xl w-[40rem] p-3 space-y-4 max-h-[60vh] overflow-y-auto"
+        >
+            ${Object.entries(groupedFeatures).map(
+                ([category, features]) => html`
+                    <div>
+                        <h5
+                            class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 px-1"
+                        >
+                            ${category}
+                        </h5>
+                        <div class="grid grid-cols-3 gap-2">
+                            ${features.map(featureButton)}
+                        </div>
+                    </div>
+                `
+            )}
+        </div>
+    `;
+};
+
 const customDropdownButton = (label, onClick, disabled = false) => html`
     <button
         type="button"
@@ -195,9 +248,9 @@ const conditionalPollingControls = (liveStreams) => {
 
     const handleStart = (e) => {
         e.preventDefault();
-        if (!targetStreamId || !targetFeatureName) {
+        if (targetStreamId === null || !targetFeatureName) {
             eventBus.dispatch('ui:show-status', {
-                message: 'Please select a stream and a feature.',
+                message: 'Please select both a stream and a feature.',
                 type: 'warn',
             });
             return;
@@ -315,17 +368,14 @@ const conditionalPollingControls = (liveStreams) => {
                     toggleDropdown(
                         e.currentTarget,
                         () =>
-                            formattedOptionsDropdownTemplate(
-                                applicableFeatures.map((f) => ({
-                                    id: f.name,
-                                    label: f.name,
-                                    description: f.desc,
-                                })),
+                            featureGridSelectionPanelTemplate(
+                                applicableFeatures,
                                 targetFeatureName,
                                 (feature) => {
                                     uiActions.setConditionalPollingTarget({
-                                        targetFeatureName: feature.id,
+                                        targetFeatureName: feature.name,
                                     });
+                                    closeDropdown();
                                 }
                             ),
                         e
@@ -336,9 +386,13 @@ const conditionalPollingControls = (liveStreams) => {
 
             <button
                 type="submit"
-                class="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-md text-sm"
+                class="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                ?disabled=${targetStreamId === null || !targetFeatureName}
+                title=${targetStreamId === null || !targetFeatureName
+                    ? 'Please select both a stream and a feature'
+                    : 'Start polling the selected stream until the chosen feature appears'}
             >
-                ${icons.locateFixed} Start "Seek to Feature"
+                ${icons.locateFixed} Start Polling for Feature
             </button>
         </form>
     `;
@@ -353,6 +407,11 @@ export const pollingDropdownPanelTemplate = () => {
         INACTIVITY_TIMEOUT_OPTIONS.find(
             (opt) => opt.id === inactivityTimeoutOverride
         ) || INACTIVITY_TIMEOUT_OPTIONS[0];
+
+    const totalReps = liveStreams.reduce(
+        (sum, s) => sum + s.segmentPollingReps.size,
+        0
+    );
 
     return html`
         <div
@@ -369,6 +428,28 @@ export const pollingDropdownPanelTemplate = () => {
                 </button>
             </div>
             ${individualPollingControls(liveStreams)}
+            <div class="border-t border-slate-700 pt-3">
+                <h5
+                    class="font-semibold text-slate-300 text-sm mb-2 flex items-center gap-2 ${tooltipTriggerClasses}"
+                    data-tooltip="Actively download all new segments for selected representations to discover in-band events like SCTE-35."
+                >
+                    ${icons.download} Active Segment Polling
+                </h5>
+                ${customDropdownButton(
+                    `Configure (${totalReps} active)`,
+                    (e) => {
+                        toggleDropdown(
+                            e.currentTarget,
+                            // --- ARCHITECTURAL FIX ---
+                            // Pass the function directly, do not close over liveStreams.
+                            segmentPollingSelectorTemplate,
+                            // --- END FIX ---
+                            e
+                        );
+                    },
+                    liveStreams.length === 0
+                )}
+            </div>
             <div class="border-t border-slate-700 pt-3">
                 <h5
                     class="font-semibold text-slate-300 text-sm mb-2 flex items-center gap-2 ${tooltipTriggerClasses}"

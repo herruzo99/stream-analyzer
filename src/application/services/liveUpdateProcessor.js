@@ -1,10 +1,103 @@
 import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
+import { useSegmentCacheStore } from '@/state/segmentCacheStore';
 import { eventBus } from '@/application/event-bus';
-import { debugLog } from '@/shared/utils/debug';
+import { appLog } from '@/shared/utils/debug';
 import { diffManifest } from '@/ui/shared/diff';
 import xmlFormatter from 'xml-formatter';
 import { useUiStore, uiActions } from '@/state/uiStore';
 import { generateFeatureAnalysis } from '@/features/featureAnalysis/domain/analyzer';
+import { AdAvail } from '@/features/advertising/domain/AdAvail.js';
+import { resolveAdAvailsInWorker } from '@/features/advertising/application/resolveAdAvailWorker';
+import { inferMediaInfoFromExtension } from '@/infrastructure/parsing/utils/media-types';
+
+const MAX_MANIFEST_UPDATES_HISTORY = 200;
+
+/**
+ * After a live update, this function checks for any representations being
+ * actively polled and dispatches fetch events for any new segments.
+ * @param {import('@/types').Stream} stream The newly updated stream object.
+ */
+function queueNewSegmentsForPolledReps(stream) {
+    if (!stream.segmentPollingReps || stream.segmentPollingReps.size === 0) {
+        return;
+    }
+
+    const { get, set } = useSegmentCacheStore.getState();
+    const repsToPoll = Array.from(stream.segmentPollingReps);
+
+    appLog(
+        'LiveUpdateProcessor',
+        'info',
+        `Checking for new segments in ${repsToPoll.length} actively polled representations for stream ${stream.id}.`
+    );
+
+    for (const repId of repsToPoll) {
+        const repState =
+            stream.dashRepresentationState.get(repId) ||
+            stream.hlsVariantState.get(repId);
+
+        if (
+            !repState ||
+            !repState.newlyAddedSegmentUrls ||
+            repState.newlyAddedSegmentUrls.size === 0
+        ) {
+            continue;
+        }
+
+        const newSegmentUrls = Array.from(repState.newlyAddedSegmentUrls);
+        const unloadedSegments = newSegmentUrls
+            .map((uniqueId) =>
+                repState.segments.find((seg) => seg.uniqueId === uniqueId)
+            )
+            .filter((seg) => {
+                if (!seg || seg.gap) return false;
+                const entry = get(seg.uniqueId);
+                return !entry || (entry.status !== 200 && entry.status !== -1);
+            });
+
+        if (unloadedSegments.length > 0) {
+            appLog(
+                'LiveUpdateProcessor',
+                'info',
+                `Queueing ${unloadedSegments.length} new segments for polled representation: ${repId}`
+            );
+
+            unloadedSegments.forEach((seg) => {
+                set(seg.uniqueId, {
+                    status: -1,
+                    data: null,
+                    parsedData: null,
+                });
+
+                const { contentType } = inferMediaInfoFromExtension(
+                    seg.resolvedUrl
+                );
+
+                let formatHint;
+                if (stream.protocol === 'dash') {
+                    formatHint =
+                        stream.manifest.segmentFormat === 'unknown'
+                            ? 'isobmff'
+                            : stream.manifest.segmentFormat;
+                } else {
+                    formatHint =
+                        contentType === 'text'
+                            ? 'vtt'
+                            : stream.manifest.segmentFormat === 'unknown'
+                              ? 'ts' // HLS default
+                              : stream.manifest.segmentFormat;
+                }
+
+                eventBus.dispatch('segment:fetch', {
+                    uniqueId: seg.uniqueId,
+                    streamId: stream.id,
+                    format: formatHint,
+                    context: {},
+                });
+            });
+        }
+    }
+}
 
 /**
  * The main handler for processing a live manifest update. This is now a simple
@@ -12,8 +105,9 @@ import { generateFeatureAnalysis } from '@/features/featureAnalysis/domain/analy
  * @param {object} updateData The event data from the worker.
  */
 async function processLiveUpdate(updateData) {
-    debugLog(
+    appLog(
         'LiveUpdateProcessor',
+        'info',
         'Received "livestream:manifest-updated" event from worker.',
         updateData
     );
@@ -23,17 +117,14 @@ async function processLiveUpdate(updateData) {
         .getState()
         .streams.find((s) => s.id === streamId);
     if (!stream) {
-        debugLog(
+        appLog(
             'LiveUpdateProcessor',
+            'warn',
             `Stream ${streamId} not found. Aborting update.`
         );
         return;
     }
 
-    // --- ARCHITECTURAL REMEDIATION: Preserve HLS Summary Enrichment ---
-    // The worker only re-parses the master playlist on updates, losing the enriched
-    // data (like duration) that was gathered from a media playlist on initial load.
-    // We must merge the old, enriched summary data into the new, sparse summary.
     if (
         stream.protocol === 'hls' &&
         stream.manifest?.summary?.hls &&
@@ -42,7 +133,6 @@ async function processLiveUpdate(updateData) {
         const oldSummary = stream.manifest.summary;
         const newSummary = updateData.newManifestObject.summary;
 
-        // If the new summary (from master) is missing duration but the old one had it, carry it over.
         if (
             newSummary.general.duration === null &&
             oldSummary.general.duration
@@ -52,66 +142,62 @@ async function processLiveUpdate(updateData) {
             newSummary.hls.targetDuration = oldSummary.hls.targetDuration;
             newSummary.hls.mediaPlaylistDetails =
                 oldSummary.hls.mediaPlaylistDetails;
-            debugLog(
+            appLog(
                 'LiveUpdateProcessor',
+                'info',
                 'Hydrating new HLS summary with duration data from previous state.',
                 { duration: newSummary.general.duration }
             );
         }
     }
-    // --- END REMEDIATION ---
-
-    let formattedOld = stream.manifestUpdates[0]?.rawManifest || '';
-    let formattedNew = updateData.newManifestString;
-    if (stream.protocol === 'dash') {
-        const formatOptions = { indentation: '  ', lineSeparator: '\n' };
-        formattedOld = xmlFormatter(formattedOld, formatOptions);
-        formattedNew = xmlFormatter(formattedNew, formatOptions);
-    }
-
-    const { diffHtml, changes } = diffManifest(
-        formattedOld,
-        formattedNew,
-        stream.protocol
-    );
-
-    const oldIssueCount = (
-        stream.manifestUpdates[0]?.complianceResults || []
-    ).filter((r) => r.status === 'fail' || r.status === 'warn').length;
-    const newIssueCount = (updateData.complianceResults || []).filter(
-        (r) => r.status === 'fail' || r.status === 'warn'
-    ).length;
-    const hasNewIssues = newIssueCount > oldIssueCount;
-
-    // Calculate the sequence number for this update.
-    const lastSequenceNumber = stream.manifestUpdates[0]?.sequenceNumber || 1;
 
     const newUpdate = {
         id: `${streamId}-${Date.now()}`,
-        sequenceNumber: lastSequenceNumber + 1,
+        sequenceNumber: (stream.manifestUpdates[0]?.sequenceNumber || 0) + 1,
         timestamp: new Date().toLocaleTimeString(),
-        diffHtml,
+        diffHtml: updateData.diffHtml,
         rawManifest: updateData.newManifestString,
         complianceResults: updateData.complianceResults,
-        hasNewIssues,
+        hasNewIssues:
+            (updateData.complianceResults || []).filter(
+                (r) => r.status === 'fail' || r.status === 'warn'
+            ).length >
+            (stream.manifestUpdates[0]?.complianceResults || []).filter(
+                (r) => r.status === 'fail' || r.status === 'warn'
+            ).length,
         serializedManifest: updateData.serializedManifest,
-        changes,
+        changes: updateData.changes,
     };
+
+    const newDashRepresentationState = new Map(
+        updateData.dashRepresentationState || []
+    );
+    const newHlsVariantState = new Map(updateData.hlsVariantState || []);
 
     const updatePayload = {
         manifest: updateData.newManifestObject,
         rawManifest: updateData.newManifestString,
-        manifestUpdates: [newUpdate, ...stream.manifestUpdates].slice(0, 50),
-        adAvails: updateData.adAvails,
-        dashRepresentationState: new Map(
-            updateData.dashRepresentationState || []
+        manifestUpdates: [newUpdate, ...stream.manifestUpdates].slice(
+            0,
+            MAX_MANIFEST_UPDATES_HISTORY
         ),
-        hlsVariantState: new Map(updateData.hlsVariantState || []),
+        adAvails: updateData.adAvails,
+        dashRepresentationState: newDashRepresentationState,
+        hlsVariantState: newHlsVariantState,
+        inbandEventsToAdd: updateData.inbandEvents,
     };
 
     analysisActions.updateStream(streamId, updatePayload);
 
-    // --- NEW: Conditional Polling Check ---
+    // --- ARCHITECTURAL FIX: Trigger segment fetches AFTER state is updated ---
+    const updatedStream = useAnalysisStore
+        .getState()
+        .streams.find((s) => s.id === streamId);
+    if (updatedStream) {
+        queueNewSegmentsForPolledReps(updatedStream);
+    }
+    // --- END FIX ---
+
     const { conditionalPolling } = useUiStore.getState();
     if (
         conditionalPolling.status === 'active' &&
@@ -132,7 +218,6 @@ async function processLiveUpdate(updateData) {
         );
 
         if (targetFeature && targetFeature.used) {
-            // Feature Found! Stop polling for this specific stream.
             analysisActions.setStreamPolling(streamId, false);
             uiActions.setConditionalPollingStatus('found');
             eventBus.dispatch('ui:show-status', {
@@ -140,40 +225,40 @@ async function processLiveUpdate(updateData) {
                 type: 'pass',
                 duration: 10000,
             });
-            debugLog(
+            eventBus.dispatch('notify:seek-poll-success', {
+                featureName: conditionalPolling.featureName,
+                streamName: stream.name,
+            });
+            appLog(
                 'LiveUpdateProcessor',
+                'info',
                 `Conditional poll target "${conditionalPolling.featureName}" found. Stopping poll for stream ${streamId}.`
             );
         }
     }
-    // --- END NEW ---
 
-    // --- ARCHITECTURAL FIX: Unify Live Update Data Paths ---
-    // When the player is active, it takes over polling the master playlist. When we
-    // process that update here, we must manually trigger the media playlist fetches
-    // to ensure the Segment Explorer continues to receive new segments.
-    const updatedStream = useAnalysisStore
+    const streamAfterPollingLogic = useAnalysisStore
         .getState()
         .streams.find((s) => s.id === streamId);
 
     if (
-        updatedStream &&
-        updatedStream.protocol === 'hls' &&
-        updatedStream.manifest?.isMaster
+        streamAfterPollingLogic &&
+        streamAfterPollingLogic.protocol === 'hls' &&
+        streamAfterPollingLogic.manifest?.isMaster
     ) {
-        debugLog(
+        appLog(
             'LiveUpdateProcessor',
+            'info',
             'HLS Master playlist updated. Triggering media playlist refreshes.'
         );
-        for (const variantUri of updatedStream.hlsVariantState.keys()) {
+        for (const variantUri of streamAfterPollingLogic.hlsVariantState.keys()) {
             eventBus.dispatch('hls:media-playlist-fetch-request', {
-                streamId: updatedStream.id,
+                streamId: streamAfterPollingLogic.id,
                 variantUri,
                 isBackground: true,
             });
         }
     }
-    // --- END FIX ---
 }
 
 /**

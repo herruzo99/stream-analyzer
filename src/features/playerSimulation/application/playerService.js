@@ -5,7 +5,12 @@ import { getShaka } from '@/infrastructure/player/shaka';
 import { formatBitrate } from '@/ui/shared/format';
 import { StallCalculator } from '@/features/multiPlayer/domain/stall-calculator';
 import { parseShakaError } from '@/infrastructure/player/shaka-error';
-import { playerConfigService } from '@/features/multiPlayer/application/playerConfigService';
+import { playerConfigService } from './playerConfigService.js';
+import { appLog } from '@/shared/utils/debug';
+
+const MAX_RETRIES = 5;
+const INITIAL_RETRY_DELAY_MS = 1000;
+const JITTER_FACTOR = 0.3;
 
 class PlayerService {
     constructor() {
@@ -120,14 +125,14 @@ class PlayerService {
                 bufferEnd = buffered.end(buffered.length - 1);
             }
         }
+        const forwardBuffer = Math.max(0, bufferEnd - playheadTime);
 
         const bufferInfo = {
             label: /** @type {'Live Latency' | 'Buffer Health'} */ (
                 isLive ? 'Live Latency' : 'Buffer Health'
             ),
-            seconds: isLive
-                ? shakaStats.liveLatency || 0
-                : Math.max(0, bufferEnd - playheadTime),
+            seconds: isLive ? shakaStats.liveLatency || 0 : forwardBuffer,
+            forwardBuffer: forwardBuffer,
         };
 
         const newStats = {
@@ -152,6 +157,7 @@ class PlayerService {
             buffer: {
                 label: bufferInfo.label,
                 seconds: bufferInfo.seconds,
+                forwardBuffer: bufferInfo.forwardBuffer,
                 totalGaps: shakaStats.gapsJumped || 0,
             },
             session: {
@@ -346,6 +352,7 @@ class PlayerService {
         if (!this.isInitialized || !this.player || !stream) return;
 
         this.stallCalculator.reset();
+        playerActions.setRetryCount(0);
 
         const networkingEngine = this.player.getNetworkingEngine();
         if (networkingEngine) {
@@ -358,9 +365,8 @@ class PlayerService {
             activeStreamIds: this.activeStreamIds,
         });
 
-        if (stream.manifest?.type === 'dynamic') {
-            analysisActions.setStreamPolling(stream.id, true);
-        }
+        const isDynamic = stream.manifest?.type === 'dynamic';
+        analysisActions.setStreamPolling(stream.id, isDynamic);
 
         try {
             const drmConfig = await playerConfigService.buildDrmConfig(stream);
@@ -409,7 +415,7 @@ class PlayerService {
             const streamId = this.player.streamAnalyzerStreamId;
             this.stopStatsCollection();
             await this.player.unload();
-            playerActions.reset(); // Reset the UI state
+            playerActions.reset();
             this.stallCalculator.reset();
             if (streamId !== undefined) {
                 this.activeStreamIds.delete(streamId);
@@ -451,67 +457,34 @@ class PlayerService {
     }
 
     setAbrEnabled(enabled) {
-        if (this.player) {
-            this.player.configure({ abr: { enabled } });
-            playerActions.logEvent({
-                timestamp: new Date().toLocaleTimeString(),
-                type: 'interaction',
-                details: `ABR strategy set to: ${
-                    enabled ? 'Auto (enabled)' : 'Manual (disabled)'
-                }.`,
-            });
-        }
+        playerConfigService.setAbrEnabled(this.player, enabled);
+        playerActions.logEvent({
+            timestamp: new Date().toLocaleTimeString(),
+            type: 'interaction',
+            details: `ABR strategy set to: ${
+                enabled ? 'Auto (enabled)' : 'Manual (disabled)'
+            }.`,
+        });
     }
 
     setRestrictions(restrictions) {
-        this.player?.configure({ restrictions });
+        playerConfigService.setRestrictions(this.player, restrictions);
     }
 
     setBufferConfiguration(config) {
-        this.player?.configure({
-            streaming: {
-                rebufferingGoal: config.rebufferingGoal,
-                bufferingGoal: config.bufferingGoal,
-                bufferBehind: config.bufferBehind,
-                ignoreTextStreamFailures: config.ignoreTextStreamFailures,
-            },
-        });
+        playerConfigService.setBufferConfiguration(this.player, config);
+    }
+
+    setLatencyConfiguration(config) {
+        playerConfigService.setLatencyConfiguration(this.player, config);
     }
 
     setAbrConfiguration(config) {
-        this.player?.configure({
-            abr: {
-                bandwidthUpgradeTarget: config.bandwidthUpgradeTarget,
-                bandwidthDowngradeTarget: config.bandwidthDowngradeTarget,
-            },
-        });
+        playerConfigService.setAbrConfiguration(this.player, config);
     }
 
     selectVariantTrack(track, clearBuffer = true) {
-        if (!this.player) return;
-
-        if (this.player.getConfiguration().abr.enabled) {
-            this.player.configure({ abr: { enabled: false } });
-        }
-
-        let trackToSelect = track;
-        // If the passed track doesn't have Shaka's internal properties, it's a pre-hydrated object.
-        if (typeof track.id !== 'number' || track.label === undefined) {
-            const shakaTracks = this.player.getVariantTracks();
-            trackToSelect = shakaTracks.find(
-                (t) =>
-                    t.bandwidth === track.bandwidth &&
-                    t.height === track.height &&
-                    t.width === track.width &&
-                    t.codecs === track.codecs
-            );
-            if (!trackToSelect) {
-                console.warn('Could not find matching Shaka track for', track);
-                return;
-            }
-        }
-
-        this.player.selectVariantTrack(trackToSelect, clearBuffer);
+        playerConfigService.selectVariantTrack(this.player, track, clearBuffer);
         playerActions.logEvent({
             timestamp: new Date().toLocaleTimeString(),
             type: 'interaction',
@@ -522,32 +495,11 @@ class PlayerService {
     }
 
     selectTextTrack(track) {
-        if (!this.player) return;
-        let trackToSelect = track;
-
-        if (track && typeof track.id !== 'number') {
-            const shakaTracks = this.player.getTextTracks();
-            trackToSelect = shakaTracks.find(
-                (t) => t.language === track.language && t.kind === track.kind
-            );
-        }
-
-        this.player.selectTextTrack(trackToSelect);
+        playerConfigService.selectTextTrack(this.player, track);
     }
 
     selectAudioLanguage(language) {
-        if (!this.player) return;
-        // Match by label first, as it can be more descriptive (e.g., "English (Commentary)")
-        const audioTracks = this.player.getAudioLanguagesAndRoles();
-        const trackToSelect =
-            audioTracks.find((t) => t.label === language) ||
-            audioTracks.find((t) => t.language === language);
-
-        if (trackToSelect) {
-            // By only passing the language, we let Shaka choose the default role,
-            // which is a safer operation than potentially passing `undefined`.
-            this.player.selectAudioLanguage(trackToSelect.language);
-        }
+        playerConfigService.selectAudioLanguage(this.player, language);
     }
 
     onErrorEvent(event) {
@@ -555,10 +507,61 @@ class PlayerService {
     }
 
     onError(error) {
-        console.error('Shaka Player Error:', error.code, error);
+        appLog(
+            'PlayerService.onError',
+            'warn',
+            'Shaka Player Error:',
+            error.code,
+            error
+        );
+
         playerActions.setLoadedState(false);
-        const message = parseShakaError(error);
-        eventBus.dispatch('player:error', { message, error });
+        const originalMessage = parseShakaError(error);
+
+        const { isAutoResetEnabled, retryCount } = usePlayerStore.getState();
+        if (!isAutoResetEnabled) {
+            eventBus.dispatch('player:error', {
+                message: originalMessage,
+                error,
+            });
+            return;
+        }
+
+        const newRetryCount = retryCount + 1;
+        if (newRetryCount > MAX_RETRIES) {
+            const finalMessage = `Permanent Failure: ${originalMessage}`;
+            eventBus.dispatch('player:error', {
+                message: finalMessage,
+                error,
+            });
+            const { streams, activeStreamId } = useAnalysisStore.getState();
+            const stream = streams.find((s) => s.id === activeStreamId);
+            eventBus.dispatch('notify:player-error', {
+                streamName: stream?.name || 'Player Simulation',
+                message: finalMessage,
+            });
+            return;
+        }
+
+        const backoff =
+            INITIAL_RETRY_DELAY_MS *
+            Math.pow(2, retryCount) *
+            (1 + Math.random() * JITTER_FACTOR);
+        const delay = Math.min(backoff, 30000); // Cap delay at 30s
+
+        playerActions.setRetryCount(newRetryCount);
+        const retryMessage = `Retrying (${newRetryCount}/${MAX_RETRIES})...`;
+        eventBus.dispatch('player:error', { message: retryMessage, error });
+
+        setTimeout(() => {
+            const { streams, activeStreamId } = useAnalysisStore.getState();
+            const streamToReload = streams.find(
+                (s) => s.id === activeStreamId
+            );
+            if (streamToReload) {
+                this.load(streamToReload, true);
+            }
+        }, delay);
     }
 
     onAdaptationEvent(event) {

@@ -11,6 +11,7 @@ import { keyManagerService } from '@/infrastructure/decryption/keyManagerService
 import * as icons from '@/ui/icons';
 import { inferMediaInfoFromExtension } from '@/infrastructure/parsing/utils/media-types';
 import { isDebugMode } from '@/shared/utils/env';
+import { appLog } from '@/shared/utils/debug.js';
 
 const FLAG_DEFINITIONS = {
     discontinuity: {
@@ -65,22 +66,36 @@ function isDashSegmentStale(seg, stream) {
     const segmentEndTime = seg.endTimeUTC - availabilityStartTime;
     return segmentEndTime < windowStartTime;
 }
-function getInBandFlags(cacheEntry) {
-    const flags = new Set();
-    if (!cacheEntry?.parsedData) return flags;
-    const { format, data } = cacheEntry.parsedData;
-    if (format === 'isobmff' && data.events) {
-        data.events.forEach((event) => {
-            if (event.scte35) flags.add('scte35');
-        });
-    }
-    return flags;
-}
-const flagsTemplate = (seg, cacheEntry) => {
+
+const flagsTemplate = (seg) => {
     const manifestFlags = new Set(seg.flags || []);
-    const inBandFlags = getInBandFlags(cacheEntry);
-    const allFlags = Array.from(new Set([...manifestFlags, ...inBandFlags]));
+
+    // --- DIAGNOSTIC LOGGING ---
+    appLog(
+        'segment-row.flagsTemplate',
+        'log',
+        `Rendering flags for segment ${seg.uniqueId}`,
+        {
+            segmentObject: seg,
+            hasInbandEvents: !!seg.inbandEvents,
+            inbandEventCount: seg.inbandEvents?.length || 0,
+        }
+    );
+    // --- END LOGGING ---
+
+    if ((seg.inbandEvents || []).some((e) => e.scte35)) {
+        appLog(
+            'segment-row',
+            'info',
+            `SCTE-35 flag applied to segment ${seg.uniqueId}`,
+            seg.inbandEvents
+        );
+        manifestFlags.add('scte35');
+    }
+
+    const allFlags = Array.from(manifestFlags);
     if (allFlags.length === 0) return html`<span>-</span>`;
+
     return html`<div class="flex items-center space-x-2">
         ${allFlags.map((flag) => {
             const def = FLAG_DEFINITIONS[flag];
@@ -92,6 +107,7 @@ const flagsTemplate = (seg, cacheEntry) => {
         })}
     </div>`;
 };
+
 const encryptionTemplate = (seg) => {
     const { encryptionInfo } = seg;
     if (!encryptionInfo || encryptionInfo.method === 'NONE')
@@ -125,7 +141,9 @@ const encryptionTemplate = (seg) => {
         </div>`;
     }
     if (encryptionInfo.method === 'CENC' && encryptionInfo.systems) {
-        const tooltip = `Encrypted (CENC). Systems: ${encryptionInfo.systems.join(', ')}.`;
+        const tooltip = `Encrypted (CENC). Systems: ${encryptionInfo.systems.join(
+            ', '
+        )}.`;
         return html`<div
             class="flex items-center space-x-1"
             data-tooltip=${tooltip}
@@ -147,7 +165,8 @@ export const segmentRowTemplate = (
     currentSegmentUrls,
     cacheEntry,
     targetTime,
-    shouldFlash = false
+    shouldFlash = false,
+    isIFrame = false
 ) => {
     const { segmentsForCompare, activeStreamId } = useAnalysisStore.getState();
     const isChecked = segmentsForCompare.some(
@@ -263,11 +282,16 @@ export const segmentRowTemplate = (
             eventBus.dispatch('ui:show-segment-analysis-modal', {
                 uniqueId: e.currentTarget.dataset.uniqueId,
                 format: formatHint,
+                isIFrame: isIFrame,
             });
-        const viewRawHandler = (e) =>
-            uiActions.navigateToInteractiveSegment(
-                e.currentTarget.dataset.uniqueId
-            );
+
+        const viewRawHandler = (e) => {
+            const uniqueId = e.currentTarget.dataset.uniqueId;
+            uiActions.navigateToInteractiveSegment(uniqueId, {
+                isIFrame: isIFrame,
+            });
+        };
+
         const loadHandler = (e) => {
             const uniqueId = e.currentTarget.dataset.uniqueId;
             useSegmentCacheStore
@@ -282,6 +306,7 @@ export const segmentRowTemplate = (
                 uniqueId,
                 streamId: useAnalysisStore.getState().activeStreamId,
                 format: formatHint,
+                context: { isIFrame },
             });
         };
         const downloadHandler = (e) => {
@@ -390,8 +415,8 @@ export const segmentRowTemplate = (
         targetTime &&
         seg.startTimeUTC &&
         seg.endTimeUTC &&
-        seg.startTimeUTC <= targetTime.getTime() &&
-        seg.endTimeUTC > targetTime.getTime();
+        targetTime.getTime() >= seg.startTimeUTC &&
+        targetTime.getTime() < seg.endTimeUTC;
     const rowClasses = {
         'bg-slate-800/50': seg.gap,
         'text-slate-600': seg.gap,
@@ -404,7 +429,9 @@ export const segmentRowTemplate = (
     };
     const timingContent =
         seg.type === 'Media' && !seg.gap && seg.timescale > 0
-            ? `${(seg.time / seg.timescale).toFixed(2)}s (+${(seg.duration / seg.timescale).toFixed(2)}s)`
+            ? `${(seg.time / seg.timescale).toFixed(2)}s (+${(
+                  seg.duration / seg.timescale
+              ).toFixed(2)}s)`
             : 'N/A';
     const handleCopyUrl = (e) =>
         copyTextToClipboard(e.currentTarget.dataset.url, 'Segment URL copied!');
@@ -449,7 +476,7 @@ export const segmentRowTemplate = (
             <div
                 class="md:px-3 md:py-1.5 md:border-r md:border-slate-700 h-full flex items-center"
             >
-                ${flagsTemplate(seg, cacheEntry)}
+                ${flagsTemplate(seg)}
             </div>
             <div
                 class="md:px-3 md:py-1.5 md:border-r md:border-slate-700 h-full flex items-center"

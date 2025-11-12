@@ -96,7 +96,7 @@ export const groupTooltipData = {
     },
     mdat: {
         name: 'Media Data',
-        text: "Media Data Box (`mdat`). Contains the actual audiovisual sample data (e.g., video frames, audio samples). The file's metadata in other boxes points to byte ranges within this box.",
+        text: "Media Data Box (`mdat`). Contains the actual audiovisual sample data (e.g., video frames, audio samples). The file's metadata in other boxes points to byte ranges within this box. The structure of this data is described by the metadata in the preceding `moof` box. It is not parsed further at this structural level.",
         ref: 'ISO/IEC 14496-12, 8.1.1',
     },
     meta: {

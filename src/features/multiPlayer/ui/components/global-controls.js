@@ -1,3 +1,4 @@
+
 import { html, render } from 'lit-html';
 import { eventBus } from '@/application/event-bus';
 import '@/ui/components/labeled-control';
@@ -23,7 +24,11 @@ const BANDWIDTH_CAP_OPTIONS = [
     { label: 'Slow 3G (500 Kbps)', value: 500000 },
 ];
 
-const globalControlsTemplate = ({ state, isAnyPlayerLoading }) => {
+const globalControlsTemplate = ({
+    state,
+    isAnyPlayerLoading,
+    isAutoResetEnabled,
+}) => {
     const selectClasses =
         'bg-slate-700 text-white rounded-md p-1 text-sm border border-slate-600 w-full max-w-[10rem]';
 
@@ -160,6 +165,35 @@ const globalControlsTemplate = ({ state, isAnyPlayerLoading }) => {
                     </select>
                 </labeled-control-component>
             </div>
+
+            <div class="space-y-3 p-3 bg-slate-900/50 rounded-md">
+                <h5 class="text-sm font-semibold text-slate-400 mb-2">
+                    Recovery
+                </h5>
+                <labeled-control-component
+                    label="Auto-reset on failure"
+                    description="Automatically reload a player 3 seconds after a critical error."
+                >
+                    <button
+                        @click=${() =>
+                            useMultiPlayerStore.getState().toggleAutoReset()}
+                        role="switch"
+                        aria-checked="${isAutoResetEnabled}"
+                        class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
+                    >
+                        <span
+                            class="absolute inset-0 rounded-full ${isAutoResetEnabled
+                                ? 'bg-blue-600'
+                                : 'bg-slate-600'}"
+                        ></span>
+                        <span
+                            class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isAutoResetEnabled
+                                ? 'translate-x-6'
+                                : 'translate-x-1'}"
+                        ></span>
+                    </button>
+                </labeled-control-component>
+            </div>
         </div>
     `;
 };
@@ -187,7 +221,10 @@ export class GlobalControlsComponent extends HTMLElement {
         // Subscribe to any changes in the players map to re-render.
         this.unsubscribe = useMultiPlayerStore.subscribe(
             (newState, oldState) => {
-                if (newState.players !== oldState.players) {
+                if (
+                    newState.players !== oldState.players ||
+                    newState.isAutoResetEnabled !== oldState.isAutoResetEnabled
+                ) {
                     this.render();
                 }
             }
@@ -214,6 +251,7 @@ export class GlobalControlsComponent extends HTMLElement {
             globalControlsTemplate({
                 state: currentState,
                 isAnyPlayerLoading,
+                isAutoResetEnabled: fullState.isAutoResetEnabled,
             }),
             this
         );

@@ -28,6 +28,7 @@ import { createStore } from 'zustand/vanilla';
  * @property {object | null} activeVideoTrack
  * @property {{start: number, end: number}} seekableRange
  * @property {number} normalizedPlayheadTime
+ * @property {number} retryCount
  */
 
 /**
@@ -36,6 +37,7 @@ import { createStore } from 'zustand/vanilla';
  * @property {Map<number, 'stats' | 'controls'>} playerCardTabs
  * @property {boolean} isMutedAll
  * @property {boolean} isSyncEnabled
+ * @property {boolean} isAutoResetEnabled
  * @property {PlayerEvent[]} eventLog
  * @property {boolean} globalAbrEnabled
  * @property {number} globalMaxHeight
@@ -57,6 +59,7 @@ import { createStore } from 'zustand/vanilla';
  * @property {(isMuted: boolean) => void} setMuteAll
  * @property {() => void} toggleMuteAll
  * @property {() => void} toggleSync
+ * @property {() => void} toggleAutoReset
  * @property {(streamId: number, tab: 'stats' | 'controls') => void} setPlayerCardTab
  * @property {(enabled: boolean) => void} setGlobalAbrEnabled
  * @property {(height: number) => void} setGlobalMaxHeight
@@ -98,6 +101,7 @@ const createInitialState = () => ({
     playerCardTabs: new Map(),
     isMutedAll: true,
     isSyncEnabled: false,
+    isAutoResetEnabled: false,
     eventLog: [],
     globalAbrEnabled: true,
     globalMaxHeight: Infinity,
@@ -145,6 +149,7 @@ export const useMultiPlayerStore = createStore((set, get) => ({
                 activeVideoTrack: null,
                 seekableRange: { start: 0, end: 0 },
                 normalizedPlayheadTime: 0,
+                retryCount: 0,
             });
             newTabs.set(streamId, 'stats');
         }
@@ -180,6 +185,7 @@ export const useMultiPlayerStore = createStore((set, get) => ({
                 activeVideoTrack: null,
                 seekableRange: { start: 0, end: 0 },
                 normalizedPlayheadTime: 0,
+                retryCount: 0,
             });
             const newTabs = new Map(state.playerCardTabs).set(
                 newStreamId,
@@ -238,6 +244,8 @@ export const useMultiPlayerStore = createStore((set, get) => ({
     setMuteAll: (isMuted) => set({ isMutedAll: isMuted }),
     toggleMuteAll: () => set((state) => ({ isMutedAll: !state.isMutedAll })),
     toggleSync: () => set((state) => ({ isSyncEnabled: !state.isSyncEnabled })),
+    toggleAutoReset: () =>
+        set((state) => ({ isAutoResetEnabled: !state.isAutoResetEnabled })),
     setPlayerCardTab: (streamId, tab) =>
         set((state) => ({
             playerCardTabs: new Map(state.playerCardTabs).set(streamId, tab),
@@ -325,6 +333,7 @@ export const useMultiPlayerStore = createStore((set, get) => ({
                 activeVideoTrack: null,
                 seekableRange: { start: 0, end: 0 },
                 normalizedPlayheadTime: 0,
+                retryCount: 0,
             }),
             playerCardTabs: new Map(state.playerCardTabs).set(newId, 'stats'),
             streamIdCounter: newId + 1,

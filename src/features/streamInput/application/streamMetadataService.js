@@ -1,6 +1,6 @@
 import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
 import { workerService } from '@/infrastructure/worker/workerService';
-import { debugLog } from '@/shared/utils/debug';
+import { appLog } from '@/shared/utils/debug';
 
 const inFlightRequests = new Set();
 
@@ -14,8 +14,9 @@ function processStreamInputs() {
             !inFlightRequests.has(input.id)
         ) {
             inFlightRequests.add(input.id);
-            debugLog(
+            appLog(
                 'streamMetadataService',
+                'info',
                 `Dispatching DRM detection for input ID: ${input.id}`,
                 { url: input.url }
             );
@@ -26,8 +27,9 @@ function processStreamInputs() {
                     auth: input.auth,
                 })
                 .promise.then((detectedDrm) => {
-                    debugLog(
+                    appLog(
                         'streamMetadataService',
+                        'info',
                         `DRM detection complete for input ID: ${input.id}`,
                         { detectedDrm }
                     );
@@ -73,8 +75,9 @@ export function initializeStreamMetadataService() {
     }
     // We subscribe to the store to react to changes, making the system declarative.
     unsubscribe = useAnalysisStore.subscribe(processStreamInputs);
-    debugLog(
+    appLog(
         'streamMetadataService',
+        'info',
         'Initialized and subscribed to analysis store.'
     );
 }

@@ -1,7 +1,7 @@
 import { parseISOBMFF } from '@/infrastructure/parsing/isobmff/parser';
 import { parse as parseTsSegment } from '@/infrastructure/parsing/ts/index';
 import { parseVTT } from '@/infrastructure/parsing/vtt/parser';
-import { debugLog } from '@/shared/utils/debug';
+import { appLog } from '@/shared/utils/debug';
 import { boxParsers } from '@/infrastructure/parsing/isobmff/index';
 import { fetchWithAuth } from './http.js';
 
@@ -54,6 +54,7 @@ const generateBoxColorMap = () => {
     map['mdat'] = 'slate';
     map['free'] = 'slate';
     map['skip'] = 'slate';
+    map['emsg'] = 'purple'; // Assign a specific color to emsg
     map['default'] = 'slate';
     return map;
 };
@@ -225,16 +226,17 @@ function generateFullByteMap(parsedData) {
     return Array.from(byteMap.entries());
 }
 
-export async function parseSegment({ data, formatHint, url }) {
-    debugLog(
+export async function parseSegment({ data, formatHint, url, context }) {
+    appLog(
         'parseSegment',
+        'info',
         `Parsing segment. URL: ${url}, Format Hint: ${formatHint}`
     );
     const dataView = new DataView(data);
     const decoder = new TextDecoder();
 
     if (formatHint) {
-        if (formatHint === 'isobmff') return parseISOBMFF(data);
+        if (formatHint === 'isobmff') return parseISOBMFF(data, 0, context);
         if (formatHint === 'ts') return parseTsSegment(data);
         if (formatHint === 'vtt')
             return { format: 'vtt', data: parseVTT(decoder.decode(data)) };
@@ -263,6 +265,17 @@ export async function parseSegment({ data, formatHint, url }) {
         // Not valid UTF-8, so it's not VTT. Intentionally empty.
     }
 
+    // --- ARCHITECTURAL FIX: Prioritize TS check ---
+    // A TS sync byte is a more reliable and specific signature than a potential ISOBMFF box header.
+    if (
+        data.byteLength > 188 &&
+        dataView.getUint8(0) === 0x47 &&
+        dataView.getUint8(188) === 0x47
+    ) {
+        return parseTsSegment(data);
+    }
+    // --- END FIX ---
+
     if (data.byteLength >= 8) {
         const size = dataView.getUint32(0);
         const typeCode1 = dataView.getUint8(4);
@@ -278,23 +291,21 @@ export async function parseSegment({ data, formatHint, url }) {
             isPrintable(typeCode3) &&
             isPrintable(typeCode4)
         ) {
-            return parseISOBMFF(data);
+            return parseISOBMFF(data, 0, context);
         }
     }
 
-    if (
-        data.byteLength > 188 &&
-        dataView.getUint8(0) === 0x47 &&
-        dataView.getUint8(188) === 0x47
-    ) {
-        return parseTsSegment(data);
-    }
-
-    return parseISOBMFF(data);
+    // Fallback to ISOBMFF if no other format is detected. It will likely produce errors, which is informative.
+    return parseISOBMFF(data, 0, context);
 }
 
-export async function handleParseSegmentStructure({ url, data, formatHint }) {
-    const parsedData = await parseSegment({ data, formatHint, url });
+export async function handleParseSegmentStructure({
+    url,
+    data,
+    formatHint,
+    context,
+}) {
+    const parsedData = await parseSegment({ data, formatHint, url, context });
 
     if (parsedData.format === 'isobmff' && parsedData.data.boxes) {
         assignBoxColors(parsedData.data.boxes);
@@ -303,7 +314,7 @@ export async function handleParseSegmentStructure({ url, data, formatHint }) {
         if (parsedData.data.events && parsedData.data.events.length > 0) {
             const canonicalEvents = parsedData.data.events
                 .map((emsgBox) => {
-                    if (emsgBox.scte35) {
+                    if (emsgBox.messagePayloadType === 'scte35') {
                         const timescale = emsgBox.details.timescale.value;
                         const presentationTime =
                             emsgBox.details.presentation_time?.value ??
@@ -317,7 +328,7 @@ export async function handleParseSegmentStructure({ url, data, formatHint }) {
                             duration: eventDuration / timescale,
                             message: `SCTE-35 Signal (ID: ${emsgBox.details.id.value})`,
                             type: 'scte35-inband',
-                            scte35: emsgBox.scte35,
+                            scte35: emsgBox.messagePayload,
                             messageData: null,
                             cue: null,
                         };
@@ -335,7 +346,11 @@ export async function handleParseSegmentStructure({ url, data, formatHint }) {
 }
 
 export async function handleFullSegmentAnalysis({ parsedData }) {
-    debugLog('parsingService', 'Performing full L2 analysis on segment.');
+    appLog(
+        'parsingService',
+        'info',
+        'Performing full L2 analysis on segment.'
+    );
     const byteMap = generateFullByteMap(parsedData);
     return {
         byteMap: byteMap,
@@ -343,15 +358,19 @@ export async function handleFullSegmentAnalysis({ parsedData }) {
 }
 
 export async function handleFetchAndParseSegment(
-    { uniqueId, streamId, formatHint, auth, decryption },
+    { uniqueId, streamId, formatHint, auth, decryption, context },
     signal
 ) {
     const [url, , range] = uniqueId.split('@');
 
     const response = await fetchWithAuth(url, auth, range, {}, null, signal);
-    if (!response.ok) {
+
+    // --- ARCHITECTURAL FIX: Treat HTTP 206 (Partial Content) as a success for range requests ---
+    if (response.status !== 200 && response.status !== 206) {
         throw new Error(`HTTP error ${response.status} fetching segment`);
     }
+    // --- END FIX ---
+
     const data = await response.arrayBuffer();
 
     let finalData = data;
@@ -375,6 +394,7 @@ export async function handleFetchAndParseSegment(
         data: finalData,
         formatHint,
         url,
+        context,
     });
     return { data: finalData, parsedData };
 }
@@ -404,6 +424,7 @@ export async function handleDecryptAndParseSegment(
         data: decryptedData,
         formatHint,
         url,
+        context: {},
     });
     return { parsedData, decryptedData };
 }

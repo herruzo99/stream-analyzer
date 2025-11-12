@@ -70,6 +70,8 @@ function findHlsMissingTooltips(serializedManifest) {
             }
         }
     };
+
+    // Check all top-level, non-stream-info tags
     (serializedManifest.tags || []).forEach((tag) => {
         const tagName = tag.name;
         if (!hlsTooltipData[tagName] && !seen.has(tagName)) {
@@ -78,12 +80,26 @@ function findHlsMissingTooltips(serializedManifest) {
         }
         checkAttributes(tagName, tag.value);
     });
+
+    // Check EXT-X-MEDIA tags specifically
     (serializedManifest.media || []).forEach((mediaTag) => {
         checkAttributes('EXT-X-MEDIA', mediaTag.value);
     });
+
+    // Check EXT-X-STREAM-INF variant attributes
     (serializedManifest.variants || []).forEach((variant) => {
-        checkAttributes('EXT-X-STREAM-INF', variant.attributes);
+        if (variant.attributes && typeof variant.attributes === 'object') {
+            checkAttributes('EXT-X-STREAM-INF', variant.attributes);
+        }
     });
+
+    // Check EXT-X-I-FRAME-STREAM-INF attributes
+    (serializedManifest.iframeStreams || []).forEach((iframeStream) => {
+        if (iframeStream.value && typeof iframeStream.value === 'object') {
+            checkAttributes('EXT-X-I-FRAME-STREAM-INF', iframeStream.value);
+        }
+    });
+
     return missing;
 }
 

@@ -171,7 +171,6 @@ export function initializePlayerController() {
     });
     // --- End Track Selection ---
 
-    // --- ARCHITECTURAL FIX: Add listeners for configuration presets ---
     eventBus.subscribe('ui:player:set-abr-strategy', ({ config }) => {
         if (useUiStore.getState().activeTab !== 'player-simulation') return;
         playerService.setAbrConfiguration(config);
@@ -186,11 +185,14 @@ export function initializePlayerController() {
         if (useUiStore.getState().activeTab !== 'player-simulation') return;
         playerService.setBufferConfiguration(config);
     });
-    // --- END FIX ---
+
+    eventBus.subscribe('ui:player:set-latency-config', ({ config }) => {
+        if (useUiStore.getState().activeTab !== 'player-simulation') return;
+        playerService.setLatencyConfiguration(config);
+    });
 
     eventBus.subscribe('analysis:started', playerActions.reset);
 
-    // --- ARCHITECTURAL FIX: Reset player state on stream context change ---
     useAnalysisStore.subscribe((state, prevState) => {
         if (
             state.activeStreamId !== null &&
@@ -198,8 +200,6 @@ export function initializePlayerController() {
         ) {
             const { isLoaded } = usePlayerStore.getState();
             if (isLoaded) {
-                // If a stream was loaded, destroy the player and reset state
-                // to ensure a clean slate for the new stream context.
                 playerService.destroy();
                 playerActions.reset();
             }

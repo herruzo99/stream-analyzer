@@ -1,5 +1,5 @@
 import { formatBitrate } from '@/ui/shared/format';
-import { debugLog } from '@/shared/utils/debug';
+import { appLog } from '@/shared/utils/debug';
 
 const valueOrNA = (value) =>
     value !== null && value !== undefined ? value : 'N/A';
@@ -91,7 +91,7 @@ export function createComparisonViewModel(streams) {
         };
     });
 
-    debugLog('ComparisonViewModel', 'Generated ABR Ladder Data:', abrData);
+    appLog('ComparisonViewModel', 'log', 'Generated ABR Ladder Data:', abrData);
 
     const videoPoints = [
         createRow(

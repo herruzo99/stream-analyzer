@@ -2,7 +2,7 @@ import { eventBus } from '@/application/event-bus';
 import { analysisActions } from '@/state/analysisStore';
 import { uiActions } from '@/state/uiStore';
 import { workerService } from '@/infrastructure/worker/workerService';
-import { debugLog } from '@/shared/utils/debug';
+import { appLog } from '@/shared/utils/debug';
 import { useSegmentCacheStore } from '@/state/segmentCacheStore';
 
 /**
@@ -20,8 +20,9 @@ export async function startSegmentAnalysisUseCase({ files }) {
     }
 
     const analysisStartTime = performance.now();
-    debugLog(
+    appLog(
         'startSegmentAnalysisUseCase',
+        'info',
         'Starting segment analysis pipeline...'
     );
     analysisActions.startAnalysis(); // Resets the application state
@@ -103,7 +104,7 @@ export async function startSegmentAnalysisUseCase({ files }) {
             serverControl: null,
         };
 
-        /** @type {import('@/types').Stream} */
+        /** @type {import('@/types.ts').Stream} */
         const syntheticStream = {
             id: 1,
             name: 'Local Segments',
@@ -148,6 +149,7 @@ export async function startSegmentAnalysisUseCase({ files }) {
                     flags: [],
                 })
             ),
+            segmentPollingReps: new Set(),
         };
 
         const allSegmentUrls = new Set(
@@ -167,8 +169,9 @@ export async function startSegmentAnalysisUseCase({ files }) {
         );
         uiActions.setActiveTab('explorer');
 
-        debugLog(
+        appLog(
             'startSegmentAnalysisUseCase',
+            'info',
             `Segment Analysis Pipeline (success): ${(
                 performance.now() - analysisStartTime
             ).toFixed(2)}ms`

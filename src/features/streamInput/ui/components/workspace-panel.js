@@ -12,8 +12,6 @@ const workspaceCardTemplate = (input, isActive) => {
     const handleRemove = (e) => {
         e.stopPropagation();
         analysisActions.removeStreamInput(input.id);
-        // BUG FIX: Do NOT unlink the workspace on item removal. This is now handled
-        // by an explicit "Unlink" button in the main panel.
     };
 
     const handleSetActive = () => {
@@ -154,7 +152,6 @@ export const workspacePanelTemplate = () => {
             (w) => w.name === loadedWorkspaceName
         );
         if (savedWorkspace) {
-            // Compare stringified versions to detect changes
             const currentInputsStr = JSON.stringify(
                 streamInputs.map(prepareForStorage)
             );
@@ -283,13 +280,20 @@ export const workspacePanelTemplate = () => {
                 />
                 <button
                     @click=${handleFilePicker}
-                    class="w-full bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold py-3 px-4 rounded-md transition duration-300 flex items-center justify-center gap-2"
+                    class="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold py-3 px-4 rounded-md transition duration-300 flex items-center justify-center gap-2"
                 >
                     ${icons.fileScan} Analyze Local Files
                 </button>
                 <button
+                    @click=${analysisActions.clearAllStreamInputs}
+                    class="flex-1 bg-red-800 hover:bg-red-700 text-red-100 font-bold py-3 px-4 rounded-md transition duration-300 flex items-center justify-center gap-2 disabled:bg-slate-700/50 disabled:cursor-not-allowed"
+                    ?disabled=${streamInputs.length === 0}
+                >
+                    ${icons.xCircle} Clear All
+                </button>
+                <button
                     @click=${handleStreamAnalysis}
-                    class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-md transition duration-300 disabled:bg-slate-700/50 disabled:cursor-not-allowed"
+                    class="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-md transition duration-300 disabled:bg-slate-700/50 disabled:cursor-not-allowed"
                     ?disabled=${streamInputs.length === 0}
                 >
                     ${streamInputs.length > 1

@@ -6,7 +6,11 @@ import { useUiStore, uiActions } from '@/state/uiStore';
 import { closeModal } from '@/ui/services/modalService';
 import * as icons from '@/ui/icons';
 
-export function getSegmentAnalysisTemplate(parsedData, parsedDataB = null) {
+export function getSegmentAnalysisTemplate(
+    parsedData,
+    parsedDataB = null,
+    isIFrame = false
+) {
     const { modalUrl: uniqueId } = useUiStore.getState().modalState;
 
     if (parsedData?.error) {
@@ -33,14 +37,14 @@ export function getSegmentAnalysisTemplate(parsedData, parsedDataB = null) {
 
     const handleExplore = () => {
         closeModal();
-        uiActions.navigateToInteractiveSegment(uniqueId);
+        uiActions.navigateToInteractiveSegment(uniqueId, { isIFrame });
     };
 
     const format = parsedData.format;
     let contentTemplate;
     switch (format) {
         case 'isobmff':
-            contentTemplate = isobmffAnalysisTemplate(parsedData);
+            contentTemplate = isobmffAnalysisTemplate(parsedData, isIFrame);
             break;
         case 'ts':
             contentTemplate = tsAnalysisTemplate(parsedData);

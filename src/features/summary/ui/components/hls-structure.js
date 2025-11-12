@@ -4,10 +4,10 @@ import { trackTableTemplate } from './shared.js';
 export const hlsStructureTemplate = (summary) => {
     // --- REFACTOR: Separate video tracks from trick-play (I-Frame) tracks ---
     const videoTracks = summary.videoTracks.filter(
-        (track) => !track.roles?.includes('trick')
+        (track) => !(track.roles || []).includes('trick')
     );
     const iFramePlaylists = summary.videoTracks.filter((track) =>
-        track.roles?.includes('trick')
+        (track.roles || []).includes('trick')
     );
     // --- END REFACTOR ---
 

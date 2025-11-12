@@ -2,6 +2,7 @@ import { render } from 'lit-html';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { useUiStore } from '@/state/uiStore';
 import { useMultiPlayerStore } from '@/state/multiPlayerStore';
+import { useNotificationStore } from '@/state/notificationStore';
 
 let dropdownContainer = null;
 let activeDropdowns = [];
@@ -53,11 +54,17 @@ export function toggleDropdown(triggerElement, templateFn, event) {
         return;
     }
 
-    const existingDropdown = activeDropdowns.find(
+    const existingDropdownIndex = activeDropdowns.findIndex(
         (d) => d.trigger === triggerElement
     );
-    if (existingDropdown) {
-        closeDropdownByTrigger(triggerElement);
+    if (existingDropdownIndex !== -1) {
+        // Close this dropdown and any nested inside it
+        const toClose = activeDropdowns.splice(existingDropdownIndex);
+        toClose.forEach(({ close }) => close());
+        if (activeDropdowns.length === 0 && globalClickListener) {
+            document.removeEventListener('click', globalClickListener);
+            globalClickListener = null;
+        }
         return;
     }
 
@@ -70,7 +77,10 @@ export function toggleDropdown(triggerElement, templateFn, event) {
 
     const panelContainer = document.createElement('div');
     dropdownContainer.appendChild(panelContainer);
+
+    // Initial render
     render(templateFn(), panelContainer);
+
     const panelElement = /** @type {HTMLElement} */ (
         panelContainer.firstElementChild
     );
@@ -79,12 +89,18 @@ export function toggleDropdown(triggerElement, templateFn, event) {
         return;
     }
 
-    // --- REACTIVITY ---
-    const rerender = () => render(templateFn(), panelContainer);
+    // --- ARCHITECTURAL FIX: Re-invoke templateFn on state change ---
+    const rerender = () => {
+        // Check if the panel is still in the DOM before re-rendering.
+        if (panelContainer.isConnected) {
+            render(templateFn(), panelContainer);
+        }
+    };
     const unsubAnalysis = useAnalysisStore.subscribe(rerender);
     const unsubUi = useUiStore.subscribe(rerender);
     const unsubMultiPlayer = useMultiPlayerStore.subscribe(rerender);
-    // --- END REACTIVITY ---
+    const unsubNotifications = useNotificationStore.subscribe(rerender);
+    // --- END FIX ---
 
     panelElement.style.position = 'absolute';
     panelElement.style.pointerEvents = 'auto';
@@ -126,6 +142,7 @@ export function toggleDropdown(triggerElement, templateFn, event) {
         unsubAnalysis();
         unsubUi();
         unsubMultiPlayer();
+        unsubNotifications();
         if (panelContainer.parentNode === dropdownContainer) {
             dropdownContainer.removeChild(panelContainer);
         }
@@ -142,11 +159,22 @@ export function toggleDropdown(triggerElement, templateFn, event) {
             const target = /** @type {Node} */ (e.target);
             if (!document.body.contains(target)) return;
 
-            const isOutside = activeDropdowns.every(
-                (d) => !d.trigger.contains(target) && !d.panel.contains(target)
-            );
-            if (isOutside) {
+            let clickedInsideIndex = -1;
+            for (let i = activeDropdowns.length - 1; i >= 0; i--) {
+                const d = activeDropdowns[i];
+                if (d.trigger.contains(target) || d.panel.contains(target)) {
+                    clickedInsideIndex = i;
+                    break;
+                }
+            }
+
+            if (clickedInsideIndex === -1) {
                 closeAllDropdowns();
+            } else {
+                const toClose = activeDropdowns.splice(clickedInsideIndex + 1);
+                if (toClose.length > 0) {
+                    toClose.forEach(({ close }) => close());
+                }
             }
         };
         setTimeout(

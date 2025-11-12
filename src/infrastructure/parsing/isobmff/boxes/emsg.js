@@ -43,9 +43,37 @@ export function parseEmsg(box, view) {
             length: remainingBytes,
         };
 
-        if (box.details.scheme_id_uri?.value.includes('scte35')) {
-            box.scte35 = parseScte35(messageData);
+        const scheme = box.details.scheme_id_uri?.value || '';
+
+        // --- ARCHITECTURAL REFACTOR: Robust Payload Parsing ---
+        const isBinaryScte =
+            scheme.includes('scte35') && !scheme.includes('xml');
+        const decodedString = new TextDecoder('utf-8', {
+            ignoreBOM: true,
+        }).decode(messageData);
+        const firstAngleBracket = decodedString.indexOf('<');
+        const looksLikeXml =
+            firstAngleBracket !== -1 && firstAngleBracket < 10; // Allow a few garbage chars
+
+        if (scheme.includes('xml') || looksLikeXml) {
+            box.messagePayloadType = 'xml';
+            // Slice from the first '<' to remove any leading garbage/BOM characters
+            box.messagePayload =
+                firstAngleBracket > 0
+                    ? decodedString.slice(firstAngleBracket)
+                    : decodedString;
+        } else if (isBinaryScte) {
+            box.messagePayloadType = 'scte35';
+            box.messagePayload = parseScte35(messageData);
+        } else if (scheme.includes('id3')) {
+            box.messagePayloadType = 'id3';
+            box.messagePayload = messageData;
+        } else {
+            box.messagePayloadType = 'binary';
+            box.messagePayload = messageData;
         }
+        // --- END REFACTOR ---
+
         p.offset += remainingBytes;
     }
 

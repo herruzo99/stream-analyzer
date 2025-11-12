@@ -25,7 +25,7 @@ const createCountCheck = (tagName, singular, plural) => {
     return (manifestObj) => {
         const elements = findChildrenRecursive(manifestObj, tagName);
         const count = elements.length;
-        if (count === 0) {
+        if (count <= 1) { // FIX: Only count if more than one
             return { used: false, details: '' };
         }
         const noun = count === 1 ? singular : plural;

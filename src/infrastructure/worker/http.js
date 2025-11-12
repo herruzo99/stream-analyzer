@@ -1,5 +1,5 @@
 import { fetchWithRetry } from '@/infrastructure/http/fetch';
-import { debugLog } from '@/shared/utils/debug';
+import { appLog } from '@/shared/utils/debug';
 
 /**
  * Executes a fetch request, applying authentication parameters.
@@ -62,14 +62,22 @@ export async function fetchWithAuth(
         options.headers.append('Range', `bytes=${range}`);
     }
 
-    debugLog('worker.fetchWithAuth', `Fetching: ${initialUrl.href}`, options);
+    appLog(
+        'worker.fetchWithAuth',
+        'info',
+        `Fetching: ${initialUrl.href}`,
+        options
+    );
 
     const startTime = performance.now();
     const response = await fetchWithRetry(initialUrl.href, options);
     const endTime = performance.now();
 
-    // --- ARCHITECTURAL REFACTOR: Fire-and-forget network logging ---
-    if (loggingContext.streamId !== undefined && loggingContext.resourceType) {
+    // --- ARCHITECTURAL REFACTOR: Use explicit context for logging ---
+    if (
+        loggingContext.streamId !== undefined &&
+        loggingContext.resourceType
+    ) {
         const responseHeaders = {};
         response.headers.forEach((value, key) => {
             responseHeaders[key] = value;

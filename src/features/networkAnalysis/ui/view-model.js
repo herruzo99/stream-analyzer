@@ -100,10 +100,9 @@ function generateThroughputData(events, chartStartTime) {
  * Creates the main view model for the network analysis feature.
  * @param {import('@/types').NetworkEvent[]} filteredEvents The events that match the current UI filters.
  * @param {import('@/types').NetworkEvent[]} allEvents All events for the stream, unfiltered.
- * @param {import('@/types').Stream} stream The stream object.
  * @returns {object} The view model.
  */
-export function createNetworkViewModel(filteredEvents, allEvents, stream) {
+export function createNetworkViewModel(filteredEvents, allEvents) {
     const summary = calculateSummaryStats(filteredEvents);
 
     const absoluteStartTime =

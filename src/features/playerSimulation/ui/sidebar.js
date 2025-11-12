@@ -22,8 +22,14 @@ export class PlayerSidebarComponent extends HTMLElement {
     }
 
     render() {
-        const { activeTab, currentStats, eventLog, hasUnreadLogs, isLoaded } =
-            usePlayerStore.getState();
+        const {
+            activeTab,
+            currentStats,
+            eventLog,
+            hasUnreadLogs,
+            isLoaded,
+            isAutoResetEnabled,
+        } = usePlayerStore.getState();
 
         const logTabLabel = html`
             <div class="relative">
@@ -59,12 +65,36 @@ export class PlayerSidebarComponent extends HTMLElement {
         }
 
         const sessionControls = html`
-            <div class="p-4 border-t border-slate-700">
+            <div
+                class="p-4 border-t border-slate-700 space-y-3 shrink-0 bg-slate-800 rounded-b-lg"
+            >
                 <h4
-                    class="font-bold text-slate-400 text-xs uppercase tracking-wider mb-2"
+                    class="font-bold text-slate-400 text-xs uppercase tracking-wider"
                 >
                     Session Control
                 </h4>
+                <div class="flex items-center justify-between">
+                    <label
+                        for="auto-reset-toggle"
+                        class="text-sm font-medium text-slate-300"
+                        >Auto-reset on failure</label
+                    >
+                    <button
+                        @click=${() => playerActions.toggleAutoReset()}
+                        role="switch"
+                        aria-checked="${isAutoResetEnabled}"
+                        id="auto-reset-toggle"
+                        class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isAutoResetEnabled
+                            ? 'bg-blue-600'
+                            : 'bg-slate-600'}"
+                    >
+                        <span
+                            class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isAutoResetEnabled
+                                ? 'translate-x-6'
+                                : 'translate-x-1'}"
+                        ></span>
+                    </button>
+                </div>
                 <button
                     @click=${() => playerService.destroy()}
                     ?disabled=${!isLoaded}

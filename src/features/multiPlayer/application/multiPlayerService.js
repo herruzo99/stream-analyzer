@@ -1,6 +1,6 @@
-import { useAnalysisStore } from '@/state/analysisStore';
+import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
 import { useMultiPlayerStore } from '@/state/multiPlayerStore';
-import { debugLog } from '@/shared/utils/debug';
+import { appLog } from '@/shared/utils/debug';
 import { getShaka } from '@/infrastructure/player/shaka';
 import { showToast } from '@/ui/components/toast';
 import { eventBus } from '@/application/event-bus';
@@ -9,6 +9,9 @@ import { parseShakaError } from '@/infrastructure/player/shaka-error';
 import { playerConfigService } from './playerConfigService.js';
 
 const FRAME_DURATION = 1 / 30; // Assume 30fps for frame-stepping
+const MAX_RETRIES = 5;
+const INITIAL_RETRY_DELAY_MS = 1000;
+const JITTER_FACTOR = 0.3;
 
 class MultiPlayerService {
     #loadQueue = Promise.resolve();
@@ -24,7 +27,7 @@ class MultiPlayerService {
     }
 
     initialize() {
-        debugLog('MultiPlayerService.initialize', 'Service initialized.');
+        appLog('MultiPlayerService.initialize', 'info', 'Service initialized.');
     }
 
     createVideoElement(streamId) {
@@ -42,14 +45,16 @@ class MultiPlayerService {
     async createAndLoadPlayer(playerState) {
         const serializedOperation = async () => {
             const { streamId } = playerState;
-            debugLog(
+            appLog(
                 'MultiPlayerService.createAndLoadPlayer',
+                'info',
                 `[START QUEUED] for stream ${streamId}`
             );
 
             if (!playerState || this.players.has(streamId)) {
-                debugLog(
+                appLog(
                     'MultiPlayerService.createAndLoadPlayer',
+                    'warn',
                     `[ABORT QUEUED] Player for stream ${streamId} already exists or state is invalid.`
                 );
                 return;
@@ -59,8 +64,9 @@ class MultiPlayerService {
             const player = new shaka.Player();
             this.players.set(streamId, player);
             this.stallCalculators.set(streamId, new StallCalculator());
-            debugLog(
+            appLog(
                 'MultiPlayerService.createAndLoadPlayer',
+                'info',
                 `Created new Shaka player and StallCalculator for stream ${streamId}`
             );
 
@@ -102,14 +108,16 @@ class MultiPlayerService {
                         playerState.initialState
                     );
                 } else {
-                    debugLog(
+                    appLog(
                         'MultiPlayerService.createAndLoadPlayer',
+                        'warn',
                         `Video element for stream ${streamId} not found.`
                     );
                 }
             }
-            debugLog(
+            appLog(
                 'MultiPlayerService.createAndLoadPlayer',
+                'info',
                 `[END QUEUED] for stream ${streamId}`
             );
         };
@@ -125,8 +133,9 @@ class MultiPlayerService {
         initialState
     ) {
         try {
-            debugLog(
+            appLog(
                 'MultiPlayerService.loadStreamIntoPlayer',
+                'info',
                 `[START LOAD] for stream ${uniqueStreamId}`
             );
 
@@ -135,10 +144,39 @@ class MultiPlayerService {
             player.configure({ drm: drmConfig });
             this.applyStreamConfig(uniqueStreamId);
 
-            await player.load(streamDef.originalUrl, 0);
+            let startTime = 0;
+            if (streamDef.manifest?.type === 'dynamic') {
+                const liveLatency = player.seekRange().end;
 
-            debugLog(
+                if (streamDef.protocol === 'dash') {
+                    const delay =
+                        streamDef.manifest.suggestedPresentationDelay;
+                    if (delay) {
+                        startTime = liveLatency - delay;
+                        appLog(
+                            'MultiPlayerService',
+                            'info',
+                            `DASH live stream: Applying suggestedPresentationDelay of ${delay}s. Starting at ${startTime}.`
+                        );
+                    }
+                } else if (streamDef.protocol === 'hls') {
+                    const targetDuration =
+                        streamDef.manifest.summary?.hls?.targetDuration || 2;
+                    const safeOffset = targetDuration * 3;
+                    startTime = liveLatency - safeOffset;
+                    appLog(
+                        'MultiPlayerService',
+                        'info',
+                        `HLS live stream: Applying safe offset of 3*targetDuration (${safeOffset}s). Starting at ${startTime}.`
+                    );
+                }
+            }
+
+            await player.load(streamDef.originalUrl, startTime);
+
+            appLog(
                 'MultiPlayerService.loadStreamIntoPlayer',
+                'info',
                 `[END LOAD] SUCCESS for stream ${uniqueStreamId}`
             );
 
@@ -151,7 +189,6 @@ class MultiPlayerService {
                 videoEl.currentTime = initialState.currentTime;
                 if (!initialState.paused) {
                     finalState = 'playing';
-                    // We call play() after the state update to ensure UI consistency
                 }
             }
 
@@ -162,6 +199,7 @@ class MultiPlayerService {
                 activeVideoTrack: activeVideoTrack,
                 audioTracks: player.getAudioLanguagesAndRoles(),
                 textTracks: player.getTextTracks(),
+                retryCount: 0,
             });
 
             if (finalState === 'playing' && videoEl) {
@@ -202,28 +240,67 @@ class MultiPlayerService {
 
     _handlePlayerError(streamId, error) {
         if (error.code === 7000 || error.code === 7002) {
-            debugLog(
+            appLog(
                 'MultiPlayerService',
+                'info',
                 `Load interrupted for stream ${streamId}. Ignoring.`
             );
             return;
         }
-        console.error(`Player error for stream ${streamId}:`, error);
-        const player = useMultiPlayerStore.getState().players.get(streamId);
-        const message = parseShakaError(error);
-        useMultiPlayerStore.getState().updatePlayerState(streamId, {
-            state: 'error',
-            health: 'critical',
-            error: message,
+
+        appLog(
+            'MultiPlayerService._handlePlayerError',
+            'warn',
+            `Player error for stream ${streamId}:`,
+            error
+        );
+
+        const playerState = useMultiPlayerStore.getState().players.get(streamId);
+        const originalMessage = parseShakaError(error);
+
+        useMultiPlayerStore.getState().logEvent({
+            streamId,
+            streamName: playerState?.streamName || 'Unknown',
+            type: 'error',
+            details: originalMessage,
+            severity: 'critical',
         });
-        if (player)
-            useMultiPlayerStore.getState().logEvent({
-                streamId,
-                streamName: player.streamName,
-                type: 'error',
-                details: message,
-                severity: 'critical',
+
+        const { isAutoResetEnabled } = useMultiPlayerStore.getState();
+        if (!isAutoResetEnabled || !playerState) {
+            useMultiPlayerStore.getState().updatePlayerState(streamId, {
+                state: 'error',
+                health: 'critical',
+                error: originalMessage,
             });
+            return;
+        }
+
+        const currentRetries = playerState.retryCount || 0;
+        if (currentRetries >= MAX_RETRIES) {
+            useMultiPlayerStore.getState().updatePlayerState(streamId, {
+                state: 'error',
+                health: 'critical',
+                error: `Permanent Failure: ${originalMessage}`,
+            });
+            return;
+        }
+
+        const newRetryCount = currentRetries + 1;
+        const backoff =
+            INITIAL_RETRY_DELAY_MS *
+            Math.pow(2, currentRetries) *
+            (1 + Math.random() * JITTER_FACTOR);
+        const delay = Math.min(backoff, 30000);
+
+        useMultiPlayerStore.getState().updatePlayerState(streamId, {
+            state: 'loading',
+            health: 'critical',
+            error: `Retrying (${newRetryCount}/${MAX_RETRIES})...`,
+            retryCount: newRetryCount,
+        });
+
+        setTimeout(() => this.resetSinglePlayer(streamId), delay);
     }
 
     startStatsCollection() {
@@ -394,8 +471,9 @@ class MultiPlayerService {
     }
 
     async destroyPlayer(streamId) {
-        debugLog(
+        appLog(
             'MultiPlayerService.destroyPlayer',
+            'info',
             `Destroying player for stream ${streamId}`
         );
         const player = this.players.get(streamId);
@@ -427,7 +505,11 @@ class MultiPlayerService {
     }
 
     async destroyAll() {
-        debugLog('MultiPlayerService.destroyAll', 'Destroying all players.');
+        appLog(
+            'MultiPlayerService.destroyAll',
+            'info',
+            'Destroying all players.'
+        );
         this.stopStatsCollection();
         this.#loadQueue = Promise.resolve();
         for (const player of this.players.values()) await player.destroy();
@@ -438,16 +520,44 @@ class MultiPlayerService {
     }
 
     async playAll() {
+        const { players, updatePlayerState } = useMultiPlayerStore.getState();
+        const { streams } = useAnalysisStore.getState();
+        const playPromises = [];
+
         for (const [id, video] of this.videoElements.entries()) {
-            try {
-                await video.play();
-            } catch (e) {
-                this._handlePlayerError(id, {
-                    code: 'PLAYBACK_FAILED',
-                    message: e.message,
-                });
+            const playerState = players.get(id);
+            if (playerState) {
+                const sourceStream = streams.find(
+                    (s) => s.id === playerState.sourceStreamId
+                );
+                if (sourceStream) {
+                    const isDynamic = sourceStream.manifest?.type === 'dynamic';
+                    analysisActions.setStreamPolling(sourceStream.id, isDynamic);
+                }
             }
+            playPromises.push(
+                video.play().catch((e) => ({
+                    streamId: id,
+                    error: e,
+                }))
+            );
         }
+
+        const results = await Promise.allSettled(playPromises);
+        results.forEach((result, index) => {
+            // --- ARCHITECTURAL FIX: Type guards for PromiseSettledResult ---
+            if (result.status === 'rejected') {
+                const streamId = Array.from(this.videoElements.keys())[index];
+                const errorValue = result.reason;
+                appLog('MultiPlayerService.playAll', 'error', `Playback failed for stream ${streamId}.`, errorValue);
+                updatePlayerState(streamId, { state: 'error', error: `Failed to start: ${errorValue.message}` });
+            } else if (result.status === 'fulfilled' && result.value && result.value.error) {
+                const { streamId, error: errorValue } = result.value;
+                appLog('MultiPlayerService.playAll', 'error', `Playback failed for stream ${streamId}.`, errorValue);
+                updatePlayerState(streamId, { state: 'error', error: `Failed to start playback: ${errorValue.message}` });
+            }
+            // --- END FIX ---
+        });
     }
 
     pauseAll() {
@@ -532,6 +642,57 @@ class MultiPlayerService {
             this.stallCalculators.get(id)?.reset();
         }
         showToast({ message: 'All players reset.', type: 'info' });
+    }
+
+    async resetFailedPlayers() {
+        const { players } = useMultiPlayerStore.getState();
+        const failedPlayerIds = Array.from(players.values())
+            .filter((p) => p.state === 'error')
+            .map((p) => p.streamId);
+
+        if (failedPlayerIds.length === 0) {
+            showToast({ message: 'No failed players to reset.', type: 'info' });
+            return;
+        }
+
+        for (const streamId of failedPlayerIds) {
+            this.resetSinglePlayer(streamId);
+        }
+        showToast({
+            message: `Attempting to reset ${failedPlayerIds.length} failed player(s).`,
+            type: 'pass',
+        });
+    }
+
+    async resetSinglePlayer(streamId) {
+        const playerState = useMultiPlayerStore
+            .getState()
+            .players.get(streamId);
+        if (!playerState) return;
+
+        useMultiPlayerStore
+            .getState()
+            .updatePlayerState(streamId, { state: 'loading', error: null });
+
+        const player = this.players.get(streamId);
+        const { streams } = useAnalysisStore.getState();
+        const streamDef = streams.find(
+            (s) => s.id === playerState.sourceStreamId
+        );
+
+        if (player && streamDef) {
+            try {
+                await this.loadStreamIntoPlayer(streamDef, player, streamId);
+                useMultiPlayerStore
+                    .getState()
+                    .updatePlayerState(streamId, {
+                        state: 'paused',
+                        retryCount: 0,
+                    });
+            } catch (error) {
+                this._handlePlayerError(streamId, error);
+            }
+        }
     }
 
     async clearAndResetPlayers() {

@@ -1,8 +1,7 @@
 import { networkActions } from '@/state/networkStore';
-import { debugLog } from '@/shared/utils/debug';
+import { appLog } from '@/shared/utils/debug';
 import { eventBus } from '@/application/event-bus';
 
-// --- Co-located Helper Function ---
 /**
  * Extracts detailed timing from a PerformanceResourceTiming entry.
  * @param {PerformanceResourceTiming} entry The performance entry.
@@ -36,27 +35,29 @@ function performanceObserverCallback(list) {
             const resourceEntry = /** @type {PerformanceResourceTiming} */ (
                 entry
             );
-            debugLog(
+            appLog(
                 'NetworkEnrichmentService',
+                'log',
                 'PerformanceObserver captured entry:',
                 resourceEntry.name
             );
 
-            // --- BUG FIX: Read the latest state *inside* the loop ---
-            // This prevents race conditions where multiple performance entries in the same
-            // callback batch would operate on a stale snapshot of the event store.
             const { events } = networkActions.get();
             const matchingEvent = events.find(
                 (e) => e.url === resourceEntry.name && !e.timing.breakdown
             );
-            // --- END BUG FIX ---
 
             if (matchingEvent) {
                 const breakdown =
                     getTimingBreakdownFromPerfEntry(resourceEntry);
                 const enrichedEvent = {
                     ...matchingEvent,
-                    timing: { ...matchingEvent.timing, breakdown },
+                    timing: {
+                        startTime: resourceEntry.startTime,
+                        endTime: resourceEntry.responseEnd,
+                        duration: resourceEntry.duration,
+                        breakdown,
+                    },
                     response: {
                         ...matchingEvent.response,
                         contentLength:
@@ -65,28 +66,15 @@ function performanceObserverCallback(list) {
                     },
                 };
                 networkActions.updateEvent(enrichedEvent);
-                debugLog(
+                appLog(
                     'NetworkEnrichmentService',
+                    'info',
                     'Asynchronously enriched event:',
                     enrichedEvent.id
                 );
             }
         }
     }
-}
-
-/**
- * Logs a provisional network event immediately, without waiting for performance data.
- * The PerformanceObserver will enrich it later if possible.
- * @param {import('@/types').NetworkEvent} provisionalEvent
- */
-function logProvisionalEvent(provisionalEvent) {
-    debugLog(
-        'NetworkEnrichmentService',
-        'Logging provisional event immediately:',
-        provisionalEvent.url
-    );
-    networkActions.logEvent(provisionalEvent);
 }
 
 /**
@@ -97,31 +85,27 @@ export function initializeNetworkEnrichmentService() {
         observer.disconnect();
     }
     try {
-        // Clear any existing performance entries to avoid processing stale data from previous sessions.
         if (performance.clearResourceTimings) {
             performance.clearResourceTimings();
         }
-        // Set a larger buffer size to reduce the chance of entries being dropped by the browser.
         if (performance.setResourceTimingBufferSize) {
             performance.setResourceTimingBufferSize(MAX_BUFFER_SIZE);
         }
 
         observer = new PerformanceObserver(performanceObserverCallback);
-        // Observe new entries as they come in. The `buffered: true` flag is less critical now
-        // but kept for robustness to catch any entries that might appear before observation starts.
         observer.observe({ type: 'resource', buffered: true });
 
-        debugLog(
+        appLog(
             'NetworkEnrichmentService',
+            'info',
             'Initialized and subscribing to "worker:network-event". PerformanceObserver is active.'
         );
-        eventBus.subscribe('worker:network-event', logProvisionalEvent);
+        eventBus.subscribe('worker:network-event', networkActions.logEvent);
     } catch (e) {
         console.error(
             'PerformanceObserver is not supported in this environment. Network timing will be incomplete.',
             e
         );
-        // Fallback: If the observer fails, just log the provisional data directly.
         eventBus.subscribe('worker:network-event', networkActions.logEvent);
     }
 }

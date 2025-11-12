@@ -24,7 +24,7 @@ const createChartOptions = (title, yAxisName, yAxisFormatter, seriesData) => ({
     series: seriesData,
 });
 
-export class GraphsViewComponent extends HTMLElement {
+class GraphsViewComponent extends HTMLElement {
     constructor() {
         super();
         this.multiPlayerUnsubscribe = null;
@@ -127,4 +127,8 @@ export class GraphsViewComponent extends HTMLElement {
             )
         );
     }
+}
+
+if (!customElements.get('graphs-view-component')) {
+    customElements.define('graphs-view-component', GraphsViewComponent);
 }

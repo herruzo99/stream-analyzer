@@ -10,6 +10,43 @@ let container = null;
 let analysisUnsubscribe = null;
 const activeTabs = new Map();
 
+const DETECTION_METHOD_INFO = {
+    SCTE35_INBAND: {
+        label: 'Confirmed Ad Signal',
+        icon: icons.checkCircle,
+        color: 'border-green-500',
+        tooltip:
+            'This ad break was definitively signaled by an in-band SCTE-35 message. This is a 100% confirmed ad.',
+    },
+    ASSET_IDENTIFIER: {
+        label: 'High-Confidence Heuristic',
+        icon: icons.puzzle,
+        color: 'border-yellow-500',
+        tooltip:
+            'This ad break was inferred from a change in the AssetIdentifier between DASH periods. This is a very strong, but not definitive, indicator of an ad.',
+    },
+    ENCRYPTION_TRANSITION: {
+        label: 'High-Confidence Heuristic',
+        icon: icons.puzzle,
+        color: 'border-yellow-500',
+        tooltip:
+            'This ad break was inferred from a transition between encrypted and clear content periods. This is a common pattern for SSAI and a strong indicator of an ad.',
+    },
+    STRUCTURAL_DISCONTINUITY: {
+        label: 'Plausible Ad Break (Heuristic)',
+        icon: icons.gripHorizontal,
+        color: 'border-purple-500',
+        tooltip:
+            'This ad break was inferred from a structural discontinuity in the manifest (a new Period in DASH). This is a common but not definitive indicator of an ad break in streams that do not use explicit SCTE-35 signaling.',
+    },
+    UNKNOWN: {
+        label: 'Ad Information',
+        icon: icons.advertising,
+        color: 'border-slate-500',
+        tooltip: 'The detection method for this ad avail is unknown.',
+    },
+};
+
 const trackingEventsTableTemplate = (trackingUrls) => {
     if (!trackingUrls || trackingUrls.size === 0) {
         return html`<p class="text-xs text-slate-500 italic">
@@ -111,12 +148,12 @@ const unconfirmedInbandTemplate = () => html`
             ${icons.searchCode}
         </div>
         <p class="text-sm font-semibold text-purple-300 mt-2">
-            In-Band Ad Signals Detected
+            In-Band Ad Signals Declared
         </p>
         <p class="text-xs text-slate-400 mt-2">
-            The manifest declares in-band SCTE-35 event streams. Play the
-            content or load individual segments in the explorer to discover
-            specific ad avails as they appear.
+            The manifest declares in-band event streams (e.g., for SCTE-35).
+            Play the content or load individual segments in the explorer to
+            discover specific ad avails as they appear.
         </p>
     </div>
 `;
@@ -126,12 +163,14 @@ const adAvailCardTemplate = (avail) => {
         return unconfirmedInbandTemplate();
     }
 
-    const tabs = [
-        { key: 'creatives', label: `Creatives (${avail.creatives.length})` },
-        { key: 'scte35', label: 'SCTE-35 Signal' },
-    ];
+    const tabs = [{ key: 'creatives', label: `Creatives (${avail.creatives.length})` }];
+    if (avail.scte35Signal) {
+        tabs.push({ key: 'scte35', label: 'Signal Details' });
+    }
+
+    const defaultTab = avail.scte35Signal ? 'scte35' : 'creatives';
     if (!activeTabs.has(avail.id)) {
-        activeTabs.set(avail.id, 'creatives');
+        activeTabs.set(avail.id, defaultTab);
     }
     const activeTab = activeTabs.get(avail.id);
     const onTabClick = (tabKey) => {
@@ -139,12 +178,10 @@ const adAvailCardTemplate = (avail) => {
         renderAdvertisingReport();
     };
 
+    const methodInfo =
+        DETECTION_METHOD_INFO[avail.detectionMethod] ||
+        DETECTION_METHOD_INFO.UNKNOWN;
     const isCsai = !!avail.adManifestUrl;
-    const typeLabel = isCsai
-        ? 'Client-Side Ad Avail'
-        : 'Server-Side Ad Break / Signal';
-    const typeIcon = isCsai ? icons.advertising : icons.server;
-    const typeColor = isCsai ? 'border-blue-500' : 'border-purple-500';
 
     const handleCopyVastUrl = (e) => {
         e.stopPropagation();
@@ -180,9 +217,9 @@ const adAvailCardTemplate = (avail) => {
                   Server-Side Ad Period or Timed Signal
               </p>
               <p class="text-xs text-slate-400 mt-2">
-                  This ad avail was signaled in the manifest (e.g., via
-                  SCTE-35), but does not point to a client-side VAST URL. Ads
-                  are likely stitched into the main content by the server.
+                  This avail was signaled in the manifest, but does not point to
+                  a client-side VAST URL. Ads are likely stitched into the main
+                  content by the server.
               </p>
           </div>`;
 
@@ -194,19 +231,34 @@ const adAvailCardTemplate = (avail) => {
                       ${avail.creatives.map(adCreativeCardTemplate)}
                   </div>`
                 : noCreativesMessage;
-    } else {
+    } else if (activeTab === 'scte35' && avail.scte35Signal) {
         contentTemplate = scte35DetailsTemplate(avail.scte35Signal);
+    } else {
+        // Fallback for heuristic-based avails when 'scte35' tab is clicked without data
+        contentTemplate = html`<div
+            class="text-center p-6 bg-slate-800 rounded-lg border border-dashed border-slate-700"
+        >
+            <div class="text-slate-400 mx-auto w-10 h-10">${icons.puzzle}</div>
+            <p class="text-sm font-semibold text-slate-300 mt-2">
+                No Explicit Signal
+            </p>
+            <p class="text-xs text-slate-400 mt-2">
+                This ad break was detected using a manifest-based heuristic and
+                does not have an associated SCTE-35 signal to display.
+            </p>
+        </div>`;
     }
 
     return html`
-        <div class="bg-slate-900 rounded-lg border-l-4 ${typeColor}">
+        <div class="bg-slate-900 rounded-lg border-l-4 ${methodInfo.color}">
             <header class="p-4 border-b border-slate-700">
                 <div class="flex flex-wrap justify-between items-start gap-2">
                     <h4
-                        class="text-lg font-bold text-slate-100 flex items-center gap-3"
+                        class="text-lg font-bold text-slate-100 flex items-center gap-3 cursor-help"
+                        title=${methodInfo.tooltip}
                     >
-                        ${typeIcon}
-                        <span>${typeLabel}</span>
+                        ${methodInfo.icon}
+                        <span>${methodInfo.label}</span>
                     </h4>
                     <span
                         class="text-sm font-mono px-3 py-1 bg-slate-800 text-slate-300 rounded-full"
@@ -248,9 +300,9 @@ const adAvailCardTemplate = (avail) => {
                     ${statCardTemplate({
                         label: 'Duration',
                         value:
-                            avail.duration !== undefined
+                            avail.duration !== null && avail.duration > 0
                                 ? `${avail.duration.toFixed(2)}s`
-                                : 'N/A',
+                                : 'In Progress...',
                         icon: icons.clock,
                     })}
                 </div>
@@ -273,7 +325,26 @@ function renderAdvertisingReport() {
     const { streams, activeStreamId } = useAnalysisStore.getState();
     const stream = streams.find((s) => s.id === activeStreamId);
 
-    if (!stream || !stream.adAvails || stream.adAvails.length === 0) {
+    if (!stream || !stream.manifest) {
+        advertisingView.unmount();
+        return;
+    }
+
+    const hasInbandSignal = (stream.manifest.periods || []).some((p) =>
+        p.adaptationSets.some(
+            (as) => (as.inbandEventStreams || []).length > 0
+        )
+    );
+    const hasScte35Avails = (stream.adAvails || []).some((a) =>
+        a.detectionMethod.includes('SCTE35')
+    );
+
+    const availsToRender = [...(stream.adAvails || [])];
+    if (hasInbandSignal && !hasScte35Avails) {
+        availsToRender.unshift({ id: 'unconfirmed-inband-scte35' });
+    }
+
+    if (availsToRender.length === 0) {
         render(
             html`
                 <div class="text-center py-12">
@@ -294,7 +365,7 @@ function renderAdvertisingReport() {
         return;
     }
 
-    const sortedAvails = [...stream.adAvails].sort(
+    const sortedAvails = availsToRender.sort(
         (a, b) => a.startTime - b.startTime
     );
     const confirmedAvails = sortedAvails.filter(
@@ -302,7 +373,7 @@ function renderAdvertisingReport() {
     );
 
     const totalAdDuration = confirmedAvails.reduce(
-        (sum, a) => sum + a.duration,
+        (sum, a) => sum + (a.duration || 0),
         0
     );
 
