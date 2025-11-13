@@ -11,48 +11,13 @@ import {
 import { generateFeatureAnalysis } from '@/features/featureAnalysis/domain/analyzer';
 import { parseAllSegmentUrls as parseDashSegments } from '@/infrastructure/parsing/dash/segment-parser';
 import { diffManifest } from '@/ui/shared/diff';
-import { parseSegment } from '../parsingService.js';
+import { handleParseSegmentStructure } from '../parsingService.js';
 import { fetchWithAuth } from '../http.js';
 import xmlFormatter from 'xml-formatter';
 import { appLog } from '@/shared/utils/debug';
 import { resolveAdAvailsInWorker } from '@/features/advertising/application/resolveAdAvailWorker';
 
 const SCTE35_SCHEME_ID = 'urn:scte:scte35:2013:bin';
-
-async function fetchAndParseSegment(
-    url,
-    formatHint,
-    range = null,
-    auth = null,
-    loggingContext = {},
-    context = {}
-) {
-    appLog(
-        'analysisHandler.fetchAndParseSegment',
-        'info',
-        'Fetching segment...',
-        {
-            url,
-            formatHint,
-            range,
-        }
-    );
-    const response = await fetchWithAuth(
-        url,
-        auth,
-        range,
-        {},
-        null,
-        null,
-        loggingContext
-    );
-    if (!response.ok) {
-        throw new Error(`HTTP error ${response.status} for segment ${url}`);
-    }
-    const data = await response.arrayBuffer();
-    const parsedData = await parseSegment({ data, formatHint, url, context });
-    return { parsedData, rawBuffer: data };
-}
 
 async function preProcessInput(input, signal) {
     let protocol, manifestString, finalUrl;
@@ -80,12 +45,6 @@ async function preProcessInput(input, signal) {
         finalUrl = response.url; // Capture the final URL after redirects
 
         const wasRedirected = response.url !== input.url;
-
-        appLog(
-            'analysisHandler.preProcessInput',
-            'info',
-            `Received manifest content. Length: ${manifestString.length} characters. Was Redirected: ${wasRedirected}. Final URL: ${finalUrl}`
-        );
 
         if (!manifestString || manifestString.trim() === '') {
             if (wasRedirected) {
@@ -122,14 +81,9 @@ async function buildStreamObject(
     manifestIR,
     serializedManifestObject,
     finalBaseUrl,
-    analysisResults
+    analysisResults,
+    fetchAndParseSegment
 ) {
-    appLog(
-        'buildStreamObject',
-        'info',
-        'Building stream object from input:',
-        input
-    );
     const {
         featureAnalysisResults,
         semanticData,
@@ -173,13 +127,6 @@ async function buildStreamObject(
         segmentPollingReps: new Set(),
     };
 
-    appLog(
-        'buildStreamObject',
-        'info',
-        'Constructed stream object:',
-        streamObject
-    );
-
     let segmentsByCompositeKey = {};
     if (input.protocol === 'dash') {
         segmentsByCompositeKey = await parseDashSegments(
@@ -206,22 +153,12 @@ async function buildStreamObject(
                     );
 
                     if (firstMediaSegment) {
-                        appLog(
-                            'analysisHandler',
-                            'info',
-                            `Found SCTE-35 InbandEventStream. Proactively fetching first segment for rep ${rep.id}: ${firstMediaSegment.resolvedUrl}`
-                        );
                         segmentFetchPromises.push(
                             fetchAndParseSegment(
                                 firstMediaSegment.resolvedUrl,
                                 'isobff', // Assume isobff for inband events for now
                                 firstMediaSegment.range,
-                                streamObject.auth,
-                                {
-                                    streamId: streamObject.id,
-                                    resourceType: 'video',
-                                }, // Assume video for SCTE-35 carrier
-                                {} // Pass empty context
+                                'video'
                             )
                                 .then((parsedSegment) => ({
                                     ...parsedSegment,
@@ -244,33 +181,32 @@ async function buildStreamObject(
 
     const parsedSegments = await Promise.all(segmentFetchPromises);
     for (const parsedSegment of parsedSegments) {
-        if (
-            parsedSegment &&
-            parsedSegment.parsedData?.data?.events &&
-            parsedSegment.parsedData.data.events.length > 0
-        ) {
-            appLog(
-                'analysisHandler',
-                'info',
-                `Found ${parsedSegment.parsedData.data.events.length} SCTE-35 events in segment ${parsedSegment.sourceSegmentId}.`
-            );
-            const eventsWithSource = parsedSegment.parsedData.data.events.map(
-                (event) => ({
-                    ...event,
-                    sourceSegmentId: parsedSegment.sourceSegmentId,
-                })
-            );
-            streamObject.inbandEvents.push(...eventsWithSource);
+        if (parsedSegment) {
+            self.postMessage({
+                type: 'worker:shaka-segment-loaded',
+                payload: {
+                    uniqueId: parsedSegment.sourceSegmentId,
+                    streamId: streamObject.id,
+                    data: parsedSegment.rawBuffer,
+                    parsedData: parsedSegment.parsedData,
+                    status: 200,
+                },
+            });
+            if (
+                parsedSegment.parsedData?.data?.events &&
+                parsedSegment.parsedData.data.events.length > 0
+            ) {
+                const eventsWithSource =
+                    parsedSegment.parsedData.data.events.map((event) => ({
+                        ...event,
+                        sourceSegmentId: parsedSegment.sourceSegmentId,
+                    }));
+                streamObject.inbandEvents.push(...eventsWithSource);
+            }
         }
     }
 
     if (streamObject.inbandEvents.length > 0) {
-        appLog(
-            'analysisHandler',
-            'log',
-            'Generating adAvails from inbandEvents...',
-            streamObject.inbandEvents
-        );
         const inbandAdAvails = streamObject.inbandEvents
             .filter((e) => e.scte35)
             .map((event) => ({
@@ -297,12 +233,6 @@ async function buildStreamObject(
         const resolvedInbandAvails =
             await resolveAdAvailsInWorker(inbandAdAvails);
         streamObject.adAvails.push(...resolvedInbandAvails);
-        appLog(
-            'analysisHandler',
-            'log',
-            'Generated adAvails:',
-            resolvedInbandAvails
-        );
     }
 
     if (input.protocol === 'hls') {
@@ -319,7 +249,9 @@ async function buildStreamObject(
             for (const as of allAdaptationSets) {
                 for (const rep of as.representations) {
                     const uri =
-                        rep.serializedManifest?.resolvedUri || rep.__variantUri;
+                        rep.__variantUri ||
+                        rep.serializedManifest?.resolvedUri ||
+                        rep.id;
                     if (uri && !streamObject.hlsVariantState.has(uri)) {
                         streamObject.hlsVariantState.set(uri, {
                             segments: [],
@@ -366,11 +298,6 @@ async function buildStreamObject(
     }
 
     if (streamObject.inbandEvents.length > 0) {
-        appLog(
-            'analysisHandler',
-            'log',
-            `Attaching ${streamObject.inbandEvents.length} events to segments.`
-        );
         const eventsBySegmentId = streamObject.inbandEvents.reduce(
             (acc, event) => {
                 if (event.sourceSegmentId) {
@@ -383,31 +310,43 @@ async function buildStreamObject(
             {}
         );
 
-        for (const repState of streamObject.dashRepresentationState.values()) {
-            repState.segments = repState.segments.map((segment) => {
-                const eventsForSeg = eventsBySegmentId[segment.uniqueId];
-                if (eventsForSeg) {
-                    appLog(
-                        'analysisHandler',
-                        'log',
-                        `Attaching ${eventsForSeg.length} events to segment ${segment.uniqueId}`
-                    );
-                    return {
-                        ...segment,
-                        inbandEvents: [
-                            ...(segment.inbandEvents || []),
-                            ...eventsForSeg,
-                        ],
-                    };
+        const attachToRepState = (currentRepStateMap) => {
+            const newRepStateMap = new Map(currentRepStateMap);
+            for (const [key, repState] of newRepStateMap.entries()) {
+                let wasModified = false;
+                const newSegments = repState.segments.map((segment) => {
+                    const eventsForSeg = eventsBySegmentId[segment.uniqueId];
+                    if (eventsForSeg) {
+                        wasModified = true;
+                        // --- ENRICHMENT: Also attach mediaInfo if available from parsed segment ---
+                        const parsedSegment = parsedSegments.find(s => s?.sourceSegmentId === segment.uniqueId);
+                        return {
+                            ...segment,
+                            inbandEvents: [
+                                ...(segment.inbandEvents || []),
+                                ...eventsForSeg,
+                            ],
+                            mediaInfo: parsedSegment?.parsedData?.mediaInfo || segment.mediaInfo,
+                        };
+                    }
+                    return segment;
+                });
+                if (wasModified) {
+                    newRepStateMap.set(key, {
+                        ...repState,
+                        segments: newSegments,
+                    });
                 }
-                return segment;
-            });
+            }
+            return newRepStateMap;
+        };
+
+        if (streamObject.dashRepresentationState) {
+            streamObject.dashRepresentationState = attachToRepState(streamObject.dashRepresentationState);
         }
-        appLog(
-            'analysisHandler',
-            'log',
-            'Clearing top-level inbandEvents array after attachment.'
-        );
+        if (streamObject.hlsVariantState) {
+            streamObject.hlsVariantState = attachToRepState(streamObject.hlsVariantState);
+        }
         streamObject.inbandEvents = [];
     }
 
@@ -457,7 +396,6 @@ function serializeStreamForTransport(streamObject) {
 
     const dashRepStateArray = [];
     for (const [key, value] of streamObject.dashRepresentationState.entries()) {
-        // --- FIX: Preserve all properties of the value object, including segments with their new inbandEvents. ---
         const serializedValue = {
             ...value,
             currentSegmentUrls: Array.from(value.currentSegmentUrls),
@@ -491,7 +429,6 @@ function serializeStreamForTransport(streamObject) {
 
 export async function handleStartAnalysis({ inputs }, signal) {
     const analysisStartTime = performance.now();
-    appLog('handleStartAnalysis', 'info', 'Starting analysis pipeline...');
 
     try {
         const workerInputsPromises = inputs.map(async (input) => {
@@ -503,13 +440,6 @@ export async function handleStartAnalysis({ inputs }, signal) {
             return workerInput;
         });
         const workerInputs = await Promise.all(workerInputsPromises);
-
-        appLog(
-            'handleStartAnalysis',
-            'info',
-            `Dispatching ${workerInputs.length} stream(s) for fetching and analysis.`,
-            workerInputs
-        );
 
         const processingPromises = workerInputs.map(async (input) => {
             const preProcessed = await preProcessInput(input, signal);
@@ -529,6 +459,7 @@ export async function handleStartAnalysis({ inputs }, signal) {
             const baseUrlDirectory = getBaseUrlDirectory(preProcessed.finalUrl);
 
             let manifestIR, serializedManifestObject, finalBaseUrl;
+            let segmentsToCache = [];
             if (preProcessed.protocol === 'hls') {
                 const { manifest, definedVariables, baseUrl } =
                     await parseHlsManifest(
@@ -551,11 +482,6 @@ export async function handleStartAnalysis({ inputs }, signal) {
             }
 
             if (manifestIR.adAvails && manifestIR.adAvails.length > 0) {
-                appLog(
-                    'analysisHandler',
-                    'info',
-                    `Found ${manifestIR.adAvails.length} ad avails. Resolving VAST...`
-                );
                 const enrichedAdAvails = await resolveAdAvailsInWorker(
                     manifestIR.adAvails
                 );
@@ -588,12 +514,38 @@ export async function handleStartAnalysis({ inputs }, signal) {
                 : [];
             const semanticData = new Map();
 
+            const fetchAndParseSegment = async (
+                url,
+                formatHint,
+                range = null,
+                /** @type {import('@/types').ResourceType} */ resourceType = 'video'
+            ) => {
+                const response = await fetchWithAuth(
+                    url,
+                    input.auth,
+                    range,
+                    {},
+                    null,
+                    signal,
+                    { streamId: input.id, resourceType }
+                );
+                if (!response.ok) {
+                    throw new Error(
+                        `HTTP error ${response.status} for segment ${url}`
+                    );
+                }
+                const data = await response.arrayBuffer();
+                const parsedData = await handleParseSegmentStructure({
+                    data,
+                    formatHint,
+                    url,
+                    context: {},
+                });
+                return { parsedData, rawBuffer: data };
+            };
+
             const context = {
-                fetchAndParseSegment: (url, format, range) =>
-                    fetchAndParseSegment(url, format, range, input.auth, {
-                        streamId: input.id,
-                        resourceType: 'init',
-                    }),
+                fetchAndParseSegment: fetchAndParseSegment,
                 manifestUrl: preProcessed.finalUrl,
                 fetchWithAuth: (url) =>
                     fetchWithAuth(url, input.auth, null, {}, null, signal, {
@@ -610,10 +562,13 @@ export async function handleStartAnalysis({ inputs }, signal) {
             };
 
             if (preProcessed.protocol === 'hls') {
-                manifestIR.summary = await generateHlsSummary(
+                const hlsSummaryResult = await generateHlsSummary(
                     manifestIR,
                     context
                 );
+                manifestIR.summary = hlsSummaryResult.summary;
+                segmentsToCache =
+                    hlsSummaryResult.opportunisticallyCachedSegments;
             } else {
                 manifestIR.summary = await generateDashSummary(
                     manifestIR,
@@ -655,13 +610,24 @@ export async function handleStartAnalysis({ inputs }, signal) {
                 manifestIR,
                 serializedManifestObject,
                 finalBaseUrl,
-                analysisResults
+                analysisResults,
+                fetchAndParseSegment
             );
-            return streamObject;
+
+            // Associate streamId with each cached segment
+            const segmentsWithId = segmentsToCache.map((segment) => ({
+                ...segment,
+                streamId: streamObject.id,
+            }));
+
+            return { streamObject, segmentsToCache: segmentsWithId };
         });
 
-        const streamObjects = await Promise.all(processingPromises);
-
+        const processingResults = await Promise.all(processingPromises);
+        const streamObjects = processingResults.map((r) => r.streamObject);
+        const allCachedSegments = processingResults.flatMap(
+            (r) => r.segmentsToCache
+        );
         const urlAuthMap = new Map();
         for (const stream of streamObjects) {
             const context = { streamId: stream.id, auth: stream.auth };
@@ -711,7 +677,11 @@ export async function handleStartAnalysis({ inputs }, signal) {
             ).toFixed(2)}ms`
         );
 
-        return { streams: workerResults, urlAuthMapArray };
+        return {
+            streams: workerResults,
+            urlAuthMapArray,
+            opportunisticallyCachedSegments: allCachedSegments,
+        };
     } catch (error) {
         appLog(
             'handleStartAnalysis',

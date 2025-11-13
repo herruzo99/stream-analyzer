@@ -308,17 +308,17 @@ export class BoxParser {
 }
 
 /**
- * Recursively finds the first box of a given type.
+ * Recursively finds the first box that satisfies a predicate.
  * @param {import('../../../types.ts').Box[]} boxes
- * @param {string} type
+ * @param {(box: import('../../../types.ts').Box) => boolean} predicate
  * @returns {import('../../../types.ts').Box | null}
  */
-export function findBoxRecursive(boxes, type) {
+export function findBoxRecursive(boxes, predicate) {
     if (!boxes) return null;
     for (const box of boxes) {
-        if (box.type === type) return box;
+        if (predicate(box)) return box;
         if (box.children?.length > 0) {
-            const found = findBoxRecursive(box.children, type);
+            const found = findBoxRecursive(box.children, predicate);
             if (found) return found;
         }
     }

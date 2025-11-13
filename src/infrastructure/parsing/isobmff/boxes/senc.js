@@ -6,7 +6,7 @@ const SENC_FLAGS_SCHEMA = {
 
 /**
  * Parses the 'senc' (Sample Encryption) box.
- * @param {import('@/types').Box} box
+ * @param {import('@/types.js').Box} box
  * @param {DataView} view
  */
 export function parseSenc(box, view) {
@@ -23,18 +23,17 @@ export function parseSenc(box, view) {
     box.samples = []; // Initialize for detailed sample data
 
     if (sampleCount !== null && sampleCount > 0) {
-        // --- ARCHITECTURAL FIX ---
-        // NOTE: The IV size should be read from the 'tenc' box. This is a heuristic
-        // to work around the architectural limitation of not having that context.
-        let perSampleIvSize = 8; // Default CENC assumption.
+        // --- ARCHITECTURAL FIX: More robust IV size heuristic ---
+        let perSampleIvSize = 8; // Default for 'cenc'
         if (flags.use_subsample_encryption) {
+            // Heuristic: 'cbcs' is a common scheme using subsamples, and it implies
+            // the IV is not present in the 'senc' box per-sample.
+            // A full entry with subsamples and no IV is at least 2 bytes (subsample_count).
+            // A full entry with an 8-byte IV is at least 10 bytes.
             const remainingBytes = box.size - p.offset;
             const avgEntrySize = remainingBytes / sampleCount;
-            // For CBCS, if the average entry size is exactly 8, it implies an IV size of 0
-            // and a single subsample entry (2 bytes count + 2 bytes clear + 4 bytes protected).
-            // 0 (IV) + 2 (count) + 6 (subsample) = 8.
-            if (Math.abs(avgEntrySize - 8) < 0.01) {
-                perSampleIvSize = 0;
+            if (avgEntrySize < 10) {
+                perSampleIvSize = 0; // Likely 'cbcs', which has no per-sample IV in this box.
             }
         }
         // --- END FIX ---
@@ -67,8 +66,6 @@ export function parseSenc(box, view) {
                     };
                     p.offset += perSampleIvSize;
                 } else {
-                    // This break will be hit if the heuristic is wrong and there are not enough bytes.
-                    // The heuristic should prevent the error from being thrown.
                     break;
                 }
             }
@@ -108,6 +105,15 @@ export function parseSenc(box, view) {
             }
             box.samples.push(sampleEntry);
         }
+
+        // --- ARCHITECTURAL FIX: Add validation check ---
+        if (box.samples.length !== sampleCount) {
+            p.addIssue(
+                'warn',
+                `Parsed ${box.samples.length} samples, but expected ${sampleCount}. The box may be truncated or the IV size heuristic (${perSampleIvSize} bytes) may be incorrect for this encryption scheme.`
+            );
+        }
+        // --- END FIX ---
     }
 
     p.finalize();

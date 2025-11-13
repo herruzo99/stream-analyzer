@@ -55,6 +55,7 @@ const dashXmlSchema = {
             'group',
             'contentType',
             'lang',
+            'label', // ARCHITECTURAL FIX: Added 'label' to known attributes
             'mimeType',
             'codecs',
             'frameRate',

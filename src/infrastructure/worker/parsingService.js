@@ -124,6 +124,111 @@ function assignTsPacketColors(packets) {
 
 // --- End Color Logic ---
 
+/**
+ * Creates a summary of media information from parsed TS data.
+ * @param {object} tsData - The parsed TS segment data from the engine.
+ * @returns {import('@/types').MediaInfoSummary | null}
+ */
+function generateMediaInfoSummary(tsData) {
+    if (!tsData?.summary?.programMap) return null;
+
+    const summary = tsData.summary;
+    const pmtPid = [...summary.pmtPids][0];
+    const program = summary.programMap[pmtPid];
+    if (!program?.streams) return null;
+
+    const mediaInfo = { data: [] };
+
+    const pmtPacket = tsData.packets.find(
+        (p) => p.pid === pmtPid && p.psi?.streams
+    );
+
+    for (const [pid, streamType] of Object.entries(program.streams)) {
+        const typeNum = parseInt(streamType, 16);
+        const pidNum = parseInt(pid, 10);
+        const videoTypes = [0x01, 0x02, 0x1b, 0x24, 0x80];
+        const audioTypes = [0x03, 0x04, 0x0f, 0x11, 0x1c, 0x81];
+        
+        if (videoTypes.includes(typeNum)) {
+            const videoPESWithSPS = tsData.packets.find(
+                (p) => p.pid === pidNum && p.pes?.spsInfo
+            );
+            if (
+                videoPESWithSPS &&
+                videoPESWithSPS.pes.spsInfo &&
+                !videoPESWithSPS.pes.spsInfo.error
+            ) {
+                mediaInfo.video = {
+                    resolution: videoPESWithSPS.pes.spsInfo.resolution,
+                    frameRate: videoPESWithSPS.pes.spsInfo.frame_rate,
+                    codec: 'H.264',
+                };
+            }
+        } else if (audioTypes.includes(typeNum)) {
+            let audioInfo = { codec: 'Audio', channels: null, sampleRate: null, language: null };
+            if (pmtPacket) {
+                const streamInfo = pmtPacket.psi.streams.find(
+                    (s) => s.elementary_PID.value === pidNum
+                );
+                if (streamInfo) {
+                    const aacDescriptor = streamInfo.es_descriptors.find(
+                        (d) => d.name === 'MPEG-2 AAC Audio Descriptor'
+                    );
+                    if (aacDescriptor) {
+                        audioInfo.codec = 'AAC';
+                        const channelConfigString =
+                            aacDescriptor.details
+                                .MPEG_2_AAC_channel_configuration?.value;
+                        if (channelConfigString) {
+                            audioInfo.channels = parseInt(
+                                channelConfigString.match(/\d+/)?.[0] || '0',
+                                10
+                            );
+                        }
+                    }
+
+                    const mpeg4ExtDescriptor = streamInfo.es_descriptors.find(
+                        (d) => d.name === 'MPEG-4 Audio Extension Descriptor'
+                    );
+                    if (mpeg4ExtDescriptor) {
+                        const { details } = mpeg4ExtDescriptor;
+                        audioInfo.codec =
+                            details.decoded_audio_object_type?.value.split(
+                                ' '
+                            )[0] || 'AAC';
+                        if (details.channels) {
+                            audioInfo.channels = details.channels;
+                        }
+                        if (details.samplerate) {
+                            audioInfo.sampleRate = details.samplerate;
+                        }
+                    }
+
+                    const langDescriptor = streamInfo.es_descriptors.find(d => d.name === 'ISO 639 Language Descriptor');
+                    if (langDescriptor && langDescriptor.details.languages && langDescriptor.details.languages.length > 0) {
+                        audioInfo.language = langDescriptor.details.languages[0].language.value;
+                    }
+                }
+            }
+            mediaInfo.audio = audioInfo;
+        } else {
+            mediaInfo.data.push({ pid: pidNum, streamType });
+        }
+    }
+
+    if (Object.keys(mediaInfo).length === 1 && mediaInfo.data.length === 0) {
+        return null;
+    }
+
+    appLog(
+        'parsingService',
+        'info',
+        'Generated mediaInfo summary from TS segment.',
+        mediaInfo
+    );
+    return mediaInfo;
+}
+
 function generateFullByteMap(parsedData) {
     const byteMap = new Map();
 
@@ -226,12 +331,7 @@ function generateFullByteMap(parsedData) {
     return Array.from(byteMap.entries());
 }
 
-export async function parseSegment({ data, formatHint, url, context }) {
-    appLog(
-        'parseSegment',
-        'info',
-        `Parsing segment. URL: ${url}, Format Hint: ${formatHint}`
-    );
+async function parseSegment({ data, formatHint, url, context }) {
     const dataView = new DataView(data);
     const decoder = new TextDecoder();
 
@@ -265,8 +365,6 @@ export async function parseSegment({ data, formatHint, url, context }) {
         // Not valid UTF-8, so it's not VTT. Intentionally empty.
     }
 
-    // --- ARCHITECTURAL FIX: Prioritize TS check ---
-    // A TS sync byte is a more reliable and specific signature than a potential ISOBMFF box header.
     if (
         data.byteLength > 188 &&
         dataView.getUint8(0) === 0x47 &&
@@ -274,7 +372,6 @@ export async function parseSegment({ data, formatHint, url, context }) {
     ) {
         return parseTsSegment(data);
     }
-    // --- END FIX ---
 
     if (data.byteLength >= 8) {
         const size = dataView.getUint32(0);
@@ -306,6 +403,7 @@ export async function handleParseSegmentStructure({
     context,
 }) {
     const parsedData = await parseSegment({ data, formatHint, url, context });
+    parsedData.mediaInfo = null;
 
     if (parsedData.format === 'isobmff' && parsedData.data.boxes) {
         assignBoxColors(parsedData.data.boxes);
@@ -340,6 +438,13 @@ export async function handleParseSegmentStructure({
         }
     } else if (parsedData.format === 'ts' && parsedData.data.packets) {
         assignTsPacketColors(parsedData.data.packets);
+        parsedData.mediaInfo = generateMediaInfoSummary(parsedData.data);
+        appLog(
+            'parsingService',
+            'info',
+            `Generated mediaInfo for TS segment ${url}`,
+            parsedData.mediaInfo
+        );
     }
 
     return parsedData;
@@ -365,11 +470,9 @@ export async function handleFetchAndParseSegment(
 
     const response = await fetchWithAuth(url, auth, range, {}, null, signal);
 
-    // --- ARCHITECTURAL FIX: Treat HTTP 206 (Partial Content) as a success for range requests ---
     if (response.status !== 200 && response.status !== 206) {
         throw new Error(`HTTP error ${response.status} fetching segment`);
     }
-    // --- END FIX ---
 
     const data = await response.arrayBuffer();
 

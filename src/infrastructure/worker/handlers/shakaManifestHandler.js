@@ -9,7 +9,7 @@ import { fetchWithAuth } from '../http.js';
 import { parseAllSegmentUrls as parseDashSegments } from '@/infrastructure/parsing/dash/segment-parser';
 import { appLog } from '@/shared/utils/debug';
 import { resolveAdAvailsInWorker } from '@/features/advertising/application/resolveAdAvailWorker';
-import { parseSegment } from '../parsingService.js';
+import { handleParseSegmentStructure } from '../parsingService.js';
 
 const SCTE35_SCHEME_ID = 'urn:scte:scte35:2013:bin';
 
@@ -44,7 +44,7 @@ async function fetchAndParseSegment(
         throw new Error(`HTTP error ${response.status} for segment ${url}`);
     }
     const data = await response.arrayBuffer();
-    const parsedData = await parseSegment({ data, formatHint, url, context });
+    const parsedData = await handleParseSegmentStructure({ data, formatHint, url, context });
     return { parsedData, rawBuffer: data };
 }
 
@@ -81,6 +81,7 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
     );
 
     let newManifestObject, newSerializedObject;
+    let opportunisticallyCachedSegments = [];
     if (detectedProtocol === 'hls') {
         const { manifest } = await parseHlsManifest(
             newManifestString,
@@ -125,7 +126,10 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
             return;
         }
 
-        newManifestObject.summary = await generateHlsSummary(newManifestObject);
+        const hlsSummaryResult = await generateHlsSummary(newManifestObject);
+        newManifestObject.summary = hlsSummaryResult.summary;
+        opportunisticallyCachedSegments =
+            hlsSummaryResult.opportunisticallyCachedSegments;
     } else {
         const { manifest, serializedManifest } = await parseDashManifest(
             newManifestString,
@@ -139,6 +143,15 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
         );
     }
     newManifestObject.serializedManifest = newSerializedObject;
+
+    if (opportunisticallyCachedSegments.length > 0) {
+        for (const segment of opportunisticallyCachedSegments) {
+            self.postMessage({
+                type: 'worker:shaka-segment-loaded',
+                payload: { ...segment, streamId: payload.streamId },
+            });
+        }
+    }
 
     if (newManifestString.trim() === oldRawManifest.trim()) {
         if (newManifestObject.type !== 'dynamic') {
@@ -249,17 +262,29 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
 
                 const parsedSegments = await Promise.all(fetchPromises);
                 for (const result of parsedSegments) {
-                    if (
-                        result?.parsedData?.data?.events &&
-                        result.parsedData.data.events.length > 0
-                    ) {
-                        const events = result.parsedData.data.events.map(
-                            (e) => ({
-                                ...e,
-                                sourceSegmentId: result.segment.uniqueId,
-                            })
-                        );
-                        newlyDiscoveredInbandEvents.push(...events);
+                    if (result) {
+                        self.postMessage({
+                            type: 'worker:shaka-segment-loaded',
+                            payload: {
+                                uniqueId: result.segment.uniqueId,
+                                streamId: streamId,
+                                data: result.rawBuffer,
+                                parsedData: result.parsedData,
+                                status: 200,
+                            },
+                        });
+                        if (
+                            result.parsedData?.data?.events &&
+                            result.parsedData.data.events.length > 0
+                        ) {
+                            const events = result.parsedData.data.events.map(
+                                (e) => ({
+                                    ...e,
+                                    sourceSegmentId: result.segment.uniqueId,
+                                })
+                            );
+                            newlyDiscoveredInbandEvents.push(...events);
+                        }
                     }
                 }
             }

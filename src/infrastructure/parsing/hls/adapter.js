@@ -85,28 +85,6 @@ export function determineSegmentFormat(hlsParsed) {
 }
 
 /**
- * Returns the correct MIME type based on content and segment format.
- * @param {'video' | 'audio' | 'text' | 'init' | 'unknown'} contentType
- * @param {'isobmff' | 'ts' | 'unknown'} segmentFormat
- * @returns {string} The corresponding MIME type.
- */
-function getMimeType(contentType, segmentFormat) {
-    if (contentType === 'text') {
-        return 'text/vtt';
-    }
-    if (contentType === 'init') {
-        return 'video/mp4';
-    }
-    if (segmentFormat === 'isobmff') {
-        return `${contentType}/mp4`;
-    }
-    if (segmentFormat === 'ts') {
-        return `${contentType}/mp2t`;
-    }
-    return 'application/octet-stream'; // Fallback for unknown
-}
-
-/**
  * Transforms a parsed HLS manifest object into a protocol-agnostic Intermediate Representation (IR).
  * This version correctly models discontinuities as distinct Periods.
  * @param {object} hlsParsed - The parsed HLS manifest data from the parser.
@@ -349,6 +327,14 @@ export async function adaptHlsToIr(hlsParsed, context) {
                 });
             }
 
+            let width = null,
+                height = null;
+            if (typeof variant.attributes.RESOLUTION === 'string') {
+                [width, height] = variant.attributes.RESOLUTION.split('x').map(
+                    Number
+                );
+            }
+
             const representation = {
                 id: `variant-${i}`,
                 bandwidth: variant.attributes.BANDWIDTH,
@@ -365,18 +351,9 @@ export async function adaptHlsToIr(hlsParsed, context) {
                 reqVideoLayout: variant.attributes['REQ-VIDEO-LAYOUT'],
                 serializedManifest: variant,
                 __variantUri: variant.resolvedUri,
+                width: { value: width || null, source: 'manifest' },
+                height: { value: height || null, source: 'manifest' },
             };
-
-            if (contentType === 'video') {
-                representation.width = {
-                    value: variant.attributes.RESOLUTION?.width || null,
-                    source: 'manifest',
-                };
-                representation.height = {
-                    value: variant.attributes.RESOLUTION?.height || null,
-                    source: 'manifest',
-                };
-            }
 
             asGroups.get(groupId).representations.push(representation);
         });
@@ -384,6 +361,12 @@ export async function adaptHlsToIr(hlsParsed, context) {
         // Process I-Frame streams as trick-play video AdaptationSets
         (hlsParsed.iframeStreams || []).forEach((iframe, i) => {
             const groupId = `iframe-group-${i}`;
+            let width = null,
+                height = null;
+            if (typeof iframe.value.RESOLUTION === 'string') {
+                [width, height] = iframe.value.RESOLUTION.split('x').map(Number);
+            }
+
             asGroups.set(groupId, {
                 id: groupId,
                 contentType: 'video',
@@ -392,18 +375,13 @@ export async function adaptHlsToIr(hlsParsed, context) {
                     {
                         id: `iframe-${i}`,
                         bandwidth: iframe.value.BANDWIDTH,
-                        width: {
-                            value: iframe.value.RESOLUTION?.width || null,
-                            source: 'manifest',
-                        },
-                        height: {
-                            value: iframe.value.RESOLUTION?.height || null,
-                            source: 'manifest',
-                        },
+                        width: { value: width || null, source: 'manifest' },
+                        height: { value: height || null, source: 'manifest' },
                         codecs: {
                             value: iframe.value.CODECS,
                             source: 'manifest',
                         },
+                        frameRate: iframe.value['FRAME-RATE'],
                         videoRange: iframe.value['VIDEO-RANGE'],
                         serializedManifest: iframe,
                     },
@@ -416,28 +394,26 @@ export async function adaptHlsToIr(hlsParsed, context) {
         (hlsParsed.media || []).forEach((media, i) => {
             const groupId = media.value['GROUP-ID'];
             const type = media.value.TYPE?.toLowerCase() || 'unknown';
-            const asKey = `${type}-${groupId}`;
-            if (!asGroups.has(asKey)) {
-                asGroups.set(asKey, {
-                    id: asKey,
-                    contentType: type,
-                    lang: media.value.LANGUAGE,
-                    roles: media.value.CHARACTERISTICS // <-- BUG FIX: Ensure roles is always an array
-                        ? media.value.CHARACTERISTICS.split(',').map((r) => ({
-                              value: r,
-                          }))
-                        : [],
-                    representations: [],
-                    serializedManifest: { ...media, isSynthetic: true },
-                });
-            }
-            asGroups.get(asKey).representations.push({
-                id: `rendition-${i}`,
+            const asKey = `${type}-${groupId}-${i}`; // Create a unique key for each media tag
+            
+            const adaptationSet = {
+                id: asKey,
+                contentType: type,
                 lang: media.value.LANGUAGE,
-                codecs: { value: 'unknown', source: 'manifest' }, // Codecs are on variants, not media tags
-                bandwidth: 0,
-                serializedManifest: media,
-            });
+                channels: media.value.CHANNELS,
+                roles: media.value.CHARACTERISTICS
+                    ? media.value.CHARACTERISTICS.split(',').map(r => ({ value: r }))
+                    : [],
+                representations: [{
+                    id: `rendition-${i}`,
+                    lang: media.value.LANGUAGE,
+                    codecs: { value: 'unknown', source: 'manifest' },
+                    bandwidth: 0,
+                    serializedManifest: media,
+                }],
+                serializedManifest: { ...media, isSynthetic: true },
+            };
+            asGroups.set(asKey, adaptationSet);
         });
 
         period.adaptationSets = Array.from(asGroups.values());

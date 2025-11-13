@@ -353,12 +353,20 @@ export interface Metrics {
 export interface VideoTrackSummary {
     id: string;
     profiles: string | null;
-    bitrateRange: string;
+    bandwidth: number;
+    manifestBandwidth?: number;
+    frameRate: string | null;
     resolutions: SourcedData<string>[];
     codecs: CodecInfo[];
     scanType: string | null;
     videoRange: string | null;
     roles: string[];
+    muxedAudio?: {
+        codecs: CodecInfo[];
+        channels: string | null;
+        lang: string | null;
+    };
+    __variantUri?: string;
 }
 
 export interface AudioTrackSummary {
@@ -470,6 +478,24 @@ export interface EncryptionInfo {
     systems?: string[]; // DASH DRM Systems
 }
 
+export interface MediaInfoSummary {
+    video?: {
+        resolution: string;
+        frameRate: number | null;
+        codec: string;
+    };
+    audio?: {
+        codec: string;
+        channels: number;
+        sampleRate: number;
+        language?: string;
+    };
+    data?: {
+        pid: number;
+        streamType: string;
+    }[];
+}
+
 export interface MediaSegment {
     repId: string;
     type: 'Media' | 'Init';
@@ -489,6 +515,7 @@ export interface MediaSegment {
     indexRange?: string | null;
     parsedData?: any; // For local segment analysis
     inbandEvents?: Event[]; // Events found within this segment
+    mediaInfo?: MediaInfoSummary | null;
 }
 
 export interface HlsSegment extends MediaSegment {

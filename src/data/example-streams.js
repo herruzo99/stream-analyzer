@@ -72,12 +72,12 @@ export const exampleStreams = [
 
     // --- DASH Live ---
     {
-        name: 'DASH-IF: Bare Minimum VOD',
+        name: 'DASH-IF: Live Simulation',
         url: 'https://livesim2.dashif.org/livesim2/testpic_2s/Manifest.mpd',
         protocol: 'dash',
         type: 'live',
         source: 'DASH-IF',
-        category: 'DASH lvie',
+        category: 'DASH Live',
     },
     {
         name: 'DASH-IF: SCTE-35 Ad Insertion (Live)',
@@ -128,14 +128,12 @@ export const exampleStreams = [
         source: 'Apple',
         category: 'HLS VOD',
     },
-
-    // --- HLS Live ---
     {
         name: 'Apple: Advanced stream',
         url: 'https://devstreaming-cdn.apple.com/videos/streaming/examples/adv_dv_atmos/main.m3u8',
         protocol: 'hls',
         type: 'vod',
         source: 'Apple',
-        category: 'HLS VOF',
+        category: 'HLS VOD',
     },
 ];

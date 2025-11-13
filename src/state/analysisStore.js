@@ -10,6 +10,7 @@ import { useMultiPlayerStore } from './multiPlayerStore.js';
 import { showToast } from '@/ui/components/toast.js';
 import { playerService } from '@/features/playerSimulation/application/playerService.js';
 import { usePlayerStore } from './playerStore.js';
+import { useSegmentCacheStore } from './segmentCacheStore.js';
 
 // --- Type Definitions ---
 /** @typedef {import('@/types.ts').Stream} Stream */
@@ -88,6 +89,7 @@ export const useAnalysisStore = createStore((set, get) => ({
     startAnalysis: () => {
         set(createInitialAnalysisState());
         uiActions.reset();
+        useSegmentCacheStore.getState().clear();
     },
 
     completeAnalysis: (streams, urlAuthMapArray, inputs) => {
@@ -772,6 +774,7 @@ export const useAnalysisStore = createStore((set, get) => ({
             if (!stream) return {};
 
             const newUrlAuthMap = new Map(state.urlAuthMap);
+            const { get: getFromCache } = useSegmentCacheStore.getState();
 
             const newVariantState = new Map(stream.hlsVariantState);
             const newMediaPlaylists = new Map(stream.mediaPlaylists);
@@ -785,7 +788,12 @@ export const useAnalysisStore = createStore((set, get) => ({
                 const segmentMap = new Map(
                     oldSegments.map((seg) => [seg.uniqueId, seg])
                 );
+
                 newSegmentsFromManifest.forEach((seg) => {
+                    const cached = getFromCache(seg.uniqueId);
+                    if (cached?.parsedData?.mediaInfo) {
+                        seg.mediaInfo = cached.parsedData.mediaInfo;
+                    }
                     segmentMap.set(seg.uniqueId, seg);
                     newUrlAuthMap.set(seg.resolvedUrl, {
                         streamId,

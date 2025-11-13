@@ -92,7 +92,7 @@ async function fetchHlsMediaPlaylist({ streamId, variantUri }) {
             'StreamService',
             'log',
             `Received result from worker for stream ${streamId}`,
-            result
+            (({ manifestString, ...rest }) => rest)(result)
         );
 
         if (result.streamId === streamId) {

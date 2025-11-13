@@ -1,5 +1,5 @@
 import { BoxParser } from '../utils.js';
-import { parseSPS } from './sps.js';
+import { parseSPS } from '../../video/sps.js';
 
 /**
  * Parses the 'avcC' (AVC Configuration) box.

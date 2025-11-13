@@ -142,7 +142,6 @@ const trackCardTemplate = (track, type, gridColumns) => {
 
     let roles = track.roles?.join(', ') || 'N/A';
 
-    // --- NEW: Add visual indicator for trick play tracks ---
     const isTrickPlay = track.roles?.includes('trick');
     if (isTrickPlay) {
         roles = html`<span
@@ -150,9 +149,22 @@ const trackCardTemplate = (track, type, gridColumns) => {
             >Trick Play</span
         >`;
     }
-    // --- END NEW ---
 
-    const codecsToRender = [];
+    const isVideoCodec = (codec) => {
+        if (!codec?.value) return false;
+        const lowerCodec = codec.value.toLowerCase();
+        const videoPrefixes = ['avc1', 'avc3', 'hvc1', 'hev1', 'mp4v', 'dvh1', 'dvhe', 'av01', 'vp09'];
+        return videoPrefixes.some(prefix => lowerCodec.startsWith(prefix));
+    };
+    
+    const isAudioCodec = (codec) => {
+        if (!codec?.value) return false;
+        const lowerCodec = codec.value.toLowerCase();
+        const audioPrefixes = ['mp4a', 'ac-3', 'ec-3', 'opus', 'flac'];
+        return audioPrefixes.some(prefix => lowerCodec.startsWith(prefix));
+    };
+
+    let codecsToRender = [];
     if (type === 'text' || type === 'application') {
         if (Array.isArray(track.codecsOrMimeTypes)) {
             codecsToRender.push(...track.codecsOrMimeTypes);
@@ -174,6 +186,20 @@ const trackCardTemplate = (track, type, gridColumns) => {
             });
         }
     }
+
+    const formatFrameRate = (fr) => {
+        if (!fr) return 'N/A';
+        if (typeof fr === 'number') return fr.toFixed(2);
+        if (typeof fr === 'string') {
+            if (fr.includes('/')) {
+                const [num, den] = fr.split('/').map(Number);
+                if (den) return (num / den).toFixed(2);
+            }
+            const num = parseFloat(fr);
+            return isNaN(num) ? 'N/A' : num.toFixed(2);
+        }
+        return 'N/A';
+    };
 
     let contentTemplate;
 
@@ -203,69 +229,83 @@ const trackCardTemplate = (track, type, gridColumns) => {
         }
         contentTemplate = html`
             <div
-                class="p-2 border-r border-slate-700 font-mono text-slate-200 truncate flex items-center gap-2"
+                class="h-full p-2 border-r border-slate-700 font-mono text-slate-200 truncate flex items-center gap-2"
                 title=${track.id}
             >
                 ${icon} <span>${track.id}</span>
             </div>
-            <div class="p-2 border-r border-slate-700 font-mono text-slate-200">
+            <div class="h-full p-2 border-r border-slate-700 font-mono text-slate-200">
                 ${bitrate}
             </div>
-            <div class="p-2 border-r border-slate-700 font-mono text-slate-200">
+            <div class="h-full p-2 border-r border-slate-700 font-mono text-slate-200">
                 ${resolution}
             </div>
+            <div class="h-full p-2 border-r border-slate-700 font-mono text-slate-200">
+                ${formatFrameRate(track.frameRate)}
+            </div>
             <div
-                class="p-2 border-r border-slate-700 font-mono text-slate-200 space-y-1"
+                class="h-full p-2 border-r border-slate-700 font-mono text-slate-200 space-y-1"
             >
-                ${codecsToRender.map(
+                ${codecsToRender.filter(isVideoCodec).map(
                     (c) => html`<div>${renderCodecInfo(c)}</div>`
                 )}
             </div>
-            <div class="p-2 font-mono text-slate-400">${roles}</div>
+            <div
+                class="h-full p-2 border-r border-slate-700 font-mono text-slate-200 space-y-1"
+            >
+                ${track.muxedAudio?.codecs.map(
+                    (c) => html`<div>${renderCodecInfo(c)}</div>`
+                ) || html`<span class="text-slate-500">N/A</span>`}
+            </div>
+            <div class="h-full p-2 border-r border-slate-700 font-mono text-slate-200">
+                ${track.muxedAudio?.lang ||
+                html`<span class="text-slate-500">N/A</span>`}
+            </div>
+            <div class="h-full p-2 font-mono text-slate-400">${roles}</div>
         `;
     } else if (type === 'audio') {
         contentTemplate = html`
             <div
-                class="p-2 border-r border-slate-700 font-mono text-slate-200 truncate flex items-center gap-2"
+                class="h-full p-2 border-r border-slate-700 font-mono text-slate-200 truncate flex items-center gap-2"
                 title=${track.id}
             >
                 ${icon} <span>${track.id}</span>
             </div>
-            <div class="p-2 border-r border-slate-700 font-mono text-slate-200">
+            <div class="h-full p-2 border-r border-slate-700 font-mono text-slate-200">
                 ${track.lang || 'N/A'}
             </div>
-            <div class="p-2 border-r border-slate-700 font-mono text-slate-200">
+            <div class="h-full p-2 border-r border-slate-700 font-mono text-slate-200">
                 ${track.channels || 'N/A'}
             </div>
             <div
-                class="p-2 border-r border-slate-700 font-mono text-slate-200 space-y-1"
+                class="h-full p-2 border-r border-slate-700 font-mono text-slate-200 space-y-1"
             >
                 ${codecsToRender.map(
                     (c) => html`<div>${renderCodecInfo(c)}</div>`
                 )}
             </div>
-            <div class="p-2 font-mono text-slate-400">${roles}</div>
+            <div class="h-full p-2 font-mono text-slate-400">${roles}</div>
         `;
     } else {
         // text or application
         contentTemplate = html`
             <div
-                class="p-2 border-r border-slate-700 font-mono text-slate-200 truncate flex items-center gap-2"
+                class="h-full p-2 border-r border-slate-700 font-mono text-slate-200 truncate flex items-center gap-2"
                 title=${track.id}
             >
                 ${icon} <span>${track.id}</span>
             </div>
-            <div class="p-2 border-r border-slate-700 font-mono text-slate-200">
+            <div class="h-full p-2 border-r border-slate-700 font-mono text-slate-200">
                 ${track.lang || 'N/A'}
             </div>
             <div
-                class="p-2 border-r border-slate-700 font-mono text-slate-200 space-y-1"
+                class="h-full p-2 border-r border-slate-700 font-mono text-slate-200 space-y-1"
             >
                 ${codecsToRender.map(
                     (c) => html`<div>${renderCodecInfo(c)}</div>`
                 )}
             </div>
-            <div class="p-2 font-mono text-slate-400">${roles}</div>
+            <div class="h-full p-2 font-mono text-slate-400">${roles}</div>
         `;
     }
 
@@ -280,14 +320,12 @@ export const trackTableTemplate = (tracks, type) => {
     const sortedTracks = [...tracks];
     if (type === 'video') {
         sortedTracks.sort((a, b) => {
-            const heightA = a.height?.value || 0;
-            const heightB = b.height?.value || 0;
+            const heightA = a.resolutions[0]?.value.split('x')[1] || 0;
+            const heightB = b.resolutions[0]?.value.split('x')[1] || 0;
             if (heightA !== heightB) {
-                return heightA - heightB;
+                return parseInt(heightB) - parseInt(heightA);
             }
-            const widthA = a.width?.value || 0;
-            const widthB = b.width?.value || 0;
-            return widthA - widthB;
+            return (b.bandwidth || 0) - (a.bandwidth || 0);
         });
     }
 
@@ -295,28 +333,34 @@ export const trackTableTemplate = (tracks, type) => {
     let headerTemplate;
 
     if (type === 'video') {
-        gridColumns = 'grid-cols-[minmax(200px,1fr)_150px_150px_1fr_100px]';
+        gridColumns =
+            'grid-cols-[minmax(150px,1fr)_125px_125px_125px_1fr_1fr_80px_125px]';
         headerTemplate = html`
             <div class="p-2 border-r border-slate-700">Representation ID</div>
             <div class="p-2 border-r border-slate-700">Bitrate</div>
             <div class="p-2 border-r border-slate-700">Resolution</div>
-            <div class="p-2 border-r border-slate-700">Codecs</div>
+            <div class="p-2 border-r border-slate-700">Frame Rate</div>
+            <div class="p-2 border-r border-slate-700">Video Codec(s)</div>
+            <div class="p-2 border-r border-slate-700">Muxed Audio Codec</div>
+            <div class="p-2 border-r border-slate-700">Muxed Lang</div>
             <div class="p-2">Roles</div>
         `;
     } else if (type === 'audio') {
-        gridColumns = 'grid-cols-[minmax(200px,1fr)_100px_100px_1fr_100px]';
+        gridColumns =
+            'grid-cols-[minmax(200px,1fr)_125px_125px_125px_1fr_125px]';
         headerTemplate = html`
-            <div class="p-2 border-r border-slate-700">Representation ID</div>
+            <div class="p-2 border-r border-slate-700">Rendition ID</div>
             <div class="p-2 border-r border-slate-700">Language</div>
             <div class="p-2 border-r border-slate-700">Channels</div>
+            <div class="p-2 border-r border-slate-700">Bitrate</div>
             <div class="p-2 border-r border-slate-700">Codecs</div>
             <div class="p-2">Roles</div>
         `;
     } else {
         // text or application
-        gridColumns = 'grid-cols-[minmax(200px,1fr)_100px_1fr_100px]';
+        gridColumns = 'grid-cols-[minmax(200px,1fr)_125px_1fr_125px]';
         headerTemplate = html`
-            <div class="p-2 border-r border-slate-700">Representation ID</div>
+            <div class="p-2 border-r border-slate-700">Rendition ID</div>
             <div class="p-2 border-r border-slate-700">Language</div>
             <div class="p-2 border-r border-slate-700">Formats</div>
             <div class="p-2">Roles</div>

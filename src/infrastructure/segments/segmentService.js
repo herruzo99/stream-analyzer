@@ -9,16 +9,13 @@ export function getParsedSegment(
     uniqueId,
     streamId = null,
     formatHint = null,
-    context = {}
+    context = {},
+    options = { forceReload: false }
 ) {
     const { get, set } = useSegmentCacheStore.getState();
-    let cachedEntry = get(uniqueId);
+    let cachedEntry = options.forceReload ? null : get(uniqueId);
     const id = streamId ?? useAnalysisStore.getState().activeStreamId;
 
-    // --- ARCHITECTURAL FIX: Correct Cache Invalidation ---
-    // If a context-aware request is made for an I-Frame, but the cached data
-    // was parsed without this context (indicated by the presence of the specific
-    // mdat error), we must invalidate the parsed portion of the cache and re-parse.
     if (
         context.isIFrame &&
         cachedEntry?.parsedData?.data?.boxes?.some(
@@ -32,11 +29,9 @@ export function getParsedSegment(
             'info',
             `Cache invalidation: Forcing re-parse of I-Frame segment ${uniqueId} with new context.`
         );
-        // Update the store to remove the incorrect parsed data, then update the local variable.
         set(uniqueId, { ...cachedEntry, parsedData: null });
         cachedEntry = get(uniqueId);
     }
-    // --- END FIX ---
 
     // 1. If we have fully parsed data, return it immediately.
     if (cachedEntry?.parsedData) {
@@ -221,7 +216,7 @@ export function initializeSegmentService() {
                 appLog(
                     'SegmentService',
                     'info',
-                    `Caching parsed segment from Shaka player: ${uniqueId}`
+                    `Caching parsed segment from worker: ${uniqueId}`
                 );
                 const finalEntry = { status, data, parsedData };
                 set(uniqueId, finalEntry);
@@ -231,11 +226,6 @@ export function initializeSegmentService() {
                 });
 
                 if (parsedData?.data?.events?.length > 0) {
-                    appLog(
-                        'SegmentService',
-                        'info',
-                        `Found ${parsedData.data.events.length} in-band events in Shaka-loaded segment ${uniqueId}. Dispatching to store.`
-                    );
                     const eventsWithSource = parsedData.data.events.map(
                         (e) => ({ ...e, sourceSegmentId: uniqueId })
                     );

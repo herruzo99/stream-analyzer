@@ -34,7 +34,6 @@ import { initializeInteractiveSegmentFeature } from '@/features/interactiveSegme
 import { initializeSegmentExplorerFeature } from '@/features/segmentExplorer/index';
 import { initializeStreamInputFeature } from '@/features/streamInput/index';
 import { initializePlayerSimulationFeature } from '@/features/playerSimulation/index';
-import { initializeMemoryMonitorFeature } from '@/features/memoryMonitor/index';
 import { initializeMultiPlayerFeature } from '@/features/multiPlayer/index';
 import { initializeNotificationFeature } from '@/features/notifications/index.js';
 
@@ -134,7 +133,6 @@ export async function startApp() {
     initializeSegmentExplorerFeature();
     initializeStreamInputFeature();
     initializePlayerSimulationFeature();
-    initializeMemoryMonitorFeature();
     initializeMultiPlayerFeature();
     initializeNotificationFeature();
 
