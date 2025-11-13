@@ -34,7 +34,6 @@ class AppShellComponent extends HTMLElement {
         this.removeEventListeners();
         if (this.uiUnsubscribe) this.uiUnsubscribe();
         if (this.analysisUnsubscribe) this.analysisUnsubscribe();
-        // --- ARCHITECTURAL FIX: Unsubscribe to prevent memory leaks ---
         if (this.playerUnsubscribe) this.playerUnsubscribe();
     }
 

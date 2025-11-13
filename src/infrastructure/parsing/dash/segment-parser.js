@@ -518,7 +518,7 @@ export async function parseAllSegmentUrls(
                             );
                             const sidxBox = findBoxRecursive(
                                 parsedSidx.data.boxes,
-                                'sidx'
+                                (b) => b.type === 'sidx'
                             );
 
                             if (sidxBox) {

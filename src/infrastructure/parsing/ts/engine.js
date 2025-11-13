@@ -227,6 +227,18 @@ export function parseTsSegment(buffer) {
                             payloadBaseOffset
                         );
                         packet.payloadType = 'PSI (PMT)';
+                        // ***** FIX START *****
+                        if (parsedPayload && summary.programMap[pid]) {
+                            parsedPayload.streams.forEach((stream) => {
+                                summary.programMap[pid].streams[
+                                    stream.elementary_PID.value
+                                ] = stream.stream_type.value;
+                            });
+                            summary.programMap[pid].pcrPid =
+                                parsedPayload.pcr_pid.value;
+                            summary.pcrPid = parsedPayload.pcr_pid.value;
+                        }
+                        // ***** FIX END *****
                     } else if (tableIdNum >= 0x40 && tableIdNum <= 0xfe) {
                         parsedPayload = parsePrivateSectionPayload(
                             payload,

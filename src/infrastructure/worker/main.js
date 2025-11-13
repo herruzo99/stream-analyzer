@@ -1,4 +1,3 @@
-import { handleStartAnalysis } from './handlers/analysisHandler.js';
 import { handleGetManifestMetadata } from './handlers/metadataHandler.js';
 import {
     handleParseSegmentStructure,
@@ -9,9 +8,9 @@ import {
 } from './parsingService.js';
 import { handleShakaResourceFetch } from './handlers/shakaResourceHandler.js';
 import { handleShakaManifestFetch } from './handlers/shakaManifestHandler.js';
-import { handleCalculateMemoryReport } from './handlers/memoryReportHandler.js';
 import { handleGetStreamDrmInfo } from './handlers/drmDetectionHandler.js';
 import { appLog } from '@/shared/utils/debug';
+import { handleStartAnalysis } from './handlers/analysisHandler.js';
 
 const inFlightTasks = new Map();
 
@@ -27,7 +26,7 @@ async function handleFetchHlsMediaPlaylist(
     signal
 ) {
     const { fetchWithAuth } = await import('./http.js');
-    const { parseSegment } = await import('./parsingService.js');
+    const { handleParseSegmentStructure } = await import('./parsingService.js');
     const response = await fetchWithAuth(
         variantUri,
         auth,
@@ -67,7 +66,7 @@ async function handleFetchHlsMediaPlaylist(
                     );
                     if (!res.ok) return null;
                     const data = await res.arrayBuffer();
-                    const parsedData = await parseSegment({
+                    const parsedData = await handleParseSegmentStructure({
                         data,
                         formatHint: 'ts',
                         url: segment.resolvedUrl,
@@ -116,7 +115,6 @@ const handlers = {
     'decrypt-and-parse-segment': handleDecryptAndParseSegment,
     'shaka-fetch-manifest': handleShakaManifestFetch,
     'shaka-fetch-resource': handleShakaResourceFetch,
-    'calculate-memory-report': handleCalculateMemoryReport,
 };
 
 self.addEventListener('message', async (event) => {

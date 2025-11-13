@@ -16,7 +16,7 @@ const renderList = (items) =>
 
 const createRow = (label, tooltip, isoRef, values) => {
     const firstValue = JSON.stringify(values[0]);
-    const isSame = values.every((v) => JSON.stringify(v) === firstValue);
+    const isSame = values.every((v) => JSON.stringify(v) === JSON.stringify(firstValue));
     const status = isSame ? 'same' : 'different';
 
     return {
@@ -83,8 +83,8 @@ export function createComparisonViewModel(streams) {
             name: stream.name,
             tracks: videoRepresentations
                 .map((rep) => ({
-                    width: rep.width.value,
-                    height: rep.height.value,
+                    width: rep.width?.value,
+                    height: rep.height?.value,
                     bandwidth: rep.bandwidth,
                 }))
                 .filter((t) => t.width && t.height && t.bandwidth),

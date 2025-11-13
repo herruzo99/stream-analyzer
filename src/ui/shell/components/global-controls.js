@@ -9,10 +9,10 @@ import {
 } from '@/ui/services/streamActionsService';
 import { toggleDropdown } from '@/ui/services/dropdownService';
 import { pollingDropdownPanelTemplate } from './polling-dropdown-panel.js';
+import { debugDropdownPanelTemplate } from './debug-dropdown-panel.js';
 import { tooltipTriggerClasses } from '@/ui/shared/constants';
 import * as icons from '@/ui/icons';
 import { resetApplicationState } from '@/application/use_cases/resetApplicationState';
-import '@/features/memoryMonitor/ui/index';
 import { isDebugMode } from '@/shared/utils/env';
 import { usePlayerStore } from '@/state/playerStore.js';
 import { playerService } from '@/features/playerSimulation/application/playerService.js';
@@ -119,6 +119,37 @@ export const globalControlsTemplate = () => {
               </span>`
             : '';
 
+    const debugButton = isDebugMode
+        ? html`
+              <div
+                  class="flex w-full rounded-md text-gray-300 bg-gray-700/50 hover:bg-gray-700"
+              >
+                  <button
+                      @click=${copyDebugInfoToClipboard}
+                      data-testid="copy-debug-btn"
+                      class="${buttonBaseClasses} grow"
+                      title="Copy distilled debug info to the clipboard"
+                  >
+                      ${icons.debug}
+                      <span class="inline">Copy Debug</span>
+                  </button>
+                  <div class="w-px bg-gray-600"></div>
+                  <button
+                      @click=${(e) =>
+                          toggleDropdown(
+                              e.currentTarget.parentElement,
+                              debugDropdownPanelTemplate,
+                              e
+                          )}
+                      class="px-2 py-2 text-xs font-semibold transition-colors rounded-r-md hover:bg-gray-600"
+                      title="Debug copy options"
+                  >
+                      ${icons.chevronDown}
+                  </button>
+              </div>
+          `
+        : '';
+
     return html`
         <div class="space-y-2 border-t border-gray-700/50">
             ${isPipUnmount
@@ -169,9 +200,7 @@ export const globalControlsTemplate = () => {
                 </button>
             </div>
 
-            <div
-                class="grid ${isDebugMode ? 'grid-cols-2' : 'grid-cols-1'} gap-2"
-            >
+            <div class="grid grid-cols-1 gap-2">
                 <button
                     @click=${copyShareUrlToClipboard}
                     data-testid="share-analysis-btn"
@@ -181,24 +210,8 @@ export const globalControlsTemplate = () => {
                     ${icons.share}
                     <span class="inline">Share</span>
                 </button>
-                ${isDebugMode
-                    ? html`<button
-                          @click=${copyDebugInfoToClipboard}
-                          data-testid="copy-debug-btn"
-                          class="${buttonBaseClasses} text-gray-300 bg-gray-700/50 hover:bg-gray-700"
-                          title="Copy distilled debug info to the clipboard"
-                      >
-                          ${icons.debug}
-                          <span class="inline">Copy Debug Info</span>
-                      </button>`
-                    : ''}
+                ${debugButton}
             </div>
-        </div>
-        <div
-            id="memory-monitor-container"
-            class="border-t border-gray-700/50 pt-3"
-        >
-            <memory-monitor></memory-monitor>
         </div>
     `;
 };

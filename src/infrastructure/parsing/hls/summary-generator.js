@@ -2,159 +2,323 @@
  * @typedef {import('@/types.ts').Manifest} Manifest
  * @typedef {import('@/types.ts').PeriodSummary} PeriodSummary
  * @typedef {import('@/types.ts').SecuritySummary} SecuritySummary
+ * @typedef {import('@/types.ts').VideoTrackSummary} VideoTrackSummary
+ * @typedef {import('@/types.ts').CodecInfo} CodecInfo
  */
 
+import { findChildrenRecursive, resolveBaseUrl } from '@/infrastructure/parsing/dash/recursive-parser';
 import { formatBitrate } from '@/ui/shared/format';
+import { findInitSegmentUrl } from '@/infrastructure/parsing/dash/segment-parser.js';
 import { isCodecSupported } from '../utils/codec-support.js';
-import { getDrmSystemName } from '../utils/drm.js';
+import { getDrmSystemName } from '@/infrastructure/parsing/utils/drm.js';
 import { determineSegmentFormat } from './adapter.js';
+import { appLog } from '@/shared/utils/debug';
+import { parseSPS } from '../video/sps.js';
+
+const findBoxRecursive = (boxes, predicateOrType) => {
+    const predicate =
+        typeof predicateOrType === 'function'
+            ? predicateOrType
+            : (box) => box.type === predicateOrType;
+
+    if (!boxes) return null;
+    for (const box of boxes) {
+        if (predicate(box)) return box;
+        if (box.children?.length > 0) {
+            const found = findBoxRecursive(box.children, predicate);
+            if (found) return found;
+        }
+    }
+    return null;
+};
 
 /**
  * Creates a protocol-agnostic summary view-model from an HLS manifest.
- * @param {Manifest} manifestIR - The adapted manifest IR.
+ * @param {import('@/types.ts').Manifest} manifestIR - The adapted manifest IR.
  * @param {object} [context] - Context for enrichment.
- * @param {string} [context.baseUrl] - The base URL for resolving relative segment paths.
+ * @param {string} [context.manifestUrl] - The base URL for resolving relative segment paths.
  * @param {Function} [context.fetchWithAuth] - Function to fetch a URL with auth.
  * @param {Function} [context.parseHlsManifest] - Function to parse an HLS manifest string.
- * @returns {Promise<import('@/types.ts').ManifestSummary>}
+ * @param {Function} [context.fetchAndParseSegment] - Function to fetch and parse a segment.
+ * @returns {Promise<{summary: import('@/types.ts').ManifestSummary, opportunisticallyCachedSegments: any[]}>}
  */
 export async function generateHlsSummary(manifestIR, context) {
     const { serializedManifest: rawElement } = manifestIR;
     const isMaster = manifestIR.isMaster;
-    let mediaPlaylistIRForEnrichment = null;
-
     const allKeyTags = new Set();
+    let enrichmentComplete = false;
+    const opportunisticallyCachedSegments = [];
+
+    const isVideoCodec = (codecString) => {
+        if (!codecString) return false;
+        const lowerCodec = codecString.toLowerCase();
+        const videoPrefixes = [
+            'avc1',
+            'avc3',
+            'hvc1',
+            'hev1',
+            'mp4v',
+            'dvh1',
+            'dvhe',
+            'av01',
+            'vp09',
+        ];
+        return videoPrefixes.some((prefix) => lowerCodec.startsWith(prefix));
+    };
+
+    const isAudioCodec = (codecString) => {
+        if (!codecString) return false;
+        const lowerCodec = codecString.toLowerCase();
+        const audioPrefixes = ['mp4a', 'ac-3', 'ec-3', 'opus', 'flac'];
+        return audioPrefixes.some((prefix) => lowerCodec.startsWith(prefix));
+    };
 
     // --- ENRICHMENT STEP ---
     if (isMaster && context?.fetchWithAuth && context?.parseHlsManifest) {
-        // Collect all unique media playlist URIs from variants and renditions
-        const allUris = new Set();
-        (manifestIR.variants || []).forEach((v) => v.resolvedUri && allUris.add(v.resolvedUri));
-        (manifestIR.periods || [])
-            .flatMap((p) => p.adaptationSets)
-            .flatMap((as) => as.representations)
-            .forEach((r) => (r.serializedManifest)?.resolvedUri && allUris.add((r.serializedManifest).resolvedUri));
+        let finalSegmentFormat = determineSegmentFormat(rawElement);
 
-        const fetchPromises = Array.from(allUris).map(uri =>
-            context.fetchWithAuth(uri)
-                .then(res => res.text())
-                .then(text => context.parseHlsManifest(text, uri, manifestIR.hlsDefinedVariables))
-                .catch(e => {
-                    console.warn(`[HLS Summary Enrichment] Failed to fetch/parse playlist ${uri}: ${e.message}`);
-                    return null;
-                })
-        );
+        const enrichmentPromises = (manifestIR.variants || []).map(
+            async (variant) => {
+                if (!variant.resolvedUri) return;
+                try {
+                    const res = await context.fetchWithAuth(variant.resolvedUri);
+                    if (!res.ok) return;
+                    const text = await res.text();
+                    const { manifest: mediaPlaylistIR } =
+                        await context.parseHlsManifest(
+                            text,
+                            variant.resolvedUri,
+                            manifestIR.hlsDefinedVariables
+                        );
 
-        const allPlaylists = (await Promise.all(fetchPromises)).filter(Boolean);
+                    if (!enrichmentComplete) {
+                        manifestIR.duration = mediaPlaylistIR.duration;
+                        manifestIR.minBufferTime =
+                            mediaPlaylistIR.minBufferTime;
+                        finalSegmentFormat = mediaPlaylistIR.segmentFormat;
+                        enrichmentComplete = true;
+                    }
 
-        // Use the first fetched media playlist for general enrichment (duration, etc.)
-        if (allPlaylists.length > 0) {
-            mediaPlaylistIRForEnrichment = allPlaylists[0].manifest;
-            manifestIR.duration = mediaPlaylistIRForEnrichment.duration;
-            manifestIR.minBufferTime = mediaPlaylistIRForEnrichment.minBufferTime; // This is targetDuration
-            (manifestIR.tags = manifestIR.tags || []).push(...(mediaPlaylistIRForEnrichment.tags || []));
-            manifestIR.segments = mediaPlaylistIRForEnrichment.segments;
-            manifestIR.type = mediaPlaylistIRForEnrichment.type;
-        }
+                    (mediaPlaylistIR.tags || []).forEach((tag) => {
+                        if (
+                            tag.name === 'EXT-X-KEY' ||
+                            tag.name === 'EXT-X-SESSION-KEY'
+                        ) {
+                            allKeyTags.add(JSON.stringify(tag.value)); // Use stringify for object comparison
+                        }
+                    });
 
-        // Aggregate all key tags from all fetched playlists
-        allPlaylists.forEach(({ manifest }) => {
-            (manifest.tags || []).forEach(tag => {
-                if (tag.name === 'EXT-X-KEY' || tag.name === 'EXT-X-SESSION-KEY') {
-                    allKeyTags.add(JSON.stringify(tag.value)); // Use stringify for object comparison
+                    const repToUpdate = manifestIR.periods[0]?.adaptationSets
+                        .flatMap((as) => as.representations)
+                        .find((r) => r.__variantUri === variant.resolvedUri);
+
+                    if (!repToUpdate) return;
+
+                    const needsResolution =
+                        !repToUpdate.width.value &&
+                        isVideoCodec(repToUpdate.codecs.value);
+
+                    if (needsResolution && context.fetchAndParseSegment) {
+                        const firstSegment = mediaPlaylistIR.segments?.[0];
+                        if (!firstSegment) return;
+                        const { parsedData, rawBuffer } =
+                            await context.fetchAndParseSegment(
+                                firstSegment.resolvedUrl,
+                                finalSegmentFormat,
+                                firstSegment.byteRange
+                                    ? `${firstSegment.byteRange.offset}-${
+                                          firstSegment.byteRange.offset +
+                                          firstSegment.byteRange.length -
+                                          1
+                                      }`
+                                    : null
+                            );
+
+                        opportunisticallyCachedSegments.push({
+                            uniqueId: firstSegment.uniqueId,
+                            data: rawBuffer,
+                            parsedData: parsedData,
+                            status: 200,
+                        });
+
+                        let width = null,
+                            height = null,
+                            frameRate = null;
+                        if (parsedData?.mediaInfo?.video) {
+                            [width, height] = parsedData.mediaInfo.video.resolution.split('x').map(Number);
+                            frameRate = parsedData.mediaInfo.video.frameRate;
+                        }
+
+
+                        if (width && height) {
+                            repToUpdate.width = { value: width, source: 'segment' };
+                            repToUpdate.height = { value: height, source: 'segment' };
+                        }
+
+                        if (frameRate) {
+                            repToUpdate.frameRate = frameRate;
+                        }
+                    }
+                } catch (e) {
+                    console.warn(
+                        `[HLS Summary Enrichment] Failed for variant ${variant.resolvedUri}: ${e.message}`
+                    );
                 }
-            });
-        });
+            }
+        );
+        await Promise.all(enrichmentPromises);
+        manifestIR.segmentFormat = finalSegmentFormat;
     } else {
-         // For single media playlists or non-enrichment context
-        (manifestIR.tags || []).forEach(tag => {
-            if (tag.name === 'EXT-X-KEY' || tag.name === 'EXT-X-SESSION-KEY') {
+        (manifestIR.tags || []).forEach((tag) => {
+            if (
+                tag.name === 'EXT-X-KEY' ||
+                tag.name === 'EXT-X-SESSION-KEY'
+            ) {
                 allKeyTags.add(JSON.stringify(tag.value));
             }
         });
     }
     // --- END ENRICHMENT ---
 
-    let finalSegmentFormat = manifestIR.segmentFormat;
-    let finalHlsParsed = rawElement; // Default to the original parsed object
-
-    if (mediaPlaylistIRForEnrichment) {
-        finalSegmentFormat = determineSegmentFormat(mediaPlaylistIRForEnrichment.serializedManifest);
-        finalHlsParsed = mediaPlaylistIRForEnrichment.serializedManifest; // Use the enriched object
-    }
-
     const allAdaptationSets = manifestIR.periods.flatMap(
         (p) => p.adaptationSets
     );
 
-    const videoTracks = allAdaptationSets
-        .filter((as) => as.contentType === 'video')
+    const allVideoAdaptationSets = allAdaptationSets.filter(
+        (as) => as.contentType === 'video'
+    );
+    const allAudioAdaptationSets = allAdaptationSets.filter(
+        (as) => as.contentType === 'audio'
+    );
+    const allTextAdaptationSets = allAdaptationSets.filter(
+        (as) => as.contentType === 'text' || as.contentType === 'subtitles'
+    );
+
+    const videoTracks = allVideoAdaptationSets
         .flatMap((as) =>
-            as.representations.map((rep) => ({
-                id: rep.stableVariantId || rep.id,
-                profiles: null,
-                bitrateRange: formatBitrate(rep.bandwidth),
-                resolutions: rep.width?.value
-                    ? [
-                          {
-                              value: `${rep.width.value}x${rep.height.value}`,
-                              source: rep.width.source,
-                          },
-                      ]
-                    : [],
-                codecs: rep.codecs.value
-                    ? [
-                          {
-                              value: rep.codecs.value,
-                              source: rep.codecs.source,
-                              supported: isCodecSupported(rep.codecs.value),
-                          },
-                      ]
-                    : [],
-                scanType: null,
-                videoRange: rep.videoRange || null,
-                roles: as.roles.map((r) => r.value).filter(Boolean),
-                __variantUri: rep.__variantUri,
-            }))
+            as.representations.map((rep) => {
+                /** @type {import('@/types.ts').SourcedData<string>[]} */
+                const resolutions = [];
+                if (rep.width?.value && rep.height?.value) {
+                    resolutions.push({
+                        value: `${rep.width.value}x${rep.height.value}`,
+                        source: rep.width.source, // 'segment' or 'manifest'
+                    });
+                } else if (
+                    rep.serializedManifest?.attributes?.RESOLUTION
+                ) {
+                    resolutions.push(
+                        /** @type {import('@/types.ts').SourcedData<string>} */ ({
+                            value: rep.serializedManifest.attributes.RESOLUTION,
+                            source: 'manifest',
+                        })
+                    );
+                }
+
+                const codecString = rep.codecs.value || '';
+                const allCodecs = codecString
+                    .split(',')
+                    .map((c) => c.trim())
+                    .filter(Boolean);
+
+                return /** @type {VideoTrackSummary} */ ({
+                    id: rep.stableVariantId || rep.id,
+                    profiles: null,
+                    bandwidth: rep.bandwidth,
+                    manifestBandwidth: rep.manifestBandwidth,
+                    frameRate: rep.frameRate || null,
+                    resolutions,
+                    codecs: allCodecs.map(
+                        (vc) =>
+                            /** @type {CodecInfo} */ ({
+                                value: vc,
+                                source: 'manifest',
+                                supported: isCodecSupported(vc),
+                            })
+                    ),
+                    scanType: null,
+                    videoRange: rep.videoRange || null,
+                    roles: as.roles.map((r) => r.value).filter(Boolean),
+                    __variantUri: rep.__variantUri,
+                });
+            })
         );
 
-    videoTracks.forEach((track) => {
-        // @ts-ignore
-        delete track.__variantUri;
-    });
+    const audioTracks = allAudioAdaptationSets.map((as) => {
+        const codecsMap = new Map();
+        const channelsSet = new Set();
 
-    const audioTracks = allAdaptationSets
-        .filter((as) => as.contentType === 'audio')
-        .map((as) => {
-            const codecs = as.representations[0]?.codecs.value
-                ? [
-                      {
-                          value: as.representations[0].codecs.value,
-                          source: as.representations[0].codecs.source,
-                      },
-                  ]
-                : [];
-            return {
-                id: as.stableRenditionId || as.id,
-                lang: as.lang,
-                codecs: codecs.map((c) => ({
-                    value: c.value,
-                    source: c.source,
-                    supported: isCodecSupported(c.value),
-                })),
-                channels: as.channels,
-                isDefault:
-                    /** @type {any} */ (as.serializedManifest).DEFAULT ===
-                    'YES',
-                isForced: false,
-                roles: [],
-            };
+        as.representations.forEach((r) => {
+            if (r.codecs.value && !codecsMap.has(r.codecs.value)) {
+                codecsMap.set(r.codecs.value, {
+                    value: r.codecs.value,
+                    source: r.codecs.source,
+                    supported: isCodecSupported(r.codecs.value),
+                });
+            }
         });
 
-    const textTracks = allAdaptationSets
-        .filter(
-            (as) => as.contentType === 'text' || as.contentType === 'subtitles'
-        )
+        if (as.channels) {
+            channelsSet.add(as.channels);
+        }
+
+        const codecs = Array.from(codecsMap.values());
+        const channels = Array.from(channelsSet);
+
+        return {
+            id: as.stableRenditionId || as.id,
+            lang: as.lang,
+            codecs: codecs,
+            channels: channels.join(', ') || null,
+            isDefault:
+                /** @type {any} */ (as.serializedManifest)?.DEFAULT === 'YES',
+            isForced: false,
+            roles: as.roles.map((r) => r.value).filter(Boolean),
+            bandwidth: as.representations[0]?.bandwidth || 0,
+        };
+    });
+
+    // --- REFACTORED: Muxed Audio Enrichment ---
+    const muxedVariants = (manifestIR.variants || []).filter(
+        (v) => v.attributes.CODECS?.includes('mp4a') && !v.attributes.AUDIO
+    );
+
+    if (muxedVariants.length > 0) {
+        for (const videoTrack of videoTracks) {
+            const variant = muxedVariants.find(
+                (v) => v.resolvedUri === videoTrack.__variantUri
+            );
+            if (variant) {
+                const audioCodecInfo = (videoTrack.codecs || []).find((c) =>
+                    isAudioCodec(c.value)
+                );
+
+                videoTrack.muxedAudio = {
+                    codecs: audioCodecInfo ? [audioCodecInfo] : [],
+                    channels: null, // Initially unknown
+                    lang: null, // Initially unknown
+                };
+
+                // Now, try to enhance with segment data if we have it
+                const firstMuxedSegment = opportunisticallyCachedSegments.find(
+                    (segment) =>
+                        segment.uniqueId.startsWith(
+                            new URL(variant.uri, context.manifestUrl).href
+                        )
+                );
+
+                if (firstMuxedSegment?.parsedData?.mediaInfo?.audio) {
+                    const audioInfo =
+                        firstMuxedSegment.parsedData.mediaInfo.audio;
+                    videoTrack.muxedAudio.lang = audioInfo.language || 'und';
+                    videoTrack.muxedAudio.channels = audioInfo.channels;
+                }
+            }
+        }
+    }
+    // --- END REFACTOR ---
+
+    const textTracks = allTextAdaptationSets
         .map((as) => {
             const mimeTypes =
                 as.representations[0]?.codecs?.value ||
@@ -189,7 +353,9 @@ export async function generateHlsSummary(manifestIR, context) {
             };
         });
 
-    const parsedKeyTags = Array.from(allKeyTags).map(tagStr => JSON.parse(/** @type {string} */(tagStr)));
+    const parsedKeyTags = Array.from(allKeyTags).map((tagStr) =>
+        JSON.parse(/** @type {string} */ (tagStr))
+    );
     const contentProtectionIRs = parsedKeyTags
         .filter((value) => value.METHOD && value.METHOD !== 'NONE')
         .map((value) => {
@@ -198,6 +364,7 @@ export async function generateHlsSummary(manifestIR, context) {
                 schemeIdUri: schemeIdUri,
                 system: getDrmSystemName(schemeIdUri) || value.METHOD,
                 defaultKid: value.KEYID || null,
+                robustness: null, // HLS does not define robustness in this context
             };
         });
 
@@ -221,7 +388,7 @@ export async function generateHlsSummary(manifestIR, context) {
     if (security.isEncrypted) {
         const methods = new Set(contentProtectionIRs.map((cp) => cp.system));
         if (methods.has('FairPlay')) {
-             security.hlsEncryptionMethod = 'FairPlay';
+            security.hlsEncryptionMethod = 'FairPlay';
         } else if (methods.has('SAMPLE-AES')) {
             security.hlsEncryptionMethod = 'SAMPLE-AES';
         } else if (methods.has('AES-128')) {
@@ -232,18 +399,12 @@ export async function generateHlsSummary(manifestIR, context) {
     }
 
     let mediaPlaylistDetails = null;
-    const allSegments = manifestIR.periods.flatMap(
-        (p) =>
-            p.adaptationSets[0]?.representations[0]?.serializedManifest
-                ?.segments || []
-    );
-    if (!isMaster || allSegments.length > 0) {
-        const segmentCount = allSegments.length;
-        const totalDuration = allSegments.reduce(
-            (sum, seg) => sum + seg.duration,
-            0
+    if (!isMaster) {
+        const segmentCount = manifestIR.segments.length;
+        const totalDuration = manifestIR.duration;
+        const isIFrameOnly = (manifestIR.tags || []).some(
+            (t) => t.name === 'EXT-X-I-FRAMES-ONLY'
         );
-        const isIFrameOnly = (manifestIR.tags || []).some(t => t.name === 'EXT-X-I-FRAMES-ONLY');
 
         mediaPlaylistDetails = {
             segmentCount: segmentCount,
@@ -256,7 +417,8 @@ export async function generateHlsSummary(manifestIR, context) {
         };
     }
 
-    const iFramePlaylists = (/** @type {any} */ (rawElement).iframeStreams || []).length;
+    const iFramePlaylists =
+        (/** @type {any} */ (rawElement).iframeStreams || []).length;
 
     /** @type {import('@/types.ts').ManifestSummary} */
     const summary = {
@@ -271,7 +433,7 @@ export async function generateHlsSummary(manifestIR, context) {
                     ? 'text-red-400'
                     : 'text-blue-500',
             duration: manifestIR.duration,
-            segmentFormat: finalSegmentFormat.toLowerCase(),
+            segmentFormat: manifestIR.segmentFormat.toLowerCase(),
             title: null,
             locations: [],
             segmenting: 'Segment List',
@@ -284,7 +446,6 @@ export async function generateHlsSummary(manifestIR, context) {
             mediaPlaylistDetails,
             dvrWindow:
                 manifestIR.type === 'dynamic' ? manifestIR.duration : null,
-            hlsParsed: finalHlsParsed,
         },
         lowLatency: {
             isLowLatency: !!manifestIR.partInf,
@@ -310,5 +471,5 @@ export async function generateHlsSummary(manifestIR, context) {
         security,
     };
 
-    return summary;
+    return { summary, opportunisticallyCachedSegments };
 }

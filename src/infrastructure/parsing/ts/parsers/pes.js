@@ -1,9 +1,6 @@
-// Parsers a Packetized Elementary Stream (PES) packet header found
-// within the payload of a TS packet. This includes decoding the stream_id
-// and extracting critical timing information like the Presentation
-// Time Stamp (PTS) and Decoding Time Stamp (DTS), as well as all
-// optional and extension fields.
 import { parsePackHeader } from './pack-header.js';
+import { parseSPS } from '../../video/sps.js';
+import { appLog } from '@/shared/utils/debug.js';
 
 function parseTimestamp(view, offset) {
     const byte0 = view.getUint8(offset);
@@ -19,24 +16,29 @@ function parseTimestamp(view, offset) {
     return (high << 30n) | (mid << 15n) | low;
 }
 
-function parseEscr(view, offset) {
-    const byte0 = view.getUint8(offset);
-    const byte1 = view.getUint8(offset + 1);
-    const byte2 = view.getUint8(offset + 2);
-    const byte3 = view.getUint8(offset + 3);
-    const byte4 = view.getUint8(offset + 4);
-    const byte5 = view.getUint8(offset + 5);
+/**
+ * Parses the 42-bit System Clock Reference (SCR).
+ * @param {DataView} view - A DataView starting at the 6-byte SCR field.
+ * @returns {BigInt} The combined 42-bit value.
+ */
+function parseScr(view) {
+    const byte0 = view.getUint8(0);
+    const byte1 = view.getUint8(1);
+    const byte2 = view.getUint8(2);
+    const byte3 = view.getUint8(3);
+    const byte4 = view.getUint8(4);
+    const byte5 = view.getUint8(5);
 
-    const high = BigInt(byte0 & 0x38) >> 3n; // 3 bits
-    const mid_high =
+    const base_high = BigInt(byte0 & 0x38) >> 3n; // 3 bits
+    const base_mid =
         (BigInt(byte0 & 0x03) << 13n) |
         (BigInt(byte1) << 5n) |
         (BigInt(byte2 >> 3) & 0x1fn); // 15 bits
-    const mid_low =
+    const base_low =
         (BigInt(byte2 & 0x03) << 13n) |
         (BigInt(byte3) << 5n) |
         (BigInt(byte4 >> 3) & 0x1fn); // 15 bits
-    const base = (high << 30n) | (mid_high << 15n) | mid_low;
+    const base = (base_high << 30n) | (base_mid << 15n) | base_low;
 
     const extension = ((BigInt(byte4) & 0x03n) << 7n) | BigInt(byte5 >> 1); // 9 bits
 
@@ -204,7 +206,12 @@ export function parsePesHeader(view, baseOffset) {
 
     if (escrFlag && optionalFieldsOffset + 6 <= optionalFieldsEnd) {
         pes.ESCR = {
-            value: parseEscr(view, optionalFieldsOffset).toString(),
+            value: parseScr(
+                new DataView(
+                    view.buffer,
+                    view.byteOffset + optionalFieldsOffset
+                )
+            ).toString(),
             offset: baseOffset + optionalFieldsOffset,
             length: 6,
         };
@@ -441,6 +448,67 @@ export function parsePesHeader(view, baseOffset) {
                     }
                 }
                 optionalFieldsOffset += 1 + ext2len;
+            }
+        }
+    }
+
+    const isAvc = streamIdByte >= 0xe0 && streamIdByte <= 0xef;
+    if (isAvc && payloadOffset < view.byteLength - 4) {
+        for (let i = payloadOffset; i < view.byteLength - 4; i++) {
+            let startCodeOffset = 0;
+            let isStartCode = false;
+
+            if (view.getUint32(i) === 0x00000001) {
+                isStartCode = true;
+                startCodeOffset = 4;
+            } else if ((view.getUint32(i) >>> 8) === 0x000001) {
+                isStartCode = true;
+                startCodeOffset = 3;
+            }
+
+            if (isStartCode) {
+                const nalUnitHeaderByte = view.getUint8(i + startCodeOffset);
+                const nalType = nalUnitHeaderByte & 0x1f;
+
+                appLog(
+                    'pes.js',
+                    'info',
+                    `Found NAL unit start code at offset ${
+                        baseOffset + i
+                    }. NAL Unit Type: ${nalType}`
+                );
+
+                if (nalType === 7) {
+                    // SPS NAL unit
+                    let start = i + startCodeOffset;
+                    let end = -1;
+                    for (let j = start; j < view.byteLength - 4; j++) {
+                        if (
+                            view.getUint32(j) === 0x00000001 ||
+                            (view.getUint32(j) >>> 8) === 0x000001
+                        ) {
+                            end = j;
+                            break;
+                        }
+                    }
+                    if (end === -1) end = view.byteLength;
+
+                    const spsBytes = new Uint8Array(
+                        view.buffer,
+                        view.byteOffset + start,
+                        end - start
+                    );
+
+                    pes.sps = spsBytes;
+                    try {
+                        pes.spsInfo = parseSPS(spsBytes);
+                    } catch (e) {
+                        console.warn('Failed to parse SPS NAL unit:', e);
+                        pes.spsInfo = { error: e.message };
+                    }
+                    break;
+                }
+                i += startCodeOffset - 1;
             }
         }
     }

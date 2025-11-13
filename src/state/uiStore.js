@@ -93,6 +93,12 @@ const createInitialUiState = () => ({
         expandedStreamIds: new Set(),
         tabState: new Map(), // Maps streamId to active tab key ('video' or 'audio')
     },
+    debugCopySelections: {
+        analysisState: true,
+        uiState: true,
+        rawManifests: true,
+        parsedSegments: true,
+    },
 });
 
 export const useUiStore = createStore((set, get) => ({
@@ -393,6 +399,13 @@ export const useUiStore = createStore((set, get) => ({
         set({ inactivityTimeoutOverride: durationMs }),
     toggleShowAllDrmFields: () =>
         set((state) => ({ showAllDrmFields: !state.showAllDrmFields })),
+    setDebugCopySelection: (selection, value) =>
+        set((state) => ({
+            debugCopySelections: {
+                ...state.debugCopySelections,
+                [selection]: value,
+            },
+        })),
     toggleSegmentPollingSelectorGroup: (streamId) => {
         set((state) => {
             const newSet = new Set(

@@ -92,12 +92,12 @@ export const streamContextSwitcherTemplate = (streams, activeStreamId) => {
 
     return html`
         <div
-            class="space-y-2 border-t border-gray-700/50 pt-3 relative w-full overflow-hidden"
+            class="space-y-2 border-t border-slate-700/50 pt-3 relative w-full overflow-hidden"
         >
             <button
                 @click=${(e) =>
                     toggleDropdown(e.currentTarget, panelTemplate, e)}
-                class="bg-gray-800/50 hover:bg-gray-700/50 text-white rounded-md border border-gray-600/50 p-2 w-full text-left flex items-center justify-between transition-colors"
+                class="bg-slate-700/50 hover:bg-slate-700 text-slate-300 rounded-md p-2 w-full text-left flex items-center justify-between transition-colors"
             >
                 <span class="truncate min-w-0"
                     >${getActiveStreamLabel(streams, activeStreamId)}</span

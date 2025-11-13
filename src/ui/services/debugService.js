@@ -1,6 +1,8 @@
 import { useAnalysisStore } from '@/state/analysisStore';
 import { useUiStore } from '@/state/uiStore';
+import { useSegmentCacheStore } from '@/state/segmentCacheStore';
 import { showToast } from '@/ui/components/toast';
+import { createSafeJsonReplacer } from '@/shared/utils/debug';
 
 /**
  * Gathers the current application state, distills it into a concise debug summary,
@@ -9,55 +11,102 @@ import { showToast } from '@/ui/components/toast';
  */
 export function copyDebugInfoToClipboard() {
     const analysisState = useAnalysisStore.getState();
-    const uiState = useUiStore.getState();
+    const { debugCopySelections } = useUiStore.getState();
 
     try {
-        // --- STATE DISTILLATION LOGIC ---
-        const distilledUiState = { ...uiState };
-        delete distilledUiState.pagedByteMap; // Remove large, transient data
-        distilledUiState.expandedComparisonTables = Array.from(
-            distilledUiState.expandedComparisonTables
-        );
-        distilledUiState.expandedComparisonFlags = Array.from(
-            distilledUiState.expandedComparisonFlags
-        );
-
-        const distilledAnalysisState = {
-            activeStreamId: analysisState.activeStreamId,
-            streamInputs: analysisState.streamInputs,
-            segmentsForCompare: analysisState.segmentsForCompare,
-            streams: analysisState.streams.map((stream) => {
-                const latestUpdate = stream.manifestUpdates?.[0];
-                return {
-                    id: stream.id,
-                    name: stream.name,
-                    originalUrl: stream.originalUrl,
-                    protocol: stream.protocol,
-                    rawManifest:
-                        latestUpdate?.rawManifest || stream.rawManifest,
-                    manifestSummary: stream.manifest?.summary || null,
-                    adAvails: stream.adAvails || [], // Include ad avails in the debug output
-                    latestComplianceResults:
-                        latestUpdate?.complianceResults || [],
-                    coverageReport: stream.coverageReport || [],
-                };
-            }),
-        };
-
         const debugData = {
             timestamp: new Date().toISOString(),
-            analysisState: distilledAnalysisState,
-            uiState: distilledUiState,
         };
-        // --- END DISTILLATION ---
 
-        const jsonString = JSON.stringify(debugData, null, 2);
+        if (debugCopySelections.uiState) {
+            const distilledUiState = { ...useUiStore.getState() };
+            // Sanitize complex or large UI state properties
+            distilledUiState.expandedComparisonTables = Array.from(
+                distilledUiState.expandedComparisonTables
+            );
+            distilledUiState.expandedComparisonFlags = Array.from(
+                distilledUiState.expandedComparisonFlags
+            );
+            distilledUiState.segmentExplorerClosedGroups = Array.from(
+                distilledUiState.segmentExplorerClosedGroups
+            );
+            delete distilledUiState._viewMap; // Remove non-serializable view map
+            debugData.uiState = distilledUiState;
+        }
+
+        if (debugCopySelections.analysisState) {
+            const distilledAnalysisState = {
+                activeStreamId: analysisState.activeStreamId,
+                streamInputs: analysisState.streamInputs,
+                segmentsForCompare: analysisState.segmentsForCompare,
+                streams: analysisState.streams.map((stream) => {
+                    const latestUpdate = stream.manifestUpdates?.[0];
+                    const mediaPlaylistsRaw = {};
+
+                    if (
+                        debugCopySelections.rawManifests &&
+                        stream.mediaPlaylists
+                    ) {
+                        for (const [
+                            url,
+                            playlistData,
+                        ] of stream.mediaPlaylists.entries()) {
+                            // --- HLS Master Deduplication Logic ---
+                            if (stream.protocol === 'hls' && url === 'master') {
+                                continue;
+                            }
+                            mediaPlaylistsRaw[url] = playlistData.rawManifest;
+                        }
+                    }
+
+                    const streamCopy = {
+                        id: stream.id,
+                        name: stream.name,
+                        originalUrl: stream.originalUrl,
+                        protocol: stream.protocol,
+                        manifestSummary: stream.manifest?.summary || null,
+                        adAvails: stream.adAvails || [],
+                        latestComplianceResults:
+                            latestUpdate?.complianceResults || [],
+                        coverageReport: stream.coverageReport || [],
+                    };
+
+                    if (debugCopySelections.rawManifests) {
+                        streamCopy.rawManifest =
+                            latestUpdate?.rawManifest || stream.rawManifest;
+                        streamCopy.mediaPlaylistsRaw = mediaPlaylistsRaw;
+                    }
+
+                    return streamCopy;
+                }),
+            };
+            debugData.analysisState = distilledAnalysisState;
+        }
+
+        if (debugCopySelections.parsedSegments) {
+            const segmentCache = useSegmentCacheStore.getState().cache;
+            const parsedSegments = {};
+            let count = 0;
+            segmentCache.forEach((entry, key) => {
+                if (count < 5 && entry.parsedData) {
+                    parsedSegments[key] = entry.parsedData;
+                    count++;
+                }
+            });
+            debugData.parsedSegments = parsedSegments;
+        }
+
+        const jsonString = JSON.stringify(
+            debugData,
+            createSafeJsonReplacer({ distill: debugCopySelections.parsedSegments }),
+            2
+        );
 
         navigator.clipboard
             .writeText(jsonString)
             .then(() => {
                 showToast({
-                    message: 'Distilled debug info copied to clipboard!',
+                    message: 'Selected debug info copied to clipboard!',
                     type: 'pass',
                 });
             })

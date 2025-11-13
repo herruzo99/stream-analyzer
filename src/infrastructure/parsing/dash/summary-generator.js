@@ -8,6 +8,7 @@ import { findChildrenRecursive, resolveBaseUrl } from './recursive-parser.js';
 import { formatBitrate } from '@/ui/shared/format';
 import { findInitSegmentUrl } from './segment-parser.js';
 import { isCodecSupported } from '../utils/codec-support.js';
+import { getDrmSystemName } from '@/infrastructure/parsing/utils/drm.js';
 import { appLog } from '@/shared/utils/debug';
 
 const getSegmentingStrategy = (serializedManifest) => {
@@ -163,7 +164,7 @@ export async function generateDashSummary(
                             const parsedSegment =
                                 await context.fetchAndParseSegment(
                                     initInfo.url,
-                                    'isobmff',
+                                    'isobff',
                                     initInfo.range
                                 );
                             if (parsedSegment?.data?.boxes) {
@@ -239,53 +240,41 @@ export async function generateDashSummary(
         }
     }
 
-    const allVideoTracks = allVideoAdaptationSets.map((as) => {
-        const bitrates = as.representations
-            .map((r) => r.bandwidth)
-            .filter(Boolean);
-
-        // --- REFACTOR: Correct deduplication logic ---
-        const resolutionsMap = new Map();
-        as.representations.forEach((r) => {
-            if (r.width.value && r.height.value) {
-                const resValue = `${r.width.value}x${r.height.value}`;
-                if (!resolutionsMap.has(resValue)) {
-                    resolutionsMap.set(resValue, {
-                        value: resValue,
-                        source: r.width.source,
-                    });
-                }
-            }
-        });
-        const resolutions = Array.from(resolutionsMap.values());
-
-        const codecsMap = new Map();
-        as.representations.forEach((r) => {
-            if (r.codecs.value && !codecsMap.has(r.codecs.value)) {
-                codecsMap.set(r.codecs.value, {
-                    value: r.codecs.value,
-                    source: r.codecs.source,
-                    supported: isCodecSupported(r.codecs.value),
+    const allVideoTracks = allVideoAdaptationSets.flatMap((as) => {
+        return as.representations.map((rep) => {
+            // ***** FIX START *****
+            const resolutions = [];
+            if (rep.width.value && rep.height.value) {
+                resolutions.push({
+                    value: `${rep.width.value}x${rep.height.value}`,
+                    source: rep.width.source,
                 });
             }
-        });
-        const codecs = Array.from(codecsMap.values());
-        // --- END REFACTOR ---
+            // ***** FIX END *****
 
-        return {
-            id: as.id || 'N/A',
-            profiles: as.profiles,
-            bitrateRange:
-                bitrates.length > 0
-                    ? `${formatBitrate(Math.min(...bitrates))} - ${formatBitrate(Math.max(...bitrates))}`
-                    : 'N/A',
-            resolutions,
-            codecs,
-            scanType: as.representations[0]?.scanType || null,
-            videoRange: null,
-            roles: as.roles.map((r) => r.value).filter(Boolean),
-        };
+            const codecs = rep.codecs.value
+                ? [{
+                      value: rep.codecs.value,
+                      source: rep.codecs.source,
+                      supported: isCodecSupported(rep.codecs.value),
+                  }]
+                : [];
+
+            return {
+                id: rep.id,
+                profiles: as.profiles,
+                bandwidth: rep.bandwidth,
+                manifestBandwidth: rep.manifestBandwidth,
+                frameRate: rep.frameRate || as.maxFrameRate,
+                resolutions,
+                codecs,
+                scanType: rep.scanType || null,
+                videoRange: null,
+                roles: as.roles.map((r) => r.value).filter(Boolean),
+            };
+        });
     });
+
 
     const allAudioTracks = allAudioAdaptationSets.map((as) => {
         // --- REFACTOR: Aggregate channel configs from both AdaptationSet and Representations ---

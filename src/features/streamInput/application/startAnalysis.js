@@ -1,5 +1,6 @@
 import { isDebugMode } from '@/shared/utils/env';
 import { appLog } from '@/shared/utils/debug';
+import { useSegmentCacheStore } from '@/state/segmentCacheStore';
 
 /**
  * Orchestrates the business logic of starting a new stream analysis.
@@ -15,11 +16,7 @@ import { appLog } from '@/shared/utils/debug';
 export async function startAnalysisUseCase({ inputs }, services) {
     const { storage, workerService, eventBus, analysisActions } = services;
     const analysisStartTime = performance.now();
-    appLog(
-        'startAnalysisUseCase',
-        'info',
-        'Starting analysis pipeline...'
-    );
+    appLog('startAnalysisUseCase', 'info', 'Starting analysis pipeline...');
     analysisActions.startAnalysis();
     eventBus.dispatch('analysis:started');
 
@@ -92,12 +89,27 @@ export async function startAnalysisUseCase({ inputs }, services) {
     );
 
     try {
-        const { streams, urlAuthMapArray } = await workerService.postTask(
-            'start-analysis',
-            {
+        const { streams, urlAuthMapArray, opportunisticallyCachedSegments } =
+            await workerService.postTask('start-analysis', {
                 inputs: workerInputs,
+            }).promise;
+
+        // Manually populate the cache BEFORE completing analysis to prevent race conditions.
+        if (opportunisticallyCachedSegments) {
+            const { set } = useSegmentCacheStore.getState();
+            for (const segment of opportunisticallyCachedSegments) {
+                set(segment.uniqueId, {
+                    status: segment.status,
+                    data: segment.data,
+                    parsedData: segment.parsedData,
+                });
             }
-        ).promise;
+            appLog(
+                'startAnalysisUseCase',
+                'info',
+                `Pre-populated segment cache with ${opportunisticallyCachedSegments.length} opportunistically fetched segments.`
+            );
+        }
 
         // Failsafe check for empty manifest content which can result from network issues (e.g., 304 response)
         if (!streams[0]?.rawManifest?.trim()) {
@@ -137,5 +149,5 @@ export async function startAnalysisUseCase({ inputs }, services) {
             error,
         });
         eventBus.dispatch('analysis:failed');
-    } 
+    }
 }
