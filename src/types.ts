@@ -76,12 +76,12 @@ export interface ExtendedBandwidth {
 export interface Representation {
     id: string;
     bandwidth: number;
-    manifestBandwidth?: number; // Store original manifest value
+    manifestBandwidth?: number;
     qualityRanking: number | null;
     dependencyId: string | null;
     associationId: string | null;
     associationType: string | null;
-    codecs: SourcedData<string | null>;
+    codecs: CodecInfo[];
     mimeType: string | null;
     profiles: string | null;
     width: SourcedData<number | null>;
@@ -122,6 +122,12 @@ export interface Representation {
     __variantUri?: string; // Internal property for HLS enrichment
     tag: string | null;
     segmentProfiles: string | null;
+    muxedAudio?: {
+        codecs: CodecInfo[];
+        channels: string | null;
+        lang: string | null;
+    };
+    lang?: string | null;
 }
 
 export interface PsshInfo {
@@ -392,9 +398,7 @@ export interface PeriodSummary {
     id: string;
     start: number;
     duration: number | null;
-    videoTracks: AdaptationSet[];
-    audioTracks: AdaptationSet[];
-    textTracks: AdaptationSet[];
+    adaptationSets: AdaptationSet[];
 }
 
 export interface SecuritySummary {
@@ -781,7 +785,9 @@ export interface UiState {
     segmentAnalysisActiveTab: 'structure' | 'semantic';
     conditionalPolling: ConditionalPollingState;
     inactivityTimeoutOverride: number | null;
+    globalPollingIntervalOverride: number | null;
     showAllDrmFields: boolean;
+    manifestUpdatesHideDeleted: boolean;
 }
 
 export interface UiActions {
@@ -803,6 +809,7 @@ export interface UiActions {
             isIFrame?: boolean;
         }
     ) => void;
+    toggleManifestUpdatesHideDeleted: () => void;
 }
 
 export interface PlaybackHistoryEntry {
@@ -900,11 +907,28 @@ export interface ComplianceResult {
     category: string;
     location: { startLine?: number; endLine?: number; path?: string };
 }
+
+// --- NEW/MODIFIED DIFF TYPES ---
+export interface DiffWordPart {
+    type: 'added' | 'removed' | 'common';
+    value: string;
+}
+
+export interface DiffLine {
+    type: 'added' | 'removed' | 'common' | 'modified';
+    indentation: string;
+    content: string; // The full line content (for common, added, removed)
+    parts?: DiffWordPart[]; // The word-level diff parts (for modified)
+}
+// --- END NEW/MODIFIED DIFF TYPES ---
+
 export interface ManifestUpdate {
     id: string;
     sequenceNumber: number;
+    endSequenceNumber?: number;
     timestamp: string;
-    diffHtml: string;
+    endTimestamp?: string;
+    diffModel: DiffLine[]; // Changed from diffHtml
     rawManifest: string;
     complianceResults: ComplianceResult[];
     hasNewIssues: boolean;
@@ -919,6 +943,8 @@ export type MediaPlaylist = {
     manifest: Manifest;
     rawManifest: string;
     lastFetched: Date;
+    updates: ManifestUpdate[];
+    activeUpdateId: string | null;
 };
 export interface FeatureAnalysisResult {
     used: boolean;
@@ -929,6 +955,8 @@ export interface FeatureAnalysisState {
     manifestCount: number;
 }
 export interface HlsVariantState {
+    uri: string;
+    historicalUris: string[];
     segments: HlsSegment[];
     currentSegmentUrls: Set<string>;
     newlyAddedSegmentUrls: Set<string>;
@@ -1016,10 +1044,12 @@ export interface Stream {
     id: number;
     name: string;
     originalUrl: string | null;
+    resolvedUrl?: string | null;
     baseUrl: string;
     protocol: 'dash' | 'hls' | 'local' | 'unknown';
     isPolling: boolean;
     wasStoppedByInactivity?: boolean;
+    pollingIntervalOverride?: number | null; // <-- NEW PROPERTY
     manifest: Manifest | null;
     rawManifest: string;
     steeringInfo: object | null;
@@ -1027,6 +1057,7 @@ export interface Stream {
     activeManifestUpdateId: string | null;
     mediaPlaylists: Map<string, MediaPlaylist>;
     activeMediaPlaylistUrl: string | null;
+    activeMediaPlaylistId?: string | null;
     featureAnalysis: FeatureAnalysisState;
     hlsVariantState: Map<string, HlsVariantState>;
     dashRepresentationState: Map<string, DashRepresentationState>;

@@ -88,6 +88,7 @@ const createInitialUiState = () => ({
         targetFeatureName: null,
     },
     inactivityTimeoutOverride: null,
+    globalPollingIntervalOverride: null,
     showAllDrmFields: false,
     segmentPollingSelectorState: {
         expandedStreamIds: new Set(),
@@ -99,6 +100,7 @@ const createInitialUiState = () => ({
         rawManifests: true,
         parsedSegments: true,
     },
+    manifestUpdatesHideDeleted: false,
 });
 
 export const useUiStore = createStore((set, get) => ({
@@ -135,6 +137,8 @@ export const useUiStore = createStore((set, get) => ({
 
                 if (activeStream && !segmentExplorerActiveRepId) {
                     let defaultRepId = null;
+                    let firstRendition = null;
+
                     if (activeStream.protocol === 'dash') {
                         const firstPeriod = activeStream.manifest.periods[0];
                         const firstAs =
@@ -173,11 +177,8 @@ export const useUiStore = createStore((set, get) => ({
                         const firstAs =
                             primaryAdaptationSets[0] ||
                             allAdaptationSetsForType[0];
-                        const firstRendition = firstAs?.representations[0];
-
-                        defaultRepId =
-                            firstRendition?.__variantUri ||
-                            firstRendition?.serializedManifest.resolvedUri;
+                        firstRendition = firstAs?.representations[0];
+                        defaultRepId = firstRendition?.id;
                     } else if (
                         activeStream.protocol === 'hls' &&
                         !activeStream.manifest?.isMaster
@@ -190,15 +191,21 @@ export const useUiStore = createStore((set, get) => ({
 
                         if (
                             activeStream.protocol === 'hls' &&
+                            defaultRepId &&
                             !activeStream.mediaPlaylists.has(defaultRepId)
                         ) {
+                            const variantUri =
+                                firstRendition?.__variantUri ||
+                                firstRendition?.serializedManifest
+                                    .resolvedUri;
                             setTimeout(
                                 () =>
                                     eventBus.dispatch(
                                         'hls:media-playlist-fetch-request',
                                         {
                                             streamId: activeStream.id,
-                                            variantUri: defaultRepId,
+                                            variantId: defaultRepId,
+                                            variantUri: variantUri,
                                             isBackground: false,
                                         }
                                     ),
@@ -397,6 +404,8 @@ export const useUiStore = createStore((set, get) => ({
     },
     setInactivityTimeoutOverride: (durationMs) =>
         set({ inactivityTimeoutOverride: durationMs }),
+    setGlobalPollingIntervalOverride: (interval) =>
+        set({ globalPollingIntervalOverride: interval }),
     toggleShowAllDrmFields: () =>
         set((state) => ({ showAllDrmFields: !state.showAllDrmFields })),
     setDebugCopySelection: (selection, value) =>
@@ -438,6 +447,10 @@ export const useUiStore = createStore((set, get) => ({
             };
         });
     },
+    toggleManifestUpdatesHideDeleted: () =>
+        set((state) => ({
+            manifestUpdatesHideDeleted: !state.manifestUpdatesHideDeleted,
+        })),
     reset: () => set(createInitialUiState()),
 }));
 

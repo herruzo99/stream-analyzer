@@ -26,6 +26,32 @@ import {
 import { parseScte35 } from '../scte35/parser.js';
 import { inferMediaInfoFromExtension } from '../utils/media-types.js';
 import { AdAvail } from '@/features/advertising/domain/AdAvail.js';
+import { isCodecSupported } from '../utils/codec-support.js';
+
+const isVideoCodec = (codecString) => {
+    if (!codecString) return false;
+    const lowerCodec = codecString.toLowerCase();
+    const videoPrefixes = [
+        'avc1',
+        'avc3',
+        'hvc1',
+        'hev1',
+        'mp4v',
+        'dvh1',
+        'dvhe',
+        'av01',
+        'vp09',
+    ];
+    return videoPrefixes.some((prefix) => lowerCodec.startsWith(prefix));
+};
+
+const isAudioCodec = (codecString) => {
+    if (!codecString) return false;
+    const lowerCodec = codecString.toLowerCase();
+    const audioPrefixes = ['mp4a', 'ac-3', 'ec-3', 'opus', 'flac'];
+    return audioPrefixes.some((prefix) => lowerCodec.startsWith(prefix));
+};
+
 
 // --- Sorter Functions ---
 function sortVideoRepresentations(a, b) {
@@ -248,6 +274,12 @@ function parseSubRepresentation(subRepEl, parentMergedEl) {
  */
 function parseRepresentation(repEl, parentMergedEl) {
     const mergedRepEl = mergeElements(parentMergedEl, repEl);
+    
+    const codecString = getAttr(mergedRepEl, 'codecs') || '';
+    const allCodecs = codecString.split(',').map(c => c.trim()).filter(Boolean);
+
+    const videoCodecs = allCodecs.filter(isVideoCodec);
+    const audioCodecs = allCodecs.filter(isAudioCodec);
 
     /** @type {Representation} */
     const repIR = {
@@ -259,7 +291,12 @@ function parseRepresentation(repEl, parentMergedEl) {
         dependencyId: getAttr(repEl, 'dependencyId'),
         associationId: getAttr(repEl, 'associationId'),
         associationType: getAttr(repEl, 'associationType'),
-        codecs: { value: getAttr(mergedRepEl, 'codecs'), source: 'manifest' },
+        codecs: videoCodecs.map(c => ({ value: c, source: 'manifest', supported: isCodecSupported(c) })),
+        muxedAudio: {
+            codecs: audioCodecs.map(c => ({ value: c, source: 'manifest', supported: isCodecSupported(c) })),
+            channels: null,
+            lang: getAttr(mergedRepEl, 'lang') || 'und',
+        },
         mimeType: getAttr(mergedRepEl, 'mimeType'),
         profiles: getAttr(mergedRepEl, 'profiles'),
         width: {
@@ -358,6 +395,10 @@ function parseRepresentation(repEl, parentMergedEl) {
         serializedManifest: repEl,
         segmentProfiles: getAttr(mergedRepEl, 'segmentProfiles'),
     };
+    
+    if (!repIR.muxedAudio.codecs) {
+        repIR.muxedAudio.codecs = [];
+    }
 
     return repIR;
 }

@@ -74,9 +74,7 @@ const streamPollingCard = (stream) => {
                   return acc;
               }, {})
             : {
-                  video: (stream.manifest.variants || []).map((v) => ({
-                      rep: v,
-                  })),
+                  video: stream.manifest.periods[0].adaptationSets.filter(as => as.contentType === 'video').flatMap(as => as.representations.map(r => ({ rep: r, as }))),
                   audio: (stream.manifest.periods[0]?.adaptationSets || [])
                       .filter((as) => as.contentType === 'audio')
                       .flatMap((as) =>
@@ -100,32 +98,16 @@ const streamPollingCard = (stream) => {
     if (activeTab === 'video') {
         content = (repsByType.video || []).map(
             ({ rep, pIndex, pId, as }) => {
-                const repId =
-                    stream.protocol === 'dash'
-                        ? `${pId || pIndex}-${rep.id}`
-                        : rep.attributes.URI;
-                const label =
-                    stream.protocol === 'dash'
-                        ? `${rep.height?.value || '?'}p / ${rep.id}`
-                        : `${rep.attributes.RESOLUTION?.height || '?'}p`;
-                const subtext = formatBitrate(
-                    stream.protocol === 'dash'
-                        ? rep.bandwidth
-                        : rep.attributes.BANDWIDTH
-                );
+                const repId = rep.id;
+                const label = `${rep.height?.value || '?'}p / ${rep.id}`;
+                const subtext = formatBitrate(rep.bandwidth);
                 return trackToggleCard(stream, repId, { label, subtext });
             }
         );
     } else if (activeTab === 'audio') {
         content = (repsByType.audio || []).map(({ rep, as }) => {
-            const repId =
-                stream.protocol === 'dash'
-                    ? `${as.id}-${rep.id}`
-                    : rep.serializedManifest.resolvedUri;
-            const label =
-                stream.protocol === 'dash'
-                    ? `${as.lang || 'audio'} / ${rep.id}`
-                    : `[${as.lang || 'und'}] ${rep.serializedManifest.NAME}`;
+            const repId = rep.id;
+            const label = `[${as.lang || 'und'}] ${rep.id}`;
             const subtext = formatBitrate(rep.bandwidth);
             return trackToggleCard(stream, repId, { label, subtext });
         });
@@ -133,11 +115,7 @@ const streamPollingCard = (stream) => {
 
     const allRepIdsInStream = Object.values(repsByType)
         .flat()
-        .map(({ rep, pIndex, pId, as }) => {
-            return stream.protocol === 'dash'
-                ? `${pId || pIndex}-${rep.id}`
-                : rep.attributes?.URI || rep.serializedManifest?.resolvedUri;
-        })
+        .map(({ rep }) => rep.id)
         .filter(Boolean);
 
     const isAllChecked = allRepIdsInStream.every((id) =>

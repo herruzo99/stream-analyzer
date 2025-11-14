@@ -2,6 +2,7 @@ import { html } from 'lit-html';
 import { eventBus } from '@/application/event-bus';
 import { toggleDropdown, closeDropdown } from '@/ui/services/dropdownService';
 import * as icons from '@/ui/icons';
+import { formatBitrate } from '@/ui/shared/format';
 
 const getBadge = (text, colorClasses) => html`
     <span class="text-xs font-semibold px-2 py-1 rounded-full ${colorClasses}"
@@ -9,8 +10,8 @@ const getBadge = (text, colorClasses) => html`
     >
 `;
 
-const renderHlsContextCard = (item, activeUrl) => {
-    const isActive = item.url === activeUrl;
+const renderHlsContextCard = (item, activeId) => {
+    const isActive = item.id === activeId;
     const activeClasses = 'bg-blue-800 border-blue-600 ring-2 ring-blue-500';
     const baseClasses =
         'bg-gray-900/50 p-3 rounded-lg border border-gray-700 cursor-pointer transition-all duration-150 ease-in-out flex flex-col items-start';
@@ -22,7 +23,7 @@ const renderHlsContextCard = (item, activeUrl) => {
             class="${baseClasses} ${hoverClasses} ${isActive
                 ? activeClasses
                 : ''}"
-            data-url="${item.url}"
+            data-id="${item.id}"
         >
             <span class="font-semibold text-gray-200 truncate"
                 >${item.label}</span
@@ -34,7 +35,7 @@ const renderHlsContextCard = (item, activeUrl) => {
     `;
 };
 
-const renderHlsContextGroup = (title, items, activeUrl) => {
+const renderHlsContextGroup = (title, items, activeId) => {
     if (!items || items.length === 0) return '';
     return html`
         <section class="p-3">
@@ -46,53 +47,177 @@ const renderHlsContextGroup = (title, items, activeUrl) => {
             <div
                 class="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2"
             >
-                ${items.map((item) => renderHlsContextCard(item, activeUrl))}
+                ${items.map((item) => renderHlsContextCard(item, activeId))}
             </div>
         </section>
     `;
 };
 
+const getCanonicalPlaylistItems = (stream) => {
+    const allItems = stream.manifest.periods
+        .flatMap((p) => p.adaptationSets)
+        .flatMap((as) => as.representations.map((rep) => ({ rep, as })));
+
+    const variants = allItems
+        .filter(
+            ({ as }) =>
+                as.contentType === 'video' &&
+                as.roles.every((r) => r.value !== 'trick')
+        )
+        .map(({ rep, as }) => ({
+            id: rep.id,
+            url: rep.__variantUri,
+            label: 'Variant Stream',
+            type: 'variant',
+            data: { rep, as },
+            badges: [
+                {
+                    text: `${formatBitrate(rep.bandwidth)}`,
+                    classes: 'bg-blue-800 text-blue-200',
+                },
+                {
+                    text: `${rep.width?.value || 'N/A'}x${
+                        rep.height?.value || 'N/A'
+                    }`,
+                    classes: 'bg-gray-600 text-gray-300',
+                },
+                {
+                    text: (rep.codecs[0]?.value || 'N/A').split('.')[0],
+                    classes: 'bg-gray-600 text-gray-300',
+                },
+            ],
+        }));
+
+    const iFrameReps = allItems
+        .filter(({ as }) => as.roles.some((r) => r.value === 'trick'))
+        .map(({ rep, as }) => ({
+            id: rep.id,
+            url: rep.__variantUri,
+            label: `I-Frame Stream`,
+            type: 'iframe',
+            data: { rep, as },
+            badges: [
+                {
+                    text: `${formatBitrate(rep.bandwidth)}`,
+                    classes: 'bg-orange-800 text-orange-200',
+                },
+                {
+                    text: `${rep.width?.value || 'N/A'}x${
+                        rep.height?.value || 'N/A'
+                    }`,
+                    classes: 'bg-gray-600 text-gray-300',
+                },
+            ],
+        }));
+
+    const audioRenditions = allItems
+        .filter(({ as }) => as.contentType === 'audio')
+        .map(({ rep, as }) => ({
+            id: rep.id,
+            url: rep.__variantUri,
+            label: `Audio: ${rep.lang || as.lang || rep.id}`,
+            type: 'audio',
+            data: { rep, as },
+            badges: [
+                {
+                    text: rep.lang || as.lang || 'UND',
+                    classes: 'bg-purple-800 text-purple-200',
+                },
+                {
+                    text: as.channels ? `${as.channels} ch` : 'N/A',
+                    classes: 'bg-gray-600 text-gray-300',
+                },
+                ...(rep.serializedManifest.value?.DEFAULT === 'YES'
+                    ? [
+                          {
+                              text: 'DEFAULT',
+                              classes: 'bg-green-800 text-green-200',
+                          },
+                      ]
+                    : []),
+            ],
+        }));
+
+    const subtitleRenditions = allItems
+        .filter(
+            ({ as }) =>
+                as.contentType === 'text' || as.contentType === 'subtitles'
+        )
+        .map(({ rep, as }) => ({
+            id: rep.id,
+            url: rep.__variantUri,
+            label: `Subtitles: ${rep.lang || as.lang || rep.id}`,
+            type: 'subtitles',
+            data: { rep, as },
+            badges: [
+                {
+                    text: rep.lang || as.lang || 'UND',
+                    classes: 'bg-teal-800 text-teal-200',
+                },
+                ...(rep.serializedManifest.value?.DEFAULT === 'YES'
+                    ? [
+                          {
+                              text: 'DEFAULT',
+                              classes: 'bg-green-800 text-green-200',
+                          },
+                      ]
+                    : []),
+                ...(as.forced
+                    ? [
+                          {
+                              text: 'FORCED',
+                              classes: 'bg-yellow-800 text-yellow-200',
+                          },
+                      ]
+                    : []),
+            ],
+        }));
+
+    return { variants, iFrameReps, audioRenditions, subtitleRenditions };
+};
+
 const getActiveHlsContextLabel = (stream) => {
-    const { activeMediaPlaylistUrl } = stream;
-    if (!activeMediaPlaylistUrl || activeMediaPlaylistUrl === 'master') {
+    const { activeMediaPlaylistId } = stream;
+    if (!activeMediaPlaylistId || activeMediaPlaylistId === 'master') {
         return 'Master Playlist';
     }
 
-    const allVariants = stream.manifest.variants || [];
-    const allRenditions =
-        stream.manifest.periods[0]?.adaptationSets.filter(
-            (as) => as.contentType !== 'video'
-        ) || [];
-    const iFramePlaylists =
-        stream.manifest.periods[0]?.adaptationSets.find((as) =>
-            as.roles.some((r) => r.value === 'trick')
-        ) || { representations: [] };
+    const { variants, iFrameReps, audioRenditions, subtitleRenditions } =
+        getCanonicalPlaylistItems(stream);
+    const allItems = [
+        ...variants,
+        ...iFrameReps,
+        ...audioRenditions,
+        ...subtitleRenditions,
+    ];
 
-    const activeVariant = allVariants.find(
-        (v) => v.resolvedUri === activeMediaPlaylistUrl
+    const activeItem = allItems.find(
+        (item) => item.id === activeMediaPlaylistId
     );
-    if (activeVariant) {
-        const bw = (activeVariant.attributes.BANDWIDTH / 1000).toFixed(0);
-        const res = activeVariant.attributes.RESOLUTION;
-        return `Variant (${bw}k, ${res})`;
-    }
 
-    const activeRendition = allRenditions.find(
-        (r) =>
-            r.representations[0]?.serializedManifest.resolvedUri ===
-            activeMediaPlaylistUrl
-    );
-    if (activeRendition) {
-        return `${activeRendition.contentType.toUpperCase()}: ${
-            activeRendition.lang || activeRendition.id
-        }`;
-    }
-
-    const activeIFrame = iFramePlaylists.representations.find(
-        (r) => r.serializedManifest.resolvedUri === activeMediaPlaylistUrl
-    );
-    if (activeIFrame) {
-        return `I-Frame: ${activeIFrame.width.value}x${activeIFrame.height.value}`;
+    if (activeItem) {
+        if (activeItem.type === 'variant') {
+            const { rep } = activeItem.data;
+            const bw = formatBitrate(rep.bandwidth);
+            const res = `${rep.width?.value || 'N/A'}x${
+                rep.height?.value || 'N/A'
+            }`;
+            return `Variant (${bw}, ${res})`;
+        }
+        if (activeItem.type === 'iframe') {
+            const { rep } = activeItem.data;
+            return `I-Frame: ${rep.width?.value || 'N/A'}x${
+                rep.height?.value || 'N/A'
+            }`;
+        }
+        if (activeItem.type === 'audio') {
+            const { rep, as } = activeItem.data;
+            return `Audio: ${rep.lang || as.lang || rep.id}`;
+        }
+        if (activeItem.type === 'subtitles') {
+            const { rep, as } = activeItem.data;
+            return `Subtitles: ${rep.lang || as.lang || rep.id}`;
+        }
     }
 
     return 'Select View...';
@@ -104,141 +229,45 @@ export const hlsContextSwitcherTemplate = (stream) => {
     }
 
     const handleSelect = (e) => {
-        const item = e.target.closest('[data-url]');
+        const item = e.target.closest('[data-id]');
         if (!item) return;
 
-        const url = item.dataset.url;
+        const variantId = item.dataset.id;
         eventBus.dispatch('hls:media-playlist-activate', {
             streamId: stream.id,
-            url,
+            variantId,
         });
         closeDropdown();
     };
 
-    const variants = (stream.manifest.variants || []).map((v) => ({
-        url: v.resolvedUri,
-        label: `Variant Stream`,
-        badges: [
-            {
-                text: `${(v.attributes.BANDWIDTH / 1000).toFixed(0)}k`,
-                classes: 'bg-blue-800 text-blue-200',
-            },
-            {
-                text: v.attributes.RESOLUTION || 'N/A',
-                classes: 'bg-gray-600 text-gray-300',
-            },
-            {
-                text: v.attributes.CODECS?.split(',')[0] || 'N/A',
-                classes: 'bg-gray-600 text-gray-300',
-            },
-        ],
-    }));
-
-    const iFrameReps =
-        stream.manifest.periods[0]?.adaptationSets
-            .find((as) => as.roles.some((r) => r.value === 'trick'))
-            ?.representations.map((r) => ({
-                url: r.serializedManifest.resolvedUri,
-                label: `I-Frame Stream`,
-                badges: [
-                    {
-                        text: `${(r.bandwidth / 1000).toFixed(0)}k`,
-                        classes: 'bg-orange-800 text-orange-200',
-                    },
-                    {
-                        text: `${r.width.value}x${r.height.value}`,
-                        classes: 'bg-gray-600 text-gray-300',
-                    },
-                ],
-            })) || [];
-
-    const audioRenditions = (stream.manifest.periods[0]?.adaptationSets || [])
-        .filter((as) => as.contentType === 'audio')
-        .map((r) => ({
-            url: r.representations[0]?.serializedManifest.resolvedUri,
-            label: `Audio: ${r.lang || r.id}`,
-            badges: [
-                {
-                    text: r.lang || 'UND',
-                    classes: 'bg-purple-800 text-purple-200',
-                },
-                {
-                    text: r.channels ? `${r.channels} ch` : 'N/A',
-                    classes: 'bg-gray-600 text-gray-300',
-                },
-                ...(r.serializedManifest.DEFAULT === 'YES'
-                    ? [
-                          {
-                              text: 'DEFAULT',
-                              classes: 'bg-green-800 text-green-200',
-                          },
-                      ]
-                    : []),
-            ],
-        }));
-
-    const subtitleRenditions = (
-        stream.manifest.periods[0]?.adaptationSets || []
-    )
-        .filter(
-            (as) => as.contentType === 'text' || as.contentType === 'subtitles'
-        )
-        .map((r) => ({
-            url: r.representations[0]?.serializedManifest.resolvedUri,
-            label: `Subtitles: ${r.lang || r.id}`,
-            badges: [
-                {
-                    text: r.lang || 'UND',
-                    classes: 'bg-teal-800 text-teal-200',
-                },
-                ...(r.serializedManifest.DEFAULT === 'YES'
-                    ? [
-                          {
-                              text: 'DEFAULT',
-                              classes: 'bg-green-800 text-green-200',
-                          },
-                      ]
-                    : []),
-                ...(r.forced
-                    ? [
-                          {
-                              text: 'FORCED',
-                              classes: 'bg-yellow-800 text-yellow-200',
-                          },
-                      ]
-                    : []),
-            ],
-        }));
+    const { variants, iFrameReps, audioRenditions, subtitleRenditions } =
+        getCanonicalPlaylistItems(stream);
 
     const masterItem = {
-        url: 'master',
+        id: 'master',
         label: 'Master Playlist',
         badges: [{ text: 'MASTER', classes: 'bg-gray-600 text-gray-300' }],
     };
 
-    const activeUrl = stream.activeMediaPlaylistUrl || 'master';
+    const activeId = stream.activeMediaPlaylistId || 'master';
 
     const panelTemplate = () => html`
         <div
             class="dropdown-panel bg-gray-800 border border-gray-700 rounded-lg shadow-xl max-h-[60vh] w-full min-w-[40rem] max-w-5xl overflow-y-auto"
             @click=${handleSelect}
         >
-            ${renderHlsContextGroup('Master', [masterItem], activeUrl)}
-            ${renderHlsContextGroup('Variant Streams', variants, activeUrl)}
-            ${renderHlsContextGroup(
-                'I-Frame Playlists',
-                iFrameReps,
-                activeUrl
-            )}
+            ${renderHlsContextGroup('Master', [masterItem], activeId)}
+            ${renderHlsContextGroup('Variant Streams', variants, activeId)}
+            ${renderHlsContextGroup('I-Frame Playlists', iFrameReps, activeId)}
             ${renderHlsContextGroup(
                 'Audio Renditions',
                 audioRenditions,
-                activeUrl
+                activeId
             )}
             ${renderHlsContextGroup(
                 'Subtitle Renditions',
                 subtitleRenditions,
-                activeUrl
+                activeId
             )}
         </div>
     `;

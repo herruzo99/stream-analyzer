@@ -1,7 +1,7 @@
 import { html, render } from 'lit-html';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { useUiStore, uiActions } from '@/state/uiStore';
-import { usePlayerStore } from '@/state/playerStore'; // <-- IMPORT a
+import { usePlayerStore } from '@/state/playerStore';
 import { sidebarNavTemplate, getNavGroups } from './sidebar-nav.js';
 import { renderContextSwitcher } from './context-switcher.js';
 import { globalControlsTemplate } from './global-controls.js';
@@ -15,7 +15,7 @@ class AppShellComponent extends HTMLElement {
         this.dom = {};
         this.uiUnsubscribe = null;
         this.analysisUnsubscribe = null;
-        this.playerUnsubscribe = null; // <-- ADDED property
+        this.playerUnsubscribe = null;
     }
 
     connectedCallback() {
@@ -24,7 +24,6 @@ class AppShellComponent extends HTMLElement {
         this.analysisUnsubscribe = useAnalysisStore.subscribe(() =>
             this.updateDOM()
         );
-        // --- ARCHITECTURAL FIX: Subscribe to player store for reactivity ---
         this.playerUnsubscribe = usePlayerStore.subscribe(() =>
             this.updateDOM()
         );
@@ -224,8 +223,7 @@ class AppShellComponent extends HTMLElement {
         );
 
         const footerTemplate = html`
-            ${renderContextSwitcher()}
-            ${globalControlsTemplate()}
+            ${renderContextSwitcher()} ${globalControlsTemplate()}
         `;
 
         render(sidebarNavTemplate(), this.dom.sidebarNav);

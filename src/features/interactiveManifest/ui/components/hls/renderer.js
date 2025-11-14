@@ -125,7 +125,7 @@ export const hlsManifestTemplate = (
 
     if (stream.activeMediaPlaylistUrl) {
         const mediaPlaylist = stream.mediaPlaylists.get(
-            stream.activeMediaPlaylistUrl
+            stream.activeMediaPlaylistId
         );
         if (!mediaPlaylist)
             return html`<div class="text-yellow-400 p-4">Loading...</div>`;
@@ -136,9 +136,12 @@ export const hlsManifestTemplate = (
         activeManifest = stream.manifest;
     }
 
-    const manifestStringToDisplay = showSubstituted
-        ? activeManifest.serializedManifest.raw
-        : rawManifestStringForToggle;
+    // --- ARCHITECTURAL FIX: Defensively select the string to display ---
+    const manifestStringToDisplay =
+        showSubstituted && activeManifest?.serializedManifest?.substitutedRaw
+            ? activeManifest.serializedManifest.substitutedRaw
+            : rawManifestStringForToggle;
+    // --- END FIX ---
 
     if (!manifestStringToDisplay || !activeManifest)
         return html`<div class="text-yellow-400 p-4">Awaiting content...</div>`;

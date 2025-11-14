@@ -181,6 +181,7 @@ export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
             url: uri,
             auth,
             isPlayerLoadRequest: isPlayerLoad,
+            isLive: currentStream?.manifest?.type === 'dynamic',
             oldRawManifest: currentStream?.rawManifest || '',
             protocol: currentStream?.protocol,
             baseUrl: currentStream?.baseUrl,

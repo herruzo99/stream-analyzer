@@ -33,6 +33,9 @@ export function initializeLoader(domContext) {
     eventBus.subscribe('analysis:started', () =>
         showLoader('Analyzing streams...')
     );
+    eventBus.subscribe('analysis:progress', ({ message }) => {
+        showLoader(message);
+    });
     eventBus.subscribe('state:analysis-complete', hideLoader);
     eventBus.subscribe('analysis:failed', hideLoader);
     eventBus.subscribe('analysis:error', hideLoader);

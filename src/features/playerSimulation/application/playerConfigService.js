@@ -1,4 +1,5 @@
 import { appLog } from '@/shared/utils/debug';
+import { schemeIdUriToKeySystem } from '@/infrastructure/parsing/utils/drm';
 
 async function fetchCertificate(url) {
     try {
@@ -20,9 +21,6 @@ async function buildDrmConfig(streamDef) {
         return drmConfig;
     }
 
-    const { schemeIdUriToKeySystem } = await import(
-        '@/infrastructure/parsing/utils/drm'
-    );
     const licenseRequestHeaders = {};
     (streamDef.drmAuth?.headers || []).forEach((h) => {
         if (h.key) licenseRequestHeaders[h.key] = h.value;

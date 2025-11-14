@@ -1,5 +1,4 @@
 import { stopAllMonitoring } from '@/application/services/primaryStreamMonitorService';
-import { stopAllHlsVariantPolling } from '@/application/services/hlsVariantPollerService';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { useSegmentCacheStore } from '@/state/segmentCacheStore';
 import { useDecryptionStore } from '@/state/decryptionStore';
@@ -16,7 +15,6 @@ import { uiActions } from '@/state/uiStore';
 export function resetApplicationState() {
     // 1. Stop all background polling services.
     stopAllMonitoring();
-    stopAllHlsVariantPolling();
     multiPlayerService.destroyAll();
 
     // 2. Reset all Zustand stores to their initial state.

@@ -1,7 +1,7 @@
 import { createStore } from 'zustand/vanilla';
 import { LRUCache } from '@/application/lru-cache';
 
-const SEGMENT_CACHE_SIZE = 200;
+const SEGMENT_CACHE_SIZE = 400;
 
 /**
  * @typedef {object} SegmentCacheState

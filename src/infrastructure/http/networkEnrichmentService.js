@@ -23,7 +23,7 @@ function getTimingBreakdownFromPerfEntry(entry) {
 
 // --- Service State ---
 let observer = null;
-const MAX_BUFFER_SIZE = 200;
+const MAX_BUFFER_SIZE = 1000;
 
 /**
  * The callback for the PerformanceObserver. It enriches any matching logged event.

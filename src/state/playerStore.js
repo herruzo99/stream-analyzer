@@ -180,7 +180,7 @@ export const usePlayerStore = createStore((set, get) => ({
                 bandwidth: rep.bandwidth,
                 width: rep.width.value,
                 height: rep.height.value,
-                videoCodec: rep.codecs.value,
+                videoCodec: (rep.codecs || []).map(c => c.value).join(', '),
                 frameRate: rep.frameRate,
             }));
 
@@ -191,7 +191,7 @@ export const usePlayerStore = createStore((set, get) => ({
                     id: as.id || rep.id,
                     language: as.lang,
                     label: as.labels?.[0]?.text || as.lang,
-                    codecs: rep.codecs.value,
+                    codecs: (rep.codecs || []).map(c => c.value).join(', '),
                     roles: as.roles.map((r) => r.value),
                     active: false,
                 }))
@@ -227,7 +227,7 @@ export const usePlayerStore = createStore((set, get) => ({
                     language: as.lang,
                     label: as.labels?.[0]?.text || as.lang,
                     mimeType: rep.mimeType,
-                    codecs: rep.codecs.value,
+                    codecs: (rep.codecs || []).map(c => c.value).join(', '),
                     roles: as.roles.map((r) => r.value),
                     kind: as.roles.find((r) => r.value === 'caption')
                         ? 'caption'

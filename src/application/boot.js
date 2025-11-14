@@ -1,7 +1,6 @@
 import { initializeLiveStreamMonitor } from '@/application/services/primaryStreamMonitorService';
 import { initializeViewManager } from '@/ui/shell/view-manager';
 import { initializeLiveUpdateProcessor } from '@/application/services/liveUpdateProcessor';
-import { initializeHlsVariantPoller } from '@/application/services/hlsVariantPollerService';
 import { initializeRenderer } from '@/ui/shell/mainRenderer';
 import { initializeConsentManager } from './consent-manager.js';
 import { container } from './container.js';
@@ -115,7 +114,6 @@ export async function startApp() {
     // --- Layer 3: Core Application & Infrastructure Services ---
     initializeLiveUpdateProcessor();
     initializeLiveStreamMonitor();
-    initializeHlsVariantPoller();
     initializeSegmentService();
     streamInitializationService.initialize();
     keyManagerService.initialize();

@@ -28,7 +28,7 @@ export function parseTsSegment(buffer) {
         continuityCounters: {},
         tsdt: null,
         ipmp: null,
-        semanticResults: [], // Defensive initialization
+        semanticResults: null, // Set to null initially
     };
     const dataView = new DataView(buffer);
 
@@ -227,7 +227,6 @@ export function parseTsSegment(buffer) {
                             payloadBaseOffset
                         );
                         packet.payloadType = 'PSI (PMT)';
-                        // ***** FIX START *****
                         if (parsedPayload && summary.programMap[pid]) {
                             parsedPayload.streams.forEach((stream) => {
                                 summary.programMap[pid].streams[
@@ -238,7 +237,6 @@ export function parseTsSegment(buffer) {
                                 parsedPayload.pcr_pid.value;
                             summary.pcrPid = parsedPayload.pcr_pid.value;
                         }
-                        // ***** FIX END *****
                     } else if (tableIdNum >= 0x40 && tableIdNum <= 0xfe) {
                         parsedPayload = parsePrivateSectionPayload(
                             payload,
@@ -322,8 +320,6 @@ export function parseTsSegment(buffer) {
             packet.payloadType = 'Null Packet';
         }
     });
-
-    summary.semanticResults = analyzeSemantics({ packets, summary });
 
     return { format: 'ts', data: { summary, packets } };
 }

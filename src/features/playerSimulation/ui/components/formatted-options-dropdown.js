@@ -21,7 +21,7 @@ const optionCardTemplate = ({ label, description, isActive, onClick }) => {
             class="${baseClasses} ${hoverClasses} ${isActive
                 ? activeClasses
                 : ''}"
-            @click=${onClick}
+            @click=${(e) => onClick(e)}
             data-tooltip=${description || ''}
         >
             <div class="flex justify-between items-center">
@@ -53,7 +53,7 @@ const optionCardTemplate = ({ label, description, isActive, onClick }) => {
  * A generic dropdown panel for selecting from a list of formatted options.
  * @param {Array<{id: string|number, label: string, description?: string}>} options - The list of options to display.
  * @param {string|number|null} activeId - The ID of the currently active option.
- * @param {(option: object) => void} onSelect - Callback function when an option is selected.
+ * @param {(option: object, event: MouseEvent) => void} onSelect - Callback function when an option is selected.
  * @returns {import('lit-html').TemplateResult}
  */
 export const formattedOptionsDropdownTemplate = (
@@ -61,8 +61,8 @@ export const formattedOptionsDropdownTemplate = (
     activeId,
     onSelect
 ) => {
-    const handleSelect = (option) => {
-        onSelect(option);
+    const handleSelect = (option, event) => {
+        onSelect(option, event);
         closeDropdown();
     };
 
@@ -75,7 +75,7 @@ export const formattedOptionsDropdownTemplate = (
                     label: option.label,
                     description: option.description,
                     isActive: option.id === activeId,
-                    onClick: () => handleSelect(option),
+                    onClick: (e) => handleSelect(option, e),
                 })
             )}
         </div>

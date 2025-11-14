@@ -99,31 +99,26 @@ function getNetworkInfo(stream) {
                         'SegmentTemplate',
                         hierarchy
                     );
-
-                    const durationStr =
-                        getAttr(template, 'duration') ||
-                        stream.manifest.maxSegmentDuration;
                     const timescale =
-                        getAttr(template, 'timescale') ||
-                        rep.audioSamplingRate ||
+                        Number(getAttr(template, 'timescale')) ||
+                        Number(rep.audioSamplingRate) ||
                         1;
 
-                    if (durationStr && timescale > 0 && rep.bandwidth > 0) {
-                        // The duration attribute in SegmentTemplate is in timescale units,
-                        // not seconds like maxSegmentDuration.
-                        const durationInSeconds =
-                            typeof durationStr === 'string'
-                                ? parseDuration(durationStr) ||
-                                  parseInt(durationStr, 10) /
-                                      parseInt(timescale, 10)
-                                : durationStr / parseInt(timescale, 10);
+                    let durationInSeconds = 0;
+                    const templateDuration = getAttr(template, 'duration');
 
-                        if (durationInSeconds > 0) {
-                            totalDurationSeconds += durationInSeconds;
-                            totalSizeBytes +=
-                                (rep.bandwidth / 8) * durationInSeconds;
-                            segmentInfoCount++;
-                        }
+                    if (templateDuration !== undefined && timescale > 0) {
+                        // Priority 1: SegmentTemplate@duration is in timescale units.
+                        durationInSeconds = Number(templateDuration) / timescale;
+                    } else {
+                        // Priority 2: Fallback to MPD@maxSegmentDuration (already a number in seconds).
+                        durationInSeconds = stream.manifest.maxSegmentDuration || 0;
+                    }
+
+                    if (durationInSeconds > 0 && rep.bandwidth > 0) {
+                        totalDurationSeconds += durationInSeconds;
+                        totalSizeBytes += (rep.bandwidth / 8) * durationInSeconds;
+                        segmentInfoCount++;
                     }
                 }
             }
@@ -179,6 +174,7 @@ function getNetworkInfo(stream) {
             : null,
     };
 }
+
 
 /**
  * Gathers timing and update strategy information, primarily from the master playlist.
@@ -333,12 +329,17 @@ function getDashSecurityInfo(stream) {
 function getIntegrationRequirements(activeManifest) {
     const summary = activeManifest.summary;
 
-    // Correctly extract and de-duplicate codec strings from SourcedData objects.
-    const allCodecValues = [
-        ...summary.videoTracks.flatMap((t) => t.codecs.map((c) => c.value)),
-        ...summary.audioTracks.flatMap((t) => t.codecs.map((c) => c.value)),
-    ].filter(Boolean);
-    const uniqueCodecs = [...new Set(allCodecValues)];
+    const allCodecValues = new Set();
+    summary.videoTracks.forEach(track => {
+        track.codecs.forEach(c => allCodecValues.add(c.value));
+        if (track.muxedAudio?.codecs) {
+            track.muxedAudio.codecs.forEach(c => allCodecValues.add(c.value));
+        }
+    });
+    summary.audioTracks.forEach(track => {
+        track.codecs.forEach(c => allCodecValues.add(c.value));
+    });
+    const uniqueCodecs = Array.from(allCodecValues);
 
     const subtitleFormats = new Set();
     summary.textTracks.forEach((tt) => {

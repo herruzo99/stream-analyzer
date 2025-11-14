@@ -1,12 +1,15 @@
-import { html } from 'lit-html';
+import { html, render } from 'lit-html';
 import { statCardTemplate } from '@/features/summary/ui/components/shared';
 import { connectedTabBar } from '@/ui/components/tabs';
 import { useUiStore, uiActions } from '@/state/uiStore';
 import * as icons from '@/ui/icons';
 import { getTooltipData as getTsTooltipData } from '@/infrastructure/parsing/ts/index';
 import { tooltipTriggerClasses } from '@/ui/shared/constants';
+import { workerService } from '@/infrastructure/worker/workerService';
+import { useSegmentCacheStore } from '@/state/segmentCacheStore';
 
 const tsTooltipData = getTsTooltipData();
+let localState = { isLoading: false, error: null };
 
 const descriptorTableTemplate = (descriptors) => {
     if (!descriptors || descriptors.length === 0) {
@@ -147,8 +150,69 @@ const programStructureTemplate = (analysis) => {
     `;
 };
 
-const semanticResultsTemplate = (results) => {
-    if (!results || results.length === 0) {
+const semanticResultsTemplate = (results, analysis, uniqueId) => {
+    const handleRunAnalysis = () => {
+        localState = { isLoading: true, error: null };
+        workerService
+            .postTask('run-ts-semantic-analysis', {
+                packets: analysis.data.packets,
+                summary: analysis.data.summary,
+            })
+            .promise.then((semanticResults) => {
+                const { get, set } = useSegmentCacheStore.getState();
+                const currentEntry = get(uniqueId);
+                if (currentEntry) {
+                    const newParsedData = { ...currentEntry.parsedData };
+                    newParsedData.data.summary.semanticResults =
+                        semanticResults;
+                    set(uniqueId, { ...currentEntry, parsedData: newParsedData });
+                }
+                localState = { isLoading: false, error: null };
+            })
+            .catch((err) => {
+                localState = { isLoading: false, error: err.message };
+            });
+    };
+
+    if (localState.isLoading) {
+        return html`<div
+            class="flex items-center justify-center p-8 text-slate-400"
+        >
+            <div class="animate-spin mr-2">${icons.spinner}</div>
+            Running semantic analysis...
+        </div>`;
+    }
+
+    if (localState.error) {
+        return html`<div class="p-4 text-red-400">
+            Error running analysis: ${localState.error}
+        </div>`;
+    }
+
+    if (!results) {
+        return html`
+            <div
+                class="text-center p-8 bg-slate-900/50 rounded-lg border border-dashed border-slate-700"
+            >
+                <h4 class="font-semibold text-slate-300">
+                    Semantic Analysis
+                </h4>
+                <p class="text-sm text-slate-400 mt-2">
+                    This check validates temporal and semantic rules across all
+                    packets, such as PTS/PCR frequency and buffer modeling. It
+                    can be slow on large segments.
+                </p>
+                <button
+                    @click=${handleRunAnalysis}
+                    class="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md"
+                >
+                    Run Analysis
+                </button>
+            </div>
+        `;
+    }
+
+    if (results.length === 0) {
         return html`<div class="text-center p-8 text-green-400 font-semibold">
             ${icons.checkCircle} No semantic issues found.
         </div>`;
@@ -202,7 +266,7 @@ const semanticResultsTemplate = (results) => {
     `;
 };
 
-export const tsAnalysisTemplate = (analysis) => {
+export const tsAnalysisTemplate = (analysis, uniqueId) => {
     const { summary } = analysis.data;
     const { segmentAnalysisActiveTab } = useUiStore.getState();
 
@@ -217,7 +281,11 @@ export const tsAnalysisTemplate = (analysis) => {
 
     let content;
     if (segmentAnalysisActiveTab === 'semantic') {
-        content = semanticResultsTemplate(summary.semanticResults);
+        content = semanticResultsTemplate(
+            summary.semanticResults,
+            analysis,
+            uniqueId
+        );
     } else {
         content = programStructureTemplate(analysis);
     }
@@ -243,10 +311,10 @@ export const tsAnalysisTemplate = (analysis) => {
         }),
         statCardTemplate({
             label: 'Semantic Issues',
-            value: summary.semanticResults.length,
+            value: summary.semanticResults?.length ?? 'N/A',
             icon: icons.debug,
             iconBgClass:
-                summary.semanticResults.length > 0
+                summary.semanticResults && summary.semanticResults.length > 0
                     ? 'bg-yellow-900/30 text-yellow-300'
                     : 'bg-green-900/30 text-green-300',
         }),

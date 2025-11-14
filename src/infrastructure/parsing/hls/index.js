@@ -6,7 +6,7 @@ import { parseManifest as parse } from './parser.js';
  * @param {string} manifestString The raw HLS playlist.
  * @param {string} baseUrl The URL from which the playlist was fetched.
  * @param {Map<string, {value: string, source: string}>=} parentVariables - Variables inherited from a master playlist.
- * @param {object} [context]
+ * @param {object} [context] - Context, including the definitive `isLive` status.
  * @returns {Promise<{manifest: import('@/types.ts').Manifest, definedVariables: Map<string, {value: string, source: string}>, baseUrl: string}>}
  */
 export async function parseManifest(

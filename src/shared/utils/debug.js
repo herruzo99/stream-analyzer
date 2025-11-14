@@ -2,6 +2,7 @@ const DEBUG_ENABLED =
     typeof window !== 'undefined' && window.location
         ? new URLSearchParams(window.location.search).has('debug')
         : false;
+
 /**
  * A utility function to create a concise summary of a TRUN box's samples.
  * @param {object[]} samples - The array of sample objects from a parsed TRUN box.
@@ -21,8 +22,14 @@ function summarizeTrunSamples(samples) {
 
     for (const sample of samples) {
         if (sample.duration !== undefined) {
-            summary.duration.min = Math.min(summary.duration.min, sample.duration);
-            summary.duration.max = Math.max(summary.duration.max, sample.duration);
+            summary.duration.min = Math.min(
+                summary.duration.min,
+                sample.duration
+            );
+            summary.duration.max = Math.max(
+                summary.duration.max,
+                sample.duration
+            );
             summary.duration.total += sample.duration;
         }
         if (sample.size !== undefined) {
@@ -31,11 +38,20 @@ function summarizeTrunSamples(samples) {
             summary.size.total += sample.size;
         }
         if (sample.compositionTimeOffset !== undefined) {
-            summary.compositionTimeOffset.min = Math.min(summary.compositionTimeOffset.min, sample.compositionTimeOffset);
-            summary.compositionTimeOffset.max = Math.max(summary.compositionTimeOffset.max, sample.compositionTimeOffset);
+            summary.compositionTimeOffset.min = Math.min(
+                summary.compositionTimeOffset.min,
+                sample.compositionTimeOffset
+            );
+            summary.compositionTimeOffset.max = Math.max(
+                summary.compositionTimeOffset.max,
+                sample.compositionTimeOffset
+            );
             summary.compositionTimeOffset.total += sample.compositionTimeOffset;
         }
-        if (sample.sampleFlags && !sample.sampleFlags.sample_is_non_sync_sample) {
+        if (
+            sample.sampleFlags &&
+            !sample.sampleFlags.sample_is_non_sync_sample
+        ) {
             summary.syncSampleCount++;
         }
     }
@@ -43,7 +59,8 @@ function summarizeTrunSamples(samples) {
     // Clean up empty fields
     if (summary.duration.total === 0) delete summary.duration;
     if (summary.size.total === 0) delete summary.size;
-    if (summary.compositionTimeOffset.total === 0) delete summary.compositionTimeOffset;
+    if (summary.compositionTimeOffset.total === 0)
+        delete summary.compositionTimeOffset;
 
     return summary;
 }
@@ -77,106 +94,82 @@ function summarizeTsPackets(packets) {
 }
 
 /**
- * A replacer for JSON.stringify that handles BigInts, Maps, Sets, and circular references.
- * It now includes a `distill` option for creating high-level summaries of complex data structures.
+ * A replacer for JSON.stringify that handles circular references, BigInts, and other special types.
+ * It includes a `distill` option to create high-level summaries of complex data structures.
  * @param {object} [options]
- * @param {boolean} [options.limitCollections=false] - If true, large Maps/Arrays will be replaced with summaries.
- * @param {boolean} [options.distill=false] - If true, applies specific summarization logic to known large objects.
+ * @param {boolean} [options.distill=false] - If true, applies specific summarization logic.
  * @returns {(key: string, value: any) => any}
  */
-export function createSafeJsonReplacer({ limitCollections = false, distill = false } = {}) {
+export function createSafeJsonReplacer({ distill = false } = {}) {
     const cache = new Set();
     return function replacer(key, value) {
-        if (typeof value === 'bigint') {
-            return value.toString() + 'n';
-        }
-
-        if (value instanceof Map) {
-            if (limitCollections && value.size > 100) {
-                return `[Map with ${value.size} entries]`;
+        // --- Pre-traversal checks and summarization by KEY ---
+        if (distill) {
+            if (
+                key === 'samples' &&
+                Array.isArray(value) &&
+                value[0]?.isSample
+            ) {
+                return summarizeTrunSamples(value);
             }
-            return Array.from(value.entries());
-        }
-
-        if (value instanceof Set) {
-            if (limitCollections && value.size > 100) {
-                return `[Set with ${value.size} entries]`;
+            if (
+                key === 'packets' &&
+                Array.isArray(value) &&
+                value[0]?.header
+            ) {
+                return summarizeTsPackets(value);
             }
-            return Array.from(value.values());
-        }
-
-        if (Array.isArray(value)) {
-            if (limitCollections && value.length > 200) {
-                return `[Array with ${value.length} items]`;
+            if (key === 'entries' && Array.isArray(value) && value.length > 20) {
+                return `[${value.length} entries]`;
             }
         }
 
+        // --- Type conversions and circular reference handling on VALUE ---
         if (typeof value === 'object' && value !== null) {
             if (cache.has(value)) {
                 return '[Circular]';
             }
             cache.add(value);
 
-            // --- DISTILLATION LOGIC ---
-            if (distill) {
-                if (value.type === 'trun' && value.samples) {
-                    const distilledBox = { ...value, samples: summarizeTrunSamples(value.samples) };
-                    delete distilledBox.dataView;
-                    return distilledBox;
-                }
-                if (['sdtp', 'stts', 'ctts', 'stsc', 'stsz', 'stco', 'stss'].includes(value.type) && value.entries) {
-                    return { ...value, entries: `[${value.entries.length} entries]` };
-                }
-                if (value.format === 'isobmff' && value.data?.boxes) { // Distill ISOBMFF segment
-                    const distilledData = { ...value };
-                    delete distilledData.rawSegmentBase64;
-                    distilledData.data.boxes = distilledData.data.boxes.map(b => replacer(b.type, b));
-                    return distilledData;
-                }
-                if (value.format === 'ts' && value.data?.packets) { // Distill TS segment
-                    const distilledData = {
-                        ...value,
-                        data: {
-                            ...value.data,
-                            packets: summarizeTsPackets(value.data.packets),
-                            summary: {
-                                ...value.data.summary,
-                                pcrList: { count: value.data.summary.pcrList.length },
-                                continuityCounters: { pidCount: Object.keys(value.data.summary.continuityCounters).length },
-                            }
-                        },
-                    };
-                    return distilledData;
-                }
-                // Omit dataView and raw buffers
-                if (key === 'dataView' || value instanceof ArrayBuffer || value instanceof Uint8Array) {
-                    return `[${value.constructor.name}]`;
-                }
+            // Handle specific types that JSON.stringify doesn't support
+            if (value instanceof Map) return Array.from(value.entries());
+            if (value instanceof Set) return Array.from(value.values());
+            if (
+                value instanceof ArrayBuffer ||
+                value instanceof Uint8Array ||
+                value instanceof DataView
+            ) {
+                return `[${value.constructor.name} of length ${value.byteLength}]`;
             }
-            // --- END DISTILLATION LOGIC ---
+
+            // Create a shallow copy for modification ONLY if needed to remove properties
+            if (value.color || value.dataView) {
+                const copy = { ...value };
+                delete copy.color;
+                delete copy.dataView;
+                return copy;
+            }
         }
+
+        if (typeof value === 'bigint') {
+            return value.toString() + 'n';
+        }
+
         return value;
     };
 }
 
 /**
  * Safely stringifies an object for logging, handling circular references and BigInts.
- * It also replaces large Maps or Arrays with a summary to prevent performance issues.
  * @param {any} obj The object to stringify.
  * @returns {string}
  */
 function safeStringify(obj) {
-    return JSON.stringify(
-        obj,
-        createSafeJsonReplacer({ limitCollections: true }),
-        2
-    );
+    return JSON.stringify(obj, createSafeJsonReplacer(), 2);
 }
 
 /**
  * Logs a message to the console only if debugging is enabled.
- * Supports different console levels for richer logging.
- * Ensures 'error' messages are always logged outside of any group.
  * @param {string} component The name of the component/module logging the message.
  * @param {'log' | 'info' | 'warn' | 'error' | 'table' } level The console log level.
  * @param {...any} args The arguments to log.

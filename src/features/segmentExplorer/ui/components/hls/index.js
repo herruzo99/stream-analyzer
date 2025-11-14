@@ -48,7 +48,7 @@ export function stopLiveSegmentHighlighter() {
 }
 
 const renderHlsRendition = (stream, renditionInfo, contentType) => {
-    const { title, uri, isMuxed } = renditionInfo;
+    const { title, id: variantId, isMuxed } = renditionInfo;
     const { segmentExplorerSortOrder } = useUiStore.getState();
 
     if (isMuxed) {
@@ -75,7 +75,7 @@ const renderHlsRendition = (stream, renditionInfo, contentType) => {
         `;
     }
 
-    const variantState = stream.hlsVariantState.get(uri);
+    const variantState = stream.hlsVariantState.get(variantId);
     if (!variantState) return html``;
 
     const {
@@ -84,46 +84,49 @@ const renderHlsRendition = (stream, renditionInfo, contentType) => {
         isLoading,
         currentSegmentUrls,
         newlyAddedSegmentUrls,
+        uri: variantUri,
     } = variantState;
 
     const segments = rawSegments || [];
-    const mediaPlaylist = stream.mediaPlaylists.get(uri);
+    const mediaPlaylist = stream.mediaPlaylists.get(variantId);
     const mediaSequence = mediaPlaylist?.manifest?.mediaSequence || 0;
 
-    // --- ARCHITECTURAL FIX: Rely on parser for timing; only transform for rendering ---
     let pdtAnchorTime = 0;
     let pdtMediaTime = 0;
 
     const allSegments = segments.map((seg, index) => {
         const segmentTime = seg.time || 0;
         const segmentDuration = seg.duration || 0;
+        const timescale = seg.timescale || 90000;
 
         if (seg.dateTime) {
             pdtAnchorTime = new Date(seg.dateTime).getTime();
-            pdtMediaTime = segmentTime; // Anchor the media time to this PDT
+            pdtMediaTime = segmentTime; // This is now in timescale units
         }
 
         let startTimeUTC = 0;
         if (pdtAnchorTime > 0) {
-            startTimeUTC = pdtAnchorTime + (segmentTime - pdtMediaTime) * 1000;
+            const timeDeltaInSeconds = (segmentTime - pdtMediaTime) / timescale;
+            startTimeUTC = pdtAnchorTime + timeDeltaInSeconds * 1000;
         }
 
+        const segmentDurationInSeconds = segmentDuration / timescale;
         const endTimeUTC =
-            startTimeUTC > 0 ? startTimeUTC + segmentDuration * 1000 : 0;
+            startTimeUTC > 0
+                ? startTimeUTC + segmentDurationInSeconds * 1000
+                : 0;
 
         return {
             ...seg,
-            repId: 'hls-media',
+            repId: variantId,
             number: mediaSequence + index,
-            // Convert time and duration from seconds (from parser) to timescale units for the template
-            time: segmentTime * 90000,
-            duration: segmentDuration * 90000,
-            timescale: 90000,
+            time: segmentTime,
+            duration: segmentDuration,
+            timescale: timescale,
             startTimeUTC: startTimeUTC || 0,
             endTimeUTC: endTimeUTC || 0,
         };
     });
-    // --- END FIX ---
 
     let processedSegments = [...allSegments];
 
@@ -133,8 +136,8 @@ const renderHlsRendition = (stream, renditionInfo, contentType) => {
     });
 
     return segmentTableTemplate({
-        id: uri.replace(/[^a-zA-Z0-9]/g, '-'),
-        rawId: uri,
+        id: variantId.replace(/[^a-zA-Z0-9]/g, '-'),
+        rawId: variantId,
         title: title,
         contentType: contentType,
         segments: processedSegments,
@@ -151,11 +154,15 @@ export function getHlsExplorerForType(stream, contentType) {
     if (stream.manifest.isMaster) {
         let itemsToRender = [];
         if (contentType === 'video') {
-            itemsToRender = (stream.manifest.variants || []).map((v) => ({
+            const allVideoReps = stream.manifest.periods[0].adaptationSets
+                .filter(as => as.contentType === 'video')
+                .flatMap(as => as.representations.map(rep => ({ rep, as })));
+            
+            itemsToRender = allVideoReps.map(({rep, as}) => ({
                 title: `Variant Stream (BW: ${formatBitrate(
-                    v.attributes.BANDWIDTH
-                )}, Res: ${v.attributes.RESOLUTION || 'N/A'})`,
-                uri: v.resolvedUri,
+                    rep.bandwidth
+                )}, Res: ${rep.width.value}x${rep.height.value || 'N/A'})`,
+                id: rep.id,
                 isMuxed: false,
             }));
         } else {
@@ -163,14 +170,13 @@ export function getHlsExplorerForType(stream, contentType) {
             itemsToRender = (stream.manifest.periods[0]?.adaptationSets || [])
                 .filter((as) => as.contentType === contentType)
                 .map((r) => {
-                    const resolvedUri =
-                        r.representations[0]?.serializedManifest.resolvedUri;
+                    const rep = r.representations[0];
                     return {
                         title: `${contentType.toUpperCase()}: ${
                             r.lang || r.id
-                        } (${r.representations[0]?.serializedManifest.NAME})`,
-                        uri: resolvedUri,
-                        isMuxed: !resolvedUri,
+                        } (${rep.serializedManifest.NAME})`,
+                        id: rep.id,
+                        isMuxed: !rep.serializedManifest.resolvedUri,
                     };
                 });
         }
@@ -190,7 +196,7 @@ export function getHlsExplorerForType(stream, contentType) {
         // Media playlist directly
         const mediaVariant = {
             title: 'Media Playlist Segments',
-            uri: stream.originalUrl,
+            id: stream.originalUrl,
             isMuxed: false,
         };
         return renderHlsRendition(stream, mediaVariant, contentType);

@@ -5,6 +5,7 @@ import {
     handleDecryptAndParseSegment,
     handleFetchKey,
     handleFullSegmentAnalysis,
+    handleRunTsSemanticAnalysis,
 } from './parsingService.js';
 import { handleShakaResourceFetch } from './handlers/shakaResourceHandler.js';
 import { handleShakaManifestFetch } from './handlers/shakaManifestHandler.js';
@@ -14,107 +15,22 @@ import { handleStartAnalysis } from './handlers/analysisHandler.js';
 
 const inFlightTasks = new Map();
 
-async function handleFetchHlsMediaPlaylist(
-    {
-        streamId,
-        variantUri,
-        hlsDefinedVariables,
-        auth,
-        oldSegments,
-        proactiveFetch,
-    },
-    signal
-) {
-    const { fetchWithAuth } = await import('./http.js');
-    const { handleParseSegmentStructure } = await import('./parsingService.js');
-    const response = await fetchWithAuth(
-        variantUri,
-        auth,
-        null,
-        {},
-        null,
-        signal
-    );
-    if (!response.ok) throw new Error(`HTTP error ${response.status}`);
-    const manifestString = await response.text();
-
-    const { manifest } = await import(
-        '@/infrastructure/parsing/hls/index'
-    ).then((mod) =>
-        mod.parseManifest(manifestString, variantUri, hlsDefinedVariables)
-    );
-
-    const newSegments = manifest.segments || [];
-    const oldSegmentIds = new Set((oldSegments || []).map((s) => s.uniqueId));
-    const currentSegmentUrls = newSegments.map((s) => s.uniqueId);
-    const newSegmentUrls = currentSegmentUrls.filter(
-        (id) => !oldSegmentIds.has(id)
-    );
-
-    let inbandEvents = [];
-    let proactivelyParsedSegments = [];
-    if (proactiveFetch && newSegmentUrls.length > 0) {
-        const fetchAndParsePromises = newSegmentUrls.map(
-            async (uniqueId) => {
-                const segment = newSegments.find((s) => s.uniqueId === uniqueId);
-                if (!segment) return null;
-                try {
-                    const res = await fetchWithAuth(
-                        segment.resolvedUrl,
-                        auth,
-                        segment.range
-                    );
-                    if (!res.ok) return null;
-                    const data = await res.arrayBuffer();
-                    const parsedData = await handleParseSegmentStructure({
-                        data,
-                        formatHint: 'ts',
-                        url: segment.resolvedUrl,
-                        context: {},
-                    });
-                    return { uniqueId, data, parsedData, status: 200 };
-                } catch {
-                    return null;
-                }
-            }
-        );
-
-        const results = await Promise.all(fetchAndParsePromises);
-        results.forEach((result) => {
-            if (result) {
-                proactivelyParsedSegments.push(result);
-                if (result.parsedData?.data?.events) {
-                    inbandEvents.push(...result.parsedData.data.events);
-                }
-            }
-        });
-    }
-
-    return {
-        streamId,
-        variantUri,
-        manifest,
-        manifestString,
-        currentSegmentUrls,
-        newSegmentUrls,
-        inbandEvents,
-        proactivelyParsedSegments,
-    };
-}
-
 const handlers = {
-    'start-analysis': (payload, signal) =>
-        handleStartAnalysis({ ...payload, now: Date.now() }, signal),
+    'start-analysis': (payload, signal, postProgress) =>
+        handleStartAnalysis(
+            { ...payload, now: Date.now(), postProgress },
+            signal
+        ),
     'get-manifest-metadata': handleGetManifestMetadata,
     'get-stream-drm-info': handleGetStreamDrmInfo,
     'parse-segment-structure': handleParseSegmentStructure,
     'full-segment-analysis': handleFullSegmentAnalysis,
     'segment-fetch-and-parse': handleFetchAndParseSegment,
-    'fetch-hls-media-playlist': handleFetchHlsMediaPlaylist,
     'fetch-key': handleFetchKey,
     'decrypt-and-parse-segment': handleDecryptAndParseSegment,
     'shaka-fetch-manifest': handleShakaManifestFetch,
     'shaka-fetch-resource': handleShakaResourceFetch,
+    'run-ts-semantic-analysis': handleRunTsSemanticAnalysis,
 };
 
 self.addEventListener('message', async (event) => {
@@ -169,8 +85,16 @@ self.addEventListener('message', async (event) => {
     const abortController = new AbortController();
     inFlightTasks.set(id, { abortController });
 
+    const postProgress = (message) => {
+        self.postMessage({ type: 'analysis:progress', payload: { message } });
+    };
+
     try {
-        const result = await handler(payload, abortController.signal);
+        const result = await handler(
+            payload,
+            abortController.signal,
+            postProgress
+        );
 
         if (abortController.signal.aborted) {
             appLog(

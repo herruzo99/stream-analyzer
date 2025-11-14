@@ -25,21 +25,6 @@ function closeAllDropdowns() {
     }
 }
 
-function closeDropdownByTrigger(triggerElement) {
-    const index = activeDropdowns.findIndex(
-        (d) => d.trigger === triggerElement
-    );
-    if (index === -1) return;
-
-    const toClose = activeDropdowns.splice(index);
-    toClose.forEach(({ close }) => close());
-
-    if (activeDropdowns.length === 0 && globalClickListener) {
-        document.removeEventListener('click', globalClickListener);
-        globalClickListener = null;
-    }
-}
-
 /**
  * Toggles a dropdown panel associated with a trigger element.
  * @param {HTMLElement} triggerElement - The element that triggers the dropdown.
@@ -89,9 +74,7 @@ export function toggleDropdown(triggerElement, templateFn, event) {
         return;
     }
 
-    // --- ARCHITECTURAL FIX: Re-invoke templateFn on state change ---
     const rerender = () => {
-        // Check if the panel is still in the DOM before re-rendering.
         if (panelContainer.isConnected) {
             render(templateFn(), panelContainer);
         }
@@ -100,43 +83,52 @@ export function toggleDropdown(triggerElement, templateFn, event) {
     const unsubUi = useUiStore.subscribe(rerender);
     const unsubMultiPlayer = useMultiPlayerStore.subscribe(rerender);
     const unsubNotifications = useNotificationStore.subscribe(rerender);
-    // --- END FIX ---
 
     panelElement.style.position = 'absolute';
     panelElement.style.pointerEvents = 'auto';
     panelElement.style.visibility = 'hidden';
 
+    // --- ENHANCED VIEWPORT-AWARE POSITIONING ---
     const panelRect = panelElement.getBoundingClientRect();
     const triggerRect = triggerElement.getBoundingClientRect();
     const MARGIN = 10;
     const SPACING = 4;
 
-    let top;
+    let top, left, transformOrigin;
+
+    // Vertical positioning: Prefer below, flip to above if not enough space.
     if (
         triggerRect.bottom + panelRect.height + SPACING <
         window.innerHeight - MARGIN
     ) {
         top = triggerRect.bottom + SPACING;
-        panelElement.style.transformOrigin = 'top right';
+        transformOrigin = 'top';
     } else {
         top = triggerRect.top - panelRect.height - SPACING;
-        panelElement.style.transformOrigin = 'bottom right';
+        transformOrigin = 'bottom';
     }
     top = Math.max(MARGIN, top);
 
-    let right = 'auto';
-    let left = 'auto';
-    let rightPos = window.innerWidth - triggerRect.right;
-    if (triggerRect.right - panelRect.width < MARGIN) {
-        left = `${MARGIN}px`;
-    } else {
-        right = `${Math.max(MARGIN, rightPos)}px`;
+    // Horizontal positioning: Prefer right-aligned, adjust if clipped.
+    left = triggerRect.right - panelRect.width;
+    transformOrigin += ' right';
+
+    // Adjust if clipping left edge
+    if (left < MARGIN) {
+        left = MARGIN;
+        transformOrigin = transformOrigin.replace('right', 'left');
+    }
+    // Adjust if clipping right edge
+    if (left + panelRect.width > window.innerWidth - MARGIN) {
+        left = window.innerWidth - panelRect.width - MARGIN;
     }
 
     panelElement.style.top = `${top}px`;
-    panelElement.style.left = left;
-    panelElement.style.right = right;
+    panelElement.style.left = `${left}px`;
+    panelElement.style.transformOrigin = transformOrigin;
+    panelElement.style.right = 'auto'; // Unset right to use left positioning
     panelElement.style.visibility = 'visible';
+    // --- END ENHANCED POSITIONING ---
 
     const close = () => {
         unsubAnalysis();
@@ -150,27 +142,29 @@ export function toggleDropdown(triggerElement, templateFn, event) {
 
     activeDropdowns.push({
         trigger: triggerElement,
-        panel: panelContainer,
+        panel: panelContainer, // The wrapper div
         close,
     });
 
     if (!globalClickListener) {
         globalClickListener = (e) => {
-            const target = /** @type {Node} */ (e.target);
-            if (!document.body.contains(target)) return;
+            const path = e.composedPath();
 
+            // Find the topmost dropdown panel that the click originated from.
             let clickedInsideIndex = -1;
             for (let i = activeDropdowns.length - 1; i >= 0; i--) {
                 const d = activeDropdowns[i];
-                if (d.trigger.contains(target) || d.panel.contains(target)) {
+                if (path.includes(d.trigger) || path.includes(d.panel)) {
                     clickedInsideIndex = i;
                     break;
                 }
             }
 
             if (clickedInsideIndex === -1) {
+                // Click was outside all known triggers and panels.
                 closeAllDropdowns();
             } else {
+                // Click was inside a panel/trigger. Close any dropdowns nested deeper than it.
                 const toClose = activeDropdowns.splice(clickedInsideIndex + 1);
                 if (toClose.length > 0) {
                     toClose.forEach(({ close }) => close());

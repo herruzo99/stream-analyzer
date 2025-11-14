@@ -20,7 +20,7 @@ import { resolveAdAvailsInWorker } from '@/features/advertising/application/reso
 const SCTE35_SCHEME_ID = 'urn:scte:scte35:2013:bin';
 
 async function preProcessInput(input, signal) {
-    let protocol, manifestString, finalUrl;
+    let protocol, manifestString, finalUrl, isLive;
 
     if (input.file) {
         manifestString = await input.file.text();
@@ -72,9 +72,113 @@ async function preProcessInput(input, signal) {
         const name = (finalUrl || input.file?.name || '').toLowerCase();
         protocol = name.includes('.m3u8') ? 'hls' : 'dash';
     }
+    
+    // Liveness for HLS will be determined after parsing all media playlists.
+    isLive =
+        protocol === 'dash'
+            ? /<MPD[^>]*type\s*=\s*["']dynamic["']/.test(trimmedManifest)
+            : false; // Default HLS to false, will be updated later.
 
-    return { ...input, protocol, manifestString, finalUrl };
+    return { ...input, protocol, manifestString, finalUrl, isLive };
 }
+
+async function _fetchAndParseHlsPresentation(input, signal) {
+    const { manifestString, finalUrl, auth } = input;
+    const {
+        manifest: masterIR,
+        definedVariables,
+        baseUrl: masterBaseUrl,
+    } = await parseHlsManifest(manifestString, finalUrl);
+
+    if (!masterIR.isMaster) {
+        // If it's a media playlist, the URL is the only key we have.
+        const mediaPlaylists = new Map();
+        mediaPlaylists.set(finalUrl, {
+            manifest: masterIR,
+            rawManifest: manifestString,
+            lastFetched: new Date(),
+            updates: [],
+            activeUpdateId: null,
+        });
+        return {
+            masterIR,
+            mediaPlaylists,
+            serializedManifestObject: masterIR.serializedManifest,
+            finalUrl: finalUrl,
+            manifestString: manifestString,
+            definedVariables,
+        };
+    }
+
+    const allReps = masterIR.periods
+        .flatMap((p) => p.adaptationSets)
+        .flatMap((as) => as.representations);
+    
+    const uriToVariantIdMap = new Map(allReps.map(r => [r.__variantUri, r.id]));
+
+    const mediaPlaylistUris = [...uriToVariantIdMap.keys()].filter(Boolean);
+
+    const mediaPlaylistPromises = mediaPlaylistUris.map((uri) =>
+        fetchWithAuth(uri, auth, null, {}, null, signal)
+            .then((res) => {
+                if (!res.ok)
+                    throw new Error(`HTTP ${res.status} fetching ${uri}`);
+                return res.text();
+            })
+            .then((text) => ({ uri, text }))
+            .catch((err) => ({ uri, error: err }))
+    );
+    const mediaPlaylistResults = await Promise.all(mediaPlaylistPromises);
+
+    const mediaPlaylists = new Map();
+    let isStreamLive = false;
+
+    for (const result of mediaPlaylistResults) {
+        if ('text' in result && result.text) {
+            if (!result.text.includes('#EXT-X-ENDLIST')) {
+                isStreamLive = true;
+            }
+            try {
+                const { manifest: mediaIR } = await parseHlsManifest(
+                    result.text,
+                    result.uri,
+                    definedVariables
+                );
+                const variantId = uriToVariantIdMap.get(result.uri);
+                if (variantId) {
+                    mediaPlaylists.set(variantId, {
+                        manifest: mediaIR,
+                        rawManifest: result.text,
+                        lastFetched: new Date(),
+                        updates: [],
+                        activeUpdateId: null,
+                    });
+                }
+            } catch (e) {
+                appLog(
+                    'analysisHandler',
+                    'warn',
+                    `Failed to parse media playlist ${result.uri}`,
+                    e
+                );
+            }
+        }
+    }
+
+    if (isStreamLive) {
+        masterIR.type = 'dynamic';
+    }
+
+    return {
+        masterIR,
+        mediaPlaylists,
+        serializedManifestObject: masterIR.serializedManifest,
+        finalUrl: finalUrl,
+        manifestString: manifestString,
+        definedVariables,
+    };
+}
+
 
 async function buildStreamObject(
     input,
@@ -82,7 +186,8 @@ async function buildStreamObject(
     serializedManifestObject,
     finalBaseUrl,
     analysisResults,
-    fetchAndParseSegment
+    fetchAndParseSegment,
+    signal
 ) {
     const {
         featureAnalysisResults,
@@ -99,7 +204,8 @@ async function buildStreamObject(
             (input.finalUrl
                 ? new URL(input.finalUrl).hostname
                 : input.file.name),
-        originalUrl: input.finalUrl,
+        originalUrl: input.url,
+        resolvedUrl: input.finalUrl !== input.url ? input.finalUrl : null,
         baseUrl: finalBaseUrl,
         protocol: input.protocol,
         isPolling: manifestIR.type === 'dynamic',
@@ -110,7 +216,7 @@ async function buildStreamObject(
         steeringInfo: steeringTag,
         manifestUpdates: [],
         activeManifestUpdateId: null,
-        mediaPlaylists: new Map(),
+        mediaPlaylists: analysisResults.mediaPlaylists || new Map(),
         activeMediaPlaylistUrl: null,
         featureAnalysis: {
             results: featureAnalysisResults,
@@ -158,7 +264,9 @@ async function buildStreamObject(
                                 firstMediaSegment.resolvedUrl,
                                 'isobff', // Assume isobff for inband events for now
                                 firstMediaSegment.range,
-                                'video'
+                                input.auth,
+                                { streamId: input.id, resourceType: 'video' },
+                                signal
                             )
                                 .then((parsedSegment) => ({
                                     ...parsedSegment,
@@ -241,6 +349,8 @@ async function buildStreamObject(
                 manifest: manifestIR,
                 rawManifest: streamObject.rawManifest,
                 lastFetched: new Date(),
+                updates: streamObject.manifestUpdates,
+                activeUpdateId: streamObject.manifestUpdates[0]?.id || null,
             });
 
             const allAdaptationSets = manifestIR.periods.flatMap(
@@ -248,15 +358,21 @@ async function buildStreamObject(
             );
             for (const as of allAdaptationSets) {
                 for (const rep of as.representations) {
+                    const variantId = rep.id; // Use the stable ID as the key
                     const uri =
                         rep.__variantUri ||
-                        rep.serializedManifest?.resolvedUri ||
-                        rep.id;
-                    if (uri && !streamObject.hlsVariantState.has(uri)) {
-                        streamObject.hlsVariantState.set(uri, {
-                            segments: [],
-                            currentSegmentUrls: new Set(),
-                            newlyAddedSegmentUrls: new Set(),
+                        rep.serializedManifest.resolvedUri;
+                    if (
+                        variantId &&
+                        !streamObject.hlsVariantState.has(variantId)
+                    ) {
+                        const mediaPlaylistData = analysisResults.mediaPlaylists.get(variantId);
+                        streamObject.hlsVariantState.set(variantId, {
+                            uri: uri, // Store the current URI
+                            historicalUris: [uri], // Start historical tracking
+                            segments: mediaPlaylistData?.manifest.segments || [],
+                            currentSegmentUrls: new Set((mediaPlaylistData?.manifest.segments || []).map(s => s.uniqueId)),
+                            newlyAddedSegmentUrls: new Set((mediaPlaylistData?.manifest.segments || []).map(s => s.uniqueId)),
                             isLoading: false,
                             isPolling: false,
                             isExpanded: false,
@@ -267,10 +383,14 @@ async function buildStreamObject(
                 }
             }
         } else {
+            // Media playlist directly
+            const variantId = streamObject.originalUrl;
             const allSegmentUrls = (manifestIR.segments || []).map(
                 (s) => s.uniqueId
             );
-            streamObject.hlsVariantState.set(streamObject.originalUrl, {
+            streamObject.hlsVariantState.set(variantId, {
+                uri: variantId, // URI is the ID here
+                historicalUris: [variantId],
                 segments: manifestIR.segments || [],
                 currentSegmentUrls: new Set(allSegmentUrls),
                 newlyAddedSegmentUrls: new Set(allSegmentUrls),
@@ -313,29 +433,26 @@ async function buildStreamObject(
         const attachToRepState = (currentRepStateMap) => {
             const newRepStateMap = new Map(currentRepStateMap);
             for (const [key, repState] of newRepStateMap.entries()) {
-                let wasModified = false;
+                if (!repState.segments) continue;
+                let repModified = false;
                 const newSegments = repState.segments.map((segment) => {
                     const eventsForSeg = eventsBySegmentId[segment.uniqueId];
                     if (eventsForSeg) {
-                        wasModified = true;
-                        // --- ENRICHMENT: Also attach mediaInfo if available from parsed segment ---
-                        const parsedSegment = parsedSegments.find(s => s?.sourceSegmentId === segment.uniqueId);
+                        repModified = true;
+                        const newFlags = new Set(segment.flags || []);
+                        if(eventsForSeg.some(e => e.scte35)) {
+                            newFlags.add('scte35');
+                        }
                         return {
                             ...segment,
-                            inbandEvents: [
-                                ...(segment.inbandEvents || []),
-                                ...eventsForSeg,
-                            ],
-                            mediaInfo: parsedSegment?.parsedData?.mediaInfo || segment.mediaInfo,
+                            inbandEvents: [...(segment.inbandEvents || []), ...eventsForSeg],
+                            flags: Array.from(newFlags),
                         };
                     }
                     return segment;
                 });
-                if (wasModified) {
-                    newRepStateMap.set(key, {
-                        ...repState,
-                        segments: newSegments,
-                    });
+                if (repModified) {
+                    newRepStateMap.set(key, { ...repState, segments: newSegments });
                 }
             }
             return newRepStateMap;
@@ -357,17 +474,25 @@ async function buildStreamObject(
             lineSeparator: '\n',
         });
     }
-    const { diffHtml, changes } = diffManifest(
-        '',
-        formattedInitial,
-        streamObject.protocol
-    );
+
+    // --- ARCHITECTURAL FIX: Create a baseline diff model, not a diff ---
+    const initialDiffModel = formattedInitial
+        .trimEnd()
+        .split('\n')
+        .map(line => ({
+            type: 'common',
+            indentation: line.match(/^(\s*)/)?.[1] || '',
+            content: line.trim(),
+        }));
+
+    const changes = { additions: 0, removals: 0, modifications: 0 };
+    // --- END FIX ---
 
     streamObject.manifestUpdates.push({
         id: `${streamObject.id}-${Date.now()}`,
         sequenceNumber: 1,
         timestamp: new Date().toLocaleTimeString(),
-        diffHtml,
+        diffModel: initialDiffModel,
         rawManifest: streamObject.rawManifest,
         complianceResults,
         hasNewIssues: false,
@@ -427,7 +552,7 @@ function serializeStreamForTransport(streamObject) {
     return serialized;
 }
 
-export async function handleStartAnalysis({ inputs }, signal) {
+export async function handleStartAnalysis({ inputs, postProgress }, signal) {
     const analysisStartTime = performance.now();
 
     try {
@@ -440,94 +565,35 @@ export async function handleStartAnalysis({ inputs }, signal) {
             return workerInput;
         });
         const workerInputs = await Promise.all(workerInputsPromises);
+        const totalCount = workerInputs.length;
+        
+        const processingResults = [];
+        for (let i = 0; i < workerInputs.length; i++) {
+            const input = workerInputs[i];
+            const streamIdentifier = input.name || input.url || `Input #${i + 1}`;
+            postProgress(`Analyzing ${i + 1} of ${totalCount}: ${streamIdentifier}`);
 
-        const processingPromises = workerInputs.map(async (input) => {
             const preProcessed = await preProcessInput(input, signal);
 
-            const getBaseUrlDirectory = (url) => {
-                try {
-                    const parsedUrl = new URL(url);
-                    parsedUrl.pathname = parsedUrl.pathname.substring(
-                        0,
-                        parsedUrl.pathname.lastIndexOf('/') + 1
-                    );
-                    return parsedUrl.href;
-                } catch (_e) {
-                    return url.substring(0, url.lastIndexOf('/') + 1);
-                }
-            };
-            const baseUrlDirectory = getBaseUrlDirectory(preProcessed.finalUrl);
-
-            let manifestIR, serializedManifestObject, finalBaseUrl;
+            let manifestIR, serializedManifestObject, finalBaseUrl, mediaPlaylists;
             let segmentsToCache = [];
-            if (preProcessed.protocol === 'hls') {
-                const { manifest, definedVariables, baseUrl } =
-                    await parseHlsManifest(
-                        preProcessed.manifestString,
-                        baseUrlDirectory
-                    );
-                manifestIR = manifest;
-                serializedManifestObject = manifest.serializedManifest;
-                manifestIR.hlsDefinedVariables = definedVariables;
-                finalBaseUrl = baseUrl;
-            } else {
-                const { manifest, serializedManifest, baseUrl } =
-                    await parseDashManifest(
-                        preProcessed.manifestString,
-                        baseUrlDirectory
-                    );
-                manifestIR = manifest;
-                serializedManifestObject = serializedManifest;
-                finalBaseUrl = baseUrl;
-            }
-
-            if (manifestIR.adAvails && manifestIR.adAvails.length > 0) {
-                const enrichedAdAvails = await resolveAdAvailsInWorker(
-                    manifestIR.adAvails
-                );
-                manifestIR.adAvails = enrichedAdAvails;
-            }
-
-            const manifestObjectForChecks =
-                preProcessed.protocol === 'hls'
-                    ? manifestIR
-                    : serializedManifestObject;
-            const complianceResults = runChecks(
-                manifestObjectForChecks,
-                preProcessed.protocol
-            );
-            const rawInitialAnalysis = generateFeatureAnalysis(
-                manifestIR,
-                preProcessed.protocol,
-                serializedManifestObject
-            );
-            const featureAnalysisResults = new Map(
-                Object.entries(rawInitialAnalysis)
-            );
-            const coverageReport = input.isDebug
-                ? [
-                      ...(preProcessed.protocol === 'dash'
-                          ? analyzeDashCoverage(serializedManifestObject)
-                          : []),
-                      ...analyzeParserDrift(manifestIR),
-                  ]
-                : [];
-            const semanticData = new Map();
 
             const fetchAndParseSegment = async (
                 url,
                 formatHint,
                 range = null,
-                /** @type {import('@/types').ResourceType} */ resourceType = 'video'
+                auth = null,
+                loggingContext = {},
+                abortSignal = null
             ) => {
                 const response = await fetchWithAuth(
                     url,
-                    input.auth,
+                    auth,
                     range,
                     {},
                     null,
-                    signal,
-                    { streamId: input.id, resourceType }
+                    abortSignal,
+                    loggingContext
                 );
                 if (!response.ok) {
                     throw new Error(
@@ -547,29 +613,35 @@ export async function handleStartAnalysis({ inputs }, signal) {
             const context = {
                 fetchAndParseSegment: fetchAndParseSegment,
                 manifestUrl: preProcessed.finalUrl,
-                fetchWithAuth: (url) =>
-                    fetchWithAuth(url, input.auth, null, {}, null, signal, {
-                        streamId: input.id,
-                        resourceType: 'manifest',
-                    }),
-                parseHlsManifest: (manifestString, baseUrl, parentVars) =>
-                    parseHlsManifest(
-                        manifestString,
-                        baseUrl,
-                        parentVars,
-                        context
-                    ),
+                isLive: preProcessed.isLive,
+                signal,
             };
 
             if (preProcessed.protocol === 'hls') {
+                const hlsResult = await _fetchAndParseHlsPresentation(preProcessed, signal);
+                manifestIR = hlsResult.masterIR;
+                serializedManifestObject = hlsResult.serializedManifestObject;
+                finalBaseUrl = hlsResult.finalUrl;
+                mediaPlaylists = hlsResult.mediaPlaylists;
+                preProcessed.isLive = manifestIR.type === 'dynamic';
+
                 const hlsSummaryResult = await generateHlsSummary(
                     manifestIR,
-                    context
+                    { ...context, mediaPlaylists }
                 );
                 manifestIR.summary = hlsSummaryResult.summary;
                 segmentsToCache =
                     hlsSummaryResult.opportunisticallyCachedSegments;
             } else {
+                const { manifest, serializedManifest, baseUrl } =
+                    await parseDashManifest(
+                        preProcessed.manifestString,
+                        preProcessed.finalUrl
+                    );
+                manifestIR = manifest;
+                serializedManifestObject = serializedManifest;
+                finalBaseUrl = baseUrl;
+
                 manifestIR.summary = await generateDashSummary(
                     manifestIR,
                     serializedManifestObject,
@@ -579,6 +651,40 @@ export async function handleStartAnalysis({ inputs }, signal) {
                     }
                 );
             }
+
+            if (manifestIR.adAvails && manifestIR.adAvails.length > 0) {
+                const enrichedAdAvails = await resolveAdAvailsInWorker(
+                    manifestIR.adAvails
+                );
+                manifestIR.adAvails = enrichedAdAvails;
+            }
+
+            const manifestObjectForChecks =
+                preProcessed.protocol === 'hls'
+                    ? manifestIR
+                    : serializedManifestObject;
+            const complianceResults = runChecks(
+                manifestObjectForChecks,
+                preProcessed.protocol,
+                { isLive: preProcessed.isLive }
+            );
+            const rawInitialAnalysis = generateFeatureAnalysis(
+                manifestIR,
+                preProcessed.protocol,
+                serializedManifestObject
+            );
+            const featureAnalysisResults = new Map(
+                Object.entries(rawInitialAnalysis)
+            );
+            const coverageReport = input.isDebug
+                ? [
+                      ...(preProcessed.protocol === 'dash'
+                          ? analyzeDashCoverage(serializedManifestObject)
+                          : []),
+                      ...analyzeParserDrift(manifestIR),
+                  ]
+                : [];
+            const semanticData = new Map();
 
             const steeringTag =
                 preProcessed.protocol === 'hls' && manifestIR.isMaster
@@ -603,6 +709,7 @@ export async function handleStartAnalysis({ inputs }, signal) {
                 steeringTag,
                 complianceResults,
                 coverageReport,
+                mediaPlaylists,
             };
 
             const streamObject = await buildStreamObject(
@@ -611,19 +718,18 @@ export async function handleStartAnalysis({ inputs }, signal) {
                 serializedManifestObject,
                 finalBaseUrl,
                 analysisResults,
-                fetchAndParseSegment
+                fetchAndParseSegment,
+                signal
             );
-
-            // Associate streamId with each cached segment
+            
             const segmentsWithId = segmentsToCache.map((segment) => ({
                 ...segment,
                 streamId: streamObject.id,
             }));
 
-            return { streamObject, segmentsToCache: segmentsWithId };
-        });
-
-        const processingResults = await Promise.all(processingPromises);
+            processingResults.push({ streamObject, segmentsToCache: segmentsWithId });
+        }
+        
         const streamObjects = processingResults.map((r) => r.streamObject);
         const allCachedSegments = processingResults.flatMap(
             (r) => r.segmentsToCache

@@ -48,21 +48,26 @@ export function createComparisonViewModel(streams) {
             'Min Buffer / Target Duration',
             'Minimum client buffer time (DASH) or max segment duration (HLS).',
             'DASH: 5.3.1.2 / HLS: 4.3.3.1',
-            streams.map((s) =>
-                s.manifest?.minBufferTime
-                    ? `${s.manifest.minBufferTime}s`
-                    : 'N/A'
-            )
+            streams.map((s) => {
+                const value =
+                    s.manifest?.minBufferTime ??
+                    s.manifest?.summary?.hls?.targetDuration;
+                return value ? `${value}s` : 'N/A';
+            })
         ),
         createRow(
             'Live Window (DVR)',
             'DVR window for live streams.',
             'DASH: 5.3.1.2',
-            streams.map((s) =>
-                s.manifest?.timeShiftBufferDepth
-                    ? `${s.manifest.timeShiftBufferDepth}s`
-                    : 'N/A'
-            )
+            streams.map((s) => {
+                if (s.manifest?.type !== 'dynamic') {
+                    return 'N/A';
+                }
+                const value =
+                    s.manifest?.timeShiftBufferDepth ??
+                    s.manifest?.summary?.hls?.dvrWindow;
+                return value ? `${value.toFixed(2)}s` : 'N/A';
+            })
         ),
         createRow(
             'Segment Format',
@@ -109,24 +114,19 @@ export function createComparisonViewModel(streams) {
             streams.map((s) => {
                 const tracks = s.manifest?.summary?.videoTracks;
                 if (!tracks || tracks.length === 0) return 'N/A';
-
+                
                 const bitrates = tracks
-                    .flatMap((track) => {
-                        const parts = track.bitrateRange
-                            .split('-')
-                            .map((p) => parseInt(p.replace(/[^0-9]/g, ''), 10));
-                        return parts;
-                    })
-                    .filter((b) => !isNaN(b));
+                    .map((track) => track.bandwidth)
+                    .filter((b) => typeof b === 'number' && !isNaN(b));
 
                 if (bitrates.length === 0) return 'N/A';
 
                 const min = Math.min(...bitrates);
                 const max = Math.max(...bitrates);
 
-                if (min === max) return formatBitrate(min * 1000);
-                return `${formatBitrate(min * 1000)} - ${formatBitrate(
-                    max * 1000
+                if (min === max) return formatBitrate(min);
+                return `${formatBitrate(min)} - ${formatBitrate(
+                    max
                 )}`;
             })
         ),
