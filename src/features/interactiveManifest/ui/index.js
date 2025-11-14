@@ -10,6 +10,7 @@ import { eventBus } from '@/application/event-bus';
 import { dashTooltipData } from './components/dash/tooltip-data.js';
 import { hlsTooltipData } from './components/hls/tooltip-data.js';
 import * as icons from '@/ui/icons';
+import { shallow } from 'zustand/vanilla/shallow';
 
 // Import sidebar component for its side-effects (registration)
 import './components/sidebar.js';
@@ -34,7 +35,6 @@ function handleInteraction(e) {
         target.closest('.interactive-dash-token, .interactive-hls-token')
     );
 
-    // --- ARCHITECTURAL FIX: DEBOUNCE HOVER EVENTS ---
     if (hoverDebounceTimeout) {
         clearTimeout(hoverDebounceTimeout);
     }
@@ -91,14 +91,60 @@ function renderInteractiveManifest() {
         interactiveManifestSelectedItem,
     } = useUiStore.getState();
 
+    let activeManifest;
+    let rawManifestStringForToggle;
+    let activeUpdate;
+    let playlistData;
+
+    // ARCHITECTURAL FIX: Make HLS playlist selection explicit.
+    if (
+        stream.protocol === 'hls' &&
+        stream.activeMediaPlaylistId &&
+        stream.activeMediaPlaylistId !== 'master'
+    ) {
+        const mediaPlaylist = stream.mediaPlaylists.get(
+            stream.activeMediaPlaylistId
+        );
+        if (!mediaPlaylist)
+            return html`<div class="text-yellow-400 p-4">Loading...</div>`;
+        
+        activeUpdate = (mediaPlaylist.updates || []).find(
+            (u) => u.id === mediaPlaylist.activeUpdateId
+        );
+
+        rawManifestStringForToggle =
+            activeUpdate?.rawManifest || mediaPlaylist.rawManifest;
+        activeManifest = activeUpdate
+            ? {
+                  ...mediaPlaylist.manifest,
+                  serializedManifest: activeUpdate.serializedManifest,
+              }
+            : mediaPlaylist.manifest;
+    } else {
+        // DASH Logic or HLS Master Playlist
+        activeUpdate = stream.manifestUpdates.find(
+            (u) => u.id === stream.activeManifestUpdateId
+        );
+        rawManifestStringForToggle =
+            activeUpdate?.rawManifest || stream.rawManifest;
+        activeManifest = activeUpdate
+            ? {
+                  ...stream.manifest,
+                  serializedManifest: activeUpdate.serializedManifest,
+              }
+            : stream.manifest;
+    }
+
+    if (!activeManifest) {
+        render(
+            html`<div class="text-yellow-400 p-4">Awaiting content...</div>`,
+            container
+        );
+        return;
+    }
+
     const handleCopyClick = () => {
-        let manifestToCopy = stream.rawManifest;
-        if (stream.protocol === 'hls' && stream.activeMediaPlaylistUrl) {
-            const mediaPlaylist = stream.mediaPlaylists.get(
-                stream.activeMediaPlaylistUrl
-            );
-            if (mediaPlaylist) manifestToCopy = mediaPlaylist.rawManifest;
-        }
+        let manifestToCopy = rawManifestStringForToggle;
         copyTextToClipboard(manifestToCopy, 'Manifest copied to clipboard!');
     };
 
@@ -177,10 +223,35 @@ export const interactiveManifestView = {
         if (uiUnsubscribe) uiUnsubscribe();
         if (analysisUnsubscribe) analysisUnsubscribe();
 
+        // --- ARCHITECTURAL FIX: Use correct vanilla Zustand subscribe pattern ---
+        const selector = (state) => {
+            const activeStream = state.streams.find(
+                (s) => s.id === state.activeStreamId
+            );
+            if (!activeStream) return null;
+
+            return {
+                streamId: activeStream.id,
+                activeManifestUpdateId: activeStream.activeManifestUpdateId,
+                activeMediaPlaylistId: activeStream.activeMediaPlaylistId,
+                activeMediaPlaylistUrl: activeStream.activeMediaPlaylistUrl,
+                mediaPlaylistData: activeStream.mediaPlaylists.get(
+                    activeStream.activeMediaPlaylistId || 'master'
+                ),
+            };
+        };
+
+        analysisUnsubscribe = useAnalysisStore.subscribe((newState, oldState) => {
+            const newSelection = selector(newState);
+            const oldSelection = selector(oldState);
+
+            if (!shallow(newSelection, oldSelection)) {
+                renderInteractiveManifest();
+            }
+        });
+        // --- END FIX ---
+
         uiUnsubscribe = useUiStore.subscribe(renderInteractiveManifest);
-        analysisUnsubscribe = useAnalysisStore.subscribe(
-            renderInteractiveManifest
-        );
 
         delegatedEventHandler = (e) => handleInteraction(e);
 

@@ -11,6 +11,62 @@ import * as icons from '@/ui/icons';
 import { formattedOptionsDropdownTemplate } from '@/features/playerSimulation/ui/components/formatted-options-dropdown.js';
 import { segmentPollingSelectorTemplate } from './segment-polling-selector.js';
 
+const POLLING_INTERVAL_OPTIONS_STREAM = [
+    { id: null, label: 'Auto' },
+    { id: 2, label: '2 seconds' },
+    { id: 5, label: '5 seconds' },
+    { id: 10, label: '10 seconds' },
+    { id: 30, label: '30 seconds' },
+    { id: 60, label: '60 seconds' },
+];
+
+const POLLING_INTERVAL_OPTIONS_GLOBAL = [
+    { id: null, label: 'Disabled' },
+    ...POLLING_INTERVAL_OPTIONS_STREAM.slice(1),
+];
+
+const pollingIntervalPanelTemplate = (stream, isGlobal = false) => {
+    const handleSelect = (option, event) => {
+        event.stopPropagation(); // Prevent the main dropdown from closing.
+        if (isGlobal) {
+            uiActions.setGlobalPollingIntervalOverride(option.id);
+        } else {
+            analysisActions.setStreamPollingIntervalOverride(stream.id, option.id);
+        }
+        // The formattedOptionsDropdownTemplate will call closeDropdown() itself.
+    };
+
+    const options = isGlobal ? POLLING_INTERVAL_OPTIONS_GLOBAL : POLLING_INTERVAL_OPTIONS_STREAM;
+    const optionsWithDescriptions = options.map((opt) => {
+        if (opt.id === null) {
+            if (isGlobal) {
+                return { ...opt, description: 'Each stream will use its own auto or individual setting.' };
+            }
+            let desc = 'Calculated from manifest.';
+            if (stream) {
+                const autoInterval = (
+                    stream.manifest.minimumUpdatePeriod ||
+                    stream.manifest.targetDuration ||
+                    2
+                ).toFixed(1);
+                desc = `Calculated from manifest: ~${autoInterval}s`;
+            }
+            return { ...opt, description: desc };
+        }
+        return { ...opt, description: `Poll every ${opt.label}.` };
+    });
+
+    const activeInterval = isGlobal
+        ? useUiStore.getState().globalPollingIntervalOverride
+        : stream.pollingIntervalOverride;
+
+    return formattedOptionsDropdownTemplate(
+        optionsWithDescriptions,
+        activeInterval,
+        handleSelect
+    );
+};
+
 const getFeatureList = () => {
     const dashFeatures = dashFeatureDefinitions.map((f) => ({
         ...f,
@@ -68,7 +124,7 @@ const INACTIVITY_TIMEOUT_OPTIONS = [
     },
 ];
 
-const individualPollingControls = (liveStreams) => {
+const individualPollingControls = (liveStreams, isGlobalOverrideActive) => {
     const handleToggle = (streamId, isCurrentlyPolling) => {
         analysisActions.setStreamPolling(streamId, !isCurrentlyPolling);
     };
@@ -78,26 +134,53 @@ const individualPollingControls = (liveStreams) => {
             ${liveStreams.map(
                 (stream) => html`
                     <div
-                        class="flex items-center justify-between p-2 bg-slate-900/50 rounded-md"
+                        class="flex items-center justify-between p-2 bg-slate-900/50 rounded-md gap-2"
                     >
-                        <span
-                            class="text-sm font-medium text-slate-300 truncate"
-                            title=${stream.name}
-                            >${stream.name}</span
-                        >
+                        <div class="flex items-center gap-3 min-w-0">
+                            <button
+                                @click=${() =>
+                                    handleToggle(stream.id, stream.isPolling)}
+                                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${stream.isPolling
+                                    ? 'bg-blue-600'
+                                    : 'bg-slate-600'}"
+                                title=${stream.isPolling ? 'Pause' : 'Resume'}
+                            >
+                                <span
+                                    class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${stream.isPolling
+                                        ? 'translate-x-6'
+                                        : 'translate-x-1'}"
+                                ></span>
+                            </button>
+                            <span
+                                class="text-sm font-medium text-slate-300 truncate"
+                                title=${stream.name}
+                                >${stream.name}</span
+                            >
+                        </div>
                         <button
-                            @click=${() =>
-                                handleToggle(stream.id, stream.isPolling)}
-                            class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${stream.isPolling
-                                ? 'bg-blue-600'
-                                : 'bg-slate-600'}"
-                            title=${stream.isPolling ? 'Pause' : 'Resume'}
+                            @click=${(e) => {
+                                toggleDropdown(
+                                    e.currentTarget,
+                                    () => pollingIntervalPanelTemplate(stream),
+                                    e
+                                );
+                            }}
+                            ?disabled=${isGlobalOverrideActive}
+                            class="text-xs font-semibold bg-slate-700 hover:bg-slate-600 text-slate-300 px-2 py-1 rounded-md flex items-center gap-1.5 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                            title=${isGlobalOverrideActive
+                                ? 'Disable Global Override to set per-stream intervals.'
+                                : 'Set polling interval for this stream'}
                         >
                             <span
-                                class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${stream.isPolling
-                                    ? 'translate-x-6'
-                                    : 'translate-x-1'}"
-                            ></span>
+                                >${stream.pollingIntervalOverride == null
+                                    ? `Auto (${(
+                                          stream.manifest.minimumUpdatePeriod ||
+                                          stream.manifest.targetDuration ||
+                                          2
+                                      ).toFixed(1)}s)`
+                                    : `${stream.pollingIntervalOverride}s`}</span
+                            >
+                            ${icons.settings}
                         </button>
                     </div>
                 `
@@ -136,10 +219,7 @@ const renderPollingStreamCard = (stream, targetStreamId, onSelect) => {
 
     return html`
         <div
-            @click=${() => {
-                onSelect(stream);
-                setTimeout(closeDropdown, 0);
-            }}
+            @click=${(e) => onSelect(stream, e)}
             class="${baseClasses} ${hoverClasses} ${isActive
                 ? activeClasses
                 : ''}"
@@ -197,7 +277,7 @@ const featureGridSelectionPanelTemplate = (
         return html`
             <button
                 type="button"
-                @click=${() => onSelect(feature)}
+                @click=${(e) => onSelect(feature, e)}
                 class="p-2 text-xs font-semibold rounded-md transition-colors text-left truncate ${isActive
                     ? 'bg-blue-600 text-white'
                     : 'bg-slate-700 hover:bg-slate-600 text-slate-300'}"
@@ -352,7 +432,8 @@ const conditionalPollingControls = (liveStreams) => {
                             streamSelectionPanelTemplate(
                                 liveStreams,
                                 targetStreamId,
-                                (stream) => {
+                                (stream, event) => {
+                                    event.stopPropagation();
                                     uiActions.setConditionalPollingTarget({
                                         targetStreamId: stream.id,
                                     });
@@ -371,11 +452,11 @@ const conditionalPollingControls = (liveStreams) => {
                             featureGridSelectionPanelTemplate(
                                 applicableFeatures,
                                 targetFeatureName,
-                                (feature) => {
+                                (feature, event) => {
+                                    event.stopPropagation();
                                     uiActions.setConditionalPollingTarget({
                                         targetFeatureName: feature.name,
                                     });
-                                    closeDropdown();
                                 }
                             ),
                         e
@@ -400,7 +481,8 @@ const conditionalPollingControls = (liveStreams) => {
 
 export const pollingDropdownPanelTemplate = () => {
     const { streams } = useAnalysisStore.getState();
-    const { inactivityTimeoutOverride } = useUiStore.getState();
+    const { inactivityTimeoutOverride, globalPollingIntervalOverride } =
+        useUiStore.getState();
     const liveStreams = streams.filter((s) => s.manifest?.type === 'dynamic');
     const isAnyPolling = liveStreams.some((s) => s.isPolling);
     const activeTimeout =
@@ -413,9 +495,11 @@ export const pollingDropdownPanelTemplate = () => {
         0
     );
 
+    const isGlobalOverrideActive = globalPollingIntervalOverride !== null;
+
     return html`
         <div
-            class="dropdown-panel bg-slate-800 border border-slate-700 rounded-lg shadow-xl w-80 p-3 space-y-4"
+            class="dropdown-panel bg-slate-800 border border-slate-700 rounded-lg shadow-xl w-96 p-3 space-y-4"
         >
             <div>
                 <button
@@ -427,7 +511,35 @@ export const pollingDropdownPanelTemplate = () => {
                     ${isAnyPolling ? 'Pause All' : 'Resume All'}
                 </button>
             </div>
-            ${individualPollingControls(liveStreams)}
+
+            <div class="border-t border-slate-700 pt-3">
+                <div
+                    class="font-semibold text-slate-300 text-sm mb-3 flex items-center justify-between gap-2"
+                >
+                    <h5 class="flex items-center gap-2">
+                        ${icons.timerReset} Individual Polling & Intervals
+                    </h5>
+                    <button
+                        @click=${(e) => {
+                            toggleDropdown(
+                                e.currentTarget,
+                                () => pollingIntervalPanelTemplate(null, true),
+                                e
+                            );
+                        }}
+                        class="text-xs font-semibold bg-slate-700 hover:bg-slate-600 text-slate-300 px-2 py-1 rounded-md flex items-center gap-1.5"
+                    >
+                        <span>${
+                            isGlobalOverrideActive
+                                ? `Global: ${globalPollingIntervalOverride}s`
+                                : `Global: Disabled`
+                        }</span>
+                        ${icons.settings}
+                    </button>
+                </div>
+                ${individualPollingControls(liveStreams, isGlobalOverrideActive)}
+            </div>
+
             <div class="border-t border-slate-700 pt-3">
                 <h5
                     class="font-semibold text-slate-300 text-sm mb-2 flex items-center gap-2 ${tooltipTriggerClasses}"
@@ -440,10 +552,7 @@ export const pollingDropdownPanelTemplate = () => {
                     (e) => {
                         toggleDropdown(
                             e.currentTarget,
-                            // --- ARCHITECTURAL FIX ---
-                            // Pass the function directly, do not close over liveStreams.
                             segmentPollingSelectorTemplate,
-                            // --- END FIX ---
                             e
                         );
                     },
@@ -464,7 +573,8 @@ export const pollingDropdownPanelTemplate = () => {
                             formattedOptionsDropdownTemplate(
                                 INACTIVITY_TIMEOUT_OPTIONS,
                                 inactivityTimeoutOverride,
-                                (option) => {
+                                (option, event) => {
+                                    event.stopPropagation();
                                     uiActions.setInactivityTimeoutOverride(
                                         option.id
                                     );

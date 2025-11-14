@@ -4,6 +4,7 @@ import { parseVTT } from '@/infrastructure/parsing/vtt/parser';
 import { appLog } from '@/shared/utils/debug';
 import { boxParsers } from '@/infrastructure/parsing/isobmff/index';
 import { fetchWithAuth } from './http.js';
+import { analyzeSemantics } from '@/features/compliance/domain/semantic-analyzer';
 
 // --- Color Generation and Assignment (Co-located with parsing) ---
 const COLOR_NAMES = [
@@ -548,4 +549,20 @@ export async function handleFetchKey({ uri, auth }, signal) {
         throw new Error(`HTTP error ${response.status} fetching key`);
     }
     return response.arrayBuffer();
+}
+
+/**
+ * Runs on-demand semantic analysis for a TS segment.
+ * @param {object} payload
+ * @param {object[]} payload.packets
+ * @param {object} payload.summary
+ * @returns {Promise<object[]>}
+ */
+export async function handleRunTsSemanticAnalysis({ packets, summary }) {
+    appLog(
+        'parsingService',
+        'info',
+        'Running on-demand TS semantic analysis.'
+    );
+    return analyzeSemantics({ packets, summary });
 }

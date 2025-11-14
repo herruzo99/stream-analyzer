@@ -48,14 +48,19 @@ export function copyDebugInfoToClipboard() {
                         stream.mediaPlaylists
                     ) {
                         for (const [
-                            url,
+                            id,
                             playlistData,
                         ] of stream.mediaPlaylists.entries()) {
                             // --- HLS Master Deduplication Logic ---
-                            if (stream.protocol === 'hls' && url === 'master') {
+                            if (stream.protocol === 'hls' && id === 'master') {
                                 continue;
                             }
-                            mediaPlaylistsRaw[url] = playlistData.rawManifest;
+                            // Make the key more descriptive for debugging
+                            const variantState = stream.hlsVariantState.get(id);
+                            const key = variantState
+                                ? `[${id}] ${variantState.uri}`
+                                : id;
+                            mediaPlaylistsRaw[key] = playlistData.rawManifest;
                         }
                     }
 
@@ -98,7 +103,9 @@ export function copyDebugInfoToClipboard() {
 
         const jsonString = JSON.stringify(
             debugData,
-            createSafeJsonReplacer({ distill: debugCopySelections.parsedSegments }),
+            createSafeJsonReplacer({
+                distill: debugCopySelections.parsedSegments,
+            }),
             2
         );
 

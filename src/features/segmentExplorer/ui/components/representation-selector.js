@@ -264,10 +264,6 @@ export const representationSelectorTemplate = (stream) => {
             (as) =>
                 as.representations.map((r) => ({
                     ...r,
-                    id:
-                        r.__variantUri ||
-                        r.serializedManifest.resolvedUri ||
-                        r.id,
                     contentType: as.contentType,
                     lang: as.lang,
                     roles: as.roles?.map((role) => role.value) || [],

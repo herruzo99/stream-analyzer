@@ -43,14 +43,14 @@ function classifyRequest(request) {
         // Check if it's a known segment
         const allSegments = [
             ...Array.from(stream.dashRepresentationState.values()).flatMap(
-                (s) => s.segments
+                (s) => s.segments || []
             ),
             ...Array.from(stream.hlsVariantState.values()).flatMap(
-                (s) => s.segments
+                (s) => s.segments || []
             ),
         ];
 
-        const matchedSegment = allSegments.find((s) => s.resolvedUrl === url);
+        const matchedSegment = allSegments.find((s2) => s2 && s2.resolvedUrl === url);
         if (matchedSegment) {
             let resourceType = 'video'; // Default
             if (matchedSegment.type === 'Init') {
@@ -95,6 +95,11 @@ export async function initializeGlobalRequestInterceptor() {
     const worker = setupWorker(...handlers);
 
     worker.events.on('response:bypass', async ({ response, request }) => {
+        // ARCHITECTURAL FIX: Ignore same-origin requests to avoid logging app assets.
+        if (new URL(request.url).origin === self.location.origin) {
+            return;
+        }
+
         const { urlAuthMap } = useAnalysisStore.getState();
         if (urlAuthMap.has(request.url)) {
             return;

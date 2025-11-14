@@ -1,91 +1,75 @@
 import { diffLines, diffWords } from 'diff';
-import { highlightDash, highlightHls } from '@/ui/shared/syntax-highlighter';
 
 /**
- * A sophisticated diffing engine that uses line-based comparison and then
- * word-based comparison to highlight specific changes within modified lines.
+ * A sophisticated diffing engine that returns a structured data model.
+ * It uses line-based comparison and then word-based comparison for modifications.
  * @param {string} oldManifest The original manifest string.
  * @param {string} newManifest The new manifest string.
- * @param {'dash' | 'hls' | 'unknown'} protocol The protocol of the manifest.
- * @returns {{diffHtml: string, changes: {additions: number, removals: number, modifications: number}}}
+ * @returns {{diffModel: import('@/types').DiffLine[], changes: {additions: number, removals: number, modifications: number}}}
  */
-export function diffManifest(oldManifest, newManifest, protocol) {
+export function diffManifest(oldManifest, newManifest) {
     const changes = { additions: 0, removals: 0, modifications: 0 };
+    /** @type {import('@/types').DiffLine[]} */
+    const diffModel = [];
     const lineDiffs = diffLines(oldManifest, newManifest);
-    let html = '';
-
-    const highlightFn = protocol === 'dash' ? highlightDash : highlightHls;
 
     for (let i = 0; i < lineDiffs.length; i++) {
         const part = lineDiffs[i];
         const nextPart = lineDiffs[i + 1];
 
-        // --- Modification Detection Logic (Word-level Diff) ---
-        if (part.removed && nextPart && nextPart.added) {
-            changes.modifications += 1;
+        // --- ROBUST MODIFICATION DETECTION ---
+        // Check for an 'added' block immediately following a 'removed' block
+        // of the same line count. This indicates a block-level modification.
+        if (part.removed && nextPart && nextPart.added && part.count === nextPart.count) {
+            changes.modifications += part.count;
 
-            const indentationMatch = part.value.match(/^(\s*)/);
-            const indentation = indentationMatch ? indentationMatch[1] : '';
+            const oldLines = part.value.trimEnd().split('\n');
+            const newLines = nextPart.value.trimEnd().split('\n');
 
-            // --- ARCHITECTURAL FIX: Highlight first, then diff ---
-            // 1. Apply syntax highlighting to the full original and new lines.
-            const oldLineHighlighted = highlightFn(part.value.trim());
-            const newLineHighlighted = highlightFn(nextPart.value.trim());
+            for (let j = 0; j < oldLines.length; j++) {
+                const oldLine = oldLines[j];
+                const newLine = newLines[j];
+                const indentation = oldLine.match(/^(\s*)/)?.[1] || '';
 
-            // 2. Perform a word-level diff on the resulting HTML strings.
-            const wordDiffs = diffWords(oldLineHighlighted, newLineHighlighted);
-            let lineHtml = '';
-            wordDiffs.forEach((wordPart) => {
-                if (wordPart.added) {
-                    lineHtml += `<ins class="bg-yellow-700/60 text-yellow-100 rounded-sm no-underline">${wordPart.value}</ins>`;
-                } else if (!wordPart.removed) {
-                    lineHtml += wordPart.value;
-                }
-            });
-            // --- END FIX ---
+                // Perform word-level diff on the raw text.
+                const wordDiffs = diffWords(oldLine.trim(), newLine.trim());
 
-            html += `<span>${indentation}${lineHtml}</span>\n`;
-            i++; // Skip the next part since we've processed it
+                /** @type {import('@/types').DiffWordPart[]} */
+                const parts = wordDiffs.map(wordPart => ({
+                    type: wordPart.added ? 'added' : wordPart.removed ? 'removed' : 'common',
+                    value: wordPart.value,
+                }));
+
+                diffModel.push({
+                    type: 'modified',
+                    indentation,
+                    content: '', // Not used for modified lines
+                    parts,
+                });
+            }
+
+            i++; // Skip the next 'added' part as we've processed it.
             continue;
         }
+        // --- END ROBUST MODIFICATION DETECTION ---
 
-        // --- Standard Addition/Removal/Common Logic ---
-        if (part.added) {
-            changes.additions += part.count;
-            const lines = part.value.trimEnd().split('\n');
-            lines.forEach((line) => {
-                const indentationMatch = line.match(/^(\s*)/);
-                const indentation = indentationMatch ? indentationMatch[1] : '';
-                const content = line.trim();
-                // Separate indentation from the styled content
-                html += `<span>${indentation}</span><span class="bg-green-900/40 text-green-200">${highlightFn(
-                    content
-                )}</span>\n`;
-            });
-        } else if (part.removed) {
-            changes.removals += part.count;
-            const lines = part.value.trimEnd().split('\n');
-            lines.forEach((line) => {
-                const indentationMatch = line.match(/^(\s*)/);
-                const indentation = indentationMatch ? indentationMatch[1] : '';
-                const content = line.trim();
-                // Separate indentation from the styled content
-                html += `<span>${indentation}</span><span class="bg-red-900/40 text-red-300 line-through">${highlightFn(
-                    content
-                )}</span>\n`;
-            });
-        } else {
-            // Unchanged lines
-            const lines = part.value.trimEnd().split('\n');
-            lines.forEach((line) => {
-                const indentationMatch = line.match(/^(\s*)/);
-                const indentation = indentationMatch ? indentationMatch[1] : '';
-                html += `<span>${indentation}${highlightFn(
-                    line.trim()
-                )}</span>\n`;
-            });
-        }
+        const lines = part.value.trimEnd().split('\n');
+        lines.forEach((line) => {
+            if (line.trim() === '') return;
+            const indentation = line.match(/^(\s*)/)?.[1] || '';
+            const content = line.trim();
+
+            if (part.added) {
+                changes.additions += 1;
+                diffModel.push({ type: 'added', indentation, content });
+            } else if (part.removed) {
+                changes.removals += 1;
+                diffModel.push({ type: 'removed', indentation, content });
+            } else {
+                diffModel.push({ type: 'common', indentation, content });
+            }
+        });
     }
 
-    return { diffHtml: html.trimEnd(), changes };
+    return { diffModel, changes };
 }

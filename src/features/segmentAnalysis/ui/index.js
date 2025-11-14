@@ -47,7 +47,7 @@ export function getSegmentAnalysisTemplate(
             contentTemplate = isobmffAnalysisTemplate(parsedData, isIFrame);
             break;
         case 'ts':
-            contentTemplate = tsAnalysisTemplate(parsedData);
+            contentTemplate = tsAnalysisTemplate(parsedData, uniqueId);
             break;
         case 'vtt':
             contentTemplate = vttAnalysisTemplate(parsedData.data);

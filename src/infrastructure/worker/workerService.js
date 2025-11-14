@@ -1,8 +1,6 @@
 import { appLog } from '@/shared/utils/debug';
 import { eventBus } from '@/application/event-bus';
 
-const TASK_TIMEOUT = 30000; // 30 seconds
-
 export class WorkerService {
     constructor() {
         this.worker = null;
@@ -55,8 +53,7 @@ export class WorkerService {
             return;
         }
 
-        const { resolve, reject, timeoutId } = this.pendingTasks.get(id);
-        clearTimeout(timeoutId);
+        const { resolve, reject } = this.pendingTasks.get(id);
 
         if (error) {
             // Reject with a generic Error, wrapping the worker's message.
@@ -75,8 +72,7 @@ export class WorkerService {
 
     cancelTask(id) {
         if (this.pendingTasks.has(id)) {
-            const { reject, timeoutId } = this.pendingTasks.get(id);
-            clearTimeout(timeoutId);
+            const { reject } = this.pendingTasks.get(id);
 
             // Notify worker to cancel the operation
             this.worker.postMessage({ id, type: 'cancel-task' });
@@ -107,13 +103,7 @@ export class WorkerService {
 
         const id = this.requestId++;
         const promise = new Promise((resolve, reject) => {
-            const timeoutId = setTimeout(() => {
-                if (this.pendingTasks.has(id)) {
-                    this.cancelTask(id);
-                }
-            }, TASK_TIMEOUT);
-
-            this.pendingTasks.set(id, { resolve, reject, timeoutId });
+            this.pendingTasks.set(id, { resolve, reject });
             this.worker.postMessage({ id, type, payload });
         });
 

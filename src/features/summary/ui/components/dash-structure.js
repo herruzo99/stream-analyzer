@@ -226,42 +226,57 @@ const preselectionsTemplate = (period) => {
     `;
 };
 
-const periodTemplate = (period, index) => html`
-    <details
-        class="bg-slate-900 rounded-lg border border-slate-700 details-animated"
-        open
-    >
-        <summary
-            class="font-bold text-lg p-3 cursor-pointer hover:bg-slate-700/50 text-slate-100"
+const periodTemplate = (period, index) => {
+    // --- ARCHITECTURAL FIX: START ---
+    // Filter adaptation sets by content type within the component, rather than relying on a pre-filtered data structure.
+    const videoAdaptationSets = period.adaptationSets.filter(
+        (as) => as.contentType === 'video'
+    );
+    const audioAdaptationSets = period.adaptationSets.filter(
+        (as) => as.contentType === 'audio'
+    );
+    const textAdaptationSets = period.adaptationSets.filter(
+        (as) => as.contentType === 'text' || as.contentType === 'application'
+    );
+    // --- ARCHITECTURAL FIX: END ---
+
+    return html`
+        <details
+            class="bg-slate-900 rounded-lg border border-slate-700 details-animated"
+            open
         >
-            Period: ${period.id || `(index ${index})`}
-            <span class="font-normal font-mono text-sm text-slate-400"
-                >(Start: ${period.start}s, Duration:
-                ${period.duration ? period.duration + 's' : 'N/A'})</span
+            <summary
+                class="font-bold text-lg p-3 cursor-pointer hover:bg-slate-700/50 text-slate-100"
             >
-        </summary>
-        <div class="p-4 border-t border-slate-700 space-y-4">
-            ${period.videoTracks.length > 0
-                ? period.videoTracks.map((as) =>
-                      adaptationSetTemplate(as, 'video')
-                  )
-                : html`<p class="text-xs text-slate-500">
-                      No video Adaptation Sets in this period.
-                  </p>`}
-            ${period.audioTracks.length > 0
-                ? period.audioTracks.map((as) =>
-                      adaptationSetTemplate(as, 'audio')
-                  )
-                : ''}
-            ${period.textTracks.length > 0
-                ? period.textTracks.map((as) =>
-                      adaptationSetTemplate(as, 'text')
-                  )
-                : ''}
-            ${subsetTemplate(period)} ${preselectionsTemplate(period)}
-        </div>
-    </details>
-`;
+                Period: ${period.id || `(index ${index})`}
+                <span class="font-normal font-mono text-sm text-slate-400"
+                    >(Start: ${period.start}s, Duration:
+                    ${period.duration ? period.duration + 's' : 'N/A'})</span
+                >
+            </summary>
+            <div class="p-4 border-t border-slate-700 space-y-4">
+                ${videoAdaptationSets.length > 0
+                    ? videoAdaptationSets.map((as) =>
+                          adaptationSetTemplate(as, 'video')
+                      )
+                    : html`<p class="text-xs text-slate-500">
+                          No video Adaptation Sets in this period.
+                      </p>`}
+                ${audioAdaptationSets.length > 0
+                    ? audioAdaptationSets.map((as) =>
+                          adaptationSetTemplate(as, 'audio')
+                      )
+                    : ''}
+                ${textAdaptationSets.length > 0
+                    ? textAdaptationSets.map((as) =>
+                          adaptationSetTemplate(as, 'text')
+                      )
+                    : ''}
+                ${subsetTemplate(period)} ${preselectionsTemplate(period)}
+            </div>
+        </details>
+    `;
+};
 
 export const dashStructureTemplate = (summary) => {
     return summary.content.periods.length > 0

@@ -516,6 +516,16 @@ export const hlsTooltipData = {
         category: 'Multivariant Playlist',
         isoRef: 'HLS 2nd Ed: 4.4.6.4',
     },
+    'EXT-X-SESSION-DATA@DATA-ID': {
+        text: 'A required, unique quoted-string that identifies the data value within the Playlist. Its format is typically a reverse-DNS string.',
+        category: 'Multivariant Playlist',
+        isoRef: 'HLS 2nd Ed: 4.4.6.4',
+    },
+    'EXT-X-SESSION-DATA@VALUE': {
+        text: 'A quoted-string containing the data value. It must be present if a URI is not.',
+        category: 'Multivariant Playlist',
+        isoRef: 'HLS 2nd Ed: 4.4.6.4',
+    },
     'EXT-X-SESSION-KEY': {
         text: 'Specifies an encryption key that applies to the entire session. This allows clients to preload keys from the Multivariant Playlist before fetching media playlists.',
         category: 'Encryption',

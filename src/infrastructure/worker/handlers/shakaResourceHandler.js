@@ -98,37 +98,45 @@ export async function handleShakaResourceFetch(
 
         const data = await response.arrayBuffer();
 
-        // --- Non-blocking segment caching (no longer dispatches events) ---
-        (async () => {
-            try {
-                const formatHint =
-                    resourceType === 'video' || resourceType === 'audio'
-                        ? 'isobff'
-                        : null;
-                const parsedData = await handleParseSegmentStructure({
-                    data: data.slice(0),
-                    url,
-                    formatHint,
-                    context: {},
-                });
+        // --- ARCHITECTURAL FIX: Only parse and cache actual media segments ---
+        const isMediaSegment = ['video', 'audio', 'text', 'init'].includes(
+            resourceType
+        );
 
-                self.postMessage({
-                    type: 'worker:shaka-segment-loaded',
-                    payload: {
-                        uniqueId: uniqueIdToUse,
-                        streamId,
-                        data: data.slice(0),
-                        parsedData,
-                        status: response.status,
-                    },
-                });
-            } catch (e) {
-                console.error(
-                    `[shakaResourceHandler] Background segment parse failed for ${url}:`,
-                    e
-                );
-            }
-        })();
+        if (isMediaSegment) {
+            // This now runs non-blockingly in the background.
+            (async () => {
+                try {
+                    const formatHint =
+                        resourceType === 'video' || resourceType === 'audio'
+                            ? 'isobmff'
+                            : null;
+                    const parsedData = await handleParseSegmentStructure({
+                        data: data.slice(0), // Use a slice to avoid transferring ownership
+                        url,
+                        formatHint,
+                        context: {},
+                    });
+
+                    self.postMessage({
+                        type: 'worker:shaka-segment-loaded',
+                        payload: {
+                            uniqueId: uniqueIdToUse,
+                            streamId,
+                            data: data.slice(0),
+                            parsedData,
+                            status: response.status,
+                        },
+                    });
+                } catch (e) {
+                    console.error(
+                        `[shakaResourceHandler] Background segment parse failed for ${url}:`,
+                        e
+                    );
+                }
+            })();
+        }
+        // --- END FIX ---
 
         const responseHeaders = {};
         Object.entries(response.headers).forEach(

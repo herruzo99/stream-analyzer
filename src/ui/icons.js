@@ -52,6 +52,7 @@ export const sync = icon('rotate-cw');
 export const table = icon('table-2');
 export const locateFixed = icon('locate-fixed');
 export const settings = icon('settings');
+export const timerReset = icon('timer-reset');
 
 // --- Misc UI Icons ---
 export const plusCircle = icon('plus-circle');

@@ -4,6 +4,22 @@ import { isCodecSupported } from '@/infrastructure/parsing/utils/codec-support';
 import { formatBitrate } from '@/ui/shared/format';
 import * as icons from '@/ui/icons';
 
+const isVideoCodec = (codecString) => {
+    if (!codecString) return false;
+    const lowerCodec = codecString.toLowerCase();
+    const videoPrefixes = [
+        'avc1', 'avc3', 'hvc1', 'hev1', 'mp4v', 'dvh1', 'dvhe', 'av01', 'vp09',
+    ];
+    return videoPrefixes.some((prefix) => lowerCodec.startsWith(prefix));
+};
+
+const isAudioCodec = (codecString) => {
+    if (!codecString) return false;
+    const lowerCodec = codecString.toLowerCase();
+    const audioPrefixes = ['mp4a', 'ac-3', 'ec-3', 'opus', 'flac'];
+    return audioPrefixes.some((prefix) => lowerCodec.startsWith(prefix));
+};
+
 const renderSourcedValue = (sourcedData) => {
     if (
         typeof sourcedData === 'object' &&
@@ -149,42 +165,12 @@ const trackCardTemplate = (track, type, gridColumns) => {
             >Trick Play</span
         >`;
     }
-
-    const isVideoCodec = (codec) => {
-        if (!codec?.value) return false;
-        const lowerCodec = codec.value.toLowerCase();
-        const videoPrefixes = ['avc1', 'avc3', 'hvc1', 'hev1', 'mp4v', 'dvh1', 'dvhe', 'av01', 'vp09'];
-        return videoPrefixes.some(prefix => lowerCodec.startsWith(prefix));
-    };
     
-    const isAudioCodec = (codec) => {
-        if (!codec?.value) return false;
-        const lowerCodec = codec.value.toLowerCase();
-        const audioPrefixes = ['mp4a', 'ac-3', 'ec-3', 'opus', 'flac'];
-        return audioPrefixes.some(prefix => lowerCodec.startsWith(prefix));
-    };
-
     let codecsToRender = [];
     if (type === 'text' || type === 'application') {
-        if (Array.isArray(track.codecsOrMimeTypes)) {
-            codecsToRender.push(...track.codecsOrMimeTypes);
-        } else if (track.mimeType) {
-            codecsToRender.push({
-                value: track.mimeType,
-                source: 'manifest',
-                supported: isCodecSupported(track.mimeType),
-            });
-        }
+        codecsToRender = track.codecsOrMimeTypes || [];
     } else {
-        if (Array.isArray(track.codecs)) {
-            codecsToRender.push(...track.codecs);
-        } else if (track.codecs && track.codecs.value) {
-            codecsToRender.push({
-                value: track.codecs.value,
-                source: track.codecs.source,
-                supported: isCodecSupported(track.codecs.value),
-            });
-        }
+        codecsToRender = track.codecs || [];
     }
 
     const formatFrameRate = (fr) => {
@@ -246,16 +232,18 @@ const trackCardTemplate = (track, type, gridColumns) => {
             <div
                 class="h-full p-2 border-r border-slate-700 font-mono text-slate-200 space-y-1"
             >
-                ${codecsToRender.filter(isVideoCodec).map(
-                    (c) => html`<div>${renderCodecInfo(c)}</div>`
-                )}
+                ${codecsToRender
+                    .filter((c) => isVideoCodec(c.value))
+                    .map((c) => html`<div>${renderCodecInfo(c)}</div>`)}
             </div>
             <div
                 class="h-full p-2 border-r border-slate-700 font-mono text-slate-200 space-y-1"
             >
-                ${track.muxedAudio?.codecs.map(
-                    (c) => html`<div>${renderCodecInfo(c)}</div>`
-                ) || html`<span class="text-slate-500">N/A</span>`}
+                ${track.muxedAudio?.codecs?.length > 0
+                    ? track.muxedAudio.codecs.map(
+                          (c) => html`<div>${renderCodecInfo(c)}</div>`
+                      )
+                    : html`<span class="text-slate-500">N/A</span>`}
             </div>
             <div class="h-full p-2 border-r border-slate-700 font-mono text-slate-200">
                 ${track.muxedAudio?.lang ||
@@ -276,6 +264,9 @@ const trackCardTemplate = (track, type, gridColumns) => {
             </div>
             <div class="h-full p-2 border-r border-slate-700 font-mono text-slate-200">
                 ${track.channels || 'N/A'}
+            </div>
+            <div class="h-full p-2 border-r border-slate-700 font-mono text-slate-200">
+                ${formatBitrate(track.bandwidth)}
             </div>
             <div
                 class="h-full p-2 border-r border-slate-700 font-mono text-slate-200 space-y-1"
@@ -320,10 +311,10 @@ export const trackTableTemplate = (tracks, type) => {
     const sortedTracks = [...tracks];
     if (type === 'video') {
         sortedTracks.sort((a, b) => {
-            const heightA = a.resolutions[0]?.value.split('x')[1] || 0;
-            const heightB = b.resolutions[0]?.value.split('x')[1] || 0;
+            const heightA = a.height?.value || 0;
+            const heightB = b.height?.value || 0;
             if (heightA !== heightB) {
-                return parseInt(heightB) - parseInt(heightA);
+                return heightB - heightA;
             }
             return (b.bandwidth || 0) - (a.bandwidth || 0);
         });

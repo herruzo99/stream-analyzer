@@ -2,15 +2,13 @@ import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
 import { useSegmentCacheStore } from '@/state/segmentCacheStore';
 import { eventBus } from '@/application/event-bus';
 import { appLog } from '@/shared/utils/debug';
-import { diffManifest } from '@/ui/shared/diff';
-import xmlFormatter from 'xml-formatter';
 import { useUiStore, uiActions } from '@/state/uiStore';
 import { generateFeatureAnalysis } from '@/features/featureAnalysis/domain/analyzer';
-import { AdAvail } from '@/features/advertising/domain/AdAvail.js';
-import { resolveAdAvailsInWorker } from '@/features/advertising/application/resolveAdAvailWorker';
 import { inferMediaInfoFromExtension } from '@/infrastructure/parsing/utils/media-types';
+import { runChecks } from '@/features/compliance/domain/engine';
+import { diffManifest } from '@/ui/shared/diff';
 
-const MAX_MANIFEST_UPDATES_HISTORY = 200;
+const MAX_MANIFEST_UPDATES_HISTORY = 1000;
 
 /**
  * After a live update, this function checks for any representations being
@@ -77,7 +75,7 @@ function queueNewSegmentsForPolledReps(stream) {
                 if (stream.protocol === 'dash') {
                     formatHint =
                         stream.manifest.segmentFormat === 'unknown'
-                            ? 'isobmff'
+                            ? 'isobff'
                             : stream.manifest.segmentFormat;
                 } else {
                     formatHint =
@@ -100,8 +98,7 @@ function queueNewSegmentsForPolledReps(stream) {
 }
 
 /**
- * The main handler for processing a live manifest update. This is now a simple
- * passthrough to the central state management, which handles all complex merging logic.
+ * The main handler for processing a live manifest update.
  * @param {object} updateData The event data from the worker.
  */
 async function processLiveUpdate(updateData) {
@@ -111,7 +108,7 @@ async function processLiveUpdate(updateData) {
         'Received "livestream:manifest-updated" event from worker.',
         updateData
     );
-    const { streamId } = updateData;
+    const { streamId, finalUrl } = updateData;
 
     const stream = useAnalysisStore
         .getState()
@@ -125,78 +122,218 @@ async function processLiveUpdate(updateData) {
         return;
     }
 
-    if (
-        stream.protocol === 'hls' &&
-        stream.manifest?.summary?.hls &&
-        updateData.newManifestObject?.summary?.hls
-    ) {
-        const oldSummary = stream.manifest.summary;
-        const newSummary = updateData.newManifestObject.summary;
-
-        if (
-            newSummary.general.duration === null &&
-            oldSummary.general.duration
-        ) {
-            newSummary.general.duration = oldSummary.general.duration;
-            newSummary.hls.dvrWindow = oldSummary.hls.dvrWindow;
-            newSummary.hls.targetDuration = oldSummary.hls.targetDuration;
-            newSummary.hls.mediaPlaylistDetails =
-                oldSummary.hls.mediaPlaylistDetails;
-            appLog(
-                'LiveUpdateProcessor',
-                'info',
-                'Hydrating new HLS summary with duration data from previous state.',
-                { duration: newSummary.general.duration }
-            );
-        }
-    }
-
-    const newUpdate = {
-        id: `${streamId}-${Date.now()}`,
-        sequenceNumber: (stream.manifestUpdates[0]?.sequenceNumber || 0) + 1,
-        timestamp: new Date().toLocaleTimeString(),
-        diffHtml: updateData.diffHtml,
-        rawManifest: updateData.newManifestString,
-        complianceResults: updateData.complianceResults,
-        hasNewIssues:
-            (updateData.complianceResults || []).filter(
-                (r) => r.status === 'fail' || r.status === 'warn'
-            ).length >
-            (stream.manifestUpdates[0]?.complianceResults || []).filter(
-                (r) => r.status === 'fail' || r.status === 'warn'
-            ).length,
-        serializedManifest: updateData.serializedManifest,
-        changes: updateData.changes,
-    };
-
-    const newDashRepresentationState = new Map(
-        updateData.dashRepresentationState || []
-    );
-    const newHlsVariantState = new Map(updateData.hlsVariantState || []);
-
     const updatePayload = {
-        manifest: updateData.newManifestObject,
-        rawManifest: updateData.newManifestString,
-        manifestUpdates: [newUpdate, ...stream.manifestUpdates].slice(
-            0,
-            MAX_MANIFEST_UPDATES_HISTORY
+        dashRepresentationState: new Map(
+            updateData.dashRepresentationState || []
         ),
+        hlsVariantState: new Map(updateData.hlsVariantState || []),
         adAvails: updateData.adAvails,
-        dashRepresentationState: newDashRepresentationState,
-        hlsVariantState: newHlsVariantState,
         inbandEventsToAdd: updateData.inbandEvents,
     };
 
+    if (stream.protocol === 'hls') {
+        const newMediaPlaylistsMap = new Map(stream.mediaPlaylists);
+
+        // 1. Process Master Playlist update
+        const oldMasterData = newMediaPlaylistsMap.get('master');
+        const newMasterRaw = updateData.newManifestString;
+        const isMasterUnchanged =
+            oldMasterData && oldMasterData.rawManifest.trim() === newMasterRaw.trim();
+
+        let newMasterUpdates = oldMasterData ? oldMasterData.updates : [];
+        let newMasterActiveUpdateId = oldMasterData
+            ? oldMasterData.activeUpdateId
+            : null;
+
+        if (isMasterUnchanged && newMasterUpdates[0]) {
+            const latestMasterUpdate = newMasterUpdates[0];
+            const newSeq =
+                (latestMasterUpdate.endSequenceNumber ||
+                    latestMasterUpdate.sequenceNumber) + 1;
+            const mergedUpdate = {
+                ...latestMasterUpdate,
+                endSequenceNumber: newSeq,
+                endTimestamp: new Date().toLocaleTimeString(),
+            };
+            newMasterUpdates = [mergedUpdate, ...newMasterUpdates.slice(1)];
+        } else {
+            const { diffModel, changes } = diffManifest(
+                oldMasterData?.rawManifest || '',
+                newMasterRaw
+            );
+            const newUpdate = {
+                id: `${streamId}-master-${Date.now()}`,
+                sequenceNumber:
+                    (newMasterUpdates[0]?.endSequenceNumber ||
+                        newMasterUpdates[0]?.sequenceNumber ||
+                        0) + 1,
+                timestamp: new Date().toLocaleTimeString(),
+                diffModel,
+                rawManifest: newMasterRaw,
+                complianceResults: updateData.complianceResults,
+                hasNewIssues: false,
+                serializedManifest: updateData.serializedManifest,
+                changes,
+            };
+            newMasterUpdates = [newUpdate, ...newMasterUpdates].slice(
+                0,
+                MAX_MANIFEST_UPDATES_HISTORY
+            );
+            newMasterActiveUpdateId = newUpdate.id;
+        }
+
+        newMediaPlaylistsMap.set('master', {
+            manifest: updateData.newManifestObject,
+            rawManifest: newMasterRaw,
+            lastFetched: new Date(),
+            updates: newMasterUpdates,
+            activeUpdateId: newMasterActiveUpdateId,
+        });
+
+        // Update top-level stream properties with latest master info
+        updatePayload.manifest = updateData.newManifestObject;
+        updatePayload.rawManifest = newMasterRaw;
+
+        // 2. Process Media Playlist updates
+        if (updateData.newMediaPlaylists) {
+            const incomingMediaPlaylists = new Map(updateData.newMediaPlaylists);
+            for (const [
+                variantId,
+                newPlaylistData,
+            ] of incomingMediaPlaylists.entries()) {
+                const oldPlaylistData = stream.mediaPlaylists.get(variantId);
+                if (!oldPlaylistData) continue;
+
+                const oldRaw = oldPlaylistData.rawManifest || '';
+                const newRaw = newPlaylistData.rawManifest || '';
+                const isMediaUnchanged = oldRaw.trim() === newRaw.trim();
+                const oldUpdates = oldPlaylistData.updates || [];
+                let latestMediaUpdate = oldUpdates[0];
+                let newMediaUpdates = oldUpdates;
+                let newActiveUpdateId = oldPlaylistData.activeUpdateId;
+
+                if (isMediaUnchanged && latestMediaUpdate) {
+                    const newSeq =
+                        (latestMediaUpdate.endSequenceNumber ||
+                            latestMediaUpdate.sequenceNumber) + 1;
+                    const mergedUpdate = {
+                        ...latestMediaUpdate,
+                        endSequenceNumber: newSeq,
+                        endTimestamp: new Date().toLocaleTimeString(),
+                    };
+                    newMediaUpdates = [mergedUpdate, ...oldUpdates.slice(1)];
+                } else if (!isMediaUnchanged) {
+                    const { diffModel, changes } = diffManifest(oldRaw, newRaw);
+                    const complianceResults = runChecks(
+                        newPlaylistData.manifest,
+                        'hls'
+                    );
+                    const newUpdate = {
+                        id: `${streamId}-${variantId}-${Date.now()}`,
+                        sequenceNumber:
+                            (latestMediaUpdate?.endSequenceNumber ||
+                                latestMediaUpdate?.sequenceNumber ||
+                                0) + 1,
+                        timestamp: new Date().toLocaleTimeString(),
+                        diffModel,
+                        rawManifest: newRaw,
+                        complianceResults,
+                        hasNewIssues: false,
+                        serializedManifest:
+                            newPlaylistData.manifest.serializedManifest,
+                        changes,
+                    };
+                    newMediaUpdates = [
+                        newUpdate,
+                        ...newMediaUpdates,
+                    ].slice(0, MAX_MANIFEST_UPDATES_HISTORY);
+                    newActiveUpdateId = newUpdate.id;
+                }
+                newMediaPlaylistsMap.set(variantId, {
+                    ...newPlaylistData,
+                    updates: newMediaUpdates,
+                    activeUpdateId: newActiveUpdateId,
+                });
+            }
+        }
+        updatePayload.mediaPlaylists = newMediaPlaylistsMap;
+    } else {
+        // DASH logic
+        const latestUpdate = stream.manifestUpdates[0];
+        const isUnchanged =
+            latestUpdate &&
+            latestUpdate.rawManifest.trim() ===
+                updateData.newManifestString.trim();
+
+        if (isUnchanged) {
+            const newSequenceNumber =
+                (latestUpdate.endSequenceNumber ||
+                    latestUpdate.sequenceNumber) + 1;
+            updatePayload.manifestUpdates = [
+                {
+                    ...latestUpdate,
+                    endSequenceNumber: newSequenceNumber,
+                    endTimestamp: new Date().toLocaleTimeString(),
+                },
+                ...stream.manifestUpdates.slice(1),
+            ];
+        } else {
+            const { diffModel, changes } = diffManifest(
+                stream.rawManifest,
+                updateData.newManifestString
+            );
+            const newUpdate = {
+                id: `${streamId}-${Date.now()}`,
+                sequenceNumber:
+                    (latestUpdate?.endSequenceNumber ||
+                        latestUpdate?.sequenceNumber ||
+                        0) + 1,
+                timestamp: new Date().toLocaleTimeString(),
+                diffModel,
+                rawManifest: updateData.newManifestString,
+                complianceResults: updateData.complianceResults,
+                hasNewIssues:
+                    (updateData.complianceResults || []).filter(
+                        (r) => r.status === 'fail' || r.status === 'warn'
+                    ).length >
+                    (stream.manifestUpdates[0]?.complianceResults || []).filter(
+                        (r) => r.status === 'fail' || r.status === 'warn'
+                    ).length,
+                serializedManifest: updateData.serializedManifest,
+                changes,
+            };
+            Object.assign(updatePayload, {
+                manifest: updateData.newManifestObject,
+                rawManifest: updateData.newManifestString,
+                manifestUpdates: [newUpdate, ...stream.manifestUpdates].slice(
+                    0,
+                    MAX_MANIFEST_UPDATES_HISTORY
+                ),
+            });
+        }
+    }
+
+    if (
+        finalUrl &&
+        finalUrl !== stream.resolvedUrl &&
+        finalUrl !== stream.originalUrl
+    ) {
+        updatePayload.resolvedUrl = finalUrl;
+        appLog(
+            'LiveUpdateProcessor',
+            'info',
+            `Stream ${streamId} manifest redirected during update. New resolvedUrl: ${finalUrl}`
+        );
+    }
+
     analysisActions.updateStream(streamId, updatePayload);
 
-    // --- ARCHITECTURAL FIX: Trigger segment fetches AFTER state is updated ---
     const updatedStream = useAnalysisStore
         .getState()
         .streams.find((s) => s.id === streamId);
     if (updatedStream) {
         queueNewSegmentsForPolledReps(updatedStream);
     }
-    // --- END FIX ---
 
     const { conditionalPolling } = useUiStore.getState();
     if (
@@ -212,7 +349,6 @@ async function processLiveUpdate(updateData) {
                 )
             )
         );
-
         const targetFeature = featureAnalysisResults.get(
             conditionalPolling.featureName
         );
@@ -234,29 +370,6 @@ async function processLiveUpdate(updateData) {
                 'info',
                 `Conditional poll target "${conditionalPolling.featureName}" found. Stopping poll for stream ${streamId}.`
             );
-        }
-    }
-
-    const streamAfterPollingLogic = useAnalysisStore
-        .getState()
-        .streams.find((s) => s.id === streamId);
-
-    if (
-        streamAfterPollingLogic &&
-        streamAfterPollingLogic.protocol === 'hls' &&
-        streamAfterPollingLogic.manifest?.isMaster
-    ) {
-        appLog(
-            'LiveUpdateProcessor',
-            'info',
-            'HLS Master playlist updated. Triggering media playlist refreshes.'
-        );
-        for (const variantUri of streamAfterPollingLogic.hlsVariantState.keys()) {
-            eventBus.dispatch('hls:media-playlist-fetch-request', {
-                streamId: streamAfterPollingLogic.id,
-                variantUri,
-                isBackground: true,
-            });
         }
     }
 }

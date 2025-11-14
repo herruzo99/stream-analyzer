@@ -292,6 +292,8 @@ const irSchema = {
         'serializedManifest',
         'contentProtection',
         '__variantUri',
+        'muxedAudio', // <-- ARCHITECTURAL FIX
+        'lang', // <-- ARCHITECTURAL FIX
     ],
     AdaptationSet: [
         'id',

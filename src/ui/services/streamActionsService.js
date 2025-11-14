@@ -62,19 +62,22 @@ export function reloadStream(stream) {
         return;
     }
 
-    const urlToReload = stream.activeMediaPlaylistUrl || stream.originalUrl;
-
     eventBus.dispatch('ui:show-status', {
         message: `Reloading manifest for ${stream.name}...`,
         type: 'info',
         duration: 2000,
     });
 
-    if (stream.protocol === 'hls' && stream.activeMediaPlaylistUrl) {
-        eventBus.dispatch('hls:media-playlist-reload', {
-            streamId: stream.id,
-            url: urlToReload,
-        });
+    if (stream.protocol === 'hls' && stream.activeMediaPlaylistId && stream.activeMediaPlaylistId !== 'master') {
+        const variantState = stream.hlsVariantState.get(stream.activeMediaPlaylistId);
+        if (variantState) {
+             eventBus.dispatch('hls:media-playlist-fetch-request', {
+                streamId: stream.id,
+                variantId: stream.activeMediaPlaylistId,
+                variantUri: variantState.uri,
+                isBackground: false,
+            });
+        }
     } else {
         // This handles DASH and the HLS Master Playlist case
         eventBus.dispatch('manifest:force-reload', { streamId: stream.id });

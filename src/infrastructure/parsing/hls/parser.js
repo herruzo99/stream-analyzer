@@ -174,20 +174,7 @@ export async function parseManifest(
         applyVariableSubstitution(linesForParsing, baseUrl, parentVariables);
 
     const isMaster = lines.some((line) => line.startsWith('#EXT-X-STREAM-INF'));
-
-    const playlistTypeTag = lines.find((line) =>
-        line.startsWith('#EXT-X-PLAYLIST-TYPE')
-    );
-    const hasEndlist = lines.some((line) => line.startsWith('#EXT-X-ENDLIST'));
-    let isLive;
-
-    if (playlistTypeTag && playlistTypeTag.includes('EVENT')) {
-        isLive = true;
-    } else if (isMaster) {
-        isLive = false;
-    } else {
-        isLive = !hasEndlist;
-    }
+    const isLive = context?.isLive ?? false;
 
     const parsed = {
         isMaster: isMaster,
@@ -202,7 +189,7 @@ export async function parseManifest(
         isLive: isLive,
         preloadHints: [],
         renditionReports: [],
-        segments: [], // Deprecated, use segmentGroups
+        segments: [],
     };
 
     /** @type {HlsSegment | null} */
@@ -260,19 +247,25 @@ export async function parseManifest(
                     const nextLine = lines[j].trim();
                     if (nextLine && !nextLine.startsWith('#')) {
                         uri = nextLine;
-                        i = j; // Advance the main loop counter
+                        i = j;
                         break;
                     }
                 }
                 if (uri) {
+                    const stableId =
+                        attributes['STABLE-VARIANT-ID'] ||
+                        attributes['NAME'] ||
+                        `variant-${parsed.variants.length}`;
+
                     parsed.variants.push({
                         attributes,
                         uri,
                         resolvedUri: new URL(uri, baseUrl).href,
-                        lineNumber: i, // The line number of the URI
+                        lineNumber: i,
+                        stableId,
                     });
                 }
-                continue; // Skip adding to generic tags
+                continue;
             }
 
             if (tagName === 'EXT-X-I-FRAME-STREAM-INF') {
@@ -280,7 +273,7 @@ export async function parseManifest(
                     value: parseAttributeList(String(tagValue)),
                     lineNumber: i + 1,
                 });
-                continue; // Skip adding to generic tags
+                continue;
             }
 
             switch (tagName) {
@@ -310,7 +303,7 @@ export async function parseManifest(
                         uniqueId: '',
                         resolvedUrl: '',
                         time: cumulativeDuration,
-                        timescale: 1, // Represents seconds
+                        timescale: 1,
                         duration: parseFloat(durationStr),
                         title: title || '',
                         tags: [],
@@ -336,6 +329,10 @@ export async function parseManifest(
                 case 'EXT-X-MEDIA':
                     parsed.media.push({
                         value: parseAttributeList(String(tagValue)),
+                        resolvedUri: new URL(
+                            String(parseAttributeList(String(tagValue)).URI),
+                            baseUrl
+                        ).href,
                         lineNumber: i + 1,
                     });
                     break;
@@ -458,11 +455,9 @@ export async function parseManifest(
                     break;
                 case 'EXT-X-PLAYLIST-TYPE':
                     parsed.playlistType = String(tagValue);
-                    if (String(tagValue) === 'VOD') parsed.isLive = false;
-                    else if (String(tagValue) === 'EVENT') parsed.isLive = true;
                     break;
                 case 'EXT-X-ENDLIST':
-                    parsed.isLive = false;
+                    // This tag's presence is used in the initial liveness check.
                     break;
                 case 'EXT-X-VERSION':
                     parsed.version = parseInt(String(tagValue), 10);
@@ -545,7 +540,6 @@ export async function parseManifest(
         cumulativeDuration += currentSegment.duration;
     }
 
-    // Flatten segmentGroups into segments for the adapter
     parsed.segments = parsed.segmentGroups.flat();
 
     const manifest = await adaptHlsToIr(parsed, context);

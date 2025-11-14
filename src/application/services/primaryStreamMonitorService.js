@@ -4,6 +4,7 @@ import { workerService } from '@/infrastructure/worker/workerService';
 import { appLog } from '@/shared/utils/debug';
 import { playerService } from '@/features/playerSimulation/application/playerService';
 import { useUiStore } from '@/state/uiStore';
+import { useMultiPlayerStore } from '@/state/multiPlayerStore';
 
 const pollers = new Map();
 const oneTimePollers = new Map();
@@ -14,7 +15,7 @@ async function monitorStream(streamId) {
     const stream = useAnalysisStore
         .getState()
         .streams.find((s) => s.id === streamId);
-    if (!stream || !stream.originalUrl) {
+    if (!stream || (!stream.originalUrl && !stream.resolvedUrl)) {
         stopMonitoring(streamId);
         return;
     }
@@ -25,18 +26,21 @@ async function monitorStream(streamId) {
             ? latestUpdate.rawManifest
             : stream.rawManifest;
 
+        const urlToPoll = stream.resolvedUrl || stream.originalUrl;
+
         appLog(
             'PrimaryMonitor',
             'info',
-            `Polling stream ${streamId}. Using manifest from timestamp ${latestUpdate?.timestamp} for comparison.`
+            `Polling stream ${streamId} at ${urlToPoll}. Using manifest from timestamp ${latestUpdate?.timestamp} for comparison.`
         );
 
         // --- UNIFICATION: Use the same worker task as the Shaka plugin ---
         const workerTask = 'shaka-fetch-manifest';
         const payload = {
             streamId: stream.id,
-            url: stream.originalUrl,
+            url: urlToPoll,
             auth: stream.auth,
+            isLive: true, // <-- ARCHITECTURAL FIX: Explicitly flag as a live poll.
             oldRawManifest: oldRawManifestForDiff,
             protocol: stream.protocol,
             baseUrl: stream.baseUrl,
@@ -68,6 +72,17 @@ async function monitorStream(streamId) {
 }
 
 function calculatePollInterval(stream) {
+    const { globalPollingIntervalOverride } = useUiStore.getState();
+
+    // Precedence: Per-stream -> Global -> Auto-calculated
+    if (stream.pollingIntervalOverride !== undefined && stream.pollingIntervalOverride !== null) {
+        return Math.max(stream.pollingIntervalOverride * 1000, 2000);
+    }
+
+    if (globalPollingIntervalOverride !== null) {
+        return Math.max(globalPollingIntervalOverride * 1000, 2000);
+    }
+    
     const updatePeriodSeconds =
         stream.manifest.minimumUpdatePeriod ||
         stream.manifest.targetDuration || // HLS
@@ -80,7 +95,7 @@ function startMonitoring(stream) {
     if (pollers.has(stream.id)) {
         return;
     }
-    if (stream.manifest?.type === 'dynamic' && stream.originalUrl) {
+    if (stream.manifest?.type === 'dynamic' && (stream.originalUrl || stream.resolvedUrl)) {
         const pollInterval = calculatePollInterval(stream);
         appLog(
             'PrimaryMonitor',
@@ -88,14 +103,12 @@ function startMonitoring(stream) {
             `Starting poller for stream ${stream.id} with interval ${pollInterval}ms.`
         );
 
-        // The poller object now stores the interval and the last poll time.
         const poller = {
             pollInterval,
             lastPollTime: 0,
             tickSubscription: null,
         };
 
-        // Subscribe to the unified ticker instead of using setInterval.
         poller.tickSubscription = eventBus.subscribe(
             'ticker:one-second-tick',
             () => {
@@ -122,7 +135,7 @@ function stopMonitoring(streamId) {
         );
         const poller = pollers.get(streamId);
         if (poller.tickSubscription) {
-            poller.tickSubscription(); // Unsubscribe from the ticker
+            poller.tickSubscription();
         }
         pollers.delete(streamId);
     }
@@ -137,15 +150,22 @@ export function managePollers() {
         .getState()
         .streams.filter((s) => s.manifest?.type === 'dynamic');
 
-    const playerActiveStreamIds = playerService.getActiveStreamIds();
+    const singlePlayerActiveStreamIds = playerService.getActiveStreamIds();
+    const multiPlayerActiveSourceStreamIds = new Set(
+        Array.from(useMultiPlayerStore.getState().players.values())
+            .filter(p => p.state === 'playing' || p.state === 'buffering')
+            .map(p => p.sourceStreamId)
+    );
 
     dynamicStreams.forEach((stream) => {
-        if (playerActiveStreamIds.has(stream.id)) {
+        const isHandledByPlayer = singlePlayerActiveStreamIds.has(stream.id) || multiPlayerActiveSourceStreamIds.has(stream.id);
+
+        if (isHandledByPlayer) {
             if (pollers.has(stream.id)) {
                 appLog(
                     'PrimaryMonitor',
                     'info',
-                    `Ceding polling control of stream ${stream.id} to PlayerService.`
+                    `Ceding polling control of stream ${stream.id} to a player service.`
                 );
                 stopMonitoring(stream.id);
             }
@@ -214,7 +234,7 @@ function handleVisibilityChange() {
                 'info',
                 'Inactivity timeout disabled by user override. Polling will continue in background.'
             );
-            return; // User has disabled the timeout.
+            return;
         }
 
         const timeoutMs =
@@ -261,7 +281,6 @@ export function initializeLiveStreamMonitor() {
 
     eventBus.subscribe('state:stream-updated', managePollers);
     eventBus.subscribe('state:analysis-complete', managePollers);
-    eventBus.subscribe('player:active-streams-changed', managePollers);
     eventBus.subscribe('manifest:force-reload', ({ streamId }) =>
         monitorStream(streamId)
     );

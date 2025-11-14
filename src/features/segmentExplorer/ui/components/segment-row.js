@@ -70,19 +70,6 @@ function isDashSegmentStale(seg, stream) {
 const flagsTemplate = (seg) => {
     const manifestFlags = new Set(seg.flags || []);
 
-    // --- DIAGNOSTIC LOGGING ---
-    appLog(
-        'segment-row.flagsTemplate',
-        'log',
-        `Rendering flags for segment ${seg.uniqueId}`,
-        {
-            segmentObject: seg,
-            hasInbandEvents: !!seg.inbandEvents,
-            inbandEventCount: seg.inbandEvents?.length || 0,
-        }
-    );
-    // --- END LOGGING ---
-
     if ((seg.inbandEvents || []).some((e) => e.scte35)) {
         appLog(
             'segment-row',

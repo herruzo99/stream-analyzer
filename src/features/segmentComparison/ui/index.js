@@ -46,9 +46,6 @@ function renderSegmentComparison() {
                 let segment = null;
 
                 if (stream.protocol === 'dash') {
-                    // ARCHITECTURAL REFACTOR: Use direct lookup instead of iterating all representations.
-                    // This is more efficient and correctly resolves the segment using the representation ID
-                    // stored with the segment-to-compare item.
                     const repState = stream.dashRepresentationState.get(
                         item.repId
                     );
@@ -58,7 +55,6 @@ function renderSegmentComparison() {
                         );
                     }
                 } else if (stream.protocol === 'hls') {
-                    // HLS uses the variant URI as the key. The item.repId holds this.
                     const variantState = stream.hlsVariantState.get(item.repId);
                     if (variantState) {
                         segment = variantState.segments.find(

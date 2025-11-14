@@ -32,6 +32,7 @@ function renderComplianceView() {
     const {
         protocol,
         activeMediaPlaylistUrl,
+        activeMediaPlaylistId, // <-- ARCHITECTURAL FIX: Get the ID
         mediaPlaylists,
         manifestUpdates,
         activeManifestUpdateId,
@@ -43,8 +44,13 @@ function renderComplianceView() {
     let rawManifestToDisplay = stream.rawManifest;
     let serializedManifestForView = stream.manifest.serializedManifest;
 
-    if (protocol === 'hls' && activeMediaPlaylistUrl) {
-        const mediaPlaylist = mediaPlaylists.get(activeMediaPlaylistUrl);
+    // --- ARCHITECTURAL FIX: Use activeMediaPlaylistId for lookup and be more explicit ---
+    if (
+        protocol === 'hls' &&
+        activeMediaPlaylistId &&
+        activeMediaPlaylistId !== 'master'
+    ) {
+        const mediaPlaylist = mediaPlaylists.get(activeMediaPlaylistId);
         if (mediaPlaylist) {
             // For HLS media playlists, we re-run checks on the fly as they are not part of the main update loop.
             // This is an exception to the "all analysis in worker" rule for practicality.
@@ -56,6 +62,7 @@ function renderComplianceView() {
                 mediaPlaylist.manifest.serializedManifest;
         }
     } else {
+        // --- END FIX ---
         // For DASH and HLS Master Playlist, we use the pre-computed results.
         currentUpdate = manifestUpdates.find(
             (u) => u.id === activeManifestUpdateId
