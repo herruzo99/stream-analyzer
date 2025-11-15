@@ -3,67 +3,87 @@ import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { tooltipTriggerClasses } from '@/ui/shared/constants';
 import * as icons from '@/ui/icons';
 
-const getCellClassAndIcon = (status, value) => {
-    if (value === 'N/A' || value === null || value === undefined) {
-        return {
-            className: 'bg-slate-800/50 text-slate-500 italic',
-            icon: html``,
-        };
+const groupColors = [
+    'bg-sky-950/50',
+    'bg-teal-950/50',
+    'bg-fuchsia-950/50',
+    'bg-lime-950/50',
+    'bg-rose-950/50',
+    'bg-cyan-950/50',
+    'bg-violet-950/50',
+];
+
+const getCellClass = (item, allValues) => {
+    if (item.groupId === -1) {
+        return 'bg-slate-800/50 text-slate-500 italic';
     }
-    switch (status) {
+
+    const uniqueGroupCount = new Set(
+        allValues.map((v) => v.groupId).filter((id) => id !== -1)
+    ).size;
+
+    if (uniqueGroupCount <= 1 && item.groupId !== -1) {
+        return 'bg-slate-800';
+    }
+
+    return groupColors[item.groupId % groupColors.length];
+};
+
+const getRowIcon = (overallStatus) => {
+    switch (overallStatus) {
         case 'different':
-            return {
-                className: 'bg-amber-900/30',
-                icon: html`<span
-                    class="text-amber-400 shrink-0"
-                    title="Different"
-                    >${icons.updates}</span
-                >`,
-            };
+            return html`<span
+                class="text-amber-400 shrink-0"
+                title="Values are different across streams"
+                >${icons.updates}</span
+            >`;
         case 'missing':
-            return {
-                className: 'bg-red-900/40',
-                icon: html`<span class="text-red-400 shrink-0" title="Missing"
-                    >${icons.xCircle}</span
-                >`,
-            };
-        default:
-            return {
-                className: '',
-                icon: html`<span class="text-green-500/50 shrink-0" title="Same"
-                    >${icons.checkCircle}</span
-                >`,
-            };
+            return html`<span
+                class="text-red-400 shrink-0"
+                title="Value is missing in one or more streams"
+                >${icons.xCircle}</span
+            >`;
+        default: // 'same'
+            return html`<span
+                class="text-green-500/50 shrink-0"
+                title="Values are the same across all streams"
+                >${icons.checkCircle}</span
+            >`;
     }
 };
 
-export const comparisonRowTemplate = (comparisonPoint, numColumns) => {
+export const comparisonRowTemplate = (comparisonPoint) => {
     const { label, tooltip, isoRef, values, status } = comparisonPoint;
+    const hasTooltip = tooltip || isoRef;
 
-    // Determine the icon for the entire row based on its status.
-    const { icon } = getCellClassAndIcon(status, values[0]);
-
-    return html`
-        <!-- The parent .grid container controls the column layout -->
-        <div
-            class="font-medium text-slate-300 p-3 border-r border-slate-700 flex items-start gap-2 ${tooltipTriggerClasses}"
-            data-tooltip="${tooltip}"
-            data-iso="${isoRef}"
+    return html`<tr>
+        <td
+            class="font-medium text-slate-300 p-3 bg-slate-800 rounded-l-lg border-y border-l border-slate-700"
         >
-            ${icon}
-            <span class="grow">${label}</span>
-        </div>
+            <div
+                class="flex items-start gap-2 ${hasTooltip
+                    ? tooltipTriggerClasses
+                    : ''}"
+                data-tooltip="${tooltip}"
+                data-iso="${isoRef}"
+            >
+                ${getRowIcon(status)}
+                <span class="grow">${label}</span>
+            </div>
+        </td>
         ${values.map(
-            (value) => html`
-                <div
-                    class="p-3 font-mono text-xs border-r border-slate-700 wrap-break-word ${getCellClassAndIcon(
-                        status,
-                        value
-                    ).className}"
+            (item, index) => html`
+                <td
+                    class="p-3 font-mono text-xs wrap-break-word border-y border-slate-700 ${getCellClass(
+                        item,
+                        values
+                    )} ${index === values.length - 1
+                        ? 'rounded-r-lg border-r'
+                        : ''}"
                 >
-                    ${unsafeHTML(value ?? 'N/A')}
-                </div>
+                    ${unsafeHTML(item.value)}
+                </td>
             `
         )}
-    `;
+    </tr>`;
 };

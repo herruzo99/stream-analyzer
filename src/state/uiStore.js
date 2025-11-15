@@ -13,6 +13,7 @@ import { eventBus } from '@/application/event-bus.js';
 /**
  * @typedef {object} ModalState
  * @property {boolean} isModalOpen
+ * @property {boolean} isModalFullWidth
  * @property {string} modalTitle
  * @property {string} modalUrl
  * @property {{ type: string; data: any; } | null} modalContent
@@ -42,6 +43,7 @@ const createInitialUiState = () => ({
     activeSegmentIsIFrame: false,
     modalState: {
         isModalOpen: false,
+        isModalFullWidth: false,
         modalTitle: '',
         modalUrl: '',
         modalContent: null,
@@ -67,6 +69,7 @@ const createInitialUiState = () => ({
     segmentExplorerScrollToTarget: false,
     highlightedCompliancePathId: null,
     comparisonHideSameRows: false,
+    comparisonHideUnusedFeatures: true,
     expandedComparisonTables: new Set(),
     expandedComparisonFlags: new Set(),
     segmentComparisonActiveTab: 'tabular',
@@ -74,6 +77,7 @@ const createInitialUiState = () => ({
     streamLibraryActiveTab: 'workspaces',
     streamLibrarySearchTerm: '',
     streamInputActiveMobileTab: 'workspace',
+    presetSaveStatus: 'idle',
     workspaces: [],
     presets: [],
     history: [],
@@ -265,11 +269,56 @@ export const useUiStore = createStore((set, get) => ({
         if (get().segmentExplorerActiveRepId === repId) return;
         set({ segmentExplorerActiveRepId: repId });
     },
-    setSegmentExplorerActiveTab: (tab) =>
-        set({
-            segmentExplorerActiveTab: tab,
-            segmentExplorerActiveRepId: null,
-        }),
+    setSegmentExplorerActiveTab: (tab) => {
+        set((state) => {
+            const { streams, activeStreamId } = useAnalysisStore.getState();
+            const activeStream = streams.find((s) => s.id === activeStreamId);
+            let newActiveRepId = null;
+
+            if (activeStream) {
+                if (activeStream.protocol === 'dash') {
+                    const firstPeriod = activeStream.manifest.periods[0];
+                    const firstAs = firstPeriod?.adaptationSets.find(
+                        (as) => as.contentType === tab
+                    );
+                    const firstRep = firstAs?.representations[0];
+                    if (firstPeriod && firstRep) {
+                        newActiveRepId = `${firstPeriod.id || 0}-${firstRep.id}`;
+                    }
+                } else if (activeStream.protocol === 'hls') {
+                    if (activeStream.manifest?.isMaster) {
+                        const asContentType =
+                            tab === 'text' ? 'subtitles' : tab;
+                        const allAdaptationSetsForType =
+                            activeStream.manifest.periods[0]?.adaptationSets.filter(
+                                (as) => as.contentType === asContentType
+                            );
+
+                        // Prioritize non-trick-play streams for default selection
+                        const primaryAdaptationSets =
+                            allAdaptationSetsForType.filter((as) =>
+                                (as.roles || []).every(
+                                    (r) => r.value !== 'trick'
+                                )
+                            );
+
+                        const firstAs =
+                            primaryAdaptationSets[0] ||
+                            allAdaptationSetsForType[0];
+                        newActiveRepId = firstAs?.representations[0]?.id || null;
+                    } else {
+                        // For a media playlist, there's only one "representation"
+                        newActiveRepId = activeStream.originalUrl;
+                    }
+                }
+            }
+
+            return {
+                segmentExplorerActiveTab: tab,
+                segmentExplorerActiveRepId: newActiveRepId,
+            };
+        });
+    },
     toggleSegmentExplorerGroup: (groupId) =>
         set((state) => {
             const newSet = new Set(state.segmentExplorerClosedGroups);
@@ -316,6 +365,10 @@ export const useUiStore = createStore((set, get) => ({
         set((state) => ({
             comparisonHideSameRows: !state.comparisonHideSameRows,
         })),
+    toggleComparisonHideUnusedFeatures: () =>
+        set((state) => ({
+            comparisonHideUnusedFeatures: !state.comparisonHideUnusedFeatures,
+        })),
     setSegmentComparisonActiveTab: (tab) =>
         set({ segmentComparisonActiveTab: tab }),
     setPlayerControlMode: (mode) => set({ playerControlMode: mode }),
@@ -338,6 +391,7 @@ export const useUiStore = createStore((set, get) => ({
         set({ streamLibrarySearchTerm: term }),
     setStreamInputActiveMobileTab: (tab) =>
         set({ streamInputActiveMobileTab: tab }),
+    setPresetSaveStatus: (status) => set({ presetSaveStatus: status }),
     loadWorkspaces: () => {
         set({
             workspaces: getWorkspaces(),
@@ -356,8 +410,16 @@ export const useUiStore = createStore((set, get) => ({
         get().loadHistory();
     },
     deleteAndReloadWorkspace: (name) => {
+        const { loadedWorkspaceName } = get();
         deleteWorkspace(name);
-        get().loadWorkspaces();
+        // After deletion, immediately update the internal list
+        const newWorkspaces = getWorkspaces();
+        const newState = { workspaces: newWorkspaces };
+        // If the deleted workspace was the one currently loaded, unlink it.
+        if (loadedWorkspaceName === name) {
+            newState.loadedWorkspaceName = null;
+        }
+        set(newState);
     },
     setLoadedWorkspaceName: (name) => set({ loadedWorkspaceName: name }),
     setIsRestoringSession: (isRestoring) =>

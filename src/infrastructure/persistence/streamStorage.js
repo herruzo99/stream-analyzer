@@ -11,12 +11,51 @@ const MAX_HISTORY_ITEMS = 10;
 const MAX_PRESETS = 50;
 
 /**
+ * A replacer for JSON.stringify that sorts object keys alphabetically.
+ * This ensures that two objects with the same properties produce the same
+ * JSON string, regardless of in-memory property order.
+ * @param {any} key
+ * @param {any} value
+ * @returns
+ */
+const sortedReplacer = (key, value) => {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+        return Object.keys(value)
+            .sort()
+            .reduce((sorted, key) => {
+                sorted[key] = value[key];
+                return sorted;
+            }, {});
+    }
+    return value;
+};
+
+/**
+ * Creates a canonical, order-independent JSON string from an object.
+ * @param {object} obj The object to stringify.
+ * @returns {string} The canonical JSON string.
+ */
+export function canonicalStringify(obj) {
+    return JSON.stringify(obj, sortedReplacer);
+}
+
+/**
  * Prepares a stream input object for serialization by handling the File object.
  * @param {import('@/types').StreamInput} input The stream input object.
  * @returns {object} A serializable version of the input.
  */
 export function prepareForStorage(input) {
     const storableInput = JSON.parse(JSON.stringify(input)); // Deep clone to avoid mutation
+
+    // --- ARCHITECTURAL FIX: Strip runtime-only state for canonical comparison ---
+    delete storableInput.id;
+    delete storableInput.detectedDrm;
+    delete storableInput.isDrmInfoLoading;
+    delete storableInput.protocol; // This is metadata, not user-configured data
+    delete storableInput.type; // This is metadata, not user-configured data
+    delete storableInput.file; // This is a runtime-only property
+    // --- END FIX ---
+
     if (storableInput.drmAuth?.serverCertificate instanceof File) {
         const file = /** @type {File} */ (
             storableInput.drmAuth.serverCertificate

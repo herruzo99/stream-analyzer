@@ -5,6 +5,7 @@ import { showToast } from '@/ui/components/toast';
 import {
     getPresets,
     prepareForStorage,
+    canonicalStringify,
 } from '@/infrastructure/persistence/streamStorage';
 import * as icons from '@/ui/icons';
 import { useUiStore, uiActions } from '@/state/uiStore';
@@ -169,15 +170,28 @@ const certificateInputTemplate = (
 
 const drmAuthSettingsTemplate = (inputId, drmAuth, detectedDrm, showAll) => {
     const handleLicenseUrlInput = (keySystem, value) => {
+        const normalizedValue = value.trim() === '' ? null : value;
         let newLicenseServerUrl;
-        if (typeof drmAuth.licenseServerUrl === 'string') {
-            newLicenseServerUrl = { [keySystem]: value };
+        if (
+            typeof drmAuth.licenseServerUrl === 'string' ||
+            drmAuth.licenseServerUrl === null
+        ) {
+            newLicenseServerUrl = { [keySystem]: normalizedValue };
         } else {
             newLicenseServerUrl = {
                 ...drmAuth.licenseServerUrl,
-                [keySystem]: value,
+                [keySystem]: normalizedValue,
             };
         }
+
+        // If all values in the object are null, revert the whole object to null.
+        if (
+            typeof newLicenseServerUrl === 'object' &&
+            Object.values(newLicenseServerUrl).every((v) => v === null)
+        ) {
+            newLicenseServerUrl = null;
+        }
+
         analysisActions.updateStreamInput(inputId, 'drmAuth', {
             ...drmAuth,
             licenseServerUrl: newLicenseServerUrl,
@@ -185,16 +199,30 @@ const drmAuthSettingsTemplate = (inputId, drmAuth, detectedDrm, showAll) => {
     };
 
     const handleCertChange = (keySystem, value) => {
+        const normalizedValue =
+            typeof value === 'string' && value.trim() === '' ? null : value;
         let newCerts;
         if (
             typeof drmAuth.serverCertificate === 'object' &&
             drmAuth.serverCertificate !== null &&
             !Array.isArray(drmAuth.serverCertificate)
         ) {
-            newCerts = { ...drmAuth.serverCertificate, [keySystem]: value };
+            newCerts = {
+                ...drmAuth.serverCertificate,
+                [keySystem]: normalizedValue,
+            };
         } else {
-            newCerts = { [keySystem]: value };
+            newCerts = { [keySystem]: normalizedValue };
         }
+
+        // If all values in the object are null, revert the whole object to null.
+        if (
+            typeof newCerts === 'object' &&
+            Object.values(newCerts).every((v) => v === null)
+        ) {
+            newCerts = null;
+        }
+
         analysisActions.updateStreamInput(inputId, 'drmAuth', {
             ...drmAuth,
             serverCertificate: newCerts,
@@ -202,8 +230,11 @@ const drmAuthSettingsTemplate = (inputId, drmAuth, detectedDrm, showAll) => {
     };
 
     const licenseUrlFor = (keySystem) => {
-        if (typeof drmAuth.licenseServerUrl === 'string') {
-            return drmAuth.licenseServerUrl;
+        if (
+            typeof drmAuth.licenseServerUrl === 'string' ||
+            drmAuth.licenseServerUrl === null
+        ) {
+            return drmAuth.licenseServerUrl || '';
         }
         return drmAuth.licenseServerUrl?.[keySystem] || '';
     };
@@ -321,8 +352,11 @@ const drmAuthSettingsTemplate = (inputId, drmAuth, detectedDrm, showAll) => {
 
 export const inspectorPanelTemplate = () => {
     const { streamInputs, activeStreamInputId } = useAnalysisStore.getState();
-    const { streamInputActiveMobileTab, showAllDrmFields } =
-        useUiStore.getState();
+    const {
+        streamInputActiveMobileTab,
+        showAllDrmFields,
+        presetSaveStatus,
+    } = useUiStore.getState();
     const activeInput = streamInputs.find((i) => i.id === activeStreamInputId);
 
     if (!activeInput) {
@@ -349,13 +383,14 @@ export const inspectorPanelTemplate = () => {
 
     let isPresetModified = false;
     if (isPreset) {
+        const storableActive = prepareForStorage(activeInput);
+        const storableSaved = prepareForStorage(savedPreset);
         isPresetModified =
-            JSON.stringify(prepareForStorage(activeInput)) !==
-            JSON.stringify(prepareForStorage(savedPreset));
+            canonicalStringify(storableActive) !==
+            canonicalStringify(storableSaved);
     }
 
-    const handleSavePreset = (e) => {
-        const button = e.target;
+    const handleSavePreset = () => {
         if (!activeInput.name || !activeInput.url) {
             showToast({
                 message:
@@ -367,15 +402,31 @@ export const inspectorPanelTemplate = () => {
         eventBus.dispatch('ui:save-preset-requested', {
             name: activeInput.name,
             url: activeInput.url,
-            button,
             isPreset,
         });
     };
 
-    let saveButtonLabel = 'Save as Preset';
-    let saveButtonDisabled = !activeInput.url || !activeInput.name || isExample;
-    if (isPreset) {
-        saveButtonLabel = 'Update Preset';
+    let saveButtonText;
+    switch (presetSaveStatus) {
+        case 'saving':
+            saveButtonText = 'Saving...';
+            break;
+        case 'saved':
+            saveButtonText = isPreset ? 'Updated!' : 'Saved!';
+            break;
+        case 'error':
+            saveButtonText = 'Error!';
+            break;
+        default:
+            saveButtonText = isPreset ? 'Update Preset' : 'Save as Preset';
+    }
+
+    let saveButtonDisabled =
+        !activeInput.url ||
+        !activeInput.name ||
+        isExample ||
+        presetSaveStatus !== 'idle';
+    if (isPreset && presetSaveStatus === 'idle') {
         saveButtonDisabled = !isPresetModified;
     }
 
@@ -428,7 +479,7 @@ export const inspectorPanelTemplate = () => {
                         type="text"
                         class="bg-slate-800 text-white rounded px-2 py-1.5 text-sm w-full border border-slate-600"
                         placeholder="e.g., 'My Test Stream'"
-                        .value=${activeInput.name}
+                        .value=${activeInput.name || ''}
                         @input=${(e) =>
                             analysisActions.updateStreamInput(
                                 activeInput.id,
@@ -459,7 +510,7 @@ export const inspectorPanelTemplate = () => {
                     @click=${handleSavePreset}
                     ?disabled=${saveButtonDisabled}
                 >
-                    ${saveButtonLabel}
+                    ${saveButtonText}
                 </button>
             </div>
         </div>

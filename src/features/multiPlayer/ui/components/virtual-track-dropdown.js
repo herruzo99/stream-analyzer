@@ -83,27 +83,28 @@ export const virtualTrackDropdownTemplate = () => {
         </div>`;
     }
 
-    // Aggregate all unique video tracks by a composite key, keeping the one with the highest bandwidth as representative.
-    const uniqueTracksByKey = new Map();
+    // --- ARCHITECTURAL FIX: Correctly merge tracks by resolution height ---
+    const uniqueResolutions = new Map();
     for (const player of players.values()) {
         for (const track of player.variantTracks) {
             if (track.height && track.videoCodec) {
-                const key = `${track.height}x${track.width}|${track.videoCodec}|${track.frameRate}`;
-                const existing = uniqueTracksByKey.get(key);
+                const height = track.height;
+                const existing = uniqueResolutions.get(height);
                 if (
                     !existing ||
                     (track.videoBandwidth || track.bandwidth) >
                         (existing.videoBandwidth || existing.bandwidth)
                 ) {
-                    uniqueTracksByKey.set(key, track);
+                    uniqueResolutions.set(height, track);
                 }
             }
         }
     }
 
-    const sortedTracks = Array.from(uniqueTracksByKey.values()).sort(
+    const sortedTracks = Array.from(uniqueResolutions.values()).sort(
         (a, b) => (b.height || 0) - (a.height || 0)
     );
+    // --- END FIX ---
 
     const handleSelect = (height) => {
         eventBus.dispatch('ui:multi-player:set-global-video-track-by-height', {

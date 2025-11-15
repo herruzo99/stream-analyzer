@@ -457,7 +457,7 @@ async function buildStreamObject(
             }
             return newRepStateMap;
         };
-
+        
         if (streamObject.dashRepresentationState) {
             streamObject.dashRepresentationState = attachToRepState(streamObject.dashRepresentationState);
         }

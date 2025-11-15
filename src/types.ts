@@ -538,6 +538,7 @@ export interface HlsSegment extends MediaSegment {
 export interface Manifest {
     id: string | null;
     type: 'static' | 'dynamic';
+    baseUrl?: string;
     profiles: string;
     minBufferTime: number;
     publishTime: Date | null;
@@ -770,6 +771,7 @@ export interface UiState {
     segmentExplorerScrollToTarget: boolean;
     highlightedCompliancePathId: string | null;
     comparisonHideSameRows: boolean;
+    comparisonHideUnusedFeatures: boolean;
     expandedComparisonTables: Set<string>;
     expandedComparisonFlags: Set<string>;
     segmentComparisonActiveTab: 'tabular' | 'structural';
@@ -810,6 +812,7 @@ export interface UiActions {
         }
     ) => void;
     toggleManifestUpdatesHideDeleted: () => void;
+    toggleComparisonHideUnusedFeatures: () => void;
 }
 
 export interface PlaybackHistoryEntry {

@@ -47,39 +47,28 @@ const trackToggleCard = (stream, repId, { label, subtext }) => {
     `;
 };
 
-/**
- * A collapsible card for an individual stream, containing its pollable tracks.
- */
 const streamPollingCard = (stream) => {
     const { segmentPollingSelectorState } = useUiStore.getState();
-    const isExpanded = segmentPollingSelectorState.expandedStreamIds.has(
-        stream.id
-    );
+    const activeTab =
+        segmentPollingSelectorState.tabState.get(stream.id) || 'video';
 
     const repsByType =
         stream.protocol === 'dash'
-            ? stream.manifest.periods.reduce((acc, p, pIndex) => {
+            ? stream.manifest.periods.reduce((acc, p) => {
                   p.adaptationSets.forEach((as) => {
                       const type = as.contentType || 'unknown';
                       if (!acc[type]) acc[type] = [];
-                      acc[type].push(
-                          ...as.representations.map((r) => ({
-                              rep: r,
-                              as,
-                              pIndex,
-                              pId: p.id,
-                          }))
-                      );
+                      acc[type].push(...as.representations);
                   });
                   return acc;
               }, {})
             : {
-                  video: stream.manifest.periods[0].adaptationSets.filter(as => as.contentType === 'video').flatMap(as => as.representations.map(r => ({ rep: r, as }))),
-                  audio: (stream.manifest.periods[0]?.adaptationSets || [])
-                      .filter((as) => as.contentType === 'audio')
-                      .flatMap((as) =>
-                          as.representations.map((r) => ({ rep: r, as }))
-                      ),
+                  video: stream.manifest.periods[0].adaptationSets
+                      .filter((as) => as.contentType === 'video')
+                      .flatMap((as) => as.representations),
+                  audio: (
+                      stream.manifest.periods[0]?.adaptationSets || []
+                  ).filter((as) => as.contentType === 'audio'),
               };
 
     const tabs = [];
@@ -88,34 +77,34 @@ const streamPollingCard = (stream) => {
     if (repsByType.audio?.length > 0)
         tabs.push({ key: 'audio', label: 'Audio' });
 
-    const activeTab =
-        segmentPollingSelectorState.tabState.get(stream.id) || 'video';
     const onTabClick = (tab) => {
         uiActions.setSegmentPollingTab(stream.id, tab);
     };
 
     let content;
     if (activeTab === 'video') {
-        content = (repsByType.video || []).map(
-            ({ rep, pIndex, pId, as }) => {
-                const repId = rep.id;
-                const label = `${rep.height?.value || '?'}p / ${rep.id}`;
-                const subtext = formatBitrate(rep.bandwidth);
-                return trackToggleCard(stream, repId, { label, subtext });
-            }
-        );
-    } else if (activeTab === 'audio') {
-        content = (repsByType.audio || []).map(({ rep, as }) => {
-            const repId = rep.id;
-            const label = `[${as.lang || 'und'}] ${rep.id}`;
+        content = (repsByType.video || []).map((rep) => {
+            const label = `${rep.height?.value || '?'}p / ${rep.id}`;
             const subtext = formatBitrate(rep.bandwidth);
-            return trackToggleCard(stream, repId, { label, subtext });
+            return trackToggleCard(stream, rep.id, { label, subtext });
         });
+    } else if (activeTab === 'audio') {
+        content = (repsByType.audio || []).flatMap((as) =>
+            as.representations.map((rep) => {
+                const label = `[${as.lang || 'und'}] ${rep.id}`;
+                const subtext = formatBitrate(rep.bandwidth);
+                return trackToggleCard(stream, rep.id, { label, subtext });
+            })
+        );
     }
 
     const allRepIdsInStream = Object.values(repsByType)
         .flat()
-        .map(({ rep }) => rep.id)
+        .flatMap((item) =>
+            item.representations
+                ? item.representations.map((r) => r.id)
+                : [item.id]
+        )
         .filter(Boolean);
 
     const isAllChecked = allRepIdsInStream.every((id) =>
@@ -133,91 +122,60 @@ const streamPollingCard = (stream) => {
     };
 
     return html`
-        <details
-            class="group bg-slate-900 rounded-lg border border-slate-700"
-            ?open=${isExpanded}
-        >
-            <summary
-                @click=${(e) => {
-                    e.preventDefault();
-                    uiActions.toggleSegmentPollingSelectorGroup(stream.id);
-                }}
-                class="list-none cursor-pointer flex items-center p-3"
-            >
-                <span class="font-semibold text-slate-200 truncate"
-                    >${stream.name}</span
-                >
-                <span
-                    class="ml-auto text-slate-400 transition-transform duration-200 group-open:rotate-180"
-                    >${icons.chevronDown}</span
-                >
-            </summary>
-            <div class="p-3 border-t border-slate-700">
-                <div class="flex justify-between items-center mb-3">
-                    <label
-                        for="toggle-all-${stream.id}"
-                        class="text-sm font-semibold text-slate-300"
-                        >Poll All Tracks</label
+        <div class="bg-slate-900 rounded-lg border border-slate-700">
+            <header class="p-3 border-b border-slate-700">
+                <div class="flex justify-between items-center">
+                    <h4
+                        class="font-semibold text-slate-200 truncate"
+                        title=${stream.name}
                     >
-                    <button
-                        @click=${handleToggleAllForStream}
-                        id="toggle-all-${stream.id}"
-                        class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${isAllChecked
-                            ? 'bg-blue-600'
-                            : 'bg-slate-600'}"
-                    >
-                        <span
-                            class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isAllChecked
-                                ? 'translate-x-6'
-                                : 'translate-x-1'}"
-                        ></span>
-                    </button>
+                        ${stream.name}
+                    </h4>
+                    <div class="flex items-center gap-2">
+                        <label
+                            for="toggle-all-${stream.id}"
+                            class="text-xs font-semibold text-slate-300"
+                            >Poll All</label
+                        >
+                        <button
+                            @click=${handleToggleAllForStream}
+                            id="toggle-all-${stream.id}"
+                            class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${isAllChecked
+                                ? 'bg-blue-600'
+                                : 'bg-slate-600'}"
+                        >
+                            <span
+                                class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isAllChecked
+                                    ? 'translate-x-6'
+                                    : 'translate-x-1'}"
+                            ></span>
+                        </button>
+                    </div>
                 </div>
+            </header>
+            <div class="px-3 pt-3">
                 ${connectedTabBar(tabs, activeTab, onTabClick)}
-                <div class="mt-3 space-y-2 bg-slate-900 p-3 rounded-b-lg">
-                    ${content}
-                </div>
             </div>
-        </details>
-    `;
-};
-
-/**
- * Renders a summary header for the polling dropdown.
- */
-const summaryHeaderTemplate = (liveStreams) => {
-    const totalReps = liveStreams.reduce(
-        (sum, s) => sum + s.segmentPollingReps.size,
-        0
-    );
-    const totalStreams = liveStreams.filter(
-        (s) => s.segmentPollingReps.size > 0
-    ).length;
-
-    return html`
-        <div
-            class="bg-slate-900 p-3 rounded-lg border border-slate-700 text-center"
-        >
-            <p class="text-2xl font-bold text-white">${totalReps}</p>
-            <p class="text-sm text-slate-400">
-                Representations polling across ${totalStreams} stream(s)
-            </p>
+            <div class="p-3 space-y-2 bg-slate-900/50 rounded-b-lg">
+                ${content}
+            </div>
         </div>
     `;
 };
 
 export const segmentPollingSelectorTemplate = () => {
-    // --- ARCHITECTURAL FIX: Fetch state within the template function ---
     const { streams } = useAnalysisStore.getState();
     const liveStreams = streams.filter((s) => s.manifest?.type === 'dynamic');
-    // --- END FIX ---
 
     return html`
         <div
-            id="polling-dropdown-panel"
-            class="dropdown-panel bg-slate-800 border border-slate-700 rounded-lg shadow-xl w-96 p-3 space-y-3 max-h-[70vh] overflow-y-auto"
+            class="dropdown-panel bg-slate-800 border border-slate-700 rounded-lg shadow-xl w-[28rem] p-3 space-y-4 max-h-[70vh] overflow-y-auto"
         >
-            ${summaryHeaderTemplate(liveStreams)}
+            <h4 class="font-bold text-slate-200">Active Segment Polling</h4>
+            <p class="text-xs text-slate-400 -mt-3">
+                Automatically download and parse new segments for selected
+                representations to discover in-band events like SCTE-35.
+            </p>
             ${liveStreams.map(streamPollingCard)}
         </div>
     `;

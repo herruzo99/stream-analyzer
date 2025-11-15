@@ -9,7 +9,7 @@ import { hlsFeatureDefinitions } from '@/infrastructure/parsing/hls/feature-defi
 import { tooltipTriggerClasses } from '@/ui/shared/constants';
 import * as icons from '@/ui/icons';
 import { formattedOptionsDropdownTemplate } from '@/features/playerSimulation/ui/components/formatted-options-dropdown.js';
-import { segmentPollingSelectorTemplate } from './segment-polling-selector.js';
+import { segmentPollingSelectorTemplate } from './segment-polling-selector';
 
 const POLLING_INTERVAL_OPTIONS_STREAM = [
     { id: null, label: 'Auto' },
@@ -33,7 +33,6 @@ const pollingIntervalPanelTemplate = (stream, isGlobal = false) => {
         } else {
             analysisActions.setStreamPollingIntervalOverride(stream.id, option.id);
         }
-        // The formattedOptionsDropdownTemplate will call closeDropdown() itself.
     };
 
     const options = isGlobal ? POLLING_INTERVAL_OPTIONS_GLOBAL : POLLING_INTERVAL_OPTIONS_STREAM;
@@ -497,6 +496,14 @@ export const pollingDropdownPanelTemplate = () => {
 
     const isGlobalOverrideActive = globalPollingIntervalOverride !== null;
 
+    const handleOpenPollingConfig = (e) => {
+        toggleDropdown(
+            e.currentTarget,
+            () => segmentPollingSelectorTemplate(),
+            e
+        );
+    };
+
     return html`
         <div
             class="dropdown-panel bg-slate-800 border border-slate-700 rounded-lg shadow-xl w-96 p-3 space-y-4"
@@ -549,13 +556,7 @@ export const pollingDropdownPanelTemplate = () => {
                 </h5>
                 ${customDropdownButton(
                     `Configure (${totalReps} active)`,
-                    (e) => {
-                        toggleDropdown(
-                            e.currentTarget,
-                            segmentPollingSelectorTemplate,
-                            e
-                        );
-                    },
+                    handleOpenPollingConfig,
                     liveStreams.length === 0
                 )}
             </div>

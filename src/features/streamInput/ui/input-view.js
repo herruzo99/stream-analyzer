@@ -99,7 +99,7 @@ function _renderInputView() {
 
             <!-- Mobile Tabbed Layout -->
             <div class=${classMap(mobileViewClasses)}>
-                <div class="grow min-h-0 overflow-y-auto mb-16">
+                <div class="grow min-h-0 mb-16">
                     ${streamInputActiveMobileTab === 'library'
                         ? libraryPanelTemplate()
                         : streamInputActiveMobileTab === 'workspace'

@@ -18,9 +18,6 @@ export function initializeMultiPlayerController() {
         useMultiPlayerStore.getState().setMuteAll(false);
         multiPlayerService.unmuteAll();
     });
-    eventBus.subscribe('ui:multi-player:sync-toggled', () =>
-        useMultiPlayerStore.getState().toggleSync()
-    );
     eventBus.subscribe('ui:multi-player:set-card-tab', ({ streamId, tab }) => {
         useMultiPlayerStore.getState().setPlayerCardTab(streamId, tab);
     });

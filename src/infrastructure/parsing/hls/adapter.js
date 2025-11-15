@@ -57,12 +57,17 @@ function determineSegmentFormat(hlsParsed) {
         }
     }
 
-    // 3. Master Playlist Heuristic: Check extensions of variant stream URIs.
-    if (
-        hlsParsed.isMaster &&
-        hlsParsed.variants &&
-        hlsParsed.variants.length > 0
-    ) {
+    // 3. Master Playlist Heuristics
+    if (hlsParsed.isMaster && hlsParsed.variants && hlsParsed.variants.length > 0) {
+        // 3a. Check CODECS attribute for ISOBMFF types. This is a very strong signal.
+        for (const variant of hlsParsed.variants) {
+            const codecs = (variant.attributes.CODECS || '').toLowerCase();
+            if (codecs.includes('avc1') || codecs.includes('hvc1') || codecs.includes('mp4a')) {
+                return 'isobmff';
+            }
+        }
+
+        // 3b. Check extensions of variant stream URIs as a fallback.
         for (const variant of hlsParsed.variants) {
             const lowerUri = (variant.uri || '').toLowerCase();
             if (lowerUri.includes('.m4s') || lowerUri.includes('.mp4')) {
@@ -1226,6 +1231,7 @@ export async function adaptHlsToIr(hlsParsed, context) {
                         frameRate: iframe.value['FRAME-RATE'],
                         videoRange: iframe.value['VIDEO-RANGE'],
                         serializedManifest: iframe,
+                        __variantUri: iframe.resolvedUri,
                     },
                 ],
                 serializedManifest: { ...iframe, isSynthetic: true },

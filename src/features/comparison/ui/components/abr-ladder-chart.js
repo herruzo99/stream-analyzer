@@ -3,32 +3,25 @@ import { renderChart, disposeChart } from '@/ui/shared/charts/chart-renderer';
 import { formatBitrate } from '@/ui/shared/format';
 
 const abrLadderChartOptions = (abrData) => {
-    // 1. Get all unique categories (heights) from all streams and sort them numerically.
     const allHeights = [
         ...new Set(abrData.flatMap((d) => d.tracks.map((t) => t.height))),
     ].sort((a, b) => a - b);
 
-    // 2. Create one series object per stream.
     const series = abrData.map((streamData) => {
-        // Create a map for quick lookup of the track by its height for the current stream.
         const trackMap = new Map(streamData.tracks.map((t) => [t.height, t]));
 
         return {
             name: streamData.name,
             type: 'bar',
-            barGap: 0, // Bars for different series will be adjacent.
+            barGap: 0,
             emphasis: {
                 focus: 'series',
             },
-            // 3. Generate data array by mapping over the canonical categories.
             data: allHeights.map((height) => {
                 const track = trackMap.get(height);
-                // If this stream has a track for this height, return a value object.
-                // Otherwise, return null to create a gap. This is the correct format.
                 return track
                     ? {
                           value: track.bandwidth,
-                          // Store extra info for the tooltip
                           trackInfo: track,
                       }
                     : null;
@@ -43,7 +36,8 @@ const abrLadderChartOptions = (abrData) => {
             bottom: 0,
             type: 'scroll',
         },
-        grid: { top: '50', right: '20', bottom: '50', left: '80' },
+        // ARCHITECTURAL FIX: Increased bottom margin to prevent overlap with legend.
+        grid: { top: '50', right: '20', bottom: '90', left: '80' },
         xAxis: {
             type: 'category',
             name: 'Resolution',

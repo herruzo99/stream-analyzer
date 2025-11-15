@@ -86,6 +86,8 @@ body {
 @source inline('bg-{red,orange,amber,yellow,lime,green,emerald,teal,cyan,sky,blue,indigo,violet,purple,fuchsia,pink,rose,slate,zinc}-{400,500,600,700,800,900}/{20,30,40,50,60,70,80,90}');
 @source inline('border-{red,orange,amber,yellow,lime,green,emerald,teal,cyan,sky,blue,indigo,violet,purple,fuchsia,pink,rose,slate,zinc}-{400,500,600,700,800,900}');
 @source inline('border-{red,orange,amber,yellow,lime,green,emerald,teal,cyan,sky,blue,indigo,violet,purple,fuchsia,pink,rose,slate,zinc}-{400,500,600,700,800,900}/{80}');
+@source inline('bg-sky-950/50', 'bg-teal-950/50', 'bg-fuchsia-950/50', 'bg-lime-950/50', 'bg-rose-950/50', 'bg-cyan-950/50', 'bg-violet-950/50');
+
 
 /* --- Keyframe Animations --- */
 /* These are correct as-is. They are referenced by the @theme block */
@@ -167,7 +169,6 @@ body {
     animation: slideInUp 0.3s ease-out forwards;
 }
 .modal-enter {
-    display: flex;
     animation: fadeIn 0.2s ease-out forwards;
 }
 .modal-enter > div {
@@ -264,26 +265,6 @@ body.primary-sidebar-open #sidebar-container {
 }
 body.contextual-sidebar-open #contextual-sidebar {
     transform: translateX(0); /* Replaced @apply translate-x-0 */
-}
-
-/* --- Comparison View (NO @apply) --- */
-.comparison-status-same::before {
-    content: '✓';
-    color: var(--color-green-400); /* text-green-400 */
-    font-weight: bold; /* font-bold */
-    margin-right: 0.5rem; /* mr-2 */
-}
-.comparison-status-different::before {
-    content: '≠';
-    color: var(--color-yellow-400); /* text-yellow-400 */
-    font-weight: bold;
-    margin-right: 0.5rem;
-}
-.comparison-status-missing::before {
-    content: '✗';
-    color: var(--color-red-400); /* text-red-400 */
-    font-weight: bold;
-    margin-right: 0.5rem;
 }
 
 /* --- Live Update Diff View --- */

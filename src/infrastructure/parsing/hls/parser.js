@@ -269,8 +269,10 @@ export async function parseManifest(
             }
 
             if (tagName === 'EXT-X-I-FRAME-STREAM-INF') {
+                const attributes = parseAttributeList(String(tagValue));
                 parsed.iframeStreams.push({
-                    value: parseAttributeList(String(tagValue)),
+                    value: attributes,
+                    resolvedUri: new URL(String(attributes.URI), baseUrl).href,
                     lineNumber: i + 1,
                 });
                 continue;

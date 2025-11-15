@@ -17,6 +17,9 @@ import { parseDuration } from '@/shared/utils/time';
  */
 function getNetworkInfo(stream) {
     const hostnames = { manifest: new Set(), media: new Set(), key: new Set() };
+    let totalDurationSeconds = 0;
+    let totalSizeBytes = 0;
+    let segmentInfoCount = 0;
 
     try {
         if (stream.originalUrl) {
@@ -30,25 +33,67 @@ function getNetworkInfo(stream) {
             stream.manifest.locations?.forEach((loc) =>
                 hostnames.manifest.add(new URL(loc, stream.baseUrl).hostname)
             );
-            stream.dashRepresentationState.forEach((repState) => {
-                repState.segments.forEach((seg) => {
-                    if (/** @type {any} */ (seg).type === 'Media') {
-                        hostnames.media.add(
-                            new URL(/** @type {any} */ (seg).resolvedUrl)
-                                .hostname
-                        );
-                    }
-                });
-            });
+
+            const allRepresentations = stream.manifest.periods.flatMap(
+                (p, pIndex) =>
+                    p.adaptationSets.flatMap((as) =>
+                        as.representations.map((rep) => ({
+                            rep,
+                            pId: p.id,
+                            pIndex,
+                        }))
+                    )
+            );
+            const repMap = new Map(
+                allRepresentations.map(({ rep }) => [rep.id, rep])
+            );
+
+            for (const [
+                compositeKey,
+                repState,
+            ] of stream.dashRepresentationState.entries()) {
+                const repId = compositeKey.split('-').slice(1).join('-');
+                const rep = repMap.get(repId);
+                if (!rep || !repState.segments) continue;
+
+                for (const segment of repState.segments) {
+                    if (segment.type !== 'Media' || !segment.duration) continue;
+
+                    const durationSeconds = segment.duration / segment.timescale;
+                    const sizeBytes = (rep.bandwidth / 8) * durationSeconds;
+
+                    totalDurationSeconds += durationSeconds;
+                    totalSizeBytes += sizeBytes;
+                    segmentInfoCount++;
+
+                    hostnames.media.add(new URL(segment.resolvedUrl).hostname);
+                }
+            }
         } else if (stream.protocol === 'hls') {
-            // Iterate over ALL media playlists, not just the active one.
-            for (const mediaPlaylist of stream.mediaPlaylists.values()) {
-                const playlistBaseUrl = /** @type {any} */ (
-                    mediaPlaylist.manifest.serializedManifest
-                ).baseUrl;
-                (mediaPlaylist.manifest.segments || []).forEach((seg) => {
+            const variantMap = new Map(
+                (stream.manifest.variants || []).map((v) => [v.stableId, v])
+            );
+
+            for (const [
+                playlistId,
+                mediaPlaylist,
+            ] of stream.mediaPlaylists.entries()) {
+                if (playlistId === 'master') continue;
+
+                const variant = variantMap.get(playlistId);
+                const bandwidth = variant?.attributes.BANDWIDTH || 0;
+
+                for (const seg of mediaPlaylist.manifest.segments || []) {
+                    const durationSeconds = seg.duration;
+                    if (durationSeconds > 0) {
+                        totalDurationSeconds += durationSeconds;
+                        segmentInfoCount++;
+                        if (bandwidth > 0) {
+                            totalSizeBytes += (bandwidth / 8) * durationSeconds;
+                        }
+                    }
                     hostnames.media.add(new URL(seg.resolvedUrl).hostname);
-                });
+                }
 
                 (mediaPlaylist.manifest.tags || [])
                     .filter(
@@ -59,11 +104,12 @@ function getNetworkInfo(stream) {
                     )
                     .forEach((t) => {
                         try {
+                            const playlistBaseUrl =
+                                mediaPlaylist.manifest.baseUrl;
                             hostnames.key.add(
                                 new URL(t.value.URI, playlistBaseUrl).hostname
                             );
                         } catch (_e) {
-                            // Gracefully handle non-HTTP URIs like 'skd://'
                             const schemeMatch = String(t.value.URI).match(
                                 /^([a-z]+):/
                             );
@@ -79,71 +125,6 @@ function getNetworkInfo(stream) {
     } catch (e) {
         console.error('Error extracting network info:', e);
     }
-
-    let totalDurationSeconds = 0;
-    let totalSizeBytes = 0;
-    let segmentInfoCount = 0;
-
-    // --- ARCHITECTURAL FIX: Robust Segment Metric Calculation ---
-    if (stream.protocol === 'dash' && stream.manifest.periods) {
-        for (const period of stream.manifest.periods) {
-            for (const as of period.adaptationSets) {
-                for (const rep of as.representations) {
-                    const hierarchy = [
-                        rep.serializedManifest,
-                        as.serializedManifest,
-                        period.serializedManifest,
-                        stream.manifest.serializedManifest,
-                    ];
-                    const template = getInheritedElement(
-                        'SegmentTemplate',
-                        hierarchy
-                    );
-                    const timescale =
-                        Number(getAttr(template, 'timescale')) ||
-                        Number(rep.audioSamplingRate) ||
-                        1;
-
-                    let durationInSeconds = 0;
-                    const templateDuration = getAttr(template, 'duration');
-
-                    if (templateDuration !== undefined && timescale > 0) {
-                        // Priority 1: SegmentTemplate@duration is in timescale units.
-                        durationInSeconds = Number(templateDuration) / timescale;
-                    } else {
-                        // Priority 2: Fallback to MPD@maxSegmentDuration (already a number in seconds).
-                        durationInSeconds = stream.manifest.maxSegmentDuration || 0;
-                    }
-
-                    if (durationInSeconds > 0 && rep.bandwidth > 0) {
-                        totalDurationSeconds += durationInSeconds;
-                        totalSizeBytes += (rep.bandwidth / 8) * durationInSeconds;
-                        segmentInfoCount++;
-                    }
-                }
-            }
-        }
-    } else if (stream.protocol === 'hls' && stream.manifest) {
-        const targetDuration =
-            stream.manifest.summary?.hls?.targetDuration ||
-            stream.manifest.maxSegmentDuration;
-
-        if (targetDuration) {
-            const allReps = stream.manifest.periods
-                .flatMap((p) => p.adaptationSets)
-                .flatMap((as) => as.representations);
-
-            for (const rep of allReps) {
-                const bandwidth = rep.bandwidth;
-                if (bandwidth > 0) {
-                    totalDurationSeconds += targetDuration;
-                    totalSizeBytes += (bandwidth / 8) * targetDuration;
-                    segmentInfoCount++;
-                }
-            }
-        }
-    }
-    // --- END FIX ---
 
     const avgSegmentDuration =
         segmentInfoCount > 0 ? totalDurationSeconds / segmentInfoCount : null;
@@ -174,7 +155,6 @@ function getNetworkInfo(stream) {
             : null,
     };
 }
-
 
 /**
  * Gathers timing and update strategy information, primarily from the master playlist.
@@ -330,14 +310,14 @@ function getIntegrationRequirements(activeManifest) {
     const summary = activeManifest.summary;
 
     const allCodecValues = new Set();
-    summary.videoTracks.forEach(track => {
-        track.codecs.forEach(c => allCodecValues.add(c.value));
+    summary.videoTracks.forEach((track) => {
+        track.codecs.forEach((c) => allCodecValues.add(c.value));
         if (track.muxedAudio?.codecs) {
-            track.muxedAudio.codecs.forEach(c => allCodecValues.add(c.value));
+            track.muxedAudio.codecs.forEach((c) => allCodecValues.add(c.value));
         }
     });
-    summary.audioTracks.forEach(track => {
-        track.codecs.forEach(c => allCodecValues.add(c.value));
+    summary.audioTracks.forEach((track) => {
+        track.codecs.forEach((c) => allCodecValues.add(c.value));
     });
     const uniqueCodecs = Array.from(allCodecValues);
 
