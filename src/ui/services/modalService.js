@@ -5,14 +5,16 @@ import { uiActions, useUiStore } from '@/state/uiStore';
  * @param {object} options
  * @param {string} options.title - The title to display in the modal header.
  * @param {string} options.url - The URL or identifier for the content being displayed.
- * @param {{ type: 'segmentAnalysis' | 'scte35' | 'about' | 'streamLibrary'; data: any; }} options.content - A serializable object describing the content to be rendered.
+ * @param {{ type: string; data: any; }} options.content - A serializable object describing the content to be rendered.
+ * @param {boolean} [options.isFullWidth=false] - If true, a wider modal variant will be used.
  */
-export function openModalWithContent({ title, url, content }) {
+export function openModalWithContent({ title, url, content, isFullWidth = false }) {
     uiActions.setModalState({
         isModalOpen: true,
         modalTitle: title,
         modalUrl: url,
         modalContent: content,
+        isModalFullWidth: isFullWidth,
     });
 }
 

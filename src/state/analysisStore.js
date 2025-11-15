@@ -232,12 +232,12 @@ export const useAnalysisStore = createStore((set, get) => ({
             const newId = state.streamIdCounter;
             const newStreamInput = {
                 id: newId,
-                url: '',
-                name: '',
+                url: null,
+                name: null,
                 file: null,
                 auth: { headers: [], queryParams: [] },
                 drmAuth: {
-                    licenseServerUrl: '',
+                    licenseServerUrl: null,
                     serverCertificate: null,
                     headers: [],
                     queryParams: [],
@@ -265,12 +265,12 @@ export const useAnalysisStore = createStore((set, get) => ({
         };
 
         const newComparable = getComparable({
-            url: preset.url || '',
-            name: preset.name || '',
+            url: preset.url || null,
+            name: preset.name || null,
             file: null,
             auth: preset.auth || { headers: [], queryParams: [] },
             drmAuth: preset.drmAuth || {
-                licenseServerUrl: '',
+                licenseServerUrl: null,
                 serverCertificate: null,
                 headers: [],
                 queryParams: [],
@@ -296,8 +296,8 @@ export const useAnalysisStore = createStore((set, get) => ({
                 ...state.streamInputs,
                 {
                     id: state.streamIdCounter,
-                    url: preset.url || '',
-                    name: preset.name || '',
+                    url: preset.url || null,
+                    name: preset.name || null,
                     file: null,
                     auth: preset.auth
                         ? JSON.parse(JSON.stringify(preset.auth))
@@ -305,7 +305,7 @@ export const useAnalysisStore = createStore((set, get) => ({
                     drmAuth: preset.drmAuth
                         ? restoreFromStorage(prepareForStorage(preset.drmAuth))
                         : {
-                              licenseServerUrl: '',
+                              licenseServerUrl: null,
                               serverCertificate: null,
                               headers: [],
                               queryParams: [],
@@ -350,12 +350,12 @@ export const useAnalysisStore = createStore((set, get) => ({
     setStreamInputs: (inputs) => {
         const newInputs = inputs.map((input, index) => ({
             id: index,
-            url: input.url || '',
-            name: input.name || '',
+            url: input.url || null,
+            name: input.name || null,
             file: null,
             auth: input.auth || { headers: [], queryParams: [] },
             drmAuth: input.drmAuth || {
-                licenseServerUrl: '',
+                licenseServerUrl: null,
                 serverCertificate: null,
                 headers: [],
                 queryParams: [],
@@ -374,7 +374,12 @@ export const useAnalysisStore = createStore((set, get) => ({
         set((state) => {
             const updatedInputs = state.streamInputs.map((input) => {
                 if (input.id === id) {
-                    const updatedInput = { ...input, [field]: value };
+                    let normalizedValue = value;
+                    if (field === 'url' || field === 'name') {
+                        normalizedValue =
+                            value.trim() === '' ? null : value;
+                    }
+                    const updatedInput = { ...input, [field]: normalizedValue };
                     if (field === 'url') {
                         updatedInput.isDrmInfoLoading = !!value;
                         updatedInput.detectedDrm = null;
@@ -485,23 +490,24 @@ export const useAnalysisStore = createStore((set, get) => ({
         set((state) => ({
             streamInputs: state.streamInputs.map((input) => {
                 if (input.id === inputId) {
-                    const pristineAuth = { headers: [], queryParams: [] };
-                    const pristineDrmAuth = {
-                        licenseServerUrl: '',
-                        serverCertificate: null,
-                        headers: [],
-                        queryParams: [],
-                    };
-
+                    const presetDrmAuth = preset.drmAuth || {};
                     return {
                         ...input,
-                        url: preset.url || '',
-                        name: preset.name || '',
+                        url: preset.url || null,
+                        name: preset.name || null,
                         file: null,
-                        auth: { ...pristineAuth, ...(preset.auth || {}) },
+                        auth: {
+                            headers: [],
+                            queryParams: [],
+                            ...(preset.auth || {}),
+                        },
                         drmAuth: {
-                            ...pristineDrmAuth,
-                            ...(preset.drmAuth || {}),
+                            licenseServerUrl:
+                                presetDrmAuth.licenseServerUrl || null,
+                            serverCertificate:
+                                presetDrmAuth.serverCertificate || null,
+                            headers: presetDrmAuth.headers || [],
+                            queryParams: presetDrmAuth.queryParams || [],
                         },
                         detectedDrm: null,
                         isDrmInfoLoading: !!preset.url,

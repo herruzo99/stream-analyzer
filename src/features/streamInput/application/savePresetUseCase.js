@@ -7,10 +7,8 @@ import { useAnalysisStore } from '@/state/analysisStore';
 import { showToast } from '@/ui/components/toast';
 import { uiActions } from '@/state/uiStore';
 
-function handleSavePresetRequest({ name, url, button, isPreset }) {
-    button.disabled = true;
-    const originalButtonText = button.textContent;
-    button.textContent = 'Saving...';
+function handleSavePresetRequest({ name, url, isPreset }) {
+    uiActions.setPresetSaveStatus('saving');
 
     const streamInput = useAnalysisStore
         .getState()
@@ -20,8 +18,8 @@ function handleSavePresetRequest({ name, url, button, isPreset }) {
             message: 'Could not find stream input to save.',
             type: 'fail',
         });
-        button.textContent = originalButtonText;
-        button.disabled = false;
+        uiActions.setPresetSaveStatus('error');
+        setTimeout(() => uiActions.setPresetSaveStatus('idle'), 2000);
         return;
     }
 
@@ -36,20 +34,15 @@ function handleSavePresetRequest({ name, url, button, isPreset }) {
                 drmAuth: streamInput.drmAuth,
             });
 
-            button.textContent = isPreset ? 'Updated!' : 'Saved!';
-            setTimeout(() => {
-                // The component will re-render and update the button state,
-                // so we don't need to reset the text here, just re-enable.
-                button.disabled = false;
-            }, 1500);
-
-            // Trigger a re-render of the library panel by reloading the presets into the UI store.
             uiActions.loadPresets();
+            uiActions.setPresetSaveStatus('saved');
         })
         .catch((err) => {
             console.error('Failed to save preset:', err);
-            button.textContent = originalButtonText;
-            button.disabled = false;
+            uiActions.setPresetSaveStatus('error');
+        })
+        .finally(() => {
+            setTimeout(() => uiActions.setPresetSaveStatus('idle'), 2000);
         });
 }
 

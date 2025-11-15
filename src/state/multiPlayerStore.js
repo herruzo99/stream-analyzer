@@ -36,7 +36,6 @@ import { createStore } from 'zustand/vanilla';
  * @property {Map<number, PlayerInstance>} players
  * @property {Map<number, 'stats' | 'controls'>} playerCardTabs
  * @property {boolean} isMutedAll
- * @property {boolean} isSyncEnabled
  * @property {boolean} isAutoResetEnabled
  * @property {PlayerEvent[]} eventLog
  * @property {boolean} globalAbrEnabled
@@ -58,7 +57,6 @@ import { createStore } from 'zustand/vanilla';
  * @property {() => void} clearPlayersAndLogs
  * @property {(isMuted: boolean) => void} setMuteAll
  * @property {() => void} toggleMuteAll
- * @property {() => void} toggleSync
  * @property {() => void} toggleAutoReset
  * @property {(streamId: number, tab: 'stats' | 'controls') => void} setPlayerCardTab
  * @property {(enabled: boolean) => void} setGlobalAbrEnabled
@@ -100,7 +98,6 @@ const createInitialState = () => ({
     players: new Map(),
     playerCardTabs: new Map(),
     isMutedAll: true,
-    isSyncEnabled: false,
     isAutoResetEnabled: false,
     eventLog: [],
     globalAbrEnabled: true,
@@ -243,7 +240,6 @@ export const useMultiPlayerStore = createStore((set, get) => ({
         }),
     setMuteAll: (isMuted) => set({ isMutedAll: isMuted }),
     toggleMuteAll: () => set((state) => ({ isMutedAll: !state.isMutedAll })),
-    toggleSync: () => set((state) => ({ isSyncEnabled: !state.isSyncEnabled })),
     toggleAutoReset: () =>
         set((state) => ({ isAutoResetEnabled: !state.isAutoResetEnabled })),
     setPlayerCardTab: (streamId, tab) =>

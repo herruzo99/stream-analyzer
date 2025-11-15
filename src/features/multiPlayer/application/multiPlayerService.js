@@ -144,30 +144,38 @@ class MultiPlayerService {
             player.configure({ drm: drmConfig });
             this.applyStreamConfig(uniqueStreamId);
 
-            let startTime = 0;
-            if (streamDef.manifest?.type === 'dynamic') {
-                const liveLatency = player.seekRange().end;
+            let startTime;
+            if (initialState) {
+                startTime = initialState.currentTime;
+            }
 
+            if (streamDef.manifest?.type === 'dynamic' && !initialState) {
                 if (streamDef.protocol === 'dash') {
-                    const delay =
-                        streamDef.manifest.suggestedPresentationDelay;
+                    const delay = streamDef.manifest.suggestedPresentationDelay;
                     if (delay) {
-                        startTime = liveLatency - delay;
                         appLog(
                             'MultiPlayerService',
                             'info',
-                            `DASH live stream: Applying suggestedPresentationDelay of ${delay}s. Starting at ${startTime}.`
+                            `DASH live stream: Found suggestedPresentationDelay of ${delay}s. Shaka Player will apply this offset from the live edge.`
+                        );
+                    } else {
+                        appLog(
+                            'MultiPlayerService',
+                            'info',
+                            `DASH live stream: No suggestedPresentationDelay found. Shaka Player will start near the live edge.`
                         );
                     }
                 } else if (streamDef.protocol === 'hls') {
                     const targetDuration =
                         streamDef.manifest.summary?.hls?.targetDuration || 2;
-                    const safeOffset = targetDuration * 3;
-                    startTime = liveLatency - safeOffset;
+                    const safeLatency = targetDuration * 3;
+                    player.configure({
+                        streaming: { liveSync: { targetLatency: safeLatency } },
+                    });
                     appLog(
                         'MultiPlayerService',
                         'info',
-                        `HLS live stream: Applying safe offset of 3*targetDuration (${safeOffset}s). Starting at ${startTime}.`
+                        `HLS live stream: setting targetLatency to ${safeLatency}s.`
                     );
                 }
             }
@@ -580,8 +588,7 @@ class MultiPlayerService {
     }
 
     syncAllTo(sourceStreamId) {
-        const { players, isSyncEnabled } = useMultiPlayerStore.getState();
-        if (!isSyncEnabled) return;
+        const { players } = useMultiPlayerStore.getState();
 
         const sourcePlayerState = players.get(sourceStreamId);
         const sourceVideo = this.videoElements.get(sourceStreamId);
@@ -593,7 +600,7 @@ class MultiPlayerService {
             const sourceLatency =
                 sourcePlayerState.seekableRange.end - sourceVideo.currentTime;
 
-            for (const [targetId] of this.videoElements.entries()) {
+            for (const [targetId, targetVideo] of this.videoElements.entries()) {
                 if (targetId === sourceStreamId) continue;
                 const targetPlayerState = players.get(targetId);
 
@@ -601,7 +608,8 @@ class MultiPlayerService {
                     const targetSeekTime =
                         targetPlayerState.seekableRange.end - sourceLatency;
                     if (
-                        targetSeekTime >= targetPlayerState.seekableRange.start
+                        targetSeekTime >= targetPlayerState.seekableRange.start &&
+                        targetSeekTime <= targetPlayerState.seekableRange.end
                     ) {
                         this.seek(targetSeekTime, targetId);
                         syncedCount++;
@@ -617,12 +625,16 @@ class MultiPlayerService {
         } else {
             // Source is VOD
             const targetTime = sourceVideo.currentTime;
-            for (const [targetId] of this.videoElements.entries()) {
+            for (const [targetId, targetVideo] of this.videoElements.entries()) {
                 if (targetId === sourceStreamId) continue;
                 const targetPlayerState = players.get(targetId);
 
                 if (targetPlayerState?.streamType === 'vod') {
-                    this.seek(targetTime, targetId);
+                    if (targetTime > targetPlayerState.seekableRange.end) {
+                        this.seek(targetPlayerState.seekableRange.end, targetId);
+                    } else {
+                        this.seek(targetTime, targetId);
+                    }
                     syncedCount++;
                 }
             }

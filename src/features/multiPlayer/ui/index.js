@@ -20,31 +20,50 @@ let uiUnsubscribe = null;
 let analysisUnsubscribe = null;
 
 const topBarControlsTemplate = () => {
-    const { isMutedAll, isSyncEnabled, players, isAutoResetEnabled } =
+    const { players, isMutedAll, isAutoResetEnabled } =
         useMultiPlayerStore.getState();
     const { multiPlayerViewMode } = useUiStore.getState();
-    const isPlaying = selectIsPlayingAll();
+
+    const playersArray = Array.from(players.values());
+    const canPause = playersArray.some(
+        (p) => p.state === 'playing' || p.state === 'buffering'
+    );
+    const canPlay =
+        players.size > 0 &&
+        playersArray.some((p) =>
+            ['paused', 'ended', 'idle', 'error'].includes(p.state)
+        );
+
     const isImmersive = multiPlayerViewMode === 'immersive';
-    const failedPlayerCount = Array.from(players.values()).filter(
+    const failedPlayerCount = playersArray.filter(
         (p) => p.state === 'error'
     ).length;
 
     const buttonClasses =
         'px-3 py-1.5 text-sm font-semibold rounded-md transition-colors flex items-center gap-2';
+    const disabledClasses = 'bg-slate-700/50 text-slate-400 cursor-not-allowed';
 
     return html`
         <div class="flex items-center flex-wrap gap-2">
             <button
-                @click=${() =>
-                    isPlaying
-                        ? eventBus.dispatch('ui:multi-player:pause-all')
-                        : eventBus.dispatch('ui:multi-player:play-all')}
-                class="${buttonClasses} ${isPlaying
-                    ? 'bg-yellow-600 text-yellow-900 hover:bg-yellow-500'
-                    : 'bg-green-600 text-white hover:bg-green-500'}"
+                @click=${() => eventBus.dispatch('ui:multi-player:play-all')}
+                class="${buttonClasses} ${canPlay
+                    ? 'bg-green-600 text-white hover:bg-green-500'
+                    : disabledClasses}"
+                ?disabled=${!canPlay}
             >
-                ${isPlaying ? icons.pause : icons.play}
-                <span>${isPlaying ? 'Pause All' : 'Play All'}</span>
+                ${icons.play}
+                <span>Play All</span>
+            </button>
+            <button
+                @click=${() => eventBus.dispatch('ui:multi-player:pause-all')}
+                class="${buttonClasses} ${canPause
+                    ? 'bg-yellow-600 text-yellow-900 hover:bg-yellow-500'
+                    : disabledClasses}"
+                ?disabled=${!canPause}
+            >
+                ${icons.pause}
+                <span>Pause All</span>
             </button>
             <button
                 @click=${() =>
@@ -57,23 +76,14 @@ const topBarControlsTemplate = () => {
             </button>
             <button
                 @click=${() =>
-                    eventBus.dispatch('ui:multi-player:sync-toggled')}
-                class="${buttonClasses} ${isSyncEnabled
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-slate-700/50 hover:bg-slate-600 text-slate-300'}"
-            >
-                ${icons.sync}
-                <span>Sync</span>
-            </button>
-            <button
-                @click=${() =>
                     eventBus.dispatch('ui:multi-player:toggle-immersive-view')}
                 class="${buttonClasses} ${isImmersive
                     ? 'bg-purple-600 text-white'
                     : 'bg-slate-700/50 hover:bg-slate-600 text-slate-300'}"
                 title="Toggle immersive monitoring view"
             >
-                 ${isImmersive ? icons.minimize : icons.maximize} <span>Inmersive</span>
+                ${isImmersive ? icons.minimize : icons.maximize}
+                <span>Inmersive</span>
             </button>
 
             <div class="h-6 w-px bg-slate-700"></div>

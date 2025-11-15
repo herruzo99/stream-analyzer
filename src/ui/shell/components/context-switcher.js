@@ -27,6 +27,7 @@ export function renderContextSwitcher() {
 
     const hlsSwitcher =
         showSwitchers &&
+        activeTab !== 'summary' && // ARCHITECTURAL FIX: Hide on Summary tab
         activeTab !== 'explorer' && // Do not show in Segment Explorer
         activeStream &&
         activeStream.protocol === 'hls' &&

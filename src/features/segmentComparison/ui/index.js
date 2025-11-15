@@ -95,9 +95,24 @@ function renderSegmentComparison() {
                         : []),
                 ];
 
+                const filteredSections = sections
+                    .map((section) => ({
+                        ...section,
+                        rows: comparisonHideSameRows
+                            ? section.rows.filter(
+                                  (row) => row.status !== 'same'
+                              )
+                            : section.rows,
+                        tableData: section.tableData,
+                    }))
+                    .filter(
+                        (section) =>
+                            section.rows.length > 0 || section.tableData
+                    );
+
                 let tabContent;
                 if (segmentComparisonActiveTab === 'structural') {
-                    tabContent = html`<div class="mt-6">
+                    tabContent = html`<div class="overflow-auto grow mt-6">
                         <p class="text-sm text-slate-400 mb-2">
                             Visual comparison of the ISOBMFF box tree. Only the
                             first two selected segments are used for this view.
@@ -105,25 +120,16 @@ function renderSegmentComparison() {
                         ${semanticDiffTemplate(structuralDiff)}
                     </div>`;
                 } else {
-                    const filteredSections = sections
-                        .map((section) => ({
-                            ...section,
-                            rows: comparisonHideSameRows
-                                ? section.rows.filter(
-                                      (row) => row.status !== 'same'
-                                  )
-                                : section.rows,
-                            tableData: section.tableData,
-                        }))
-                        .filter(
-                            (section) =>
-                                section.rows.length > 0 || section.tableData
-                        );
-
                     tabContent = html`
-                        <div class="overflow-auto grow mt-6">
+                        <!-- Sticky Table Header -->
+                        <div class="shrink-0 mt-6">
                             <div class="min-w-[1024px]">
                                 ${comparisonHeaderTemplate(headers)}
+                            </div>
+                        </div>
+                        <!-- Scrollable Table Body -->
+                        <div class="overflow-auto grow">
+                            <div class="min-w-[1024px]">
                                 ${filteredSections.map((section) =>
                                     comparisonSectionTemplate(
                                         section,
@@ -177,11 +183,13 @@ function renderSegmentComparison() {
                             </div>
                         </div>
 
-                        ${connectedTabBar(
-                            tabs,
-                            segmentComparisonActiveTab,
-                            uiActions.setSegmentComparisonActiveTab
-                        )}
+                        <div class="shrink-0">
+                            ${connectedTabBar(
+                                tabs,
+                                segmentComparisonActiveTab,
+                                uiActions.setSegmentComparisonActiveTab
+                            )}
+                        </div>
                         ${tabContent}
                     </div>
                 `;

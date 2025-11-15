@@ -88,15 +88,21 @@ export function toggleDropdown(triggerElement, templateFn, event) {
     panelElement.style.pointerEvents = 'auto';
     panelElement.style.visibility = 'hidden';
 
-    // --- ENHANCED VIEWPORT-AWARE POSITIONING ---
-    const panelRect = panelElement.getBoundingClientRect();
-    const triggerRect = triggerElement.getBoundingClientRect();
+    // --- ARCHITECTURAL REFACTOR: Viewport-aware positioning with scrolling ---
     const MARGIN = 10;
     const SPACING = 4;
 
+    // 1. Constrain max height to fit within the viewport.
+    const maxPanelHeight = window.innerHeight - MARGIN * 2;
+    panelElement.style.maxHeight = `${maxPanelHeight}px`;
+
+    // 2. Re-measure dimensions now that max-height is set.
+    const panelRect = panelElement.getBoundingClientRect();
+    const triggerRect = triggerElement.getBoundingClientRect();
+
     let top, left, transformOrigin;
 
-    // Vertical positioning: Prefer below, flip to above if not enough space.
+    // 3. Vertical positioning: Prefer below, flip to above if not enough space.
     if (
         triggerRect.bottom + panelRect.height + SPACING <
         window.innerHeight - MARGIN
@@ -107,18 +113,19 @@ export function toggleDropdown(triggerElement, templateFn, event) {
         top = triggerRect.top - panelRect.height - SPACING;
         transformOrigin = 'bottom';
     }
+    // Clamp to ensure it doesn't go off-screen at the top.
     top = Math.max(MARGIN, top);
 
-    // Horizontal positioning: Prefer right-aligned, adjust if clipped.
+    // 4. Horizontal positioning: Prefer right-aligned, adjust if clipped.
     left = triggerRect.right - panelRect.width;
     transformOrigin += ' right';
 
-    // Adjust if clipping left edge
+    // Adjust if clipping left edge.
     if (left < MARGIN) {
         left = MARGIN;
         transformOrigin = transformOrigin.replace('right', 'left');
     }
-    // Adjust if clipping right edge
+    // Adjust if clipping right edge.
     if (left + panelRect.width > window.innerWidth - MARGIN) {
         left = window.innerWidth - panelRect.width - MARGIN;
     }
@@ -126,9 +133,9 @@ export function toggleDropdown(triggerElement, templateFn, event) {
     panelElement.style.top = `${top}px`;
     panelElement.style.left = `${left}px`;
     panelElement.style.transformOrigin = transformOrigin;
-    panelElement.style.right = 'auto'; // Unset right to use left positioning
+    panelElement.style.right = 'auto';
     panelElement.style.visibility = 'visible';
-    // --- END ENHANCED POSITIONING ---
+    // --- END REFACTOR ---
 
     const close = () => {
         unsubAnalysis();
