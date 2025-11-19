@@ -4,7 +4,7 @@ import {
     findChildren,
     getInheritedElement,
     resolveBaseUrl,
-} from './recursive-parser.js';
+} from '../utils/recursive-parser.js';
 import { getDrmSystemName } from '../utils/drm.js';
 import { fetchWithAuth } from '../../worker/http.js';
 import { parseISOBMFF } from '../isobmff/parser.js';
@@ -186,6 +186,7 @@ export async function parseAllSegmentUrls(
                     segments: [],
                     segmentsByStrategy: new Map(),
                     diagnostics: {},
+                    liveEdgeTime: null,
                 };
 
                 const hierarchy = [rep, adaptationSet, period];
@@ -379,6 +380,7 @@ export async function parseAllSegmentUrls(
                                 (now - availabilityStartTime) / 1000;
                             const windowStart = liveEdge - timeShiftBufferDepth;
 
+                            segmentsByRep[compositeKey].liveEdgeTime = liveEdge;
                             segmentsByRep[compositeKey].segments =
                                 allTimelineSegments.filter((seg) => {
                                     const segAbsoluteTime =
@@ -429,6 +431,9 @@ export async function parseAllSegmentUrls(
                             segmentsByRep[compositeKey].diagnostics[
                                 'Time-based Calculation'
                             ] = { latestSegmentNum };
+
+                            segmentsByRep[compositeKey].liveEdgeTime =
+                                liveEdgeTime + periodStart;
 
                             segmentsByRep[compositeKey].segments =
                                 generateSegments(
@@ -615,14 +620,16 @@ export async function parseAllSegmentUrls(
                 } else if (baseURLOnly) {
                     const urlContent = baseURLOnly['#text'] || '';
                     const resolvedUrl = new URL(urlContent, baseUrl).href;
+                    // For single-file reps, timescale is 1 and duration is the period/MPD duration.
                     const timescale = 1;
-                    const mpdDurationSeconds =
-                        parseDuration(
-                            getAttr(
-                                manifestElement,
-                                'mediaPresentationDuration'
-                            )
-                        ) || 0;
+                    const periodDurationSeconds = parseDuration(
+                        getAttr(period, 'duration')
+                    );
+                    const mpdDurationSeconds = parseDuration(
+                        getAttr(manifestElement, 'mediaPresentationDuration')
+                    );
+                    const durationSeconds =
+                        periodDurationSeconds || mpdDurationSeconds || 0;
 
                     const mediaSegment = {
                         repId,
@@ -632,7 +639,7 @@ export async function parseAllSegmentUrls(
                         uniqueId: resolvedUrl,
                         template: urlContent,
                         time: 0,
-                        duration: mpdDurationSeconds * timescale,
+                        duration: durationSeconds * timescale,
                         timescale,
                         encryptionInfo,
                         flags,

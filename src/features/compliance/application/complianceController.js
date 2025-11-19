@@ -1,26 +1,24 @@
 import { eventBus } from '@/application/event-bus';
 import { uiActions } from '@/state/uiStore';
 import { renderApp } from '@/ui/shell/mainRenderer';
+import { EVENTS } from '@/types/events';
 
 export function initializeComplianceController() {
-    eventBus.subscribe('ui:compliance:filter-changed', ({ filter }) => {
+    eventBus.subscribe(EVENTS.UI.COMPLIANCE_FILTER_CHANGED, ({ filter }) => {
         uiActions.setComplianceFilter(filter);
         renderApp();
     });
 
-    eventBus.subscribe(
-        'ui:compliance:standard-version-changed',
-        ({ version }) => {
-            uiActions.setComplianceStandardVersion(version);
-            renderApp();
-        }
-    );
+    eventBus.subscribe(EVENTS.UI.COMPLIANCE_STANDARD_CHANGED, ({ version }) => {
+        uiActions.setComplianceStandardVersion(version);
+        renderApp();
+    });
 
-    eventBus.subscribe('ui:compliance:path-hovered', ({ pathId }) => {
+    eventBus.subscribe(EVENTS.UI.COMPLIANCE_PATH_HOVERED, ({ pathId }) => {
         uiActions.setHighlightedCompliancePathId(pathId);
     });
 
-    eventBus.subscribe('ui:compliance:path-unhovered', () => {
+    eventBus.subscribe(EVENTS.UI.COMPLIANCE_PATH_UNHOVERED, () => {
         uiActions.setHighlightedCompliancePathId(null);
     });
 }

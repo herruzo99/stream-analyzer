@@ -5,26 +5,113 @@ import { adaptHlsToIr } from './adapter.js';
  * @typedef {import('@/types.ts').EncryptionInfo} EncryptionInfo
  */
 
-function parseAttributeList(attrString) {
-    /** @type {Record<string, string | number>} */
+/**
+ * Parses an HLS attribute list string into a key-value object.
+ * Uses a state machine to handle quoted strings, escaped quotes, and varied spacing.
+ * @param {string} attrString The raw attribute string (e.g. 'BANDWIDTH=123,CODECS="abc"')
+ * @returns {Record<string, string | number>} Parsed attributes.
+ */
+export function parseAttributeList(attrString) {
     const attributes = {};
-    const regex = /([A-Z0-9-]+)=("[^"]*"|[^,]+)/g;
-    let match;
+    let key = '';
+    let value = '';
+    let state = 'KEY'; // States: KEY, PRE_VALUE, VALUE_UNQUOTED, VALUE_QUOTED
+    let i = 0;
+    const len = attrString.length;
 
-    while ((match = regex.exec(attrString)) !== null) {
-        const key = match[1];
-        let value = match[2];
+    while (i < len) {
+        const char = attrString[i];
 
-        if (value.startsWith('"') && value.endsWith('"')) {
-            value = value.substring(1, value.length - 1);
+        switch (state) {
+            case 'KEY':
+                if (char === '=') {
+                    state = 'PRE_VALUE';
+                    key = key.trim();
+                } else if (char === ',') {
+                    // Key without value (shouldn't happen in valid HLS, but handle gracefully)
+                    if (key.trim()) {
+                        attributes[key.trim()] = null;
+                    }
+                    key = '';
+                } else {
+                    key += char;
+                }
+                break;
+
+            case 'PRE_VALUE':
+                if (/\s/.test(char)) {
+                    // Skip leading whitespace
+                } else if (char === '"') {
+                    state = 'VALUE_QUOTED';
+                } else if (char === ',') {
+                    // Empty value
+                    attributes[key] = '';
+                    key = '';
+                    state = 'KEY';
+                } else {
+                    state = 'VALUE_UNQUOTED';
+                    value += char;
+                }
+                break;
+
+            case 'VALUE_QUOTED':
+                if (char === '\\' && i + 1 < len) {
+                    // Handle escape sequence
+                    value += attrString[i + 1];
+                    i++; // Skip next char
+                } else if (char === '"') {
+                    // End of quoted string
+                    attributes[key] = value;
+                    key = '';
+                    value = '';
+                    state = 'WAIT_COMMA';
+                } else {
+                    value += char;
+                }
+                break;
+
+            case 'VALUE_UNQUOTED':
+                if (char === ',') {
+                    // End of value
+                    let finalValue = value.trim();
+                    // Attempt numeric conversion
+                    if (/^-?\d+(\.\d+)?$/.test(finalValue)) {
+                        attributes[key] = parseFloat(finalValue);
+                    } else {
+                        attributes[key] = finalValue;
+                    }
+                    key = '';
+                    value = '';
+                    state = 'KEY';
+                } else {
+                    value += char;
+                }
+                break;
+
+            case 'WAIT_COMMA':
+                if (char === ',') {
+                    state = 'KEY';
+                }
+                // Ignore other characters (like spaces) until comma
+                break;
         }
-
-        const numValue = /^-?\d+(\.\d+)?$/.test(value)
-            ? parseFloat(value)
-            : value;
-        attributes[key] = numValue;
+        i++;
     }
-    return attributes;
+
+    // Handle trailing value
+    if (state === 'VALUE_UNQUOTED' && key) {
+        let finalValue = value.trim();
+        if (/^-?\d+(\.\d+)?$/.test(finalValue)) {
+            attributes[key] = parseFloat(finalValue);
+        } else {
+            attributes[key] = finalValue;
+        }
+    } else if (state === 'KEY' && key.trim()) {
+        // Trailing key without value
+        attributes[key.trim()] = null;
+    }
+
+    return /** @type {Record<string, string | number>} */ (attributes);
 }
 
 /**
@@ -109,7 +196,13 @@ function applyVariableSubstitution(
  * @param {string} baseUrl - The base URL for resolving relative URIs.
  * @returns {{finalizedSegment: HlsSegment, nextRangeState: {uri: string | null, end: number}}} The updated byterange state.
  */
-function finalizeCurrentSegment(segment, byteRange, uri, lastRangeState, baseUrl) {
+function finalizeCurrentSegment(
+    segment,
+    byteRange,
+    uri,
+    lastRangeState,
+    baseUrl
+) {
     if (!segment || !uri) {
         return { finalizedSegment: segment, nextRangeState: lastRangeState };
     }
@@ -229,9 +322,31 @@ export async function parseManifest(
             if (tagValue === null) {
                 currentTag.value = null;
             } else {
-                const isQuotedString = tagValue.startsWith('"') && tagValue.endsWith('"');
+                // Check if the tag value is a quoted string first
+                const isQuotedString =
+                    tagValue.startsWith('"') && tagValue.endsWith('"');
                 if (isQuotedString) {
-                    currentTag.value = tagValue.substring(1, tagValue.length - 1);
+                    currentTag.value = tagValue.substring(
+                        1,
+                        tagValue.length - 1
+                    );
+                } else if (tagValue.includes('=') && !tagValue.includes(',')) {
+                    // Special case: single attribute-like syntax (rare but possible) or complex string
+                    // Use new parser if it looks like attribute list
+                    if (
+                        tagName === 'EXT-X-STREAM-INF' ||
+                        tagName === 'EXT-X-I-FRAME-STREAM-INF' ||
+                        tagName === 'EXT-X-MEDIA' ||
+                        tagName === 'EXT-X-KEY'
+                    ) {
+                        currentTag.value = parseAttributeList(tagValue);
+                    } else {
+                        // Fallback to simple number parsing if not a known attribute list tag
+                        const numValue = parseFloat(tagValue);
+                        currentTag.value = !isNaN(numValue)
+                            ? numValue
+                            : tagValue;
+                    }
                 } else if (tagValue.includes('=')) {
                     currentTag.value = parseAttributeList(tagValue);
                 } else {
@@ -296,9 +411,9 @@ export async function parseManifest(
                         cumulativeDuration += currentSegment.duration;
                     }
 
-                    const [durationStr, title] = String(
-                        currentTag.value
-                    ).split(',');
+                    const [durationStr, title] = String(currentTag.value).split(
+                        ','
+                    );
                     currentSegment = {
                         repId: 'hls-media',
                         number: 0,
@@ -326,6 +441,26 @@ export async function parseManifest(
                         currentSegment.flags.push('key-change');
                     }
                     discontinuity = false;
+                    break;
+                }
+                case 'EXT-X-CUE-OUT': {
+                    if (currentSegment) {
+                        const durationMatch = String(tagValue).match(
+                            /DURATION=(\d+(\.\d+)?)/
+                        );
+                        currentSegment.cue = {
+                            type: 'out',
+                            duration: durationMatch
+                                ? parseFloat(durationMatch[1])
+                                : 0,
+                        };
+                    }
+                    break;
+                }
+                case 'EXT-X-CUE-IN': {
+                    if (currentSegment) {
+                        currentSegment.cue = { type: 'in' };
+                    }
                     break;
                 }
                 case 'EXT-X-MEDIA':

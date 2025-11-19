@@ -25,6 +25,7 @@ import * as icons from '@/ui/icons';
 import { getParsedSegment } from '@/infrastructure/segments/segmentService.js';
 import { copyTextToClipboard } from '@/ui/shared/clipboard.js';
 import { showToast } from '@/ui/components/toast.js';
+import { scte35DetailsTemplate } from '@/ui/shared/scte35-details.js';
 
 let container = null;
 let uiUnsubscribe = null;
@@ -93,6 +94,8 @@ function renderInteractiveSegment() {
 
         if (format === 'vtt') {
             content = getInteractiveVttTemplate(cachedSegment.data);
+        } else if (format === 'scte35') {
+            content = scte35DetailsTemplate(parsedData.data);
         } else if (isBinaryFormat) {
             const hasFullAnalysis = !!fullByteMap;
 

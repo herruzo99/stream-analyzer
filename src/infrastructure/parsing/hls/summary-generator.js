@@ -6,97 +6,9 @@
  * @typedef {import('@/types.ts').CodecInfo} CodecInfo
  */
 
-import { findChildrenRecursive, resolveBaseUrl } from '@/infrastructure/parsing/dash/recursive-parser';
-import { formatBitrate } from '@/ui/shared/format';
-import { findInitSegmentUrl } from '@/infrastructure/parsing/dash/segment-parser';
 import { isCodecSupported } from '../utils/codec-support.js';
 import { getDrmSystemName } from '@/infrastructure/parsing/utils/drm.js';
-import { appLog } from '@/shared/utils/debug';
-import { parseSPS } from '../video/sps.js';
-
-const findBoxRecursive = (boxes, predicateOrType) => {
-    const predicate =
-        typeof predicateOrType === 'function'
-            ? predicateOrType
-            : (box) => box.type === predicateOrType;
-
-    if (!boxes) return null;
-    for (const box of boxes) {
-        if (predicate(box)) return box;
-        if (box.children?.length > 0) {
-            const found = findBoxRecursive(box.children, predicate);
-            if (found) return found;
-        }
-    }
-    return null;
-};
-
-/**
- * Determines the segment format for an HLS manifest using reliable heuristics.
- * @param {object} hlsParsed - The parsed HLS manifest data from the parser.
- * @returns {'isobmff' | 'ts' | 'unknown'}
- */
-function determineSegmentFormat(hlsParsed) {
-    // 1. Definitive check: If EXT-X-MAP is present, it's fMP4 (ISOBFF).
-    if (hlsParsed.map) {
-        return 'isobmff';
-    }
-
-    // 2. Media Playlist Check: Check segment extensions directly. This is highly reliable.
-    const segments = hlsParsed.segmentGroups.flat();
-    if (segments && segments.length > 0) {
-        for (const segment of segments) {
-            const lowerUri = (segment.uri || '').toLowerCase();
-            if (
-                lowerUri.endsWith('.m4s') ||
-                lowerUri.endsWith('.mp4') ||
-                lowerUri.includes('.cmf')
-            ) {
-                return 'isobmff';
-            }
-            if (lowerUri.endsWith('.ts')) {
-                return 'ts';
-            }
-        }
-    }
-
-    // 3. Master Playlist Heuristic: Check extensions of variant stream URIs.
-    if (
-        hlsParsed.isMaster &&
-        hlsParsed.variants &&
-        hlsParsed.variants.length > 0
-    ) {
-        for (const variant of hlsParsed.variants) {
-            const lowerUri = (variant.uri || '').toLowerCase();
-            if (lowerUri.includes('.m4s') || lowerUri.includes('.mp4')) {
-                return 'isobmff';
-            }
-            if (lowerUri.includes('.ts')) {
-                return 'ts';
-            }
-        }
-    }
-
-    // 4. Final Fallback: If no clues, we cannot be certain. Return 'unknown'.
-    return 'unknown';
-}
-
-const isVideoCodec = (codecString) => {
-    if (!codecString) return false;
-    const lowerCodec = codecString.toLowerCase();
-    const videoPrefixes = [
-        'avc1',
-        'avc3',
-        'hvc1',
-        'hev1',
-        'mp4v',
-        'dvh1',
-        'dvhe',
-        'av01',
-        'vp09',
-    ];
-    return videoPrefixes.some((prefix) => lowerCodec.startsWith(prefix));
-};
+import { determineSegmentFormat } from '../utils/media-types.js';
 
 const isAudioCodec = (codecString) => {
     if (!codecString) return false;
@@ -186,7 +98,7 @@ export async function generateHlsSummary(manifestIR, context) {
                 });
             } else if (rep.serializedManifest?.attributes?.RESOLUTION) {
                 resolutions.push(
-                    /** @type {import('@/types.ts').SourcedData<string>} */ ({
+                    /** @type {import('@/types.ts').SourcedData<string>} */({
                         value: rep.serializedManifest.attributes.RESOLUTION,
                         source: 'manifest',
                     })
@@ -203,7 +115,7 @@ export async function generateHlsSummary(manifestIR, context) {
                 codecs: rep.codecs,
                 scanType: null,
                 videoRange: null,
-                roles: as.roles.map((r) => r.value).filter(Boolean),
+                roles: as.roles,
                 __variantUri: rep.__variantUri,
                 muxedAudio: rep.muxedAudio,
             });
@@ -212,13 +124,12 @@ export async function generateHlsSummary(manifestIR, context) {
         });
     });
 
-
     const audioTracks = (allAudioAdaptationSets || []).map((as) => {
         const codecsMap = new Map();
         const channelsSet = new Set();
 
         as.representations.forEach((r) => {
-            (r.codecs || []).forEach(codecInfo => {
+            (r.codecs || []).forEach((codecInfo) => {
                 if (codecInfo.value && !codecsMap.has(codecInfo.value)) {
                     codecsMap.set(codecInfo.value, codecInfo);
                 }
@@ -237,9 +148,11 @@ export async function generateHlsSummary(manifestIR, context) {
             lang: as.lang,
             codecs: codecs,
             channels: channels.join(', ') || null,
-            isDefault: /** @type {any} */ (as.serializedManifest)?.value?.DEFAULT === 'YES',
+            isDefault:
+                /** @type {any} */ (as.serializedManifest)?.value?.DEFAULT ===
+                'YES',
             isForced: as.forced,
-            roles: as.roles.map((r) => r.value).filter(Boolean),
+            roles: as.roles,
             bandwidth: as.representations[0]?.bandwidth || 0,
         };
     });
@@ -247,38 +160,39 @@ export async function generateHlsSummary(manifestIR, context) {
     const textTracks = allTextAdaptationSets.map((as) => {
         const mimeTypes =
             as.representations[0]?.codecs?.[0]?.value ||
-            as.representations[0]?.mimeType
+                as.representations[0]?.mimeType
                 ? [
-                      {
-                          value:
-                              as.representations[0].codecs?.[0]?.value ||
-                              as.representations[0].mimeType,
-                          source: as.representations[0].codecs?.[0]
-                              ? 'manifest'
-                              : 'mimeType',
-                      },
-                  ]
+                    {
+                        value:
+                            as.representations[0].codecs?.[0]?.value ||
+                            as.representations[0].mimeType,
+                        source: as.representations[0].codecs?.[0]
+                            ? 'manifest'
+                            : 'mimeType',
+                    },
+                ]
                 : [];
         return {
             id: as.stableRenditionId || as.id,
             lang: as.lang,
             codecsOrMimeTypes: mimeTypes.map(
                 (v) =>
-                    /** @type {import('@/types.ts').CodecInfo} */ ({
-                        value: v.value,
-                        source: v.source,
-                        supported: isCodecSupported(v.value),
-                    })
+                    /** @type {import('@/types.ts').CodecInfo} */({
+                    value: v.value,
+                    source: v.source,
+                    supported: isCodecSupported(v.value),
+                })
             ),
             isDefault:
-                /** @type {any} */ (as.serializedManifest).value?.DEFAULT === 'YES',
+                /** @type {any} */ (as.serializedManifest).value?.DEFAULT ===
+                'YES',
             isForced: as.forced,
-            roles: as.roles.map((r) => r.value).filter(Boolean),
+            roles: as.roles,
         };
     });
 
     const parsedKeyTags = Array.from(allKeyTags).map((tagStr) =>
-        JSON.parse(/** @type {string} */ (tagStr))
+        JSON.parse(/** @type {string} */(tagStr))
     );
     const contentProtectionIRs = parsedKeyTags
         .filter((value) => value.METHOD && value.METHOD !== 'NONE')
@@ -296,10 +210,10 @@ export async function generateHlsSummary(manifestIR, context) {
         isEncrypted: contentProtectionIRs.length > 0,
         systems: contentProtectionIRs.map(
             (cp) =>
-                /** @type {import('@/types').PsshInfo} */ ({
-                    systemId: cp.schemeIdUri,
-                    kids: cp.defaultKid ? [cp.defaultKid] : [],
-                })
+                /** @type {import('@/types').PsshInfo} */({
+                systemId: cp.schemeIdUri,
+                kids: cp.defaultKid ? [cp.defaultKid] : [],
+            })
         ),
         kids: [
             ...new Set(
@@ -341,8 +255,9 @@ export async function generateHlsSummary(manifestIR, context) {
         };
     }
 
-    const iFramePlaylists =
-        (/** @type {any} */ (rawElement).iframeStreams || []).length;
+    const iFramePlaylists = (
+        /** @type {any} */ (rawElement).iframeStreams || []
+    ).length;
 
     const periodSummaries = manifestIR.periods.map((period) => ({
         id: period.id,
@@ -396,7 +311,8 @@ export async function generateHlsSummary(manifestIR, context) {
         content: {
             totalPeriods: manifestIR.periods.length,
             totalVideoTracks: videoTracks.length,
-            totalAudioTracks: (allAudioAdaptationSets || []).length + (hasMuxedAudio ? 1 : 0),
+            totalAudioTracks:
+                (allAudioAdaptationSets || []).length + (hasMuxedAudio ? 1 : 0),
             totalTextTracks: textTracks.length,
             mediaPlaylists: isMaster ? (manifestIR.variants || []).length : 1,
             periods: periodSummaries,

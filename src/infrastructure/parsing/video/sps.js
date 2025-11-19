@@ -14,7 +14,11 @@ class BitReader {
         let result = 0;
         for (let i = 0; i < n; i++) {
             if (this.bytePosition >= this.buffer.length) {
-                appLog('sps.js', 'warn', 'Attempted to read beyond buffer length.');
+                appLog(
+                    'sps.js',
+                    'warn',
+                    'Attempted to read beyond buffer length.'
+                );
                 return null;
             }
             const byte = this.buffer[this.bytePosition];
@@ -33,11 +37,18 @@ class BitReader {
     readUE() {
         let leadingZeroBits = 0;
         // Find the number of leading zero bits.
-        while (this.bytePosition < this.buffer.length && this.readBits(1) === 0) {
+        while (
+            this.bytePosition < this.buffer.length &&
+            this.readBits(1) === 0
+        ) {
             leadingZeroBits++;
             if (leadingZeroBits > 32) {
                 // Protection against malformed data / infinite loops
-                appLog('sps.js', 'error', 'Exceeded max leading zero bits in UE parsing.');
+                appLog(
+                    'sps.js',
+                    'error',
+                    'Exceeded max leading zero bits in UE parsing.'
+                );
                 return null;
             }
         }
@@ -50,7 +61,6 @@ class BitReader {
         return (1 << leadingZeroBits) - 1 + codeNum;
     }
 }
-
 
 /**
  * Parses HRD (Hypothetical Reference Decoder) parameters from the bitstream.
@@ -72,7 +82,6 @@ function parseHRDParameters(reader) {
     reader.readBits(5); // dpb_output_delay_length_minus1
     reader.readBits(5); // time_offset_length
 }
-
 
 /**
  * Parses a raw H.264 Sequence Parameter Set (SPS) NAL unit.
@@ -125,7 +134,7 @@ export function parseSPS(spsNalUnit) {
                 const seq_scaling_list_present_flag = reader.readBits(1);
                 if (seq_scaling_list_present_flag) {
                     // This is complex, just skip for now by returning a partial result
-                     return {
+                    return {
                         profile_idc,
                         level_idc,
                         error: 'SPS with scaling matrix not fully parsed.',
@@ -156,7 +165,8 @@ export function parseSPS(spsNalUnit) {
     const frame_mbs_only_flag = reader.readBits(1);
 
     let width = (pic_width_in_mbs_minus1 + 1) * 16;
-    let height = (2 - frame_mbs_only_flag) * (pic_height_in_map_units_minus1 + 1) * 16;
+    let height =
+        (2 - frame_mbs_only_flag) * (pic_height_in_map_units_minus1 + 1) * 16;
 
     if (frame_mbs_only_flag === 0) {
         reader.readBits(1); // mb_adaptive_frame_field_flag
@@ -169,12 +179,14 @@ export function parseSPS(spsNalUnit) {
         const frame_crop_right_offset = reader.readUE();
         const frame_crop_top_offset = reader.readUE();
         const frame_crop_bottom_offset = reader.readUE();
-        
+
         const cropUnitX = chroma_format_idc === 1 ? 2 : 1; // 4:2:0 or 4:2:2
-        const cropUnitY = (chroma_format_idc === 1 ? 2 : 1) * (2 - frame_mbs_only_flag);
+        const cropUnitY =
+            (chroma_format_idc === 1 ? 2 : 1) * (2 - frame_mbs_only_flag);
 
         width -= (frame_crop_left_offset + frame_crop_right_offset) * cropUnitX;
-        height -= (frame_crop_top_offset + frame_crop_bottom_offset) * cropUnitY;
+        height -=
+            (frame_crop_top_offset + frame_crop_bottom_offset) * cropUnitY;
     }
 
     const vui_parameters_present_flag = reader.readBits(1);
@@ -185,7 +197,8 @@ export function parseSPS(spsNalUnit) {
         const aspect_ratio_info_present_flag = reader.readBits(1);
         if (aspect_ratio_info_present_flag) {
             const aspect_ratio_idc = reader.readBits(8);
-            if (aspect_ratio_idc === 255) { // Extended_SAR
+            if (aspect_ratio_idc === 255) {
+                // Extended_SAR
                 reader.readBits(16); // sar_width
                 reader.readBits(16); // sar_height
             }
@@ -229,7 +242,10 @@ export function parseSPS(spsNalUnit) {
         if (vcl_hrd_parameters_present_flag) {
             parseHRDParameters(reader);
         }
-        if (nal_hrd_parameters_present_flag || vcl_hrd_parameters_present_flag) {
+        if (
+            nal_hrd_parameters_present_flag ||
+            vcl_hrd_parameters_present_flag
+        ) {
             reader.readBits(1); // low_delay_hrd_flag
         }
         reader.readBits(1); // pic_struct_present_flag

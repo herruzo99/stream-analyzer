@@ -352,11 +352,8 @@ const drmAuthSettingsTemplate = (inputId, drmAuth, detectedDrm, showAll) => {
 
 export const inspectorPanelTemplate = () => {
     const { streamInputs, activeStreamInputId } = useAnalysisStore.getState();
-    const {
-        streamInputActiveMobileTab,
-        showAllDrmFields,
-        presetSaveStatus,
-    } = useUiStore.getState();
+    const { streamInputActiveMobileTab, showAllDrmFields, presetSaveStatus } =
+        useUiStore.getState();
     const activeInput = streamInputs.find((i) => i.id === activeStreamInputId);
 
     if (!activeInput) {

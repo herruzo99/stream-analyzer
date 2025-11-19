@@ -1,11 +1,10 @@
 import { html, render } from 'lit-html';
-import { useUiStore, uiActions } from '@/state/uiStore';
+import { useUiStore } from '@/state/uiStore';
 import { closeModal } from '@/ui/services/modalService';
 import { getSegmentAnalysisTemplate } from '@/features/segmentAnalysis/ui/index';
 import { scte35DetailsTemplate } from '@/ui/shared/scte35-details';
 import { aboutModalTemplate } from './about-modal.js';
 import { segmentPollingSelectorTemplate } from '@/ui/shell/components/segment-polling-selector';
-import { classMap } from 'lit-html/directives/class-map.js';
 
 let dom;
 let wasOpen = false; // Local state to track previous modal state for animations
@@ -57,12 +56,21 @@ function renderModal() {
     if (isOpening) {
         dom.modalTitle.textContent = modalState.modalTitle;
         dom.modalSegmentUrl.textContent = modalState.modalUrl;
-        render(getContentTemplate(modalState.modalContent), dom.modalContentArea);
+        render(
+            getContentTemplate(modalState.modalContent),
+            dom.modalContentArea
+        );
 
         const modalContentContainer = dom.segmentModal.querySelector('div');
         if (modalContentContainer) {
-            modalContentContainer.classList.toggle('max-w-7xl', modalState.isModalFullWidth);
-            modalContentContainer.classList.toggle('max-w-4xl', !modalState.isModalFullWidth);
+            modalContentContainer.classList.toggle(
+                'max-w-7xl',
+                modalState.isModalFullWidth
+            );
+            modalContentContainer.classList.toggle(
+                'max-w-4xl',
+                !modalState.isModalFullWidth
+            );
         }
 
         dom.segmentModal.classList.remove('hidden', 'modal-leave');
@@ -92,7 +100,6 @@ function renderModal() {
     wasOpen = isOpen;
 }
 
-
 /**
  * Initializes the modal component, setting up event listeners and subscribing to state changes.
  * @param {object} domContext The application's DOM context.
@@ -106,14 +113,14 @@ export function initializeModalComponent(domContext) {
             closeModal();
         }
     });
-    
+
     dom.closeModalBtn.addEventListener('click', closeModal);
 
     wasOpen = useUiStore.getState().modalState.isModalOpen;
-    
+
     if (unsubscribeUiStore) unsubscribeUiStore();
     unsubscribeUiStore = useUiStore.subscribe(renderModal);
-    
+
     if (wasOpen) {
         renderModal();
     }

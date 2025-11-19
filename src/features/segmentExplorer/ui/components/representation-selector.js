@@ -104,9 +104,14 @@ const dashPeriodGroupTemplate = (period, index, activeRepId, activeTab) => {
     const groupId = `period-${periodId}`;
     const isOpen = !segmentExplorerClosedGroups.has(groupId);
 
-    const adaptationSetsForTab = period.adaptationSets.filter(
-        (as) => as.contentType === activeTab
-    );
+    const adaptationSetsForTab = period.adaptationSets.filter((as) => {
+        if (activeTab === 'text') {
+            return (
+                as.contentType === 'text' || as.contentType === 'application'
+            );
+        }
+        return as.contentType === activeTab;
+    });
     if (adaptationSetsForTab.length === 0) return '';
 
     return html`

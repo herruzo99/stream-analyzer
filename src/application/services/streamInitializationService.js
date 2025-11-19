@@ -1,4 +1,5 @@
 import { eventBus } from '@/application/event-bus';
+import { EVENTS } from '@/types/events';
 
 /**
  * A service dedicated to enriching stream objects with data from dependent resources
@@ -12,7 +13,7 @@ class StreamInitializationService {
     initialize() {
         if (this.isInitialized) return;
         eventBus.subscribe(
-            'state:analysis-complete',
+            EVENTS.STATE.ANALYSIS_COMPLETE,
             this.handleAnalysisComplete.bind(this)
         );
         this.isInitialized = true;

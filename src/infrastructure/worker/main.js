@@ -10,7 +10,7 @@ import {
 import { handleShakaResourceFetch } from './handlers/shakaResourceHandler.js';
 import { handleShakaManifestFetch } from './handlers/shakaManifestHandler.js';
 import { handleGetStreamDrmInfo } from './handlers/drmDetectionHandler.js';
-import { appLog } from '@/shared/utils/debug';
+import { appLog } from '../../shared/utils/debug.js';
 import { handleStartAnalysis } from './handlers/analysisHandler.js';
 
 const inFlightTasks = new Map();
@@ -41,11 +41,7 @@ self.addEventListener('message', async (event) => {
             const { abortController } = inFlightTasks.get(id);
             if (abortController) {
                 abortController.abort();
-                appLog(
-                    'Worker',
-                    'info',
-                    `Task ${id} aborted by main thread.`
-                );
+                appLog('Worker', 'info', `Task ${id} aborted by main thread.`);
             }
             inFlightTasks.delete(id);
         }
@@ -70,11 +66,7 @@ self.addEventListener('message', async (event) => {
     const handler = handlers[type];
 
     if (!handler) {
-        appLog(
-            'Worker',
-            'warn',
-            `No handler found for task type: ${type}`
-        );
+        appLog('Worker', 'warn', `No handler found for task type: ${type}`);
         self.postMessage({
             id,
             error: { message: `Unknown task type: ${type}` },

@@ -1,4 +1,3 @@
-
 import { html, render } from 'lit-html';
 import { eventBus } from '@/application/event-bus';
 import '@/ui/components/labeled-control';

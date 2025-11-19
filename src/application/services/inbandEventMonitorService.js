@@ -1,4 +1,5 @@
 import { eventBus } from '@/application/event-bus';
+import { EVENTS } from '@/types/events';
 
 /**
  * Scans a single media segment for in-band event messages ('emsg' boxes).
@@ -24,5 +25,5 @@ function handleAnalysisComplete({ streams }) {
 }
 
 export function initializeInbandEventMonitor() {
-    eventBus.subscribe('state:analysis-complete', handleAnalysisComplete);
+    eventBus.subscribe(EVENTS.STATE.ANALYSIS_COMPLETE, handleAnalysisComplete);
 }

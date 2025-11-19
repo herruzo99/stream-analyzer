@@ -53,6 +53,7 @@ export const table = icon('table-2');
 export const locateFixed = icon('locate-fixed');
 export const settings = icon('settings');
 export const timerReset = icon('timer-reset');
+export const alertTriangle = icon('alert-triangle');
 
 // --- Misc UI Icons ---
 export const plusCircle = icon('plus-circle');
@@ -64,6 +65,7 @@ export const chevronUpDown = icon('chevrons-up-down', 'h-4 w-4');
 export const menu = icon('menu', 'h-6 w-6');
 export const clipboardCopy = icon('clipboard-copy', 'h-4 w-4');
 export const download = icon('download', 'h-4 w-4');
+export const upload = icon('upload', 'h-4 w-4');
 export const checkCircle = icon('check-circle-2', 'h-5 w-5');
 export const xCircle = icon('x-circle', 'h-5 w-5');
 export const xCircleRed = icon('x-circle', 'h-5 w-5');
@@ -114,3 +116,8 @@ export const pipExit = icon('picture-in-picture');
 export const syncMaster = icon('crosshair');
 export const frameForward = icon('chevrons-right');
 export const frameBackward = icon('chevrons-left');
+
+export const calculator = icon('calculator');
+export const layers = icon('layers');
+export const info = icon('info');
+export const list = icon('list');

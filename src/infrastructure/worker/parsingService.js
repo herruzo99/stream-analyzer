@@ -1,12 +1,15 @@
-import { parseISOBMFF } from '@/infrastructure/parsing/isobmff/parser';
-import { parse as parseTsSegment } from '@/infrastructure/parsing/ts/index';
-import { parseVTT } from '@/infrastructure/parsing/vtt/parser';
-import { appLog } from '@/shared/utils/debug';
-import { boxParsers } from '@/infrastructure/parsing/isobmff/index';
+import { parseISOBMFF } from '../parsing/isobmff/parser.js';
+import { parse as parseTsSegment } from '../parsing/ts/index.js';
+import { parseVTT } from '../parsing/vtt/parser.js';
+import { appLog } from '../../shared/utils/debug.js';
+import { boxParsers } from '../parsing/isobmff/index.js';
 import { fetchWithAuth } from './http.js';
-import { analyzeSemantics } from '@/features/compliance/domain/semantic-analyzer';
+import { analyzeSemantics } from '../../features/compliance/domain/semantic-analyzer.js';
 
-// --- Color Generation and Assignment (Co-located with parsing) ---
+// New Imports
+import { parseNalUnits } from '../parsing/video/nal-parser.js';
+import { analyzeGopStructure } from '../../features/segmentAnalysis/domain/gop-analyzer.js';
+
 const COLOR_NAMES = [
     'red',
     'orange',
@@ -55,7 +58,7 @@ const generateBoxColorMap = () => {
     map['mdat'] = 'slate';
     map['free'] = 'slate';
     map['skip'] = 'slate';
-    map['emsg'] = 'purple'; // Assign a specific color to emsg
+    map['emsg'] = 'purple';
     map['default'] = 'slate';
     return map;
 };
@@ -123,8 +126,6 @@ function assignTsPacketColors(packets) {
     }
 }
 
-// --- End Color Logic ---
-
 /**
  * Creates a summary of media information from parsed TS data.
  * @param {object} tsData - The parsed TS segment data from the engine.
@@ -149,7 +150,7 @@ function generateMediaInfoSummary(tsData) {
         const pidNum = parseInt(pid, 10);
         const videoTypes = [0x01, 0x02, 0x1b, 0x24, 0x80];
         const audioTypes = [0x03, 0x04, 0x0f, 0x11, 0x1c, 0x81];
-        
+
         if (videoTypes.includes(typeNum)) {
             const videoPESWithSPS = tsData.packets.find(
                 (p) => p.pid === pidNum && p.pes?.spsInfo
@@ -166,7 +167,12 @@ function generateMediaInfoSummary(tsData) {
                 };
             }
         } else if (audioTypes.includes(typeNum)) {
-            let audioInfo = { codec: 'Audio', channels: null, sampleRate: null, language: null };
+            let audioInfo = {
+                codec: 'Audio',
+                channels: null,
+                sampleRate: null,
+                language: null,
+            };
             if (pmtPacket) {
                 const streamInfo = pmtPacket.psi.streams.find(
                     (s) => s.elementary_PID.value === pidNum
@@ -205,9 +211,16 @@ function generateMediaInfoSummary(tsData) {
                         }
                     }
 
-                    const langDescriptor = streamInfo.es_descriptors.find(d => d.name === 'ISO 639 Language Descriptor');
-                    if (langDescriptor && langDescriptor.details.languages && langDescriptor.details.languages.length > 0) {
-                        audioInfo.language = langDescriptor.details.languages[0].language.value;
+                    const langDescriptor = streamInfo.es_descriptors.find(
+                        (d) => d.name === 'ISO 639 Language Descriptor'
+                    );
+                    if (
+                        langDescriptor &&
+                        langDescriptor.details.languages &&
+                        langDescriptor.details.languages.length > 0
+                    ) {
+                        audioInfo.language =
+                            langDescriptor.details.languages[0].language.value;
                     }
                 }
             }
@@ -229,10 +242,9 @@ function generateMediaInfoSummary(tsData) {
     );
     return mediaInfo;
 }
-
+// Re-implementing generateFullByteMap to ensure context
 function generateFullByteMap(parsedData) {
     const byteMap = new Map();
-
     if (parsedData.format === 'isobmff') {
         const walkAndMap = (boxes) => {
             if (!boxes) return;
@@ -247,20 +259,13 @@ function generateFullByteMap(parsedData) {
                 for (const [fieldName, field] of Object.entries(box.details)) {
                     const fieldEnd = field.offset + Math.ceil(field.length);
                     for (let i = field.offset; i < fieldEnd; i++) {
-                        byteMap.set(i, {
-                            box,
-                            color: box.color,
-                            fieldName,
-                        });
+                        byteMap.set(i, { box, color: box.color, fieldName });
                     }
                 }
-                if (box.children?.length > 0) {
-                    walkAndMap(box.children);
-                }
+                if (box.children?.length > 0) walkAndMap(box.children);
             }
         };
         walkAndMap(parsedData.data.boxes);
-
         if (parsedData.samples) {
             const boxMapByOffset = new Map();
             const buildBoxMap = (boxes) => {
@@ -328,14 +333,14 @@ function generateFullByteMap(parsedData) {
             }
         });
     }
-
     return Array.from(byteMap.entries());
 }
+
+// generateMediaInfoSummary is already defined above
 
 async function parseSegment({ data, formatHint, url, context }) {
     const dataView = new DataView(data);
     const decoder = new TextDecoder();
-
     if (formatHint) {
         if (formatHint === 'isobmff') return parseISOBMFF(data, 0, context);
         if (formatHint === 'ts') return parseTsSegment(data);
@@ -392,8 +397,6 @@ async function parseSegment({ data, formatHint, url, context }) {
             return parseISOBMFF(data, 0, context);
         }
     }
-
-    // Fallback to ISOBMFF if no other format is detected. It will likely produce errors, which is informative.
     return parseISOBMFF(data, 0, context);
 }
 
@@ -440,26 +443,98 @@ export async function handleParseSegmentStructure({
     } else if (parsedData.format === 'ts' && parsedData.data.packets) {
         assignTsPacketColors(parsedData.data.packets);
         parsedData.mediaInfo = generateMediaInfoSummary(parsedData.data);
-        appLog(
-            'parsingService',
-            'info',
-            `Generated mediaInfo for TS segment ${url}`,
-            parsedData.mediaInfo
-        );
     }
-
     return parsedData;
 }
 
-export async function handleFullSegmentAnalysis({ parsedData }) {
+// --- NEW: Helper to find boxes recursively ---
+const findBox = (boxes, type) => {
+    for (const box of boxes) {
+        if (box.type === type) return box;
+        if (box.children) {
+            const found = findBox(box.children, type);
+            if (found) return found;
+        }
+    }
+    return null;
+};
+
+// --- NEW: Full Segment Analysis with Bitstream Inspection ---
+export async function handleFullSegmentAnalysis({ parsedData, rawData }) {
     appLog(
         'parsingService',
         'info',
-        'Performing full L2 analysis on segment.'
+        'Performing full L2 analysis on segment (Byte Map + Bitstream).'
     );
+
     const byteMap = generateFullByteMap(parsedData);
+    let bitstreamAnalysis = null;
+
+    if (parsedData.format === 'isobmff' && rawData) {
+        // 1. Locate Configuration (avcC or hvcC)
+        const boxes = parsedData.data.boxes;
+        const avcC = findBox(boxes, 'avcC');
+        const hvcC = findBox(boxes, 'hvcC');
+
+        let codec = null;
+        let lengthSizeMinusOne = 3; // Default to 4 bytes
+
+        if (avcC && avcC.details.lengthSizeMinusOne) {
+            codec = 'avc';
+            lengthSizeMinusOne = avcC.details.lengthSizeMinusOne.value;
+        } else if (hvcC && hvcC.details.lengthSizeMinusOne) {
+            codec = 'hevc';
+            lengthSizeMinusOne = hvcC.details.lengthSizeMinusOne.value;
+        }
+
+        // 2. Locate Media Data (mdat)
+        const mdat = findBox(boxes, 'mdat');
+
+        if (codec && mdat) {
+            try {
+                // 3. Extract Buffer Slice
+                // mdat.contentOffset is where the data starts
+                const mdatStart = mdat.contentOffset;
+                const mdatEnd = mdat.offset + mdat.size;
+
+                // Ensure we have the raw buffer available (passed in payload now)
+                const rawUint8 = new Uint8Array(rawData);
+                const mdatBody = rawUint8.subarray(mdatStart, mdatEnd);
+
+                // 4. Parse NAL Units
+                const nalUnits = parseNalUnits(
+                    mdatBody,
+                    lengthSizeMinusOne,
+                    /** @type {'avc' | 'hevc'} */(codec),
+                    mdatStart
+                );
+
+                // 5. Analyze GOP
+                // Estimate duration from parsedData samples if available, or default to 0
+                const duration = parsedData.samples
+                    ? parsedData.samples.reduce(
+                        (acc, s) => acc + s.duration,
+                        0
+                    ) / (parsedData.samples[0]?.timescale || 90000)
+                    : 0;
+
+                bitstreamAnalysis = analyzeGopStructure(nalUnits, duration);
+                appLog(
+                    'parsingService',
+                    'info',
+                    'Bitstream analysis complete.',
+                    bitstreamAnalysis.summary
+                );
+            } catch (e) {
+                console.error('Bitstream analysis failed:', e);
+                bitstreamAnalysis = { error: e.message };
+            }
+        }
+    }
+
     return {
         byteMap: byteMap,
+        bitstreamAnalysis: bitstreamAnalysis,
     };
 }
 
@@ -559,10 +634,6 @@ export async function handleFetchKey({ uri, auth }, signal) {
  * @returns {Promise<object[]>}
  */
 export async function handleRunTsSemanticAnalysis({ packets, summary }) {
-    appLog(
-        'parsingService',
-        'info',
-        'Running on-demand TS semantic analysis.'
-    );
+    appLog('parsingService', 'info', 'Running on-demand TS semantic analysis.');
     return analyzeSemantics({ packets, summary });
 }

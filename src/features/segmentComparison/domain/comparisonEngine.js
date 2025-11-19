@@ -1,5 +1,6 @@
 import { compareIsobmffSegments } from './isobmffComparator.js';
 import { compareTsSegments } from './tsComparator.js';
+import { compareVttSegments } from './vttComparator.js';
 
 /**
  * The main comparison engine. It takes an array of enriched segment objects,
@@ -41,8 +42,8 @@ export function createComparisonModel(segments) {
             comparisonResult = compareTsSegments(segments);
             break;
         case 'vtt':
-            // return compareVttSegments(segments); // Future implementation
-            throw new Error('VTT segment comparison is not yet implemented.');
+            comparisonResult = compareVttSegments(segments);
+            break;
         default:
             throw new Error(
                 `Unsupported segment format for comparison: ${firstFormat}`

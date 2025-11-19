@@ -4,11 +4,14 @@
  * @typedef {import('@/types.ts').SecuritySummary} SecuritySummary
  */
 
-import { findChildrenRecursive, resolveBaseUrl } from './recursive-parser.js';
-import { formatBitrate } from '@/ui/shared/format';
+import {
+    findChildrenRecursive,
+    resolveBaseUrl,
+} from '../utils/recursive-parser.js';
+
 import { findInitSegmentUrl } from './segment-parser.js';
 import { isCodecSupported } from '../utils/codec-support.js';
-import { getDrmSystemName } from '@/infrastructure/parsing/utils/drm.js';
+
 import { appLog } from '@/shared/utils/debug';
 
 const getSegmentingStrategy = (serializedManifest) => {
@@ -155,75 +158,61 @@ export async function generateDashSummary(
                             'Dispatching init segment fetch',
                             initInfo
                         );
-                        try {
-                            const parsedSegment =
-                                await context.fetchAndParseSegment(
-                                    initInfo.url,
-                                    'isobff',
-                                    initInfo.range
-                                );
-                            if (parsedSegment?.data?.boxes) {
-                                if (!rep.width.value || !rep.height.value) {
-                                    const avc1 = findBoxRecursive(
-                                        parsedSegment.data.boxes,
-                                        (b) => b.type === 'avc1'
-                                    );
-                                    if (
-                                        avc1 &&
-                                        avc1.details.width &&
-                                        avc1.details.height
-                                    ) {
-                                        rep.width = {
-                                            value: avc1.details.width.value,
-                                            source: 'segment',
-                                        };
-                                        rep.height = {
-                                            value: avc1.details.height.value,
-                                            source: 'segment',
-                                        };
-                                    }
-                                }
-                                const btrt = findBoxRecursive(
-                                    parsedSegment.data.boxes,
-                                    (b) => b.type === 'btrt'
+                        const parsedSegment =
+                            await context.fetchAndParseSegment(
+                                initInfo.url,
+                                'isobmff',
+                                initInfo.range
+                            );
+                        if (parsedSegment?.parsedData?.data?.boxes) {
+                            if (!rep.width.value || !rep.height.value) {
+                                const avc1 = findBoxRecursive(
+                                    parsedSegment.parsedData.data.boxes,
+                                    (b) => b.type === 'avc1'
                                 );
                                 if (
-                                    btrt &&
-                                    btrt.details.maxBitrate?.value > 0
+                                    avc1 &&
+                                    avc1.details.width &&
+                                    avc1.details.height
                                 ) {
-                                    rep.manifestBandwidth = rep.bandwidth;
-                                    rep.bandwidth =
-                                        btrt.details.maxBitrate.value;
+                                    rep.width = {
+                                        value: avc1.details.width.value,
+                                        source: 'segment',
+                                    };
+                                    rep.height = {
+                                        value: avc1.details.height.value,
+                                        source: 'segment',
+                                    };
                                 }
-                                const psshBoxes =
-                                    parsedSegment.data.boxes.filter(
-                                        (b) => b.type === 'pssh'
-                                    );
-                                psshBoxes.forEach((psshBox) => {
-                                    if (
-                                        psshBox.systemId &&
-                                        psshBox.details.license_url?.value
-                                    ) {
-                                        if (
-                                            securitySystems.has(
-                                                psshBox.systemId
-                                            )
-                                        ) {
-                                            const system = securitySystems.get(
-                                                psshBox.systemId
-                                            );
-                                            if (system.pssh) {
-                                                system.pssh.licenseServerUrl =
-                                                    psshBox.details.license_url.value;
-                                            }
+                            }
+                            const btrt = findBoxRecursive(
+                                parsedSegment.parsedData.data.boxes,
+                                (b) => b.type === 'btrt'
+                            );
+                            if (btrt && btrt.details.maxBitrate?.value > 0) {
+                                rep.manifestBandwidth = rep.bandwidth;
+                                rep.bandwidth = btrt.details.maxBitrate.value;
+                            }
+                            const psshBoxes =
+                                parsedSegment.parsedData.data.boxes.filter(
+                                    (b) => b.type === 'pssh'
+                                );
+                            psshBoxes.forEach((psshBox) => {
+                                if (
+                                    psshBox.systemId &&
+                                    psshBox.details.license_url?.value
+                                ) {
+                                    if (securitySystems.has(psshBox.systemId)) {
+                                        const system = securitySystems.get(
+                                            psshBox.systemId
+                                        );
+                                        if (system.pssh) {
+                                            system.pssh.licenseServerUrl =
+                                                psshBox.details.license_url.value;
                                         }
                                     }
-                                });
-                            }
-                        } catch (e) {
-                            console.warn(
-                                `[Enrichment] Failed to parse init segment for rep ${rep.id}: ${e.message}`
-                            );
+                                }
+                            });
                         }
                     }
                 }
@@ -257,7 +246,7 @@ export async function generateDashSummary(
                 codecs,
                 scanType: rep.scanType || null,
                 videoRange: null,
-                roles: as.roles.map((r) => r.value).filter(Boolean),
+                roles: rep.roles,
                 muxedAudio: rep.muxedAudio, // Keep muxed audio info
             };
         });
@@ -288,9 +277,10 @@ export async function generateDashSummary(
                 lang: as.lang,
                 codecs: Array.from(codecsMap.values()),
                 channels: Array.from(channelsSet).join(', ') || null,
-                isDefault: as.roles.some((r) => r.value === 'main'),
+                isDefault: (rep.roles || []).some((r) => r.value === 'main'),
                 isForced: false,
-                roles: as.roles.map((r) => r.value).filter(Boolean),
+                roles: rep.roles,
+                bandwidth: rep.bandwidth || 0,
             };
         });
     });
@@ -310,15 +300,15 @@ export async function generateDashSummary(
                 lang: as.lang,
                 codecsOrMimeTypes: mimeTypes.map(
                     (v) =>
-                        /** @type {import('@/types').CodecInfo} */ ({
-                            value: v,
-                            source: 'manifest',
-                            supported: isCodecSupported(v),
-                        })
+                        /** @type {import('@/types').CodecInfo} */({
+                        value: v,
+                        source: 'manifest',
+                        supported: isCodecSupported(v),
+                    })
                 ),
-                isDefault: as.roles.some((r) => r.value === 'main'),
-                isForced: as.roles.some((r) => r.value === 'forced'),
-                roles: as.roles.map((r) => r.value).filter(Boolean),
+                isDefault: (rep.roles || []).some((r) => r.value === 'main'),
+                isForced: (rep.roles || []).some((r) => r.value === 'forced'),
+                roles: rep.roles,
             };
         });
     });

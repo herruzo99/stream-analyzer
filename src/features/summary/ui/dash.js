@@ -6,7 +6,7 @@ import { statCardTemplate } from './components/shared.js';
 import {
     findChildrenRecursive,
     getAttr,
-} from '@/infrastructure/parsing/dash/recursive-parser';
+} from '@/infrastructure/parsing/utils/recursive-parser';
 import * as icons from '@/ui/icons';
 import { streamHeaderTemplate } from './components/stream-header.js';
 import '@/features/comparison/ui/components/abr-ladder-chart.js';
@@ -174,7 +174,7 @@ export function getDashSummaryTemplate(stream) {
                         ABR Bitrate Ladder
                     </h3>
                     <div
-                        class="bg-slate-800 p-4 rounded-lg border border-slate-700 h-80"
+                        class="bg-slate-800 p-4 rounded-lg border border-slate-700 h-72"
                     >
                         <abr-ladder-chart
                             .data=${abrLadderData}

@@ -1,5 +1,6 @@
 import { createStore } from 'zustand/vanilla';
 import { eventBus } from '@/application/event-bus';
+import { EVENTS } from '@/types/events';
 
 /**
  * @typedef {'pending' | 'ready' | 'error'} KeyStatus
@@ -34,7 +35,7 @@ export const useDecryptionStore = createStore((set, get) => ({
             newCache.set(uri, { status: 'pending' });
             return { keyCache: newCache };
         });
-        eventBus.dispatch('decryption:key-status-changed', { uri });
+        eventBus.dispatch(EVENTS.DECRYPTION.KEY_STATUS_CHANGED, { uri });
     },
 
     setKeyReady: (uri, key) => {
@@ -43,7 +44,7 @@ export const useDecryptionStore = createStore((set, get) => ({
             newCache.set(uri, { status: 'ready', key });
             return { keyCache: newCache };
         });
-        eventBus.dispatch('decryption:key-status-changed', { uri });
+        eventBus.dispatch(EVENTS.DECRYPTION.KEY_STATUS_CHANGED, { uri });
     },
 
     setKeyError: (uri, error) => {
@@ -52,7 +53,7 @@ export const useDecryptionStore = createStore((set, get) => ({
             newCache.set(uri, { status: 'error', error });
             return { keyCache: newCache };
         });
-        eventBus.dispatch('decryption:key-status-changed', { uri });
+        eventBus.dispatch(EVENTS.DECRYPTION.KEY_STATUS_CHANGED, { uri });
     },
 
     clearCache: () => set({ keyCache: new Map() }),

@@ -2,6 +2,10 @@ import { html } from 'lit-html';
 import { analysisActions } from '@/state/analysisStore';
 import { useUiStore, uiActions } from '@/state/uiStore';
 import { exampleStreams } from '@/data/example-streams';
+import {
+    exportWorkspace,
+    importWorkspace,
+} from '@/infrastructure/persistence/streamStorage';
 import * as icons from '@/ui/icons';
 import { connectedTabBar } from '@/ui/components/tabs';
 
@@ -18,15 +22,15 @@ const renderStreamListItem = (stream, context) => {
         stream.protocol === 'dash'
             ? getBadge('DASH', 'bg-blue-800 text-blue-200')
             : stream.protocol === 'hls'
-              ? getBadge('HLS', 'bg-purple-800 text-purple-200')
-              : '';
+                ? getBadge('HLS', 'bg-purple-800 text-purple-200')
+                : '';
 
     const typeBadge =
         stream.type === 'live'
             ? getBadge('LIVE', 'bg-red-800 text-red-200')
             : stream.type === 'vod'
-              ? getBadge('VOD', 'bg-green-800 text-green-200')
-              : '';
+                ? getBadge('VOD', 'bg-green-800 text-green-200')
+                : '';
 
     const handleAdd = (e) => {
         e.stopPropagation();
@@ -69,14 +73,14 @@ const renderStreamListItem = (stream, context) => {
             </div>
             <div class="shrink-0 flex items-center gap-2 ml-4">
                 ${canDelete
-                    ? html`<button
+            ? html`<button
                           @click=${handleDelete}
                           class="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 bg-slate-900/50 hover:bg-red-600 hover:text-white opacity-0 group-hover:opacity-100 transition-all"
                           title="Delete"
                       >
                           ${icons.xCircle}
                       </button>`
-                    : ''}
+            : ''}
             </div>
         </li>
     `;
@@ -101,6 +105,11 @@ const renderWorkspaceListItem = (workspace) => {
         }
     };
 
+    const handleExport = (e) => {
+        e.stopPropagation();
+        exportWorkspace(workspace.name);
+    };
+
     return html`
         <li
             @click=${handleLoad}
@@ -119,6 +128,13 @@ const renderWorkspaceListItem = (workspace) => {
             <div
                 class="shrink-0 flex items-center gap-2 ml-4 opacity-0 group-hover:opacity-100 transition-opacity"
             >
+                <button
+                    @click=${handleExport}
+                    class="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 bg-slate-900/50 hover:bg-blue-600 hover:text-white"
+                    title="Export Workspace"
+                >
+                    ${icons.share}
+                </button>
                 <button
                     @click=${handleDelete}
                     class="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 bg-slate-900/50 hover:bg-red-600 hover:text-white"
@@ -199,28 +215,28 @@ export const libraryPanelTemplate = () => {
             content = html`
                 <div class="space-y-4">
                     ${renderListSection(
-                        'Workspaces',
-                        filteredWorkspaces,
-                        renderWorkspaceListItem
-                    )}
+                'Workspaces',
+                filteredWorkspaces,
+                renderWorkspaceListItem
+            )}
                     ${renderListSection(
-                        'Presets',
-                        filteredPresets,
-                        renderStreamListItem,
-                        'presets'
-                    )}
+                'Presets',
+                filteredPresets,
+                renderStreamListItem,
+                'presets'
+            )}
                     ${renderListSection(
-                        'History',
-                        filteredHistory,
-                        renderStreamListItem,
-                        'history'
-                    )}
+                'History',
+                filteredHistory,
+                renderStreamListItem,
+                'history'
+            )}
                     ${renderListSection(
-                        'Examples',
-                        filteredExamples,
-                        renderStreamListItem,
-                        'examples'
-                    )}
+                'Examples',
+                filteredExamples,
+                renderStreamListItem,
+                'examples'
+            )}
                 </div>
             `;
         }
@@ -275,14 +291,40 @@ export const libraryPanelTemplate = () => {
                     placeholder="Search library..."
                     .value=${streamLibrarySearchTerm}
                     @input=${(e) =>
-                        uiActions.setStreamLibrarySearchTerm(e.target.value)}
+            uiActions.setStreamLibrarySearchTerm(e.target.value)}
                     class="w-full bg-slate-800 text-white rounded-md p-2 border border-slate-600 focus:ring-1 focus:ring-blue-500"
                 />
+                ${streamLibraryActiveTab === 'workspaces' &&
+            !streamLibrarySearchTerm
+            ? html`
+                              <div class="flex justify-end">
+                                  <label
+                                      class="cursor-pointer text-xs font-semibold text-blue-400 hover:text-blue-300 flex items-center gap-1"
+                                  >
+                                      ${icons.upload} Import Workspace
+                                      <input
+                                          type="file"
+                                          accept=".json"
+                                          class="hidden"
+                                          @change=${(e) => {
+                    if (e.target.files.length > 0) {
+                        importWorkspace(
+                            e.target.files[0]
+                        );
+                        e.target.value = ''; // Reset
+                    }
+                }}
+                                      />
+                                  </label>
+                              </div>
+                          `
+            : ''
+        }
                 ${connectedTabBar(
-                    tabs,
-                    streamLibraryActiveTab,
-                    uiActions.setStreamLibraryTab
-                )}
+            tabs,
+            streamLibraryActiveTab,
+            uiActions.setStreamLibraryTab
+        )}
             </div>
             <div class="grow overflow-y-auto">${content}</div>
         </div>

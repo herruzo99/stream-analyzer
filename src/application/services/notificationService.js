@@ -3,6 +3,7 @@ import {
     notificationActions,
 } from '@/state/notificationStore';
 import { eventBus } from '../event-bus';
+import { EVENTS } from '@/types/events';
 
 class NotificationService {
     constructor() {
@@ -46,22 +47,25 @@ class NotificationService {
 
         // Use a tag to prevent spamming notifications for the same event type.
         // A new notification with the same tag will replace the old one.
-        const notification = new Notification(title, { ...options, tag: type });
+        new Notification(title, { ...options, tag: type });
     }
 
     subscribeToEvents() {
-        eventBus.subscribe('notify:player-error', ({ streamName, message }) => {
-            this.sendNotification(
-                'playerError',
-                `Player Error: ${streamName}`,
-                {
-                    body: `The player encountered a fatal error: ${message}`,
-                }
-            );
-        });
+        eventBus.subscribe(
+            EVENTS.NOTIFY.PLAYER_ERROR,
+            ({ streamName, message }) => {
+                this.sendNotification(
+                    'playerError',
+                    `Player Error: ${streamName}`,
+                    {
+                        body: `The player encountered a fatal error: ${message}`,
+                    }
+                );
+            }
+        );
 
         eventBus.subscribe(
-            'notify:seek-poll-success',
+            EVENTS.NOTIFY.SEEK_POLL_SUCCESS,
             ({ featureName, streamName }) => {
                 this.sendNotification(
                     'seekPollSuccess',
@@ -73,14 +77,10 @@ class NotificationService {
             }
         );
 
-        eventBus.subscribe('notify:polling-disabled', () => {
-            this.sendNotification(
-                'pollingDisabled',
-                'Live Polling Paused',
-                {
-                    body: 'Live stream monitoring has been paused due to inactivity in a background tab.',
-                }
-            );
+        eventBus.subscribe(EVENTS.NOTIFY.POLLING_DISABLED, () => {
+            this.sendNotification('pollingDisabled', 'Live Polling Paused', {
+                body: 'Live stream monitoring has been paused due to inactivity in a background tab.',
+            });
         });
     }
 }

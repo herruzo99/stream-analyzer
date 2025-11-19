@@ -28,7 +28,7 @@ class IconComponent extends HTMLElement {
             .join('');
         const iconKeyLower = iconKey.charAt(0).toLowerCase() + iconKey.slice(1);
 
-        let iconNode = icons[iconKey] || icons[iconKeyLower];
+        let iconNode = icons[iconKey] || icons[iconKeyLower] || icons[name];
 
         if (!iconNode) {
             console.warn(`[IconComponent] Lucide icon "${name}" not found.`);
@@ -47,7 +47,7 @@ class IconComponent extends HTMLElement {
             );
 
             // If the icon wasn't found, add a class to color it red
-            if (!icons[iconKey] && !icons[iconKeyLower]) {
+            if (!icons[iconKey] && !icons[iconKeyLower] && !icons[name]) {
                 svgElement.classList.add('text-red-500');
             }
 

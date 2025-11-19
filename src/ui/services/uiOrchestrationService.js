@@ -87,4 +87,20 @@ export function initializeUiOrchestration() {
                 });
             });
     });
+
+    eventBus.subscribe('ui:show-scte35-details', ({ scte35, startTime }) => {
+        openModalWithContent({
+            title: `SCTE-35 Details (${scte35.splice_command?.type || 'Unknown'})`,
+            url: `Event at ${startTime.toFixed(3)}s`,
+            content: {
+                type: 'segmentAnalysis',
+                data: {
+                    parsedData: {
+                        format: 'scte35',
+                        data: scte35,
+                    },
+                },
+            },
+        });
+    });
 }

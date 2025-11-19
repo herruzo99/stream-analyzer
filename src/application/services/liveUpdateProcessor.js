@@ -7,6 +7,7 @@ import { generateFeatureAnalysis } from '@/features/featureAnalysis/domain/analy
 import { inferMediaInfoFromExtension } from '@/infrastructure/parsing/utils/media-types';
 import { runChecks } from '@/features/compliance/domain/engine';
 import { diffManifest } from '@/ui/shared/diff';
+import { EVENTS } from '@/types/events';
 
 const MAX_MANIFEST_UPDATES_HISTORY = 1000;
 
@@ -86,7 +87,7 @@ function queueNewSegmentsForPolledReps(stream) {
                               : stream.manifest.segmentFormat;
                 }
 
-                eventBus.dispatch('segment:fetch', {
+                eventBus.dispatch(EVENTS.SEGMENT.FETCH, {
                     uniqueId: seg.uniqueId,
                     streamId: stream.id,
                     format: formatHint,
@@ -138,7 +139,8 @@ async function processLiveUpdate(updateData) {
         const oldMasterData = newMediaPlaylistsMap.get('master');
         const newMasterRaw = updateData.newManifestString;
         const isMasterUnchanged =
-            oldMasterData && oldMasterData.rawManifest.trim() === newMasterRaw.trim();
+            oldMasterData &&
+            oldMasterData.rawManifest.trim() === newMasterRaw.trim();
 
         let newMasterUpdates = oldMasterData ? oldMasterData.updates : [];
         let newMasterActiveUpdateId = oldMasterData
@@ -196,7 +198,9 @@ async function processLiveUpdate(updateData) {
 
         // 2. Process Media Playlist updates
         if (updateData.newMediaPlaylists) {
-            const incomingMediaPlaylists = new Map(updateData.newMediaPlaylists);
+            const incomingMediaPlaylists = new Map(
+                updateData.newMediaPlaylists
+            );
             for (const [
                 variantId,
                 newPlaylistData,
@@ -243,10 +247,10 @@ async function processLiveUpdate(updateData) {
                             newPlaylistData.manifest.serializedManifest,
                         changes,
                     };
-                    newMediaUpdates = [
-                        newUpdate,
-                        ...newMediaUpdates,
-                    ].slice(0, MAX_MANIFEST_UPDATES_HISTORY);
+                    newMediaUpdates = [newUpdate, ...newMediaUpdates].slice(
+                        0,
+                        MAX_MANIFEST_UPDATES_HISTORY
+                    );
                     newActiveUpdateId = newUpdate.id;
                 }
                 newMediaPlaylistsMap.set(variantId, {
@@ -356,12 +360,12 @@ async function processLiveUpdate(updateData) {
         if (targetFeature && targetFeature.used) {
             analysisActions.setStreamPolling(streamId, false);
             uiActions.setConditionalPollingStatus('found');
-            eventBus.dispatch('ui:show-status', {
+            eventBus.dispatch(EVENTS.UI.SHOW_STATUS, {
                 message: `Feature "${conditionalPolling.featureName}" found in ${stream.name}! Polling stopped.`,
                 type: 'pass',
                 duration: 10000,
             });
-            eventBus.dispatch('notify:seek-poll-success', {
+            eventBus.dispatch(EVENTS.NOTIFY.SEEK_POLL_SUCCESS, {
                 featureName: conditionalPolling.featureName,
                 streamName: stream.name,
             });
@@ -378,5 +382,5 @@ async function processLiveUpdate(updateData) {
  * Initializes the service by subscribing to the live manifest update event from the worker.
  */
 export function initializeLiveUpdateProcessor() {
-    eventBus.subscribe('livestream:manifest-updated', processLiveUpdate);
+    eventBus.subscribe(EVENTS.LIVESTREAM.MANIFEST_UPDATED, processLiveUpdate);
 }

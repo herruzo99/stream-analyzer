@@ -4,7 +4,7 @@ import {
     validateCmafTrack,
     validateCmafSwitchingSets,
 } from '@/features/compliance/domain/cmaf/validator';
-import { resolveBaseUrl } from '@/infrastructure/parsing/dash/recursive-parser';
+import { resolveBaseUrl } from '@/infrastructure/parsing/utils/recursive-parser';
 import { findInitSegmentUrl } from '@/infrastructure/parsing/dash/segment-parser';
 import { getParsedSegment } from '@/infrastructure/segments/segmentService';
 

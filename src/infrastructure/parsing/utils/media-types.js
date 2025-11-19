@@ -91,3 +91,66 @@ export function inferMediaInfoFromExtension(filename) {
 
     return { contentType: 'unknown', codec: null };
 }
+
+/**
+ * Determines the segment format for an HLS manifest using reliable heuristics.
+ * @param {object} hlsParsed - The parsed HLS manifest data from the parser.
+ * @returns {'isobmff' | 'ts' | 'unknown'}
+ */
+export function determineSegmentFormat(hlsParsed) {
+    // 1. Definitive check: If EXT-X-MAP is present, it's fMP4 (ISOBFF).
+    if (hlsParsed.map) {
+        return 'isobmff';
+    }
+
+    // 2. Media Playlist Check: Check segment extensions directly. This is highly reliable.
+    const segments = (hlsParsed.segmentGroups || []).flat();
+    if (segments && segments.length > 0) {
+        for (const segment of segments) {
+            const lowerUri = (segment.uri || '').toLowerCase();
+            if (
+                lowerUri.endsWith('.m4s') ||
+                lowerUri.endsWith('.mp4') ||
+                lowerUri.includes('.cmf')
+            ) {
+                return 'isobmff';
+            }
+            if (lowerUri.endsWith('.ts')) {
+                return 'ts';
+            }
+        }
+    }
+
+    // 3. Master Playlist Heuristics
+    if (
+        hlsParsed.isMaster &&
+        hlsParsed.variants &&
+        hlsParsed.variants.length > 0
+    ) {
+        // 3a. Check CODECS attribute for ISOBMFF types. This is a very strong signal.
+        for (const variant of hlsParsed.variants) {
+            const codecs = (variant.attributes.CODECS || '').toLowerCase();
+            if (
+                codecs.includes('avc1') ||
+                codecs.includes('hvc1') ||
+                codecs.includes('mp4a')
+            ) {
+                return 'isobmff';
+            }
+        }
+
+        // 3b. Check extensions of variant stream URIs as a fallback.
+        for (const variant of hlsParsed.variants) {
+            const lowerUri = (variant.uri || '').toLowerCase();
+            if (lowerUri.includes('.m4s') || lowerUri.includes('.mp4')) {
+                return 'isobmff';
+            }
+            if (lowerUri.includes('.ts')) {
+                return 'ts';
+            }
+        }
+    }
+
+    // 4. Final Fallback: The default for HLS is MPEG-2 Transport Stream.
+    return 'ts';
+}

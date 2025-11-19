@@ -52,8 +52,7 @@ export function parseEmsg(box, view) {
             ignoreBOM: true,
         }).decode(messageData);
         const firstAngleBracket = decodedString.indexOf('<');
-        const looksLikeXml =
-            firstAngleBracket !== -1 && firstAngleBracket < 10; // Allow a few garbage chars
+        const looksLikeXml = firstAngleBracket !== -1 && firstAngleBracket < 10; // Allow a few garbage chars
 
         if (scheme.includes('xml') || looksLikeXml) {
             box.messagePayloadType = 'xml';

@@ -35,6 +35,7 @@ import { initializeStreamInputFeature } from '@/features/streamInput/index';
 import { initializePlayerSimulationFeature } from '@/features/playerSimulation/index';
 import { initializeMultiPlayerFeature } from '@/features/multiPlayer/index';
 import { initializeNotificationFeature } from '@/features/notifications/index.js';
+import { initializeTimelineFeature } from '@/features/timeline/index.js';
 
 // Side-effect driven imports for services that primarily listen to the event bus
 import '@/application/services/streamService';
@@ -90,11 +91,10 @@ export async function startApp() {
     initializeConsentManager();
     initializeRenderer(dom);
     tickerService.start();
-    await initializeGlobalRequestInterceptor(); // <-- FIX: Await initialization to prevent race condition.
+    await initializeGlobalRequestInterceptor();
 
     // --- ARCHITECTURAL FIX: One-time data load ---
     // Load persisted workspaces into the reactive state store at boot time.
-    // This prevents the recursive render loop caused by loading data inside a component.
     uiActions.loadWorkspaces();
     // --- END FIX ---
 
@@ -133,6 +133,7 @@ export async function startApp() {
     initializePlayerSimulationFeature();
     initializeMultiPlayerFeature();
     initializeNotificationFeature();
+    initializeTimelineFeature();
 
     // --- Layer 5: Start Application Core ---
     app.start();

@@ -20,7 +20,12 @@ export function diffManifest(oldManifest, newManifest) {
         // --- ROBUST MODIFICATION DETECTION ---
         // Check for an 'added' block immediately following a 'removed' block
         // of the same line count. This indicates a block-level modification.
-        if (part.removed && nextPart && nextPart.added && part.count === nextPart.count) {
+        if (
+            part.removed &&
+            nextPart &&
+            nextPart.added &&
+            part.count === nextPart.count
+        ) {
             changes.modifications += part.count;
 
             const oldLines = part.value.trimEnd().split('\n');
@@ -35,8 +40,12 @@ export function diffManifest(oldManifest, newManifest) {
                 const wordDiffs = diffWords(oldLine.trim(), newLine.trim());
 
                 /** @type {import('@/types').DiffWordPart[]} */
-                const parts = wordDiffs.map(wordPart => ({
-                    type: wordPart.added ? 'added' : wordPart.removed ? 'removed' : 'common',
+                const parts = wordDiffs.map((wordPart) => ({
+                    type: wordPart.added
+                        ? 'added'
+                        : wordPart.removed
+                          ? 'removed'
+                          : 'common',
                     value: wordPart.value,
                 }));
 

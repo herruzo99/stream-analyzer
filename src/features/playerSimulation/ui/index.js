@@ -1,4 +1,3 @@
-
 import { html, render } from 'lit-html';
 import { playerService } from '../application/playerService.js';
 import { useAnalysisStore } from '@/state/analysisStore';
@@ -144,7 +143,10 @@ export const playerView = {
         }
         const contextualSidebar = document.getElementById('contextual-sidebar');
         if (contextualSidebar) {
-            render(html`<player-sidebar class="h-full"></player-sidebar>`, contextualSidebar);
+            render(
+                html`<player-sidebar class="h-full"></player-sidebar>`,
+                contextualSidebar
+            );
         }
     },
 
@@ -214,7 +216,10 @@ export const playerView = {
 
         const contextualSidebar = document.getElementById('contextual-sidebar');
         if (contextualSidebar) {
-            render(html`<player-sidebar class="h-full"></player-sidebar>`, contextualSidebar);
+            render(
+                html`<player-sidebar class="h-full"></player-sidebar>`,
+                contextualSidebar
+            );
         }
     },
 

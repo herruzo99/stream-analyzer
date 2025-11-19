@@ -4,6 +4,7 @@ import { workerService } from '@/infrastructure/worker/workerService';
 import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
 import { keyManagerService } from '@/infrastructure/decryption/keyManagerService';
 import { appLog } from '@/shared/utils/debug';
+import { EVENTS } from '@/types/events';
 
 export function getParsedSegment(
     uniqueId,
@@ -87,14 +88,14 @@ export function getParsedSegment(
         };
 
         const unsubscribe = eventBus.subscribe(
-            'segment:loaded',
+            EVENTS.SEGMENT.LOADED,
             onSegmentLoaded
         );
 
         if (!cachedEntry || cachedEntry.status !== -1) {
             set(uniqueId, { status: -1, data: null, parsedData: null });
-            eventBus.dispatch('segment:pending', { uniqueId });
-            eventBus.dispatch('segment:fetch', {
+            eventBus.dispatch(EVENTS.SEGMENT.PENDING, { uniqueId });
+            eventBus.dispatch(EVENTS.SEGMENT.FETCH, {
                 uniqueId,
                 streamId: id,
                 format: formatHint,
@@ -106,7 +107,7 @@ export function getParsedSegment(
 
 export function initializeSegmentService() {
     eventBus.subscribe(
-        'segment:fetch',
+        EVENTS.SEGMENT.FETCH,
         ({ uniqueId, streamId, format, context }) => {
             const stream = useAnalysisStore
                 .getState()
@@ -116,7 +117,7 @@ export function initializeSegmentService() {
                 playlist: mediaPlaylist,
                 segment: hlsSegment,
                 segmentIndex,
-            } = findHlsSegmentAndPlaylist(uniqueId);
+            } = findHlsSegmentAndPlaylist(uniqueId, streamId);
 
             const getDecryptionInfo = async () => {
                 if (hlsSegment?.encryptionInfo) {
@@ -172,9 +173,10 @@ export function initializeSegmentService() {
                             finalEntry.parsedData?.data?.events?.length > 0
                         ) {
                             const eventsWithSource =
-                                finalEntry.parsedData.data.events.map(
-                                    (e) => ({ ...e, sourceSegmentId: uniqueId })
-                                );
+                                finalEntry.parsedData.data.events.map((e) => ({
+                                    ...e,
+                                    sourceSegmentId: uniqueId,
+                                }));
                             analysisActions.addInbandEvents(
                                 streamId,
                                 eventsWithSource
@@ -183,7 +185,7 @@ export function initializeSegmentService() {
                         useSegmentCacheStore
                             .getState()
                             .set(uniqueId, finalEntry);
-                        eventBus.dispatch('segment:loaded', {
+                        eventBus.dispatch(EVENTS.SEGMENT.LOADED, {
                             uniqueId,
                             entry: finalEntry,
                         });
@@ -197,7 +199,7 @@ export function initializeSegmentService() {
                         useSegmentCacheStore
                             .getState()
                             .set(uniqueId, errorEntry);
-                        eventBus.dispatch('segment:loaded', {
+                        eventBus.dispatch(EVENTS.SEGMENT.LOADED, {
                             uniqueId,
                             entry: errorEntry,
                         });
@@ -207,7 +209,7 @@ export function initializeSegmentService() {
     );
 
     eventBus.subscribe(
-        'worker:shaka-segment-loaded',
+        EVENTS.WORKER.SHAKA_SEGMENT_LOADED,
         ({ uniqueId, streamId, data, parsedData, status }) => {
             const { get, set } = useSegmentCacheStore.getState();
             const existingEntry = get(uniqueId);
@@ -220,7 +222,7 @@ export function initializeSegmentService() {
                 );
                 const finalEntry = { status, data, parsedData };
                 set(uniqueId, finalEntry);
-                eventBus.dispatch('segment:loaded', {
+                eventBus.dispatch(EVENTS.SEGMENT.LOADED, {
                     uniqueId,
                     entry: finalEntry,
                 });
@@ -236,14 +238,14 @@ export function initializeSegmentService() {
     );
 }
 
-function findHlsSegmentAndPlaylist(uniqueId) {
-    const { streams, activeStreamId } = useAnalysisStore.getState();
-    const activeStream = streams.find((s) => s.id === activeStreamId);
-    if (!activeStream || activeStream.protocol !== 'hls') {
+function findHlsSegmentAndPlaylist(uniqueId, streamId) {
+    const { streams } = useAnalysisStore.getState();
+    const stream = streams.find((s) => s.id === streamId);
+    if (!stream || stream.protocol !== 'hls') {
         return { playlist: null, segment: null, segmentIndex: -1 };
     }
 
-    for (const playlist of activeStream.mediaPlaylists.values()) {
+    for (const playlist of stream.mediaPlaylists.values()) {
         const segmentIndex = (playlist.manifest.segments || []).findIndex(
             (s) => s.uniqueId === uniqueId
         );

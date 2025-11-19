@@ -8,7 +8,12 @@ import { uiActions, useUiStore } from '@/state/uiStore';
  * @param {{ type: string; data: any; }} options.content - A serializable object describing the content to be rendered.
  * @param {boolean} [options.isFullWidth=false] - If true, a wider modal variant will be used.
  */
-export function openModalWithContent({ title, url, content, isFullWidth = false }) {
+export function openModalWithContent({
+    title,
+    url,
+    content,
+    isFullWidth = false,
+}) {
     uiActions.setModalState({
         isModalOpen: true,
         modalTitle: title,

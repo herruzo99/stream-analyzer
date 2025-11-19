@@ -6,6 +6,7 @@ import {
 import { useAnalysisStore } from '@/state/analysisStore';
 import { showToast } from '@/ui/components/toast';
 import { uiActions } from '@/state/uiStore';
+import { EVENTS } from '@/types/events';
 
 function handleSavePresetRequest({ name, url, isPreset }) {
     uiActions.setPresetSaveStatus('saving');
@@ -47,5 +48,8 @@ function handleSavePresetRequest({ name, url, isPreset }) {
 }
 
 export function initializeSavePresetUseCase() {
-    eventBus.subscribe('ui:save-preset-requested', handleSavePresetRequest);
+    eventBus.subscribe(
+        EVENTS.UI.SAVE_PRESET_REQUESTED,
+        handleSavePresetRequest
+    );
 }

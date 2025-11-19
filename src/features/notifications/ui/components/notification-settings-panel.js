@@ -32,7 +32,9 @@ const settingToggleTemplate = (type, settings) => {
     return html`
         <div class="flex items-center justify-between gap-4">
             <div>
-                <p class="font-semibold text-slate-200 text-sm">${info.label}</p>
+                <p class="font-semibold text-slate-200 text-sm">
+                    ${info.label}
+                </p>
                 <p class="text-xs text-slate-400">${info.description}</p>
             </div>
             <button
@@ -59,21 +61,17 @@ export const notificationSettingsPanelTemplate = () => {
     if (permission === 'denied') {
         content = html`
             <div class="text-center p-4 bg-red-900/30 rounded-md">
-                <p class="font-semibold text-red-300">
-                    Notifications Blocked
-                </p>
+                <p class="font-semibold text-red-300">Notifications Blocked</p>
                 <p class="text-xs text-slate-300 mt-1">
-                    You have blocked notifications for this site. You must enable
-                    them in your browser settings to receive alerts.
+                    You have blocked notifications for this site. You must
+                    enable them in your browser settings to receive alerts.
                 </p>
             </div>
         `;
     } else if (permission === 'default') {
         content = html`
             <div class="text-center p-4 bg-slate-700/50 rounded-md">
-                <p class="font-semibold text-slate-200">
-                    Enable Notifications
-                </p>
+                <p class="font-semibold text-slate-200">Enable Notifications</p>
                 <p class="text-xs text-slate-400 mt-1">
                     Allow notifications to receive alerts for important stream
                     events.

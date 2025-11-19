@@ -8,7 +8,6 @@ import { tooltipData } from './descriptors/tooltips.js';
  */
 export function parse(buffer) {
     try {
-
         return parseTsSegment(buffer);
     } catch (e) {
         console.error('Error parsing TS segment:', e);

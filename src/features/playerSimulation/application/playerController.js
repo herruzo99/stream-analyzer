@@ -54,6 +54,7 @@ function onAdaptation({ oldTrack, newTrack }) {
                     oldHeight: oldTrack?.height,
                     newWidth: newTrack.width,
                     newHeight: newTrack.height,
+                    newBandwidth: newTrack.bandwidth,
                 },
             ],
         });

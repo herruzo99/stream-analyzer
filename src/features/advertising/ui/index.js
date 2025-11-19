@@ -12,11 +12,18 @@ const activeTabs = new Map();
 
 const DETECTION_METHOD_INFO = {
     SCTE35_INBAND: {
-        label: 'Confirmed Ad Signal',
+        label: 'Confirmed Signal (In-Band)',
         icon: icons.checkCircle,
         color: 'border-green-500',
         tooltip:
-            'This ad break was definitively signaled by an in-band SCTE-35 message. This is a 100% confirmed ad.',
+            'This ad break was definitively signaled by an in-band SCTE-35 message (e.g., an `emsg` box) found within a media segment.',
+    },
+    SCTE35_DATERANGE: {
+        label: 'Confirmed Signal (Manifest)',
+        icon: icons.checkCircle,
+        color: 'border-green-500',
+        tooltip:
+            'This ad break was definitively signaled by an out-of-band SCTE-35 message found in the manifest (e.g., an HLS #EXT-X-DATERANGE tag or DASH EventStream).',
     },
     ASSET_IDENTIFIER: {
         label: 'High-Confidence Heuristic',
@@ -37,7 +44,7 @@ const DETECTION_METHOD_INFO = {
         icon: icons.gripHorizontal,
         color: 'border-purple-500',
         tooltip:
-            'This ad break was inferred from a structural discontinuity in the manifest (a new Period in DASH). This is a common but not definitive indicator of an ad break in streams that do not use explicit SCTE-35 signaling.',
+            'This ad break was inferred from a structural discontinuity in the manifest (a new Period in DASH or #EXT-X-DISCONTINUITY in HLS). This is a common but not definitive indicator of an ad break.',
     },
     UNKNOWN: {
         label: 'Ad Information',
@@ -163,7 +170,9 @@ const adAvailCardTemplate = (avail) => {
         return unconfirmedInbandTemplate();
     }
 
-    const tabs = [{ key: 'creatives', label: `Creatives (${avail.creatives.length})` }];
+    const tabs = [
+        { key: 'creatives', label: `Creatives (${avail.creatives.length})` },
+    ];
     if (avail.scte35Signal) {
         tabs.push({ key: 'scte35', label: 'Signal Details' });
     }
@@ -331,9 +340,7 @@ function renderAdvertisingReport() {
     }
 
     const hasInbandSignal = (stream.manifest.periods || []).some((p) =>
-        p.adaptationSets.some(
-            (as) => (as.inbandEventStreams || []).length > 0
-        )
+        p.adaptationSets.some((as) => (as.inbandEventStreams || []).length > 0)
     );
     const hasScte35Avails = (stream.adAvails || []).some((a) =>
         a.detectionMethod.includes('SCTE35')

@@ -11,6 +11,8 @@ import {
 import { scte35DetailsTemplate } from '@/ui/shared/scte35-details';
 import { highlightDash } from '@/ui/shared/syntax-highlighter';
 import xmlFormatter from 'xml-formatter';
+import './components/bitstream-analysis.js'; // Import side-effect
+import './components/bitstream-analysis.js'; // Import side-effect
 
 const findBoxRecursive = (boxes, predicateOrType) => {
     const predicate =
@@ -51,6 +53,67 @@ const findChildrenRecursive = (boxes, predicateOrType) => {
 };
 // --- END FIX ---
 
+const ttmlCuesTemplate = (samples) => {
+    const allCues = samples
+        .filter((s) => s.ttmlPayload && s.ttmlPayload.cues)
+        .flatMap((s) => s.ttmlPayload.cues);
+    if (allCues.length === 0) return '';
+
+    return html`
+        <div>
+            <h3 class="text-xl font-bold mb-4">TTML Cues</h3>
+            <div
+                class="bg-slate-900/50 rounded border border-slate-700/50 overflow-hidden"
+            >
+                <table class="w-full text-left text-xs table-auto">
+                    <thead class="bg-slate-800/50">
+                        <tr>
+                            <th class="p-2 font-semibold text-slate-400">ID</th>
+                            <th class="p-2 font-semibold text-slate-400">
+                                Start Time
+                            </th>
+                            <th class="p-2 font-semibold text-slate-400">
+                                End Time
+                            </th>
+                            <th class="p-2 font-semibold text-slate-400">
+                                Payload
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-700/50">
+                        ${allCues.map(
+        (cue) => html`
+                                <tr class="hover:bg-slate-700/50">
+                                    <td
+                                        class="p-2 font-mono text-slate-300 align-top"
+                                    >
+                                        ${cue.id || 'N/A'}
+                                    </td>
+                                    <td
+                                        class="p-2 font-mono text-cyan-400 align-top"
+                                    >
+                                        ${cue.startTime.toFixed(3)}s
+                                    </td>
+                                    <td
+                                        class="p-2 font-mono text-cyan-400 align-top"
+                                    >
+                                        ${cue.endTime.toFixed(3)}s
+                                    </td>
+                                    <td
+                                        class="p-2 text-slate-200 align-top break-all"
+                                    >
+                                        ${cue.payload}
+                                    </td>
+                                </tr>
+                            `
+    )}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+};
+
 const emsgPayloadTemplate = (box) => {
     let payloadContent;
     switch (box.messagePayloadType) {
@@ -63,7 +126,7 @@ const emsgPayloadTemplate = (box) => {
                 payloadContent = html`<pre
                     class="language-xml text-xs whitespace-pre-wrap"
                 ><code>${unsafeHTML(highlightDash(formattedXml))}</code></pre>`;
-            } catch (e) {
+            } catch (_e) {
                 payloadContent = html`<pre
                     class="language-xml text-xs whitespace-pre-wrap"
                 ><code>${unsafeHTML(
@@ -74,7 +137,7 @@ const emsgPayloadTemplate = (box) => {
         case 'scte35':
             payloadContent = scte35DetailsTemplate(box.messagePayload);
             break;
-        default:
+        default: {
             const hex = Array.from(box.messagePayload)
                 .map((b) => b.toString(16).padStart(2, '0'))
                 .join(' ');
@@ -84,6 +147,7 @@ const emsgPayloadTemplate = (box) => {
                 ${hex}
             </div>`;
             break;
+        }
     }
 
     return html`
@@ -94,12 +158,10 @@ const emsgPayloadTemplate = (box) => {
             <summary
                 class="font-bold p-3 cursor-pointer hover:bg-slate-700/50 text-slate-100"
             >
-                emsg @ ${box.offset} (Scheme: ${box.details.scheme_id_uri
-                    .value})
+                emsg @ ${box.offset} (Scheme:
+                ${box.details.scheme_id_uri.value})
             </summary>
-            <div class="p-4 border-t border-slate-700">
-                ${payloadContent}
-            </div>
+            <div class="p-4 border-t border-slate-700">${payloadContent}</div>
         </details>
     `;
 };
@@ -142,13 +204,13 @@ const cmafResultsTemplate = (results) => {
                     </thead>
                     <tbody class="divide-y divide-slate-700/50">
                         ${results.map(
-                            (result) => html`
+        (result) => html`
                                 <tr class="hover:bg-slate-700/50">
                                     <td class="p-2 text-center">
                                         <span
                                             class="${statusClasses[
-                                                result.status
-                                            ]} font-bold"
+            result.status
+            ]} font-bold"
                                             >${icon[result.status]}
                                             ${result.status.toUpperCase()}</span
                                         >
@@ -166,7 +228,7 @@ const cmafResultsTemplate = (results) => {
                                     </td>
                                 </tr>
                             `
-                        )}
+    )}
                     </tbody>
                 </table>
             </div>
@@ -200,7 +262,11 @@ export const isobmffAnalysisTemplate = (parsedData, isIFrame = false) => {
     const ftyp = findBoxRecursive(boxes, 'ftyp');
     const cmafBrands = ftyp?.details?.cmafBrands?.value?.split(', ') || [];
     const isCmaf = cmafBrands.includes('cmfc');
+    const bitstreamAnalysis = parsedData.bitstreamAnalysis; // Check if analysis is present from worker
     const emsgBoxes = findChildrenRecursive(boxes, (b) => b.type === 'emsg');
+    const samplesWithTtml = (parsedData.samples || []).filter(
+        (s) => s.ttmlPayload && !s.ttmlPayload.error
+    );
 
     let cmafResults = [];
     if (isCmaf) {
@@ -295,9 +361,23 @@ export const isobmffAnalysisTemplate = (parsedData, isIFrame = false) => {
             </div>
 
             ${cmafResultsTemplate(cmafResults)}
-
+            ${ttmlCuesTemplate(samplesWithTtml)}
+            ${cmafResultsTemplate(cmafResults)}
+            ${bitstreamAnalysis
+            ? html`
+                      <div>
+                          <h3 class="text-xl font-bold mb-4 text-slate-100">
+                              Bitstream Analysis
+                          </h3>
+                          <bitstream-analysis
+                              .analysis=${bitstreamAnalysis}
+                          ></bitstream-analysis>
+                      </div>
+                  `
+            : ''}
+            ${ttmlCuesTemplate(samplesWithTtml)}
             ${emsgBoxes && emsgBoxes.length > 0
-                ? html`<div>
+            ? html`<div>
                       <h3 class="text-xl font-bold mb-4">
                           Event Message (\`emsg\`) Boxes
                       </h3>
@@ -305,16 +385,18 @@ export const isobmffAnalysisTemplate = (parsedData, isIFrame = false) => {
                           ${emsgBoxes.map(emsgPayloadTemplate)}
                       </div>
                   </div>`
-                : ''}
+            : ''}
             ${boxForTable ? entriesTableTemplate(boxForTable) : ''}
 
             <div>
                 <h3 class="text-xl text-white font-bold mb-4">Box Structure</h3>
                 <ul class="list-none p-0 space-y-2">
                     ${boxes.map(
-                        (box) =>
-                            html`<li>${isoBoxTreeTemplate(box, { isIFrame })}</li>`
-                    )}
+                (box) =>
+                    html`<li>
+                                ${isoBoxTreeTemplate(box, { isIFrame })}
+                            </li>`
+            )}
                 </ul>
             </div>
         </div>

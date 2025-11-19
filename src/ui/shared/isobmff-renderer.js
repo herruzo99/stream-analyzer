@@ -338,9 +338,7 @@ export const isoBoxTreeTemplate = (box, context = {}) => {
 
     let issues = box.issues || [];
     if (isIFrame && box.type === 'mdat') {
-        issues = issues.filter(
-            (issue) => !issue.message.includes('truncated')
-        );
+        issues = issues.filter((issue) => !issue.message.includes('truncated'));
     }
 
     const warningIcon =

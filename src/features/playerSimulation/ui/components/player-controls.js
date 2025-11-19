@@ -186,7 +186,8 @@ class PlayerControlsComponent extends HTMLElement {
                 liveSyncConfig.targetLatency ?? 8,
                 maxLatency
             ),
-            targetLatencyTolerance: liveSyncConfig.targetLatencyTolerance ?? 0.5,
+            targetLatencyTolerance:
+                liveSyncConfig.targetLatencyTolerance ?? 0.5,
             minPlaybackRate: liveSyncConfig.minPlaybackRate ?? 0.95,
             maxPlaybackRate: liveSyncConfig.maxPlaybackRate ?? 1.1,
             panicMode: liveSyncConfig.panicMode ?? false,
@@ -320,16 +321,20 @@ class PlayerControlsComponent extends HTMLElement {
                     />
                 </labeled-control-component>
 
-                <fieldset ?disabled=${!effectiveState.enabled} class="space-y-6">
+                <fieldset
+                    ?disabled=${!effectiveState.enabled}
+                    class="space-y-6"
+                >
                     <div class="flex items-center justify-center gap-2 pt-4">
                         ${presets.map(
-                            (p) => html`<button
-                                type="button"
-                                @click=${() => setPreset(p)}
-                                class="text-xs font-semibold px-3 py-1.5 rounded-full bg-slate-700 hover:bg-slate-600 transition-colors capitalize"
-                            >
-                                ${p}
-                            </button>`
+                            (p) =>
+                                html`<button
+                                    type="button"
+                                    @click=${() => setPreset(p)}
+                                    class="text-xs font-semibold px-3 py-1.5 rounded-full bg-slate-700 hover:bg-slate-600 transition-colors capitalize"
+                                >
+                                    ${p}
+                                </button>`
                         )}
                     </div>
 
@@ -579,8 +584,7 @@ class PlayerControlsComponent extends HTMLElement {
                                         'Text Tracks Off',
                                     activeTextTrack
                                         ? `Kind: ${
-                                              activeTextTrack.kind ||
-                                              'subtitle'
+                                              activeTextTrack.kind || 'subtitle'
                                           }`
                                         : '',
                                     (e) =>
@@ -635,8 +639,7 @@ class PlayerControlsComponent extends HTMLElement {
                                                                     eventBus.dispatch(
                                                                         'ui:player:set-abr-strategy',
                                                                         {
-                                                                            config:
-                                                                                p.config,
+                                                                            config: p.config,
                                                                         }
                                                                     )
                                                             ),
@@ -760,11 +763,10 @@ class PlayerControlsComponent extends HTMLElement {
                                                                     eventBus.dispatch(
                                                                         'ui:player:set-buffering-strategy',
                                                                         {
-                                                                            config:
-                                                                                {
-                                                                                    ...config.streaming,
-                                                                                    ...p.config,
-                                                                                },
+                                                                            config: {
+                                                                                ...config.streaming,
+                                                                                ...p.config,
+                                                                            },
                                                                         }
                                                                     )
                                                             ),

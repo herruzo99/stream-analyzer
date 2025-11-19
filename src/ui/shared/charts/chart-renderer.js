@@ -12,10 +12,6 @@ import {
 import { CanvasRenderer } from 'echarts/renderers';
 import { formatBitrate } from '@/ui/shared/format';
 
-// --- ARCHITECTURAL FIX: ECharts Tree-Shaking ---
-// ECharts is a tree-shakable library. We must explicitly import and register
-// the components and renderers we intend to use. This single registration
-// will apply to all charts created via this utility.
 useEchartsModules([
     CanvasRenderer,
     LineChart,
@@ -32,117 +28,83 @@ useEchartsModules([
 
 const chartInstances = new Map();
 const resizeObservers = new Map();
-let tooltipProxyEl = null;
 
-function createTooltipProxy() {
-    if (!tooltipProxyEl) {
-        tooltipProxyEl = document.createElement('div');
-        tooltipProxyEl.style.position = 'fixed';
-        tooltipProxyEl.style.pointerEvents = 'none';
-        tooltipProxyEl.style.visibility = 'hidden';
-        document.body.appendChild(tooltipProxyEl);
+/**
+ * A default, rich-text tooltip formatter that can be used by any chart.
+ * It inspects the hovered data point for known structures and formats them.
+ * @param {any} params - The ECharts formatter params.
+ * @returns {string} The formatted HTML for the tooltip.
+ */
+const defaultTooltipFormatter = (params) => {
+    const p = Array.isArray(params) ? params[0] : params;
+
+    if (!p || !p.data || typeof p.data !== 'object') {
+        return '';
     }
-}
 
-function showCustomTooltip(chartEvent, chartContainer) {
-    if (!tooltipProxyEl) createTooltipProxy();
+    // Timeline Chart Tooltip Logic
+    if (p.data.originalEntity) {
+        const entity = p.data.originalEntity;
+        const absoluteStart =
+            entity.data?.start !== undefined ? entity.data.start : entity.start;
+        const absoluteEnd =
+            entity.data?.end !== undefined ? entity.data.end : entity.end;
 
-    let tooltipContent = '';
-    const { seriesName, data } = chartEvent;
-
-    // --- ENHANCED TOOLTIP LOGIC ---
-    if (data && data.segment) {
-        // Timeline Chart Tooltip
-        const { segment } = data;
-        const {
-            type,
-            number,
-            duration,
-            startTime,
-            endTime,
-            isPartial,
-            resolvedUrl,
-            encryptionInfo,
-            flags,
-        } = segment;
-
-        let flagHtml = '';
-        if (flags && flags.length > 0) {
-            flagHtml = `<p class="mt-1"><b>Flags:</b> ${flags.join(', ')}</p>`;
+        let content = `<b>${entity.label}</b>`;
+        if (entity.type === 'abr') {
+            content += `<br/><b>Time:</b> ${absoluteStart.toFixed(3)}s`;
+            content += `<br/><b>To:</b> ${entity.data.newHeight}p @ ${formatBitrate(entity.data.newBandwidth)}`;
+        } else {
+            const duration = absoluteEnd - absoluteStart;
+            content += `<br/><b>Time:</b> ${absoluteStart.toFixed(3)}s - ${absoluteEnd.toFixed(3)}s`;
+            content += `<br/><b>Duration:</b> ${duration.toFixed(3)}s`;
         }
-
-        let encryptionHtml = '';
-        if (encryptionInfo && encryptionInfo.method !== 'NONE') {
-            encryptionHtml = `<p class="mt-1"><b>Encryption:</b> ${encryptionInfo.method}</p>`;
-        }
-
-        const urlFilename = resolvedUrl
-            ? resolvedUrl.split('/').pop().split('?')[0]
-            : 'N/A';
-
-        tooltipContent = `
-            <div class="text-left">
-                <p class="font-bold text-slate-100">${
-                    isPartial ? 'Partial Segment' : type
-                } #${number}</p>
-                <p class="text-xs text-slate-400 mt-1 font-mono">${urlFilename}</p>
-                <hr class="border-slate-600 my-2">
-                <p><b>Time:</b> ${startTime.toFixed(3)}s - ${endTime.toFixed(
-                    3
-                )}s</p>
-                <p><b>Duration:</b> ${duration.toFixed(3)}s</p>
-                ${flagHtml}
-                ${encryptionHtml}
-            </div>`;
-    } else if (data && data.trackInfo) {
-        // ABR Ladder Chart Tooltip
-        const { trackInfo } = data;
-        tooltipContent = `
-            <div class="text-left">
-                <p class="font-bold text-slate-100">${seriesName}</p>
-                <hr class="border-slate-600 my-2">
-                <p><b>Bitrate:</b> ${formatBitrate(trackInfo.bandwidth)}</p>
-                <p><b>Resolution:</b> ${trackInfo.width}x${trackInfo.height}</p>
-            </div>`;
+        return content;
     }
-    // --- END ENHANCED TOOLTIP LOGIC ---
 
-    if (tooltipContent) {
-        tooltipProxyEl.setAttribute(
-            'data-tooltip-html-b64',
-            btoa(tooltipContent)
-        );
-        tooltipProxyEl.removeAttribute('data-tooltip');
-        tooltipProxyEl.removeAttribute('data-iso');
-
-        // Position the proxy element at the mouse cursor
-        tooltipProxyEl.style.left = `${chartEvent.event.event.clientX}px`;
-        tooltipProxyEl.style.top = `${chartEvent.event.event.clientY}px`;
-
-        // Dispatch a synthetic mouseover event that our global listener will catch
-        const mouseOverEvent = new MouseEvent('mouseover', { bubbles: true });
-        tooltipProxyEl.dispatchEvent(mouseOverEvent);
+    // ABR Ladder Chart Tooltip Logic
+    if (p.data.trackInfo) {
+        const { trackInfo } = p.data;
+        let content = `<b>${p.seriesName}</b>`;
+        content += `<br/><b>Bitrate:</b> ${formatBitrate(trackInfo.bandwidth)}`;
+        content += `<br/><b>Resolution:</b> ${trackInfo.width}x${trackInfo.height}`;
+        return content;
     }
-}
 
-function hideCustomTooltip() {
-    if (tooltipProxyEl) {
-        const mouseOutEvent = new MouseEvent('mouseout', { bubbles: true });
-        tooltipProxyEl.dispatchEvent(mouseOutEvent);
+    // Default fallback for simple charts (like throughput)
+    const time = p.axisValueLabel;
+    const value = p.value[1];
+    let formattedValue = '';
+    if (
+        p.seriesName.toLowerCase().includes('bitrate') ||
+        p.seriesName.toLowerCase().includes('throughput')
+    ) {
+        formattedValue = formatBitrate(value);
+    } else if (p.seriesName.toLowerCase().includes('buffer')) {
+        formattedValue = `${value.toFixed(2)}s`;
+    } else {
+        formattedValue = typeof value === 'number' ? value.toFixed(2) : value;
     }
-}
+
+    return `<b>${p.seriesName}</b><br/>Time: ${time}<br/>Value: ${formattedValue}`;
+};
 
 /**
  * Renders or updates an ECharts chart in a given container.
  * @param {HTMLElement} container - The DOM element to render the chart into.
  * @param {object} options - The ECharts option object.
- * @param {Function} [onClick] - An optional callback to handle clicks on the chart's grid.
+ * @param {object} [eventHandlers] - Optional map of event handlers.
+ * @param {(params: any) => void} [eventHandlers.onClick] - Click handler for chart series items.
+ * @param {(params: any) => void} [eventHandlers.onMouseOver] - Mouseover handler.
+ * @param {() => void} [eventHandlers.onMouseOut] - Mouseout handler.
  */
-export function renderChart(container, options, onClick) {
+export function renderChart(container, options, eventHandlers = {}) {
     if (!container) return;
 
     if (container.clientWidth === 0 || container.clientHeight === 0) {
-        requestAnimationFrame(() => renderChart(container, options, onClick));
+        requestAnimationFrame(() =>
+            renderChart(container, options, eventHandlers)
+        );
         return;
     }
 
@@ -157,28 +119,38 @@ export function renderChart(container, options, onClick) {
         });
         resizeObserver.observe(container);
         resizeObservers.set(container, resizeObserver);
-
-        chart.on('mouseover', (params) => showCustomTooltip(params, container));
-        chart.on('mouseout', hideCustomTooltip);
-
-        if (onClick) {
-            chart.getZr().on('click', (params) => {
-                const pointInGrid = chart.convertFromPixel('grid', [
-                    params.offsetX,
-                    params.offsetY,
-                ]);
-                if (pointInGrid) {
-                    onClick(pointInGrid[0]);
-                }
-            });
-        }
     }
 
-    // --- PERFORMANCE FIX: Use intelligent merging instead of full redraw ---
-    // The default behavior (`notMerge: false`) allows ECharts to perform an
-    // efficient diff and only update the parts of the chart that have changed,
-    // which is critical for performance with frequent data updates.
-    chart.setOption(options, { notMerge: false });
+    chart.off('click');
+    chart.off('mouseover');
+    chart.off('mouseout');
+
+    if (eventHandlers.onClick) {
+        chart.on('click', eventHandlers.onClick);
+    }
+    if (eventHandlers.onMouseOver) {
+        chart.on('mouseover', eventHandlers.onMouseOver);
+    }
+    if (eventHandlers.onMouseOut) {
+        chart.on('mouseout', eventHandlers.onMouseOut);
+    }
+
+    // --- ARCHITECTURAL FIX: Use native ECharts rich text tooltip ---
+    const finalOptions = {
+        ...options,
+        tooltip: {
+            ...options.tooltip,
+            trigger: options.tooltip?.trigger || 'axis',
+            formatter: options.tooltip?.formatter || defaultTooltipFormatter,
+            confine: true, // Keep tooltip within chart bounds
+            backgroundColor: 'rgba(30, 41, 59, 0.9)', // slate-800
+            borderColor: '#4b5563', // slate-600
+            textStyle: { color: '#e5e7eb' }, // slate-200
+        },
+    };
+    // --- END FIX ---
+
+    chart.setOption(finalOptions, { notMerge: false, lazyUpdate: true });
 }
 
 /**

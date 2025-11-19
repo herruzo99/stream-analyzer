@@ -2,71 +2,63 @@ import { eventBus } from '@/application/event-bus';
 import { multiPlayerService } from './multiPlayerService.js';
 import { useMultiPlayerStore } from '@/state/multiPlayerStore';
 import { uiActions } from '@/state/uiStore.js';
+import { EVENTS } from '@/types/events';
 
 export function initializeMultiPlayerController() {
-    eventBus.subscribe('ui:multi-player:play-all', () =>
+    eventBus.subscribe(EVENTS.UI.MP_PLAY_ALL, () =>
         multiPlayerService.playAll()
     );
-    eventBus.subscribe('ui:multi-player:pause-all', () =>
+    eventBus.subscribe(EVENTS.UI.MP_PAUSE_ALL, () =>
         multiPlayerService.pauseAll()
     );
-    eventBus.subscribe('ui:multi-player:mute-all', () => {
+    eventBus.subscribe(EVENTS.UI.MP_MUTE_ALL, () => {
         useMultiPlayerStore.getState().setMuteAll(true);
         multiPlayerService.muteAll();
     });
-    eventBus.subscribe('ui:multi-player:unmute-all', () => {
+    eventBus.subscribe(EVENTS.UI.MP_UNMUTE_ALL, () => {
         useMultiPlayerStore.getState().setMuteAll(false);
         multiPlayerService.unmuteAll();
     });
-    eventBus.subscribe('ui:multi-player:set-card-tab', ({ streamId, tab }) => {
+    eventBus.subscribe(EVENTS.UI.MP_SET_CARD_TAB, ({ streamId, tab }) => {
         useMultiPlayerStore.getState().setPlayerCardTab(streamId, tab);
     });
-    eventBus.subscribe('ui:multi-player:sync-all-to', ({ streamId }) =>
+    eventBus.subscribe(EVENTS.UI.MP_SYNC_ALL_TO, ({ streamId }) =>
         multiPlayerService.syncAllTo(streamId)
     );
-    eventBus.subscribe('ui:multi-player:reset-all', () =>
+    eventBus.subscribe(EVENTS.UI.MP_RESET_ALL, () =>
         multiPlayerService.resetAllPlayers()
     );
-    eventBus.subscribe('ui:multi-player:clear-all', () =>
+    eventBus.subscribe(EVENTS.UI.MP_CLEAR_ALL, () =>
         multiPlayerService.clearAndResetPlayers()
     );
-    eventBus.subscribe('ui:multi-player:reset-failed', () => {
+    eventBus.subscribe(EVENTS.UI.MP_RESET_FAILED, () => {
         multiPlayerService.resetFailedPlayers();
     });
-    eventBus.subscribe(
-        'ui:multi-player:reset-single',
-        ({ streamId }) => {
-            multiPlayerService.resetSinglePlayer(streamId);
-        }
-    );
-    eventBus.subscribe('ui:multi-player:toggle-auto-reset', () => {
+    eventBus.subscribe(EVENTS.UI.MP_RESET_SINGLE, ({ streamId }) => {
+        multiPlayerService.resetSinglePlayer(streamId);
+    });
+    eventBus.subscribe(EVENTS.UI.MP_TOGGLE_AUTO_RESET, () => {
         useMultiPlayerStore.getState().toggleAutoReset();
     });
-    eventBus.subscribe('ui:multi-player:toggle-immersive-view', () => {
+    eventBus.subscribe(EVENTS.UI.MP_TOGGLE_IMMERSIVE, () => {
         uiActions.toggleMultiPlayerViewMode();
     });
 
     // Global Control Listeners
-    eventBus.subscribe('ui:multi-player:set-global-abr', ({ enabled }) => {
+    eventBus.subscribe(EVENTS.UI.MP_SET_GLOBAL_ABR, ({ enabled }) => {
         useMultiPlayerStore.getState().setGlobalAbrEnabled(enabled);
         multiPlayerService.setGlobalAbr(enabled);
     });
+    eventBus.subscribe(EVENTS.UI.MP_SET_GLOBAL_BW_CAP, ({ bps }) => {
+        useMultiPlayerStore.getState().setGlobalBandwidthCap(bps);
+        multiPlayerService.setGlobalBandwidthCap(bps);
+    });
+    eventBus.subscribe(EVENTS.UI.MP_SET_GLOBAL_MAX_HEIGHT, ({ height }) => {
+        useMultiPlayerStore.getState().setGlobalMaxHeight(height);
+        multiPlayerService.setGlobalMaxHeight(height);
+    });
     eventBus.subscribe(
-        'ui:multi-player:set-global-bandwidth-cap',
-        ({ bps }) => {
-            useMultiPlayerStore.getState().setGlobalBandwidthCap(bps);
-            multiPlayerService.setGlobalBandwidthCap(bps);
-        }
-    );
-    eventBus.subscribe(
-        'ui:multi-player:set-global-max-height',
-        ({ height }) => {
-            useMultiPlayerStore.getState().setGlobalMaxHeight(height);
-            multiPlayerService.setGlobalMaxHeight(height);
-        }
-    );
-    eventBus.subscribe(
-        'ui:multi-player:set-global-video-track-by-height',
+        EVENTS.UI.MP_SET_GLOBAL_TRACK_BY_HEIGHT,
         ({ height }) => {
             multiPlayerService.setGlobalTrackByHeight(height);
         }
@@ -74,7 +66,7 @@ export function initializeMultiPlayerController() {
 
     // Per-stream and Group Action Listeners
     eventBus.subscribe(
-        'ui:player:select-video-track',
+        EVENTS.UI.PLAYER_SELECT_VIDEO_TRACK,
         ({ streamId, track }) => {
             const { players } = useMultiPlayerStore.getState();
             if (players.has(streamId)) {
@@ -86,7 +78,7 @@ export function initializeMultiPlayerController() {
         }
     );
     eventBus.subscribe(
-        'ui:player:select-audio-track',
+        EVENTS.UI.PLAYER_SELECT_AUDIO_TRACK,
         ({ streamId, language }) => {
             const { players } = useMultiPlayerStore.getState();
             if (players.has(streamId)) {
@@ -94,27 +86,30 @@ export function initializeMultiPlayerController() {
             }
         }
     );
-    eventBus.subscribe('ui:player:set-abr-enabled', ({ streamId, enabled }) => {
-        const { players } = useMultiPlayerStore.getState();
-        if (players.has(streamId)) {
-            multiPlayerService.setAbrEnabled(streamId, enabled);
-            useMultiPlayerStore
-                .getState()
-                .setStreamOverride(streamId, { abr: enabled });
+    eventBus.subscribe(
+        EVENTS.UI.PLAYER_SET_ABR_ENABLED,
+        ({ streamId, enabled }) => {
+            const { players } = useMultiPlayerStore.getState();
+            if (players.has(streamId)) {
+                multiPlayerService.setAbrEnabled(streamId, enabled);
+                useMultiPlayerStore
+                    .getState()
+                    .setStreamOverride(streamId, { abr: enabled });
+            }
         }
-    });
+    );
 
-    eventBus.subscribe('ui:multi-player:toggle-selection', ({ streamId }) => {
+    eventBus.subscribe(EVENTS.UI.MP_TOGGLE_SELECTION, ({ streamId }) => {
         useMultiPlayerStore.getState().toggleStreamSelection(streamId);
     });
-    eventBus.subscribe('ui:multi-player:select-all', () => {
+    eventBus.subscribe(EVENTS.UI.MP_SELECT_ALL, () => {
         useMultiPlayerStore.getState().selectAllStreams();
     });
-    eventBus.subscribe('ui:multi-player:deselect-all', () => {
+    eventBus.subscribe(EVENTS.UI.MP_DESELECT_ALL, () => {
         useMultiPlayerStore.getState().deselectAllStreams();
     });
     eventBus.subscribe(
-        'ui:multi-player:set-stream-override',
+        EVENTS.UI.MP_SET_STREAM_OVERRIDE,
         ({ streamId, override }) => {
             useMultiPlayerStore
                 .getState()
@@ -122,13 +117,13 @@ export function initializeMultiPlayerController() {
             multiPlayerService.applyStreamConfig(streamId);
         }
     );
-    eventBus.subscribe('ui:multi-player:duplicate-stream', ({ streamId }) => {
+    eventBus.subscribe(EVENTS.UI.MP_DUPLICATE_STREAM, ({ streamId }) => {
         multiPlayerService.duplicateStream(streamId);
     });
-    eventBus.subscribe('ui:multi-player:apply-to-selected', ({ action }) => {
+    eventBus.subscribe(EVENTS.UI.MP_APPLY_TO_SELECTED, ({ action }) => {
         multiPlayerService.applyActionToSelected(action);
     });
-    eventBus.subscribe('ui:multi-player:remove-stream', ({ streamId }) => {
+    eventBus.subscribe(EVENTS.UI.MP_REMOVE_STREAM, ({ streamId }) => {
         useMultiPlayerStore.getState().removePlayer(streamId);
     });
 }

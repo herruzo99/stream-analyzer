@@ -555,9 +555,7 @@ class PlayerService {
 
         setTimeout(() => {
             const { streams, activeStreamId } = useAnalysisStore.getState();
-            const streamToReload = streams.find(
-                (s) => s.id === activeStreamId
-            );
+            const streamToReload = streams.find((s) => s.id === activeStreamId);
             if (streamToReload) {
                 this.load(streamToReload, true);
             }

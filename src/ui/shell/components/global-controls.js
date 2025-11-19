@@ -53,7 +53,6 @@ export const globalControlsTemplate = () => {
 
     const pollingIcon = isAnyPolling ? icons.play : icons.pause;
     const pollingLabel = isAnyPolling ? 'Polling Active' : 'Polling Paused';
-    const pollingTitle = 'Manage live stream polling';
 
     const inactivityIcon =
         wasStoppedByInactivity && !isAnyPolling
@@ -77,27 +76,25 @@ export const globalControlsTemplate = () => {
                 @click=${toggleAllPolling}
                 class="flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold grow transition-colors rounded-l-md hover:bg-white/10"
                 title=${isAnyPolling
-                    ? 'Pause All Polling'
-                    : 'Resume All Polling'}
+            ? 'Pause All Polling'
+            : 'Resume All Polling'}
             >
                 ${pollingIcon}
                 <span class="inline">${pollingLabel}</span>
                 ${inactivityIcon}
             </button>
             <div
-                class="w-px ${isAnyPolling
-                    ? 'bg-cyan-500/50'
-                    : 'bg-gray-600'}"
+                class="w-px ${isAnyPolling ? 'bg-cyan-500/50' : 'bg-gray-600'}"
             ></div>
             <button
                 @click=${(e) => {
-                    const container = e.currentTarget.parentElement;
-                    toggleDropdown(
-                        container,
-                        () => pollingDropdownPanelTemplate(),
-                        e
-                    );
-                }}
+            const container = e.currentTarget.parentElement;
+            toggleDropdown(
+                container,
+                () => pollingDropdownPanelTemplate(),
+                e
+            );
+        }}
                 class="px-2 py-2 text-xs font-semibold transition-colors rounded-r-md hover:bg-white/10"
                 title="Advanced polling options"
             >
@@ -136,11 +133,11 @@ export const globalControlsTemplate = () => {
                   <div class="w-px bg-gray-600"></div>
                   <button
                       @click=${(e) =>
-                          toggleDropdown(
-                              e.currentTarget.parentElement,
-                              debugDropdownPanelTemplate,
-                              e
-                          )}
+                toggleDropdown(
+                    e.currentTarget.parentElement,
+                    debugDropdownPanelTemplate,
+                    e
+                )}
                       class="px-2 py-2 text-xs font-semibold transition-colors rounded-r-md hover:bg-gray-600"
                       title="Debug copy options"
                   >
@@ -153,7 +150,7 @@ export const globalControlsTemplate = () => {
     return html`
         <div class="space-y-2 border-t border-gray-700/50">
             ${isPipUnmount
-                ? html`<button
+            ? html`<button
                       @click=${handleStopAndResetPlayer}
                       class="${buttonBaseClasses} w-full text-red-200 bg-red-800 hover:bg-red-700"
                       title="Stop background player and clear its state"
@@ -161,10 +158,10 @@ export const globalControlsTemplate = () => {
                       ${icons.xCircle}
                       <span class="inline">Stop & Reset Player</span>
                   </button>`
-                : ''}
+            : ''}
             ${isPollingVisible ? pollingSplitButton : ''}
             ${isForcePollVisible
-                ? html`<button
+            ? html`<button
                       @click=${() => reloadStream(activeStream)}
                       data-testid="force-poll-btn"
                       class="${buttonBaseClasses} w-full text-gray-300 bg-gray-700/50 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -174,7 +171,7 @@ export const globalControlsTemplate = () => {
                       ${icons.updates}
                       <span class="inline">Force Poll</span>
                   </button>`
-                : ''}
+            : ''}
 
             <div class="flex items-center gap-2">
                 <button
@@ -188,11 +185,11 @@ export const globalControlsTemplate = () => {
                 </button>
                 <button
                     @click=${(e) =>
-                        toggleDropdown(
-                            e.currentTarget,
-                            notificationSettingsPanelTemplate,
-                            e
-                        )}
+            toggleDropdown(
+                e.currentTarget,
+                notificationSettingsPanelTemplate,
+                e
+            )}
                     class="${buttonBaseClasses} relative text-gray-300 bg-gray-700/50 hover:bg-gray-700"
                     title="Notification Settings"
                 >

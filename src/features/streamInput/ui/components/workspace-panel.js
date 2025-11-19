@@ -1,4 +1,5 @@
 import { html, render } from 'lit-html';
+import { showToast } from '@/ui/components/toast';
 import { analysisActions, useAnalysisStore } from '@/state/analysisStore';
 import { eventBus } from '@/application/event-bus';
 import { uiActions, useUiStore } from '@/state/uiStore';
@@ -25,8 +26,8 @@ const workspaceCardTemplate = (input, isActive) => {
         <div
             @click=${handleSetActive}
             class="animate-slideInUp bg-slate-800 rounded-lg border-2 p-4 cursor-pointer transition-colors hover:border-blue-400 ${isActive
-                ? 'border-blue-500 ring-2 ring-blue-500/50'
-                : 'border-slate-700'}"
+            ? 'border-blue-500 ring-2 ring-blue-500/50'
+            : 'border-slate-700'}"
             style="animation-delay: ${input.id * 50}ms;"
         >
             <div class="flex justify-between items-start gap-2">
@@ -89,6 +90,15 @@ class WorkspacePanelComponent extends HTMLElement {
             }
         };
 
+        const isValidUrl = (string) => {
+            try {
+                new URL(string);
+                return true;
+            } catch (_) {
+                return false;
+            }
+        };
+
         const handleUrlSubmit = (e) => {
             e.preventDefault();
             const form = e.target;
@@ -96,29 +106,63 @@ class WorkspacePanelComponent extends HTMLElement {
             const url = formData.get('url')?.toString().trim();
 
             if (url) {
-                analysisActions.addStreamInputFromPreset({ url });
-                uiActions.setLoadedWorkspaceName(null);
+                if (isValidUrl(url)) {
+                    analysisActions.addStreamInputFromPreset({ url });
+                    uiActions.setLoadedWorkspaceName(null);
+                    form.reset();
+                } else {
+                    showToast({
+                        message: 'Invalid URL format.',
+                        type: 'fail',
+                    });
+                }
             }
-            form.reset();
         };
 
         const handlePaste = (e) => {
             e.preventDefault();
             const pastedText = e.clipboardData.getData('text');
-            const urls = pastedText
+            const rawItems = pastedText
                 .split(/[\s,]+/)
                 .filter((u) => u.trim() !== '');
 
-            if (urls.length === 0) return;
-            uiActions.setLoadedWorkspaceName(null);
+            if (rawItems.length === 0) return;
 
-            if (urls.length === 1) {
-                e.target.value = urls[0];
-                analysisActions.addStreamInputFromPreset({ url: urls[0] });
-            } else {
-                urls.forEach((url) =>
+            const validUrls = [];
+            const invalidItems = [];
+
+            rawItems.forEach((item) => {
+                if (isValidUrl(item)) {
+                    validUrls.push(item);
+                } else {
+                    invalidItems.push(item);
+                }
+            });
+
+            if (validUrls.length > 0) {
+                uiActions.setLoadedWorkspaceName(null);
+                validUrls.forEach((url) =>
                     analysisActions.addStreamInputFromPreset({ url })
                 );
+
+                if (invalidItems.length === 0) {
+                    // All valid, clear input (which is currently empty as we prevented default)
+                    e.target.value = '';
+                } else {
+                    // Some invalid, keep them in input
+                    e.target.value = invalidItems.join('\n');
+                    showToast({
+                        message: `Added ${validUrls.length} stream(s). ${invalidItems.length} invalid item(s) remained.`,
+                        type: 'warn',
+                    });
+                }
+            } else {
+                // All invalid
+                e.target.value = pastedText; // Keep original text
+                showToast({
+                    message: 'No valid URLs found in pasted text.',
+                    type: 'fail',
+                });
             }
         };
 
@@ -164,7 +208,10 @@ class WorkspacePanelComponent extends HTMLElement {
 
         const handleUpdateWorkspace = () => {
             if (loadedWorkspaceName) {
-                saveWorkspace({ name: loadedWorkspaceName, inputs: streamInputs });
+                saveWorkspace({
+                    name: loadedWorkspaceName,
+                    inputs: streamInputs,
+                });
             }
         };
 
@@ -216,10 +263,8 @@ class WorkspacePanelComponent extends HTMLElement {
                                 Analysis Workspace
                             </h2>
                             ${loadedWorkspaceName
-                                ? html`
-                                      <div
-                                          class="flex items-center gap-2 mt-1"
-                                      >
+                ? html`
+                                      <div class="flex items-center gap-2 mt-1">
                                           <span class="text-sm text-slate-400"
                                               >Editing:</span
                                           >
@@ -236,11 +281,11 @@ class WorkspacePanelComponent extends HTMLElement {
                                           </button>
                                       </div>
                                   `
-                                : ''}
+                : ''}
                         </div>
                         <div class="flex items-center gap-2">
                             ${loadedWorkspaceName
-                                ? html`<button
+                ? html`<button
                                       @click=${handleUpdateWorkspace}
                                       class="bg-amber-600 hover:bg-amber-700 text-white font-bold py-2 px-3 rounded-md text-sm disabled:bg-slate-600 disabled:opacity-50"
                                       ?disabled=${!isWorkspaceModified}
@@ -248,7 +293,7 @@ class WorkspacePanelComponent extends HTMLElement {
                                   >
                                       Update Workspace
                                   </button>`
-                                : ''}
+                : ''}
                             <button
                                 @click=${handleSaveWorkspace}
                                 class="bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-md text-sm disabled:bg-slate-600 disabled:opacity-50"
@@ -260,12 +305,15 @@ class WorkspacePanelComponent extends HTMLElement {
                         </div>
                     </div>
                     <p class="text-slate-400">
-                        Add remote streams via URL, or drag & drop local
-                        segment files to start an analysis.
+                        Add remote streams via URL, or drag & drop local segment
+                        files to start an analysis.
                     </p>
                 </div>
 
-                <form @submit=${handleUrlSubmit} class="relative flex gap-2 shrink-0">
+                <form
+                    @submit=${handleUrlSubmit}
+                    class="relative flex gap-2 shrink-0"
+                >
                     <div class="relative grow">
                         <input
                             type="url"
@@ -290,18 +338,16 @@ class WorkspacePanelComponent extends HTMLElement {
 
                 <div class="grow overflow-y-auto space-y-4 pr-2 min-h-0 ">
                     ${streamInputs.length > 0
-                        ? streamInputs.map((input) =>
-                              workspaceCardTemplate(
-                                  input,
-                                  input.id === activeStreamInputId
-                              )
-                          )
-                        : emptyStateTemplate}
+                ? streamInputs.map((input) =>
+                    workspaceCardTemplate(
+                        input,
+                        input.id === activeStreamInputId
+                    )
+                )
+                : emptyStateTemplate}
                 </div>
 
-                <div
-                    class="flex gap-4 pt-4 border-t border-slate-700 shrink-0"
-                >
+                <div class="flex gap-4 pt-4 border-t border-slate-700 shrink-0">
                     <input
                         type="file"
                         id="local-file-input"
@@ -328,8 +374,8 @@ class WorkspacePanelComponent extends HTMLElement {
                         ?disabled=${streamInputs.length === 0}
                     >
                         ${streamInputs.length > 1
-                            ? `Analyze & Compare (${streamInputs.length})`
-                            : 'Analyze Stream'}
+                ? `Analyze & Compare (${streamInputs.length})`
+                : 'Analyze Stream'}
                     </button>
                 </div>
             </div>

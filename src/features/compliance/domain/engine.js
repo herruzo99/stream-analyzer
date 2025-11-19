@@ -4,7 +4,7 @@ import {
     findChildren,
     getAttr,
     findChildrenRecursive,
-} from '@/infrastructure/parsing/dash/recursive-parser';
+} from '@/infrastructure/parsing/utils/recursive-parser.js';
 
 /**
  * Runs a set of predefined compliance checks against a manifest.

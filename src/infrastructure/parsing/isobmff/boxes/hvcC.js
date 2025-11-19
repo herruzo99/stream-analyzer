@@ -36,7 +36,10 @@ export function parseHvcC(box, view) {
         const bytes = [];
         for (let i = 0; i < 6; i++) {
             bytes.push(
-                p.view.getUint8(p.offset + i).toString(16).padStart(2, '0')
+                p.view
+                    .getUint8(p.offset + i)
+                    .toString(16)
+                    .padStart(2, '0')
             );
         }
         box.details.general_constraint_indicator_flags = {
