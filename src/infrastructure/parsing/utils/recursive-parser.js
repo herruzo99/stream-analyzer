@@ -168,3 +168,39 @@ export function resolveBaseUrl(manifestBaseUrl, mpdEl, periodEl, asEl, repEl) {
 
     return baseRep;
 }
+
+/**
+ * Recursively traverses the serialized manifest object tree and adds a non-enumerable
+ * `.parent` property to each child node, pointing to its parent. This is necessary
+ * because fast-xml-parser does not create these back-references itself.
+ * @param {object} node - The current node in the object tree.
+ * @param {object|null} parent - The parent of the current node.
+ */
+export function linkParents(node, parent = null) {
+    if (!node || typeof node !== 'object') {
+        return;
+    }
+
+    if (parent) {
+        Object.defineProperty(node, 'parent', {
+            value: parent,
+            writable: true,
+            configurable: true,
+            enumerable: false, // Prevent it from showing up in logs or JSON.stringify
+        });
+    }
+
+    for (const key in node) {
+        // Ignore special keys and the newly added parent property
+        if (key === ':@' || key === '#text' || key === 'parent') {
+            continue;
+        }
+
+        const children = node[key];
+        if (Array.isArray(children)) {
+            children.forEach((child) => linkParents(child, node));
+        } else if (typeof children === 'object' && children !== null) {
+            linkParents(children, node);
+        }
+    }
+}

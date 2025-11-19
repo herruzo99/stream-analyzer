@@ -22,10 +22,11 @@ import {
     findChildren,
     findChildrenRecursive,
     mergeElements,
-} from './recursive-parser.js';
+    linkParents,
+} from '../utils/recursive-parser.js';
 import { parseScte35 } from '../scte35/parser.js';
 import { inferMediaInfoFromExtension } from '../utils/media-types.js';
-import { AdAvail } from '@/features/advertising/domain/AdAvail.js';
+
 import { isCodecSupported } from '../utils/codec-support.js';
 
 const isVideoCodec = (codecString) => {
@@ -51,7 +52,6 @@ const isAudioCodec = (codecString) => {
     const audioPrefixes = ['mp4a', 'ac-3', 'ec-3', 'opus', 'flac'];
     return audioPrefixes.some((prefix) => lowerCodec.startsWith(prefix));
 };
-
 
 // --- Sorter Functions ---
 function sortVideoRepresentations(a, b) {
@@ -97,18 +97,6 @@ function sortAdaptationSets(a, b) {
     return idA.localeCompare(idB);
 }
 // --- End Sorter Functions ---
-
-/**
- * @constant {string[]}
- * @description A list of known prefixes for Period IDs used by SSAI vendors.
- * This is a heuristic-based fallback for detecting ad insertion periods.
- */
-const KNOWN_SSAI_PREFIXES = [
-    'DAICONNECT', // Ad Insertion Platform (AIP)
-    'MEDIATAILOR', // AWS MediaTailor
-    'YOSPACE', // Yospace
-    'VMAP', // Common VAST/VMAP-based insertion
-];
 
 /**
  * Creates a deep copy of a parsed manifest object.
@@ -274,12 +262,16 @@ function parseSubRepresentation(subRepEl, parentMergedEl) {
  */
 function parseRepresentation(repEl, parentMergedEl) {
     const mergedRepEl = mergeElements(parentMergedEl, repEl);
-    
+
     const codecString = getAttr(mergedRepEl, 'codecs') || '';
-    const allCodecs = codecString.split(',').map(c => c.trim()).filter(Boolean);
+    const allCodecs = codecString
+        .split(',')
+        .map((c) => c.trim())
+        .filter(Boolean);
 
     const videoCodecs = allCodecs.filter(isVideoCodec);
     const audioCodecs = allCodecs.filter(isAudioCodec);
+    const lang = getAttr(mergedRepEl, 'lang') || null;
 
     /** @type {Representation} */
     const repIR = {
@@ -291,11 +283,19 @@ function parseRepresentation(repEl, parentMergedEl) {
         dependencyId: getAttr(repEl, 'dependencyId'),
         associationId: getAttr(repEl, 'associationId'),
         associationType: getAttr(repEl, 'associationType'),
-        codecs: videoCodecs.map(c => ({ value: c, source: 'manifest', supported: isCodecSupported(c) })),
+        codecs: videoCodecs.map((c) => ({
+            value: c,
+            source: 'manifest',
+            supported: isCodecSupported(c),
+        })),
         muxedAudio: {
-            codecs: audioCodecs.map(c => ({ value: c, source: 'manifest', supported: isCodecSupported(c) })),
+            codecs: audioCodecs.map((c) => ({
+                value: c,
+                source: 'manifest',
+                supported: isCodecSupported(c),
+            })),
             channels: null,
-            lang: getAttr(mergedRepEl, 'lang') || 'und',
+            lang: lang,
         },
         mimeType: getAttr(mergedRepEl, 'mimeType'),
         profiles: getAttr(mergedRepEl, 'profiles'),
@@ -322,6 +322,7 @@ function parseRepresentation(repEl, parentMergedEl) {
             ? parseInt(getAttr(mergedRepEl, 'selectionPriority'), 10)
             : 0,
         tag: getAttr(mergedRepEl, 'tag'),
+        lang: lang,
         mediaStreamStructureId: getAttr(mergedRepEl, 'mediaStreamStructureId'),
         maximumSAPPeriod: getAttr(mergedRepEl, 'maximumSAPPeriod')
             ? parseFloat(getAttr(mergedRepEl, 'maximumSAPPeriod'))
@@ -333,8 +334,8 @@ function parseRepresentation(repEl, parentMergedEl) {
             getAttr(mergedRepEl, 'codingDependency') === 'true'
                 ? true
                 : getAttr(mergedRepEl, 'codingDependency') === 'false'
-                  ? false
-                  : null,
+                    ? false
+                    : null,
         eptDelta: null,
         pdDelta: null,
         representationIndex: null,
@@ -353,12 +354,12 @@ function parseRepresentation(repEl, parentMergedEl) {
                     ref: getAttr(cpEl, 'ref'),
                     pssh: psshData
                         ? [
-                              {
-                                  systemId: schemeIdUri, // Store the raw UUID
-                                  kids: [],
-                                  data: psshData,
-                              },
-                          ]
+                            {
+                                systemId: schemeIdUri, // Store the raw UUID
+                                kids: [],
+                                data: psshData,
+                            },
+                        ]
                         : [],
                 };
             }
@@ -379,6 +380,7 @@ function parseRepresentation(repEl, parentMergedEl) {
         accessibility: findChildren(mergedRepEl, 'Accessibility').map(
             parseGenericDescriptor
         ),
+        roles: findChildren(mergedRepEl, 'Role').map(parseGenericDescriptor),
         labels: findChildren(mergedRepEl, 'Label').map(parseLabel),
         groupLabels: findChildren(mergedRepEl, 'GroupLabel').map(parseLabel),
         subRepresentations: findChildren(repEl, 'SubRepresentation').map(
@@ -395,7 +397,7 @@ function parseRepresentation(repEl, parentMergedEl) {
         serializedManifest: repEl,
         segmentProfiles: getAttr(mergedRepEl, 'segmentProfiles'),
     };
-    
+
     if (!repIR.muxedAudio.codecs) {
         repIR.muxedAudio.codecs = [];
     }
@@ -421,9 +423,7 @@ function parseContentComponent(ccEl, parentEl) {
             parseGenericDescriptor
         ),
         roles: findChildren(mergedEl, 'Role').map(parseGenericDescriptor),
-        ratings: findChildren(mergedEl, 'Rating').map(
-            parseGenericDescriptor
-        ),
+        ratings: findChildren(mergedEl, 'Rating').map(parseGenericDescriptor),
         viewpoints: findChildren(mergedEl, 'Viewpoint').map(
             parseGenericDescriptor
         ),
@@ -540,12 +540,12 @@ function parseAdaptationSet(asEl, parentMergedEl) {
                     ref: getAttr(cpEl, 'ref'),
                     pssh: psshData
                         ? [
-                              {
-                                  systemId: schemeIdUri, // Store the raw UUID
-                                  kids: [],
-                                  data: psshData,
-                              },
-                          ]
+                            {
+                                systemId: schemeIdUri, // Store the raw UUID
+                                kids: [],
+                                data: psshData,
+                            },
+                        ]
                         : [],
                 };
             }
@@ -560,9 +560,7 @@ function parseAdaptationSet(asEl, parentMergedEl) {
         framePackings: findChildren(mergedAsEl, 'FramePacking').map(
             parseGenericDescriptor
         ),
-        ratings: findChildren(mergedAsEl, 'Rating').map(
-            parseGenericDescriptor
-        ),
+        ratings: findChildren(mergedAsEl, 'Rating').map(parseGenericDescriptor),
         viewpoints: findChildren(mergedAsEl, 'Viewpoint').map(
             parseGenericDescriptor
         ),
@@ -606,9 +604,7 @@ function parsePreselection(preselectionEl, parentMergedEl) {
             parseGenericDescriptor
         ),
         roles: findChildren(mergedEl, 'Role').map(parseGenericDescriptor),
-        ratings: findChildren(mergedEl, 'Rating').map(
-            parseGenericDescriptor
-        ),
+        ratings: findChildren(mergedEl, 'Rating').map(parseGenericDescriptor),
         viewpoints: findChildren(mergedEl, 'Viewpoint').map(
             parseGenericDescriptor
         ),
@@ -643,12 +639,7 @@ const parseServiceDescription = (sdEl) => ({
 
 const getText = (el) => el?.['#text'] || null;
 
-function parsePeriod(
-    periodEl,
-    parentMergedEl,
-    previousPeriod = null,
-    existingAdAvails = []
-) {
+function parsePeriod(periodEl, parentMergedEl, previousPeriod = null) {
     const mergedPeriodEl = mergeElements(parentMergedEl, periodEl);
     const assetIdentifierEl = findChildren(periodEl, 'AssetIdentifier')[0];
     const subsets = findChildren(periodEl, 'Subset');
@@ -725,69 +716,10 @@ function parsePeriod(
         };
     });
 
-    // --- HEURISTIC AD DETECTION (STATEFUL UPDATE LOGIC) ---
-    const existingAvail = existingAdAvails.find((a) => a.id === periodId);
-
-    if (existingAvail && existingAvail.duration === null && periodDuration) {
-        // This is a retroactive update. Mutate the existing object.
-        existingAvail.duration = periodDuration;
-    } else if (!existingAvail && previousPeriod) {
-        // This is a new period transition. Create a new AdAvail.
-        let detectionMethod = 'STRUCTURAL_DISCONTINUITY';
-
-        const isCurrentEncrypted =
-            findChildrenRecursive(periodEl, 'ContentProtection').length > 0;
-        const isPrevEncrypted =
-            findChildrenRecursive(
-                previousPeriod.serializedManifest,
-                'ContentProtection'
-            ).length > 0;
-        if (isCurrentEncrypted !== isPrevEncrypted) {
-            detectionMethod = 'ENCRYPTION_TRANSITION';
-        }
-
-        adAvails.push(
-            new AdAvail({
-                id: periodId || `ad-break-${periodStart}`,
-                startTime: periodStart,
-                duration: periodDuration || null,
-                scte35Signal: null,
-                adManifestUrl: null,
-                creatives: [],
-                detectionMethod: /** @type {any} */ (detectionMethod),
-            })
-        );
-    }
-    // --- END HEURISTIC ---
-
     const rawAdaptationSets = findChildren(periodEl, 'AdaptationSet');
-
-    const asGroups = rawAdaptationSets.reduce((acc, asEl) => {
-        let contentType =
-            getAttr(asEl, 'contentType') ||
-            getAttr(asEl, 'mimeType')?.split('/')[0];
-        if (!contentType) {
-            const firstRep = findChildren(asEl, 'Representation')[0];
-            if (firstRep) {
-                contentType = getAttr(firstRep, 'mimeType')?.split('/')[0];
-            }
-        }
-        if (!acc[contentType]) {
-            acc[contentType] = [];
-        }
-        acc[contentType].push(asEl);
-        return acc;
-    }, {});
-
-    const adaptationSets = [];
-
-    for (const type of ['video', 'audio', 'text', 'application']) {
-        if (asGroups[type]) {
-            asGroups[type].forEach((asEl) => {
-                adaptationSets.push(parseAdaptationSet(asEl, mergedPeriodEl));
-            });
-        }
-    }
+    const adaptationSets = rawAdaptationSets.map((asEl) =>
+        parseAdaptationSet(asEl, mergedPeriodEl)
+    );
 
     adaptationSets.sort(sortAdaptationSets);
 
@@ -819,9 +751,9 @@ function parsePeriod(
         bitstreamSwitching: getAttr(periodEl, 'bitstreamSwitching') === 'true',
         assetIdentifier: assetIdentifierEl
             ? {
-                  schemeIdUri: getAttr(assetIdentifierEl, 'schemeIdUri'),
-                  value: getAttr(assetIdentifierEl, 'value'),
-              }
+                schemeIdUri: getAttr(assetIdentifierEl, 'schemeIdUri'),
+                value: getAttr(assetIdentifierEl, 'value'),
+            }
             : null,
         subsets: subsets.map((s) => ({
             contains: (getAttr(s, 'contains') || '').split(' '),
@@ -857,6 +789,9 @@ function parsePeriod(
 export async function adaptDashToIr(manifestElement, baseUrl, context) {
     const manifestCopy = deepClone(manifestElement);
 
+    // --- ARCHITECTURAL FIX: Add parent links to the serialized object graph ---
+    linkParents(manifestCopy);
+
     const adaptationSets = findChildrenRecursive(manifestCopy, 'AdaptationSet');
     const hasTsMimeType = adaptationSets.some(
         (as) => getAttr(as, 'mimeType') === 'video/mp2t'
@@ -877,7 +812,7 @@ export async function adaptDashToIr(manifestElement, baseUrl, context) {
                 // Heuristic: if media attribute exists, check its extension
                 const extensionBasedFormat =
                     inferMediaInfoFromExtension(mediaUrl).contentType ===
-                    'video'
+                        'video'
                         ? 'isobmff'
                         : 'ts';
                 if (extensionBasedFormat === 'ts') {
@@ -899,6 +834,9 @@ export async function adaptDashToIr(manifestElement, baseUrl, context) {
         availabilityStartTime: getAttr(manifestCopy, 'availabilityStartTime')
             ? new Date(getAttr(manifestCopy, 'availabilityStartTime'))
             : null,
+        availabilityEndTime: getAttr(manifestCopy, 'availabilityEndTime')
+            ? new Date(getAttr(manifestCopy, 'availabilityEndTime'))
+            : null,
         timeShiftBufferDepth: parseDuration(
             getAttr(manifestCopy, 'timeShiftBufferDepth')
         ),
@@ -913,6 +851,9 @@ export async function adaptDashToIr(manifestElement, baseUrl, context) {
         ),
         maxSubsegmentDuration: parseDuration(
             getAttr(manifestCopy, 'maxSubsegmentDuration')
+        ),
+        suggestedPresentationDelay: parseDuration(
+            getAttr(manifestCopy, 'suggestedPresentationDelay')
         ),
         programInformations: findChildren(
             manifestCopy,
@@ -960,12 +901,12 @@ export async function adaptDashToIr(manifestElement, baseUrl, context) {
                     ref: getAttr(cpEl, 'ref'),
                     pssh: psshData
                         ? [
-                              {
-                                  systemId: schemeIdUri,
-                                  kids: [],
-                                  data: psshData,
-                              },
-                          ]
+                            {
+                                systemId: schemeIdUri,
+                                kids: [],
+                                data: psshData,
+                            },
+                        ]
                         : [],
                 };
             }
@@ -980,12 +921,7 @@ export async function adaptDashToIr(manifestElement, baseUrl, context) {
 
     let previousPeriod = null;
     manifestIR.periods = findChildren(manifestCopy, 'Period').map((p) => {
-        const periodIR = parsePeriod(
-            p,
-            manifestCopy,
-            previousPeriod,
-            manifestIR.adAvails
-        );
+        const periodIR = parsePeriod(p, manifestCopy, previousPeriod);
         previousPeriod = periodIR;
         return periodIR;
     });

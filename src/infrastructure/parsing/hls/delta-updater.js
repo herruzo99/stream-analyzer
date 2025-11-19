@@ -27,7 +27,6 @@ export function applyDeltaUpdate(oldParsedHls, deltaParsedHls) {
     resolvedHls.isLive = deltaParsedHls.isLive;
 
     // Remove the skipped segments from the end of the old segment list.
-    const oldSegmentCount = resolvedHls.segments.length;
     resolvedHls.segments = resolvedHls.segments.slice(skippedSegments);
 
     // Append the new segments from the delta manifest.
@@ -41,7 +40,6 @@ export function applyDeltaUpdate(oldParsedHls, deltaParsedHls) {
     // Also update other arrays that might be present in a delta update
     resolvedHls.preloadHints = deltaParsedHls.preloadHints;
     resolvedHls.renditionReports = deltaParsedHls.renditionReports;
-
 
     return resolvedHls;
 }

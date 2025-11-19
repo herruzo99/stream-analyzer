@@ -1,6 +1,7 @@
 import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
 import { useUiStore, uiActions } from '@/state/uiStore';
 import { eventBus } from '@/application/event-bus';
+import { EVENTS } from '@/types/events';
 import {
     prepareForStorage,
     restoreFromStorage,
@@ -117,7 +118,7 @@ class SessionService {
 
         // 2. Listen ONCE for the analysis to complete.
         const unsubscribe = eventBus.subscribe(
-            'state:analysis-complete',
+            EVENTS.STATE.ANALYSIS_COMPLETE,
             ({ streams }) => {
                 unsubscribe(); // Clean up listener immediately
 
@@ -132,7 +133,7 @@ class SessionService {
                 if (targetStream) {
                     analysisActions.setActiveStreamId(targetStream.id);
                     if (ui.activeMediaPlaylistUrl) {
-                        eventBus.dispatch('hls:media-playlist-activate', {
+                        eventBus.dispatch(EVENTS.HLS.MEDIA_PLAYLIST_ACTIVATE, {
                             streamId: targetStream.id,
                             url: ui.activeMediaPlaylistUrl,
                         });
@@ -160,7 +161,7 @@ class SessionService {
         );
 
         // 4. Trigger the analysis.
-        eventBus.dispatch('ui:stream-analysis-requested', {
+        eventBus.dispatch(EVENTS.UI.STREAM_ANALYSIS_REQUESTED, {
             inputs: sessionState.inputs,
         });
 

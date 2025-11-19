@@ -9,8 +9,9 @@ import { fetchWithRetry } from '@/infrastructure/http/fetch';
  * Creates a partial AdAvail from a splice_insert command when no VAST URL is available.
  * @param {import('@/types.ts').Stream} stream
  * @param {import('@/types.ts').Event} scte35Event
+ * @param {import('@/types').AdAvail['detectionMethod']} detectionMethod
  */
-function createPartialAdAvail(stream, scte35Event) {
+function createPartialAdAvail(stream, scte35Event, detectionMethod) {
     const scte35 = scte35Event.scte35;
     if (!scte35 || 'error' in scte35) return;
 
@@ -27,7 +28,7 @@ function createPartialAdAvail(stream, scte35Event) {
         scte35Signal: scte35,
         adManifestUrl: null, // Explicitly null as it's unresolved
         creatives: [],
-        detectionMethod: 'SCTE35_INBAND',
+        detectionMethod: detectionMethod,
     });
 
     // Update the stream state
@@ -36,11 +37,10 @@ function createPartialAdAvail(stream, scte35Event) {
         .streams.find((s) => s.id === stream.id);
     if (!currentStream) return;
 
-    // Prevent duplicates
-    const existingAvail = (currentStream.adAvails || []).find(
-        (a) => a.id === adAvail.id
+    const existingAvails = new Map(
+        (currentStream.adAvails || []).map((a) => [a.id, a])
     );
-    if (existingAvail) return;
+    if (existingAvails.has(adAvail.id)) return;
 
     const updatedAdAvails = [...(currentStream.adAvails || []), adAvail];
     analysisActions.updateStream(stream.id, { adAvails: updatedAdAvails });
@@ -49,17 +49,17 @@ function createPartialAdAvail(stream, scte35Event) {
 /**
  * @param {import('@/types.ts').Stream} stream
  * @param {import('@/types.ts').Event} scte35Event
+ * @param {import('@/types').AdAvail['detectionMethod']} detectionMethod
  */
-async function resolveAdAvail(stream, scte35Event) {
+async function resolveAdAvail(stream, scte35Event, detectionMethod) {
     if (!scte35Event.scte35 || 'error' in scte35Event.scte35) return;
 
     const descriptor = scte35Event.scte35.descriptors?.find(
         (d) => d.segmentation_upid_type === 0x0c // MPU()
     );
 
-    // If there's no descriptor with a VAST URL, we may still have a valid ad avail.
     if (!descriptor?.segmentation_upid) {
-        createPartialAdAvail(stream, scte35Event);
+        createPartialAdAvail(stream, scte35Event, detectionMethod);
         return;
     }
 
@@ -67,8 +67,7 @@ async function resolveAdAvail(stream, scte35Event) {
     try {
         adManifestUrl = new URL(descriptor.segmentation_upid).href;
     } catch (_e) {
-        // UPID is not a valid URL, treat it as a partial avail.
-        createPartialAdAvail(stream, scte35Event);
+        createPartialAdAvail(stream, scte35Event, detectionMethod);
         return;
     }
 
@@ -106,20 +105,18 @@ async function resolveAdAvail(stream, scte35Event) {
             scte35Signal: scte35Event.scte35,
             adManifestUrl,
             creatives: allCreatives,
-            detectionMethod: 'SCTE35_INBAND',
+            detectionMethod: detectionMethod,
         });
 
-        // Update the stream state
         const currentStream = useAnalysisStore
             .getState()
             .streams.find((s) => s.id === stream.id);
         if (!currentStream) return;
 
-        // Prevent duplicates
-        const existingAvail = (currentStream.adAvails || []).find(
-            (a) => a.id === adAvail.id
+        const existingAvails = new Map(
+            (currentStream.adAvails || []).map((a) => [a.id, a])
         );
-        if (existingAvail) return;
+        if (existingAvails.has(adAvail.id)) return;
 
         const updatedAdAvails = [...(currentStream.adAvails || []), adAvail];
         analysisActions.updateStream(stream.id, { adAvails: updatedAdAvails });
@@ -128,7 +125,7 @@ async function resolveAdAvail(stream, scte35Event) {
             `[resolveAdAvailUseCase] Failed to fetch or parse VAST from ${adManifestUrl}:`,
             e
         );
-        createPartialAdAvail(stream, scte35Event);
+        createPartialAdAvail(stream, scte35Event, detectionMethod);
     }
 }
 
@@ -140,11 +137,25 @@ function handleInbandEventsAdded({ streamId, newEvents }) {
 
     for (const event of newEvents) {
         if (event.scte35) {
-            resolveAdAvail(stream, event);
+            resolveAdAvail(stream, event, 'SCTE35_INBAND');
+        }
+    }
+}
+
+function handleAnalysisCompleteForManifestEvents({ streams }) {
+    for (const stream of streams) {
+        for (const event of stream.manifest?.events || []) {
+            if (event.scte35) {
+                resolveAdAvail(stream, event, 'SCTE35_DATERANGE');
+            }
         }
     }
 }
 
 export function initializeResolveAdAvailUseCase() {
     eventBus.subscribe('state:inband-events-added', handleInbandEventsAdded);
+    eventBus.subscribe(
+        'state:analysis-complete',
+        handleAnalysisCompleteForManifestEvents
+    );
 }

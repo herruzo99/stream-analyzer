@@ -5,6 +5,7 @@ import { appLog } from '@/shared/utils/debug';
 import { playerService } from '@/features/playerSimulation/application/playerService';
 import { useUiStore } from '@/state/uiStore';
 import { useMultiPlayerStore } from '@/state/multiPlayerStore';
+import { EVENTS } from '@/types/events';
 
 const pollers = new Map();
 const oneTimePollers = new Map();
@@ -63,7 +64,7 @@ async function monitorStream(streamId) {
             `[Stream Monitor] Error during update cycle for stream ${stream.id}:`,
             e
         );
-        eventBus.dispatch('ui:show-status', {
+        eventBus.dispatch(EVENTS.UI.SHOW_STATUS, {
             message: `Live update failed for ${stream.name}: ${e.message}`,
             type: 'fail',
             duration: 5000,
@@ -75,14 +76,17 @@ function calculatePollInterval(stream) {
     const { globalPollingIntervalOverride } = useUiStore.getState();
 
     // Precedence: Per-stream -> Global -> Auto-calculated
-    if (stream.pollingIntervalOverride !== undefined && stream.pollingIntervalOverride !== null) {
+    if (
+        stream.pollingIntervalOverride !== undefined &&
+        stream.pollingIntervalOverride !== null
+    ) {
         return Math.max(stream.pollingIntervalOverride * 1000, 2000);
     }
 
     if (globalPollingIntervalOverride !== null) {
         return Math.max(globalPollingIntervalOverride * 1000, 2000);
     }
-    
+
     const updatePeriodSeconds =
         stream.manifest.minimumUpdatePeriod ||
         stream.manifest.targetDuration || // HLS
@@ -95,7 +99,10 @@ function startMonitoring(stream) {
     if (pollers.has(stream.id)) {
         return;
     }
-    if (stream.manifest?.type === 'dynamic' && (stream.originalUrl || stream.resolvedUrl)) {
+    if (
+        stream.manifest?.type === 'dynamic' &&
+        (stream.originalUrl || stream.resolvedUrl)
+    ) {
         const pollInterval = calculatePollInterval(stream);
         appLog(
             'PrimaryMonitor',
@@ -110,7 +117,7 @@ function startMonitoring(stream) {
         };
 
         poller.tickSubscription = eventBus.subscribe(
-            'ticker:one-second-tick',
+            EVENTS.TICKER.ONE_SECOND,
             () => {
                 if (
                     performance.now() - poller.lastPollTime >
@@ -153,12 +160,14 @@ export function managePollers() {
     const singlePlayerActiveStreamIds = playerService.getActiveStreamIds();
     const multiPlayerActiveSourceStreamIds = new Set(
         Array.from(useMultiPlayerStore.getState().players.values())
-            .filter(p => p.state === 'playing' || p.state === 'buffering')
-            .map(p => p.sourceStreamId)
+            .filter((p) => p.state === 'playing' || p.state === 'buffering')
+            .map((p) => p.sourceStreamId)
     );
 
     dynamicStreams.forEach((stream) => {
-        const isHandledByPlayer = singlePlayerActiveStreamIds.has(stream.id) || multiPlayerActiveSourceStreamIds.has(stream.id);
+        const isHandledByPlayer =
+            singlePlayerActiveStreamIds.has(stream.id) ||
+            multiPlayerActiveSourceStreamIds.has(stream.id);
 
         if (isHandledByPlayer) {
             if (pollers.has(stream.id)) {
@@ -259,7 +268,7 @@ function handleVisibilityChange() {
                 analysisActions.setAllLiveStreamsPolling(false, {
                     fromInactivity: true,
                 });
-                eventBus.dispatch('notify:polling-disabled');
+                eventBus.dispatch(EVENTS.NOTIFY.POLLING_DISABLED);
             }
         }, timeoutMs);
     } else {
@@ -275,16 +284,19 @@ let tickerSubscription = null;
 export function initializeLiveStreamMonitor() {
     if (tickerSubscription) tickerSubscription();
     tickerSubscription = eventBus.subscribe(
-        'ticker:one-second-tick',
+        EVENTS.TICKER.ONE_SECOND,
         managePollers
     );
 
-    eventBus.subscribe('state:stream-updated', managePollers);
-    eventBus.subscribe('state:analysis-complete', managePollers);
-    eventBus.subscribe('manifest:force-reload', ({ streamId }) =>
+    eventBus.subscribe(EVENTS.STATE.STREAM_UPDATED, managePollers);
+    eventBus.subscribe(EVENTS.STATE.ANALYSIS_COMPLETE, managePollers);
+    eventBus.subscribe(EVENTS.MANIFEST.FORCE_RELOAD, ({ streamId }) =>
         monitorStream(streamId)
     );
-    eventBus.subscribe('monitor:schedule-one-time-poll', scheduleOneTimePoll);
+    eventBus.subscribe(
+        EVENTS.MONITOR.SCHEDULE_ONE_TIME_POLL,
+        scheduleOneTimePoll
+    );
 
     document.removeEventListener('visibilitychange', handleVisibilityChange);
     document.addEventListener('visibilitychange', handleVisibilityChange);

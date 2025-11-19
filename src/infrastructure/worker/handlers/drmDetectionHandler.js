@@ -1,6 +1,6 @@
 import { fetchWithAuth } from '../http.js';
-import { getDrmSystemName } from '@/infrastructure/parsing/utils/drm.js';
-import { appLog } from '@/shared/utils/debug';
+import { getDrmSystemName } from '../../parsing/utils/drm.js';
+import { appLog } from '../../../shared/utils/debug.js';
 
 /**
  * Parses attributes from an HLS tag line.
@@ -163,11 +163,7 @@ export async function handleGetStreamDrmInfo({ url, auth }, signal) {
         return result;
     } catch (error) {
         if (error.name === 'AbortError') {
-            appLog(
-                'drmDetectionHandler',
-                'info',
-                'DRM detection aborted.'
-            );
+            appLog('drmDetectionHandler', 'info', 'DRM detection aborted.');
             return [];
         }
         console.error(`Error during DRM detection for ${url}:`, error);

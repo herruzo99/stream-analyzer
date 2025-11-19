@@ -3,6 +3,7 @@ import { trackTableTemplate } from './shared.js';
 import { tooltipTriggerClasses } from '@/ui/shared/constants';
 import * as icons from '@/ui/icons';
 
+
 const contentComponentsTemplate = (as) => {
     if (!as.contentComponents || as.contentComponents.length <= 1) {
         return '';
@@ -19,18 +20,18 @@ const contentComponentsTemplate = (as) => {
             </h6>
             <div class="mt-1 space-y-1">
                 ${as.contentComponents.map(
-                    (comp) => html`
+        (comp) => html`
                         <div
                             class="text-xs font-mono text-slate-300 bg-slate-800/50 p-1 rounded"
                         >
                             <strong>ID:</strong> ${comp.id || 'N/A'} |
                             <strong>Lang:</strong> ${comp.lang || 'N/A'} |
                             <strong>Roles:</strong> ${comp.roles
-                                .map((r) => r.value)
-                                .join(', ') || 'N/A'}
+                .map((r) => r.value)
+                .join(', ') || 'N/A'}
                         </div>
                     `
-                )}
+    )}
             </div>
         </div>
     `;
@@ -59,30 +60,30 @@ const advancedPropertiesTemplate = (as) => {
                 class="grid grid-cols-[auto_1fr] gap-x-2 text-xs font-mono mt-1"
             >
                 ${failover
-                    ? html`
+            ? html`
                           <dt class="text-slate-500">Failover:</dt>
                           <dd class="text-slate-300">
                               ${failover.valid ? 'Valid' : 'Not Valid'}
                           </dd>
                       `
-                    : ''}
+            : ''}
                 ${resyncs && resyncs.length > 0
-                    ? html`
+            ? html`
                           <dt class="text-slate-500">Resync:</dt>
                           <dd class="text-slate-300">
                               Type ${resyncs[0].type}
                               ${resyncs[0].dT ? `| dT=${resyncs[0].dT}` : ''}
                           </dd>
                       `
-                    : ''}
+            : ''}
                 ${switchingProperty
-                    ? html`
+            ? html`
                           <dt class="text-slate-500">Switching:</dt>
                           <dd class="text-slate-300">
                               &#8660; ${switchingProperty[':@'].value}
                           </dd>
                       `
-                    : ''}
+            : ''}
             </dl>
         </div>
     `;
@@ -122,12 +123,12 @@ const adaptationSetPropertiesTemplate = (as) => {
         },
         as.outputProtection
             ? {
-                  isEnabled: true,
-                  icon: html`<span class="text-red-300">${icons.hdcp}</span>`,
-                  label: 'HDCP',
-                  tooltip: `Output Protection Required: ${as.outputProtection.value || as.outputProtection.schemeIdUri}`,
-                  isoRef: 'DASH: 5.8.4.12',
-              }
+                isEnabled: true,
+                icon: html`<span class="text-red-300">${icons.hdcp}</span>`,
+                label: 'HDCP',
+                tooltip: `Output Protection Required: ${as.outputProtection.value || as.outputProtection.schemeIdUri}`,
+                isoRef: 'DASH: 5.8.4.12',
+            }
             : null,
     ].filter(Boolean);
 
@@ -153,11 +154,11 @@ const adaptationSetTemplate = (as, type) => {
                     >
                     <span class="font-mono text-sm">${as.id || 'N/A'}</span>
                     ${as.group !== null
-                        ? html`<span
+            ? html`<span
                               class="text-xs font-mono bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full"
                               >Group: ${as.group}</span
                           >`
-                        : ''}
+            : ''}
                 </div>
                 <div class="mt-1 sm:mt-0">
                     ${adaptationSetPropertiesTemplate(as)}
@@ -179,12 +180,12 @@ const subsetTemplate = (period) => {
             <h5 class="font-semibold text-slate-200">Subsets</h5>
             <div class="text-xs font-mono text-slate-400 pl-4">
                 ${period.subsets.map(
-                    (s) =>
-                        html`<div>
+        (s) =>
+            html`<div>
                             <strong>${s.id || 'default'}:</strong> contains
                             [${s.contains.join(', ')}]
                         </div>`
-                )}
+    )}
             </div>
         </div>
     `;
@@ -203,7 +204,7 @@ const preselectionsTemplate = (period) => {
             </h5>
             <div class="pl-4 space-y-2 mt-1">
                 ${period.preselections.map(
-                    (p) => html`
+        (p) => html`
                         <div
                             class="text-xs font-mono text-slate-400 bg-slate-900/50 p-2 rounded"
                         >
@@ -211,8 +212,8 @@ const preselectionsTemplate = (period) => {
                                 <strong>ID:</strong> ${p.id} |
                                 <strong>Lang:</strong> ${p.lang || 'N/A'} |
                                 <strong>Roles:</strong> ${p.roles
-                                    .map((r) => r.value)
-                                    .join(', ') || 'N/A'}
+                .map((r) => r.value)
+                .join(', ') || 'N/A'}
                             </div>
                             <div class="mt-1">
                                 <strong>Components:</strong>
@@ -220,7 +221,7 @@ const preselectionsTemplate = (period) => {
                             </div>
                         </div>
                     `
-                )}
+    )}
             </div>
         </div>
     `;
@@ -256,22 +257,22 @@ const periodTemplate = (period, index) => {
             </summary>
             <div class="p-4 border-t border-slate-700 space-y-4">
                 ${videoAdaptationSets.length > 0
-                    ? videoAdaptationSets.map((as) =>
-                          adaptationSetTemplate(as, 'video')
-                      )
-                    : html`<p class="text-xs text-slate-500">
+            ? videoAdaptationSets.map((as) =>
+                adaptationSetTemplate(as, 'video')
+            )
+            : html`<p class="text-xs text-slate-500">
                           No video Adaptation Sets in this period.
                       </p>`}
                 ${audioAdaptationSets.length > 0
-                    ? audioAdaptationSets.map((as) =>
-                          adaptationSetTemplate(as, 'audio')
-                      )
-                    : ''}
+            ? audioAdaptationSets.map((as) =>
+                adaptationSetTemplate(as, 'audio')
+            )
+            : ''}
                 ${textAdaptationSets.length > 0
-                    ? textAdaptationSets.map((as) =>
-                          adaptationSetTemplate(as, 'text')
-                      )
-                    : ''}
+            ? textAdaptationSets.map((as) =>
+                adaptationSetTemplate(as, 'text')
+            )
+            : ''}
                 ${subsetTemplate(period)} ${preselectionsTemplate(period)}
             </div>
         </details>
@@ -287,8 +288,8 @@ export const dashStructureTemplate = (summary) => {
                   </h3>
                   <div class="space-y-4">
                       ${summary.content.periods.map((p, i) =>
-                          periodTemplate(p, i)
-                      )}
+            periodTemplate(p, i)
+        )}
                   </div>
               </div>
           `

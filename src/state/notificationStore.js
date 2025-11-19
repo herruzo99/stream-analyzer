@@ -1,5 +1,6 @@
 import { createStore } from 'zustand/vanilla';
 import { eventBus } from '@/application/event-bus';
+import { EVENTS } from '@/types/events';
 
 const SETTINGS_KEY = 'stream-analyzer_notification_settings';
 
@@ -72,7 +73,7 @@ export const useNotificationStore = createStore((set, get) => ({
 
     setPermission: (permission) => {
         set({ permission });
-        eventBus.dispatch('notifications:permission-changed', { permission });
+        eventBus.dispatch(EVENTS.NOTIFY.PERMISSION_CHANGED, { permission });
     },
     toggleSetting: (type) => {
         set((state) => {

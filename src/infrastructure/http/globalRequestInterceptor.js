@@ -1,6 +1,6 @@
 import { setupWorker } from 'msw/browser';
 import { http, passthrough } from 'msw';
-import { eventBus } from '@/application/event-bus';
+
 import { useAnalysisStore } from '@/state/analysisStore';
 import { appLog } from '@/shared/utils/debug';
 import { networkActions } from '@/state/networkStore';
@@ -50,7 +50,9 @@ function classifyRequest(request) {
             ),
         ];
 
-        const matchedSegment = allSegments.find((s2) => s2 && s2.resolvedUrl === url);
+        const matchedSegment = allSegments.find(
+            (s2) => s2 && s2.resolvedUrl === url
+        );
         if (matchedSegment) {
             let resourceType = 'video'; // Default
             if (matchedSegment.type === 'Init') {
@@ -59,7 +61,9 @@ function classifyRequest(request) {
                 const repId = matchedSegment.repId;
                 const as = stream.manifest.periods
                     .flatMap((p) => p.adaptationSets)
-                    .find((as) => as.representations.some((r) => r.id === repId));
+                    .find((as) =>
+                        as.representations.some((r) => r.id === repId)
+                    );
                 if (as) {
                     if (as.contentType === 'audio') resourceType = 'audio';
                     if (as.contentType === 'text') resourceType = 'text';
@@ -174,11 +178,7 @@ export async function initializeGlobalRequestInterceptor() {
             onUnhandledRequest: 'bypass',
             quiet: true,
         });
-        appLog(
-            'GlobalRequestInterceptor',
-            'info',
-            'MSW started successfully.'
-        );
+        appLog('GlobalRequestInterceptor', 'info', 'MSW started successfully.');
     } catch (error) {
         console.error('Failed to start MSW for network interception:', error);
     }

@@ -141,6 +141,12 @@ export function getNavGroups() {
                     visible: true,
                 },
                 {
+                    key: 'timeline',
+                    label: 'Timeline',
+                    icon: icons.timeline,
+                    visible: true,
+                },
+                {
                     key: 'updates',
                     label: 'Live Updates',
                     icon: icons.updates,

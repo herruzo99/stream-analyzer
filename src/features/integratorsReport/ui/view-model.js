@@ -1,9 +1,4 @@
 import { getDrmSystemName } from '@/infrastructure/parsing/utils/drm';
-import {
-    getInheritedElement,
-    getAttr,
-} from '@/infrastructure/parsing/dash/recursive-parser';
-import { parseDuration } from '@/shared/utils/time';
 
 /**
  * @typedef {import('@/types.ts').Stream} Stream
@@ -59,7 +54,8 @@ function getNetworkInfo(stream) {
                 for (const segment of repState.segments) {
                     if (segment.type !== 'Media' || !segment.duration) continue;
 
-                    const durationSeconds = segment.duration / segment.timescale;
+                    const durationSeconds =
+                        segment.duration / segment.timescale;
                     const sizeBytes = (rep.bandwidth / 8) * durationSeconds;
 
                     totalDurationSeconds += durationSeconds;
@@ -139,19 +135,19 @@ function getNetworkInfo(stream) {
         avgSegmentSize: avgSegmentSize,
         contentSteering: stream.steeringInfo
             ? {
-                  serverUri: /** @type {any} */ (stream.steeringInfo).value[
-                      'SERVER-URI'
-                  ],
-                  defaultPathway: /** @type {any} */ (stream.steeringInfo)
-                      .value['PATHWAY-ID'],
-                  allPathways: [
-                      ...new Set(
-                          (stream.manifest.variants || [])
-                              .map((v) => v.attributes['PATHWAY-ID'])
-                              .filter(Boolean)
-                      ),
-                  ],
-              }
+                serverUri: /** @type {any} */ (stream.steeringInfo).value[
+                    'SERVER-URI'
+                ],
+                defaultPathway: /** @type {any} */ (stream.steeringInfo)
+                    .value['PATHWAY-ID'],
+                allPathways: [
+                    ...new Set(
+                        (stream.manifest.variants || [])
+                            .map((v) => v.attributes['PATHWAY-ID'])
+                            .filter(Boolean)
+                    ),
+                ],
+            }
             : null,
     };
 }

@@ -68,10 +68,16 @@ export function reloadStream(stream) {
         duration: 2000,
     });
 
-    if (stream.protocol === 'hls' && stream.activeMediaPlaylistId && stream.activeMediaPlaylistId !== 'master') {
-        const variantState = stream.hlsVariantState.get(stream.activeMediaPlaylistId);
+    if (
+        stream.protocol === 'hls' &&
+        stream.activeMediaPlaylistId &&
+        stream.activeMediaPlaylistId !== 'master'
+    ) {
+        const variantState = stream.hlsVariantState.get(
+            stream.activeMediaPlaylistId
+        );
         if (variantState) {
-             eventBus.dispatch('hls:media-playlist-fetch-request', {
+            eventBus.dispatch('hls:media-playlist-fetch-request', {
                 streamId: stream.id,
                 variantId: stream.activeMediaPlaylistId,
                 variantUri: variantState.uri,

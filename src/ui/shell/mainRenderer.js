@@ -22,12 +22,14 @@ import { networkAnalysisView } from '@/features/networkAnalysis/ui/index';
 import { playerView } from '@/features/playerSimulation/ui/index';
 import { segmentComparisonView } from '@/features/segmentComparison/ui/index';
 import { multiPlayerView } from '@/features/multiPlayer/ui/index';
+import { timelineView } from '@/features/timeline/ui/index.js';
 
 const viewMap = {
     summary: summaryView,
     comparison: comparisonView,
     'integrators-report': integratorsReportView,
     advertising: advertisingView,
+    timeline: timelineView,
     features: featuresView,
     compliance: complianceView,
     'parser-coverage': parserCoverageView,

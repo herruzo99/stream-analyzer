@@ -6,6 +6,14 @@ export const abrHistoryChartOptions = (history) => {
     const data = history.map((h) => [h.time, h.bandwidth, h.bitrate]);
 
     return {
+        title: {
+            text: 'ABR & Bandwidth History',
+            left: 'center',
+            textStyle: {
+                color: '#e2e8f0',
+                fontSize: 14,
+            },
+        },
         tooltip: {
             trigger: 'axis',
             formatter: (params) => {
@@ -30,9 +38,9 @@ export const abrHistoryChartOptions = (history) => {
         legend: {
             data: ['Est. Bandwidth', 'Video Bitrate'],
             textStyle: { color: '#9ca3af' },
-            top: 0,
+            top: 25,
         },
-        grid: { top: 50, bottom: 60, left: 60, right: 20 },
+        grid: { top: 60, bottom: 60, left: 60, right: 20 },
         xAxis: {
             type: 'value',
             name: 'Time (s)',

@@ -1,4 +1,4 @@
-import { html, render } from 'lit-html';
+import { html } from 'lit-html';
 import { statCardTemplate } from '@/features/summary/ui/components/shared';
 import { connectedTabBar } from '@/ui/components/tabs';
 import { useUiStore, uiActions } from '@/state/uiStore';
@@ -34,21 +34,21 @@ const descriptorTableTemplate = (descriptors) => {
                 </thead>
                 <tbody class="divide-y divide-slate-700/50">
                     ${descriptors.map((desc) => {
-                        const tooltipKey = desc.name.replace(/ /g, '_');
-                        const tooltipInfo = tsTooltipData[tooltipKey] || {};
-                        return html`
+        const tooltipKey = desc.name.replace(/ /g, '_');
+        const tooltipInfo = tsTooltipData[tooltipKey] || {};
+        return html`
                             <tr class="hover:bg-slate-700/50">
                                 <td
                                     class="p-2 font-medium text-slate-300 align-top ${tooltipTriggerClasses}"
                                     data-tooltip="${tooltipInfo.text ||
-                                    'No description available'}"
+            'No description available'}"
                                     data-iso="${tooltipInfo.ref || ''}"
                                 >
                                     ${desc.name}
                                     <span class="text-slate-500"
                                         >(0x${desc.tag
-                                            .toString(16)
-                                            .padStart(2, '0')})</span
+                .toString(16)
+                .padStart(2, '0')})</span
                                     >
                                 </td>
                                 <td class="p-2 font-mono">
@@ -56,21 +56,21 @@ const descriptorTableTemplate = (descriptors) => {
                                         class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1"
                                     >
                                         ${Object.entries(desc.details).map(
-                                            ([key, field]) => {
-                                                const fieldTooltipKey = `${tooltipKey}@${key}`;
-                                                const fieldTooltipInfo =
-                                                    tsTooltipData[
-                                                        fieldTooltipKey
-                                                    ] || {};
-                                                return html`
+                    ([key, field]) => {
+                        const fieldTooltipKey = `${tooltipKey}@${key}`;
+                        const fieldTooltipInfo =
+                            tsTooltipData[
+                            fieldTooltipKey
+                            ] || {};
+                        return html`
                                                     <dt
                                                         class="text-slate-400 ${fieldTooltipInfo.text
-                                                            ? tooltipTriggerClasses
-                                                            : ''}"
+                                ? tooltipTriggerClasses
+                                : ''}"
                                                         data-tooltip="${fieldTooltipInfo.text ||
-                                                        ''}"
+                            ''}"
                                                         data-iso="${fieldTooltipInfo.ref ||
-                                                        ''}"
+                            ''}"
                                                     >
                                                         ${key}:
                                                     </dt>
@@ -80,13 +80,13 @@ const descriptorTableTemplate = (descriptors) => {
                                                         ${field.value}
                                                     </dd>
                                                 `;
-                                            }
-                                        )}
+                    }
+                )}
                                     </dl>
                                 </td>
                             </tr>
                         `;
-                    })}
+    })}
                 </tbody>
             </table>
         </div>
@@ -117,7 +117,7 @@ const programStructureTemplate = (analysis) => {
                 </h4>
                 <div class="space-y-4">
                     ${pmtPacket.psi.streams.map(
-                        (stream) => html`
+        (stream) => html`
                             <div
                                 class="border border-slate-700 rounded-lg p-3 bg-slate-800/50"
                             >
@@ -128,7 +128,7 @@ const programStructureTemplate = (analysis) => {
                                         >PID:
                                         <strong class="text-white"
                                             >${stream.elementary_PID
-                                                .value}</strong
+                .value}</strong
                                         ></span
                                     >
                                     <span
@@ -139,11 +139,11 @@ const programStructureTemplate = (analysis) => {
                                     >
                                 </div>
                                 ${descriptorTableTemplate(
-                                    stream.es_descriptors
-                                )}
+                    stream.es_descriptors
+                )}
                             </div>
                         `
-                    )}
+    )}
                 </div>
             </div>
         </div>
@@ -165,7 +165,10 @@ const semanticResultsTemplate = (results, analysis, uniqueId) => {
                     const newParsedData = { ...currentEntry.parsedData };
                     newParsedData.data.summary.semanticResults =
                         semanticResults;
-                    set(uniqueId, { ...currentEntry, parsedData: newParsedData });
+                    set(uniqueId, {
+                        ...currentEntry,
+                        parsedData: newParsedData,
+                    });
                 }
                 localState = { isLoading: false, error: null };
             })
@@ -194,9 +197,7 @@ const semanticResultsTemplate = (results, analysis, uniqueId) => {
             <div
                 class="text-center p-8 bg-slate-900/50 rounded-lg border border-dashed border-slate-700"
             >
-                <h4 class="font-semibold text-slate-300">
-                    Semantic Analysis
-                </h4>
+                <h4 class="font-semibold text-slate-300">Semantic Analysis</h4>
                 <p class="text-sm text-slate-400 mt-2">
                     This check validates temporal and semantic rules across all
                     packets, such as PTS/PCR frequency and buffer modeling. It
@@ -237,13 +238,13 @@ const semanticResultsTemplate = (results, analysis, uniqueId) => {
                 </thead>
                 <tbody class="divide-y divide-slate-700/50">
                     ${results.map(
-                        (result) => html`
+        (result) => html`
                             <tr class="hover:bg-slate-700/50">
                                 <td class="p-2 text-center">
                                     <span
                                         class="${statusClasses[
-                                            result.status
-                                        ]} font-bold"
+            result.status
+            ]} font-bold"
                                         >${icon[result.status]}
                                         ${result.status.toUpperCase()}</span
                                     >
@@ -259,7 +260,7 @@ const semanticResultsTemplate = (results, analysis, uniqueId) => {
                                 </td>
                             </tr>
                         `
-                    )}
+    )}
                 </tbody>
             </table>
         </div>
@@ -329,10 +330,10 @@ export const tsAnalysisTemplate = (analysis, uniqueId) => {
             </div>
 
             ${connectedTabBar(tabs, segmentAnalysisActiveTab, (tab) =>
-                uiActions.setSegmentAnalysisActiveTab(
-                    /** @type {'structure' | 'semantic'} */ (tab)
-                )
-            )}
+        uiActions.setSegmentAnalysisActiveTab(
+                    /** @type {'structure' | 'semantic'} */(tab)
+        )
+    )}
             <div class="bg-slate-900 p-4 rounded-b-lg">${content}</div>
         </div>
     `;

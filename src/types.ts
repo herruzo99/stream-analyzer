@@ -109,6 +109,7 @@ export interface Representation {
     labels: Label[];
     label?: string; // For aggregated tracks
     groupLabels: Label[];
+    roles: Descriptor[];
     subRepresentations: SubRepresentation[];
     resyncs: Resync[];
     outputProtection: OutputProtection | null;
@@ -366,7 +367,7 @@ export interface VideoTrackSummary {
     codecs: CodecInfo[];
     scanType: string | null;
     videoRange: string | null;
-    roles: string[];
+    roles: Descriptor[];
     muxedAudio?: {
         codecs: CodecInfo[];
         channels: string | null;
@@ -382,7 +383,8 @@ export interface AudioTrackSummary {
     channels: string | null;
     isDefault: boolean;
     isForced: boolean;
-    roles: string[];
+    roles: Descriptor[];
+    bandwidth: number;
 }
 
 export interface TextTrackSummary {
@@ -391,7 +393,7 @@ export interface TextTrackSummary {
     codecsOrMimeTypes: CodecInfo[];
     isDefault: boolean;
     isForced: boolean;
-    roles: string[];
+    roles: Descriptor[];
 }
 
 export interface PeriodSummary {
@@ -533,6 +535,7 @@ export interface HlsSegment extends MediaSegment {
     dateTime?: string;
     uriLineNumber?: number;
     byteRange?: { length: number; offset: number | null } | null;
+    cue?: { type: 'in' | 'out'; duration?: number };
 }
 
 export interface Manifest {
@@ -543,11 +546,13 @@ export interface Manifest {
     minBufferTime: number;
     publishTime: Date | null;
     availabilityStartTime: Date | null;
+    availabilityEndTime: Date | null;
     timeShiftBufferDepth: number | null;
     minimumUpdatePeriod: number | null;
     duration: number | null;
     maxSegmentDuration: number | null;
     maxSubsegmentDuration: number | null;
+    suggestedPresentationDelay?: number | null;
     programInformations: ProgramInformation[];
     metrics: Metrics[];
     locations: string[];
@@ -707,6 +712,7 @@ export interface AdaptationEvent {
     oldHeight: number | undefined;
     newWidth: number | undefined;
     newHeight: number | undefined;
+    newBandwidth: number | undefined;
 }
 
 // --- Multi-Player View Types ---
@@ -734,6 +740,30 @@ export interface ConditionalPollingState {
     targetFeatureName: string | null; // The feature selected in the UI form
 }
 
+export interface TimedEntity {
+    id: string;
+    type: 'period' | 'ad' | 'event' | 'segment' | 'abr';
+    start: number;
+    end: number;
+    label: string;
+    data: any;
+}
+
+export interface ModalState {
+    isModalOpen: boolean;
+    isModalFullWidth: boolean;
+    modalTitle: string;
+    modalUrl: string;
+    modalContent: { type: string; data: any } | null;
+}
+
+export interface InteractiveManifestHoverItem {
+    type: 'tag' | 'attribute';
+    name: string;
+    info: object;
+    path: string;
+}
+
 export interface UiState {
     _viewMap: object | null;
     viewState: 'input' | 'results';
@@ -744,12 +774,7 @@ export interface UiState {
     activeSegmentUrl: string | null;
     activeSegmentHighlightRange: { start: number; end: number } | null;
     activeSegmentIsIFrame: boolean;
-    modalState: {
-        isModalOpen: boolean;
-        modalTitle: string;
-        modalUrl: string;
-        modalContent: { type: string; data: any } | null;
-    };
+    modalState: ModalState;
     isCmafSummaryExpanded: boolean;
     interactiveManifestCurrentPage: number;
     interactiveManifestShowSubstituted: boolean;
@@ -790,6 +815,9 @@ export interface UiState {
     globalPollingIntervalOverride: number | null;
     showAllDrmFields: boolean;
     manifestUpdatesHideDeleted: boolean;
+    timelineHoveredItem: TimedEntity | null;
+    timelineSelectedItem: TimedEntity | null;
+    timelineActiveTab: 'overview' | 'cascade';
 }
 
 export interface UiActions {
@@ -813,6 +841,9 @@ export interface UiActions {
     ) => void;
     toggleManifestUpdatesHideDeleted: () => void;
     toggleComparisonHideUnusedFeatures: () => void;
+    setTimelineHoveredItem: (item: TimedEntity | null) => void;
+    setTimelineSelectedItem: (item: TimedEntity | null) => void;
+    setTimelineActiveTab: (tab: 'overview' | 'cascade') => void;
 }
 
 export interface PlaybackHistoryEntry {
@@ -868,6 +899,17 @@ export interface PlayerActions {
     logAbrSwitch: (entry: AbrHistoryEntry) => void;
     setActiveTab: (tab: 'controls' | 'stats' | 'log' | 'graphs') => void;
     reset: () => void;
+}
+export interface TtmlCue {
+    id: string | null;
+    startTime: number;
+    endTime: number;
+    payload: string;
+}
+
+export interface TtmlPayload {
+    cues: TtmlCue[];
+    errors: string[];
 }
 export interface Box {
     type: string;
@@ -1012,6 +1054,7 @@ export interface Sample {
     encryption?: any;
     has_emsg?: boolean;
     emsg_ref?: Box;
+    ttmlPayload?: TtmlPayload | { error: string };
 }
 export interface KeyValuePair {
     id: number;
@@ -1052,7 +1095,8 @@ export interface Stream {
     protocol: 'dash' | 'hls' | 'local' | 'unknown';
     isPolling: boolean;
     wasStoppedByInactivity?: boolean;
-    pollingIntervalOverride?: number | null; // <-- NEW PROPERTY
+    pollingIntervalOverride?: number | null;
+    initialTimeOffset?: number;
     manifest: Manifest | null;
     rawManifest: string;
     steeringInfo: object | null;

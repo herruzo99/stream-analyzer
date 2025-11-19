@@ -461,7 +461,7 @@ export function parsePesHeader(view, baseOffset) {
             if (view.getUint32(i) === 0x00000001) {
                 isStartCode = true;
                 startCodeOffset = 4;
-            } else if ((view.getUint32(i) >>> 8) === 0x000001) {
+            } else if (view.getUint32(i) >>> 8 === 0x000001) {
                 isStartCode = true;
                 startCodeOffset = 3;
             }
@@ -485,7 +485,7 @@ export function parsePesHeader(view, baseOffset) {
                     for (let j = start; j < view.byteLength - 4; j++) {
                         if (
                             view.getUint32(j) === 0x00000001 ||
-                            (view.getUint32(j) >>> 8) === 0x000001
+                            view.getUint32(j) >>> 8 === 0x000001
                         ) {
                             end = j;
                             break;

@@ -1,5 +1,5 @@
-import { fetchWithRetry } from '@/infrastructure/http/fetch';
-import { appLog } from '@/shared/utils/debug';
+import { fetchWithRetry } from '../http/fetch.js';
+import { appLog } from '../../shared/utils/debug.js';
 
 /**
  * Executes a fetch request, applying authentication parameters.
@@ -74,10 +74,7 @@ export async function fetchWithAuth(
     const endTime = performance.now();
 
     // --- ARCHITECTURAL REFACTOR: Use explicit context for logging ---
-    if (
-        loggingContext.streamId !== undefined &&
-        loggingContext.resourceType
-    ) {
+    if (loggingContext.streamId !== undefined && loggingContext.resourceType) {
         const responseHeaders = {};
         response.headers.forEach((value, key) => {
             responseHeaders[key] = value;

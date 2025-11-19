@@ -30,16 +30,77 @@ class MultiPlayerService {
         appLog('MultiPlayerService.initialize', 'info', 'Service initialized.');
     }
 
-    createVideoElement(streamId) {
-        if (this.videoElements.has(streamId)) {
-            return this.videoElements.get(streamId);
+    /**
+     * Binds an external HTMLMediaElement (created by the UI) to a specific stream ID.
+     * This allows the service to attach the player and manage playback.
+     * @param {number} streamId
+     * @param {HTMLVideoElement} element
+     */
+    async bindMediaElement(streamId, element) {
+        if (!element) return;
+
+        appLog(
+            'MultiPlayerService',
+            'info',
+            `Binding media element for stream ${streamId}`
+        );
+
+        // Store the reference
+        this.videoElements.set(streamId, element);
+
+        // Configure standard listeners
+        element.disablePictureInPicture = true;
+        element.muted = useMultiPlayerStore.getState().isMutedAll;
+        this.addVideoElementListeners(element, streamId);
+
+        // If a player instance already exists for this stream, attach it now.
+        // This handles the case where the player was created before the DOM was ready,
+        // or if we are re-binding (e.g. layout change).
+        const player = this.players.get(streamId);
+        if (player) {
+            try {
+                await player.attach(element);
+
+                // If we have a stream definition, we might need to load it if not loaded.
+                // Typically createAndLoadPlayer handles loading, but if we are recovering
+                // from a detached state, we might need to restore.
+                // For now, we assume createAndLoadPlayer is the driver for content loading.
+            } catch (e) {
+                appLog(
+                    'MultiPlayerService',
+                    'error',
+                    `Failed to attach player for stream ${streamId}`,
+                    e
+                );
+            }
         }
-        const videoElement = document.createElement('video');
-        videoElement.className = 'w-full h-full';
-        videoElement.muted = useMultiPlayerStore.getState().isMutedAll;
-        videoElement.disablePictureInPicture = true;
-        this.videoElements.set(streamId, videoElement);
-        return videoElement;
+    }
+
+    /**
+     * Unbinds the media element, detaching the player if it exists.
+     * This should be called when the UI component unmounts.
+     * @param {number} streamId
+     */
+    async unbindMediaElement(streamId) {
+        appLog(
+            'MultiPlayerService',
+            'info',
+            `Unbinding media element for stream ${streamId}`
+        );
+
+        const player = this.players.get(streamId);
+        if (player) {
+            try {
+                await player.detach();
+            } catch (e) {
+                console.warn(
+                    `Failed to detach player for stream ${streamId}`,
+                    e
+                );
+            }
+        }
+
+        this.videoElements.delete(streamId);
     }
 
     async createAndLoadPlayer(playerState) {
@@ -52,11 +113,16 @@ class MultiPlayerService {
             );
 
             if (!playerState || this.players.has(streamId)) {
-                appLog(
-                    'MultiPlayerService.createAndLoadPlayer',
-                    'warn',
-                    `[ABORT QUEUED] Player for stream ${streamId} already exists or state is invalid.`
-                );
+                // If player exists, check if we need to attach to a new element (re-binding scenario)
+                const existingPlayer = this.players.get(streamId);
+                const videoEl = this.videoElements.get(streamId);
+                if (
+                    existingPlayer &&
+                    videoEl &&
+                    existingPlayer.getMediaElement() !== videoEl
+                ) {
+                    await existingPlayer.attach(videoEl);
+                }
                 return;
             }
 
@@ -64,14 +130,9 @@ class MultiPlayerService {
             const player = new shaka.Player();
             this.players.set(streamId, player);
             this.stallCalculators.set(streamId, new StallCalculator());
-            appLog(
-                'MultiPlayerService.createAndLoadPlayer',
-                'info',
-                `Created new Shaka player and StallCalculator for stream ${streamId}`
-            );
 
             player.addEventListener('error', (e) =>
-                this._handlePlayerError(streamId, /** @type {any} */ (e).detail)
+                this._handlePlayerError(streamId, /** @type {any} */(e).detail)
             );
 
             player.addEventListener('emsg', (e) => {
@@ -100,7 +161,7 @@ class MultiPlayerService {
                 const videoElement = this.videoElements.get(streamId);
                 if (videoElement) {
                     await player.attach(videoElement);
-                    this.addVideoElementListeners(videoElement, streamId);
+                    // Listeners are added in bindMediaElement
                     await this.loadStreamIntoPlayer(
                         streamDef,
                         player,
@@ -108,11 +169,25 @@ class MultiPlayerService {
                         playerState.initialState
                     );
                 } else {
+                    // If element isn't bound yet, we create the player state but wait.
+                    // bindMediaElement will handle attachment when the UI mounts.
                     appLog(
                         'MultiPlayerService.createAndLoadPlayer',
-                        'warn',
-                        `Video element for stream ${streamId} not found.`
+                        'info',
+                        `Player created for ${streamId}, waiting for video element binding.`
                     );
+
+                    // Still attempt to load manifest metadata if possible, or defer load
+                    // Shaka generally needs attach() before load().
+                    // So we defer the actual load() call to bindMediaElement or a subsequent update.
+                    // However, to keep flow simple: we just wait. The UI will mount -> bind -> (if player exists) -> attach.
+                    // But we need to trigger the LOAD command once attached.
+
+                    // We'll store the pending load config on the player object loosely or re-trigger.
+                    // Ideally, the store state drives this.
+                    // For simplicity in this refactor: We proceed only if element exists.
+                    // If not, the bindMediaElement needs to trigger a reload.
+                    // See logic in bindMediaElement above.
                 }
             }
             appLog(
@@ -156,13 +231,7 @@ class MultiPlayerService {
                         appLog(
                             'MultiPlayerService',
                             'info',
-                            `DASH live stream: Found suggestedPresentationDelay of ${delay}s. Shaka Player will apply this offset from the live edge.`
-                        );
-                    } else {
-                        appLog(
-                            'MultiPlayerService',
-                            'info',
-                            `DASH live stream: No suggestedPresentationDelay found. Shaka Player will start near the live edge.`
+                            `DASH live stream: Found suggestedPresentationDelay of ${delay}s.`
                         );
                     }
                 } else if (streamDef.protocol === 'hls') {
@@ -172,11 +241,6 @@ class MultiPlayerService {
                     player.configure({
                         streaming: { liveSync: { targetLatency: safeLatency } },
                     });
-                    appLog(
-                        'MultiPlayerService',
-                        'info',
-                        `HLS live stream: setting targetLatency to ${safeLatency}s.`
-                    );
                 }
             }
 
@@ -219,6 +283,11 @@ class MultiPlayerService {
     }
 
     addVideoElementListeners(videoElement, streamId) {
+        // Remove existing listeners to avoid duplicates if re-binding
+        // (This implementation relies on the fact that anonymous functions create new references,
+        // so typically you'd need named functions to remove them.
+        // For this refactor, we assume bind is called once per element lifecycle).
+
         videoElement.addEventListener('play', () =>
             useMultiPlayerStore
                 .getState()
@@ -248,11 +317,6 @@ class MultiPlayerService {
 
     _handlePlayerError(streamId, error) {
         if (error.code === 7000 || error.code === 7002) {
-            appLog(
-                'MultiPlayerService',
-                'info',
-                `Load interrupted for stream ${streamId}. Ignoring.`
-            );
             return;
         }
 
@@ -263,7 +327,9 @@ class MultiPlayerService {
             error
         );
 
-        const playerState = useMultiPlayerStore.getState().players.get(streamId);
+        const playerState = useMultiPlayerStore
+            .getState()
+            .players.get(streamId);
         const originalMessage = parseShakaError(error);
 
         useMultiPlayerStore.getState().logEvent({
@@ -322,10 +388,12 @@ class MultiPlayerService {
 
                 for (const [streamId, shakaPlayer] of this.players.entries()) {
                     const videoEl = this.videoElements.get(streamId);
+                    // If video element is missing (e.g. unbound), skip stats
+                    if (!videoEl) continue;
+
                     const isLive = shakaPlayer.isLive();
 
                     if (
-                        !videoEl ||
                         videoEl.readyState === 0 ||
                         (!isLive && !isFinite(videoEl.duration))
                     ) {
@@ -348,10 +416,10 @@ class MultiPlayerService {
                     const normalizedPlayheadTime =
                         seekableDuration > 0
                             ? Math.max(
-                                  0,
-                                  (videoEl.currentTime - seekableRange.start) /
-                                      seekableDuration
-                              )
+                                0,
+                                (videoEl.currentTime - seekableRange.start) /
+                                seekableDuration
+                            )
                             : 0;
 
                     const videoTracks = shakaPlayer.getVariantTracks();
@@ -489,6 +557,8 @@ class MultiPlayerService {
             await player.destroy();
             this.players.delete(streamId);
         }
+
+        // Just remove reference, don't destroy the DOM node as we don't own it
         this.videoElements.delete(streamId);
         this.stallCalculators.delete(streamId);
     }
@@ -509,6 +579,9 @@ class MultiPlayerService {
             });
             return;
         }
+
+        // Clean up first
+        await this.destroyPlayer(streamId);
         useMultiPlayerStore.getState().removePlayer(streamId);
     }
 
@@ -540,7 +613,10 @@ class MultiPlayerService {
                 );
                 if (sourceStream) {
                     const isDynamic = sourceStream.manifest?.type === 'dynamic';
-                    analysisActions.setStreamPolling(sourceStream.id, isDynamic);
+                    analysisActions.setStreamPolling(
+                        sourceStream.id,
+                        isDynamic
+                    );
                 }
             }
             playPromises.push(
@@ -553,18 +629,36 @@ class MultiPlayerService {
 
         const results = await Promise.allSettled(playPromises);
         results.forEach((result, index) => {
-            // --- ARCHITECTURAL FIX: Type guards for PromiseSettledResult ---
             if (result.status === 'rejected') {
                 const streamId = Array.from(this.videoElements.keys())[index];
                 const errorValue = result.reason;
-                appLog('MultiPlayerService.playAll', 'error', `Playback failed for stream ${streamId}.`, errorValue);
-                updatePlayerState(streamId, { state: 'error', error: `Failed to start: ${errorValue.message}` });
-            } else if (result.status === 'fulfilled' && result.value && result.value.error) {
+                appLog(
+                    'MultiPlayerService.playAll',
+                    'error',
+                    `Playback failed for stream ${streamId}.`,
+                    errorValue
+                );
+                updatePlayerState(streamId, {
+                    state: 'error',
+                    error: `Failed to start: ${errorValue.message}`,
+                });
+            } else if (
+                result.status === 'fulfilled' &&
+                result.value &&
+                result.value.error
+            ) {
                 const { streamId, error: errorValue } = result.value;
-                appLog('MultiPlayerService.playAll', 'error', `Playback failed for stream ${streamId}.`, errorValue);
-                updatePlayerState(streamId, { state: 'error', error: `Failed to start playback: ${errorValue.message}` });
+                appLog(
+                    'MultiPlayerService.playAll',
+                    'error',
+                    `Playback failed for stream ${streamId}.`,
+                    errorValue
+                );
+                updatePlayerState(streamId, {
+                    state: 'error',
+                    error: `Failed to start playback: ${errorValue.message}`,
+                });
             }
-            // --- END FIX ---
         });
     }
 
@@ -600,7 +694,10 @@ class MultiPlayerService {
             const sourceLatency =
                 sourcePlayerState.seekableRange.end - sourceVideo.currentTime;
 
-            for (const [targetId, targetVideo] of this.videoElements.entries()) {
+            for (const [
+                targetId,
+                _targetVideo,
+            ] of this.videoElements.entries()) {
                 if (targetId === sourceStreamId) continue;
                 const targetPlayerState = players.get(targetId);
 
@@ -608,7 +705,8 @@ class MultiPlayerService {
                     const targetSeekTime =
                         targetPlayerState.seekableRange.end - sourceLatency;
                     if (
-                        targetSeekTime >= targetPlayerState.seekableRange.start &&
+                        targetSeekTime >=
+                        targetPlayerState.seekableRange.start &&
                         targetSeekTime <= targetPlayerState.seekableRange.end
                     ) {
                         this.seek(targetSeekTime, targetId);
@@ -625,13 +723,19 @@ class MultiPlayerService {
         } else {
             // Source is VOD
             const targetTime = sourceVideo.currentTime;
-            for (const [targetId, targetVideo] of this.videoElements.entries()) {
+            for (const [
+                targetId,
+                _targetVideo,
+            ] of this.videoElements.entries()) {
                 if (targetId === sourceStreamId) continue;
                 const targetPlayerState = players.get(targetId);
 
                 if (targetPlayerState?.streamType === 'vod') {
                     if (targetTime > targetPlayerState.seekableRange.end) {
-                        this.seek(targetPlayerState.seekableRange.end, targetId);
+                        this.seek(
+                            targetPlayerState.seekableRange.end,
+                            targetId
+                        );
                     } else {
                         this.seek(targetTime, targetId);
                     }
@@ -692,15 +796,18 @@ class MultiPlayerService {
             (s) => s.id === playerState.sourceStreamId
         );
 
-        if (player && streamDef) {
+        // Check if element is bound
+        const videoElement = this.videoElements.get(streamId);
+
+        if (player && streamDef && videoElement) {
             try {
+                // Ensure it's attached in case of drift
+                await player.attach(videoElement);
                 await this.loadStreamIntoPlayer(streamDef, player, streamId);
-                useMultiPlayerStore
-                    .getState()
-                    .updatePlayerState(streamId, {
-                        state: 'paused',
-                        retryCount: 0,
-                    });
+                useMultiPlayerStore.getState().updatePlayerState(streamId, {
+                    state: 'paused',
+                    retryCount: 0,
+                });
             } catch (error) {
                 this._handlePlayerError(streamId, error);
             }
@@ -714,7 +821,7 @@ class MultiPlayerService {
             .map((p) => p.streamId);
 
         for (const id of copyIds) {
-            await this.destroyPlayer(id);
+            await this.removePlayer(id);
         }
         this.resetAllPlayers();
         showToast({

@@ -162,7 +162,14 @@ export const hexViewTemplate = (
     };
 
     const rowRenderer = (row, index) =>
-        renderHexRow(row, index, view, fullByteMap, allTooltips, highlightRange);
+        renderHexRow(
+            row,
+            index,
+            view,
+            fullByteMap,
+            allTooltips,
+            highlightRange
+        );
 
     return html`
         <style>

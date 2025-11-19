@@ -1,6 +1,6 @@
 import { html } from 'lit-html';
 import { tooltipTriggerClasses } from '@/ui/shared/constants';
-import { isCodecSupported } from '@/infrastructure/parsing/utils/codec-support';
+
 import { formatBitrate } from '@/ui/shared/format';
 import * as icons from '@/ui/icons';
 
@@ -8,17 +8,21 @@ const isVideoCodec = (codecString) => {
     if (!codecString) return false;
     const lowerCodec = codecString.toLowerCase();
     const videoPrefixes = [
-        'avc1', 'avc3', 'hvc1', 'hev1', 'mp4v', 'dvh1', 'dvhe', 'av01', 'vp09',
+        'avc1',
+        'avc3',
+        'hvc1',
+        'hev1',
+        'mp4v',
+        'dvh1',
+        'dvhe',
+        'av01',
+        'vp09',
+        'mjpg', // Motion JPEG
     ];
     return videoPrefixes.some((prefix) => lowerCodec.startsWith(prefix));
 };
 
-const isAudioCodec = (codecString) => {
-    if (!codecString) return false;
-    const lowerCodec = codecString.toLowerCase();
-    const audioPrefixes = ['mp4a', 'ac-3', 'ec-3', 'opus', 'flac'];
-    return audioPrefixes.some((prefix) => lowerCodec.startsWith(prefix));
-};
+
 
 const renderSourcedValue = (sourcedData) => {
     if (
@@ -88,12 +92,12 @@ export const statCardTemplate = ({
             class="bg-slate-900 p-3 rounded-lg border border-slate-700 flex items-center gap-4 ${customClasses}"
         >
             ${icon
-                ? html`<div
+            ? html`<div
                       class="shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${iconBgClass}"
                   >
                       ${icon}
                   </div>`
-                : ''}
+            : ''}
             <div class="grow">
                 <dt
                     class="text-xs font-medium text-slate-400 ${tooltipTriggerClasses}"
@@ -132,17 +136,17 @@ export const listCardTemplate = ({
             </dt>
             <dd class="text-sm text-left font-mono text-white mt-2 space-y-1">
                 ${items.map(
-                    (item) =>
-                        html`<div
+        (item) =>
+            html`<div
                             class="bg-slate-800/50 p-2 rounded flex items-center justify-between"
                         >
                             <span
                                 >${typeof item === 'object' && item.strings
-                                    ? item
-                                    : renderSourcedValue(item)}</span
+                    ? item
+                    : renderSourcedValue(item)}</span
                             >
                         </div>`
-                )}
+    )}
             </dd>
         </div>
     `;
@@ -156,16 +160,25 @@ const trackCardTemplate = (track, type, gridColumns) => {
         application: icons.fileText,
     }[type];
 
-    let roles = track.roles?.join(', ') || 'N/A';
+    const roleValues = (track.roles || []).map((r) => r.value).filter(Boolean);
+    let roles;
+    const isTrickPlay = roleValues.includes('trick');
 
-    const isTrickPlay = track.roles?.includes('trick');
     if (isTrickPlay) {
-        roles = html`<span
+        const otherRoles = roleValues.filter((r) => r !== 'trick');
+        const trickBadge = html`<span
             class="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-800 text-orange-200"
             >Trick Play</span
         >`;
+        if (otherRoles.length > 0) {
+            roles = html`${otherRoles.join(', ')} ${trickBadge}`;
+        } else {
+            roles = trickBadge;
+        }
+    } else {
+        roles = roleValues.length > 0 ? roleValues.join(', ') : 'N/A';
     }
-    
+
     let codecsToRender = [];
     if (type === 'text' || type === 'application') {
         codecsToRender = track.codecsOrMimeTypes || [];
@@ -220,34 +233,42 @@ const trackCardTemplate = (track, type, gridColumns) => {
             >
                 ${icon} <span>${track.id}</span>
             </div>
-            <div class="h-full p-2 border-r border-slate-700 font-mono text-slate-200">
+            <div
+                class="h-full p-2 border-r border-slate-700 font-mono text-slate-200"
+            >
                 ${bitrate}
             </div>
-            <div class="h-full p-2 border-r border-slate-700 font-mono text-slate-200">
+            <div
+                class="h-full p-2 border-r border-slate-700 font-mono text-slate-200"
+            >
                 ${resolution}
             </div>
-            <div class="h-full p-2 border-r border-slate-700 font-mono text-slate-200">
+            <div
+                class="h-full p-2 border-r border-slate-700 font-mono text-slate-200"
+            >
                 ${formatFrameRate(track.frameRate)}
             </div>
             <div
                 class="h-full p-2 border-r border-slate-700 font-mono text-slate-200 space-y-1"
             >
                 ${codecsToRender
-                    .filter((c) => isVideoCodec(c.value))
-                    .map((c) => html`<div>${renderCodecInfo(c)}</div>`)}
+                .filter((c) => isVideoCodec(c.value))
+                .map((c) => html`<div>${renderCodecInfo(c)}</div>`)}
             </div>
             <div
                 class="h-full p-2 border-r border-slate-700 font-mono text-slate-200 space-y-1"
             >
                 ${track.muxedAudio?.codecs?.length > 0
-                    ? track.muxedAudio.codecs.map(
-                          (c) => html`<div>${renderCodecInfo(c)}</div>`
-                      )
-                    : html`<span class="text-slate-500">N/A</span>`}
+                ? track.muxedAudio.codecs.map(
+                    (c) => html`<div>${renderCodecInfo(c)}</div>`
+                )
+                : html`<span class="text-slate-500">N/A</span>`}
             </div>
-            <div class="h-full p-2 border-r border-slate-700 font-mono text-slate-200">
+            <div
+                class="h-full p-2 border-r border-slate-700 font-mono text-slate-200"
+            >
                 ${track.muxedAudio?.lang ||
-                html`<span class="text-slate-500">N/A</span>`}
+            html`<span class="text-slate-500">N/A</span>`}
             </div>
             <div class="h-full p-2 font-mono text-slate-400">${roles}</div>
         `;
@@ -259,21 +280,27 @@ const trackCardTemplate = (track, type, gridColumns) => {
             >
                 ${icon} <span>${track.id}</span>
             </div>
-            <div class="h-full p-2 border-r border-slate-700 font-mono text-slate-200">
+            <div
+                class="h-full p-2 border-r border-slate-700 font-mono text-slate-200"
+            >
                 ${track.lang || 'N/A'}
             </div>
-            <div class="h-full p-2 border-r border-slate-700 font-mono text-slate-200">
+            <div
+                class="h-full p-2 border-r border-slate-700 font-mono text-slate-200"
+            >
                 ${track.channels || 'N/A'}
             </div>
-            <div class="h-full p-2 border-r border-slate-700 font-mono text-slate-200">
+            <div
+                class="h-full p-2 border-r border-slate-700 font-mono text-slate-200"
+            >
                 ${formatBitrate(track.bandwidth)}
             </div>
             <div
                 class="h-full p-2 border-r border-slate-700 font-mono text-slate-200 space-y-1"
             >
                 ${codecsToRender.map(
-                    (c) => html`<div>${renderCodecInfo(c)}</div>`
-                )}
+            (c) => html`<div>${renderCodecInfo(c)}</div>`
+        )}
             </div>
             <div class="h-full p-2 font-mono text-slate-400">${roles}</div>
         `;
@@ -286,15 +313,17 @@ const trackCardTemplate = (track, type, gridColumns) => {
             >
                 ${icon} <span>${track.id}</span>
             </div>
-            <div class="h-full p-2 border-r border-slate-700 font-mono text-slate-200">
+            <div
+                class="h-full p-2 border-r border-slate-700 font-mono text-slate-200"
+            >
                 ${track.lang || 'N/A'}
             </div>
             <div
                 class="h-full p-2 border-r border-slate-700 font-mono text-slate-200 space-y-1"
             >
                 ${codecsToRender.map(
-                    (c) => html`<div>${renderCodecInfo(c)}</div>`
-                )}
+            (c) => html`<div>${renderCodecInfo(c)}</div>`
+        )}
             </div>
             <div class="h-full p-2 font-mono text-slate-400">${roles}</div>
         `;
@@ -369,9 +398,11 @@ export const trackTableTemplate = (tracks, type) => {
             <!-- Rows -->
             <div class="divide-y divide-slate-700">
                 ${sortedTracks.map((track) =>
-                    trackCardTemplate(track, type, gridColumns)
-                )}
+        trackCardTemplate(track, type, gridColumns)
+    )}
             </div>
         </div>
     `;
 };
+
+

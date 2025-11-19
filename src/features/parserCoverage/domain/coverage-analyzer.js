@@ -292,8 +292,9 @@ const irSchema = {
         'serializedManifest',
         'contentProtection',
         '__variantUri',
-        'muxedAudio', // <-- ARCHITECTURAL FIX
-        'lang', // <-- ARCHITECTURAL FIX
+        'muxedAudio',
+        'lang',
+        'roles', // FIX: Added missing property
     ],
     AdaptationSet: [
         'id',
@@ -360,6 +361,7 @@ const irSchema = {
         'minBufferTime',
         'publishTime',
         'availabilityStartTime',
+        'availabilityEndTime',
         'timeShiftBufferDepth',
         'minimumUpdatePeriod',
         'duration',
@@ -388,6 +390,7 @@ const irSchema = {
         'mediaSequence',
         'contentProtections',
         'adAvails',
+        'suggestedPresentationDelay', // FIX: Added missing property
     ],
 };
 

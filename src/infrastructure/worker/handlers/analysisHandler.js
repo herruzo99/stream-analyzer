@@ -1,21 +1,21 @@
-import { parseManifest as parseDashManifest } from '@/infrastructure/parsing/dash/parser';
-import { parseManifest as parseHlsManifest } from '@/infrastructure/parsing/hls/index';
-import { generateDashSummary } from '@/infrastructure/parsing/dash/summary-generator';
-import { generateHlsSummary } from '@/infrastructure/parsing/hls/summary-generator';
-import { runChecks } from '@/features/compliance/domain/engine';
-import { validateSteeringManifest } from '@/features/compliance/domain/hls/steering-validator';
+import { parseManifest as parseDashManifest } from '../../parsing/dash/parser.js';
+import { parseManifest as parseHlsManifest } from '../../parsing/hls/index.js';
+import { generateDashSummary } from '../../parsing/dash/summary-generator.js';
+import { generateHlsSummary } from '../../parsing/hls/summary-generator.js';
+import { runChecks } from '../../../features/compliance/domain/engine.js';
+import { validateSteeringManifest } from '../../../features/compliance/domain/hls/steering-validator.js';
 import {
     analyzeDashCoverage,
     analyzeParserDrift,
-} from '@/features/parserCoverage/domain/coverage-analyzer';
-import { generateFeatureAnalysis } from '@/features/featureAnalysis/domain/analyzer';
-import { parseAllSegmentUrls as parseDashSegments } from '@/infrastructure/parsing/dash/segment-parser';
-import { diffManifest } from '@/ui/shared/diff';
+} from '../../../features/parserCoverage/domain/coverage-analyzer.js';
+import { generateFeatureAnalysis } from '../../../features/featureAnalysis/domain/analyzer.js';
+import { parseAllSegmentUrls as parseDashSegments } from '../../parsing/dash/segment-parser.js';
+
 import { handleParseSegmentStructure } from '../parsingService.js';
 import { fetchWithAuth } from '../http.js';
 import xmlFormatter from 'xml-formatter';
-import { appLog } from '@/shared/utils/debug';
-import { resolveAdAvailsInWorker } from '@/features/advertising/application/resolveAdAvailWorker';
+import { appLog } from '../../../shared/utils/debug.js';
+import { resolveAdAvailsInWorker } from '../../../features/advertising/application/resolveAdAvailWorker.js';
 
 const SCTE35_SCHEME_ID = 'urn:scte:scte35:2013:bin';
 
@@ -72,7 +72,7 @@ async function preProcessInput(input, signal) {
         const name = (finalUrl || input.file?.name || '').toLowerCase();
         protocol = name.includes('.m3u8') ? 'hls' : 'dash';
     }
-    
+
     // Liveness for HLS will be determined after parsing all media playlists.
     isLive =
         protocol === 'dash'
@@ -87,7 +87,7 @@ async function _fetchAndParseHlsPresentation(input, signal) {
     const {
         manifest: masterIR,
         definedVariables,
-        baseUrl: masterBaseUrl,
+        baseUrl: _masterBaseUrl,
     } = await parseHlsManifest(manifestString, finalUrl);
 
     if (!masterIR.isMaster) {
@@ -113,8 +113,10 @@ async function _fetchAndParseHlsPresentation(input, signal) {
     const allReps = masterIR.periods
         .flatMap((p) => p.adaptationSets)
         .flatMap((as) => as.representations);
-    
-    const uriToVariantIdMap = new Map(allReps.map(r => [r.__variantUri, r.id]));
+
+    const uriToVariantIdMap = new Map(
+        allReps.map((r) => [r.__variantUri, r.id])
+    );
 
     const mediaPlaylistUris = [...uriToVariantIdMap.keys()].filter(Boolean);
 
@@ -179,7 +181,6 @@ async function _fetchAndParseHlsPresentation(input, signal) {
     };
 }
 
-
 async function buildStreamObject(
     input,
     manifestIR,
@@ -195,6 +196,7 @@ async function buildStreamObject(
         steeringTag,
         complianceResults,
         coverageReport,
+        segmentsByCompositeKey,
     } = analysisResults;
 
     const streamObject = {
@@ -231,16 +233,45 @@ async function buildStreamObject(
         inbandEvents: [],
         adaptationEvents: [],
         segmentPollingReps: new Set(),
+        initialTimeOffset: 0, // Will be calculated below
     };
 
-    let segmentsByCompositeKey = {};
-    if (input.protocol === 'dash') {
-        segmentsByCompositeKey = await parseDashSegments(
-            serializedManifestObject,
-            streamObject.baseUrl,
-            { auth: input.auth, now: Date.now() }
-        );
+    // --- ARCHITECTURAL MODIFICATION: Calculate initialTimeOffset in worker ---
+    if (streamObject.manifest?.type === 'dynamic') {
+        const manifest = streamObject.manifest;
+        const dvrWindow = manifest.timeShiftBufferDepth || 0;
+        const isZeroBasedSim = manifest.availabilityStartTime?.getTime() === 0;
+
+        if (
+            isZeroBasedSim &&
+            streamObject.protocol === 'dash' &&
+            Object.keys(segmentsByCompositeKey).length > 0
+        ) {
+            // Live sim: calculate offset based on latest segment.
+            const liveEdgeTimes = Object.values(segmentsByCompositeKey)
+                .map((repState) => repState.liveEdgeTime)
+                .filter((t) => t !== null && t > 0);
+
+            if (liveEdgeTimes.length > 0) {
+                const maxLiveEdge = Math.max(...liveEdgeTimes);
+                streamObject.initialTimeOffset = Math.max(
+                    0,
+                    maxLiveEdge - dvrWindow
+                );
+            }
+        } else if (manifest.publishTime && manifest.availabilityStartTime) {
+            // Wall-clock live: use manifest timings.
+            const liveEdgeSeconds =
+                (manifest.publishTime.getTime() -
+                    manifest.availabilityStartTime.getTime()) /
+                1000;
+            streamObject.initialTimeOffset = Math.max(
+                0,
+                liveEdgeSeconds - dvrWindow
+            );
+        }
     }
+    // --- END MODIFICATION ---
 
     // --- Proactive In-band Event Discovery ---
     const segmentFetchPromises = [];
@@ -321,8 +352,8 @@ async function buildStreamObject(
                 id:
                     String(
                         event.scte35?.splice_command?.splice_event_id ||
-                            event.scte35?.descriptors?.[0]
-                                ?.segmentation_event_id
+                        event.scte35?.descriptors?.[0]
+                            ?.segmentation_event_id
                     ) || String(event.startTime),
                 startTime: event.startTime,
                 duration:
@@ -332,7 +363,7 @@ async function buildStreamObject(
                 scte35Signal: event.scte35,
                 adManifestUrl:
                     event.scte35?.descriptors?.[0]?.segmentation_upid_type ===
-                    0x0c
+                        0x0c
                         ? event.scte35.descriptors[0].segmentation_upid
                         : null,
                 creatives: [],
@@ -360,19 +391,28 @@ async function buildStreamObject(
                 for (const rep of as.representations) {
                     const variantId = rep.id; // Use the stable ID as the key
                     const uri =
-                        rep.__variantUri ||
-                        rep.serializedManifest.resolvedUri;
+                        rep.__variantUri || rep.serializedManifest.resolvedUri;
                     if (
                         variantId &&
                         !streamObject.hlsVariantState.has(variantId)
                     ) {
-                        const mediaPlaylistData = analysisResults.mediaPlaylists.get(variantId);
+                        const mediaPlaylistData =
+                            analysisResults.mediaPlaylists.get(variantId);
                         streamObject.hlsVariantState.set(variantId, {
                             uri: uri, // Store the current URI
                             historicalUris: [uri], // Start historical tracking
-                            segments: mediaPlaylistData?.manifest.segments || [],
-                            currentSegmentUrls: new Set((mediaPlaylistData?.manifest.segments || []).map(s => s.uniqueId)),
-                            newlyAddedSegmentUrls: new Set((mediaPlaylistData?.manifest.segments || []).map(s => s.uniqueId)),
+                            segments:
+                                mediaPlaylistData?.manifest.segments || [],
+                            currentSegmentUrls: new Set(
+                                (
+                                    mediaPlaylistData?.manifest.segments || []
+                                ).map((s) => s.uniqueId)
+                            ),
+                            newlyAddedSegmentUrls: new Set(
+                                (
+                                    mediaPlaylistData?.manifest.segments || []
+                                ).map((s) => s.uniqueId)
+                            ),
                             isLoading: false,
                             isPolling: false,
                             isExpanded: false,
@@ -440,29 +480,39 @@ async function buildStreamObject(
                     if (eventsForSeg) {
                         repModified = true;
                         const newFlags = new Set(segment.flags || []);
-                        if(eventsForSeg.some(e => e.scte35)) {
+                        if (eventsForSeg.some((e) => e.scte35)) {
                             newFlags.add('scte35');
                         }
                         return {
                             ...segment,
-                            inbandEvents: [...(segment.inbandEvents || []), ...eventsForSeg],
+                            inbandEvents: [
+                                ...(segment.inbandEvents || []),
+                                ...eventsForSeg,
+                            ],
                             flags: Array.from(newFlags),
                         };
                     }
                     return segment;
                 });
                 if (repModified) {
-                    newRepStateMap.set(key, { ...repState, segments: newSegments });
+                    newRepStateMap.set(key, {
+                        ...repState,
+                        segments: newSegments,
+                    });
                 }
             }
             return newRepStateMap;
         };
-        
+
         if (streamObject.dashRepresentationState) {
-            streamObject.dashRepresentationState = attachToRepState(streamObject.dashRepresentationState);
+            streamObject.dashRepresentationState = attachToRepState(
+                streamObject.dashRepresentationState
+            );
         }
         if (streamObject.hlsVariantState) {
-            streamObject.hlsVariantState = attachToRepState(streamObject.hlsVariantState);
+            streamObject.hlsVariantState = attachToRepState(
+                streamObject.hlsVariantState
+            );
         }
         streamObject.inbandEvents = [];
     }
@@ -475,18 +525,16 @@ async function buildStreamObject(
         });
     }
 
-    // --- ARCHITECTURAL FIX: Create a baseline diff model, not a diff ---
     const initialDiffModel = formattedInitial
         .trimEnd()
         .split('\n')
-        .map(line => ({
+        .map((line) => ({
             type: 'common',
             indentation: line.match(/^(\s*)/)?.[1] || '',
             content: line.trim(),
         }));
 
     const changes = { additions: 0, removals: 0, modifications: 0 };
-    // --- END FIX ---
 
     streamObject.manifestUpdates.push({
         id: `${streamObject.id}-${Date.now()}`,
@@ -566,17 +614,24 @@ export async function handleStartAnalysis({ inputs, postProgress }, signal) {
         });
         const workerInputs = await Promise.all(workerInputsPromises);
         const totalCount = workerInputs.length;
-        
+
         const processingResults = [];
         for (let i = 0; i < workerInputs.length; i++) {
             const input = workerInputs[i];
-            const streamIdentifier = input.name || input.url || `Input #${i + 1}`;
-            postProgress(`Analyzing ${i + 1} of ${totalCount}: ${streamIdentifier}`);
+            const streamIdentifier =
+                input.name || input.url || `Input #${i + 1}`;
+            postProgress(
+                `Analyzing ${i + 1} of ${totalCount}: ${streamIdentifier}`
+            );
 
             const preProcessed = await preProcessInput(input, signal);
 
-            let manifestIR, serializedManifestObject, finalBaseUrl, mediaPlaylists;
+            let manifestIR,
+                serializedManifestObject,
+                finalBaseUrl,
+                mediaPlaylists;
             let segmentsToCache = [];
+            let segmentsByCompositeKey = {};
 
             const fetchAndParseSegment = async (
                 url,
@@ -618,17 +673,20 @@ export async function handleStartAnalysis({ inputs, postProgress }, signal) {
             };
 
             if (preProcessed.protocol === 'hls') {
-                const hlsResult = await _fetchAndParseHlsPresentation(preProcessed, signal);
+                const hlsResult = await _fetchAndParseHlsPresentation(
+                    preProcessed,
+                    signal
+                );
                 manifestIR = hlsResult.masterIR;
                 serializedManifestObject = hlsResult.serializedManifestObject;
                 finalBaseUrl = hlsResult.finalUrl;
                 mediaPlaylists = hlsResult.mediaPlaylists;
                 preProcessed.isLive = manifestIR.type === 'dynamic';
 
-                const hlsSummaryResult = await generateHlsSummary(
-                    manifestIR,
-                    { ...context, mediaPlaylists }
-                );
+                const hlsSummaryResult = await generateHlsSummary(manifestIR, {
+                    ...context,
+                    mediaPlaylists,
+                });
                 manifestIR.summary = hlsSummaryResult.summary;
                 segmentsToCache =
                     hlsSummaryResult.opportunisticallyCachedSegments;
@@ -641,6 +699,12 @@ export async function handleStartAnalysis({ inputs, postProgress }, signal) {
                 manifestIR = manifest;
                 serializedManifestObject = serializedManifest;
                 finalBaseUrl = baseUrl;
+
+                segmentsByCompositeKey = await parseDashSegments(
+                    serializedManifestObject,
+                    finalBaseUrl,
+                    { auth: input.auth, now: Date.now() }
+                );
 
                 manifestIR.summary = await generateDashSummary(
                     manifestIR,
@@ -678,19 +742,19 @@ export async function handleStartAnalysis({ inputs, postProgress }, signal) {
             );
             const coverageReport = input.isDebug
                 ? [
-                      ...(preProcessed.protocol === 'dash'
-                          ? analyzeDashCoverage(serializedManifestObject)
-                          : []),
-                      ...analyzeParserDrift(manifestIR),
-                  ]
+                    ...(preProcessed.protocol === 'dash'
+                        ? analyzeDashCoverage(serializedManifestObject)
+                        : []),
+                    ...analyzeParserDrift(manifestIR),
+                ]
                 : [];
             const semanticData = new Map();
 
             const steeringTag =
                 preProcessed.protocol === 'hls' && manifestIR.isMaster
                     ? (manifestIR.tags || []).find(
-                          (t) => t.name === 'EXT-X-CONTENT-STEERING'
-                      )
+                        (t) => t.name === 'EXT-X-CONTENT-STEERING'
+                    )
                     : null;
             if (steeringTag) {
                 const steeringUri = new URL(
@@ -710,6 +774,7 @@ export async function handleStartAnalysis({ inputs, postProgress }, signal) {
                 complianceResults,
                 coverageReport,
                 mediaPlaylists,
+                segmentsByCompositeKey,
             };
 
             const streamObject = await buildStreamObject(
@@ -721,15 +786,18 @@ export async function handleStartAnalysis({ inputs, postProgress }, signal) {
                 fetchAndParseSegment,
                 signal
             );
-            
+
             const segmentsWithId = segmentsToCache.map((segment) => ({
                 ...segment,
                 streamId: streamObject.id,
             }));
 
-            processingResults.push({ streamObject, segmentsToCache: segmentsWithId });
+            processingResults.push({
+                streamObject,
+                segmentsToCache: segmentsWithId,
+            });
         }
-        
+
         const streamObjects = processingResults.map((r) => r.streamObject);
         const allCachedSegments = processingResults.flatMap(
             (r) => r.segmentsToCache

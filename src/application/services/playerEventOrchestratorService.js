@@ -1,13 +1,14 @@
 import { eventBus } from '@/application/event-bus';
 import { analysisActions } from '@/state/analysisStore';
 import { parseScte35 } from '@/infrastructure/parsing/scte35/parser';
+import { EVENTS } from '@/types/events';
 
 /**
  * Listens for low-level player events and orchestrates higher-level
  * application state updates and use case triggers.
  */
 function initializePlayerEventOrchestrator() {
-    eventBus.subscribe('player:emsg', (emsg) => {
+    eventBus.subscribe(EVENTS.PLAYER.EMSG, (emsg) => {
         const {
             schemeIdUri,
             startTime,

@@ -84,7 +84,6 @@ const renderHlsRendition = (stream, renditionInfo, contentType) => {
         isLoading,
         currentSegmentUrls,
         newlyAddedSegmentUrls,
-        uri: variantUri,
     } = variantState;
 
     const segments = rawSegments || [];
@@ -155,10 +154,12 @@ export function getHlsExplorerForType(stream, contentType) {
         let itemsToRender = [];
         if (contentType === 'video') {
             const allVideoReps = stream.manifest.periods[0].adaptationSets
-                .filter(as => as.contentType === 'video')
-                .flatMap(as => as.representations.map(rep => ({ rep, as })));
-            
-            itemsToRender = allVideoReps.map(({rep, as}) => ({
+                .filter((as) => as.contentType === 'video')
+                .flatMap((as) =>
+                    as.representations.map((rep) => ({ rep, as }))
+                );
+
+            itemsToRender = allVideoReps.map(({ rep, as }) => ({
                 title: `Variant Stream (BW: ${formatBitrate(
                     rep.bandwidth
                 )}, Res: ${rep.width.value}x${rep.height.value || 'N/A'})`,
@@ -172,9 +173,8 @@ export function getHlsExplorerForType(stream, contentType) {
                 .map((r) => {
                     const rep = r.representations[0];
                     return {
-                        title: `${contentType.toUpperCase()}: ${
-                            r.lang || r.id
-                        } (${rep.serializedManifest.NAME})`,
+                        title: `${contentType.toUpperCase()}: ${r.lang || r.id
+                            } (${rep.serializedManifest.NAME})`,
                         id: rep.id,
                         isMuxed: !rep.serializedManifest.resolvedUri,
                     };
@@ -189,8 +189,8 @@ export function getHlsExplorerForType(stream, contentType) {
 
         return html` <div class="space-y-4">
             ${itemsToRender.map((item) =>
-                renderHlsRendition(stream, item, contentType)
-            )}
+            renderHlsRendition(stream, item, contentType)
+        )}
         </div>`;
     } else {
         // Media playlist directly

@@ -94,7 +94,6 @@ function renderInteractiveManifest() {
     let activeManifest;
     let rawManifestStringForToggle;
     let activeUpdate;
-    let playlistData;
 
     // ARCHITECTURAL FIX: Make HLS playlist selection explicit.
     if (
@@ -107,7 +106,7 @@ function renderInteractiveManifest() {
         );
         if (!mediaPlaylist)
             return html`<div class="text-yellow-400 p-4">Loading...</div>`;
-        
+
         activeUpdate = (mediaPlaylist.updates || []).find(
             (u) => u.id === mediaPlaylist.activeUpdateId
         );
@@ -116,9 +115,9 @@ function renderInteractiveManifest() {
             activeUpdate?.rawManifest || mediaPlaylist.rawManifest;
         activeManifest = activeUpdate
             ? {
-                  ...mediaPlaylist.manifest,
-                  serializedManifest: activeUpdate.serializedManifest,
-              }
+                ...mediaPlaylist.manifest,
+                serializedManifest: activeUpdate.serializedManifest,
+            }
             : mediaPlaylist.manifest;
     } else {
         // DASH Logic or HLS Master Playlist
@@ -129,9 +128,9 @@ function renderInteractiveManifest() {
             activeUpdate?.rawManifest || stream.rawManifest;
         activeManifest = activeUpdate
             ? {
-                  ...stream.manifest,
-                  serializedManifest: activeUpdate.serializedManifest,
-              }
+                ...stream.manifest,
+                serializedManifest: activeUpdate.serializedManifest,
+            }
             : stream.manifest;
     }
 
@@ -171,13 +170,13 @@ function renderInteractiveManifest() {
                     ${icons.clipboardCopy} Copy Raw Manifest
                 </button>
                 ${isDebugMode
-                    ? html`<button
+            ? html`<button
                           @click=${handleDebugCopy}
                           class="bg-yellow-600 hover:bg-yellow-700 text-black font-bold text-xs py-2 px-3 rounded-md transition-colors flex items-center gap-2"
                       >
                           ${icons.debug} Copy Debug Report
                       </button>`
-                    : ''}
+            : ''}
             </div>
         </div>
     `;
@@ -241,14 +240,16 @@ export const interactiveManifestView = {
             };
         };
 
-        analysisUnsubscribe = useAnalysisStore.subscribe((newState, oldState) => {
-            const newSelection = selector(newState);
-            const oldSelection = selector(oldState);
+        analysisUnsubscribe = useAnalysisStore.subscribe(
+            (newState, oldState) => {
+                const newSelection = selector(newState);
+                const oldSelection = selector(oldState);
 
-            if (!shallow(newSelection, oldSelection)) {
-                renderInteractiveManifest();
+                if (!shallow(newSelection, oldSelection)) {
+                    renderInteractiveManifest();
+                }
             }
-        });
+        );
         // --- END FIX ---
 
         uiUnsubscribe = useUiStore.subscribe(renderInteractiveManifest);

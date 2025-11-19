@@ -180,7 +180,7 @@ export const usePlayerStore = createStore((set, get) => ({
                 bandwidth: rep.bandwidth,
                 width: rep.width.value,
                 height: rep.height.value,
-                videoCodec: (rep.codecs || []).map(c => c.value).join(', '),
+                videoCodec: (rep.codecs || []).map((c) => c.value).join(', '),
                 frameRate: rep.frameRate,
             }));
 
@@ -191,7 +191,7 @@ export const usePlayerStore = createStore((set, get) => ({
                     id: as.id || rep.id,
                     language: as.lang,
                     label: as.labels?.[0]?.text || as.lang,
-                    codecs: (rep.codecs || []).map(c => c.value).join(', '),
+                    codecs: (rep.codecs || []).map((c) => c.value).join(', '),
                     roles: as.roles.map((r) => r.value),
                     active: false,
                 }))
@@ -201,9 +201,7 @@ export const usePlayerStore = createStore((set, get) => ({
         let activeAudioTrack = null;
         if (audioTracks.length > 0) {
             // Prefer the first track with the 'main' role.
-            const mainTrack = audioTracks.find((t) =>
-                t.roles.includes('main')
-            );
+            const mainTrack = audioTracks.find((t) => t.roles.includes('main'));
             if (mainTrack) {
                 mainTrack.active = true;
                 activeAudioTrack = mainTrack;
@@ -227,7 +225,7 @@ export const usePlayerStore = createStore((set, get) => ({
                     language: as.lang,
                     label: as.labels?.[0]?.text || as.lang,
                     mimeType: rep.mimeType,
-                    codecs: (rep.codecs || []).map(c => c.value).join(', '),
+                    codecs: (rep.codecs || []).map((c) => c.value).join(', '),
                     roles: as.roles.map((r) => r.value),
                     kind: as.roles.find((r) => r.value === 'caption')
                         ? 'caption'

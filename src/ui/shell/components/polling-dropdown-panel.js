@@ -31,15 +31,24 @@ const pollingIntervalPanelTemplate = (stream, isGlobal = false) => {
         if (isGlobal) {
             uiActions.setGlobalPollingIntervalOverride(option.id);
         } else {
-            analysisActions.setStreamPollingIntervalOverride(stream.id, option.id);
+            analysisActions.setStreamPollingIntervalOverride(
+                stream.id,
+                option.id
+            );
         }
     };
 
-    const options = isGlobal ? POLLING_INTERVAL_OPTIONS_GLOBAL : POLLING_INTERVAL_OPTIONS_STREAM;
+    const options = isGlobal
+        ? POLLING_INTERVAL_OPTIONS_GLOBAL
+        : POLLING_INTERVAL_OPTIONS_STREAM;
     const optionsWithDescriptions = options.map((opt) => {
         if (opt.id === null) {
             if (isGlobal) {
-                return { ...opt, description: 'Each stream will use its own auto or individual setting.' };
+                return {
+                    ...opt,
+                    description:
+                        'Each stream will use its own auto or individual setting.',
+                };
             }
             let desc = 'Calculated from manifest.';
             if (stream) {
@@ -536,15 +545,18 @@ export const pollingDropdownPanelTemplate = () => {
                         }}
                         class="text-xs font-semibold bg-slate-700 hover:bg-slate-600 text-slate-300 px-2 py-1 rounded-md flex items-center gap-1.5"
                     >
-                        <span>${
-                            isGlobalOverrideActive
+                        <span
+                            >${isGlobalOverrideActive
                                 ? `Global: ${globalPollingIntervalOverride}s`
-                                : `Global: Disabled`
-                        }</span>
+                                : `Global: Disabled`}</span
+                        >
                         ${icons.settings}
                     </button>
                 </div>
-                ${individualPollingControls(liveStreams, isGlobalOverrideActive)}
+                ${individualPollingControls(
+                    liveStreams,
+                    isGlobalOverrideActive
+                )}
             </div>
 
             <div class="border-t border-slate-700 pt-3">

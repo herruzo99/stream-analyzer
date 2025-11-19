@@ -82,10 +82,6 @@ export const bufferTimelineChartOptions = (videoEl, eventLog, abrHistory) => {
                 type: 'shadow',
             },
             formatter: (params) => {
-                // --- ARCHITECTURAL FIX ---
-                // Based on ECharts documentation, for an axis trigger, params is an array.
-                // params[0] contains the info for the first series at the hovered point.
-                // params[0].axisValue is the raw numerical value for the x-axis.
                 if (
                     !params ||
                     params.length === 0 ||
@@ -95,9 +91,8 @@ export const bufferTimelineChartOptions = (videoEl, eventLog, abrHistory) => {
                     return '';
                 }
                 const hoverTime = params[0].axisValue;
-                // --- END FIX ---
 
-                const timeRemaining = duration - hoverTime;
+                const timeRemaining = timeOffset + displayDuration - hoverTime;
 
                 let bufferStart = 0,
                     bufferEnd = 0,

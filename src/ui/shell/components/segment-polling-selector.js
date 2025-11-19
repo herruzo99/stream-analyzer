@@ -1,7 +1,6 @@
 import { html } from 'lit-html';
 import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
 import { useUiStore, uiActions } from '@/state/uiStore';
-import * as icons from '@/ui/icons';
 import { formatBitrate } from '@/ui/shared/format';
 import { connectedTabBar } from '@/ui/components/tabs';
 
@@ -25,13 +24,13 @@ const trackToggleCard = (stream, repId, { label, subtext }) => {
         >
             <div
                 class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${isChecked
-                    ? 'bg-blue-600'
-                    : 'bg-slate-600'}"
+            ? 'bg-blue-600'
+            : 'bg-slate-600'}"
             >
                 <span
                     class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isChecked
-                        ? 'translate-x-6'
-                        : 'translate-x-1'}"
+            ? 'translate-x-6'
+            : 'translate-x-1'}"
                 ></span>
             </div>
             <div class="grow min-w-0">
@@ -55,21 +54,21 @@ const streamPollingCard = (stream) => {
     const repsByType =
         stream.protocol === 'dash'
             ? stream.manifest.periods.reduce((acc, p) => {
-                  p.adaptationSets.forEach((as) => {
-                      const type = as.contentType || 'unknown';
-                      if (!acc[type]) acc[type] = [];
-                      acc[type].push(...as.representations);
-                  });
-                  return acc;
-              }, {})
+                p.adaptationSets.forEach((as) => {
+                    const type = as.contentType || 'unknown';
+                    if (!acc[type]) acc[type] = [];
+                    acc[type].push(...as.representations);
+                });
+                return acc;
+            }, {})
             : {
-                  video: stream.manifest.periods[0].adaptationSets
-                      .filter((as) => as.contentType === 'video')
-                      .flatMap((as) => as.representations),
-                  audio: (
-                      stream.manifest.periods[0]?.adaptationSets || []
-                  ).filter((as) => as.contentType === 'audio'),
-              };
+                video: stream.manifest.periods[0].adaptationSets
+                    .filter((as) => as.contentType === 'video')
+                    .flatMap((as) => as.representations),
+                audio: (
+                    stream.manifest.periods[0]?.adaptationSets || []
+                ).filter((as) => as.contentType === 'audio'),
+            };
 
     const tabs = [];
     if (repsByType.video?.length > 0)
@@ -141,13 +140,13 @@ const streamPollingCard = (stream) => {
                             @click=${handleToggleAllForStream}
                             id="toggle-all-${stream.id}"
                             class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${isAllChecked
-                                ? 'bg-blue-600'
-                                : 'bg-slate-600'}"
+            ? 'bg-blue-600'
+            : 'bg-slate-600'}"
                         >
                             <span
                                 class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isAllChecked
-                                    ? 'translate-x-6'
-                                    : 'translate-x-1'}"
+            ? 'translate-x-6'
+            : 'translate-x-1'}"
                             ></span>
                         </button>
                     </div>

@@ -88,6 +88,17 @@ export const dashTooltipData = {
         isoRef: 'Clause 5.5.2, Table 29',
     },
 
+    // --- NEW ---
+    Laurl: {
+        text: 'License Acquisition URL. A DASH-IF extension element used within a ContentProtection descriptor, typically for ClearKey, to specify the license server URL.',
+        isoRef: 'DASH-IF ClearKey Content Protection',
+    },
+    'Laurl@licenseType': {
+        text: 'Specifies the EME (Encrypted Media Extensions) version the license acquisition process is compatible with, for example, "EME-1.0".',
+        isoRef: 'DASH-IF ClearKey Content Protection',
+    },
+    // --- END NEW ---
+
     // BaseURL & Locations
     BaseURL: {
         text: 'Specifies a base URL for resolving relative URLs of segments or other resources. BaseURLs are hierarchical; a BaseURL at a lower level (e.g., AdaptationSet) overrides one at a higher level (e.g., MPD).',

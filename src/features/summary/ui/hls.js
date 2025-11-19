@@ -157,7 +157,7 @@ export function getHlsSummaryTemplate(stream) {
                         ABR Bitrate Ladder
                     </h3>
                     <div
-                        class="bg-slate-800 p-4 rounded-lg border border-slate-700 h-80"
+                        class="bg-slate-800 p-4 rounded-lg border border-slate-700 h-72"
                     >
                         <abr-ladder-chart
                             .data=${abrLadderData}

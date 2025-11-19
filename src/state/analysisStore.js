@@ -11,6 +11,7 @@ import { showToast } from '@/ui/components/toast.js';
 import { playerService } from '@/features/playerSimulation/application/playerService.js';
 import { usePlayerStore } from './playerStore.js';
 import { useSegmentCacheStore } from './segmentCacheStore.js';
+import { EVENTS } from '@/types/events';
 
 // --- Type Definitions ---
 /** @typedef {import('@/types.ts').Stream} Stream */
@@ -149,7 +150,6 @@ export const useAnalysisStore = createStore((set, get) => ({
             newStream.activeMediaPlaylistId = null;
             newStream.adAvails = s.adAvails || [];
 
-            // --- ARCHITECTURAL FIX: Correctly hydrate mediaPlaylists from worker payload ---
             newStream.mediaPlaylists = new Map(s.mediaPlaylists || []);
             if (s.protocol === 'hls' && s.manifest?.isMaster) {
                 if (!newStream.mediaPlaylists.has('master')) {
@@ -161,18 +161,15 @@ export const useAnalysisStore = createStore((set, get) => ({
                         activeUpdateId: s.manifestUpdates[0]?.id || null,
                     });
                 }
-                // ARCHITECTURAL FIX: Set 'master' as the default active playlist context.
                 newStream.activeMediaPlaylistId = 'master';
             } else if (s.protocol === 'hls' && !s.manifest?.isMaster) {
                 newStream.activeMediaPlaylistId = s.originalUrl;
                 newStream.activeMediaPlaylistUrl = s.originalUrl;
             }
-            // --- END FIX ---
 
             newStream.activeManifestUpdateId = s.manifestUpdates[0]?.id || null;
-            newStream.segmentPollingReps = new Set(
-                s.segmentPollingReps || []
-            );
+            newStream.segmentPollingReps = new Set(s.segmentPollingReps || []);
+
             return newStream;
         });
 
@@ -187,7 +184,7 @@ export const useAnalysisStore = createStore((set, get) => ({
 
         useMultiPlayerStore.getState().initializePlayers(fullyFormedStreams);
 
-        eventBus.dispatch('state:analysis-complete', {
+        eventBus.dispatch(EVENTS.STATE.ANALYSIS_COMPLETE, {
             streams: get().streams,
         });
     },
@@ -376,8 +373,7 @@ export const useAnalysisStore = createStore((set, get) => ({
                 if (input.id === id) {
                     let normalizedValue = value;
                     if (field === 'url' || field === 'name') {
-                        normalizedValue =
-                            value.trim() === '' ? null : value;
+                        normalizedValue = value.trim() === '' ? null : value;
                     }
                     const updatedInput = { ...input, [field]: normalizedValue };
                     if (field === 'url') {
@@ -527,7 +523,7 @@ export const useAnalysisStore = createStore((set, get) => ({
             )
         ) {
             set({ segmentsForCompare: [...segmentsForCompare, item] });
-            eventBus.dispatch('state:compare-list-changed', {
+            eventBus.dispatch(EVENTS.STATE.COMPARE_LIST_CHANGED, {
                 count: get().segmentsForCompare.length,
             });
         }
@@ -539,14 +535,14 @@ export const useAnalysisStore = createStore((set, get) => ({
                 (i) => i.segmentUniqueId !== segmentUniqueId
             ),
         }));
-        eventBus.dispatch('state:compare-list-changed', {
+        eventBus.dispatch(EVENTS.STATE.COMPARE_LIST_CHANGED, {
             count: get().segmentsForCompare.length,
         });
     },
 
     clearSegmentsToCompare: () => {
         set({ segmentsForCompare: [] });
-        eventBus.dispatch('state:compare-list-changed', { count: 0 });
+        eventBus.dispatch(EVENTS.STATE.COMPARE_LIST_CHANGED, { count: 0 });
     },
 
     updateStream: (streamId, updatedStreamData) => {
@@ -559,90 +555,120 @@ export const useAnalysisStore = createStore((set, get) => ({
         set((state) => ({
             streams: state.streams.map((s) => {
                 if (s.id !== streamId) return s;
-    
+
                 // Create a new stream object by merging the update payload.
                 const newStream = { ...s, ...updatedStreamData };
-    
+
                 // Deeply update representation states if they are in the payload.
                 if (updatedStreamData.dashRepresentationState) {
                     const rehydrated = new Map();
                     // The payload from liveUpdateProcessor is already a Map, but its Sets might be arrays.
-                    for (const [key, value] of updatedStreamData.dashRepresentationState.entries()) {
+                    for (const [
+                        key,
+                        value,
+                    ] of updatedStreamData.dashRepresentationState.entries()) {
                         rehydrated.set(key, {
                             ...value,
-                            currentSegmentUrls: new Set(value.currentSegmentUrls || []),
-                            newlyAddedSegmentUrls: new Set(value.newlyAddedSegmentUrls || []),
+                            currentSegmentUrls: new Set(
+                                value.currentSegmentUrls || []
+                            ),
+                            newlyAddedSegmentUrls: new Set(
+                                value.newlyAddedSegmentUrls || []
+                            ),
                         });
                     }
                     newStream.dashRepresentationState = rehydrated;
                 }
-    
+
                 if (updatedStreamData.hlsVariantState) {
                     const rehydrated = new Map();
-                    for (const [key, value] of updatedStreamData.hlsVariantState.entries()) {
+                    for (const [
+                        key,
+                        value,
+                    ] of updatedStreamData.hlsVariantState.entries()) {
                         rehydrated.set(key, {
                             ...value,
-                            currentSegmentUrls: new Set(value.currentSegmentUrls || []),
-                            newlyAddedSegmentUrls: new Set(value.newlyAddedSegmentUrls || []),
+                            currentSegmentUrls: new Set(
+                                value.currentSegmentUrls || []
+                            ),
+                            newlyAddedSegmentUrls: new Set(
+                                value.newlyAddedSegmentUrls || []
+                            ),
                         });
                     }
                     newStream.hlsVariantState = rehydrated;
                 }
-    
+
                 // Process in-band events. This logic modifies the maps created above.
                 if (updatedStreamData.inbandEventsToAdd?.length > 0) {
                     const newEvents = updatedStreamData.inbandEventsToAdd;
-                    newStream.inbandEvents = [...(s.inbandEvents || []), ...newEvents];
-    
+                    newStream.inbandEvents = [
+                        ...(s.inbandEvents || []),
+                        ...newEvents,
+                    ];
+
                     const eventsBySegmentId = newEvents.reduce((acc, event) => {
                         const id = event.sourceSegmentId;
                         if (id) (acc[id] = acc[id] || []).push(event);
                         return acc;
                     }, {});
-    
+
                     const updateSegmentsInMap = (stateMap) => {
                         if (!stateMap) return;
                         for (const [repId, repState] of stateMap.entries()) {
                             if (!repState.segments) continue;
                             let repModified = false;
-                            const newSegments = repState.segments.map((segment) => {
-                                const eventsForSeg = eventsBySegmentId[segment.uniqueId];
-                                if (eventsForSeg) {
-                                    repModified = true;
-                                    const newFlags = new Set(segment.flags || []);
-                                    if(eventsForSeg.some(e => e.scte35)) {
-                                        newFlags.add('scte35');
+                            const newSegments = repState.segments.map(
+                                (segment) => {
+                                    const eventsForSeg =
+                                        eventsBySegmentId[segment.uniqueId];
+                                    if (eventsForSeg) {
+                                        repModified = true;
+                                        const newFlags = new Set(
+                                            segment.flags || []
+                                        );
+                                        if (
+                                            eventsForSeg.some((e) => e.scte35)
+                                        ) {
+                                            newFlags.add('scte35');
+                                        }
+                                        return {
+                                            ...segment,
+                                            inbandEvents: [
+                                                ...(segment.inbandEvents || []),
+                                                ...eventsForSeg,
+                                            ],
+                                            flags: Array.from(newFlags),
+                                        };
                                     }
-                                    return {
-                                        ...segment,
-                                        inbandEvents: [...(segment.inbandEvents || []), ...eventsForSeg],
-                                        flags: Array.from(newFlags),
-                                    };
+                                    return segment;
                                 }
-                                return segment;
-                            });
+                            );
                             if (repModified) {
-                                stateMap.set(repId, { ...repState, segments: newSegments });
+                                stateMap.set(repId, {
+                                    ...repState,
+                                    segments: newSegments,
+                                });
                             }
                         }
                     };
-                    
+
                     updateSegmentsInMap(newStream.dashRepresentationState);
                     updateSegmentsInMap(newStream.hlsVariantState);
                 }
                 delete newStream.inbandEventsToAdd;
-    
+
                 return newStream;
             }),
         }));
 
         if (updatedStreamData.inbandEventsToAdd?.length > 0) {
-            eventBus.dispatch('state:inband-events-added', {
+            eventBus.dispatch(EVENTS.STATE.INBAND_EVENTS_ADDED, {
                 streamId,
                 newEvents: updatedStreamData.inbandEventsToAdd,
             });
         }
-        eventBus.dispatch('state:stream-updated', { streamId });
+        eventBus.dispatch(EVENTS.STATE.STREAM_UPDATED, { streamId });
     },
 
     addInbandEvents: (streamId, events) => {
@@ -672,7 +698,7 @@ export const useAnalysisStore = createStore((set, get) => ({
                 return s;
             }),
         }));
-        eventBus.dispatch('state:stream-updated');
+        eventBus.dispatch(EVENTS.STATE.STREAM_UPDATED);
     },
 
     setStreamPolling: (streamId, isPolling) => {
@@ -688,10 +714,10 @@ export const useAnalysisStore = createStore((set, get) => ({
                 return s;
             }),
         }));
-        eventBus.dispatch('state:stream-updated');
+        eventBus.dispatch(EVENTS.STATE.STREAM_UPDATED);
     },
 
-    setStreamPollingIntervalOverride: (streamId, interval) => { // <-- NEW ACTION
+    setStreamPollingIntervalOverride: (streamId, interval) => {
         set((state) => ({
             streams: state.streams.map((s) =>
                 s.id === streamId
@@ -699,7 +725,7 @@ export const useAnalysisStore = createStore((set, get) => ({
                     : s
             ),
         }));
-        eventBus.dispatch('state:stream-updated');
+        eventBus.dispatch(EVENTS.STATE.STREAM_UPDATED);
     },
 
     navigateManifestUpdate: (streamId, direction) => {

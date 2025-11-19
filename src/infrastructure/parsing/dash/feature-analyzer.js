@@ -1,5 +1,5 @@
 import { getDrmSystemName } from '@/infrastructure/parsing/utils/drm';
-import { getAttr, findChildrenRecursive } from './recursive-parser.js';
+import { getAttr, findChildrenRecursive } from '../utils/recursive-parser.js';
 
 /**
  * @typedef {object} FeatureCheckResult
@@ -25,7 +25,8 @@ const createCountCheck = (tagName, singular, plural) => {
     return (manifestObj) => {
         const elements = findChildrenRecursive(manifestObj, tagName);
         const count = elements.length;
-        if (count <= 1) { // FIX: Only count if more than one
+        if (count <= 1) {
+            // FIX: Only count if more than one
             return { used: false, details: '' };
         }
         const noun = count === 1 ? singular : plural;

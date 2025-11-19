@@ -2,7 +2,6 @@ import { html, render } from 'lit-html';
 import { classMap } from 'lit-html/directives/class-map.js';
 import {
     useMultiPlayerStore,
-    selectIsPlayingAll,
 } from '@/state/multiPlayerStore';
 import { useUiStore } from '@/state/uiStore';
 import { multiPlayerService } from '../application/multiPlayerService';
@@ -48,8 +47,8 @@ const topBarControlsTemplate = () => {
             <button
                 @click=${() => eventBus.dispatch('ui:multi-player:play-all')}
                 class="${buttonClasses} ${canPlay
-                    ? 'bg-green-600 text-white hover:bg-green-500'
-                    : disabledClasses}"
+            ? 'bg-green-600 text-white hover:bg-green-500'
+            : disabledClasses}"
                 ?disabled=${!canPlay}
             >
                 ${icons.play}
@@ -58,8 +57,8 @@ const topBarControlsTemplate = () => {
             <button
                 @click=${() => eventBus.dispatch('ui:multi-player:pause-all')}
                 class="${buttonClasses} ${canPause
-                    ? 'bg-yellow-600 text-yellow-900 hover:bg-yellow-500'
-                    : disabledClasses}"
+            ? 'bg-yellow-600 text-yellow-900 hover:bg-yellow-500'
+            : disabledClasses}"
                 ?disabled=${!canPause}
             >
                 ${icons.pause}
@@ -67,19 +66,19 @@ const topBarControlsTemplate = () => {
             </button>
             <button
                 @click=${() =>
-                    isMutedAll
-                        ? eventBus.dispatch('ui:multi-player:unmute-all')
-                        : eventBus.dispatch('ui:multi-player:mute-all')}
+            isMutedAll
+                ? eventBus.dispatch('ui:multi-player:unmute-all')
+                : eventBus.dispatch('ui:multi-player:mute-all')}
                 class="${buttonClasses} bg-slate-700/50 hover:bg-slate-600 text-slate-300"
             >
                 ${isMutedAll ? icons.volumeOff : icons.volumeUp}
             </button>
             <button
                 @click=${() =>
-                    eventBus.dispatch('ui:multi-player:toggle-immersive-view')}
+            eventBus.dispatch('ui:multi-player:toggle-immersive-view')}
                 class="${buttonClasses} ${isImmersive
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-slate-700/50 hover:bg-slate-600 text-slate-300'}"
+            ? 'bg-purple-600 text-white'
+            : 'bg-slate-700/50 hover:bg-slate-600 text-slate-300'}"
                 title="Toggle immersive monitoring view"
             >
                 ${isImmersive ? icons.minimize : icons.maximize}
@@ -104,15 +103,15 @@ const topBarControlsTemplate = () => {
             </button>
 
             ${failedPlayerCount > 0
-                ? html`<button
+            ? html`<button
                       @click=${() =>
-                          eventBus.dispatch('ui:multi-player:reset-failed')}
+                    eventBus.dispatch('ui:multi-player:reset-failed')}
                       class="${buttonClasses} bg-red-800 hover:bg-red-700 text-red-200"
                       title="Attempt to reload all failed players"
                   >
                       ${icons.sync} Reset Failed (${failedPlayerCount})
                   </button>`
-                : ''}
+            : ''}
 
             <div class="flex items-center gap-2">
                 <label
@@ -122,18 +121,18 @@ const topBarControlsTemplate = () => {
                 >
                 <button
                     @click=${() =>
-                        eventBus.dispatch('ui:multi-player:toggle-auto-reset')}
+            eventBus.dispatch('ui:multi-player:toggle-auto-reset')}
                     role="switch"
                     aria-checked="${isAutoResetEnabled}"
                     id="auto-reset-toggle"
                     class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isAutoResetEnabled
-                        ? 'bg-blue-600'
-                        : 'bg-slate-600'}"
+            ? 'bg-blue-600'
+            : 'bg-slate-600'}"
                 >
                     <span
                         class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isAutoResetEnabled
-                            ? 'translate-x-6'
-                            : 'translate-x-1'}"
+            ? 'translate-x-6'
+            : 'translate-x-1'}"
                     ></span>
                 </button>
             </div>
@@ -166,8 +165,7 @@ function renderMultiPlayerDashboard() {
         : '';
 
     const headerClasses = {
-        'flex flex-col sm:flex-row justify-between items-center shrink-0 gap-4':
-            true,
+        'flex flex-col sm:flex-row justify-between items-center shrink-0 gap-4': true,
     };
 
     const gridContainerClasses = {
@@ -177,9 +175,7 @@ function renderMultiPlayerDashboard() {
     };
 
     const template = html`
-        <div
-            class="flex flex-col h-full ${isImmersive ? '' : 'gap-y-4'}"
-        >
+        <div class="flex flex-col h-full ${isImmersive ? '' : 'gap-y-4'}">
             <div class=${classMap(headerClasses)}>
                 <h3 class="text-xl font-bold">Multi-Player Dashboard</h3>
                 ${topBarControlsTemplate()}

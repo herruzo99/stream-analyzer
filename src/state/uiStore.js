@@ -11,25 +11,12 @@ import { useAnalysisStore } from './analysisStore.js';
 import { eventBus } from '@/application/event-bus.js';
 
 /**
- * @typedef {object} ModalState
- * @property {boolean} isModalOpen
- * @property {boolean} isModalFullWidth
- * @property {string} modalTitle
- * @property {string} modalUrl
- * @property {{ type: string; data: any; } | null} modalContent
+ * @typedef {import('@/types.ts').ModalState} ModalState
+ * @typedef {import('@/types.ts').InteractiveManifestHoverItem} InteractiveManifestHoverItem
+ * @typedef {import('@/types.ts').ConditionalPollingState} ConditionalPollingState
+ * @typedef {import('@/types.ts').UiState} UiState
+ * @typedef {import('@/types.ts').UiActions} UiActions
  */
-
-/**
- * @typedef {object} InteractiveManifestHoverItem
- * @property {'tag' | 'attribute'} type - The type of the hovered element.
- * @property {string} name - The name of the tag or attribute (e.g., 'MPD' or 'MPD@type').
- * @property {object} info - The tooltip/metadata object for the item.
- * @property {string} path - The unique path identifier for the element.
- */
-
-/** @typedef {import('@/types.ts').ConditionalPollingState} ConditionalPollingState */
-/** @typedef {import('@/types.ts').UiState} UiState */
-/** @typedef {import('@/types.ts').UiActions} UiActions */
 
 const createInitialUiState = () => ({
     _viewMap: null,
@@ -105,6 +92,9 @@ const createInitialUiState = () => ({
         parsedSegments: true,
     },
     manifestUpdatesHideDeleted: false,
+    timelineHoveredItem: null,
+    timelineSelectedItem: null,
+    timelineActiveTab: 'overview',
 });
 
 export const useUiStore = createStore((set, get) => ({
@@ -131,8 +121,7 @@ export const useUiStore = createStore((set, get) => ({
             };
 
             if (tabName === 'explorer') {
-                const { streams, activeStreamId } =
-                    useAnalysisStore.getState();
+                const { streams, activeStreamId } = useAnalysisStore.getState();
                 const activeStream = streams.find(
                     (s) => s.id === activeStreamId
                 );
@@ -200,8 +189,7 @@ export const useUiStore = createStore((set, get) => ({
                         ) {
                             const variantUri =
                                 firstRendition?.__variantUri ||
-                                firstRendition?.serializedManifest
-                                    .resolvedUri;
+                                firstRendition?.serializedManifest.resolvedUri;
                             setTimeout(
                                 () =>
                                     eventBus.dispatch(
@@ -305,7 +293,8 @@ export const useUiStore = createStore((set, get) => ({
                         const firstAs =
                             primaryAdaptationSets[0] ||
                             allAdaptationSetsForType[0];
-                        newActiveRepId = firstAs?.representations[0]?.id || null;
+                        newActiveRepId =
+                            firstAs?.representations[0]?.id || null;
                     } else {
                         // For a media playlist, there's only one "representation"
                         newActiveRepId = activeStream.originalUrl;
@@ -513,6 +502,9 @@ export const useUiStore = createStore((set, get) => ({
         set((state) => ({
             manifestUpdatesHideDeleted: !state.manifestUpdatesHideDeleted,
         })),
+    setTimelineHoveredItem: (item) => set({ timelineHoveredItem: item }),
+    setTimelineSelectedItem: (item) => set({ timelineSelectedItem: item }),
+    setTimelineActiveTab: (tab) => set({ timelineActiveTab: tab }),
     reset: () => set(createInitialUiState()),
 }));
 

@@ -84,6 +84,7 @@ export async function startSegmentAnalysisUseCase({ files }) {
             minBufferTime: 0,
             publishTime: null,
             availabilityStartTime: null,
+            availabilityEndTime: null,
             timeShiftBufferDepth: null,
             minimumUpdatePeriod: null,
             duration: 0,

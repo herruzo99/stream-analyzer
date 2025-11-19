@@ -1,3 +1,4 @@
+
 import { html, render } from 'lit-html';
 import { classMap } from 'lit-html/directives/class-map.js';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
@@ -28,9 +29,9 @@ const changeIndicator = (changes, count, label, icon, colorClasses, isMerged = f
         }
         return '';
     }
-    
+
     if (count === 0) return '';
-    
+
     const baseClasses = "text-xs font-semibold flex items-center gap-1 px-2 py-0.5 rounded-full";
     let finalClasses = `${baseClasses}`;
     let title = '';
@@ -52,7 +53,7 @@ const changeIndicator = (changes, count, label, icon, colorClasses, isMerged = f
     } else {
         finalClasses += ` ${colorClasses} ${bgClassMap[colorClasses]}`;
     }
-    
+
     return html`<span class="${finalClasses}" title=${title}>
         ${icon}
         <span>${count} ${label}${count > 1 ? 's' : ''}</span>
@@ -68,12 +69,12 @@ const renderDiffLine = (line, isMerged, protocol) => {
     let lineContent;
     switch (line.type) {
         case 'added':
-            lineContent = html`<span>${line.indentation}</span><span class="${addClass} text-green-200">${unsafeHTML(highlightFn(line.content))}</span>`;
+            lineContent = html`<span class="whitespace-pre">${line.indentation}</span><span class="${addClass} text-green-200">${unsafeHTML(highlightFn(line.content))}</span>`;
             break;
         case 'removed':
-            lineContent = html`<span>${line.indentation}</span><span class="${removeClass} text-red-300 line-through">${unsafeHTML(highlightFn(line.content))}</span>`;
+            lineContent = html`<span class="whitespace-pre">${line.indentation}</span><span class="${removeClass} text-red-300 line-through">${unsafeHTML(highlightFn(line.content))}</span>`;
             break;
-        case 'modified':
+        case 'modified': {
             const partsHtml = line.parts.map(part => {
                 const highlightedValue = unsafeHTML(highlightFn(part.value));
                 if (part.type === 'added') {
@@ -83,11 +84,12 @@ const renderDiffLine = (line, isMerged, protocol) => {
                 }
                 return ''; // Omit removed parts
             });
-            lineContent = html`<span>${line.indentation}${partsHtml}</span>`;
+            lineContent = html`<span class="whitespace-pre">${line.indentation}</span>${partsHtml}`;
             break;
+        }
         case 'common':
         default:
-            lineContent = html`<span>${line.indentation}${unsafeHTML(highlightFn(line.content))}</span>`;
+            lineContent = html`<span class="whitespace-pre">${line.indentation}</span><span>${unsafeHTML(highlightFn(line.content))}</span>`;
             break;
     }
     return html`<div class="diff-line ${line.type}">${lineContent}</div>`;
@@ -107,9 +109,9 @@ const detailsTemplate = (update, hideDeleted, protocol) => {
             rawManifest,
             'Manifest version copied to clipboard!'
         );
-    
+
     const isMerged = !!endSequenceNumber;
-    
+
     const diffContainerClasses = {
         'diff-container': true,
         'hide-deleted': hideDeleted,
@@ -118,7 +120,7 @@ const detailsTemplate = (update, hideDeleted, protocol) => {
     const timeDisplay = endTimestamp
         ? html`${timestamp} &rarr; ${endTimestamp}`
         : timestamp;
-    
+
     return html`
         <header
             class="p-3 border-b border-slate-700 flex justify-between items-center shrink-0"
@@ -170,7 +172,7 @@ const updateCardTemplate = (update, isActive, streamId, playlistId) => {
     const title = endSequenceNumber
         ? html`Update #${sequenceNumber} &rarr; #${endSequenceNumber}`
         : html`Update #${sequenceNumber}`;
-    
+
     const timeDisplay = endTimestamp
         ? html`${timestamp} &rarr; ${endTimestamp}`
         : timestamp;
@@ -180,8 +182,8 @@ const updateCardTemplate = (update, isActive, streamId, playlistId) => {
     return html`
         <div
             class="block p-3 rounded-lg border-2 transition-all cursor-pointer ${classMap(
-                cardClasses
-            )}"
+        cardClasses
+    )}"
             @click=${handleClick}
         >
             <div class="flex justify-between items-center">
@@ -195,11 +197,11 @@ const updateCardTemplate = (update, isActive, streamId, playlistId) => {
                 ${changeIndicator(changes, changes.removals, 'del', icons.minusCircle, 'text-red-300', isMerged)}
                 ${changeIndicator(changes, changes.modifications, 'mod', icons.updates, 'text-yellow-300', isMerged)}
                 ${hasNewIssues
-                    ? html`<span
+            ? html`<span
                           class="text-xs font-semibold text-red-400 animate-pulse"
                           >New Issues!</span
                       >`
-                    : ''}
+            : ''}
             </div>
         </div>
     `;
@@ -216,13 +218,13 @@ const sidebarTemplate = (updates, activeUpdateId, streamId, playlistId) => {
                 class="flex flex-col gap-2 overflow-y-auto p-2"
             >
                 ${updates.map((update) =>
-                    updateCardTemplate(
-                        update,
-                        update.id === activeUpdateId,
-                        streamId,
-                        playlistId
-                    )
-                )}
+        updateCardTemplate(
+            update,
+            update.id === activeUpdateId,
+            streamId,
+            playlistId
+        )
+    )}
             </div>
         </div>
     `;
@@ -339,13 +341,13 @@ function renderManifestUpdates() {
                     aria-checked="${manifestUpdatesHideDeleted}"
                     id="hide-deleted-toggle"
                     class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${manifestUpdatesHideDeleted
-                        ? 'bg-blue-600'
-                        : 'bg-slate-600'}"
+            ? 'bg-blue-600'
+            : 'bg-slate-600'}"
                 >
                     <span
                         class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${manifestUpdatesHideDeleted
-                            ? 'translate-x-6'
-                            : 'translate-x-1'}"
+            ? 'translate-x-6'
+            : 'translate-x-1'}"
                     ></span>
                 </button>
             </div>

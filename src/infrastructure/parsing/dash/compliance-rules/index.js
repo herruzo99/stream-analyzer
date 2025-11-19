@@ -1,4 +1,4 @@
-import {} from '../recursive-parser.js';
+import {} from '../../utils/recursive-parser.js';
 import { structureRules } from './structure.js';
 import { liveRules } from './live.js';
 import { segmentRules } from './segments.js';

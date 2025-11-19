@@ -5,6 +5,7 @@ import { vttAnalysisTemplate } from './vtt-analysis.js';
 import { useUiStore, uiActions } from '@/state/uiStore';
 import { closeModal } from '@/ui/services/modalService';
 import * as icons from '@/ui/icons';
+import { scte35DetailsTemplate } from '@/ui/shared/scte35-details.js';
 
 export function getSegmentAnalysisTemplate(
     parsedData,
@@ -28,7 +29,6 @@ export function getSegmentAnalysisTemplate(
         </p>`;
     }
 
-    // Comparison view remains unchanged for now.
     if (parsedDataB) {
         return html`<p class="text-yellow-400">
             Comparison view not yet updated.
@@ -42,6 +42,8 @@ export function getSegmentAnalysisTemplate(
 
     const format = parsedData.format;
     let contentTemplate;
+    let showExplorerButton = true;
+
     switch (format) {
         case 'isobmff':
             contentTemplate = isobmffAnalysisTemplate(parsedData, isIFrame);
@@ -52,10 +54,14 @@ export function getSegmentAnalysisTemplate(
         case 'vtt':
             contentTemplate = vttAnalysisTemplate(parsedData.data);
             break;
+        case 'scte35':
+            contentTemplate = scte35DetailsTemplate(parsedData.data);
+            break;
         default:
             contentTemplate = html`<p class="fail">
                 Analysis view for format '${format}' is not supported.
             </p>`;
+            showExplorerButton = false;
             break;
     }
 
@@ -73,13 +79,15 @@ export function getSegmentAnalysisTemplate(
                         conformance.
                     </p>
                 </div>
-                <button
-                    @click=${handleExplore}
-                    class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-md transition duration-300 text-sm flex items-center gap-2"
-                >
-                    ${icons.binary}
-                    <span>Explore in Interactive View</span>
-                </button>
+                ${showExplorerButton
+                    ? html`<button
+                          @click=${handleExplore}
+                          class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-md transition duration-300 text-sm flex items-center gap-2"
+                      >
+                          ${icons.binary}
+                          <span>Explore in Interactive View</span>
+                      </button>`
+                    : ''}
             </div>
             <div class="grow overflow-y-auto pr-2">${contentTemplate}</div>
         </div>

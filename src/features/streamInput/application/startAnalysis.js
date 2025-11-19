@@ -1,6 +1,7 @@
 import { isDebugMode } from '@/shared/utils/env';
 import { appLog } from '@/shared/utils/debug';
 import { useSegmentCacheStore } from '@/state/segmentCacheStore';
+import { EVENTS } from '@/types/events';
 
 /**
  * Orchestrates the business logic of starting a new stream analysis.
@@ -18,16 +19,16 @@ export async function startAnalysisUseCase({ inputs }, services) {
     const analysisStartTime = performance.now();
     appLog('startAnalysisUseCase', 'info', 'Starting analysis pipeline...');
     analysisActions.startAnalysis();
-    eventBus.dispatch('analysis:started');
+    eventBus.dispatch(EVENTS.ANALYSIS.STARTED);
 
     const validInputs = inputs.filter((input) => input.url || input.file);
 
     if (validInputs.length === 0) {
-        eventBus.dispatch('ui:show-status', {
+        eventBus.dispatch(EVENTS.UI.SHOW_STATUS, {
             message: 'Please provide a stream URL or file to analyze.',
             type: 'warn',
         });
-        eventBus.dispatch('analysis:failed');
+        eventBus.dispatch(EVENTS.ANALYSIS.FAILED);
         return;
     }
 
@@ -144,10 +145,10 @@ export async function startAnalysisUseCase({ inputs }, services) {
             ).toFixed(2)}ms`
         );
     } catch (error) {
-        eventBus.dispatch('analysis:error', {
+        eventBus.dispatch(EVENTS.ANALYSIS.ERROR, {
             message: error.message,
             error,
         });
-        eventBus.dispatch('analysis:failed');
+        eventBus.dispatch(EVENTS.ANALYSIS.FAILED);
     }
 }

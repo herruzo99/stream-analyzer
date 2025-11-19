@@ -6,6 +6,14 @@ export const bufferHealthChartOptions = (history, bufferingGoal) => {
     const data = history.map((h) => [h.time, h.bufferHealth]);
 
     return {
+        title: {
+            text: 'Buffer Health Over Time',
+            left: 'center',
+            textStyle: {
+                color: '#e2e8f0',
+                fontSize: 14,
+            },
+        },
         tooltip: {
             trigger: 'axis',
             formatter: (params) => {
@@ -14,7 +22,7 @@ export const bufferHealthChartOptions = (history, bufferingGoal) => {
                 return `Time: ${time}s<br/>Buffer Health: ${buffer}s`;
             },
         },
-        grid: { top: 30, bottom: 60, left: 50, right: 20 },
+        grid: { top: 40, bottom: 60, left: 50, right: 20 },
         xAxis: {
             type: 'value',
             name: 'Time (s)',

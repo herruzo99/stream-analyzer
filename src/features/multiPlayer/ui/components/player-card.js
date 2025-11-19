@@ -43,7 +43,6 @@ export class PlayerCardComponent extends HTMLElement {
         this.isLastInGroup = false;
         this.unsubscribe = null;
         this.uiUnsubscribe = null;
-        this.videoElementContainer = document.createElement('div');
         this.lastRenderedState = {};
 
         // Bind methods to ensure `this` context is correct
@@ -77,6 +76,9 @@ export class PlayerCardComponent extends HTMLElement {
     }
 
     disconnectedCallback() {
+        // Unbind the video element from the service to allow GC
+        multiPlayerService.unbindMediaElement(this.streamId);
+
         if (this.unsubscribe) {
             this.unsubscribe();
             this.unsubscribe = null;
@@ -85,16 +87,9 @@ export class PlayerCardComponent extends HTMLElement {
             this.uiUnsubscribe();
             this.uiUnsubscribe = null;
         }
-        multiPlayerService.destroyPlayer(this.streamId);
-        const videoElement = multiPlayerService.videoElements.get(
-            this.streamId
-        );
-        if (
-            videoElement &&
-            videoElement.parentElement === this.videoElementContainer
-        ) {
-            this.videoElementContainer.removeChild(videoElement);
-        }
+        // The service handles player destruction via the 'removePlayer' action
+        // or manual call if this component is removed but the stream remains.
+        // In this context, we assume unmount means we are done with this specific view instance.
     }
 
     subscribeToState() {
@@ -110,11 +105,12 @@ export class PlayerCardComponent extends HTMLElement {
         const listener = () => {
             const newState = selector(useMultiPlayerStore.getState());
 
+            // If the player instance doesn't exist in the service map yet (state initialized), create it.
             if (
                 newState.player &&
                 !multiPlayerService.players.has(this.streamId)
             ) {
-                multiPlayerService.createVideoElement(this.streamId);
+                // This creates the player instance but doesn't attach yet if element isn't bound
                 multiPlayerService.createAndLoadPlayer(newState.player);
             }
 
@@ -141,6 +137,8 @@ export class PlayerCardComponent extends HTMLElement {
 
         listener();
     }
+
+    // ... (handlers remain unchanged) ...
 
     _handleAbrToggle() {
         const player = this.lastRenderedState.player;
@@ -212,15 +210,44 @@ export class PlayerCardComponent extends HTMLElement {
 
         const isImmersive = viewMode === 'immersive';
 
-        const videoElement = multiPlayerService.videoElements.get(
-            player.streamId
-        );
-        if (
-            videoElement &&
-            videoElement.parentElement !== this.videoElementContainer
-        ) {
-            this.videoElementContainer.appendChild(videoElement);
-        }
+        // --- ARCHITECTURAL REFACTOR: Declarative Video Element ---
+        // We render the video tag directly. After render, we bind it to the service.
+        const videoContainerClasses = {
+            relative: true,
+            'bg-black': true,
+            'overflow-hidden': true,
+            'aspect-video': true,
+            'w-full': true,
+            'rounded-lg': isImmersive,
+            'rounded-t-lg': !isImmersive,
+        };
+
+        // Unique ID for query selection if needed, though we use 'this' context
+        const videoId = `video-${this.streamId}`;
+
+        const videoContainer = html`
+            <div class=${classMap(videoContainerClasses)}>
+                <video
+                    id="${videoId}"
+                    class="w-full h-full"
+                    disablePictureInPicture
+                ></video>
+                ${player.error
+                    ? html`<div
+                          class="absolute inset-0 bg-red-900/80 text-red-200 p-2 text-xs flex items-center justify-center text-center"
+                      >
+                          ${player.error}
+                      </div>`
+                    : ''}
+                ${player.streamType === 'live'
+                    ? html`<span
+                          class="absolute top-2 right-2 text-xs font-bold px-2 py-1 bg-red-600 text-white rounded-md animate-pulse"
+                          >LIVE</span
+                      >`
+                    : ''}
+            </div>
+        `;
+        // --- END REFACTOR ---
 
         const { cards } = createMultiPlayerGridViewModel(
             new Map([[player.streamId, player]])
@@ -258,41 +285,12 @@ export class PlayerCardComponent extends HTMLElement {
             'flex-col': true,
             'transition-all': true,
             'w-[420px]': !isImmersive,
-            'h-fit': isImmersive, // Use fit-content for height
+            'h-fit': isImmersive,
             'w-full': isImmersive,
             [healthColors[vm.health]]: true,
             'ring-2': isHovered,
             'ring-purple-400': isHovered,
         };
-
-        const videoContainerClasses = {
-            relative: true,
-            'bg-black': true,
-            'overflow-hidden': true,
-            'aspect-video': true,
-            'w-full': true,
-            'rounded-lg': isImmersive,
-            'rounded-t-lg': !isImmersive,
-        };
-
-        const videoContainer = html`
-            <div class=${classMap(videoContainerClasses)}>
-                ${this.videoElementContainer}
-                ${vm.error
-                    ? html`<div
-                          class="absolute inset-0 bg-red-900/80 text-red-200 p-2 text-xs flex items-center justify-center text-center"
-                      >
-                          ${vm.error}
-                      </div>`
-                    : ''}
-                ${vm.streamType === 'live'
-                    ? html`<span
-                          class="absolute top-2 right-2 text-xs font-bold px-2 py-1 bg-red-600 text-white rounded-md animate-pulse"
-                          >LIVE</span
-                      >`
-                    : ''}
-            </div>
-        `;
 
         const isAbrEffectivelyEnabled =
             player.abrOverride === null ? globalAbrEnabled : player.abrOverride;
@@ -318,7 +316,6 @@ export class PlayerCardComponent extends HTMLElement {
         };
 
         const activeVideoTrack = player.activeVideoTrack;
-
         const videoTrackLabel = isAbrEffectivelyEnabled
             ? 'Auto (ABR)'
             : activeVideoTrack
@@ -330,7 +327,6 @@ export class PlayerCardComponent extends HTMLElement {
               ? formatBitrate(activeVideoTrack.bandwidth)
               : 'N/A';
         const activeAudioTrack = player.audioTracks.find((t) => t.active);
-
         const isPlayerLoading =
             player.state === 'idle' || player.state === 'loading';
 
@@ -379,7 +375,8 @@ export class PlayerCardComponent extends HTMLElement {
         ) => {
             const classes = {
                 [colorClass]: !disabled,
-                'hover:text-white': !disabled && colorClass === 'text-slate-400',
+                'hover:text-white':
+                    !disabled && colorClass === 'text-slate-400',
                 'hover:bg-slate-700': !disabled,
                 'text-slate-600': disabled,
                 'cursor-not-allowed': disabled,
@@ -420,9 +417,7 @@ export class PlayerCardComponent extends HTMLElement {
                                   >
                                       ${vm.streamName}
                                   </h4>
-                                  <div
-                                      class="flex items-center gap-1 shrink-0"
-                                  >
+                                  <div class="flex items-center gap-1 shrink-0">
                                       <span
                                           class="font-semibold ${vm.error
                                               ? 'text-red-400'
@@ -440,7 +435,8 @@ export class PlayerCardComponent extends HTMLElement {
                                           'Reset Player',
                                           this._handleReset,
                                           {
-                                              disabled: player.state !== 'error',
+                                              disabled:
+                                                  player.state !== 'error',
                                               colorClass: 'text-red-400',
                                           }
                                       )}
@@ -477,6 +473,17 @@ export class PlayerCardComponent extends HTMLElement {
             </div>
         `;
         render(template, this);
+
+        // --- ARCHITECTURAL REFACTOR: Post-Render Binding ---
+        // After rendering, grab the new video element and bind it to the service.
+        // This hands off control cleanly without the service owning DOM creation.
+        const videoEl = this.querySelector(`#${videoId}`);
+        if (videoEl) {
+            multiPlayerService.bindMediaElement(
+                this.streamId,
+                /** @type {HTMLVideoElement} */ (videoEl)
+            );
+        }
     }
 }
 

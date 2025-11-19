@@ -1,4 +1,4 @@
-import { getAttr, findChildren } from '../recursive-parser.js';
+import { getAttr, findChildren } from '../../utils/recursive-parser.js';
 
 /** @typedef {import('./index.js').Rule} Rule */
 

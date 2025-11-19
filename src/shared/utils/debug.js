@@ -112,14 +112,14 @@ export function createSafeJsonReplacer({ distill = false } = {}) {
             ) {
                 return summarizeTrunSamples(value);
             }
-            if (
-                key === 'packets' &&
-                Array.isArray(value) &&
-                value[0]?.header
-            ) {
+            if (key === 'packets' && Array.isArray(value) && value[0]?.header) {
                 return summarizeTsPackets(value);
             }
-            if (key === 'entries' && Array.isArray(value) && value.length > 20) {
+            if (
+                key === 'entries' &&
+                Array.isArray(value) &&
+                value.length > 20
+            ) {
                 return `[${value.length} entries]`;
             }
         }

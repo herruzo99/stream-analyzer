@@ -1,6 +1,6 @@
 import { fetchWithAuth } from '../http.js';
-import { inferMediaInfoFromExtension } from '@/infrastructure/parsing/utils/media-types';
-import { appLog } from '@/shared/utils/debug';
+import { inferMediaInfoFromExtension } from '../../parsing/utils/media-types.js';
+import { appLog } from '../../../shared/utils/debug.js';
 import { handleParseSegmentStructure } from '../parsingService.js';
 
 /**
@@ -153,11 +153,7 @@ export async function handleShakaResourceFetch(
         };
     } catch (error) {
         if (error.name === 'AbortError') {
-            appLog(
-                'shakaResourceHandler',
-                'info',
-                `Fetch aborted for ${url}`
-            );
+            appLog('shakaResourceHandler', 'info', `Fetch aborted for ${url}`);
             throw error;
         }
         appLog(

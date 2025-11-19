@@ -1,5 +1,6 @@
 import { saveToHistory } from '@/infrastructure/persistence/streamStorage';
 import { uiActions, useUiStore } from '@/state/uiStore';
+import { EVENTS } from '@/types/events';
 
 export class Application {
     /**
@@ -15,23 +16,26 @@ export class Application {
      * Attaches core application event listeners.
      */
     initializeAppEventListeners() {
-        this.eventBus.subscribe('state:analysis-complete', ({ streams }) => {
-            if (streams.length > 0) {
-                saveToHistory(streams[0]);
-                uiActions.loadHistory(); // Reactively update the history list in the UI
-                const defaultTab =
-                    streams.length > 1 ? 'comparison' : 'summary';
-                // Only set the default tab if a session isn't being restored, as the session
-                // will set its own active tab.
-                if (!useUiStore.getState().isRestoringSession) {
-                    uiActions.setActiveTab(defaultTab);
+        this.eventBus.subscribe(
+            EVENTS.STATE.ANALYSIS_COMPLETE,
+            ({ streams }) => {
+                if (streams.length > 0) {
+                    saveToHistory(streams[0]);
+                    uiActions.loadHistory(); // Reactively update the history list in the UI
+                    const defaultTab =
+                        streams.length > 1 ? 'comparison' : 'summary';
+                    // Only set the default tab if a session isn't being restored, as the session
+                    // will set its own active tab.
+                    if (!useUiStore.getState().isRestoringSession) {
+                        uiActions.setActiveTab(defaultTab);
+                    }
+                    uiActions.setViewState('results');
                 }
-                uiActions.setViewState('results');
             }
-        });
+        );
 
-        this.eventBus.subscribe('analysis:error', ({ message, error }) => {
-            this.eventBus.dispatch('ui:show-status', {
+        this.eventBus.subscribe(EVENTS.ANALYSIS.ERROR, ({ message, error }) => {
+            this.eventBus.dispatch(EVENTS.UI.SHOW_STATUS, {
                 message,
                 type: 'fail',
                 duration: 8000,
@@ -70,7 +74,9 @@ export class Application {
             // Set the inputs in the store so the UI can reflect them if analysis fails
             this.analysisActions.setStreamInputs(inputs);
             // Dispatch event instead of calling use case directly
-            this.eventBus.dispatch('ui:stream-analysis-requested', { inputs });
+            this.eventBus.dispatch(EVENTS.UI.STREAM_ANALYSIS_REQUESTED, {
+                inputs,
+            });
         } else {
             this._populateLastUsedStreams();
         }

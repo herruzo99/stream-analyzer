@@ -11,7 +11,8 @@ let analysisUnsubscribe = null;
 let uiUnsubscribe = null;
 
 const streamHeaderCard = (stream) => {
-    const icon = stream.protocol === 'dash' ? icons.newAnalysis : icons.fileText;
+    const icon =
+        stream.protocol === 'dash' ? icons.newAnalysis : icons.fileText;
     const type = stream.manifest?.type === 'dynamic' ? 'LIVE' : 'VOD';
     const typeColor =
         stream.manifest?.type === 'dynamic'
@@ -51,7 +52,9 @@ const colgroupTemplate = (streams) => html`
         <col style="width: 300px;" />
         ${streams.map(
             () =>
-                html`<col style="width: 20%; min-width: 250px; max-width: 400px;" />`
+                html`<col
+                    style="width: 20%; min-width: 250px; max-width: 400px;"
+                />`
         )}
     </colgroup>
 `;

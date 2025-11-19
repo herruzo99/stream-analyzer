@@ -1,6 +1,7 @@
 import { boxParsers } from './index.js';
 import { decodeSampleFlags } from './sample-flags.js';
-import { appLog } from '@/shared/utils/debug.js';
+
+import { parseTTML } from '../ttml/index.js';
 
 const knownContainerBoxes = new Set([
     'moof',
@@ -28,6 +29,7 @@ const knownContainerBoxes = new Set([
     'meta',
     'trep',
     'enca',
+    'stpp', // Added stpp as a known container
 ]);
 
 /**
@@ -147,21 +149,40 @@ function groupAndCalcTimingForChunks(boxes) {
     return grouped;
 }
 
+const buildSampleDescriptionMap = (moov) => {
+    const map = new Map();
+    if (!moov) return map;
+
+    const traks = findChildrenRecursive(moov.children, 'trak');
+    for (const trak of traks) {
+        const tkhd = findBoxRecursive(trak.children, (b) => b.type === 'tkhd');
+        const trackId = tkhd?.details.track_ID?.value;
+        if (!trackId) continue;
+
+        const stsd = findBoxRecursive(trak.children, (b) => b.type === 'stsd');
+        if (stsd?.children) {
+            map.set(trackId, stsd.children);
+        }
+    }
+    return map;
+};
+
 /**
  * Traverses the box tree to build a single, canonical list of all samples with correct offsets.
  * This function must be called AFTER the full box tree is parsed.
  * @param {object} parsedData
+ * @param {ArrayBuffer} segmentBuffer The raw buffer for the entire segment.
  * @returns {object[]}
  */
-function buildCanonicalSampleList(parsedData) {
+function buildCanonicalSampleList(parsedData, segmentBuffer) {
     const samples = [];
     let sampleIndex = 0;
 
-    const trexMap = new Map();
     const moov = findBoxRecursive(
         parsedData.data.boxes,
         (b) => b.type === 'moov'
     );
+    const trexMap = new Map();
     if (moov) {
         const trexBoxes = findChildrenRecursive(moov.children, 'trex');
         for (const trex of trexBoxes) {
@@ -170,11 +191,9 @@ function buildCanonicalSampleList(parsedData) {
             }
         }
     }
+    const sampleDescriptionMap = buildSampleDescriptionMap(moov);
 
-    const moofBoxes = findChildrenRecursive(
-        parsedData.data.boxes,
-        'moof'
-    );
+    const moofBoxes = findChildrenRecursive(parsedData.data.boxes, 'moof');
 
     for (const moofBox of moofBoxes) {
         const trafBoxes = moofBox.children.filter((c) => c.type === 'traf');
@@ -196,6 +215,12 @@ function buildCanonicalSampleList(parsedData) {
 
             const trackId = tfhd.details.track_ID?.value;
             const trex = trexMap.get(trackId);
+            const sampleDescriptionIndex =
+                tfhd.details.sample_description_index?.value || 1;
+            const sampleDescriptions = sampleDescriptionMap.get(trackId);
+            const sampleDescription = sampleDescriptions
+                ? sampleDescriptions[sampleDescriptionIndex - 1]
+                : null;
 
             const defaultSampleDuration =
                 tfhd.details.default_sample_duration?.value ??
@@ -203,11 +228,12 @@ function buildCanonicalSampleList(parsedData) {
             const defaultSampleSize =
                 tfhd.details.default_sample_size?.value ??
                 trex?.details.default_sample_size?.value;
-            const defaultSampleFlagsInt = tfhd.details.default_sample_flags?.value
+            const defaultSampleFlagsInt = tfhd.details.default_sample_flags
+                ?.value
                 ? parseInt(tfhd.details.default_sample_flags.value, 16)
                 : trex?.details.default_sample_flags?.value
-                  ? parseInt(trex.details.default_sample_flags.value, 16)
-                  : null;
+                    ? parseInt(trex.details.default_sample_flags.value, 16)
+                    : null;
             const defaultSampleFlags =
                 defaultSampleFlagsInt !== null
                     ? decodeSampleFlags(defaultSampleFlagsInt)
@@ -218,7 +244,6 @@ function buildCanonicalSampleList(parsedData) {
             const dataOffset = trun.details.data_offset?.value || 0;
             let currentOffset = baseDataOffset + dataOffset;
 
-            // --- REFACTOR: Manually parse sample data from TRUN ---
             const trunDataView = new DataView(
                 trun.dataView.buffer,
                 trun.dataView.byteOffset,
@@ -271,6 +296,28 @@ function buildCanonicalSampleList(parsedData) {
                         tfdt?.details.baseMediaDecodeTime?.value,
                     trackId: tfhd.details.track_ID?.value,
                 };
+
+                if (
+                    sampleDescription &&
+                    sampleDescription.type === 'stpp' &&
+                    sample.size > 0
+                ) {
+                    const sampleBytes = new Uint8Array(
+                        segmentBuffer,
+                        sample.offset,
+                        sample.size
+                    );
+                    const ttmlString = new TextDecoder().decode(sampleBytes);
+                    try {
+                        sample.ttmlPayload = parseTTML(ttmlString);
+                    } catch (e) {
+                        console.warn(
+                            'Failed to parse TTML payload in sample',
+                            e
+                        );
+                        sample.ttmlPayload = { error: e.message };
+                    }
+                }
 
                 samples.push(sample);
                 currentOffset += sample.size || 0;
@@ -395,9 +442,8 @@ export function parseISOBMFF(buffer, baseOffset = 0, context = {}) {
             if (remaining > 0) {
                 result.issues.push({
                     type: 'warn',
-                    message: `Trailing ${remaining} bytes at offset ${
-                        baseOffset + offset
-                    } could not be parsed as a box.`,
+                    message: `Trailing ${remaining} bytes at offset ${baseOffset + offset
+                        } could not be parsed as a box.`,
                 });
             }
             break;
@@ -416,11 +462,9 @@ export function parseISOBMFF(buffer, baseOffset = 0, context = {}) {
             if (offset + 16 > dataView.byteLength) {
                 result.issues.push({
                     type: 'error',
-                    message: `Incomplete largesize box header for type '${type}' at offset ${
-                        baseOffset + offset
-                    }. Requires 16 bytes, found ${
-                        dataView.byteLength - offset
-                    }.`,
+                    message: `Incomplete largesize box header for type '${type}' at offset ${baseOffset + offset
+                        }. Requires 16 bytes, found ${dataView.byteLength - offset
+                        }.`,
                 });
                 break;
             }
@@ -433,9 +477,8 @@ export function parseISOBMFF(buffer, baseOffset = 0, context = {}) {
         if (size < headerSize) {
             result.issues.push({
                 type: 'error',
-                message: `Invalid size ${size} for box '${type}' at offset ${
-                    baseOffset + offset
-                }. Box size is smaller than its header size.`,
+                message: `Invalid size ${size} for box '${type}' at offset ${baseOffset + offset
+                    }. Box size is smaller than its header size.`,
             });
             break;
         }
@@ -456,8 +499,7 @@ export function parseISOBMFF(buffer, baseOffset = 0, context = {}) {
         const effectiveSize = Math.min(size, availableBytes);
 
         if (size > availableBytes) {
-            const isTruncatedMdatInIframe =
-                context.isIFrame && type === 'mdat';
+            const isTruncatedMdatInIframe = context.isIFrame && type === 'mdat';
             if (!isTruncatedMdatInIframe) {
                 box.issues.push({
                     type: 'error',
@@ -518,9 +560,9 @@ export function parseISOBMFF(buffer, baseOffset = 0, context = {}) {
             ) {
                 const sampleEntryHeaderSize =
                     type === 'avc1' ||
-                    type === 'hvc1' ||
-                    type === 'hev1' ||
-                    type === 'encv'
+                        type === 'hvc1' ||
+                        type === 'hev1' ||
+                        type === 'encv'
                         ? 78
                         : 28;
                 childrenStart += sampleEntryHeaderSize;
@@ -562,7 +604,7 @@ export function parseISOBMFF(buffer, baseOffset = 0, context = {}) {
     result.boxes = groupAndCalcTimingForChunks(result.boxes);
 
     const parsedResultData = { format: 'isobmff', data: result };
-    const samples = buildCanonicalSampleList(parsedResultData);
+    const samples = buildCanonicalSampleList(parsedResultData, buffer);
     if (samples.length > 0) {
         decorateSamples(samples, parsedResultData);
         correlateEmsgToSamples(samples, parsedResultData);

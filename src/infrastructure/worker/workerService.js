@@ -38,6 +38,7 @@ export class WorkerService {
     _handleMessage(event) {
         const { id, result, error, type, payload } = event.data;
 
+        // Allow global events from worker to bubble up to main thread EventBus
         if (type && id === undefined) {
             appLog(
                 'WorkerService',
@@ -56,12 +57,9 @@ export class WorkerService {
         const { resolve, reject } = this.pendingTasks.get(id);
 
         if (error) {
-            // Reject with a generic Error, wrapping the worker's message.
-            // The caller is responsible for converting this to a domain-specific error if needed.
             const genericError = new Error(
                 `Worker task failed: ${error.message}`
             );
-            // Attach original error properties for context
             Object.assign(genericError, error);
             reject(genericError);
         } else {
@@ -74,10 +72,8 @@ export class WorkerService {
         if (this.pendingTasks.has(id)) {
             const { reject } = this.pendingTasks.get(id);
 
-            // Notify worker to cancel the operation
             this.worker.postMessage({ id, type: 'cancel-task' });
 
-            // Immediately reject the promise with a standard AbortError.
             const abortError = new Error('Operation aborted by user.');
             abortError.name = 'AbortError';
             reject(abortError);

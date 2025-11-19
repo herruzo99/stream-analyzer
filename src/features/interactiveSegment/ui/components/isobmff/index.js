@@ -48,7 +48,7 @@ const renderObjectValue = (obj) => {
     return html`
         <div class="mt-1 ml-2 pl-2 border-l border-slate-600 space-y-1">
             ${Object.entries(obj).map(
-                ([key, value]) => html`
+        ([key, value]) => html`
                     <div class="flex text-xs">
                         <span class="text-slate-400 mr-2">${key}:</span>
                         <span
@@ -57,7 +57,61 @@ const renderObjectValue = (obj) => {
                         >
                     </div>
                 `
-            )}
+    )}
+        </div>
+    `;
+};
+
+const ttmlCuesTemplate = (ttmlPayload) => {
+    if (!ttmlPayload || !ttmlPayload.cues || ttmlPayload.cues.length === 0) {
+        return html``;
+    }
+
+    return html`
+        <div class="p-3 border-t border-slate-700">
+            <h4 class="font-bold text-sm mb-2 text-slate-300">TTML Cues</h4>
+            <div
+                class="bg-slate-900/50 rounded border border-slate-700/50 overflow-hidden"
+            >
+                <table class="w-full text-left text-xs table-auto">
+                    <thead class="bg-slate-800/50">
+                        <tr>
+                            <th class="p-2 font-semibold text-slate-400">
+                                Start
+                            </th>
+                            <th class="p-2 font-semibold text-slate-400">
+                                End
+                            </th>
+                            <th class="p-2 font-semibold text-slate-400">
+                                Payload
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-700/50">
+                        ${ttmlPayload.cues.map(
+        (cue) => html`
+                                <tr class="hover:bg-slate-700/50">
+                                    <td
+                                        class="p-2 font-mono text-cyan-400 align-top"
+                                    >
+                                        ${cue.startTime.toFixed(3)}s
+                                    </td>
+                                    <td
+                                        class="p-2 font-mono text-cyan-400 align-top"
+                                    >
+                                        ${cue.endTime.toFixed(3)}s
+                                    </td>
+                                    <td
+                                        class="p-2 text-slate-200 align-top break-all"
+                                    >
+                                        ${cue.payload}
+                                    </td>
+                                </tr>
+                            `
+    )}
+                    </tbody>
+                </table>
+            </div>
         </div>
     `;
 };
@@ -74,7 +128,7 @@ const messagePayloadTemplate = (box) => {
                 payloadContent = html`<pre
                     class="language-xml text-xs"
                 ><code>${unsafeHTML(highlightDash(formattedXml))}</code></pre>`;
-            } catch (e) {
+            } catch (_) {
                 // Fallback if formatter fails
                 payloadContent = html`<pre
                     class="language-xml text-xs"
@@ -88,7 +142,7 @@ const messagePayloadTemplate = (box) => {
             break;
         case 'id3':
         case 'binary':
-        default:
+        default: {
             const hex = Array.from(box.messagePayload)
                 .map((b) => b.toString(16).padStart(2, '0'))
                 .join(' ');
@@ -106,6 +160,7 @@ const messagePayloadTemplate = (box) => {
                 </div>`;
             }
             break;
+        }
     }
 
     return html`
@@ -137,8 +192,8 @@ const inspectorFieldTemplate = (box, key, field) => {
         >
             <div
                 class="text-xs font-semibold text-slate-400 ${fieldInfo?.text
-                    ? tooltipTriggerClasses
-                    : ''}"
+            ? tooltipTriggerClasses
+            : ''}"
                 data-tooltip="${fieldInfo?.text || ''}"
                 data-iso="${fieldInfo?.ref || ''}"
             >
@@ -146,8 +201,8 @@ const inspectorFieldTemplate = (box, key, field) => {
             </div>
             <div class="text-sm font-mono text-white mt-1 break-all">
                 ${typeof field.value === 'object' && field.value !== null
-                    ? renderObjectValue(field.value)
-                    : field.value}
+            ? renderObjectValue(field.value)
+            : field.value}
             </div>
         </div>
     `;
@@ -162,6 +217,24 @@ const sampleInspectorTemplate = (sample) => {
             </div>
         </div>
     `;
+
+    let ttmlContent;
+    if (sample.ttmlPayload) {
+        if (sample.ttmlPayload.error) {
+            ttmlContent = html`<div class="p-3 border-t border-slate-700">
+                <h4 class="font-bold text-sm mb-2 text-red-400">
+                    TTML Parsing Error
+                </h4>
+                <p
+                    class="font-mono text-xs text-red-300 bg-red-900/30 p-2 rounded"
+                >
+                    ${sample.ttmlPayload.error}
+                </p>
+            </div>`;
+        } else {
+            ttmlContent = ttmlCuesTemplate(sample.ttmlPayload);
+        }
+    }
 
     return html`
         <div
@@ -185,18 +258,18 @@ const sampleInspectorTemplate = (sample) => {
                 ${renderDetailRow('Offset', sample.offset)}
                 ${renderDetailRow('Size', `${sample.size} bytes`)}
                 ${renderDetailRow(
-                    'Duration',
-                    `${sample.duration} (timescale units)`
-                )}
+        'Duration',
+        `${sample.duration} (timescale units)`
+    )}
                 ${renderDetailRow(
-                    'Composition Time Offset',
-                    sample.compositionTimeOffset ?? 'N/A'
-                )}
+        'Composition Time Offset',
+        sample.compositionTimeOffset ?? 'N/A'
+    )}
                 ${renderDetailRow(
-                    'Flags',
-                    renderObjectValue(sample.sampleFlags)
-                )}
-                ${renderDetailRow('Track ID', sample.trackId)}
+        'Flags',
+        renderObjectValue(sample.sampleFlags)
+    )}
+                ${renderDetailRow('Track ID', sample.trackId)} ${ttmlContent}
             </div>
         </div>
     `;
@@ -264,11 +337,11 @@ export const inspectorPanelTemplate = (parsedData) => {
             </div>
             <div class="grow overflow-y-auto">
                 ${fieldsToRender.map(([key, field]) =>
-                    inspectorFieldTemplate(box, key, field)
-                )}
+        inspectorFieldTemplate(box, key, field)
+    )}
                 ${box.type === 'emsg' && box.messagePayload
-                    ? messagePayloadTemplate(box)
-                    : ''}
+            ? messagePayloadTemplate(box)
+            : ''}
                 ${entriesTableTemplate(boxForTable)}
             </div>
         </div>
@@ -282,7 +355,8 @@ const getBoxIcon = (box) => {
     if (['moov', 'trak', 'moof', 'traf', 'stbl', 'minf', 'mdia'].includes(type))
         return icons.folder;
     if (['tkhd', 'mdhd', 'mvhd'].includes(type)) return icons.fileText;
-    if (['avc1', 'hvc1', 'mp4a'].includes(type)) return icons.clapperboard;
+    if (['avc1', 'hvc1', 'hev1', 'mp4a'].includes(type))
+        return icons.clapperboard;
     if (type.includes('st')) return icons.table;
     if (type === 'pssh') return icons.lockClosed;
     return icons.puzzle;
@@ -324,12 +398,12 @@ const renderBoxNode = (box) => {
                 >
             </div>
             ${box.children && box.children.length > 0
-                ? html`
+            ? html`
                       <ul class="pl-4 border-l border-slate-700 ml-2.5">
                           ${box.children.map(renderBoxNode)}
                       </ul>
                   `
-                : ''}
+            : ''}
         </li>
     `;
 };
