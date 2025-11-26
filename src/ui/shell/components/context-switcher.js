@@ -4,36 +4,41 @@ import { useUiStore } from '@/state/uiStore';
 import { hlsContextSwitcherTemplate } from './hls-context-switcher.js';
 import { streamContextSwitcherTemplate } from './stream-context-switcher.js';
 
+/**
+ * Renders the combined context switching area for the sidebar.
+ * Handles visibility logic for HLS specific controls based on the active view.
+ */
 export function renderContextSwitcher() {
     const { streams, activeStreamId } = useAnalysisStore.getState();
     const { activeTab } = useUiStore.getState();
     const activeStream = streams.find((s) => s.id === activeStreamId);
 
-    // Define a list of views that are global or manage their own stream context,
-    // making the global stream selector redundant or confusing.
-    const CONTEXT_UNAWARE_VIEWS = [
-        'comparison',
-        'multi-player',
-        'network',
-        'segment-comparison',
-    ];
-
-    const showSwitchers = !CONTEXT_UNAWARE_VIEWS.includes(activeTab);
-
     const streamSwitcher =
-        showSwitchers && streams.length > 1
+        streams.length > 0
             ? streamContextSwitcherTemplate(streams, activeStreamId)
             : html``;
 
     const hlsSwitcher =
-        showSwitchers &&
-        activeTab !== 'summary' && // ARCHITECTURAL FIX: Hide on Summary tab
-        activeTab !== 'explorer' && // Do not show in Segment Explorer
+        activeTab !== 'summary' && // Global summary uses Master Playlist
+        activeTab !== 'explorer' && // Segment Explorer manages its own reps
         activeStream &&
         activeStream.protocol === 'hls' &&
         activeStream.manifest?.isMaster
             ? hlsContextSwitcherTemplate(activeStream)
-            : html``;
+            : null;
 
-    return html`${streamSwitcher} ${hlsSwitcher}`;
+    // If both are present, we stack them. The stream switcher has bottom padding.
+    // The HLS switcher sits below it.
+    return html`
+        <div class="flex flex-col">
+            ${streamSwitcher}
+            ${hlsSwitcher
+                ? html`
+                      <div class="px-3 pb-2 -mt-1 relative z-10">
+                          ${hlsSwitcher}
+                      </div>
+                  `
+                : ''}
+        </div>
+    `;
 }

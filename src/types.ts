@@ -107,7 +107,7 @@ export interface Representation {
     viewpoints: Descriptor[];
     accessibility: Descriptor[];
     labels: Label[];
-    label?: string; // For aggregated tracks
+    label?: string;
     groupLabels: Label[];
     roles: Descriptor[];
     subRepresentations: SubRepresentation[];
@@ -120,7 +120,7 @@ export interface Representation {
     supplementalCodecs: string | null;
     reqVideoLayout: string | null;
     serializedManifest: any;
-    __variantUri?: string; // Internal property for HLS enrichment
+    __variantUri?: string;
     tag: string | null;
     segmentProfiles: string | null;
     muxedAudio?: {
@@ -134,7 +134,7 @@ export interface Representation {
 export interface PsshInfo {
     systemId: string;
     kids: string[];
-    data?: string; // Base64 encoded PSSH box data
+    data?: string;
     licenseServerUrl?: string | null;
 }
 
@@ -204,7 +204,6 @@ export interface AdaptationSet {
     inbandEventStreams: Descriptor[];
 }
 
-// --- SCTE-35 Type Definitions ---
 export interface Scte35SpliceTime {
     time_specified: boolean;
     pts_time?: number;
@@ -263,7 +262,6 @@ export interface Scte35SpliceInfoSection {
     crc_32: number;
     error?: string;
 }
-// --- End SCTE-35 Type Definitions ---
 
 export interface Event {
     startTime: number;
@@ -273,7 +271,7 @@ export interface Event {
     type: string;
     cue: string | null;
     scte35?: Scte35SpliceInfoSection | { error: string };
-    sourceSegmentId?: string; // Link back to the source segment
+    sourceSegmentId?: string;
 }
 
 export interface EventStream {
@@ -396,11 +394,19 @@ export interface TextTrackSummary {
     roles: Descriptor[];
 }
 
+export interface AdaptationSetSummary {
+    id: string;
+    contentType: string;
+    lang: string;
+    mimeType: string;
+    representationCount: number;
+}
+
 export interface PeriodSummary {
     id: string;
     start: number;
     duration: number | null;
-    adaptationSets: AdaptationSet[];
+    adaptationSets: AdaptationSetSummary[];
 }
 
 export interface SecuritySummary {
@@ -409,61 +415,6 @@ export interface SecuritySummary {
     hlsEncryptionMethod?: 'AES-128' | 'SAMPLE-AES' | 'FairPlay' | null;
     kids?: string[];
     licenseServerUrls?: string[];
-}
-
-export interface ManifestSummary {
-    general: {
-        protocol: 'DASH' | 'HLS';
-        streamType: 'Live / Dynamic' | 'VOD / Static';
-        streamTypeColor: 'text-red-400' | 'text-blue-500';
-        duration: number | null;
-        segmentFormat: string;
-        title: string | null;
-        locations: string[];
-        segmenting: string;
-    };
-    dash: {
-        profiles: string;
-        minBufferTime: number | null;
-        timeShiftBufferDepth: number | null;
-        minimumUpdatePeriod: number | null;
-        availabilityStartTime: Date | null;
-        publishTime: Date | null;
-    } | null;
-    hls: {
-        version: number;
-        targetDuration: number | null;
-        iFramePlaylists: number;
-        mediaPlaylistDetails: {
-            segmentCount: number;
-            averageSegmentDuration: number | null;
-            hasDiscontinuity: boolean;
-            isIFrameOnly: boolean;
-        } | null;
-        dvrWindow: number | null;
-        hlsParsed?: any;
-    } | null;
-    lowLatency: {
-        isLowLatency: boolean;
-        partTargetDuration: number | null;
-        partHoldBack: number | null;
-        canBlockReload: boolean;
-        targetLatency: number | null;
-        minLatency: number | null;
-        maxLatency: number | null;
-    } | null;
-    content: {
-        totalPeriods: number;
-        totalVideoTracks: number;
-        totalAudioTracks: number;
-        totalTextTracks: number;
-        mediaPlaylists: number;
-        periods: PeriodSummary[];
-    };
-    videoTracks: VideoTrackSummary[];
-    audioTracks: AudioTrackSummary[];
-    textTracks: TextTrackSummary[];
-    security: SecuritySummary | null;
 }
 
 export interface InitializationSet {
@@ -477,11 +428,11 @@ export interface InitializationSet {
 
 export interface EncryptionInfo {
     method: 'AES-128' | 'SAMPLE-AES' | 'CENC' | 'NONE';
-    uri?: string; // HLS Key URI
+    uri?: string;
     iv?: string | null;
     keyFormat?: string;
     keyFormatVersions?: string;
-    systems?: string[]; // DASH DRM Systems
+    systems?: string[];
 }
 
 export interface MediaInfoSummary {
@@ -519,8 +470,8 @@ export interface MediaSegment {
     encryptionInfo?: EncryptionInfo;
     range?: string | null;
     indexRange?: string | null;
-    parsedData?: any; // For local segment analysis
-    inbandEvents?: Event[]; // Events found within this segment
+    parsedData?: any;
+    inbandEvents?: Event[];
     mediaInfo?: MediaInfoSummary | null;
 }
 
@@ -536,6 +487,62 @@ export interface HlsSegment extends MediaSegment {
     uriLineNumber?: number;
     byteRange?: { length: number; offset: number | null } | null;
     cue?: { type: 'in' | 'out'; duration?: number };
+}
+
+export interface ManifestSummary {
+    general: {
+        protocol: 'DASH' | 'HLS';
+        streamType: 'Live / Dynamic' | 'VOD / Static';
+        streamTypeColor: 'text-red-400' | 'text-blue-500';
+        duration: number | null;
+        segmentFormat: string;
+        title: string | null;
+        locations: string[];
+        segmenting: string;
+    };
+    dash: {
+        profiles: string;
+        minBufferTime: number | null;
+        timeShiftBufferDepth: number | null;
+        minimumUpdatePeriod: number | null;
+        availabilityStartTime: Date | null;
+        publishTime: Date | null;
+        maxSegmentDuration?: number | null;
+    } | null;
+    hls: {
+        version: number;
+        targetDuration: number | null;
+        iFramePlaylists: number;
+        mediaPlaylistDetails: {
+            segmentCount: number;
+            averageSegmentDuration: number | null;
+            hasDiscontinuity: boolean;
+            isIFrameOnly: boolean;
+        } | null;
+        dvrWindow: number | null;
+        hlsParsed?: any;
+    } | null;
+    lowLatency: {
+        isLowLatency: boolean;
+        partTargetDuration: number | null;
+        partHoldBack: number | null;
+        canBlockReload: boolean;
+        targetLatency: number | null;
+        minLatency: number | null;
+        maxLatency: number | null;
+    } | null;
+    content: {
+        totalPeriods: number;
+        totalVideoTracks: number;
+        totalAudioTracks: number;
+        totalTextTracks: number;
+        mediaPlaylists: number;
+        periods: PeriodSummary[];
+    };
+    videoTracks: VideoTrackSummary[];
+    audioTracks: AudioTrackSummary[];
+    textTracks: TextTrackSummary[];
+    security: SecuritySummary | null;
 }
 
 export interface Manifest {
@@ -611,7 +618,6 @@ export interface AdAvail {
         | 'UNKNOWN';
 }
 
-// --- Network Analysis Types ---
 export type ResourceType =
     | 'manifest'
     | 'video'
@@ -627,8 +633,8 @@ export interface TimingBreakdown {
     dns: number;
     tcp: number;
     tls: number;
-    ttfb: number; // Time to First Byte
-    download: number; // Content Download
+    ttfb: number;
+    download: number;
 }
 
 export interface NetworkEvent {
@@ -636,7 +642,7 @@ export interface NetworkEvent {
     url: string;
     resourceType: ResourceType;
     streamId: number | null;
-    segmentDuration?: number; // Duration of the media segment in seconds
+    segmentDuration?: number;
     request: {
         method: string;
         headers: Record<string, string>;
@@ -649,14 +655,13 @@ export interface NetworkEvent {
         contentType: string | null;
     };
     timing: {
-        startTime: number; // performance.now() relative to analysis start
+        startTime: number;
         endTime: number;
         duration: number;
         breakdown: TimingBreakdown | null;
     };
 }
 
-// --- Player Simulation Types ---
 export interface PlayerStats {
     playheadTime: number;
     manifestTime: number;
@@ -700,7 +705,7 @@ export interface PlayerEvent {
 }
 
 export interface AbrHistoryEntry {
-    time: number; // Playhead time
+    time: number;
     bitrate: number;
     width: number;
     height: number;
@@ -715,7 +720,6 @@ export interface AdaptationEvent {
     newBandwidth: number | undefined;
 }
 
-// --- Multi-Player View Types ---
 export interface PlayerInstance {
     streamId: number;
     streamName: string;
@@ -733,11 +737,11 @@ export interface PlayerInstance {
 }
 
 export interface ConditionalPollingState {
-    streamId: number | null; // The stream being actively polled
-    featureName: string | null; // The feature being searched for
+    streamId: number | null;
+    featureName: string | null;
     status: 'idle' | 'active' | 'found' | 'error';
-    targetStreamId: number | null; // The stream selected in the UI form
-    targetFeatureName: string | null; // The feature selected in the UI form
+    targetStreamId: number | null;
+    targetFeatureName: string | null;
 }
 
 export interface TimedEntity {
@@ -818,10 +822,21 @@ export interface UiState {
     timelineHoveredItem: TimedEntity | null;
     timelineSelectedItem: TimedEntity | null;
     timelineActiveTab: 'overview' | 'cascade';
+    segmentPollingSelectorState: {
+        expandedStreamIds: Set<number>;
+        tabState: Map<number, string>;
+    };
+    debugCopySelections: {
+        analysisState: boolean;
+        uiState: boolean;
+        rawManifests: boolean;
+        parsedSegments: boolean;
+    };
+    segmentMatrixClickMode: 'inspect' | 'compare';
+    segmentComparisonSelection: { idA: string | null; idB: string | null };
 }
 
 export interface UiActions {
-    // ... (existing actions)
     startConditionalPolling: (streamId: number, featureName: string) => void;
     clearConditionalPolling: () => void;
     setConditionalPollingStatus: (
@@ -844,6 +859,10 @@ export interface UiActions {
     setTimelineHoveredItem: (item: TimedEntity | null) => void;
     setTimelineSelectedItem: (item: TimedEntity | null) => void;
     setTimelineActiveTab: (tab: 'overview' | 'cascade') => void;
+    setSegmentComparisonSelection: (selection: {
+        idA?: string | null;
+        idB?: string | null;
+    }) => void;
 }
 
 export interface PlaybackHistoryEntry {
@@ -899,7 +918,9 @@ export interface PlayerActions {
     logAbrSwitch: (entry: AbrHistoryEntry) => void;
     setActiveTab: (tab: 'controls' | 'stats' | 'log' | 'graphs') => void;
     reset: () => void;
+    setInitialTracksFromManifest: (manifest: Manifest) => void;
 }
+
 export interface TtmlCue {
     id: string | null;
     startTime: number;
@@ -911,6 +932,7 @@ export interface TtmlPayload {
     cues: TtmlCue[];
     errors: string[];
 }
+
 export interface Box {
     type: string;
     size: number;
@@ -919,12 +941,7 @@ export interface Box {
     headerSize: number;
     details: Record<
         string,
-        {
-            value: any;
-            offset: number;
-            length: number;
-            internal?: boolean;
-        }
+        { value: any; offset: number; length: number; internal?: boolean }
     >;
     children: Box[];
     samples?: Sample[];
@@ -943,6 +960,7 @@ export interface Box {
     messagePayload?: any;
     dataView?: DataView;
 }
+
 export interface ComplianceResult {
     id: string;
     text: string;
@@ -953,7 +971,6 @@ export interface ComplianceResult {
     location: { startLine?: number; endLine?: number; path?: string };
 }
 
-// --- NEW/MODIFIED DIFF TYPES ---
 export interface DiffWordPart {
     type: 'added' | 'removed' | 'common';
     value: string;
@@ -962,10 +979,9 @@ export interface DiffWordPart {
 export interface DiffLine {
     type: 'added' | 'removed' | 'common' | 'modified';
     indentation: string;
-    content: string; // The full line content (for common, added, removed)
-    parts?: DiffWordPart[]; // The word-level diff parts (for modified)
+    content: string;
+    parts?: DiffWordPart[];
 }
-// --- END NEW/MODIFIED DIFF TYPES ---
 
 export interface ManifestUpdate {
     id: string;
@@ -973,17 +989,14 @@ export interface ManifestUpdate {
     endSequenceNumber?: number;
     timestamp: string;
     endTimestamp?: string;
-    diffModel: DiffLine[]; // Changed from diffHtml
+    diffModel: DiffLine[];
     rawManifest: string;
     complianceResults: ComplianceResult[];
     hasNewIssues: boolean;
     serializedManifest: object;
-    changes: {
-        additions: number;
-        removals: number;
-        modifications: number;
-    };
+    changes: { additions: number; removals: number; modifications: number };
 }
+
 export type MediaPlaylist = {
     manifest: Manifest;
     rawManifest: string;
@@ -991,14 +1004,17 @@ export type MediaPlaylist = {
     updates: ManifestUpdate[];
     activeUpdateId: string | null;
 };
+
 export interface FeatureAnalysisResult {
     used: boolean;
     details: string;
 }
+
 export interface FeatureAnalysisState {
     results: Map<string, FeatureAnalysisResult>;
     manifestCount: number;
 }
+
 export interface HlsVariantState {
     uri: string;
     historicalUris: string[];
@@ -1011,16 +1027,19 @@ export interface HlsVariantState {
     displayMode: 'all' | 'last10';
     error: string | null;
 }
+
 export interface DashRepresentationState {
     segments: MediaSegment[];
     currentSegmentUrls: Set<string>;
     newlyAddedSegmentUrls: Set<string>;
     diagnostics: object;
 }
+
 export interface DecodedNalUnit {
     type: string;
     size: number;
 }
+
 export interface DecodedH264Sample {
     format: 'H.264';
     frameType: 'key' | 'delta';
@@ -1028,6 +1047,7 @@ export interface DecodedH264Sample {
     timestamp: number;
     nalUnits: DecodedNalUnit[];
 }
+
 export interface DecodedAacFrame {
     format: 'AAC';
     objectType: string;
@@ -1035,7 +1055,9 @@ export interface DecodedAacFrame {
     channelCount: number;
     frameLength: number;
 }
+
 export type DecodedSample = DecodedH264Sample | DecodedAacFrame;
+
 export interface Sample {
     duration?: number;
     size?: number;
@@ -1056,15 +1078,18 @@ export interface Sample {
     emsg_ref?: Box;
     ttmlPayload?: TtmlPayload | { error: string };
 }
+
 export interface KeyValuePair {
     id: number;
     key: string;
     value: string;
 }
+
 export interface AuthInfo {
     headers: KeyValuePair[];
     queryParams: KeyValuePair[];
 }
+
 export interface DrmAuthInfo {
     licenseServerUrl: string | { [key: string]: string };
     serverCertificate:
@@ -1076,6 +1101,7 @@ export interface DrmAuthInfo {
     headers: KeyValuePair[];
     queryParams: KeyValuePair[];
 }
+
 export interface StreamInput {
     id: number;
     url: string;
@@ -1086,6 +1112,7 @@ export interface StreamInput {
     detectedDrm: string[] | null;
     isDrmInfoLoading: boolean;
 }
+
 export interface Stream {
     id: number;
     name: string;
@@ -1099,6 +1126,10 @@ export interface Stream {
     initialTimeOffset?: number;
     manifest: Manifest | null;
     rawManifest: string;
+    patchedRawManifest?: string;
+    patchedManifestUrl?: string | null;
+    originalSerializedManifest?: object;
+    patchRules?: any[];
     steeringInfo: object | null;
     manifestUpdates: ManifestUpdate[];
     activeManifestUpdateId: string | null;
@@ -1113,32 +1144,10 @@ export interface Stream {
     coverageReport?: CoverageFinding[];
     adAvails?: AdAvail[];
     inbandEvents?: Event[];
-    segments?: MediaSegment[]; // For 'local' protocol
+    segments?: MediaSegment[];
     auth: AuthInfo;
     drmAuth: DrmAuthInfo;
     licenseServerUrl: string;
     adaptationEvents: AdaptationEvent[];
     segmentPollingReps: Set<string>;
 }
-export type SerializedStream = Omit<
-    Stream,
-    | 'mediaPlaylists'
-    | 'featureAnalysis'
-    | 'hlsVariantState'
-    | 'dashRepresentationState'
-    | 'hlsDefinedVariables'
-    | 'semanticData'
-    | 'segmentPollingReps'
-> & {
-    mediaPlaylists: [string, MediaPlaylist][];
-    featureAnalysis: {
-        results: [string, FeatureAnalysisResult][];
-        manifestCount: number;
-    };
-    hlsVariantState: [string, HlsVariantState][];
-    dashRepresentationState: [string, DashRepresentationState][];
-    hlsDefinedVariables: [string, { value: string; source: string }][];
-    semanticData: [string, any][];
-    coverageReport: CoverageFinding[];
-    segmentPollingReps: string[];
-};

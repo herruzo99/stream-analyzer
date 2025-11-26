@@ -52,7 +52,8 @@ export class Application {
     }
 
     /**
-     * Populates input fields from URL parameters or local storage.
+     * Populates input fields from URL parameters.
+     * Note: We no longer auto-populate from local storage on boot to allow the Landing Page to show.
      * This logic is skipped if a session is being restored.
      */
     _populateInputs() {
@@ -77,18 +78,9 @@ export class Application {
             this.eventBus.dispatch(EVENTS.UI.STREAM_ANALYSIS_REQUESTED, {
                 inputs,
             });
-        } else {
-            this._populateLastUsedStreams();
         }
-    }
-
-    _populateLastUsedStreams() {
-        const { storage } = this.services;
-        const lastUsed = storage.getLastUsedStreams();
-        if (lastUsed && lastUsed.length > 0) {
-            // Set inputs from storage. The `setStreamInputs` action now handles setting the active input.
-            this.analysisActions.setStreamInputs(lastUsed);
-        }
+        // ARCHITECTURAL CHANGE: Removed automatic loading of last used streams here.
+        // This allows the user to see the Landing Page and explicitly choose to "Resume".
     }
 
     /**

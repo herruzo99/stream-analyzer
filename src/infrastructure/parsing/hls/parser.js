@@ -1,16 +1,7 @@
 import { adaptHlsToIr } from './adapter.js';
+import { appLog } from '@/shared/utils/debug';
 
-/**
- * @typedef {import('@/types.ts').HlsSegment} HlsSegment
- * @typedef {import('@/types.ts').EncryptionInfo} EncryptionInfo
- */
-
-/**
- * Parses an HLS attribute list string into a key-value object.
- * Uses a state machine to handle quoted strings, escaped quotes, and varied spacing.
- * @param {string} attrString The raw attribute string (e.g. 'BANDWIDTH=123,CODECS="abc"')
- * @returns {Record<string, string | number>} Parsed attributes.
- */
+// ... (parseAttributeList, resolveKeyUri, applyVariableSubstitution, finalizeCurrentSegment remain unchanged) ...
 export function parseAttributeList(attrString) {
     const attributes = {};
     let key = '';
@@ -114,14 +105,6 @@ export function parseAttributeList(attrString) {
     return /** @type {Record<string, string | number>} */ (attributes);
 }
 
-/**
- * Resolves a key URI from an HLS manifest.
- * If the URI has a scheme (e.g., http:, https:, skd:), it's treated as absolute.
- * Otherwise, it's treated as a relative path and resolved against the base URL.
- * @param {string} uri The URI string from the manifest.
- * @param {string} baseUrl The base URL of the manifest.
- * @returns {string} The resolved or original URI.
- */
 function resolveKeyUri(uri, baseUrl) {
     if (/^[a-z]+:/i.test(uri)) {
         return uri;
@@ -187,15 +170,6 @@ function applyVariableSubstitution(
     return { substitutedLines, definedVariables: variables };
 }
 
-/**
- * Finalizes a segment object by calculating byterange, setting URI, and generating unique ID.
- * @param {HlsSegment} segment - The segment object being finalized.
- * @param {object | null} byteRange - The byte range object for this segment.
- * @param {string | null} uri - The explicit or implicit URI for this segment.
- * @param {{uri: string | null, end: number}} lastRangeState - State of the last byterange segment.
- * @param {string} baseUrl - The base URL for resolving relative URIs.
- * @returns {{finalizedSegment: HlsSegment, nextRangeState: {uri: string | null, end: number}}} The updated byterange state.
- */
 function finalizeCurrentSegment(
     segment,
     byteRange,
@@ -285,9 +259,9 @@ export async function parseManifest(
         segments: [],
     };
 
-    /** @type {HlsSegment | null} */
+    /** @type {import('@/types.js').HlsSegment | null} */
     let currentSegment = null;
-    /** @type {EncryptionInfo | null} */
+    /** @type {import('@/types.js').EncryptionInfo | null} */
     let currentEncryptionInfo = null;
     let currentBitrate = null;
     let discontinuity = false;
@@ -515,7 +489,7 @@ export async function parseManifest(
                             keyUri = keyUri.substring(0, lastColonIndex);
                         }
                         currentEncryptionInfo = {
-                            method: /** @type {'AES-128'} */ (
+                            method: /** @type {'AES-128' | 'SAMPLE-AES' | 'CENC' | 'NONE'} */ (
                                 keyAttributes.METHOD
                             ),
                             uri: resolveKeyUri(keyUri, baseUrl),
@@ -548,7 +522,7 @@ export async function parseManifest(
                             const uniqueId = `${resolvedUrl}@init@${offset}-${
                                 offset + length - 1
                             }`;
-                            /** @type {HlsSegment} */
+                            /** @type {import('@/types.js').HlsSegment} */
                             const initSegment = {
                                 repId: 'hls-media-init',
                                 type: 'Init',
@@ -588,13 +562,13 @@ export async function parseManifest(
                     parsed.targetDuration = parseInt(String(tagValue), 10);
                     break;
                 case 'EXT-X-MEDIA-SEQUENCE':
-                    parsed.mediaSequence = parseInt(String(tagValue), 10);
+                    const parsedSeq = parseInt(String(tagValue), 10);
+                    parsed.mediaSequence = isNaN(parsedSeq) ? 0 : parsedSeq;
                     break;
                 case 'EXT-X-PLAYLIST-TYPE':
                     parsed.playlistType = String(tagValue);
                     break;
                 case 'EXT-X-ENDLIST':
-                    // This tag's presence is used in the initial liveness check.
                     break;
                 case 'EXT-X-VERSION':
                     parsed.version = parseInt(String(tagValue), 10);
@@ -673,11 +647,27 @@ export async function parseManifest(
         parsed.segmentGroups[parsed.segmentGroups.length - 1].push(
             finalizedSegment
         );
-        lastRangeState = nextRangeState;
-        cumulativeDuration += currentSegment.duration;
     }
 
     parsed.segments = parsed.segmentGroups.flat();
+
+    // --- Logging for debugging ---
+    appLog(
+        'HlsParser',
+        'info',
+        `Parsed ${parsed.segments.length} segments from playlist.`
+    );
+
+    const startSeq =
+        typeof parsed.mediaSequence === 'number' && !isNaN(parsed.mediaSequence)
+            ? parsed.mediaSequence
+            : 0;
+
+    parsed.segments.forEach((seg, index) => {
+        if (seg.type === 'Media') {
+            seg.number = startSeq + index;
+        }
+    });
 
     const manifest = await adaptHlsToIr(parsed, context);
     return { manifest, definedVariables, baseUrl };

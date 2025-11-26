@@ -232,8 +232,8 @@ function buildCanonicalSampleList(parsedData, segmentBuffer) {
                 ?.value
                 ? parseInt(tfhd.details.default_sample_flags.value, 16)
                 : trex?.details.default_sample_flags?.value
-                    ? parseInt(trex.details.default_sample_flags.value, 16)
-                    : null;
+                  ? parseInt(trex.details.default_sample_flags.value, 16)
+                  : null;
             const defaultSampleFlags =
                 defaultSampleFlagsInt !== null
                     ? decodeSampleFlags(defaultSampleFlagsInt)
@@ -442,8 +442,9 @@ export function parseISOBMFF(buffer, baseOffset = 0, context = {}) {
             if (remaining > 0) {
                 result.issues.push({
                     type: 'warn',
-                    message: `Trailing ${remaining} bytes at offset ${baseOffset + offset
-                        } could not be parsed as a box.`,
+                    message: `Trailing ${remaining} bytes at offset ${
+                        baseOffset + offset
+                    } could not be parsed as a box.`,
                 });
             }
             break;
@@ -462,9 +463,11 @@ export function parseISOBMFF(buffer, baseOffset = 0, context = {}) {
             if (offset + 16 > dataView.byteLength) {
                 result.issues.push({
                     type: 'error',
-                    message: `Incomplete largesize box header for type '${type}' at offset ${baseOffset + offset
-                        }. Requires 16 bytes, found ${dataView.byteLength - offset
-                        }.`,
+                    message: `Incomplete largesize box header for type '${type}' at offset ${
+                        baseOffset + offset
+                    }. Requires 16 bytes, found ${
+                        dataView.byteLength - offset
+                    }.`,
                 });
                 break;
             }
@@ -477,8 +480,9 @@ export function parseISOBMFF(buffer, baseOffset = 0, context = {}) {
         if (size < headerSize) {
             result.issues.push({
                 type: 'error',
-                message: `Invalid size ${size} for box '${type}' at offset ${baseOffset + offset
-                    }. Box size is smaller than its header size.`,
+                message: `Invalid size ${size} for box '${type}' at offset ${
+                    baseOffset + offset
+                }. Box size is smaller than its header size.`,
             });
             break;
         }
@@ -560,9 +564,9 @@ export function parseISOBMFF(buffer, baseOffset = 0, context = {}) {
             ) {
                 const sampleEntryHeaderSize =
                     type === 'avc1' ||
-                        type === 'hvc1' ||
-                        type === 'hev1' ||
-                        type === 'encv'
+                    type === 'hvc1' ||
+                    type === 'hev1' ||
+                    type === 'encv'
                         ? 78
                         : 28;
                 childrenStart += sampleEntryHeaderSize;

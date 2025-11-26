@@ -1,3 +1,4 @@
+import { useMultiPlayerStore } from '@/state/multiPlayerStore';
 import { appLog } from '@/shared/utils/debug';
 import { schemeIdUriToKeySystem } from '@/infrastructure/parsing/utils/drm';
 
@@ -65,6 +66,7 @@ async function buildDrmConfig(streamDef) {
                     serverCertificate: certBuffer
                         ? new Uint8Array(certBuffer)
                         : undefined,
+                    headers: licenseRequestHeaders,
                 };
             }
         }
@@ -109,7 +111,6 @@ function setLatencyConfiguration(player, config) {
     } = config;
 
     const bufferBehind = targetLatency + 10;
-    const maxLatency = targetLatency + 5;
 
     const newConfig = {
         streaming: {
@@ -123,7 +124,7 @@ function setLatencyConfiguration(player, config) {
                 maxPlaybackRate,
                 panicMode,
                 panicThreshold,
-                maxLatency,
+                // Removed maxLatency
             },
         },
     };
@@ -169,6 +170,68 @@ function selectTextTrack(player, track) {
     }
 }
 
+function applyStreamConfig(player, playerState) {
+    const {
+        globalAbrEnabled,
+        globalMaxHeight,
+        globalBufferingGoal,
+        globalBandwidthCap,
+    } = useMultiPlayerStore.getState();
+    if (!playerState || !player) return;
+
+    const abrEnabled =
+        playerState.abrOverride !== null
+            ? playerState.abrOverride
+            : globalAbrEnabled;
+    const maxHeight =
+        playerState.maxHeightOverride !== null
+            ? playerState.maxHeightOverride
+            : globalMaxHeight;
+    const bufferingGoal =
+        playerState.bufferingGoalOverride !== null
+            ? playerState.bufferingGoalOverride
+            : globalBufferingGoal;
+
+    player.configure({
+        abr: { enabled: abrEnabled },
+        restrictions: {
+            maxHeight: maxHeight,
+            maxBandwidth: globalBandwidthCap,
+        },
+        streaming: { bufferingGoal },
+    });
+}
+
+function setGlobalTrackByHeight(player, height) {
+    const tracks = player
+        .getVariantTracks()
+        .filter((t) => t.type === 'variant' && t.videoCodec);
+    if (tracks.length === 0) return false;
+
+    const bestTrack = tracks.reduce((best, current) => {
+        if (!best) return current;
+        const currentDiff = Math.abs((current.height || 0) - height);
+        const bestDiff = Math.abs((best.height || 0) - height);
+
+        if (currentDiff < bestDiff) {
+            return current;
+        }
+        if (currentDiff === bestDiff) {
+            return (current.bandwidth || 0) > (best.bandwidth || 0)
+                ? current
+                : best;
+        }
+        return best;
+    });
+
+    if (bestTrack) {
+        player.configure({ abr: { enabled: false } });
+        player.selectVariantTrack(bestTrack, true);
+        return true;
+    }
+    return false;
+}
+
 export const playerConfigService = {
     buildDrmConfig,
     setAbrEnabled,
@@ -179,4 +242,6 @@ export const playerConfigService = {
     selectVariantTrack,
     selectAudioLanguage,
     selectTextTrack,
+    applyStreamConfig,
+    setGlobalTrackByHeight,
 };

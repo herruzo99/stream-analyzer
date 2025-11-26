@@ -29,6 +29,14 @@ const esbuildOptions = {
     external: [], // We want shaka-player to be bundled, not external
 };
 
+async function safeCopyFile(src, dest) {
+    try {
+        await fs.copyFile(src, dest);
+    } catch (e) {
+        console.warn(`Warning: Could not copy ${src} to ${dest}.`, e.message);
+    }
+}
+
 async function postBuild(meta, cspNonce) {
     console.log('Running post-build...');
     try {
@@ -57,16 +65,18 @@ async function postBuild(meta, cspNonce) {
             .replace(/__CSP_NONCE__/g, cspNonce);
 
         await fs.writeFile(path.join('dist', 'index.html'), finalHtml);
-        await fs.copyFile('favicon.ico', 'dist/favicon.ico');
+        
+        // Copy Static Assets (Icon only)
+        await safeCopyFile('icon.png', 'dist/icon.png');
 
         // ARCHITECTURAL FIX: Copy MSW for production
-        await fs.copyFile(
+        await safeCopyFile(
             'public/mockServiceWorker.js',
             'dist/mockServiceWorker.js'
         );
 
         // Copy Shaka Player CSS to dist
-        await fs.copyFile(
+        await safeCopyFile(
             'node_modules/shaka-player/dist/controls.css',
             'dist/assets/controls.css'
         );
@@ -88,16 +98,18 @@ async function prepareDevHtml(cspNonce) {
             .replace('__WORKER_PATH__', '/assets/worker.js')
             .replace(/__CSP_NONCE__/g, cspNonce);
         await fs.writeFile('dist/index.html', devHtml, 'utf-8');
-        await fs.copyFile('favicon.ico', 'dist/favicon.ico');
+        
+        // Copy Static Assets (Icon only)
+        await safeCopyFile('icon.png', 'dist/icon.png');
 
         // ARCHITECTURAL FIX: Copy MSW for development
-        await fs.copyFile(
+        await safeCopyFile(
             'public/mockServiceWorker.js',
             'dist/mockServiceWorker.js'
         );
 
         // Copy Shaka Player CSS for development
-        await fs.copyFile(
+        await safeCopyFile(
             'node_modules/shaka-player/dist/controls.css',
             'dist/assets/controls.css'
         );

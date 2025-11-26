@@ -49,23 +49,31 @@ export function runChecks(manifest, protocol, context = {}) {
         };
 
         const runRule = (rule, element, scopeText = '') => {
-            const result = rule.check(element, hlsContext);
-            if (result !== 'skip') {
-                const status = result ? 'pass' : rule.severity;
-                const location = {
-                    startLine:
-                        element.extinfLineNumber || element.lineNumber || 1,
-                    endLine: element.uriLineNumber || element.lineNumber || 1,
-                };
-                results.push({
-                    id: rule.id,
-                    text: `${rule.text} ${scopeText}`,
-                    status,
-                    details: result ? rule.passDetails : rule.failDetails,
-                    isoRef: rule.isoRef,
-                    category: rule.category,
-                    location,
-                });
+            try {
+                const result = rule.check(element, hlsContext);
+                if (result !== 'skip') {
+                    const status = result ? 'pass' : rule.severity;
+                    const location = {
+                        startLine:
+                            element.extinfLineNumber || element.lineNumber || 1,
+                        endLine:
+                            element.uriLineNumber || element.lineNumber || 1,
+                    };
+                    results.push({
+                        id: rule.id,
+                        text: `${rule.text} ${scopeText}`.trim(),
+                        status,
+                        details: result ? rule.passDetails : rule.failDetails,
+                        isoRef: rule.isoRef,
+                        category: rule.category || 'General', // Ensure category exists
+                        location,
+                    });
+                }
+            } catch (e) {
+                console.warn(
+                    `Rule ${rule.id} threw error: ${e.message}`,
+                    element
+                );
             }
         };
 
@@ -132,9 +140,9 @@ export function runChecks(manifest, protocol, context = {}) {
                                 rule
                             ),
                             variant,
-                            `(Variant Stream ${
-                                index + 1
-                            }, BW: ${variant.attributes?.BANDWIDTH || 'N/A'})`
+                            `(Variant Stream ${index + 1}, BW: ${
+                                variant.attributes?.BANDWIDTH || 'N/A'
+                            })`
                         );
                     });
             });
@@ -203,16 +211,19 @@ export function runChecks(manifest, protocol, context = {}) {
 
     if (!mpd || typeof mpd[':@'] !== 'object') {
         const rootCheck = dashRules.find((r) => r.id === 'MPD-1');
-        return [
-            {
-                text: rootCheck.text,
-                status: rootCheck.severity,
-                details: rootCheck.failDetails,
-                isoRef: rootCheck.isoRef,
-                category: rootCheck.category,
-                location: { path: rootPath },
-            },
-        ];
+        if (rootCheck) {
+            return [
+                {
+                    text: rootCheck.text,
+                    status: rootCheck.severity,
+                    details: rootCheck.failDetails,
+                    isoRef: rootCheck.isoRef,
+                    category: rootCheck.category || 'Manifest Structure',
+                    location: { path: rootPath },
+                },
+            ];
+        }
+        return [];
     }
 
     const manifestProfilesString = (getAttr(mpd, 'profiles') || '')
@@ -253,22 +264,29 @@ export function runChecks(manifest, protocol, context = {}) {
         })
         .filter((rule) => rule.scope === 'MPD')
         .forEach((rule) => {
-            const result = rule.check(mpd, dashContext);
-            if (result !== 'skip') {
-                const status = result ? 'pass' : rule.severity;
-                results.push({
-                    id: rule.id,
-                    text: rule.text,
-                    status: status,
-                    details: getDetails(
-                        result ? rule.passDetails : rule.failDetails,
-                        mpd,
-                        dashContext
-                    ),
-                    isoRef: rule.isoRef,
-                    category: rule.category,
-                    location: { path: rootPath },
-                });
+            try {
+                const result = rule.check(mpd, dashContext);
+                if (result !== 'skip') {
+                    const status = result ? 'pass' : rule.severity;
+                    results.push({
+                        id: rule.id,
+                        text: rule.text,
+                        status: status,
+                        details: getDetails(
+                            result ? rule.passDetails : rule.failDetails,
+                            mpd,
+                            dashContext
+                        ),
+                        isoRef: rule.isoRef,
+                        category: rule.category || 'Manifest Structure',
+                        location: { path: rootPath },
+                    });
+                }
+            } catch (e) {
+                console.warn(
+                    `DASH Rule ${rule.id} threw error: ${e.message}`,
+                    mpd
+                );
             }
         });
 
@@ -295,24 +313,31 @@ export function runChecks(manifest, protocol, context = {}) {
             })
             .filter((rule) => rule.scope === 'Period')
             .forEach((rule) => {
-                const result = rule.check(period, periodContext);
-                if (result !== 'skip') {
-                    const status = result ? 'pass' : rule.severity;
-                    results.push({
-                        id: rule.id,
-                        text: `${rule.text} (Period: ${
-                            getAttr(period, 'id') || 'N/A'
-                        })`,
-                        status: status,
-                        details: getDetails(
-                            result ? rule.passDetails : rule.failDetails,
-                            period,
-                            periodContext
-                        ),
-                        isoRef: rule.isoRef,
-                        category: rule.category,
-                        location: { path: periodPath },
-                    });
+                try {
+                    const result = rule.check(period, periodContext);
+                    if (result !== 'skip') {
+                        const status = result ? 'pass' : rule.severity;
+                        results.push({
+                            id: rule.id,
+                            text: `${rule.text} (Period: ${
+                                getAttr(period, 'id') || 'N/A'
+                            })`,
+                            status: status,
+                            details: getDetails(
+                                result ? rule.passDetails : rule.failDetails,
+                                period,
+                                periodContext
+                            ),
+                            isoRef: rule.isoRef,
+                            category: rule.category || 'Manifest Structure',
+                            location: { path: periodPath },
+                        });
+                    }
+                } catch (e) {
+                    console.warn(
+                        `DASH Rule ${rule.id} threw error: ${e.message}`,
+                        period
+                    );
                 }
             });
 
@@ -333,24 +358,33 @@ export function runChecks(manifest, protocol, context = {}) {
                 })
                 .filter((rule) => rule.scope === 'AdaptationSet')
                 .forEach((rule) => {
-                    const result = rule.check(as, asContext);
-                    if (result !== 'skip') {
-                        const status = result ? 'pass' : rule.severity;
-                        results.push({
-                            id: rule.id,
-                            text: `${rule.text} (AdaptationSet: ${
-                                getAttr(as, 'id') || 'N/A'
-                            })`,
-                            status: status,
-                            details: getDetails(
-                                result ? rule.passDetails : rule.failDetails,
-                                as,
-                                asContext
-                            ),
-                            isoRef: rule.isoRef,
-                            category: rule.category,
-                            location: { path: asPath },
-                        });
+                    try {
+                        const result = rule.check(as, asContext);
+                        if (result !== 'skip') {
+                            const status = result ? 'pass' : rule.severity;
+                            results.push({
+                                id: rule.id,
+                                text: `${rule.text} (AdaptationSet: ${
+                                    getAttr(as, 'id') || 'N/A'
+                                })`,
+                                status: status,
+                                details: getDetails(
+                                    result
+                                        ? rule.passDetails
+                                        : rule.failDetails,
+                                    as,
+                                    asContext
+                                ),
+                                isoRef: rule.isoRef,
+                                category: rule.category || 'Manifest Structure',
+                                location: { path: asPath },
+                            });
+                        }
+                    } catch (e) {
+                        console.warn(
+                            `DASH Rule ${rule.id} threw error: ${e.message}`,
+                            as
+                        );
                     }
                 });
 
@@ -371,26 +405,34 @@ export function runChecks(manifest, protocol, context = {}) {
                     })
                     .filter((rule) => rule.scope === 'Representation')
                     .forEach((rule) => {
-                        const result = rule.check(rep, repContext);
-                        if (result !== 'skip') {
-                            const status = result ? 'pass' : rule.severity;
-                            results.push({
-                                id: rule.id,
-                                text: `${rule.text} (Representation: ${
-                                    getAttr(rep, 'id') || 'N/A'
-                                })`,
-                                status: status,
-                                details: getDetails(
-                                    result
-                                        ? rule.passDetails
-                                        : rule.failDetails,
-                                    rep,
-                                    repContext
-                                ),
-                                isoRef: rule.isoRef,
-                                category: rule.category,
-                                location: { path: repPath },
-                            });
+                        try {
+                            const result = rule.check(rep, repContext);
+                            if (result !== 'skip') {
+                                const status = result ? 'pass' : rule.severity;
+                                results.push({
+                                    id: rule.id,
+                                    text: `${rule.text} (Representation: ${
+                                        getAttr(rep, 'id') || 'N/A'
+                                    })`,
+                                    status: status,
+                                    details: getDetails(
+                                        result
+                                            ? rule.passDetails
+                                            : rule.failDetails,
+                                        rep,
+                                        repContext
+                                    ),
+                                    isoRef: rule.isoRef,
+                                    category:
+                                        rule.category || 'Manifest Structure',
+                                    location: { path: repPath },
+                                });
+                            }
+                        } catch (e) {
+                            console.warn(
+                                `DASH Rule ${rule.id} threw error: ${e.message}`,
+                                rep
+                            );
                         }
                     });
             });

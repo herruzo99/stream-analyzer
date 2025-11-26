@@ -5,18 +5,19 @@ import { showLoader, hideLoader } from '@/ui/components/loader';
 import { getParsedSegment } from '@/infrastructure/segments/segmentService';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { useSegmentCacheStore } from '@/state/segmentCacheStore';
+import { EVENTS } from '@/types/events';
 
 /**
  * Initializes listeners for global UI events that orchestrate application-level responses.
  */
 export function initializeUiOrchestration() {
+    // --- Segment Analysis Modal ---
     eventBus.subscribe(
-        'ui:show-segment-analysis-modal',
+        EVENTS.UI.SHOW_SEGMENT_ANALYSIS_MODAL,
         ({ uniqueId, format, isIFrame }) => {
             const { activeStreamId } = useAnalysisStore.getState();
             const cachedEntry = useSegmentCacheStore.getState().get(uniqueId);
 
-            // If we have parsed data already, just open the modal.
             if (cachedEntry?.parsedData) {
                 openModalWithContent({
                     title: 'Segment Analysis',
@@ -32,7 +33,6 @@ export function initializeUiOrchestration() {
                 return;
             }
 
-            // Otherwise, trigger the full fetch/parse flow.
             showLoader('Analyzing segment...');
             getParsedSegment(uniqueId, activeStreamId, format, {
                 isIFrame,
@@ -58,49 +58,81 @@ export function initializeUiOrchestration() {
         }
     );
 
-    eventBus.subscribe('ui:request-segment-comparison', ({ urlA, urlB }) => {
-        const { activeStreamId } = useAnalysisStore.getState();
-        showLoader('Analyzing segments for comparison...');
-        Promise.all([
-            getParsedSegment(urlA, activeStreamId),
-            getParsedSegment(urlB, activeStreamId),
-        ])
-            .then(([parsedDataA, parsedDataB]) => {
-                hideLoader();
-                openModalWithContent({
-                    title: 'Segment Comparison',
-                    url: 'Comparing two segments',
-                    content: {
-                        type: 'segmentAnalysis',
-                        data: {
-                            parsedData: parsedDataA,
-                            parsedDataB: parsedDataB,
+    // --- Segment Comparison ---
+    eventBus.subscribe(
+        EVENTS.UI.REQUEST_SEGMENT_COMPARISON,
+        ({ urlA, urlB }) => {
+            const { activeStreamId } = useAnalysisStore.getState();
+            showLoader('Analyzing segments for comparison...');
+            Promise.all([
+                getParsedSegment(urlA, activeStreamId),
+                getParsedSegment(urlB, activeStreamId),
+            ])
+                .then(([parsedDataA, parsedDataB]) => {
+                    hideLoader();
+                    openModalWithContent({
+                        title: 'Segment Comparison',
+                        url: 'Comparing two segments',
+                        content: {
+                            type: 'segmentAnalysis',
+                            data: {
+                                parsedData: parsedDataA,
+                                parsedDataB: parsedDataB,
+                            },
+                        },
+                    });
+                })
+                .catch((error) => {
+                    hideLoader();
+                    showToast({
+                        message: `Failed to compare segments: ${error.message}`,
+                        type: 'fail',
+                    });
+                });
+        }
+    );
+
+    // --- SCTE-35 Details ---
+    eventBus.subscribe(
+        EVENTS.UI.SHOW_SCTE35_DETAILS,
+        ({ scte35, startTime }) => {
+            openModalWithContent({
+                title: `SCTE-35 Details (${scte35.splice_command?.type || 'Unknown'})`,
+                url: `Event at ${startTime.toFixed(3)}s`,
+                content: {
+                    type: 'segmentAnalysis',
+                    data: {
+                        parsedData: {
+                            format: 'scte35',
+                            data: scte35,
                         },
                     },
-                });
-            })
-            .catch((error) => {
-                hideLoader();
-                showToast({
-                    message: `Failed to compare segments: ${error.message}`,
-                    type: 'fail',
-                });
-            });
-    });
-
-    eventBus.subscribe('ui:show-scte35-details', ({ scte35, startTime }) => {
-        openModalWithContent({
-            title: `SCTE-35 Details (${scte35.splice_command?.type || 'Unknown'})`,
-            url: `Event at ${startTime.toFixed(3)}s`,
-            content: {
-                type: 'segmentAnalysis',
-                data: {
-                    parsedData: {
-                        format: 'scte35',
-                        data: scte35,
-                    },
                 },
+            });
+        }
+    );
+
+    // --- Manifest Patcher ---
+    eventBus.subscribe(EVENTS.UI.SHOW_MANIFEST_PATCHER, () => {
+        const { activeStreamId, streams } = useAnalysisStore.getState();
+        const activeStream = streams.find((s) => s.id === activeStreamId);
+
+        if (!activeStream) {
+            showToast({
+                message: 'No active stream to patch.',
+                type: 'warn',
+            });
+            return;
+        }
+
+        openModalWithContent({
+            title: 'Manifest Patcher',
+            url: activeStream.originalUrl || 'Local File',
+            content: {
+                type: 'manifestPatcher',
+                data: { streamId: activeStreamId },
             },
+            isFullWidth: true,
         });
     });
 }

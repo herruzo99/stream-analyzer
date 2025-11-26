@@ -1,149 +1,131 @@
 import { html } from 'lit-html';
-import { eventBus } from '@/application/event-bus';
 
-const detailRow = (label, value) => {
-    if (value === undefined || value === null) return '';
-    return html`
-        <dt class="text-gray-400 font-medium">${label}</dt>
-        <dd class="text-white font-mono break-all">${value}</dd>
-    `;
-};
-
-const commandDetailsTemplate = (command) => {
-    if (!command) return '';
-    switch (command.type) {
-        case 'Splice Insert':
-            return html`
-                ${detailRow('Splice Event ID', command.splice_event_id)}
-                ${detailRow(
-                    'Out of Network',
-                    command.out_of_network_indicator ? 'Yes' : 'No'
-                )}
-                ${detailRow(
-                    'Program Splice',
-                    command.program_splice_flag ? 'Yes' : 'No'
-                )}
-                ${detailRow(
-                    'Immediate',
-                    command.splice_immediate_flag ? 'Yes' : 'No'
-                )}
-                ${command.splice_time?.time_specified
-                    ? detailRow(
-                          'PTS Time',
-                          `${command.splice_time.pts_time} (${
-                              command.splice_time.pts_time / 90000
-                          }s)`
-                      )
-                    : ''}
-                ${command.break_duration?.auto_return
-                    ? detailRow(
-                          'Break Duration',
-                          `${command.break_duration.duration} (${
-                              command.break_duration.duration / 90000
-                          }s)`
-                      )
-                    : ''}
-                ${detailRow('Unique Program ID', command.unique_program_id)}
-                ${detailRow('Avail Num', command.avail_num)}
-                ${detailRow('Avails Expected', command.avails_expected)}
-            `;
-        case 'Time Signal':
-            return html`
-                ${command.splice_time?.time_specified
-                    ? detailRow(
-                          'PTS Time',
-                          `${command.splice_time.pts_time} (${
-                              command.splice_time.pts_time / 90000
-                          }s)`
-                      )
-                    : detailRow('PTS Time', 'Not Specified')}
-            `;
-        default:
-            return html`<p>Unsupported command type: ${command.type}</p>`;
-    }
-};
-
-const descriptorDetailsTemplate = (descriptor) => {
-    if (!descriptor) return '';
-    return html`
-        ${detailRow('Event ID', descriptor.segmentation_event_id)}
-        ${detailRow('UPID Type', descriptor.segmentation_upid_type)}
-        ${detailRow('UPID', descriptor.segmentation_upid)}
-        ${detailRow('Type', descriptor.segmentation_type_id)}
-        ${detailRow('Segment Num', descriptor.segment_num)}
-        ${detailRow('Segments Expected', descriptor.segments_expected)}
-        ${descriptor.segmentation_duration
-            ? detailRow(
-                  'Duration',
-                  `${descriptor.segmentation_duration} (${
-                      descriptor.segmentation_duration / 90000
-                  }s)`
-              )
-            : ''}
-    `;
-};
+const labelVal = (label, value) => html`
+    <div
+        class="flex justify-between py-1 border-b border-slate-700/50 last:border-0"
+    >
+        <span class="text-slate-500 font-medium">${label}</span>
+        <span class="text-slate-200 font-mono text-right">${value}</span>
+    </div>
+`;
 
 export const scte35DetailsTemplate = (scte35) => {
     if (!scte35 || scte35.error) {
-        return html`<p class="text-red-400">
-            Failed to parse SCTE-35 message: ${scte35?.error || 'Unknown Error'}
-        </p>`;
+        return html`<div
+            class="p-4 text-red-400 bg-red-900/10 rounded-lg border border-red-500/30 text-center"
+        >
+            Parsing Failed: ${scte35?.error || 'Unknown Error'}
+        </div>`;
     }
 
+    const cmd = scte35.splice_command;
+    const descriptors = scte35.descriptors || [];
+
     return html`
-        <div class="space-y-4 text-xs">
-            <div class="bg-gray-900 p-3 rounded-lg">
-                <h4 class="font-bold text-gray-300 mb-2">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 text-xs">
+            <!-- Header Info -->
+            <div
+                class="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-sm"
+            >
+                <h4
+                    class="text-xs font-bold text-purple-400 uppercase tracking-wider mb-3"
+                >
                     Splice Info Section
                 </h4>
-                <dl class="grid grid-cols-[auto_1fr] gap-x-4">
-                    ${detailRow('Table ID', scte35.table_id)}
-                    ${detailRow('Protocol Version', scte35.protocol_version)}
-                    ${detailRow(
-                        'PTS Adjustment',
-                        `${scte35.pts_adjustment} (${
-                            scte35.pts_adjustment / 90000
-                        }s)`
-                    )}
-                    ${detailRow('CW Index', scte35.cw_index)}
-                    ${detailRow('Tier', `0x${scte35.tier.toString(16)}`)}
-                </dl>
+                ${labelVal('Command Type', scte35.splice_command_type)}
+                ${labelVal('PTS Adjustment', scte35.pts_adjustment)}
+                ${labelVal('Tier', `0x${scte35.tier.toString(16)}`)}
+                ${labelVal('CW Index', scte35.cw_index)}
             </div>
 
-            <div class="bg-gray-900 p-3 rounded-lg">
-                <h4 class="font-bold text-gray-300 mb-2">
-                    ${scte35.splice_command?.type || 'Splice Command'}
+            <!-- Command Details -->
+            <div
+                class="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-sm"
+            >
+                <h4
+                    class="text-xs font-bold text-blue-400 uppercase tracking-wider mb-3"
+                >
+                    ${cmd.type}
                 </h4>
-                <dl class="grid grid-cols-[auto_1fr] gap-x-4">
-                    ${commandDetailsTemplate(scte35.splice_command)}
-                </dl>
+                ${cmd.splice_event_id !== undefined
+                    ? labelVal('Event ID', cmd.splice_event_id)
+                    : ''}
+                ${cmd.out_of_network_indicator !== undefined
+                    ? labelVal(
+                          'Out of Network',
+                          cmd.out_of_network_indicator ? 'Yes' : 'No'
+                      )
+                    : ''}
+                ${cmd.break_duration
+                    ? labelVal(
+                          'Duration',
+                          `${(cmd.break_duration.duration / 90000).toFixed(2)}s`
+                      )
+                    : ''}
+                ${cmd.splice_time?.pts_time
+                    ? labelVal('Splice Time', cmd.splice_time.pts_time)
+                    : ''}
+                ${cmd.unique_program_id
+                    ? labelVal('Program ID', cmd.unique_program_id)
+                    : ''}
             </div>
 
-            ${(scte35.descriptors || []).map(
-                (desc) => html`
-                    <div class="bg-gray-900 p-3 rounded-lg">
-                        <h4 class="font-bold text-gray-300 mb-2">
-                            Segmentation Descriptor
-                        </h4>
-                        <dl class="grid grid-cols-[auto_1fr] gap-x-4">
-                            ${descriptorDetailsTemplate(desc)}
-                        </dl>
-                    </div>
-                `
-            )}
+            <!-- Descriptors -->
+            ${descriptors.length > 0
+                ? html`
+                      <div
+                          class="col-span-1 lg:col-span-2 bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-sm"
+                      >
+                          <h4
+                              class="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-3"
+                          >
+                              Descriptors (${descriptors.length})
+                          </h4>
+                          <div class="space-y-4">
+                              ${descriptors.map(
+                                  (d) => html`
+                                      <div
+                                          class="bg-slate-900/50 p-3 rounded border border-slate-700/50"
+                                      >
+                                          <div
+                                              class="font-bold text-slate-300 mb-2"
+                                          >
+                                              ${d.segmentation_type_id ||
+                                              'Unknown Type'}
+                                          </div>
+                                          <div
+                                              class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1"
+                                          >
+                                              ${d.segmentation_event_id
+                                                  ? labelVal(
+                                                        'Event ID',
+                                                        d.segmentation_event_id
+                                                    )
+                                                  : ''}
+                                              ${d.segmentation_upid
+                                                  ? labelVal(
+                                                        'UPID',
+                                                        d.segmentation_upid
+                                                    )
+                                                  : ''}
+                                              ${d.segmentation_duration
+                                                  ? labelVal(
+                                                        'Duration',
+                                                        `${(d.segmentation_duration / 90000).toFixed(2)}s`
+                                                    )
+                                                  : ''}
+                                              ${labelVal(
+                                                  'Segment',
+                                                  `${d.segment_num} of ${d.segments_expected}`
+                                              )}
+                                          </div>
+                                      </div>
+                                  `
+                              )}
+                          </div>
+                      </div>
+                  `
+                : ''}
         </div>
     `;
 };
-
-// Initialize event listener for showing the modal
-eventBus.subscribe('ui:show-scte35-details', async ({ scte35, startTime }) => {
-    const { openModalWithContent } = await import('@/ui/services/modalService');
-    openModalWithContent({
-        title: `SCTE-35 Details (${scte35.splice_command?.type || 'Unknown'})`,
-        url: `Event at ${startTime.toFixed(3)}s`,
-        content: {
-            type: 'scte35',
-            data: { scte35 },
-        },
-    });
-});

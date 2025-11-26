@@ -5,13 +5,11 @@ import { initializeRenderer } from '@/ui/shell/mainRenderer';
 import { initializeConsentManager } from './consent-manager.js';
 import { container } from './container.js';
 import { workerService } from '@/infrastructure/worker/workerService';
-import { streamInitializationService } from './services/streamInitializationService.js';
 import { initializeToastManager } from '@/ui/components/toast';
 import { initializeLoader } from '@/ui/components/loader';
 import { initializeModalComponent } from '@/ui/components/modal';
 import { setupGlobalTooltipListener } from '@/ui/components/tooltip';
 import { initializeDropdownService } from '@/ui/services/dropdownService';
-import { initializeInbandEventMonitor } from './services/inbandEventMonitorService.js';
 import { sessionService } from './services/sessionService.js';
 import { uiActions } from '@/state/uiStore';
 
@@ -35,7 +33,6 @@ import { initializeStreamInputFeature } from '@/features/streamInput/index';
 import { initializePlayerSimulationFeature } from '@/features/playerSimulation/index';
 import { initializeMultiPlayerFeature } from '@/features/multiPlayer/index';
 import { initializeNotificationFeature } from '@/features/notifications/index.js';
-import { initializeTimelineFeature } from '@/features/timeline/index.js';
 
 // Side-effect driven imports for services that primarily listen to the event bus
 import '@/application/services/streamService';
@@ -115,9 +112,7 @@ export async function startApp() {
     initializeLiveUpdateProcessor();
     initializeLiveStreamMonitor();
     initializeSegmentService();
-    streamInitializationService.initialize();
     keyManagerService.initialize();
-    initializeInbandEventMonitor();
     initializeNetworkEnrichmentService();
     playerEventOrchestratorService.initialize();
 
@@ -133,7 +128,6 @@ export async function startApp() {
     initializePlayerSimulationFeature();
     initializeMultiPlayerFeature();
     initializeNotificationFeature();
-    initializeTimelineFeature();
 
     // --- Layer 5: Start Application Core ---
     app.start();

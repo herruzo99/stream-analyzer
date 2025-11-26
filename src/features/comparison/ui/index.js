@@ -1,213 +1,170 @@
 import { html, render } from 'lit-html';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { useUiStore, uiActions } from '@/state/uiStore';
-import { createComparisonViewModel } from '@/features/comparison/ui/view-model';
-import { comparisonSectionTemplate } from './components/comparison-section.js';
+import { createComparisonViewModel } from './view-model';
+import { comparisonTableTemplate } from './components/comparison-table';
+import { capabilityMatrixTemplate } from './components/capability-matrix.js';
 import * as icons from '@/ui/icons';
 import './components/abr-ladder-chart.js';
 
 let container = null;
-let analysisUnsubscribe = null;
-let uiUnsubscribe = null;
-
-const streamHeaderCard = (stream) => {
-    const icon =
-        stream.protocol === 'dash' ? icons.newAnalysis : icons.fileText;
-    const type = stream.manifest?.type === 'dynamic' ? 'LIVE' : 'VOD';
-    const typeColor =
-        stream.manifest?.type === 'dynamic'
-            ? 'bg-red-800 text-red-200'
-            : 'bg-green-800 text-green-200';
-
-    return html`
-        <div class="bg-slate-900 rounded-lg p-3 border border-slate-700 h-full">
-            <div class="flex items-center gap-2">
-                <span class="text-blue-400 shrink-0">${icon}</span>
-                <h4
-                    class="font-bold text-slate-200 truncate"
-                    title=${stream.name}
-                >
-                    ${stream.name}
-                </h4>
-            </div>
-            <p
-                class="text-xs text-slate-400 mt-1 font-mono truncate"
-                title=${stream.originalUrl}
-            >
-                ${stream.originalUrl}
-            </p>
-            <div class="flex items-center gap-2 mt-2">
-                <span
-                    class="text-xs font-semibold px-2 py-0.5 rounded-full ${typeColor}"
-                    >${type}</span
-                >
-            </div>
-        </div>
-    `;
-};
-
-// ARCHITECTURAL REFACTOR: Create a shared <colgroup> for both tables
-const colgroupTemplate = (streams) => html`
-    <colgroup>
-        <col style="width: 300px;" />
-        ${streams.map(
-            () =>
-                html`<col
-                    style="width: 20%; min-width: 250px; max-width: 400px;"
-                />`
-        )}
-    </colgroup>
-`;
+let subscriptions = [];
 
 function renderComparison() {
     if (!container) return;
     const { streams } = useAnalysisStore.getState();
-    const { comparisonHideSameRows, comparisonHideUnusedFeatures } =
+    const { comparisonHideSameRows, comparisonReferenceStreamId } =
         useUiStore.getState();
 
     if (streams.length < 2) {
         render(
-            html`<div class="text-center py-12 text-slate-400">
-                <p>At least two streams are required for comparison.</p>
-            </div>`,
+            html`
+                <div
+                    class="flex flex-col items-center justify-center h-full text-slate-400 gap-4 animate-fadeIn"
+                >
+                    <div
+                        class="p-6 bg-slate-800 rounded-full border border-slate-700 shadow-lg"
+                    >
+                        ${icons.comparison}
+                    </div>
+                    <h2 class="text-xl font-bold text-white">
+                        Comparison Mode
+                    </h2>
+                    <p>
+                        Please load at least two streams to enable side-by-side
+                        comparison.
+                    </p>
+                </div>
+            `,
             container
         );
         return;
     }
 
-    const { abrData, sections } = createComparisonViewModel(streams);
+    const viewModel = createComparisonViewModel(
+        streams,
+        comparisonReferenceStreamId
+    );
 
+    // Changed: Root container is now overflow-hidden with flex column.
+    // This forces children to respect the viewport height.
+    // The top section (Controls + Charts) is shrink-0.
+    // The bottom section (Grid) is grow/min-h-0 to trigger its own internal scrollbar.
     const template = html`
-        <div class="flex flex-col h-full">
-            <!-- Main Header -->
-            <div class="flex justify-between items-center mb-4 shrink-0">
-                <h3 class="text-xl font-bold">Manifest Comparison</h3>
-                <div class="flex items-center gap-4">
-                    <div class="flex items-center gap-2">
-                        <label
-                            for="hide-unused-toggle"
-                            class="text-sm text-slate-400"
-                            >Hide unused features</label
-                        >
-                        <button
-                            @click=${() =>
-                                uiActions.toggleComparisonHideUnusedFeatures()}
-                            role="switch"
-                            aria-checked="${comparisonHideUnusedFeatures}"
-                            id="hide-unused-toggle"
-                            class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${comparisonHideUnusedFeatures
-                                ? 'bg-blue-600'
-                                : 'bg-slate-600'}"
-                        >
-                            <span
-                                class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${comparisonHideUnusedFeatures
-                                    ? 'translate-x-6'
-                                    : 'translate-x-1'}"
-                            ></span>
-                        </button>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <label
-                            for="hide-same-toggle"
-                            class="text-sm text-slate-400"
-                            >Hide identical properties</label
-                        >
-                        <button
-                            @click=${() =>
-                                uiActions.toggleComparisonHideSameRows()}
-                            role="switch"
-                            aria-checked="${comparisonHideSameRows}"
-                            id="hide-same-toggle"
-                            class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${comparisonHideSameRows
-                                ? 'bg-blue-600'
-                                : 'bg-slate-600'}"
-                        >
-                            <span
-                                class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${comparisonHideSameRows
-                                    ? 'translate-x-6'
-                                    : 'translate-x-1'}"
-                            ></span>
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Sticky ABR Chart -->
-            <div class="shrink-0 mb-4">
+        <div class="flex flex-col h-full bg-slate-950 overflow-hidden">
+            
+            <!-- Scrollable Top Section (Controls + Charts) -->
+            <div class="shrink-0 overflow-y-auto max-h-[50%] border-b border-slate-800 bg-slate-950 z-10 p-4 sm:p-6 custom-scrollbar">
+                <!-- Control Bar -->
                 <div
-                    class="bg-slate-800 p-4 rounded-lg border border-slate-700 h-80"
+                    class="flex flex-wrap items-center justify-between gap-4 bg-slate-800/80 backdrop-blur p-4 rounded-xl border border-slate-700 shadow-sm mb-6"
                 >
-                    <abr-ladder-chart .data=${abrData}></abr-ladder-chart>
+                    <div>
+                        <h2
+                            class="text-xl font-bold text-white flex items-center gap-2"
+                        >
+                            ${icons.comparison} Manifest Comparison
+                        </h2>
+                        <p class="text-xs text-slate-400 mt-1">
+                            Comparing ${streams.length} streams.
+                            ${comparisonReferenceStreamId !== null
+                                ? html`<span class="text-amber-400 font-semibold"
+                                      >Reference mode active.</span
+                                  >`
+                                : 'Select a star icon to set a baseline.'}
+                        </p>
+                    </div>
+
+                    <div class="flex items-center gap-3">
+                        <label
+                            class="flex items-center gap-2 cursor-pointer px-3 py-2 rounded-lg hover:bg-slate-700/50 transition-colors border border-transparent hover:border-slate-600"
+                        >
+                            <span class="text-sm font-medium text-slate-300"
+                                >Differences Only</span
+                            >
+                            <button
+                                @click=${() =>
+                                    uiActions.toggleComparisonHideSameRows()}
+                                role="switch"
+                                aria-checked="${comparisonHideSameRows}"
+                                class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${comparisonHideSameRows
+                                    ? 'bg-blue-600'
+                                    : 'bg-slate-600'}"
+                            >
+                                <span
+                                    class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${comparisonHideSameRows
+                                        ? 'translate-x-4.5'
+                                        : 'translate-x-1'}"
+                                ></span>
+                            </button>
+                        </label>
+                    </div>
+                </div>
+
+                 <!-- Visualization Area -->
+                <div
+                    class="grid grid-cols-1 xl:grid-cols-2 gap-6 min-h-[240px]"
+                >
+                    <!-- Chart 1: ABR Ladder -->
+                    <div
+                        class="bg-slate-800 rounded-xl border border-slate-700 p-4 flex flex-col shadow-lg"
+                    >
+                        <h3
+                            class="text-sm font-bold text-slate-300 mb-2 flex items-center gap-2 uppercase tracking-wider"
+                        >
+                            ${icons.trendingUp} Bitrate Ladder
+                        </h3>
+                        <div class="grow relative min-h-[180px]">
+                            <abr-ladder-chart
+                                .data=${viewModel.abrData}
+                            ></abr-ladder-chart>
+                        </div>
+                    </div>
+
+                    <!-- Chart 2: Capabilities -->
+                    <div
+                        class="bg-slate-800 rounded-xl border border-slate-700 p-4 flex flex-col shadow-lg"
+                    >
+                        <h3
+                            class="text-sm font-bold text-slate-300 mb-2 flex items-center gap-2 uppercase tracking-wider"
+                        >
+                            ${icons.features} Feature Matcher
+                        </h3>
+                        <div class="grow relative min-h-[180px]">
+                            ${capabilityMatrixTemplate(streams)}
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <!-- Sticky Table Header -->
-            <div class="shrink-0">
-                <table
-                    class="w-full"
-                    style="table-layout: fixed; border-spacing: 0.5rem 0;"
-                >
-                    ${colgroupTemplate(streams)}
-                    <thead>
-                        <tr>
-                            <th class="align-bottom p-0">
-                                <div
-                                    class="font-semibold text-slate-300 p-3 flex items-center"
-                                >
-                                    Property
-                                </div>
-                            </th>
-                            ${streams.map(
-                                (stream) =>
-                                    html`<th class="p-0">
-                                        ${streamHeaderCard(stream)}
-                                    </th>`
-                            )}
-                        </tr>
-                    </thead>
-                </table>
-            </div>
-
-            <!-- Scrollable Table Body -->
-            <div class="overflow-auto grow">
-                <table
-                    class="w-full border-separate"
-                    style="table-layout: fixed; border-spacing: 0 0.5rem;"
-                >
-                    ${colgroupTemplate(streams)}
-                    <tbody>
-                        ${sections.map((group) =>
-                            comparisonSectionTemplate(
-                                group,
-                                streams.length,
-                                comparisonHideSameRows,
-                                comparisonHideUnusedFeatures
-                            )
-                        )}
-                    </tbody>
-                </table>
+            <!-- Main Data Grid (Fills remaining space) -->
+            <div class="grow min-h-0 relative bg-slate-950 p-4 sm:p-6">
+                ${comparisonTableTemplate({
+                    streams,
+                    sections: viewModel.sections,
+                    referenceStreamId: comparisonReferenceStreamId,
+                    hideSameRows: comparisonHideSameRows,
+                })}
             </div>
         </div>
     `;
+
     render(template, container);
 }
 
 export const comparisonView = {
     mount(containerElement) {
         container = containerElement;
-        if (analysisUnsubscribe) analysisUnsubscribe();
-        if (uiUnsubscribe) uiUnsubscribe();
+        const renderFn = () => renderComparison();
 
-        analysisUnsubscribe = useAnalysisStore.subscribe(renderComparison);
-        uiUnsubscribe = useUiStore.subscribe(renderComparison);
+        subscriptions.push(useAnalysisStore.subscribe(renderFn));
+        subscriptions.push(useUiStore.subscribe(renderFn));
 
         renderComparison();
     },
     unmount() {
-        if (analysisUnsubscribe) analysisUnsubscribe();
-        if (uiUnsubscribe) uiUnsubscribe();
-        analysisUnsubscribe = null;
-        uiUnsubscribe = null;
+        subscriptions.forEach((unsub) => unsub());
+        subscriptions = [];
         if (container) render(html``, container);
         container = null;
     },

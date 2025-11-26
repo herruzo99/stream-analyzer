@@ -1,18 +1,23 @@
 import { html } from 'lit-html';
+import { classMap } from 'lit-html/directives/class-map.js';
+import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { getTooltipData as getAllIsoTooltipData } from '@/infrastructure/parsing/isobmff/index';
 import { tooltipTriggerClasses } from '@/ui/shared/constants';
+import { copyTextToClipboard } from '@/ui/shared/clipboard';
 import { isDebugMode } from '@/shared/utils/env';
-import '@/ui/components/virtualized-list'; // Import for side-effect of registration
+import { uiActions } from '@/state/uiStore'; // Needed for field highlighting
+import '@/ui/components/virtualized-list';
 import * as icons from '@/ui/icons';
 
 const allIsoTooltipData = getAllIsoTooltipData();
+
+// --- Utilities ---
 
 export const findBoxRecursive = (boxes, predicateOrType) => {
     const predicate =
         typeof predicateOrType === 'function'
             ? predicateOrType
             : (box) => box.type === predicateOrType;
-
     if (!boxes) return null;
     for (const box of boxes) {
         if (predicate(box)) return box;
@@ -31,79 +36,186 @@ const getTimescaleForBox = (box, rootData) => {
     return null;
 };
 
-const renderObjectValue = (obj) => {
-    if (obj === null || typeof obj !== 'object') {
-        return obj;
-    }
-    return html`
-        <div class="mt-1 ml-2 border-l border-gray-600 pl-2 space-y-1">
-            ${Object.entries(obj).map(
-                ([key, value]) => html`
-                    <div class="flex">
-                        <span class="text-gray-400 mr-2">${key}:</span>
-                        <span
-                            class="${value ? 'text-green-400' : 'text-red-400'}"
-                            >${String(value)}</span
-                        >
-                    </div>
-                `
-            )}
-        </div>
-    `;
+const formatDuration = (value, timescale) => {
+    if (!timescale || isNaN(value)) return null;
+    const seconds = value / timescale;
+    if (seconds < 0.001) return `${(seconds * 1000).toFixed(0)}μs`;
+    if (seconds < 1) return `${(seconds * 1000).toFixed(2)}ms`;
+    return `${seconds.toFixed(3)}s`;
 };
 
-const renderTrunSampleFlags = (flags) => {
-    if (!flags) {
-        return html`<span class="text-gray-500">(inherited)</span>`;
-    }
-    const isSync = !flags.sample_is_non_sync_sample;
-    const syncClass = isSync ? 'text-green-400' : 'text-yellow-400';
-    // Correctly interpret the numeric value. 1 means it depends.
-    const dependsOn = flags.sample_depends_on === 1 ? 'Yes' : 'No';
+// --- Renderers ---
+
+const renderHexPreview = (data) => {
+    const maxBytes = 16;
+    const slice = data.slice(0, maxBytes);
+    const hex = Array.from(slice)
+        .map((b) => b.toString(16).padStart(2, '0').toUpperCase())
+        .join(' ');
+    const ascii = Array.from(slice)
+        .map((b) => (b >= 32 && b <= 126 ? String.fromCharCode(b) : '.'))
+        .join('');
+    const remaining = data.length - maxBytes;
 
     return html`
         <div
-            class="grid grid-cols-2 gap-x-2 text-left"
-            title="is_leading: ${flags.is_leading}, sample_depends_on: ${flags.sample_depends_on}, sample_is_depended_on: ${flags.sample_is_depended_on}"
+            class="font-mono text-[10px] bg-black/40 rounded border border-slate-700/50 p-2 flex items-center gap-3 select-all group cursor-text"
         >
-            <span class="${syncClass}">${isSync ? 'Sync' : 'Non-Sync'}</span>
-            <span>Dep: ${dependsOn}</span>
+            <span class="text-blue-300">${hex}</span>
+            <div class="w-px h-3 bg-slate-700"></div>
+            <span class="text-emerald-200/80 tracking-widest">${ascii}</span>
+            ${remaining > 0
+                ? html`<span class="text-slate-600 italic ml-2 text-[9px]"
+                      >+${remaining} bytes</span
+                  >`
+                : ''}
         </div>
     `;
 };
 
-const renderCellContent = (value) => {
+const renderValue = (key, value, timescale = null) => {
     if (value instanceof Uint8Array) {
-        return Array.from(value)
-            .map((b) => b.toString(16).padStart(2, '0'))
-            .join('');
+        return renderHexPreview(value);
     }
+
     if (Array.isArray(value)) {
-        if (
-            value.length > 0 &&
-            typeof value[0] === 'object' &&
-            value[0] !== null
-        ) {
-            return value
-                .map(
-                    (sub) =>
-                        `[C:${sub.BytesOfClearData},P:${sub.BytesOfProtectedData}]`
-                )
-                .join(' ');
-        }
-        return value.join(', ');
+        if (value.length === 0)
+            return html`<span class="text-slate-600 italic">Empty List</span>`;
+        if (typeof value[0] !== 'object')
+            return html`<span class="text-cyan-300 break-all font-mono text-xs"
+                >[ ${value.join(', ')} ]</span
+            >`;
+        return html`<span class="text-purple-300 font-bold text-xs"
+            >${value.length} items</span
+        >`;
     }
+
     if (typeof value === 'object' && value !== null) {
         if (
-            'sample_depends_on' in value &&
-            'sample_is_non_sync_sample' in value
+            !value.value &&
+            Object.keys(value).length > 0 &&
+            Object.values(value).every((v) => typeof v === 'boolean')
         ) {
-            return renderTrunSampleFlags(value);
+            return html`
+                <div class="flex flex-wrap gap-1 mt-1">
+                    ${Object.entries(value).map(
+                        ([k, v]) => html`
+                            <span
+                                class="px-1.5 py-0.5 rounded text-[9px] uppercase font-bold border ${v
+                                    ? 'bg-green-900/30 text-green-400 border-green-800'
+                                    : 'bg-slate-800 text-slate-500 border-slate-700 opacity-60'}"
+                            >
+                                ${k}
+                            </span>
+                        `
+                    )}
+                </div>
+            `;
         }
-        return renderObjectValue(value);
+        return html`
+            <div class="pl-2 border-l-2 border-slate-700 mt-1 space-y-1">
+                ${Object.entries(value).map(
+                    ([k, v]) => html`
+                        <div class="flex flex-col">
+                            <span
+                                class="text-[10px] text-slate-500 font-bold uppercase"
+                                >${k}</span
+                            >
+                            <span class="text-xs text-slate-300"
+                                >${renderValue(k, v)}</span
+                            >
+                        </div>
+                    `
+                )}
+            </div>
+        `;
     }
-    return value;
+
+    let content = String(value);
+    /** @type {import('lit-html').TemplateResult | string} */
+    let suffix = '';
+
+    if (
+        timescale &&
+        (key.includes('duration') ||
+            key.includes('time') ||
+            key.includes('Time') ||
+            key.includes('offset'))
+    ) {
+        const timeStr = formatDuration(Number(value), timescale);
+        if (timeStr)
+            suffix = html`<span
+                class="ml-2 text-[10px] text-emerald-400 bg-emerald-900/20 px-1 rounded border border-emerald-900/50 font-mono"
+                >${timeStr}</span
+            >`;
+    }
+
+    const isFourCC =
+        typeof value === 'string' &&
+        value.length === 4 &&
+        /^[a-zA-Z0-9]{4}$/.test(value);
+
+    return html`
+        <span
+            class="${isFourCC
+                ? 'font-mono font-bold text-yellow-300 bg-yellow-900/20 px-1 rounded'
+                : 'text-slate-200 font-mono'} break-all"
+        >
+            ${content}
+        </span>
+        ${suffix}
+    `;
 };
+
+const propertyRow = (key, field, box, timescale, fieldForDisplay) => {
+    const fieldInfo = allIsoTooltipData[`${box.type}@${key}`];
+    const labelClass = fieldInfo?.text ? tooltipTriggerClasses : '';
+    const isHighlighted = fieldForDisplay === key;
+
+    const handleMouseEnter = () => {
+        // Dispatch the specific field to highlight corresponding bytes in hex view
+        uiActions.setInteractiveSegmentHighlightedItem(box, key);
+    };
+
+    const handleMouseLeave = () => {
+        uiActions.setInteractiveSegmentHighlightedItem(null, null);
+    };
+
+    const bgClass = isHighlighted
+        ? 'bg-blue-900/30 ring-1 ring-blue-500/50'
+        : 'hover:bg-white/[0.02]';
+
+    return html`
+        <div
+            class="group flex flex-col p-2 rounded transition-colors border-b border-slate-800/50 last:border-0 ${bgClass}"
+            @mouseenter=${handleMouseEnter}
+            @mouseleave=${handleMouseLeave}
+        >
+            <dt
+                class="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1 w-full flex justify-between items-center"
+            >
+                <span
+                    class="${labelClass}"
+                    data-tooltip="${fieldInfo?.text || ''}"
+                    data-iso="${fieldInfo?.ref || ''}"
+                >
+                    ${key}
+                </span>
+                ${fieldInfo?.ref
+                    ? html`<span
+                          class="text-[9px] text-slate-600 font-mono opacity-0 group-hover:opacity-100 transition-opacity"
+                          >${fieldInfo.ref}</span
+                      >`
+                    : ''}
+            </dt>
+            <dd class="text-sm leading-relaxed">
+                ${renderValue(key, field.value, timescale)}
+            </dd>
+        </div>
+    `;
+};
+
+// --- Table Renderer (Virtual List) ---
 
 const SAMPLE_FIELD_WHITELIST = {
     trun: ['duration', 'size', 'sampleFlags', 'compositionTimeOffset'],
@@ -134,303 +246,319 @@ const SAMPLE_FIELD_WHITELIST = {
 
 export const entriesTableTemplate = (box) => {
     const entries = box.samples || box.entries;
-    if (!entries || entries.length === 0) {
-        return '';
-    }
+    if (!entries || entries.length === 0) return '';
 
     const firstEntry = entries[0];
-    const validHeaders = SAMPLE_FIELD_WHITELIST[box.type] || [];
+    const validHeaders =
+        SAMPLE_FIELD_WHITELIST[box.type] ||
+        Object.keys(firstEntry).filter(
+            (k) =>
+                k !== 'isSample' &&
+                k !== 'index' &&
+                k !== 'offset' &&
+                k !== 'color' &&
+                k !== 'trunOffset'
+        );
     const headers = validHeaders.filter((h) => h in firstEntry);
 
     if (headers.length === 0) return '';
 
     const rowHeight = 32;
 
+    // Define fixed column width logic
+    const colClass =
+        'w-36 shrink-0 px-3 py-2 border-r border-slate-800 last:border-0 truncate';
+    const idxClass =
+        'w-12 shrink-0 px-2 py-2 text-right text-slate-600 border-r border-slate-800 select-none sticky left-0 bg-inherit z-10';
+
     const rowRenderer = (entry, index) => {
-        const rowTooltip = entry.isSample
-            ? `Sample #${entry.index} located at file offset ${entry.offset}.`
-            : `Entry #${index + 1}`;
-        let rowBgClass = 'bg-gray-800/30';
-        if (box.color?.bgClass) {
-            const parts = box.color.bgClass.split('-');
-            if (parts.length === 3) {
-                rowBgClass = `bg-${parts[1]}-900/30`;
-            }
-        }
-        if (entry.has_emsg) {
-            rowBgClass = 'bg-purple-900/40';
-        }
+        const actualIndex = entry.isSample ? entry.index : index;
+        const isEven = index % 2 === 0;
+        // We use 'bg-slate-900' as base to ensure sticky index column covers content behind it
+        const bgClass = isEven ? 'bg-slate-900/50' : 'bg-slate-900';
 
         return html`
             <div
-                class="flex items-center border-b border-gray-700/50 text-xs ${rowBgClass} hover:bg-blue-500/40 cursor-pointer"
-                style="height: ${rowHeight}px;"
-                data-sample-offset="${entry.offset}"
-                data-tooltip="${rowTooltip}"
+                class="flex items-center text-xs font-mono hover:bg-blue-500/20 transition-colors ${bgClass} border-b border-slate-800/50 last:border-0 h-[32px] min-w-max"
             >
-                <div
-                    class="p-1 font-mono text-gray-500 w-12 text-right pr-2 border-r border-gray-700/50 self-stretch flex items-center justify-end"
-                >
-                    ${entry.isSample ? entry.index + 1 : index + 1}
-                </div>
+                <div class="${idxClass}">${actualIndex + 1}</div>
                 ${headers.map(
-                    (header) => html`
-                        <div
-                            class="p-1 font-mono truncate flex-1 border-r border-gray-700/50 last:border-r-0 self-stretch flex items-center"
-                        >
-                            ${renderCellContent(entry[header])}
+                    (h) => html`
+                        <div class="${colClass}" title="${String(entry[h])}">
+                            ${renderValue(h, entry[h])}
                         </div>
                     `
                 )}
-                ${entry.has_emsg
-                    ? html`<div
-                          class="absolute right-2 top-1/2 -translate-y-1/2 text-purple-400 ${tooltipTriggerClasses}"
-                          data-tooltip="This sample contains or is associated with an in-band Event Message (emsg) box."
-                      >
-                          ${icons.advertising}
-                      </div>`
-                    : ''}
             </div>
         `;
     };
 
     return html`
-        <div class="p-3 border-t border-gray-700">
-            <h4 class="font-bold text-sm mb-2 text-gray-300">
-                Entries / Samples (${entries.length})
-            </h4>
+        <div
+            class="mt-6 border border-slate-700 rounded-xl overflow-hidden bg-slate-900 shadow-lg"
+        >
             <div
-                class="bg-gray-900/50 text-white  rounded border border-gray-700/50 overflow-hidden"
+                class="px-4 py-3 bg-slate-800 border-b border-slate-700 flex justify-between items-center"
             >
-                <div
-                    class="flex bg-gray-800 z-10 font-semibold text-xs text-slate-400"
+                <h4
+                    class="font-bold text-xs text-white uppercase tracking-widest flex items-center gap-2"
                 >
-                    <div
-                        class="p-1 w-12 text-right pr-2 border-r border-gray-700/50"
+                    ${icons.list} Entries
+                    <span
+                        class="bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full text-[9px] border border-slate-600"
+                        >${entries.length}</span
                     >
-                        #
-                    </div>
-                    ${headers.map((header) => {
-                        const tooltipKey = `${box.type}@${header}`;
-                        const tooltipInfo = allIsoTooltipData[tooltipKey];
-                        return html`<div
-                            class="p-1 flex-1 border-r border-gray-700/50 last:border-r-0 ${tooltipInfo
-                                ? tooltipTriggerClasses
-                                : ''}"
-                            data-tooltip=${tooltipInfo?.text || ''}
-                            data-iso=${tooltipInfo?.ref || ''}
+                </h4>
+            </div>
+
+            <!-- Horizontal Scroll Wrapper -->
+            <div class="overflow-x-auto custom-scrollbar">
+                <div class="min-w-max">
+                    <!-- Sticky Header -->
+                    <div
+                        class="flex bg-slate-900/80 border-b border-slate-800 text-[10px] font-bold text-slate-500 uppercase tracking-wider select-none sticky top-0 z-20"
+                    >
+                        <div
+                            class="${idxClass} bg-slate-900 border-b border-slate-800"
                         >
-                            ${header}
-                        </div>`;
-                    })}
+                            #
+                        </div>
+                        ${headers.map(
+                            (h) => html`<div class="${colClass}">${h}</div>`
+                        )}
+                    </div>
+
+                    <div
+                        class="relative w-full bg-slate-950"
+                        style="height: 300px; contain: strict;"
+                    >
+                        <virtualized-list
+                            .items=${entries}
+                            .rowTemplate=${rowRenderer}
+                            .rowHeight=${rowHeight}
+                            .itemId=${(item, idx) => idx}
+                        ></virtualized-list>
+                    </div>
                 </div>
-                <virtualized-list
-                    .items=${entries}
-                    .rowTemplate=${(item, index) => rowRenderer(item, index)}
-                    .rowHeight=${rowHeight}
-                    .itemId=${(item) => item.index ?? item.offset}
-                    style="height: ${Math.min(
-                        entries.length * rowHeight,
-                        400
-                    )}px;"
-                ></virtualized-list>
             </div>
         </div>
     `;
 };
 
-/**
- * Renders the detailed view of a single ISOBMFF box for the inspector panel.
- * @param {import('@/types.js').Box} box The box to render.
- * @param {object} rootData The root of the parsed segment data for context.
- * @param {string | null} [fieldForDisplay=null] The name of a field to highlight.
- * @returns {import('lit-html').TemplateResult}
- */
+// --- Main Inspector Template ---
+
 export const inspectorDetailsTemplate = (
     box,
     rootData,
     fieldForDisplay = null
 ) => {
     const boxInfo = allIsoTooltipData[box.type] || {};
+    const timescale = getTimescaleForBox(box, rootData);
 
-    const fields = Object.entries(box.details).map(([key, field]) => {
-        // Hide the raw flags if a decoded version exists
-        if (key.endsWith('_raw') && box.details[key.replace('_raw', '')]) {
-            return '';
-        }
-        // Hide internal fields meant only for rendering
-        if (field.internal) {
-            return '';
-        }
-        const fieldInfo = allIsoTooltipData[`${box.type}@${key}`];
-        const highlightClass =
-            fieldForDisplay === key ? 'is-inspector-field-highlighted' : '';
-        let interpretedValue = html``;
-
-        if (key === 'baseMediaDecodeTime' && box.type === 'tfdt') {
-            const timescale = getTimescaleForBox(box, rootData);
-            if (timescale) {
-                interpretedValue = html`<span
-                    class="text-xs text-cyan-400 block mt-1"
-                    >(${(field.value / timescale).toFixed(3)} seconds)</span
-                >`;
-            }
-        }
-
-        return html`
-            <tr
-                class=${highlightClass}
-                data-field-name="${key}"
-                data-inspector-offset="${box.offset}"
-            >
-                <td
-                    class="p-1 pr-2 text-xs text-gray-400 align-top ${fieldInfo?.text
-                        ? tooltipTriggerClasses
-                        : ''}"
-                    data-tooltip="${fieldInfo?.text || ''}"
-                    data-iso="${fieldInfo?.ref || ''}"
-                >
-                    ${key}
-                </td>
-                <td class="p-1 text-xs font-mono text-white break-all">
-                    ${renderCellContent(field.value)} ${interpretedValue}
-                </td>
-            </tr>
-        `;
+    const fields = Object.entries(box.details).filter(([key, field]) => {
+        if (field.internal) return false;
+        if (key.endsWith('_raw') && box.details[key.replace('_raw', '')])
+            return false;
+        return true;
     });
 
+    const handleCopyJson = () => {
+        const cleanObj = { ...box.details };
+        const json = JSON.stringify(
+            cleanObj,
+            (k, v) => {
+                if (v && v.internal) return undefined;
+                if (v && v.value !== undefined) return v.value;
+                return v;
+            },
+            2
+        );
+        copyTextToClipboard(json, 'Box Data Copied');
+    };
+
     return html`
-        <div class="p-3 border-b border-gray-700">
-            <div class="font-bold text-base mb-1">
-                ${box.type}
-                <span class="text-sm text-gray-400">(${box.size} bytes)</span>
+        <div class="h-full flex flex-col bg-slate-900">
+            <!-- Hero Header -->
+            <div
+                class="shrink-0 p-5 border-b border-slate-800 bg-gradient-to-b from-slate-800/50 to-slate-900/50"
+            >
+                <div class="flex justify-between items-start mb-3">
+                    <div>
+                        <div class="flex items-baseline gap-3">
+                            <h2
+                                class="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-300 font-mono tracking-tight"
+                            >
+                                ${box.type}
+                            </h2>
+                            <span
+                                class="px-2 py-0.5 rounded-md bg-slate-800 border border-slate-600 text-slate-400 text-xs font-mono"
+                            >
+                                ${box.size.toLocaleString()} bytes
+                            </span>
+                        </div>
+                        <h3 class="text-sm font-medium text-white mt-1">
+                            ${boxInfo.name || 'Unknown Box'}
+                        </h3>
+                    </div>
+                    <button
+                        @click=${handleCopyJson}
+                        class="p-2 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white transition-colors"
+                        title="Copy JSON"
+                    >
+                        ${icons.clipboardCopy}
+                    </button>
+                </div>
+
+                ${boxInfo.text
+                    ? html`
+                          <div
+                              class="text-xs text-slate-400 leading-relaxed bg-black/20 p-3 rounded border border-white/5 relative"
+                          >
+                              <div
+                                  class="absolute left-0 top-0 bottom-0 w-1 bg-blue-500 rounded-l"
+                              ></div>
+                              ${boxInfo.text}
+                          </div>
+                      `
+                    : ''}
             </div>
-            <div class="text-xs text-emerald-400 mb-2 font-mono">
-                ${boxInfo.ref || ''}
+
+            <!-- Properties Grid -->
+            <div class="grow overflow-y-auto custom-scrollbar p-5">
+                ${fields.length > 0
+                    ? html`
+                          <div
+                              class="bg-slate-800/40 rounded-xl border border-slate-700/50 overflow-hidden"
+                          >
+                              <div
+                                  class="px-4 py-2 bg-slate-800/80 border-b border-slate-700/50 text-[10px] font-bold text-slate-400 uppercase tracking-widest"
+                              >
+                                  Properties
+                              </div>
+                              <div class="p-2">
+                                  ${fields.map(([key, field]) =>
+                                      propertyRow(
+                                          key,
+                                          field,
+                                          box,
+                                          timescale,
+                                          fieldForDisplay
+                                      )
+                                  )}
+                              </div>
+                          </div>
+                      `
+                    : html`
+                          <div
+                              class="text-center p-8 text-slate-600 italic border-2 border-dashed border-slate-800 rounded-xl"
+                          >
+                              No properties parsed for this box.
+                          </div>
+                      `}
+
+                <!-- Entries / Samples Table -->
+                ${entriesTableTemplate(box)}
             </div>
-            <p class="text-xs text-gray-300">
-                ${boxInfo.text || 'No description available.'}
-            </p>
-        </div>
-        <div class="overflow-y-auto">
-            <table class="w-full table-fixed">
-                <colgroup>
-                    <col class="w-2/5" />
-                    <col class="w-3/5" />
-                </colgroup>
-                <tbody>
-                    ${fields}
-                </tbody>
-            </table>
         </div>
     `;
 };
 
-/**
- * Renders a full, recursive tree of ISOBMFF boxes.
- * @param {import('@/types.js').Box} box The box to render.
- * @param {{isIFrame?: boolean}} [context={}]
- * @returns {import('lit-html').TemplateResult}
- */
 export const isoBoxTreeTemplate = (box, context = {}) => {
     const { isIFrame = false } = context;
     const boxInfo = allIsoTooltipData[box.type] || {};
-
     let issues = box.issues || [];
+
     if (isIFrame && box.type === 'mdat') {
         issues = issues.filter((issue) => !issue.message.includes('truncated'));
     }
 
-    const warningIcon =
-        isDebugMode && issues.length > 0
-            ? html`<svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-5 w-5 text-yellow-400 shrink-0 ${tooltipTriggerClasses}"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                  data-tooltip="${issues
-                      .map((i) => `[${i.type}] ${i.message}`)
-                      .join('\n')}"
-              >
-                  <path
-                      fill-rule="evenodd"
-                      d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM10 13a1 1 0 110-2 1 1 0 010 2zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
-                      clip-rule="evenodd"
-                  />
-              </svg>`
-            : '';
+    const hasError = isDebugMode && issues.length > 0;
+    const typeColor = hasError ? 'text-yellow-400' : 'text-blue-400';
+    const containerClass =
+        'relative pl-4 border-l border-slate-800 hover:border-slate-600 transition-colors group';
 
-    const headerTemplate = html`<div
-        class="font-semibold font-mono p-2 bg-gray-900/50 rounded-t-md border-b border-gray-600 flex items-center gap-2"
-    >
-        ${warningIcon}
-        <span
-            class="text-emerald-300 ${boxInfo.text
-                ? tooltipTriggerClasses
-                : ''}"
-            data-tooltip="${boxInfo.text || ''}"
-            data-iso="${boxInfo.ref || ''}"
-            >${box.type}</span
-        >
-        <span class="text-gray-500 text-xs"
-            >${boxInfo.name ? `(${boxInfo.name}) ` : ''}(${box.size}
-            bytes)</span
-        >
-    </div>`;
+    const connector = html`
+        <div
+            class="absolute top-3 left-0 w-3 h-px bg-slate-800 group-hover:bg-slate-600 transition-colors"
+        ></div>
+    `;
+const fieldsToRender = Object.entries(box.details).filter(([key, field]) => {
+        if (field.internal) return false;
+        if (key.endsWith('_raw')) return false;
+        // Exclude redundant fields already shown in header
+        if (key === 'size' || key === 'type') return false;
+        return true;
+    });
 
-    const fieldsToRender = Object.entries(box.details).filter(
-        ([key, field]) => !field.internal
-    );
+    return html`
+        <div class="${containerClass} my-1">
+            ${connector}
 
-    const detailsTemplate =
-        fieldsToRender.length > 0
-            ? html`<div class="p-2">
-                  <table class="text-xs border-collapse w-full table-auto">
-                      <tbody>
-                          ${fieldsToRender.map(([key, field]) => {
-                              if (key.endsWith('_raw')) return ''; // Hide raw values if decoded ones exist
+            <div
+                class="flex items-start gap-3 p-1 rounded hover:bg-white/[0.03] transition-colors"
+            >
+                <div
+                    class="bg-slate-900 border border-slate-700 rounded px-2 py-1 min-w-[60px] text-center shadow-sm z-10"
+                >
+                    <span
+                        class="font-mono font-bold text-xs ${typeColor} ${boxInfo.text
+                            ? tooltipTriggerClasses
+                            : ''}"
+                        data-tooltip="${boxInfo.text || ''}"
+                        data-iso="${boxInfo.ref || ''}"
+                    >
+                        ${box.type}
+                    </span>
+                </div>
 
-                              const fieldTooltip =
-                                  allIsoTooltipData[`${box.type}@${key}`];
-                              return html`<tr>
-                                  <td
-                                      class="border border-gray-700 p-2 text-slate-400 w-1/3 ${fieldTooltip
-                                          ? tooltipTriggerClasses
-                                          : ''}"
-                                      data-tooltip="${fieldTooltip?.text || ''}"
-                                      data-iso="${fieldTooltip?.ref || ''}"
-                                  >
-                                      ${key}
-                                  </td>
-                                  <td
-                                      class="border border-gray-700 p-2 text-slate-200 font-mono break-all"
-                                  >
-                                      ${renderCellContent(field.value)}
-                                  </td>
-                              </tr>`;
-                          })}
-                      </tbody>
-                  </table>
-              </div>`
-            : '';
+                <div class="min-w-0 pt-0.5">
+                    <div class="flex items-baseline gap-2">
+                        <span class="text-xs font-semibold text-slate-200"
+                            >${boxInfo.name || ''}</span
+                        >
+                        <span class="text-[10px] font-mono text-slate-500"
+                            >${box.size.toLocaleString()} B</span
+                        >
+                        ${hasError
+                            ? html`<span
+                                  class="text-yellow-400 text-[10px] animate-pulse"
+                                  >⚠ Issues Found</span
+                              >`
+                            : ''}
+                    </div>
 
-    const childrenTemplate =
-        box.children.length > 0
-            ? html`<div class="pl-4 mt-2 border-l-2 border-gray-600">
-                  <ul class="list-none space-y-2">
-                      ${box.children.map(
-                          (child) =>
-                              html`<li>
-                                  ${isoBoxTreeTemplate(child, context)}
-                              </li>`
-                      )}
-                  </ul>
-              </div>`
-            : '';
+                    ${fieldsToRender.length > 0
+                        ? html`
+                              <div
+                                  class="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5 opacity-80 text-[10px] font-mono text-slate-400"
+                              >
+                                  ${fieldsToRender.map(
+                                      ([key, field]) => html`
+                                          <span class="break-all">
+                                              <span class="text-slate-500"
+                                                  >${key}:</span
+                                              >
+                                              <span class="text-slate-300"
+                                                  >${String(field.value)}</span
+                                              >
+                                          </span>
+                                      `
+                                  )}
+                              </div>
+                          `
+                        : ''}
+                </div>
+            </div>
 
-    return html`<div class="border border-gray-700 rounded-md bg-gray-800">
-        ${headerTemplate}
-        <div class="space-y-2">${detailsTemplate}</div>
-        ${childrenTemplate}
-    </div>`;
+            ${box.children && box.children.length > 0
+                ? html`
+                      <div class="ml-1">
+                          ${box.children.map((child) =>
+                              isoBoxTreeTemplate(child, context)
+                          )}
+                      </div>
+                  `
+                : ''}
+        </div>
+    `;
 };

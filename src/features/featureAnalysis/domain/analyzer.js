@@ -18,16 +18,17 @@ export function generateFeatureAnalysis(
     if (protocol === 'dash') {
         return analyzeDashFeatures(serializedManifest);
     } else {
-        return analyzeHlsFeatures(manifestIR); // HLS analyzer operates on the IR
+        return analyzeHlsFeatures(manifestIR);
     }
 }
 
 /**
  * Creates the view model by merging feature definitions with analysis results.
+ * Calculates a "Complexity Score" based on weighted features.
  * @param {Map<string, import('@/types.ts').FeatureAnalysisResult>} analysisResultsMap
  * @param {'dash' | 'hls'} protocol
  * @param {number} standardVersion - The target standard version to filter features against (for HLS).
- * @returns {object[]} A list of feature objects ready for rendering.
+ * @returns {{features: object[], score: number, maxScore: number, scoreLabel: string}}
  */
 export function createFeatureViewModel(
     analysisResultsMap,
@@ -37,25 +38,48 @@ export function createFeatureViewModel(
     let applicableDefinitions;
 
     if (protocol === 'hls') {
-        // HLS features are filtered by the selected HLS version.
         applicableDefinitions = hlsFeatureDefinitions.filter(
             (def) => def.version <= standardVersion
         );
     } else {
-        // DASH features are considered generally applicable if present.
-        // No version filtering is applied to DASH features here as profiles
-        // implicitly define feature sets, and this view is for 'what is used'.
         applicableDefinitions = dashFeatureDefinitions;
     }
 
-    return applicableDefinitions.map((def) => {
+    let totalWeightedScore = 0;
+    let maxPossibleScore = 0;
+
+    const features = applicableDefinitions.map((def) => {
         const result = analysisResultsMap.get(def.name) || {
             used: false,
             details: 'Not detected in manifest.',
         };
+
+        // @ts-ignore - dynamic property access on definition
+        const weight = def.complexityScore || 1;
+        maxPossibleScore += weight;
+        if (result.used) {
+            totalWeightedScore += weight;
+        }
+
         return {
             ...def,
             ...result,
         };
     });
+
+    const normalizedScore =
+        maxPossibleScore > 0
+            ? Math.round((totalWeightedScore / maxPossibleScore) * 100)
+            : 0;
+
+    let scoreLabel = 'Basic';
+    if (normalizedScore > 75) scoreLabel = 'Advanced';
+    else if (normalizedScore > 40) scoreLabel = 'Intermediate';
+
+    return {
+        features,
+        score: normalizedScore,
+        maxScore: 100,
+        scoreLabel,
+    };
 }

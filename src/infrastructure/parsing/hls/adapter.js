@@ -93,18 +93,11 @@ function sortAdaptationSets(a, b) {
 }
 // --- End Sorter Functions ---
 
-
-
-
-
 /**
  * Parses a generic DescriptorType element into a consistent IR object.
  * @param {object} el The raw parsed element.
  * @returns {Descriptor}
  */
-
-
-
 
 /**
  * Transforms a parsed HLS manifest object into a protocol-agnostic Intermediate Representation (IR).
@@ -550,8 +543,8 @@ export async function adaptHlsToIr(hlsParsed, context) {
                         type === 'audio'
                             ? allCodecs.filter(isAudioCodec)
                             : allCodecs.filter(
-                                (c) => !isVideoCodec(c) && !isAudioCodec(c)
-                            );
+                                  (c) => !isVideoCodec(c) && !isAudioCodec(c)
+                              );
 
                     if (relevantCodecs.length > 0) {
                         codecs = relevantCodecs.map((c) => ({

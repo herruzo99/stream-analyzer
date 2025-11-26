@@ -1,53 +1,61 @@
 import { html } from 'lit-html';
-import { metricCardTemplate } from './metric-card.js';
 import * as icons from '@/ui/icons';
+import { classMap } from 'lit-html/directives/class-map.js';
 
-const renderSection = (section, hoveredItem, selectedItem) => {
-    if (!section || !section.metrics || section.metrics.length === 0) {
-        return html``;
-    }
+const statusColors = {
+    success: 'text-emerald-400 border-emerald-500/30 bg-emerald-900/10',
+    warning: 'text-amber-400 border-amber-500/30 bg-amber-900/10',
+    error: 'text-red-400 border-red-500/30 bg-red-900/10',
+    neutral: 'text-slate-300 border-slate-700 bg-slate-800/50',
+    info: 'text-blue-400 border-blue-500/30 bg-blue-900/10',
+};
+
+const metricItem = (m) => {
+    const styleClass = statusColors[m.status] || statusColors.neutral;
 
     return html`
-        <section class="space-y-4">
-            <h3
-                class="text-xl font-bold text-slate-100 flex items-center gap-2"
-            >
-                ${icons.timer} ${section.title}
-            </h3>
-            <p class="text-sm text-slate-400 -mt-3">${section.description}</p>
-            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                ${section.metrics.map((metric) =>
-                    metricCardTemplate(metric, hoveredItem, selectedItem)
-                )}
+        <div
+            class="flex flex-col p-2.5 rounded-lg border transition-all hover:bg-slate-800 ${styleClass}"
+            title="${m.tooltip || ''}"
+        >
+            <div class="flex justify-between items-start mb-1">
+                <span
+                    class="text-[10px] font-bold uppercase tracking-wider opacity-70"
+                    >${m.name}</span
+                >
+                <span class="scale-75 opacity-60">${icons[m.icon]}</span>
             </div>
-        </section>
+            <div class="font-mono text-sm font-bold truncate">
+                ${m.value}
+                <span class="text-[10px] opacity-60 font-sans ml-0.5"
+                    >${m.unit}</span
+                >
+            </div>
+        </div>
     `;
 };
 
-/**
- * Renders the main panel with detailed timing information.
- * @param {object} viewModel - The timeline view model.
- * @param {import('@/types').TimedEntity | null} hoveredItem
- * @param {import('@/types').TimedEntity | null} selectedItem
- * @returns {import('lit-html').TemplateResult}
- */
-export const metricPanelTemplate = (viewModel, hoveredItem, selectedItem) => {
-    if (!viewModel) {
-        return html``;
-    }
+export const metricPanelTemplate = (groups) => {
+    if (!groups || groups.length === 0) return html``;
+
     return html`
-        <div class="space-y-8">
-            ${renderSection(
-                viewModel.explicitDurations,
-                hoveredItem,
-                selectedItem
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            ${groups.map(
+                (group) => html`
+                    <div
+                        class="bg-slate-900/50 rounded-xl border border-slate-800 p-4 shadow-sm"
+                    >
+                        <h4
+                            class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2"
+                        >
+                            ${group.title}
+                        </h4>
+                        <div class="grid grid-cols-2 gap-2">
+                            ${group.metrics.map(metricItem)}
+                        </div>
+                    </div>
+                `
             )}
-            ${renderSection(
-                viewModel.inferredTimings,
-                hoveredItem,
-                selectedItem
-            )}
-            ${renderSection(viewModel.syncAndEvents, hoveredItem, selectedItem)}
         </div>
     `;
 };

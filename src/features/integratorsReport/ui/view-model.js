@@ -1,393 +1,269 @@
 import { getDrmSystemName } from '@/infrastructure/parsing/utils/drm';
+import { formatBitrate } from '@/ui/shared/format';
 
 /**
- * @typedef {import('@/types.ts').Stream} Stream
- * @typedef {import('@/types.ts').Manifest} Manifest
+ * Generates a generic player configuration object based on stream metadata.
+ * @param {import('@/types.ts').Stream} stream
  */
+function generatePlayerConfig(stream) {
+    const config = {
+        url: stream.originalUrl,
+        protocol: stream.protocol,
+        autoplay: true,
+    };
 
-/**
- * Extracts network-related information from the entire stream, including all media playlists.
- * @param {Stream} stream
- * @returns {object}
- */
-function getNetworkInfo(stream) {
-    const hostnames = { manifest: new Set(), media: new Set(), key: new Set() };
-    let totalDurationSeconds = 0;
-    let totalSizeBytes = 0;
-    let segmentInfoCount = 0;
-
-    try {
-        if (stream.originalUrl) {
-            hostnames.manifest.add(new URL(stream.originalUrl).hostname);
-        }
-        if (stream.baseUrl && stream.baseUrl !== stream.originalUrl) {
-            hostnames.manifest.add(new URL(stream.baseUrl).hostname);
-        }
-
-        if (stream.protocol === 'dash') {
-            stream.manifest.locations?.forEach((loc) =>
-                hostnames.manifest.add(new URL(loc, stream.baseUrl).hostname)
-            );
-
-            const allRepresentations = stream.manifest.periods.flatMap(
-                (p, pIndex) =>
-                    p.adaptationSets.flatMap((as) =>
-                        as.representations.map((rep) => ({
-                            rep,
-                            pId: p.id,
-                            pIndex,
-                        }))
-                    )
-            );
-            const repMap = new Map(
-                allRepresentations.map(({ rep }) => [rep.id, rep])
-            );
-
-            for (const [
-                compositeKey,
-                repState,
-            ] of stream.dashRepresentationState.entries()) {
-                const repId = compositeKey.split('-').slice(1).join('-');
-                const rep = repMap.get(repId);
-                if (!rep || !repState.segments) continue;
-
-                for (const segment of repState.segments) {
-                    if (segment.type !== 'Media' || !segment.duration) continue;
-
-                    const durationSeconds =
-                        segment.duration / segment.timescale;
-                    const sizeBytes = (rep.bandwidth / 8) * durationSeconds;
-
-                    totalDurationSeconds += durationSeconds;
-                    totalSizeBytes += sizeBytes;
-                    segmentInfoCount++;
-
-                    hostnames.media.add(new URL(segment.resolvedUrl).hostname);
-                }
-            }
-        } else if (stream.protocol === 'hls') {
-            const variantMap = new Map(
-                (stream.manifest.variants || []).map((v) => [v.stableId, v])
-            );
-
-            for (const [
-                playlistId,
-                mediaPlaylist,
-            ] of stream.mediaPlaylists.entries()) {
-                if (playlistId === 'master') continue;
-
-                const variant = variantMap.get(playlistId);
-                const bandwidth = variant?.attributes.BANDWIDTH || 0;
-
-                for (const seg of mediaPlaylist.manifest.segments || []) {
-                    const durationSeconds = seg.duration;
-                    if (durationSeconds > 0) {
-                        totalDurationSeconds += durationSeconds;
-                        segmentInfoCount++;
-                        if (bandwidth > 0) {
-                            totalSizeBytes += (bandwidth / 8) * durationSeconds;
-                        }
-                    }
-                    hostnames.media.add(new URL(seg.resolvedUrl).hostname);
-                }
-
-                (mediaPlaylist.manifest.tags || [])
-                    .filter(
-                        (t) =>
-                            t.name === 'EXT-X-KEY' &&
-                            t.value.URI &&
-                            !t.value.URI.startsWith('data:')
-                    )
-                    .forEach((t) => {
-                        try {
-                            const playlistBaseUrl =
-                                mediaPlaylist.manifest.baseUrl;
-                            hostnames.key.add(
-                                new URL(t.value.URI, playlistBaseUrl).hostname
-                            );
-                        } catch (_e) {
-                            const schemeMatch = String(t.value.URI).match(
-                                /^([a-z]+):/
-                            );
-                            if (schemeMatch) {
-                                hostnames.key.add(
-                                    `Custom Scheme: ${schemeMatch[1]}`
-                                );
-                            }
-                        }
-                    });
-            }
-        }
-    } catch (e) {
-        console.error('Error extracting network info:', e);
+    // Auth headers
+    if (stream.auth?.headers?.length > 0) {
+        config.authentication = {
+            headers: stream.auth.headers.reduce(
+                (acc, h) => ({ ...acc, [h.key]: h.value }),
+                {}
+            ),
+        };
     }
 
-    const avgSegmentDuration =
-        segmentInfoCount > 0 ? totalDurationSeconds / segmentInfoCount : null;
-    const avgSegmentSize =
-        segmentInfoCount > 0 ? totalSizeBytes / segmentInfoCount : null;
+    // DRM Configuration
+    if (stream.drmAuth) {
+        const drm = { servers: {}, advanced: {} };
 
-    return {
-        manifestHostnames: Array.from(hostnames.manifest),
-        mediaSegmentHostnames: Array.from(hostnames.media),
-        keyLicenseHostnames: Array.from(hostnames.key),
-        avgSegmentRequestRate: avgSegmentDuration,
-        avgSegmentSize: avgSegmentSize,
-        contentSteering: stream.steeringInfo
-            ? {
-                serverUri: /** @type {any} */ (stream.steeringInfo).value[
-                    'SERVER-URI'
-                ],
-                defaultPathway: /** @type {any} */ (stream.steeringInfo)
-                    .value['PATHWAY-ID'],
-                allPathways: [
-                    ...new Set(
-                        (stream.manifest.variants || [])
-                            .map((v) => v.attributes['PATHWAY-ID'])
-                            .filter(Boolean)
-                    ),
-                ],
+        const licenseUrls = stream.drmAuth.licenseServerUrl;
+        if (typeof licenseUrls === 'object' && licenseUrls !== null) {
+            drm.servers = { ...licenseUrls };
+        } else if (typeof licenseUrls === 'string') {
+            drm.servers['com.widevine.alpha'] = licenseUrls;
+            drm.servers['com.microsoft.playready'] = licenseUrls;
+        }
+
+        // Certificates
+        const certs = stream.drmAuth.serverCertificate;
+        if (certs) {
+            if (
+                typeof certs === 'object' &&
+                !(certs instanceof File) &&
+                !(certs instanceof ArrayBuffer)
+            ) {
+                Object.entries(certs).forEach(([sys, cert]) => {
+                    drm.advanced[sys] = {
+                        serverCertificate: '...binary data...',
+                    };
+                });
+            } else {
+                drm.advanced['com.apple.fps'] = {
+                    serverCertificate: '...binary data...',
+                };
             }
-            : null,
-    };
+        }
+
+        if (stream.drmAuth.headers?.length > 0) {
+            drm.headers = stream.drmAuth.headers.reduce(
+                (acc, h) => ({ ...acc, [h.key]: h.value }),
+                {}
+            );
+        }
+
+        if (
+            Object.keys(drm.servers).length > 0 ||
+            Object.keys(drm.advanced).length > 0
+        ) {
+            config.drm = drm;
+        }
+    }
+
+    return config;
 }
 
 /**
- * Gathers timing and update strategy information, primarily from the master playlist.
- * @param {Stream} stream The overall stream object
- * @returns {object | null}
+ * Estimates browser compatibility based on codecs and DRM.
+ * @param {Set<string>} videoCodecs
+ * @param {Set<string>} audioCodecs
+ * @param {string[]} drmSystems
  */
-function getTimingInfo(stream) {
-    if (stream.manifest.type !== 'dynamic') return null;
+function checkCompatibility(videoCodecs, audioCodecs, drmSystems) {
+    const code = (c) => [...videoCodecs].some((vc) => vc.startsWith(c));
+    const audio = (c) => [...audioCodecs].some((ac) => ac.startsWith(c));
 
-    const summary = stream.manifest.summary; // Use master summary
-    const activeMediaPlaylist = stream.activeMediaPlaylistUrl
-        ? stream.mediaPlaylists.get(stream.activeMediaPlaylistUrl)?.manifest
-        : null;
+    // Feature Flags
+    const isEncrypted = drmSystems.length > 0;
+    const hasHevc = code('hvc1') || code('hev1');
+    const hasAv1 = code('av01');
+    const hasAc3 = audio('ac-3') || audio('ec-3');
 
-    let lowLatency = { active: false, mechanism: 'Standard Polling' };
-    if (summary.lowLatency?.isLowLatency) {
-        lowLatency.active = true;
-        lowLatency.mechanism =
-            summary.general.protocol === 'DASH'
-                ? 'DASH Low-Latency (Chunked Transfer)'
-                : 'HLS Low-Latency (Partial Segments)';
-    }
+    // DRM Availability (Relaxed check: generic CENC counts as "needs config")
+    const hasWidevine = drmSystems.some((s) =>
+        s.toLowerCase().includes('widevine')
+    );
+    const hasPlayReady = drmSystems.some((s) =>
+        s.toLowerCase().includes('playready')
+    );
+    const hasFairPlay = drmSystems.some((s) =>
+        s.toLowerCase().includes('fairplay')
+    );
 
-    return {
-        pollingInterval:
-            stream.manifest.minimumUpdatePeriod ?? summary.hls?.targetDuration,
-        dvrWindow:
-            stream.manifest.timeShiftBufferDepth ??
-            activeMediaPlaylist?.duration,
-        lowLatency: lowLatency,
-        blockingRequestSupport: summary.lowLatency?.canBlockReload ?? false,
-        targetLatency: summary.lowLatency?.targetLatency,
-        chunkDuration: stream.manifest.maxSubsegmentDuration,
-        partTargetDuration: summary.lowLatency?.partTargetDuration,
-    };
-}
+    // Helper to build platform object
+    const checkPlatform = (
+        name,
+        engine,
+        { drmType, hevcSupport, av1Support }
+    ) => {
+        const reqs = [];
+        let status = 'supported'; // supported | config-required | partial | unsupported
 
-/**
- * Creates a unified and labeled list of license server URLs.
- * @param {Stream} stream
- * @returns {string[]}
- */
-function getUnifiedLicenseUrls(stream) {
-    const discoveredUrls =
-        stream.manifest?.summary?.security?.licenseServerUrls || [];
-    const urls = new Set();
-    const result = [];
-    const userOverrideUrl = stream.drmAuth?.licenseServerUrl;
-
-    if (userOverrideUrl) {
-        if (typeof userOverrideUrl === 'string') {
-            urls.add(userOverrideUrl);
-            result.push(`${userOverrideUrl} (User Override)`);
-        } else {
-            Object.values(userOverrideUrl).forEach((url) => {
-                if (!urls.has(url)) {
-                    urls.add(url);
-                    result.push(`${url} (User Override)`);
-                }
+        // Video Check
+        if (hasHevc && !hevcSupport) {
+            status = 'unsupported';
+            reqs.push({ label: 'HEVC', ok: false, msg: 'Codec not supported' });
+        } else if (hasHevc) {
+            reqs.push({
+                label: 'HEVC',
+                ok: true,
+                msg: 'Requires Hardware Accel.',
             });
         }
-    }
 
-    discoveredUrls.forEach((url) => {
-        if (!urls.has(url)) {
-            urls.add(url);
-            result.push(`${url} (Discovered from PSSH)`);
+        if (hasAv1 && !av1Support) {
+            status = 'unsupported';
+            reqs.push({ label: 'AV1', ok: false, msg: 'Codec not supported' });
         }
-    });
 
-    return result;
-}
+        // DRM Check
+        if (isEncrypted) {
+            const hasSpecificDrm = drmSystems.some((s) =>
+                s.toLowerCase().includes(drmType.toLowerCase())
+            );
 
-/**
- * Gathers security info for an HLS stream by aggregating across all playlists.
- * @param {Stream} stream
- * @returns {object}
- */
-function getHlsSecurityInfo(stream) {
-    const { security: securitySummary } = stream.manifest.summary;
-    if (!securitySummary?.isEncrypted) {
-        return {
-            isEncrypted: false,
-            drmSystems: [],
-            defaultKIDs: [],
-            hlsEncryptionMethod: null,
-            emeRobustnessLevels: [],
-            licenseServerUrls: [],
-        };
-    }
+            if (hasSpecificDrm) {
+                reqs.push({
+                    label: 'DRM',
+                    ok: true,
+                    msg: `${drmType} Detected`,
+                });
+                // It's supported but needs config
+                if (status === 'supported') status = 'config-required';
+            } else {
+                // Optimistic: Maybe it's CENC generic?
+                const isCenc =
+                    drmSystems.length === 0 ||
+                    drmSystems.includes('urn:mpeg:dash:mp4protection:2011');
+                if (isCenc) {
+                    reqs.push({
+                        label: 'DRM',
+                        ok: 'warn',
+                        msg: `${drmType} config needed`,
+                    });
+                    if (status === 'supported') status = 'config-required';
+                } else {
+                    reqs.push({
+                        label: 'DRM',
+                        ok: false,
+                        msg: `Missing ${drmType}`,
+                    });
+                    if (status !== 'unsupported') status = 'partial';
+                }
+            }
+        } else {
+            reqs.push({ label: 'DRM', ok: true, msg: 'Clear Content' });
+        }
 
-    return {
-        isEncrypted: true,
-        drmSystems: securitySummary.systems.map((s) => ({
-            name: getDrmSystemName(s.systemId),
-            uuid: s.systemId,
-        })),
-        defaultKIDs: securitySummary.kids,
-        hlsEncryptionMethod: securitySummary.hlsEncryptionMethod,
-        emeRobustnessLevels: [],
-        licenseServerUrls: getUnifiedLicenseUrls(stream),
+        return { name, engine, status, reqs };
     };
-}
 
-/**
- * Gathers security info for a DASH stream from its manifest.
- * @param {Stream} stream
- * @returns {object}
- */
-function getDashSecurityInfo(stream) {
-    const { manifest } = stream;
-    const { security: securitySummary } = manifest.summary;
-    if (!securitySummary?.isEncrypted) {
-        return {
-            isEncrypted: false,
-            drmSystems: [],
-            defaultKIDs: [],
-            hlsEncryptionMethod: null,
-            emeRobustnessLevels: [],
-            licenseServerUrls: [],
-        };
-    }
-
-    const contentProtection =
-        manifest.periods
-            ?.flatMap((p) => p.adaptationSets)
-            .flatMap((as) => as.contentProtection) || [];
-    const uniqueRobustness = [
-        ...new Set(
-            contentProtection.map((cp) => cp.robustness).filter(Boolean)
-        ),
+    return [
+        checkPlatform('Chrome / Edge / Firefox', 'Blink/Gecko', {
+            drmType: 'Widevine',
+            hevcSupport: true, // Edge/Chrome usually support via HW
+            av1Support: true,
+        }),
+        checkPlatform('Safari (macOS/iOS)', 'WebKit', {
+            drmType: 'FairPlay',
+            hevcSupport: true,
+            av1Support: true, // M3/iPhone 15
+        }),
+        checkPlatform('Android TV / Mobile', 'ExoPlayer', {
+            drmType: 'Widevine',
+            hevcSupport: true,
+            av1Support: true,
+        }),
+        checkPlatform('Tizen / WebOS', 'Smart TV', {
+            drmType: 'PlayReady',
+            hevcSupport: true,
+            av1Support: false,
+        }),
     ];
-
-    return {
-        isEncrypted: true,
-        drmSystems: securitySummary.systems.map((s) => ({
-            name: getDrmSystemName(s.systemId),
-            uuid: s.systemId,
-        })),
-        defaultKIDs: securitySummary.kids,
-        hlsEncryptionMethod: null,
-        emeRobustnessLevels: uniqueRobustness,
-        licenseServerUrls: getUnifiedLicenseUrls(stream),
-    };
 }
 
-/**
- * Gathers core player integration requirements from the active manifest.
- * @param {Manifest} activeManifest
- * @returns {object}
- */
-function getIntegrationRequirements(activeManifest) {
-    const summary = activeManifest.summary;
-
-    const allCodecValues = new Set();
-    summary.videoTracks.forEach((track) => {
-        track.codecs.forEach((c) => allCodecValues.add(c.value));
-        if (track.muxedAudio?.codecs) {
-            track.muxedAudio.codecs.forEach((c) => allCodecValues.add(c.value));
-        }
-    });
-    summary.audioTracks.forEach((track) => {
-        track.codecs.forEach((c) => allCodecValues.add(c.value));
-    });
-    const uniqueCodecs = Array.from(allCodecValues);
-
-    const subtitleFormats = new Set();
-    summary.textTracks.forEach((tt) => {
-        const format = tt.codecsOrMimeTypes.map((c) => c.value).join(', ');
-        if (format.includes('stpp') || format.includes('im1t')) {
-            subtitleFormats.add('IMSC1 (TTML)');
-        } else if (format.includes('vtt')) {
-            subtitleFormats.add('WebVTT');
-        } else if (format) {
-            subtitleFormats.add(format);
-        }
-    });
-
-    const isDashSegmentAlignment = activeManifest.periods
-        ?.flatMap((p) => p.adaptationSets)
-        .some((as) => as.segmentAlignment === true);
-
-    return {
-        requiredDashProfiles: (summary.dash?.profiles || '')
-            .split(/, */)
-            .filter(Boolean),
-        requiredHlsVersion: summary.hls?.version || null,
-        segmentContainerFormat: summary.general.segmentFormat,
-        trickPlaySupport:
-            summary.hls?.iFramePlaylists > 0 ||
-            activeManifest.periods
-                .flatMap((p) => p.adaptationSets)
-                .some((as) => as.roles.some((r) => r.value === 'trick')),
-        requiredCodecs: uniqueCodecs,
-        subtitleFormats: Array.from(subtitleFormats),
-        segmentAlignment: isDashSegmentAlignment ?? null,
-    };
-}
-
-/**
- * Creates the complete view model for the Integrator's Report.
- * This function is now context-agnostic and always reports on the entire stream.
- * @param {Stream} stream The active stream.
- * @returns {object}
- */
 export function createIntegratorsReportViewModel(stream) {
-    if (stream.protocol === 'dash') {
-        if (!stream.manifest) {
-            return {
-                network: {},
-                timing: null,
-                security: {},
-                integration: {},
-            };
-        }
-        return {
-            network: getNetworkInfo(stream),
-            timing: getTimingInfo(stream),
-            security: getDashSecurityInfo(stream),
-            integration: getIntegrationRequirements(stream.manifest),
-        };
+    const videoCodecs = new Set();
+    const audioCodecs = new Set();
+    const textFormats = new Set();
+    let maxResolution = { w: 0, h: 0 };
+    let maxBandwidth = 0;
+
+    const summary = stream.manifest?.summary;
+
+    if (summary) {
+        summary.videoTracks.forEach((t) => {
+            t.codecs.forEach((c) => videoCodecs.add(c.value));
+            if (t.bandwidth > maxBandwidth) maxBandwidth = t.bandwidth;
+            const res = t.resolutions[0]?.value.split('x');
+            if (res?.length === 2) {
+                const w = parseInt(res[0]);
+                const h = parseInt(res[1]);
+                if (w * h > maxResolution.w * maxResolution.h)
+                    maxResolution = { w, h };
+            }
+        });
+        summary.audioTracks.forEach((t) => {
+            t.codecs.forEach((c) => audioCodecs.add(c.value));
+        });
+        summary.textTracks.forEach((t) => {
+            t.codecsOrMimeTypes.forEach((c) => textFormats.add(c.value));
+        });
     }
 
-    // HLS-specific logic that aggregates across all playlists
-    const masterManifest =
-        stream.mediaPlaylists.get('master')?.manifest || stream.manifest;
+    const security = summary?.security || { isEncrypted: false, systems: [] };
+    const drmNames = security.systems.map((s) => getDrmSystemName(s.systemId));
 
-    if (!masterManifest) {
-        return { network: {}, timing: null, security: {}, integration: {} };
+    const domains = new Set();
+    try {
+        if (stream.baseUrl) domains.add(new URL(stream.baseUrl).origin);
+        if (summary?.general?.locations)
+            summary.general.locations.forEach((l) =>
+                domains.add(new URL(l).origin)
+            );
+    } catch (e) {
+        /* ignore */
     }
 
-    const viewModel = {
-        network: getNetworkInfo(stream),
-        timing: getTimingInfo(stream),
-        security: getHlsSecurityInfo(stream),
-        integration: getIntegrationRequirements(masterManifest),
+    const capabilities = [];
+    if (summary?.lowLatency?.isLowLatency)
+        capabilities.push({ name: 'Low Latency', value: 'Enabled' });
+    if (summary?.hls?.iFramePlaylists > 0)
+        capabilities.push({ name: 'Trick Play', value: 'I-Frame Tracks' });
+    if (textFormats.size > 0)
+        capabilities.push({
+            name: 'Subtitles',
+            value: Array.from(textFormats).join(', '),
+        });
+
+    const playerConfig = generatePlayerConfig(stream);
+
+    return {
+        overview: {
+            streamName: stream.name,
+            protocol: stream.protocol.toUpperCase(),
+            type: stream.manifest?.type === 'dynamic' ? 'LIVE' : 'VOD',
+            maxResolution: `${maxResolution.w}x${maxResolution.h}`,
+            maxBandwidth: maxBandwidth,
+        },
+        technical: {
+            videoCodecs: Array.from(videoCodecs),
+            audioCodecs: Array.from(audioCodecs),
+            drmSystems: drmNames,
+            isEncrypted: security.isEncrypted,
+        },
+        compatibility: checkCompatibility(videoCodecs, audioCodecs, drmNames),
+        configObject: playerConfig,
+        domains: Array.from(domains),
+        capabilities,
     };
-
-    return viewModel;
 }

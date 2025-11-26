@@ -1,21 +1,26 @@
 import { html, render } from 'lit-html';
-import { useUiStore } from '@/state/uiStore';
+import { useUiStore, uiActions } from '@/state/uiStore';
 import { useAnalysisStore } from '@/state/analysisStore';
-import { dashManifestTemplate } from './components/dash/renderer.js';
+import {
+    dashManifestTemplate,
+    findPathIndex,
+} from './components/dash/renderer.js';
 import { hlsManifestTemplate } from './components/hls/renderer.js';
 import { copyTextToClipboard } from '@/ui/shared/clipboard';
-import { isDebugMode } from '@/shared/utils/env';
-import { generateMissingTooltipsReport } from '@/features/parserCoverage/domain/tooltip-coverage-analyzer';
 import { eventBus } from '@/application/event-bus';
 import { dashTooltipData } from './components/dash/tooltip-data.js';
 import { hlsTooltipData } from './components/hls/tooltip-data.js';
 import * as icons from '@/ui/icons';
-import { shallow } from 'zustand/vanilla/shallow';
-
-// Import sidebar component for its side-effects (registration)
+import { openModalWithContent } from '@/ui/services/modalService';
+import { copyDebugInfoToClipboard } from '@/ui/services/debugService';
+import {
+    findDashMissingTooltips,
+    findHlsMissingTooltips,
+} from '@/features/parserCoverage/domain/tooltip-coverage-analyzer';
 import './components/sidebar.js';
 
 let container = null;
+let sidebarContainer = null;
 let currentStreamId = null;
 let uiUnsubscribe = null;
 let analysisUnsubscribe = null;
@@ -29,18 +34,13 @@ function handleInteraction(e) {
             (s) => s.id === useAnalysisStore.getState().activeStreamId
         );
     if (!stream) return;
+    const target = e.target;
+    const token = target.closest('[data-type]');
 
-    const target = /** @type {HTMLElement} */ (e.target);
-    const token = /** @type {HTMLElement} */ (
-        target.closest('.interactive-dash-token, .interactive-hls-token')
-    );
-
-    if (hoverDebounceTimeout) {
-        clearTimeout(hoverDebounceTimeout);
-    }
+    if (hoverDebounceTimeout) clearTimeout(hoverDebounceTimeout);
 
     if (e.type === 'mouseout') {
-        const relatedTarget = /** @type {Node | null} */ (e.relatedTarget);
+        const relatedTarget = e.relatedTarget;
         if (!e.currentTarget.contains(relatedTarget)) {
             eventBus.dispatch('ui:interactive-manifest:item-unhovered');
         }
@@ -48,7 +48,7 @@ function handleInteraction(e) {
     }
 
     if (token) {
-        const type = /** @type {'tag' | 'attribute'} */ (token.dataset.type);
+        const type = token.dataset.type;
         const name = token.dataset.name;
         const path = token.dataset.path;
         const tooltipData =
@@ -67,6 +67,8 @@ function handleInteraction(e) {
             }, 30);
         } else if (e.type === 'click') {
             eventBus.dispatch('ui:interactive-manifest:item-clicked', { item });
+            // Ensure sidebar is open when clicking an item
+            document.body.classList.add('contextual-sidebar-open');
         }
     }
 }
@@ -79,9 +81,11 @@ function renderInteractiveManifest() {
         .streams.find((s) => s.id === currentStreamId);
     if (!stream || !stream.manifest) {
         render(
-            html`<p class="warn">No Manifest loaded to display.</p>`,
+            html`<p class="text-slate-500 p-4">No Manifest loaded.</p>`,
             container
         );
+        // Clear sidebar if stream is missing
+        if (sidebarContainer) render(html``, sidebarContainer);
         return;
     }
 
@@ -91,11 +95,13 @@ function renderInteractiveManifest() {
         interactiveManifestSelectedItem,
     } = useUiStore.getState();
 
-    let activeManifest;
-    let rawManifestStringForToggle;
-    let activeUpdate;
+    let manifestToRender = null;
+    let stringToRender = null;
+    let diffData = null;
 
-    // ARCHITECTURAL FIX: Make HLS playlist selection explicit.
+    // Determine which manifest object we are currently viewing (Master vs Media Playlist vs DASH MPD)
+    let targetSerializedForAnalysis = stream.manifest.serializedManifest;
+
     if (
         stream.protocol === 'hls' &&
         stream.activeMediaPlaylistId &&
@@ -104,169 +110,177 @@ function renderInteractiveManifest() {
         const mediaPlaylist = stream.mediaPlaylists.get(
             stream.activeMediaPlaylistId
         );
-        if (!mediaPlaylist)
-            return html`<div class="text-yellow-400 p-4">Loading...</div>`;
-
-        activeUpdate = (mediaPlaylist.updates || []).find(
-            (u) => u.id === mediaPlaylist.activeUpdateId
-        );
-
-        rawManifestStringForToggle =
-            activeUpdate?.rawManifest || mediaPlaylist.rawManifest;
-        activeManifest = activeUpdate
-            ? {
-                ...mediaPlaylist.manifest,
-                serializedManifest: activeUpdate.serializedManifest,
-            }
-            : mediaPlaylist.manifest;
+        if (!mediaPlaylist) return;
+        stringToRender = mediaPlaylist.rawManifest;
+        if (
+            interactiveManifestShowSubstituted &&
+            mediaPlaylist.manifest?.serializedManifest?.substitutedRaw
+        ) {
+            stringToRender =
+                mediaPlaylist.manifest.serializedManifest.substitutedRaw;
+        }
+        if (mediaPlaylist.manifest) {
+            targetSerializedForAnalysis =
+                mediaPlaylist.manifest.serializedManifest;
+        }
     } else {
-        // DASH Logic or HLS Master Playlist
-        activeUpdate = stream.manifestUpdates.find(
-            (u) => u.id === stream.activeManifestUpdateId
-        );
-        rawManifestStringForToggle =
-            activeUpdate?.rawManifest || stream.rawManifest;
-        activeManifest = activeUpdate
-            ? {
-                ...stream.manifest,
-                serializedManifest: activeUpdate.serializedManifest,
-            }
-            : stream.manifest;
+        stringToRender = stream.rawManifest;
+        manifestToRender = stream.manifest.serializedManifest;
+        if (stream.patchedRawManifest) {
+            stringToRender = stream.patchedRawManifest;
+            manifestToRender = stream.manifest.serializedManifest;
+        }
     }
 
-    if (!activeManifest) {
-        render(
-            html`<div class="text-yellow-400 p-4">Awaiting content...</div>`,
-            container
-        );
-        return;
-    }
-
-    const handleCopyClick = () => {
-        let manifestToCopy = rawManifestStringForToggle;
-        copyTextToClipboard(manifestToCopy, 'Manifest copied to clipboard!');
+    const handlePatcher = () => {
+        openModalWithContent({
+            title: 'Manifest Patcher',
+            url: stream.originalUrl,
+            content: { type: 'manifestPatcher', data: { streamId: stream.id } },
+            isFullWidth: true,
+        });
     };
 
-    const handleDebugCopy = () => {
-        const report = generateMissingTooltipsReport(stream);
-        const issueCount =
-            report === 'No missing tooltips found.'
-                ? 0
-                : report.split('\n').length;
-        const debugString = `--- MANIFEST ---\n${stream.rawManifest}\n\n--- MISSING TOOLTIPS (${issueCount}) ---\n${report}`;
-        copyTextToClipboard(debugString, 'Debug report copied to clipboard!');
+    const handleDownloadDebug = () => {
+        let missingItems = [];
+
+        if (stream.protocol === 'dash') {
+            missingItems = findDashMissingTooltips(targetSerializedForAnalysis);
+        } else if (stream.protocol === 'hls') {
+            missingItems = findHlsMissingTooltips(targetSerializedForAnalysis);
+        }
+
+        const reportText =
+            missingItems.length > 0
+                ? missingItems.map((m) => `[${m.type}] ${m.name}`).join('\n')
+                : 'No missing tooltip definitions found.';
+
+        const content = `--- MANIFEST CONTENT (${stream.name}) ---
+
+${stringToRender}
+
+--- MISSING TOOLTIP DEFINITIONS REPORT ---
+Generated: ${new Date().toISOString()}
+Protocol: ${stream.protocol.toUpperCase()}
+Context: ${stream.activeMediaPlaylistId || 'Main'}
+
+${reportText}
+`;
+
+        const blob = new Blob([content], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${stream.name.replace(/[^a-z0-9]/gi, '_')}_debug_report.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
     };
 
-    const headerTemplate = html`
+    const toolbar = html`
         <div
-            class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-2"
+            class="h-12 border-b border-slate-800 bg-slate-900 flex items-center justify-between px-4 shrink-0 z-10 relative"
         >
-            <h3 class="text-xl text-white font-bold">Interactive Manifest</h3>
+            <div class="flex items-center gap-2 text-sm text-slate-400">
+                <span
+                    class="font-bold text-slate-200 truncate max-w-[200px]"
+                    title="${stream.name}"
+                    >${stream.name}</span
+                >
+                <span>•</span>
+                <span
+                    class="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-xs font-mono"
+                    >${stream.protocol.toUpperCase()}</span
+                >
+            </div>
             <div class="flex items-center gap-2">
                 <button
-                    @click=${handleCopyClick}
-                    class="bg-gray-600 hover:bg-gray-700 text-white font-bold text-xs py-2 px-3 rounded-md transition-colors flex items-center gap-2"
+                    @click=${handleDownloadDebug}
+                    class="text-xs text-slate-500 hover:text-yellow-400 px-3 py-1.5 rounded-md border border-transparent hover:border-slate-700 transition-colors flex items-center gap-2"
+                    title="Download Manifest & Debug Report"
                 >
-                    ${icons.clipboardCopy} Copy Raw Manifest
+                    ${icons.download} Debug Report
                 </button>
-                ${isDebugMode
-            ? html`<button
-                          @click=${handleDebugCopy}
-                          class="bg-yellow-600 hover:bg-yellow-700 text-black font-bold text-xs py-2 px-3 rounded-md transition-colors flex items-center gap-2"
-                      >
-                          ${icons.debug} Copy Debug Report
-                      </button>`
-            : ''}
+                <button
+                    @click=${handlePatcher}
+                    class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-md font-bold transition-colors flex items-center gap-2 shadow-sm"
+                >
+                    ${icons.code} Patcher
+                </button>
+                <button
+                    @click=${() =>
+                        copyTextToClipboard(stringToRender, 'Copied!')}
+                    class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-md border border-slate-700 transition-colors flex items-center gap-2"
+                >
+                    ${icons.clipboardCopy} Copy Raw
+                </button>
             </div>
         </div>
     `;
 
-    let contentTemplate;
-    let missingTooltips = new Set();
-    if (isDebugMode) {
-        const report = generateMissingTooltipsReport(stream);
-        if (report !== 'No missing tooltips found.') {
-            missingTooltips = new Set(
-                report.split('\n').map((line) => line.replace(/\[.*?\]\s*/, ''))
-            );
-        }
-    }
-
+    let codeView;
     if (stream.protocol === 'hls') {
-        contentTemplate = hlsManifestTemplate(
+        codeView = hlsManifestTemplate(
             stream,
-            interactiveManifestShowSubstituted,
+            stringToRender,
             interactiveManifestHoveredItem,
             interactiveManifestSelectedItem,
-            missingTooltips
+            new Set(),
+            diffData
         );
     } else {
-        contentTemplate = dashManifestTemplate(
-            stream,
+        codeView = dashManifestTemplate(
+            manifestToRender,
             interactiveManifestHoveredItem,
             interactiveManifestSelectedItem,
-            missingTooltips
+            new Set(),
+            diffData
         );
     }
 
-    render(html`${headerTemplate} ${contentTemplate}`, container);
+    const template = html`
+        <div class="flex flex-col h-full min-w-0 bg-slate-900 relative">
+            ${toolbar}
+            <div
+                class="grow relative overflow-hidden bg-slate-900"
+                id="manifest-code-container"
+            >
+                ${codeView}
+            </div>
+        </div>
+    `;
+
+    render(template, container);
+
+    // --- Render Sidebar Content ---
+    if (sidebarContainer) {
+        render(
+            html`<interactive-manifest-sidebar></interactive-manifest-sidebar>`,
+            sidebarContainer
+        );
+    }
 }
 
 export const interactiveManifestView = {
+    // ARCHITECTURAL FIX: Enable the global contextual sidebar for this view
     hasContextualSidebar: true,
 
     mount(containerElement, { stream }) {
         container = containerElement;
+        sidebarContainer = document.getElementById('contextual-sidebar'); // Access the shell's sidebar
         currentStreamId = stream.id;
-
         if (uiUnsubscribe) uiUnsubscribe();
         if (analysisUnsubscribe) analysisUnsubscribe();
-
-        // --- ARCHITECTURAL FIX: Use correct vanilla Zustand subscribe pattern ---
-        const selector = (state) => {
-            const activeStream = state.streams.find(
-                (s) => s.id === state.activeStreamId
-            );
-            if (!activeStream) return null;
-
-            return {
-                streamId: activeStream.id,
-                activeManifestUpdateId: activeStream.activeManifestUpdateId,
-                activeMediaPlaylistId: activeStream.activeMediaPlaylistId,
-                activeMediaPlaylistUrl: activeStream.activeMediaPlaylistUrl,
-                mediaPlaylistData: activeStream.mediaPlaylists.get(
-                    activeStream.activeMediaPlaylistId || 'master'
-                ),
-            };
-        };
-
-        analysisUnsubscribe = useAnalysisStore.subscribe(
-            (newState, oldState) => {
-                const newSelection = selector(newState);
-                const oldSelection = selector(oldState);
-
-                if (!shallow(newSelection, oldSelection)) {
-                    renderInteractiveManifest();
-                }
-            }
-        );
-        // --- END FIX ---
-
         uiUnsubscribe = useUiStore.subscribe(renderInteractiveManifest);
+        analysisUnsubscribe = useAnalysisStore.subscribe(
+            renderInteractiveManifest
+        );
 
         delegatedEventHandler = (e) => handleInteraction(e);
-
         container.addEventListener('mouseover', delegatedEventHandler);
         container.addEventListener('mouseout', delegatedEventHandler);
         container.addEventListener('click', delegatedEventHandler);
-
-        const contextualSidebar = document.getElementById('contextual-sidebar');
-        if (contextualSidebar) {
-            render(
-                html`<interactive-manifest-sidebar></interactive-manifest-sidebar>`,
-                contextualSidebar
-            );
-        }
 
         renderInteractiveManifest();
     },
@@ -275,22 +289,17 @@ export const interactiveManifestView = {
         if (analysisUnsubscribe) analysisUnsubscribe();
         uiUnsubscribe = null;
         analysisUnsubscribe = null;
-
-        if (hoverDebounceTimeout) clearTimeout(hoverDebounceTimeout);
-        hoverDebounceTimeout = null;
-
         if (container && delegatedEventHandler) {
             container.removeEventListener('mouseover', delegatedEventHandler);
             container.removeEventListener('mouseout', delegatedEventHandler);
             container.removeEventListener('click', delegatedEventHandler);
         }
-        delegatedEventHandler = null;
-
         if (container) render(html``, container);
-        container = null;
-        currentStreamId = null;
 
-        const contextualSidebar = document.getElementById('contextual-sidebar');
-        if (contextualSidebar) render(html``, contextualSidebar);
+        // Clean up the sidebar portal
+        if (sidebarContainer) render(html``, sidebarContainer);
+
+        container = null;
+        sidebarContainer = null;
     },
 };

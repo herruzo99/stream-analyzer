@@ -1,5 +1,7 @@
 import { createStore } from 'zustand/vanilla';
 
+// ... (Keep existing typedefs) ...
+
 /** @typedef {import('@/types.ts').PlayerStats} PlayerStats */
 /** @typedef {{time: number, buffer: number}} PlaybackHistoryEntry */
 /** @typedef {'healthy' | 'warning' | 'critical'} PlayerHealth */
@@ -29,47 +31,22 @@ import { createStore } from 'zustand/vanilla';
  * @property {{start: number, end: number}} seekableRange
  * @property {number} normalizedPlayheadTime
  * @property {number} retryCount
+ * @property {boolean} isHudVisible
+ * @property {boolean} isBasePlayer
  */
 
 /**
  * @typedef {object} MultiPlayerState
  * @property {Map<number, PlayerInstance>} players
- * @property {Map<number, 'stats' | 'controls'>} playerCardTabs
  * @property {boolean} isMutedAll
  * @property {boolean} isAutoResetEnabled
  * @property {PlayerEvent[]} eventLog
- * @property {boolean} globalAbrEnabled
- * @property {number} globalMaxHeight
- * @property {number} globalBufferingGoal
- * @property {number} globalBandwidthCap
  * @property {number} streamIdCounter
  * @property {number | null} hoveredStreamId
- */
-
-/**
- * @typedef {object} MultiPlayerActions
- * @property {(streams: import('@/types').Stream[]) => void} initializePlayers
- * @property {(sourceStreamId: number, streamName: string, manifestUrl: string, streamType: 'live' | 'vod') => number} addPlayer
- * @property {(streamId: number) => void} removePlayer
- * @property {(streamId: number, updates: Partial<PlayerInstance>) => void} updatePlayerState
- * @property {(updates: {streamId: number, updates: Partial<PlayerInstance>}[]) => void} batchUpdatePlayerState
- * @property {(event: Omit<PlayerEvent, 'id' | 'timestamp'>) => void} logEvent
- * @property {() => void} clearPlayersAndLogs
- * @property {(isMuted: boolean) => void} setMuteAll
- * @property {() => void} toggleMuteAll
- * @property {() => void} toggleAutoReset
- * @property {(streamId: number, tab: 'stats' | 'controls') => void} setPlayerCardTab
- * @property {(enabled: boolean) => void} setGlobalAbrEnabled
- * @property {(height: number) => void} setGlobalMaxHeight
- * @property {(goal: number) => void} setGlobalBufferingGoal
- * @property {(bps: number) => void} setGlobalBandwidthCap
- * @property {(streamId: number) => void} toggleStreamSelection
- * @property {() => void} selectAllStreams
- * @property {() => void} deselectAllStreams
- * @property {(streamId: number, override: { abr?: boolean, maxHeight?: number, bufferingGoal?: number }) => void} setStreamOverride
- * @property {(sourceStreamId: number, initialState?: {currentTime: number, paused: boolean}) => number} duplicateStream
- * @property {(streamId: number | null) => void} setHoveredStreamId
- * @property {() => void} reset
+ * @property {'grid' | 'focus'} layoutMode
+ * @property {'auto' | 1 | 2 | 3 | 4 | 5} gridColumns
+ * @property {number | null} focusedStreamId
+ * @property {boolean} showGlobalHud
  */
 
 const defaultStats = {
@@ -96,16 +73,15 @@ const defaultStats = {
 /** @returns {MultiPlayerState} */
 const createInitialState = () => ({
     players: new Map(),
-    playerCardTabs: new Map(),
     isMutedAll: true,
     isAutoResetEnabled: false,
     eventLog: [],
-    globalAbrEnabled: true,
-    globalMaxHeight: Infinity,
-    globalBufferingGoal: 10,
-    globalBandwidthCap: Infinity,
     streamIdCounter: 0,
     hoveredStreamId: null,
+    layoutMode: 'grid',
+    gridColumns: 'auto',
+    focusedStreamId: null,
+    showGlobalHud: true,
 });
 
 export const useMultiPlayerStore = createStore((set, get) => ({
@@ -113,16 +89,11 @@ export const useMultiPlayerStore = createStore((set, get) => ({
 
     initializePlayers: (streams) => {
         const newPlayers = new Map();
-        const newTabs = new Map();
         let streamIdCounter = 0;
         for (const stream of streams) {
             const streamId = streamIdCounter++;
             const streamType =
                 stream.manifest?.type === 'dynamic' ? 'live' : 'vod';
-
-            const variantTracks = [];
-            const audioTracks = [];
-            const textTracks = [];
 
             newPlayers.set(streamId, {
                 streamId: streamId,
@@ -135,25 +106,26 @@ export const useMultiPlayerStore = createStore((set, get) => ({
                 stats: defaultStats,
                 playbackHistory: [],
                 health: 'healthy',
-                selectedForAction: true,
+                selectedForAction: false, // Default to false for explicit selection
                 abrOverride: null,
                 maxHeightOverride: null,
                 bufferingGoalOverride: null,
                 initialState: null,
-                variantTracks,
-                audioTracks,
-                textTracks,
+                variantTracks: [],
+                audioTracks: [],
+                textTracks: [],
                 activeVideoTrack: null,
                 seekableRange: { start: 0, end: 0 },
                 normalizedPlayheadTime: 0,
                 retryCount: 0,
+                isHudVisible: true,
+                isBasePlayer: true, // Initial streams are base players
             });
-            newTabs.set(streamId, 'stats');
         }
         set({
             players: newPlayers,
-            playerCardTabs: newTabs,
             streamIdCounter: streamIdCounter,
+            focusedStreamId: null,
         });
     },
 
@@ -171,7 +143,7 @@ export const useMultiPlayerStore = createStore((set, get) => ({
                 stats: defaultStats,
                 playbackHistory: [],
                 health: 'healthy',
-                selectedForAction: true,
+                selectedForAction: true, // Auto-select newly added
                 abrOverride: null,
                 maxHeightOverride: null,
                 bufferingGoalOverride: null,
@@ -183,27 +155,32 @@ export const useMultiPlayerStore = createStore((set, get) => ({
                 seekableRange: { start: 0, end: 0 },
                 normalizedPlayheadTime: 0,
                 retryCount: 0,
+                isHudVisible: true,
+                isBasePlayer: true, // Added via Add Stream is a base player
             });
-            const newTabs = new Map(state.playerCardTabs).set(
-                newStreamId,
-                'stats'
-            );
             return {
                 players: newPlayers,
-                playerCardTabs: newTabs,
                 streamIdCounter: newStreamId + 1,
             };
         });
         return newStreamId;
     },
+
     removePlayer: (streamId) =>
         set((state) => {
             const newPlayers = new Map(state.players);
-            const newTabs = new Map(state.playerCardTabs);
             newPlayers.delete(streamId);
-            newTabs.delete(streamId);
-            return { players: newPlayers, playerCardTabs: newTabs };
+
+            let newFocusedId = state.focusedStreamId;
+            if (state.focusedStreamId === streamId) {
+                newFocusedId = null;
+                // If removing the focused item, revert to grid
+                if (state.layoutMode === 'focus') state.layoutMode = 'grid';
+            }
+
+            return { players: newPlayers, focusedStreamId: newFocusedId };
         }),
+
     updatePlayerState: (streamId, updates) =>
         set((state) => {
             const newPlayers = new Map(state.players);
@@ -211,6 +188,7 @@ export const useMultiPlayerStore = createStore((set, get) => ({
             if (player) newPlayers.set(streamId, { ...player, ...updates });
             return { players: newPlayers };
         }),
+
     batchUpdatePlayerState: (updates) => {
         set((state) => {
             const newPlayers = new Map(state.players);
@@ -223,6 +201,7 @@ export const useMultiPlayerStore = createStore((set, get) => ({
             return { players: newPlayers };
         });
     },
+
     logEvent: (event) =>
         set((state) => ({
             eventLog: [
@@ -230,26 +209,22 @@ export const useMultiPlayerStore = createStore((set, get) => ({
                 ...state.eventLog,
             ].slice(0, 100),
         })),
+
     clearPlayersAndLogs: () =>
         set({
             players: new Map(),
-            playerCardTabs: new Map(),
             streamIdCounter: 0,
             eventLog: [],
             hoveredStreamId: null,
+            focusedStreamId: null,
         }),
+
     setMuteAll: (isMuted) => set({ isMutedAll: isMuted }),
     toggleMuteAll: () => set((state) => ({ isMutedAll: !state.isMutedAll })),
     toggleAutoReset: () =>
         set((state) => ({ isAutoResetEnabled: !state.isAutoResetEnabled })),
-    setPlayerCardTab: (streamId, tab) =>
-        set((state) => ({
-            playerCardTabs: new Map(state.playerCardTabs).set(streamId, tab),
-        })),
-    setGlobalAbrEnabled: (enabled) => set({ globalAbrEnabled: enabled }),
-    setGlobalMaxHeight: (height) => set({ globalMaxHeight: height }),
-    setGlobalBufferingGoal: (goal) => set({ globalBufferingGoal: goal }),
-    setGlobalBandwidthCap: (bps) => set({ globalBandwidthCap: bps }),
+
+    // --- Selection Logic ---
     toggleStreamSelection: (streamId) => {
         set((state) => {
             const newPlayers = new Map(state.players);
@@ -263,6 +238,7 @@ export const useMultiPlayerStore = createStore((set, get) => ({
             return { players: newPlayers };
         });
     },
+
     selectAllStreams: () => {
         set((state) => {
             const newPlayers = new Map();
@@ -272,6 +248,7 @@ export const useMultiPlayerStore = createStore((set, get) => ({
             return { players: newPlayers };
         });
     },
+
     deselectAllStreams: () => {
         set((state) => {
             const newPlayers = new Map();
@@ -281,6 +258,7 @@ export const useMultiPlayerStore = createStore((set, get) => ({
             return { players: newPlayers };
         });
     },
+
     setStreamOverride: (streamId, override) => {
         set((state) => {
             const newPlayers = new Map(state.players);
@@ -305,6 +283,7 @@ export const useMultiPlayerStore = createStore((set, get) => ({
             return { players: newPlayers };
         });
     },
+
     duplicateStream: (sourceStreamId, initialState = null) => {
         const state = get();
         const sourcePlayer = state.players.get(sourceStreamId);
@@ -330,22 +309,34 @@ export const useMultiPlayerStore = createStore((set, get) => ({
                 seekableRange: { start: 0, end: 0 },
                 normalizedPlayheadTime: 0,
                 retryCount: 0,
+                isHudVisible: true,
+                isBasePlayer: false, // Duplicates are not base players
             }),
-            playerCardTabs: new Map(state.playerCardTabs).set(newId, 'stats'),
             streamIdCounter: newId + 1,
         });
         return newId;
     },
+
     setHoveredStreamId: (streamId) => set({ hoveredStreamId: streamId }),
+
+    setLayoutMode: (mode) => set({ layoutMode: mode }),
+    setGridColumns: (columns) => set({ gridColumns: columns }),
+    setFocusedStreamId: (id) =>
+        set({ focusedStreamId: id, layoutMode: id ? 'focus' : 'grid' }),
+    toggleGlobalHud: () =>
+        set((state) => ({ showGlobalHud: !state.showGlobalHud })),
+    togglePlayerHud: (streamId) =>
+        set((state) => {
+            const newPlayers = new Map(state.players);
+            const player = newPlayers.get(streamId);
+            if (player) {
+                newPlayers.set(streamId, {
+                    ...player,
+                    isHudVisible: !player.isHudVisible,
+                });
+            }
+            return { players: newPlayers };
+        }),
+
     reset: () => set(createInitialState()),
 }));
-
-export const selectIsPlayingAll = () => {
-    const { players } = useMultiPlayerStore.getState();
-    if (players.size === 0) return false;
-    for (const player of players.values()) {
-        if (player.state === 'playing' || player.state === 'buffering')
-            return true;
-    }
-    return false;
-};

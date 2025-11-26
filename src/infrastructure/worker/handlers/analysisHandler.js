@@ -33,7 +33,8 @@ async function preProcessInput(input, signal) {
             {},
             null,
             signal,
-            { streamId: input.id, resourceType: 'manifest' }
+            { streamId: input.id, resourceType: 'manifest' },
+            'GET' // Explicitly use GET for manifest
         );
 
         if (!response.ok) {
@@ -82,7 +83,12 @@ async function preProcessInput(input, signal) {
     return { ...input, protocol, manifestString, finalUrl, isLive };
 }
 
-async function _fetchAndParseHlsPresentation(input, signal) {
+async function _fetchAndParseHlsPresentation(input, signal, postProgress) {
+    appLog(
+        'AnalysisHandler',
+        'info',
+        `Starting HLS Presentation Fetch for ${input.finalUrl}`
+    );
     const { manifestString, finalUrl, auth } = input;
     const {
         manifest: masterIR,
@@ -91,7 +97,11 @@ async function _fetchAndParseHlsPresentation(input, signal) {
     } = await parseHlsManifest(manifestString, finalUrl);
 
     if (!masterIR.isMaster) {
-        // If it's a media playlist, the URL is the only key we have.
+        appLog(
+            'AnalysisHandler',
+            'info',
+            'Manifest is a Media Playlist (not Master).'
+        );
         const mediaPlaylists = new Map();
         mediaPlaylists.set(finalUrl, {
             manifest: masterIR,
@@ -110,16 +120,37 @@ async function _fetchAndParseHlsPresentation(input, signal) {
         };
     }
 
+    // Collect all unique URIs for Variants, Audio, and Subtitles
     const allReps = masterIR.periods
         .flatMap((p) => p.adaptationSets)
         .flatMap((as) => as.representations);
 
-    const uriToVariantIdMap = new Map(
-        allReps.map((r) => [r.__variantUri, r.id])
+    // Map Resolved URI -> Variant/Rendition ID(s)
+    const uriToVariantIdsMap = new Map();
+    allReps.forEach((r) => {
+        if (r.__variantUri) {
+            if (!uriToVariantIdsMap.has(r.__variantUri)) {
+                uriToVariantIdsMap.set(r.__variantUri, []);
+            }
+            uriToVariantIdsMap.get(r.__variantUri).push(r.id);
+        }
+    });
+
+    const mediaPlaylistUris = Array.from(uriToVariantIdsMap.keys());
+    const totalPlaylists = mediaPlaylistUris.length;
+
+    appLog(
+        'AnalysisHandler',
+        'info',
+        `Found ${totalPlaylists} unique media playlists to fetch.`,
+        mediaPlaylistUris
     );
 
-    const mediaPlaylistUris = [...uriToVariantIdMap.keys()].filter(Boolean);
+    if (postProgress) {
+        postProgress(`Fetching ${totalPlaylists} HLS Media Playlists...`);
+    }
 
+    // Fetch all media playlists in parallel
     const mediaPlaylistPromises = mediaPlaylistUris.map((uri) =>
         fetchWithAuth(uri, auth, null, {}, null, signal)
             .then((res) => {
@@ -128,8 +159,12 @@ async function _fetchAndParseHlsPresentation(input, signal) {
                 return res.text();
             })
             .then((text) => ({ uri, text }))
-            .catch((err) => ({ uri, error: err }))
+            .catch((err) => {
+                console.warn(`Failed to fetch media playlist: ${uri}`, err);
+                return { uri, error: err };
+            })
     );
+
     const mediaPlaylistResults = await Promise.all(mediaPlaylistPromises);
 
     const mediaPlaylists = new Map();
@@ -146,8 +181,11 @@ async function _fetchAndParseHlsPresentation(input, signal) {
                     result.uri,
                     definedVariables
                 );
-                const variantId = uriToVariantIdMap.get(result.uri);
-                if (variantId) {
+
+                // Map this result back to ALL variant/rendition IDs that use this URI
+                const variantIds = uriToVariantIdsMap.get(result.uri) || [];
+
+                variantIds.forEach((variantId) => {
                     mediaPlaylists.set(variantId, {
                         manifest: mediaIR,
                         rawManifest: result.text,
@@ -155,10 +193,15 @@ async function _fetchAndParseHlsPresentation(input, signal) {
                         updates: [],
                         activeUpdateId: null,
                     });
-                }
+                    appLog(
+                        'AnalysisHandler',
+                        'info',
+                        `Mapped playlist ${result.uri} to variant ID ${variantId}. Segment count: ${mediaIR.segments?.length}`
+                    );
+                });
             } catch (e) {
                 appLog(
-                    'analysisHandler',
+                    'AnalysisHandler',
                     'warn',
                     `Failed to parse media playlist ${result.uri}`,
                     e
@@ -233,10 +276,9 @@ async function buildStreamObject(
         inbandEvents: [],
         adaptationEvents: [],
         segmentPollingReps: new Set(),
-        initialTimeOffset: 0, // Will be calculated below
+        initialTimeOffset: 0,
     };
 
-    // --- ARCHITECTURAL MODIFICATION: Calculate initialTimeOffset in worker ---
     if (streamObject.manifest?.type === 'dynamic') {
         const manifest = streamObject.manifest;
         const dvrWindow = manifest.timeShiftBufferDepth || 0;
@@ -247,7 +289,6 @@ async function buildStreamObject(
             streamObject.protocol === 'dash' &&
             Object.keys(segmentsByCompositeKey).length > 0
         ) {
-            // Live sim: calculate offset based on latest segment.
             const liveEdgeTimes = Object.values(segmentsByCompositeKey)
                 .map((repState) => repState.liveEdgeTime)
                 .filter((t) => t !== null && t > 0);
@@ -260,7 +301,6 @@ async function buildStreamObject(
                 );
             }
         } else if (manifest.publishTime && manifest.availabilityStartTime) {
-            // Wall-clock live: use manifest timings.
             const liveEdgeSeconds =
                 (manifest.publishTime.getTime() -
                     manifest.availabilityStartTime.getTime()) /
@@ -271,7 +311,6 @@ async function buildStreamObject(
             );
         }
     }
-    // --- END MODIFICATION ---
 
     // --- Proactive In-band Event Discovery ---
     const segmentFetchPromises = [];
@@ -293,7 +332,7 @@ async function buildStreamObject(
                         segmentFetchPromises.push(
                             fetchAndParseSegment(
                                 firstMediaSegment.resolvedUrl,
-                                'isobff', // Assume isobff for inband events for now
+                                'isobff',
                                 firstMediaSegment.range,
                                 input.auth,
                                 { streamId: input.id, resourceType: 'video' },
@@ -352,8 +391,8 @@ async function buildStreamObject(
                 id:
                     String(
                         event.scte35?.splice_command?.splice_event_id ||
-                        event.scte35?.descriptors?.[0]
-                            ?.segmentation_event_id
+                            event.scte35?.descriptors?.[0]
+                                ?.segmentation_event_id
                     ) || String(event.startTime),
                 startTime: event.startTime,
                 duration:
@@ -363,7 +402,7 @@ async function buildStreamObject(
                 scte35Signal: event.scte35,
                 adManifestUrl:
                     event.scte35?.descriptors?.[0]?.segmentation_upid_type ===
-                        0x0c
+                    0x0c
                         ? event.scte35.descriptors[0].segmentation_upid
                         : null,
                 creatives: [],
@@ -375,6 +414,11 @@ async function buildStreamObject(
     }
 
     if (input.protocol === 'hls') {
+        appLog(
+            'AnalysisHandler',
+            'info',
+            `Building HLS Stream Object. Master: ${manifestIR.isMaster}`
+        );
         if (manifestIR.isMaster) {
             streamObject.mediaPlaylists.set('master', {
                 manifest: manifestIR,
@@ -387,32 +431,33 @@ async function buildStreamObject(
             const allAdaptationSets = manifestIR.periods.flatMap(
                 (p) => p.adaptationSets
             );
+
+            // Because we fetched everything atomically, we can fully populate hlsVariantState now
             for (const as of allAdaptationSets) {
                 for (const rep of as.representations) {
-                    const variantId = rep.id; // Use the stable ID as the key
+                    const variantId = rep.id;
                     const uri =
                         rep.__variantUri || rep.serializedManifest.resolvedUri;
-                    if (
-                        variantId &&
-                        !streamObject.hlsVariantState.has(variantId)
-                    ) {
-                        const mediaPlaylistData =
-                            analysisResults.mediaPlaylists.get(variantId);
+
+                    const mediaPlaylistData =
+                        analysisResults.mediaPlaylists.get(variantId);
+
+                    if (variantId) {
+                        const segments =
+                            mediaPlaylistData?.manifest.segments || [];
+                        appLog(
+                            'AnalysisHandler',
+                            'info',
+                            `Populating variant state for ${variantId}. Segments found: ${segments.length}`
+                        );
                         streamObject.hlsVariantState.set(variantId, {
-                            uri: uri, // Store the current URI
-                            historicalUris: [uri], // Start historical tracking
-                            segments:
-                                mediaPlaylistData?.manifest.segments || [],
+                            uri: uri,
+                            historicalUris: [uri],
+                            segments: segments,
                             currentSegmentUrls: new Set(
-                                (
-                                    mediaPlaylistData?.manifest.segments || []
-                                ).map((s) => s.uniqueId)
+                                segments.map((s) => s.uniqueId)
                             ),
-                            newlyAddedSegmentUrls: new Set(
-                                (
-                                    mediaPlaylistData?.manifest.segments || []
-                                ).map((s) => s.uniqueId)
-                            ),
+                            newlyAddedSegmentUrls: new Set(),
                             isLoading: false,
                             isPolling: false,
                             isExpanded: false,
@@ -424,16 +469,21 @@ async function buildStreamObject(
             }
         } else {
             // Media playlist directly
+            appLog(
+                'AnalysisHandler',
+                'info',
+                'Processing single media playlist directly.'
+            );
             const variantId = streamObject.originalUrl;
             const allSegmentUrls = (manifestIR.segments || []).map(
                 (s) => s.uniqueId
             );
             streamObject.hlsVariantState.set(variantId, {
-                uri: variantId, // URI is the ID here
+                uri: variantId,
                 historicalUris: [variantId],
                 segments: manifestIR.segments || [],
                 currentSegmentUrls: new Set(allSegmentUrls),
-                newlyAddedSegmentUrls: new Set(allSegmentUrls),
+                newlyAddedSegmentUrls: new Set(),
                 isLoading: false,
                 isPolling: manifestIR.type === 'dynamic',
                 isExpanded: true,
@@ -451,12 +501,14 @@ async function buildStreamObject(
             streamObject.dashRepresentationState.set(key, {
                 segments: allSegments,
                 currentSegmentUrls: allSegmentUrls,
-                newlyAddedSegmentUrls: allSegmentUrls,
+                // Initialize as empty to prevent flash on load
+                newlyAddedSegmentUrls: new Set(),
                 diagnostics: data.diagnostics,
             });
         }
     }
 
+    // ... (In-band event merge - unchanged) ...
     if (streamObject.inbandEvents.length > 0) {
         const eventsBySegmentId = streamObject.inbandEvents.reduce(
             (acc, event) => {
@@ -551,6 +603,7 @@ async function buildStreamObject(
     return streamObject;
 }
 
+// ... (rest of file including serializeStreamForTransport and handleStartAnalysis) ...
 function serializeStreamForTransport(streamObject) {
     const serialized = { ...streamObject };
 
@@ -648,7 +701,8 @@ export async function handleStartAnalysis({ inputs, postProgress }, signal) {
                     {},
                     null,
                     abortSignal,
-                    loggingContext
+                    loggingContext,
+                    'GET'
                 );
                 if (!response.ok) {
                     throw new Error(
@@ -673,9 +727,11 @@ export async function handleStartAnalysis({ inputs, postProgress }, signal) {
             };
 
             if (preProcessed.protocol === 'hls') {
+                // Pass postProgress to allow sub-steps logging
                 const hlsResult = await _fetchAndParseHlsPresentation(
                     preProcessed,
-                    signal
+                    signal,
+                    postProgress
                 );
                 manifestIR = hlsResult.masterIR;
                 serializedManifestObject = hlsResult.serializedManifestObject;
@@ -742,19 +798,19 @@ export async function handleStartAnalysis({ inputs, postProgress }, signal) {
             );
             const coverageReport = input.isDebug
                 ? [
-                    ...(preProcessed.protocol === 'dash'
-                        ? analyzeDashCoverage(serializedManifestObject)
-                        : []),
-                    ...analyzeParserDrift(manifestIR),
-                ]
+                      ...(preProcessed.protocol === 'dash'
+                          ? analyzeDashCoverage(serializedManifestObject)
+                          : []),
+                      ...analyzeParserDrift(manifestIR),
+                  ]
                 : [];
             const semanticData = new Map();
 
             const steeringTag =
                 preProcessed.protocol === 'hls' && manifestIR.isMaster
                     ? (manifestIR.tags || []).find(
-                        (t) => t.name === 'EXT-X-CONTENT-STEERING'
-                    )
+                          (t) => t.name === 'EXT-X-CONTENT-STEERING'
+                      )
                     : null;
             if (steeringTag) {
                 const steeringUri = new URL(

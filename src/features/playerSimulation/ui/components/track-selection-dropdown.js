@@ -1,65 +1,95 @@
 import { html } from 'lit-html';
 import { closeDropdown } from '@/ui/services/dropdownService';
 import { formatBitrate } from '@/ui/shared/format';
-import { tooltipTriggerClasses } from '@/ui/shared/constants';
 import { eventBus } from '@/application/event-bus';
+import * as icons from '@/ui/icons';
 
-const trackCardTemplate = ({
+const dropdownContainerClass =
+    'dropdown-panel bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl w-80 overflow-hidden ring-1 ring-black/50 flex flex-col max-h-[60vh]';
+const scrollContainerClass =
+    'overflow-y-auto p-2 space-y-1 custom-scrollbar grow';
+const headerClass =
+    'px-3 py-2 bg-white/5 border-b border-white/5 text-[10px] font-bold uppercase tracking-widest text-slate-400 flex justify-between items-center';
+
+const trackItemTemplate = ({
     label,
-    details,
-    subDetails = null,
+    primaryMeta,
+    secondaryMeta,
+    tags = [],
     isActive,
     onClick,
 }) => {
-    const activeClasses = 'bg-blue-800 border-blue-600 ring-2 ring-blue-500';
-    const baseClasses =
-        'bg-slate-900/50 p-3 rounded-lg border border-slate-700 cursor-pointer transition-all duration-150 ease-in-out text-left w-full';
-    const hoverClasses = 'hover:bg-slate-700 hover:border-slate-500';
-    const tooltipText = `${details}${subDetails ? ` | ${subDetails}` : ''}`;
-
     return html`
         <button
-            class="${baseClasses} ${hoverClasses} ${isActive
-                ? activeClasses
-                : ''}"
             @click=${onClick}
-            data-tooltip=${tooltipText}
+            class="group w-full text-left p-2 rounded-lg transition-all duration-200 flex items-center gap-3 border ${isActive
+                ? 'bg-blue-600 border-blue-500 shadow-md shadow-blue-900/20'
+                : 'bg-transparent border-transparent hover:bg-white/5 hover:border-white/10'}"
         >
-            <div class="flex justify-between items-center">
-                <span class="font-semibold text-slate-200 truncate"
-                    >${label}</span
-                >
-                ${isActive
-                    ? html`<span
-                          class="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-600 text-white"
-                          >ACTIVE</span
-                      >`
-                    : ''}
-            </div>
+            <!-- Status Indicator -->
             <div
-                class="text-xs text-slate-400 font-mono truncate mt-1 ${tooltipTriggerClasses}"
+                class="shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${isActive
+                    ? 'bg-white/20 text-white'
+                    : 'bg-slate-800 text-slate-500 group-hover:bg-slate-700 group-hover:text-slate-300'}"
             >
-                ${details}
+                ${isActive ? icons.checkCircle : icons.circle}
             </div>
-            ${subDetails
-                ? html`<div
-                      class="text-xs text-slate-500 font-mono truncate mt-1"
-                  >
-                      ${subDetails}
-                  </div>`
-                : ''}
+
+            <!-- Content -->
+            <div class="grow min-w-0 flex flex-col">
+                <div class="flex items-center justify-between gap-2">
+                    <span
+                        class="text-sm font-bold truncate ${isActive
+                            ? 'text-white'
+                            : 'text-slate-200'}"
+                    >
+                        ${label}
+                    </span>
+                    ${tags.length > 0
+                        ? html`
+                              <div class="flex gap-1">
+                                  ${tags.map(
+                                      (t) => html`
+                                          <span
+                                              class="text-[9px] px-1.5 rounded border font-mono uppercase ${isActive
+                                                  ? 'bg-blue-500 border-blue-400 text-white'
+                                                  : 'bg-slate-800 border-slate-600 text-slate-400'}"
+                                          >
+                                              ${t}
+                                          </span>
+                                      `
+                                  )}
+                              </div>
+                          `
+                        : ''}
+                </div>
+
+                <div
+                    class="flex items-center gap-2 text-xs ${isActive
+                        ? 'text-blue-100'
+                        : 'text-slate-400'} font-mono mt-0.5"
+                >
+                    ${primaryMeta ? html`<span>${primaryMeta}</span>` : ''}
+                    ${primaryMeta && secondaryMeta
+                        ? html`<span class="opacity-50">•</span>`
+                        : ''}
+                    ${secondaryMeta
+                        ? html`<span class="truncate">${secondaryMeta}</span>`
+                        : ''}
+                </div>
+            </div>
         </button>
     `;
 };
 
+// --- Video Selection ---
 export const videoSelectionPanelTemplate = (
     videoTracks,
     isAbrEnabled,
     streamId
 ) => {
     const handleSelect = (track) => {
-        const isAuto = track === null;
-        if (isAuto) {
+        if (track === null) {
             eventBus.dispatch('ui:player:set-abr-enabled', {
                 streamId,
                 enabled: true,
@@ -73,117 +103,136 @@ export const videoSelectionPanelTemplate = (
         closeDropdown();
     };
 
-    // --- ARCHITECTURAL OVERHAUL: Robust De-duplication and Rich Data ---
+    // Deduplicate and Sort
     const uniqueTracks = new Map();
     (videoTracks || []).forEach((track) => {
-        // Create a unique key based on all relevant video properties
-        const key = `${track.height}x${track.width}@${track.videoBandwidth || track.bandwidth}|${track.videoCodec}|${track.frameRate}`;
-        if (!uniqueTracks.has(key)) {
-            uniqueTracks.set(key, track);
-        }
+        const key = `${track.height}x${track.width}@${track.videoBandwidth || track.bandwidth}`;
+        if (!uniqueTracks.has(key)) uniqueTracks.set(key, track);
     });
 
     const tracksToRender = [...uniqueTracks.values()].sort((a, b) => {
-        if ((b.height || 0) !== (a.height || 0)) {
-            return (b.height || 0) - (a.height || 0);
-        }
         return (
             (b.videoBandwidth || b.bandwidth || 0) -
             (a.videoBandwidth || a.bandwidth || 0)
         );
     });
-    // --- END OVERHAUL ---
 
     return html`
-        <div
-            class="dropdown-panel bg-slate-800 border border-slate-700 rounded-lg shadow-xl w-80 p-2 space-y-2 max-h-[60vh] overflow-y-auto"
-        >
-            ${trackCardTemplate({
-                label: 'Auto (ABR)',
-                details: 'Adaptive Bitrate Switching',
-                subDetails: null,
-                isActive: isAbrEnabled,
-                onClick: () => handleSelect(null),
-            })}
-            ${tracksToRender.map((track) => {
-                const details = [
-                    formatBitrate(track.videoBandwidth || track.bandwidth),
-                    track.frameRate
-                        ? `${parseFloat(track.frameRate).toFixed(2)}fps`
-                        : null,
-                ]
-                    .filter(Boolean)
-                    .join(' | ');
+        <div class="${dropdownContainerClass}">
+            <div class="${headerClass}">
+                <span>Video Quality</span>
+                <span class="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300"
+                    >${tracksToRender.length} Levels</span
+                >
+            </div>
+            <div class="${scrollContainerClass}">
+                ${trackItemTemplate({
+                    label: 'Auto (ABR)',
+                    primaryMeta: 'Adaptive Bitrate',
+                    secondaryMeta: 'Optimized for Network',
+                    isActive: isAbrEnabled,
+                    tags: ['Auto'],
+                    onClick: () => handleSelect(null),
+                })}
+                <div class="h-px bg-white/10 mx-2 my-1"></div>
+                ${tracksToRender.map((track) => {
+                    const bitrate = formatBitrate(
+                        track.videoBandwidth || track.bandwidth
+                    );
+                    const resolution = track.height
+                        ? `${track.height}p`
+                        : 'Unknown';
+                    const codec = track.videoCodec
+                        ? track.videoCodec.split('.')[0]
+                        : '';
 
-                return trackCardTemplate({
-                    label: `${track.height}p`,
-                    details: details,
-                    subDetails: track.videoCodec,
-                    isActive: track.active && !isAbrEnabled,
-                    onClick: () => handleSelect(track),
-                });
-            })}
+                    return trackItemTemplate({
+                        label: resolution,
+                        primaryMeta: bitrate,
+                        secondaryMeta: codec,
+                        isActive: track.active && !isAbrEnabled,
+                        onClick: () => handleSelect(track),
+                    });
+                })}
+            </div>
         </div>
     `;
 };
 
+// --- Audio Selection ---
 export const audioSelectionPanelTemplate = (audioTracks, streamId) => {
     const handleSelect = (track) => {
         eventBus.dispatch('ui:player:select-audio-track', {
             streamId,
             language: track.language,
-            label: track.label, // Pass label for more specific selection
+            label: track.label,
         });
         closeDropdown();
     };
 
     return html`
-        <div
-            class="dropdown-panel bg-slate-800 border border-slate-700 rounded-lg shadow-xl w-80 p-2 space-y-2"
-        >
-            ${audioTracks.map((track) =>
-                trackCardTemplate({
-                    label: track.label || track.language,
-                    details: `Role: ${
-                        (track.roles || []).join(', ') || 'main'
-                    }`,
-                    subDetails: track.codec,
-                    isActive: track.active,
-                    onClick: () => handleSelect(track),
-                })
-            )}
+        <div class="${dropdownContainerClass}">
+            <div class="${headerClass}">
+                <span>Audio Tracks</span>
+                <span class="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300"
+                    >${audioTracks.length} Available</span
+                >
+            </div>
+            <div class="${scrollContainerClass}">
+                ${audioTracks.map((track) => {
+                    const lang = track.language || 'und';
+                    const label = track.label || lang;
+                    const roles = (track.roles || []).join(', ');
+
+                    return trackItemTemplate({
+                        label: label.toUpperCase(),
+                        primaryMeta: track.codec,
+                        secondaryMeta: roles,
+                        tags: [lang],
+                        isActive: track.active,
+                        onClick: () => handleSelect(track),
+                    });
+                })}
+            </div>
         </div>
     `;
 };
 
+// --- Text Selection ---
 export const textSelectionPanelTemplate = (textTracks, streamId) => {
     const handleSelect = (track) => {
         eventBus.dispatch('ui:player:select-text-track', { streamId, track });
         closeDropdown();
     };
 
+    const noneActive = !textTracks.some((t) => t.active);
+
     return html`
-        <div
-            class="dropdown-panel bg-slate-800 border border-slate-700 rounded-lg shadow-xl w-80 p-2 space-y-2"
-        >
-            ${trackCardTemplate({
-                label: 'Text Tracks Off',
-                details: 'No subtitles or captions will be displayed.',
-                subDetails: null,
-                isActive: !textTracks.some((t) => t.active),
-                onClick: () => handleSelect(null),
-            })}
-            ${textTracks.map((track) =>
-                trackCardTemplate({
-                    label: track.label || track.language,
-                    details: `Kind: ${track.kind || 'subtitle'}`,
-                    subDetails: `Role: ${
-                        (track.roles || []).join(', ') || 'main'
-                    }`,
-                    isActive: track.active,
-                    onClick: () => handleSelect(track),
-                })
-            )}
+        <div class="${dropdownContainerClass}">
+            <div class="${headerClass}">
+                <span>Subtitles / Captions</span>
+            </div>
+            <div class="${scrollContainerClass}">
+                ${trackItemTemplate({
+                    label: 'Off',
+                    primaryMeta: 'No subtitles',
+                    secondaryMeta: null,
+                    isActive: noneActive,
+                    onClick: () => handleSelect(null),
+                })}
+                <div class="h-px bg-white/10 mx-2 my-1"></div>
+                ${textTracks.map((track) => {
+                    const label = track.label || track.language || 'Untitled';
+                    return trackItemTemplate({
+                        label: label,
+                        primaryMeta: track.kind,
+                        secondaryMeta: null,
+                        tags: [track.language || 'und'],
+                        isActive: track.active,
+                        onClick: () => handleSelect(track),
+                    });
+                })}
+            </div>
         </div>
     `;
 };

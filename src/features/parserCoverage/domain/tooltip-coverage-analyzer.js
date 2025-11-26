@@ -7,7 +7,7 @@ import { isDebugMode } from '@/shared/utils/env';
  * @param {object} serializedManifest
  * @returns {{type: 'Element' | 'Attribute', name: string}[]}
  */
-function findDashMissingTooltips(serializedManifest) {
+export function findDashMissingTooltips(serializedManifest) {
     const missing = [];
     const seen = new Set();
     const walk = (node, tagName) => {
@@ -56,7 +56,7 @@ function findDashMissingTooltips(serializedManifest) {
  * @param {object} serializedManifest
  * @returns {{type: 'Tag' | 'Attribute', name: string}[]}
  */
-function findHlsMissingTooltips(serializedManifest) {
+export function findHlsMissingTooltips(serializedManifest) {
     const missing = [];
     const seen = new Set();
     const checkAttributes = (tagName, attributesObject) => {

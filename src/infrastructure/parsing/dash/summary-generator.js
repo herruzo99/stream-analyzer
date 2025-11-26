@@ -230,7 +230,6 @@ export async function generateDashSummary(
                 });
             }
 
-            // --- FIX: Correctly map over the rep.codecs array ---
             const codecs = (rep.codecs || []).map((c) => ({
                 ...c,
                 supported: isCodecSupported(c.value),
@@ -247,7 +246,7 @@ export async function generateDashSummary(
                 scanType: rep.scanType || null,
                 videoRange: null,
                 roles: rep.roles,
-                muxedAudio: rep.muxedAudio, // Keep muxed audio info
+                muxedAudio: rep.muxedAudio,
             };
         });
     });
@@ -298,14 +297,11 @@ export async function generateDashSummary(
             return {
                 id: rep.id || as.id || 'N/A',
                 lang: as.lang,
-                codecsOrMimeTypes: mimeTypes.map(
-                    (v) =>
-                        /** @type {import('@/types').CodecInfo} */({
-                        value: v,
-                        source: 'manifest',
-                        supported: isCodecSupported(v),
-                    })
-                ),
+                codecsOrMimeTypes: mimeTypes.map((v) => ({
+                    value: v,
+                    source: 'manifest',
+                    supported: isCodecSupported(v),
+                })),
                 isDefault: (rep.roles || []).some((r) => r.value === 'main'),
                 isForced: (rep.roles || []).some((r) => r.value === 'forced'),
                 roles: rep.roles,
@@ -317,7 +313,14 @@ export async function generateDashSummary(
         id: period.id,
         start: period.start,
         duration: period.duration,
-        adaptationSets: period.adaptationSets,
+        // Distill AdaptationSets to avoid circular references in debug output
+        adaptationSets: period.adaptationSets.map((as) => ({
+            id: as.id,
+            contentType: as.contentType,
+            lang: as.lang,
+            mimeType: as.mimeType,
+            representationCount: as.representations.length,
+        })),
     }));
 
     const serviceDescription = findChildrenRecursive(
@@ -364,6 +367,7 @@ export async function generateDashSummary(
             minimumUpdatePeriod: manifestIR.minimumUpdatePeriod,
             availabilityStartTime: manifestIR.availabilityStartTime,
             publishTime: manifestIR.publishTime,
+            maxSegmentDuration: manifestIR.maxSegmentDuration, // Populated from IR
         },
         hls: null,
         lowLatency: {
@@ -379,7 +383,6 @@ export async function generateDashSummary(
         },
         content: {
             totalPeriods: manifestIR.periods.length,
-            // --- FIX: Correctly sum the number of representations ---
             totalVideoTracks: allVideoAdaptationSets.reduce(
                 (sum, as) => sum + as.representations.length,
                 0
@@ -392,7 +395,6 @@ export async function generateDashSummary(
                 (sum, as) => sum + as.representations.length,
                 0
             ),
-            // --- END FIX ---
             mediaPlaylists: 0,
             periods: periodSummaries,
         },

@@ -8,6 +8,9 @@ import { inferMediaInfoFromExtension } from '@/infrastructure/parsing/utils/medi
 import { runChecks } from '@/features/compliance/domain/engine';
 import { diffManifest } from '@/ui/shared/diff';
 import { EVENTS } from '@/types/events';
+import { applyPatches } from '@/features/manifestPatcher/domain/patchService';
+import { parseManifest as parseHls } from '@/infrastructure/parsing/hls/index.js';
+import { parseManifest as parseDash } from '@/infrastructure/parsing/dash/parser.js';
 
 const MAX_MANIFEST_UPDATES_HISTORY = 1000;
 
@@ -123,12 +126,73 @@ async function processLiveUpdate(updateData) {
         return;
     }
 
+    if (stream.patchRules && stream.patchRules.length > 0) {
+        const patchedContent = applyPatches(
+            updateData.newManifestString,
+            stream.patchRules
+        );
+        updateData.newManifestString = patchedContent;
+
+        const parsingOptions = {
+            isPrimary: true,
+            isLive: stream.manifest.type === 'dynamic',
+            hls: {
+                masterPlaylist: stream.manifest.isMaster,
+            },
+        };
+
+        let parsedResult;
+        if (stream.protocol === 'hls') {
+            parsedResult = await parseHls(
+                patchedContent,
+                stream.patchedManifestUrl || stream.originalUrl,
+                undefined,
+                parsingOptions
+            );
+        } else {
+            parsedResult = await parseDash(
+                patchedContent,
+                stream.patchedManifestUrl || stream.originalUrl,
+                parsingOptions
+            );
+        }
+        updateData.newManifestObject = parsedResult.manifest;
+    }
+
+    // --- FIX: Preserve Client-Side Detected Ads ---
+    // The worker returns adAvails found via Manifest parsing (SCTE-35).
+    // We must merge these with existing adAvails found via main-thread heuristics (structural/ID based).
+    const workerAdAvails = updateData.adAvails || [];
+    const existingAdAvails = stream.adAvails || [];
+
+    // Heuristic detection methods that run on the main thread
+    const MAIN_THREAD_DETECTION_METHODS = new Set([
+        'ASSET_IDENTIFIER',
+        'ENCRYPTION_TRANSITION',
+        'STRUCTURAL_DISCONTINUITY',
+    ]);
+
+    const preservedAdAvails = existingAdAvails.filter((a) =>
+        MAIN_THREAD_DETECTION_METHODS.has(a.detectionMethod)
+    );
+
+    // Combine worker avails with preserved main-thread avails, deduplicating by ID
+    const mergedAdAvails = [...workerAdAvails];
+    const workerAvailIds = new Set(workerAdAvails.map((a) => a.id));
+
+    preservedAdAvails.forEach((avail) => {
+        if (!workerAvailIds.has(avail.id)) {
+            mergedAdAvails.push(avail);
+        }
+    });
+    // --- END FIX ---
+
     const updatePayload = {
         dashRepresentationState: new Map(
             updateData.dashRepresentationState || []
         ),
         hlsVariantState: new Map(updateData.hlsVariantState || []),
-        adAvails: updateData.adAvails,
+        adAvails: mergedAdAvails,
         inbandEventsToAdd: updateData.inbandEvents,
     };
 

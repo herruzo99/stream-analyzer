@@ -6,13 +6,40 @@ import { toggleAllPolling } from '@/ui/services/streamActionsService';
 import { toggleDropdown, closeDropdown } from '@/ui/services/dropdownService';
 import { dashFeatureDefinitions } from '@/infrastructure/parsing/dash/feature-definitions';
 import { hlsFeatureDefinitions } from '@/infrastructure/parsing/hls/feature-definitions';
-import { tooltipTriggerClasses } from '@/ui/shared/constants';
 import * as icons from '@/ui/icons';
 import { formattedOptionsDropdownTemplate } from '@/features/playerSimulation/ui/components/formatted-options-dropdown.js';
 import { segmentPollingSelectorTemplate } from './segment-polling-selector';
 
-const POLLING_INTERVAL_OPTIONS_STREAM = [
-    { id: null, label: 'Auto' },
+const INACTIVITY_TIMEOUT_OPTIONS = [
+    {
+        id: 0,
+        label: 'Disabled',
+        description: 'Stop immediately on background.',
+    },
+    {
+        id: 60000,
+        label: '1 Minute',
+        description: 'Stop after 1 min background.',
+    },
+    {
+        id: null,
+        label: 'Default (10 min)',
+        description: 'Stop after 10 min background.',
+    },
+    {
+        id: 3600000,
+        label: '1 Hour',
+        description: 'Stop after 1 hour background.',
+    },
+    {
+        id: Infinity,
+        label: 'Infinite',
+        description: 'Never stop background polling.',
+    },
+];
+
+const POLLING_INTERVAL_OPTIONS = [
+    { id: null, label: 'Auto (Manifest)' },
     { id: 2, label: '2 seconds' },
     { id: 5, label: '5 seconds' },
     { id: 10, label: '10 seconds' },
@@ -20,296 +47,96 @@ const POLLING_INTERVAL_OPTIONS_STREAM = [
     { id: 60, label: '60 seconds' },
 ];
 
-const POLLING_INTERVAL_OPTIONS_GLOBAL = [
-    { id: null, label: 'Disabled' },
-    ...POLLING_INTERVAL_OPTIONS_STREAM.slice(1),
+const GLOBAL_INTERVAL_OPTIONS = [
+    {
+        id: null,
+        label: 'Use Per-Stream Setting',
+        description: 'Respect individual stream configs.',
+    },
+    ...POLLING_INTERVAL_OPTIONS.slice(1).map((o) => ({
+        ...o,
+        description: 'Force all streams to this interval.',
+    })),
 ];
 
-const pollingIntervalPanelTemplate = (stream, isGlobal = false) => {
+/**
+ * Renders the interval selection dropdown (for both Global and Per-Stream contexts).
+ */
+const intervalSelectorTemplate = (currentValue, isGlobal, streamId = null) => {
+    const options = isGlobal
+        ? GLOBAL_INTERVAL_OPTIONS
+        : POLLING_INTERVAL_OPTIONS;
+
     const handleSelect = (option, event) => {
-        event.stopPropagation(); // Prevent the main dropdown from closing.
+        event.stopPropagation();
         if (isGlobal) {
             uiActions.setGlobalPollingIntervalOverride(option.id);
         } else {
             analysisActions.setStreamPollingIntervalOverride(
-                stream.id,
+                streamId,
                 option.id
             );
         }
     };
 
-    const options = isGlobal
-        ? POLLING_INTERVAL_OPTIONS_GLOBAL
-        : POLLING_INTERVAL_OPTIONS_STREAM;
-    const optionsWithDescriptions = options.map((opt) => {
-        if (opt.id === null) {
-            if (isGlobal) {
-                return {
-                    ...opt,
-                    description:
-                        'Each stream will use its own auto or individual setting.',
-                };
-            }
-            let desc = 'Calculated from manifest.';
-            if (stream) {
-                const autoInterval = (
-                    stream.manifest.minimumUpdatePeriod ||
-                    stream.manifest.targetDuration ||
-                    2
-                ).toFixed(1);
-                desc = `Calculated from manifest: ~${autoInterval}s`;
-            }
-            return { ...opt, description: desc };
-        }
-        return { ...opt, description: `Poll every ${opt.label}.` };
-    });
-
-    const activeInterval = isGlobal
-        ? useUiStore.getState().globalPollingIntervalOverride
-        : stream.pollingIntervalOverride;
-
     return formattedOptionsDropdownTemplate(
-        optionsWithDescriptions,
-        activeInterval,
+        options.map((o) => ({
+            ...o,
+            description: o.description || `Poll every ${o.label}`,
+        })),
+        currentValue,
         handleSelect
     );
 };
 
-const getFeatureList = () => {
-    const dashFeatures = dashFeatureDefinitions.map((f) => ({
-        ...f,
-        protocol: 'dash',
-    }));
-    const hlsFeatures = hlsFeatureDefinitions.map((f) => ({
-        ...f,
-        protocol: 'hls',
-    }));
-    return [...dashFeatures, ...hlsFeatures].sort((a, b) =>
-        a.name.localeCompare(b.name)
-    );
+// --- Conditional Polling Logic ---
+const getFeatureList = (protocol) => {
+    const defs =
+        protocol === 'dash' ? dashFeatureDefinitions : hlsFeatureDefinitions;
+    return defs
+        .filter((f) => f.isDynamic)
+        .sort((a, b) => a.name.localeCompare(b.name));
 };
 
-const allFeatures = getFeatureList();
-
-const INACTIVITY_TIMEOUT_OPTIONS = [
-    {
-        id: 0,
-        label: 'Disabled',
-        description:
-            'Polling stops immediately when the tab is in the background.',
-    },
-    {
-        id: 60000,
-        label: '1 Minute',
-        description:
-            'Polling stops after 1 minute of the tab being in the background.',
-    },
-    {
-        id: null,
-        label: 'Default (10 min)',
-        description:
-            'Polling stops after 10 minutes of the tab being in the background.',
-    },
-    {
-        id: 3600000,
-        label: '1 Hour',
-        description: 'Polling continues for up to 1 hour in the background.',
-    },
-    {
-        id: 14400000,
-        label: '4 Hours',
-        description: 'Polling continues for up to 4 hours in the background.',
-    },
-    {
-        id: 43200000,
-        label: '12 Hours',
-        description: 'Polling continues for up to 12 hours in the background.',
-    },
-    {
-        id: Infinity,
-        label: 'Infinite',
-        description: 'Polling will never stop due to inactivity.',
-    },
-];
-
-const individualPollingControls = (liveStreams, isGlobalOverrideActive) => {
-    const handleToggle = (streamId, isCurrentlyPolling) => {
-        analysisActions.setStreamPolling(streamId, !isCurrentlyPolling);
-    };
-
-    return html`
-        <div class="space-y-2">
-            ${liveStreams.map(
-                (stream) => html`
-                    <div
-                        class="flex items-center justify-between p-2 bg-slate-900/50 rounded-md gap-2"
-                    >
-                        <div class="flex items-center gap-3 min-w-0">
-                            <button
-                                @click=${() =>
-                                    handleToggle(stream.id, stream.isPolling)}
-                                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${stream.isPolling
-                                    ? 'bg-blue-600'
-                                    : 'bg-slate-600'}"
-                                title=${stream.isPolling ? 'Pause' : 'Resume'}
-                            >
-                                <span
-                                    class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${stream.isPolling
-                                        ? 'translate-x-6'
-                                        : 'translate-x-1'}"
-                                ></span>
-                            </button>
-                            <span
-                                class="text-sm font-medium text-slate-300 truncate"
-                                title=${stream.name}
-                                >${stream.name}</span
-                            >
-                        </div>
-                        <button
-                            @click=${(e) => {
-                                toggleDropdown(
-                                    e.currentTarget,
-                                    () => pollingIntervalPanelTemplate(stream),
-                                    e
-                                );
-                            }}
-                            ?disabled=${isGlobalOverrideActive}
-                            class="text-xs font-semibold bg-slate-700 hover:bg-slate-600 text-slate-300 px-2 py-1 rounded-md flex items-center gap-1.5 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
-                            title=${isGlobalOverrideActive
-                                ? 'Disable Global Override to set per-stream intervals.'
-                                : 'Set polling interval for this stream'}
-                        >
-                            <span
-                                >${stream.pollingIntervalOverride == null
-                                    ? `Auto (${(
-                                          stream.manifest.minimumUpdatePeriod ||
-                                          stream.manifest.targetDuration ||
-                                          2
-                                      ).toFixed(1)}s)`
-                                    : `${stream.pollingIntervalOverride}s`}</span
-                            >
-                            ${icons.settings}
-                        </button>
-                    </div>
-                `
-            )}
-        </div>
-    `;
-};
-
-const getBadge = (text, colorClasses) => html`
-    <span class="text-xs font-semibold px-2 py-0.5 rounded-full ${colorClasses}"
-        >${text}</span
-    >
-`;
-
-const renderPollingStreamCard = (stream, targetStreamId, onSelect) => {
-    const isActive = stream.id === targetStreamId;
-    const activeClasses = 'bg-blue-800 border-blue-600 ring-2 ring-blue-500';
-    const baseClasses =
-        'bg-gray-900/50 p-3 rounded-lg border border-gray-700 cursor-pointer transition-all duration-150 ease-in-out flex flex-col items-start';
-    const hoverClasses =
-        'hover:bg-gray-700 hover:border-gray-500 hover:scale-[1.03]';
-
-    const protocolBadge =
-        stream.protocol === 'dash'
-            ? getBadge('DASH', 'bg-blue-800 text-blue-200')
-            : getBadge('HLS', 'bg-purple-800 text-purple-200');
-
-    const typeBadge =
-        stream.manifest?.type === 'dynamic'
-            ? getBadge('LIVE', 'bg-red-800 text-red-200')
-            : getBadge('VOD', 'bg-green-800 text-green-200');
-
-    const path = stream.originalUrl
-        ? new URL(stream.originalUrl).pathname
-        : stream.name;
-
-    return html`
-        <div
-            @click=${(e) => onSelect(stream, e)}
-            class="${baseClasses} ${hoverClasses} ${isActive
-                ? activeClasses
-                : ''}"
-            data-stream-id="${stream.id}"
-        >
-            <span
-                class="font-semibold text-gray-200 truncate w-full"
-                title="${stream.name}"
-                >${stream.name}</span
-            >
-            <span
-                class="text-xs text-gray-400 font-mono truncate w-full mt-1"
-                title="${path}"
-                >${path}</span
-            >
-            <div class="shrink-0 flex flex-wrap items-center gap-2 mt-2">
-                ${protocolBadge} ${typeBadge}
-            </div>
-        </div>
-    `;
-};
-
-const streamSelectionPanelTemplate = (
-    liveStreams,
-    targetStreamId,
-    onSelect
-) => html`
-    <div
-        class="dropdown-panel bg-slate-800 border border-slate-700 rounded-lg shadow-xl w-[40rem] p-2"
-    >
-        <div class="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-2">
-            ${liveStreams.map((stream) =>
-                renderPollingStreamCard(stream, targetStreamId, onSelect)
-            )}
-        </div>
-    </div>
-`;
-
-const featureGridSelectionPanelTemplate = (
-    applicableFeatures,
+const featureSelectionPanelTemplate = (
+    features,
     activeFeatureName,
     onSelect
 ) => {
-    const groupedFeatures = applicableFeatures.reduce((acc, feature) => {
-        const category = feature.category || 'Other';
-        if (!acc[category]) {
-            acc[category] = [];
-        }
-        acc[category].push(feature);
+    const grouped = features.reduce((acc, f) => {
+        const cat = f.category || 'Other';
+        if (!acc[cat]) acc[cat] = [];
+        acc[cat].push(f);
         return acc;
     }, {});
 
-    const featureButton = (feature) => {
-        const isActive = feature.name === activeFeatureName;
-        return html`
-            <button
-                type="button"
-                @click=${(e) => onSelect(feature, e)}
-                class="p-2 text-xs font-semibold rounded-md transition-colors text-left truncate ${isActive
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-slate-700 hover:bg-slate-600 text-slate-300'}"
-                title=${feature.desc}
-            >
-                ${feature.name}
-            </button>
-        `;
-    };
-
     return html`
         <div
-            class="dropdown-panel bg-slate-800 border border-slate-700 rounded-lg shadow-xl w-[40rem] p-3 space-y-4 max-h-[60vh] overflow-y-auto"
+            class="dropdown-panel bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl w-80 p-3 ring-1 ring-black/50 max-h-[50vh] overflow-y-auto custom-scrollbar"
         >
-            ${Object.entries(groupedFeatures).map(
-                ([category, features]) => html`
-                    <div>
+            ${Object.entries(grouped).map(
+                ([cat, list]) => html`
+                    <div class="mb-3 last:mb-0">
                         <h5
-                            class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 px-1"
+                            class="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1 px-1"
                         >
-                            ${category}
+                            ${cat}
                         </h5>
-                        <div class="grid grid-cols-3 gap-2">
-                            ${features.map(featureButton)}
+                        <div class="space-y-1">
+                            ${list.map(
+                                (f) => html`
+                                    <button
+                                        @click=${(e) => onSelect(f, e)}
+                                        class="w-full text-left px-2 py-1.5 rounded hover:bg-white/10 text-xs font-medium transition-colors truncate ${f.name ===
+                                        activeFeatureName
+                                            ? 'text-blue-400 bg-blue-400/10'
+                                            : 'text-slate-300'}"
+                                        title="${f.desc}"
+                                    >
+                                        ${f.name}
+                                    </button>
+                                `
+                            )}
                         </div>
                     </div>
                 `
@@ -318,33 +145,21 @@ const featureGridSelectionPanelTemplate = (
     `;
 };
 
-const customDropdownButton = (label, onClick, disabled = false) => html`
-    <button
-        type="button"
-        @click=${onClick}
-        ?disabled=${disabled}
-        class="w-full bg-slate-700 text-white rounded-md p-2 text-sm border border-slate-600 focus:ring-1 focus:ring-blue-500 flex justify-between items-center disabled:opacity-50"
-    >
-        <span class="truncate">${label}</span>
-        <span class="shrink-0">${icons.chevronDown}</span>
-    </button>
-`;
-
-const conditionalPollingControls = (liveStreams) => {
+const conditionalPollingUI = (liveStreams) => {
     const { conditionalPolling } = useUiStore.getState();
     const { targetStreamId, targetFeatureName } = conditionalPolling;
 
+    const activeTargetId = targetStreamId ?? liveStreams[0]?.id;
+    const targetStream = liveStreams.find((s) => s.id === activeTargetId);
+    const applicableFeatures = targetStream
+        ? getFeatureList(targetStream.protocol)
+        : [];
+
     const handleStart = (e) => {
         e.preventDefault();
-        if (targetStreamId === null || !targetFeatureName) {
-            eventBus.dispatch('ui:show-status', {
-                message: 'Please select both a stream and a feature.',
-                type: 'warn',
-            });
-            return;
-        }
-        uiActions.startConditionalPolling(targetStreamId, targetFeatureName);
-        analysisActions.setStreamPolling(targetStreamId, true);
+        if (!targetStream || !targetFeatureName) return;
+        uiActions.startConditionalPolling(targetStream.id, targetFeatureName);
+        analysisActions.setStreamPolling(targetStream.id, true);
         closeDropdown();
     };
 
@@ -358,253 +173,366 @@ const conditionalPollingControls = (liveStreams) => {
         uiActions.clearConditionalPolling();
     };
 
-    const targetStream = liveStreams.find((s) => s.id === targetStreamId);
-    const applicableFeatures = targetStream
-        ? allFeatures.filter(
-              (f) => f.protocol === targetStream.protocol && f.isDynamic
-          )
-        : [];
-
+    // 1. Active State
     if (conditionalPolling.status === 'active') {
-        const activeStream = liveStreams.find(
-            (s) => s.id === conditionalPolling.streamId
-        );
         return html`
-            <div class="text-center p-4 bg-slate-900/50 rounded-md">
-                <div class="flex items-center justify-center gap-2">
-                    <span class="animate-spin">${icons.spinner}</span>
-                    <p class="text-sm font-semibold text-cyan-300">
-                        Searching for Feature...
-                    </p>
-                </div>
-                <p class="text-xs text-slate-400 mt-2">
-                    Polling
-                    <strong class="text-white"
-                        >${activeStream?.name || '...'}</strong
+            <div
+                class="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg text-center"
+            >
+                <div class="flex items-center justify-center gap-2 mb-2">
+                    <span class="animate-spin text-blue-400"
+                        >${icons.spinner}</span
                     >
-                    for feature
-                    <strong class="text-white"
-                        >"${conditionalPolling.featureName}"</strong
-                    >.
+                    <span class="text-xs font-bold text-blue-200"
+                        >Scanning...</span
+                    >
+                </div>
+                <p class="text-[10px] text-slate-400 mb-3">
+                    Searching for
+                    <span class="text-white"
+                        >${conditionalPolling.featureName}</span
+                    >
                 </p>
                 <button
                     @click=${handleCancel}
-                    class="mt-3 text-xs bg-red-800 hover:bg-red-700 text-red-200 font-bold py-1 px-3 rounded-md"
+                    class="w-full py-1.5 bg-slate-800 hover:bg-slate-700 text-red-300 text-xs font-bold rounded transition-colors"
                 >
-                    Cancel Search
+                    Cancel
                 </button>
             </div>
         `;
     }
 
+    // 2. Found State
     if (conditionalPolling.status === 'found') {
-        const foundStream = liveStreams.find(
-            (s) => s.id === conditionalPolling.streamId
-        );
         return html`
-            <div class="text-center p-4 bg-slate-900/50 rounded-md">
-                <div class="flex items-center justify-center gap-2">
-                    <span class="text-green-400">${icons.checkCircle}</span>
-                    <p class="text-sm font-semibold text-green-300">
-                        Feature Found!
-                    </p>
-                </div>
-                <p class="text-xs text-slate-400 mt-2">
-                    Feature
-                    <strong class="text-white"
-                        >"${conditionalPolling.featureName}"</strong
+            <div
+                class="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-center"
+            >
+                <div class="flex items-center justify-center gap-2 mb-2">
+                    <span class="text-emerald-400">${icons.checkCircle}</span>
+                    <span class="text-xs font-bold text-emerald-200"
+                        >Feature Found!</span
                     >
-                    was detected in
-                    <strong class="text-white"
-                        >${foundStream?.name || 'the stream'}</strong
-                    >. Polling has stopped.
-                </p>
+                </div>
                 <button
                     @click=${() => uiActions.clearConditionalPolling()}
-                    class="mt-3 text-xs bg-slate-600 hover:bg-slate-700 text-white font-bold py-1 px-3 rounded-md"
+                    class="w-full py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded transition-colors"
                 >
-                    Clear Status
+                    Reset
                 </button>
             </div>
         `;
     }
 
+    // 3. Idle / Config State
     return html`
-        <form @submit=${handleStart} class="space-y-3">
-            ${customDropdownButton(
-                targetStream?.name || 'Select a Stream',
-                (e) => {
-                    toggleDropdown(
-                        e.currentTarget,
-                        () =>
-                            streamSelectionPanelTemplate(
-                                liveStreams,
-                                targetStreamId,
-                                (stream, event) => {
-                                    event.stopPropagation();
-                                    uiActions.setConditionalPollingTarget({
-                                        targetStreamId: stream.id,
-                                    });
-                                }
-                            ),
-                        e
-                    );
-                }
-            )}
-            ${customDropdownButton(
-                targetFeatureName || 'Select a Feature to Find',
-                (e) => {
-                    toggleDropdown(
-                        e.currentTarget,
-                        () =>
-                            featureGridSelectionPanelTemplate(
-                                applicableFeatures,
-                                targetFeatureName,
-                                (feature, event) => {
-                                    event.stopPropagation();
-                                    uiActions.setConditionalPollingTarget({
-                                        targetFeatureName: feature.name,
-                                    });
-                                }
-                            ),
-                        e
-                    );
-                },
-                !targetStream
-            )}
+        <div class="space-y-2">
+            ${liveStreams.length > 1
+                ? html`
+                      <select
+                          class="w-full bg-slate-950 border border-slate-700 rounded p-2 text-xs text-white appearance-none cursor-pointer hover:border-slate-600"
+                          .value=${activeTargetId}
+                          @change=${(e) =>
+                              uiActions.setConditionalPollingTarget({
+                                  targetStreamId: parseInt(e.target.value),
+                              })}
+                      >
+                          ${liveStreams.map(
+                              (s) =>
+                                  html`<option value="${s.id}">
+                                      ${s.name}
+                                  </option>`
+                          )}
+                      </select>
+                  `
+                : ''}
 
             <button
-                type="submit"
-                class="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                ?disabled=${targetStreamId === null || !targetFeatureName}
-                title=${targetStreamId === null || !targetFeatureName
-                    ? 'Please select both a stream and a feature'
-                    : 'Start polling the selected stream until the chosen feature appears'}
+                @click=${(e) =>
+                    toggleDropdown(
+                        e.currentTarget,
+                        () =>
+                            featureSelectionPanelTemplate(
+                                applicableFeatures,
+                                targetFeatureName,
+                                (f, ev) => {
+                                    ev.stopPropagation();
+                                    uiActions.setConditionalPollingTarget({
+                                        targetFeatureName: f.name,
+                                    });
+                                    closeDropdown();
+                                }
+                            ),
+                        e
+                    )}
+                class="w-full flex items-center justify-between bg-slate-950 border border-slate-700 hover:border-slate-500 rounded p-2 text-xs text-slate-300 transition-colors"
             >
-                ${icons.locateFixed} Start Polling for Feature
+                <span class="truncate"
+                    >${targetFeatureName || 'Select Feature...'}</span
+                >
+                <span class="text-slate-500 scale-75"
+                    >${icons.chevronDown}</span
+                >
             </button>
-        </form>
+
+            <button
+                @click=${handleStart}
+                ?disabled=${!targetFeatureName}
+                class="w-full py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold rounded flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-900/20"
+            >
+                ${icons.searchCode} Start Search
+            </button>
+        </div>
     `;
 };
 
+// --- Main Panel ---
 export const pollingDropdownPanelTemplate = () => {
     const { streams } = useAnalysisStore.getState();
     const { inactivityTimeoutOverride, globalPollingIntervalOverride } =
         useUiStore.getState();
     const liveStreams = streams.filter((s) => s.manifest?.type === 'dynamic');
     const isAnyPolling = liveStreams.some((s) => s.isPolling);
-    const activeTimeout =
+
+    const isGlobalOverride = globalPollingIntervalOverride !== null;
+    const globalIntervalLabel = isGlobalOverride
+        ? `${globalPollingIntervalOverride}s`
+        : 'Mixed';
+    const timeoutLabel =
         INACTIVITY_TIMEOUT_OPTIONS.find(
-            (opt) => opt.id === inactivityTimeoutOverride
-        ) || INACTIVITY_TIMEOUT_OPTIONS[0];
-
-    const totalReps = liveStreams.reduce(
-        (sum, s) => sum + s.segmentPollingReps.size,
-        0
-    );
-
-    const isGlobalOverrideActive = globalPollingIntervalOverride !== null;
-
-    const handleOpenPollingConfig = (e) => {
-        toggleDropdown(
-            e.currentTarget,
-            () => segmentPollingSelectorTemplate(),
-            e
-        );
-    };
+            (o) => o.id === inactivityTimeoutOverride
+        )?.label || 'Default';
 
     return html`
         <div
-            class="dropdown-panel bg-slate-800 border border-slate-700 rounded-lg shadow-xl w-96 p-3 space-y-4"
+            class="dropdown-panel bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl w-80 ring-1 ring-black/50 flex flex-col max-h-[85vh]"
         >
-            <div>
-                <button
-                    @click=${toggleAllPolling}
-                    class="w-full text-center text-sm font-bold py-2 px-3 rounded-md transition-colors ${isAnyPolling
-                        ? 'bg-red-800 hover:bg-red-700 text-red-200'
-                        : 'bg-green-800 hover:bg-green-700 text-green-200'}"
-                >
-                    ${isAnyPolling ? 'Pause All' : 'Resume All'}
-                </button>
-            </div>
-
-            <div class="border-t border-slate-700 pt-3">
-                <div
-                    class="font-semibold text-slate-300 text-sm mb-3 flex items-center justify-between gap-2"
-                >
-                    <h5 class="flex items-center gap-2">
-                        ${icons.timerReset} Individual Polling & Intervals
-                    </h5>
+            <!-- Master Switch -->
+            <div class="p-4 border-b border-white/5 bg-white/[0.02] shrink-0">
+                <div class="flex items-center justify-between mb-2">
+                    <h3
+                        class="text-sm font-bold text-white flex items-center gap-2"
+                    >
+                        ${icons.refresh} Live Polling
+                    </h3>
                     <button
-                        @click=${(e) => {
-                            toggleDropdown(
-                                e.currentTarget,
-                                () => pollingIntervalPanelTemplate(null, true),
-                                e
-                            );
-                        }}
-                        class="text-xs font-semibold bg-slate-700 hover:bg-slate-600 text-slate-300 px-2 py-1 rounded-md flex items-center gap-1.5"
+                        @click=${toggleAllPolling}
+                        class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${isAnyPolling
+                            ? 'bg-green-600'
+                            : 'bg-slate-600'}"
                     >
                         <span
-                            >${isGlobalOverrideActive
-                                ? `Global: ${globalPollingIntervalOverride}s`
-                                : `Global: Disabled`}</span
-                        >
-                        ${icons.settings}
+                            class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform shadow-sm ${isAnyPolling
+                                ? 'translate-x-4.5'
+                                : 'translate-x-0.5'}"
+                        ></span>
                     </button>
                 </div>
-                ${individualPollingControls(
-                    liveStreams,
-                    isGlobalOverrideActive
-                )}
+                <p class="text-[10px] text-slate-400">
+                    ${isAnyPolling
+                        ? 'Polling active streams.'
+                        : 'Polling paused.'}
+                </p>
             </div>
 
-            <div class="border-t border-slate-700 pt-3">
-                <h5
-                    class="font-semibold text-slate-300 text-sm mb-2 flex items-center gap-2 ${tooltipTriggerClasses}"
-                    data-tooltip="Actively download all new segments for selected representations to discover in-band events like SCTE-35."
-                >
-                    ${icons.download} Active Segment Polling
-                </h5>
-                ${customDropdownButton(
-                    `Configure (${totalReps} active)`,
-                    handleOpenPollingConfig,
-                    liveStreams.length === 0
-                )}
-            </div>
-            <div class="border-t border-slate-700 pt-3">
-                <h5
-                    class="font-semibold text-slate-300 text-sm mb-2 flex items-center gap-2 ${tooltipTriggerClasses}"
-                    data-tooltip="Override the default 10-minute timeout for stopping polling when the tab is in the background."
-                >
-                    ${icons.moon} Background Polling
-                </h5>
-                ${customDropdownButton(`Timeout: ${activeTimeout.label}`, (e) =>
-                    toggleDropdown(
-                        e.currentTarget,
-                        () =>
-                            formattedOptionsDropdownTemplate(
-                                INACTIVITY_TIMEOUT_OPTIONS,
-                                inactivityTimeoutOverride,
-                                (option, event) => {
-                                    event.stopPropagation();
-                                    uiActions.setInactivityTimeoutOverride(
-                                        option.id
-                                    );
-                                }
-                            ),
-                        e
-                    )
-                )}
-            </div>
-            <div class="border-t border-slate-700 pt-3">
-                <h5
-                    class="font-semibold text-slate-300 text-sm mb-2 flex items-center gap-2 ${tooltipTriggerClasses}"
-                    data-tooltip="Automatically poll a live stream until a specific feature is detected in the manifest, then stop."
-                >
-                    ${icons.locateFixed} Conditional Polling
-                </h5>
-                ${conditionalPollingControls(liveStreams)}
+            <div class="overflow-y-auto custom-scrollbar grow">
+                <!-- Active Streams List -->
+                ${liveStreams.length > 0
+                    ? html`
+                          <div class="p-2 border-b border-white/5">
+                              <div
+                                  class="flex items-center justify-between px-2 py-1 mb-1"
+                              >
+                                  <span
+                                      class="text-[10px] font-bold uppercase tracking-widest text-slate-500"
+                                      >Active Streams</span
+                                  >
+
+                                  <!-- Global Interval Control -->
+                                  <button
+                                      @click=${(e) =>
+                                          toggleDropdown(
+                                              e.currentTarget,
+                                              () =>
+                                                  intervalSelectorTemplate(
+                                                      globalPollingIntervalOverride,
+                                                      true
+                                                  ),
+                                              e
+                                          )}
+                                      class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors flex items-center gap-1"
+                                      title="Set Global Interval Override"
+                                  >
+                                      ${globalIntervalLabel}
+                                      ${icons.chevronDown}
+                                  </button>
+                              </div>
+
+                              <div class="space-y-1">
+                                  ${liveStreams.map((stream) => {
+                                      const isPolling = stream.isPolling;
+                                      const interval =
+                                          stream.pollingIntervalOverride
+                                              ? `${stream.pollingIntervalOverride}s`
+                                              : 'Auto';
+
+                                      return html`
+                                          <div
+                                              class="flex items-center justify-between p-2 rounded hover:bg-white/5 transition-colors group"
+                                          >
+                                              <div
+                                                  class="flex items-center gap-3 min-w-0"
+                                              >
+                                                  <button
+                                                      @click=${() =>
+                                                          analysisActions.setStreamPolling(
+                                                              stream.id,
+                                                              !isPolling
+                                                          )}
+                                                      class="relative flex h-2.5 w-2.5 outline-none cursor-pointer"
+                                                      title="${isPolling
+                                                          ? 'Pause'
+                                                          : 'Resume'}"
+                                                  >
+                                                      <span
+                                                          class="animate-ping absolute inline-flex h-full w-full rounded-full ${isPolling
+                                                              ? 'bg-green-400 opacity-75'
+                                                              : 'hidden'}"
+                                                      ></span>
+                                                      <span
+                                                          class="relative inline-flex rounded-full h-2.5 w-2.5 ${isPolling
+                                                              ? 'bg-green-500'
+                                                              : 'bg-slate-600 group-hover:bg-slate-500'} transition-colors"
+                                                      ></span>
+                                                  </button>
+                                                  <span
+                                                      class="text-xs font-medium text-slate-300 truncate group-hover:text-white transition-colors"
+                                                      title="${stream.name}"
+                                                  >
+                                                      ${stream.name}
+                                                  </span>
+                                              </div>
+
+                                              <button
+                                                  @click=${(e) =>
+                                                      toggleDropdown(
+                                                          e.currentTarget,
+                                                          () =>
+                                                              intervalSelectorTemplate(
+                                                                  stream.pollingIntervalOverride,
+                                                                  false,
+                                                                  stream.id
+                                                              ),
+                                                          e
+                                                      )}
+                                                  ?disabled=${isGlobalOverride}
+                                                  class="text-[10px] font-mono text-slate-500 hover:text-slate-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors px-1.5 rounded"
+                                                  title="Change Stream Interval"
+                                              >
+                                                  ${interval}
+                                              </button>
+                                          </div>
+                                      `;
+                                  })}
+                              </div>
+                          </div>
+                      `
+                    : html`
+                          <div
+                              class="p-6 text-center text-xs text-slate-500 italic border-b border-white/5"
+                          >
+                              No live streams active.
+                          </div>
+                      `}
+
+                <!-- Quick Settings -->
+                <div class="p-2 space-y-1 border-b border-white/5">
+                    <button
+                        @click=${(e) =>
+                            toggleDropdown(
+                                e.currentTarget,
+                                segmentPollingSelectorTemplate,
+                                e
+                            )}
+                        class="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-white/5 border border-transparent hover:border-white/10 transition-all group text-left"
+                    >
+                        <div
+                            class="p-2 rounded-md bg-slate-800 text-slate-400 group-hover:text-white group-hover:bg-slate-700 transition-colors"
+                        >
+                            ${icons.download}
+                        </div>
+                        <div class="grow">
+                            <div
+                                class="font-bold text-xs text-slate-200 group-hover:text-white"
+                            >
+                                Segment Polling
+                            </div>
+                            <div
+                                class="text-[10px] text-slate-500 group-hover:text-slate-400"
+                            >
+                                Auto-fetch new segments
+                            </div>
+                        </div>
+                        <span class="text-slate-600 group-hover:text-slate-400"
+                            >${icons.chevronRight}</span
+                        >
+                    </button>
+
+                    <button
+                        @click=${(e) =>
+                            toggleDropdown(
+                                e.currentTarget,
+                                () =>
+                                    formattedOptionsDropdownTemplate(
+                                        INACTIVITY_TIMEOUT_OPTIONS,
+                                        inactivityTimeoutOverride,
+                                        (opt) =>
+                                            uiActions.setInactivityTimeoutOverride(
+                                                opt.id
+                                            )
+                                    ),
+                                e
+                            )}
+                        class="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-white/5 border border-transparent hover:border-white/10 transition-all group text-left"
+                    >
+                        <div
+                            class="p-2 rounded-md bg-slate-800 text-slate-400 group-hover:text-white group-hover:bg-slate-700 transition-colors"
+                        >
+                            ${icons.moon}
+                        </div>
+                        <div class="grow">
+                            <div
+                                class="font-bold text-xs text-slate-200 group-hover:text-white"
+                            >
+                                Background Behavior
+                            </div>
+                            <div
+                                class="text-[10px] text-slate-500 group-hover:text-slate-400"
+                            >
+                                Timeout: ${timeoutLabel}
+                            </div>
+                        </div>
+                        <span class="text-slate-600 group-hover:text-slate-400"
+                            >${icons.chevronRight}</span
+                        >
+                    </button>
+                </div>
+
+                <!-- Conditional Polling -->
+                <div class="p-4 bg-slate-950/30">
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="text-slate-500 scale-75"
+                            >${icons.locateFixed}</span
+                        >
+                        <h4
+                            class="text-xs font-bold uppercase tracking-widest text-slate-400"
+                        >
+                            Conditional Stop
+                        </h4>
+                    </div>
+                    ${conditionalPollingUI(liveStreams)}
+                </div>
             </div>
         </div>
     `;

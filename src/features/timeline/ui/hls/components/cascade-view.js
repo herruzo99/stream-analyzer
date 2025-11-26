@@ -5,43 +5,58 @@ import * as icons from '@/ui/icons';
 export const hlsCascadeViewTemplate = (stream) => {
     const { manifest } = stream;
     if (!manifest || !manifest.isMaster) {
-        return html`<div class="text-center p-8 text-slate-500">
-            <div class="w-12 h-12 mx-auto">${icons.fileText}</div>
-            <p class="mt-2">
-                Drilldown view is only available for Master Playlists.
-            </p>
+        return html`<div class="p-8 text-center text-slate-500 italic">
+            Drilldown unavailable for Media Playlists.
         </div>`;
     }
 
-    const videoVariants = (manifest.variants || []).filter(
-        (v) =>
-            (v.attributes.CODECS || '').toLowerCase().includes('avc') ||
-            (v.attributes.CODECS || '').toLowerCase().includes('hvc')
-    );
-    const audioRenditions = (manifest.media || []).filter(
+    // Grouping Logic
+    const variants = manifest.variants || [];
+    const audio = (manifest.media || []).filter(
         (m) => m.value.TYPE === 'AUDIO'
     );
-    const subtitleRenditions = (manifest.media || []).filter(
+    const subs = (manifest.media || []).filter(
         (m) => m.value.TYPE === 'SUBTITLES'
+    );
+    const videoMedia = (manifest.media || []).filter(
+        (m) => m.value.TYPE === 'VIDEO'
     );
 
     return html`
-        <div class="space-y-4 mt-4">
+        <div class="space-y-6 animate-fadeIn">
             ${renditionGroupCardTemplate(
-                'Video Variants',
-                videoVariants,
-                stream
+                'Variant Streams',
+                variants,
+                stream,
+                'video'
             )}
-            ${renditionGroupCardTemplate(
-                'Audio Renditions',
-                audioRenditions,
-                stream
-            )}
-            ${renditionGroupCardTemplate(
-                'Subtitle Renditions',
-                subtitleRenditions,
-                stream
-            )}
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                ${audio.length > 0
+                    ? renditionGroupCardTemplate(
+                          'Audio Renditions',
+                          audio,
+                          stream,
+                          'audio'
+                      )
+                    : ''}
+                ${subs.length > 0
+                    ? renditionGroupCardTemplate(
+                          'Subtitles',
+                          subs,
+                          stream,
+                          'text'
+                      )
+                    : ''}
+                ${videoMedia.length > 0
+                    ? renditionGroupCardTemplate(
+                          'Alternative Video',
+                          videoMedia,
+                          stream,
+                          'video'
+                      )
+                    : ''}
+            </div>
         </div>
     `;
 };

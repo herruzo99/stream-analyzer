@@ -44,21 +44,16 @@ function calculateSummaryStats(events) {
 }
 
 /**
- * Generates data points for the throughput chart by bucketing requests into time intervals.
- * @param {import('@/types').NetworkEvent[]} events
- * @param {number} chartStartTime The absolute start time of the chart's timeline.
- * @returns {{time: number, throughput: number}[]}
+ * Generates data points for the throughput chart.
  */
 function generateThroughputData(events, chartStartTime) {
     if (events.length === 0) return [];
-
     const timeBuckets = new Map();
-    const bucketSizeMs = 1000; // 1-second buckets
+    const bucketSizeMs = 1000;
 
     for (const event of events) {
         if (!event.response.contentLength || event.timing.duration <= 0)
             continue;
-
         const startBucket =
             Math.floor(event.timing.startTime / bucketSizeMs) * bucketSizeMs;
         const endBucket =
@@ -89,18 +84,18 @@ function generateThroughputData(events, chartStartTime) {
     for (const [bucketTime, bucket] of timeBuckets.entries()) {
         const time = (bucketTime - chartStartTime) / 1000;
         dataPoints.push({
-            time: Math.max(0, time), // Guard against negative time values
-            throughput: bucket.bits / (bucketSizeMs / 1000), // bits per second for the bucket
+            time: Math.max(0, time),
+            throughput: bucket.bits / (bucketSizeMs / 1000),
         });
     }
-
     return dataPoints.sort((a, b) => a.time - b.time);
 }
+
 /**
  * Creates the main view model for the network analysis feature.
- * @param {import('@/types').NetworkEvent[]} filteredEvents The events that match the current UI filters.
- * @param {import('@/types').NetworkEvent[]} allEvents All events for the stream, unfiltered.
- * @returns {object} The view model.
+ * @param {import('@/types').NetworkEvent[]} filteredEvents
+ * @param {import('@/types').NetworkEvent[]} allEvents
+ * @returns {object}
  */
 export function createNetworkViewModel(filteredEvents, allEvents) {
     const summary = calculateSummaryStats(filteredEvents);
@@ -108,33 +103,42 @@ export function createNetworkViewModel(filteredEvents, allEvents) {
     const absoluteStartTime =
         allEvents.length > 0
             ? Math.min(...allEvents.map((e) => e.timing.startTime))
-            : 0;
+            : performance.now();
     const absoluteEndTime =
         allEvents.length > 0
             ? Math.max(...allEvents.map((e) => e.timing.endTime))
-            : 0;
-    const absoluteDuration = absoluteEndTime - absoluteStartTime;
+            : absoluteStartTime + 1000;
 
-    const chartStartTime =
-        filteredEvents.length > 0
-            ? Math.min(...filteredEvents.map((e) => e.timing.startTime))
-            : 0;
+    const timelineDuration = Math.max(100, absoluteEndTime - absoluteStartTime);
 
+    // Filter out the throughput data calculation to a separate array to keep waterfall logic clean
     const throughputData = generateThroughputData(
         filteredEvents,
-        chartStartTime
+        absoluteStartTime
     );
 
     const waterfallData = filteredEvents
         .map((event) => {
+            // Calculate Waterfall Positioning
+            const startRelative = event.timing.startTime - absoluteStartTime;
+            const leftPercent = (startRelative / timelineDuration) * 100;
+            const widthPercent = Math.max(
+                0.2,
+                (event.timing.duration / timelineDuration) * 100
+            ); // Min width visibility
+
+            // Calculate Internal Breakdown (Waiting vs Downloading)
+            // Fallback breakdown if not provided by Resource Timing API
+            const breakdown = event.timing.breakdown || {
+                ttfb: event.timing.duration * 0.1,
+                download: event.timing.duration * 0.9,
+            };
+
+            const ttfbPercent = (breakdown.ttfb / event.timing.duration) * 100;
+            const downloadPercent =
+                (breakdown.download / event.timing.duration) * 100;
+
             const downloadDurationSeconds = (event.timing.duration || 1) / 1000;
-            const mediaDuration = event.segmentDuration || 0;
-
-            const downloadRatio =
-                mediaDuration > 0 && downloadDurationSeconds > 0
-                    ? mediaDuration / downloadDurationSeconds
-                    : null;
-
             const throughput =
                 event.response.contentLength > 0 && downloadDurationSeconds > 0
                     ? (event.response.contentLength * 8) /
@@ -143,12 +147,18 @@ export function createNetworkViewModel(filteredEvents, allEvents) {
 
             return {
                 ...event,
-                downloadRatio,
                 size: event.response.contentLength,
                 throughput,
+                visuals: {
+                    left: `${leftPercent.toFixed(3)}%`,
+                    width: `${widthPercent.toFixed(3)}%`,
+                    ttfbWidth: `${ttfbPercent.toFixed(1)}%`,
+                    downloadWidth: `${downloadPercent.toFixed(1)}%`,
+                },
             };
         })
-        .reverse(); // <-- FIX: Reverse the array for top-down rendering.
+        .sort((a, b) => a.timing.startTime - b.timing.startTime);
+    // Sort by start time for a true waterfall effect
 
     return {
         summary,
@@ -156,7 +166,7 @@ export function createNetworkViewModel(filteredEvents, allEvents) {
         waterfallData,
         timeline: {
             start: absoluteStartTime,
-            duration: absoluteDuration,
+            duration: timelineDuration,
         },
     };
 }

@@ -8,7 +8,7 @@
                 script-src 'self' 'nonce-__CSP_NONCE__' http://localhost:8000 https://www.googletagmanager.com https://js-de.sentry-cdn.com https://www.clarity.ms https://cdn.jsdelivr.net;
                 style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com;
                 font-src 'self' https://fonts.gstatic.com;
-                connect-src *;
+                connect-src * blob:;
                 img-src * data:;
                 media-src 'self' blob: data:;
                 object-src 'none';
@@ -16,7 +16,10 @@
                 form-action 'self';
             "
         />
-        <link rel="icon" href="/favicon.ico" type="image/x-icon" />
+        <!-- Modern Favicon Setup -->
+        <link rel="icon" type="image/png" href="/icon.png" />
+        <link rel="apple-touch-icon" href="/icon.png" />
+        
         <link
             rel="stylesheet"
             href="https://cdn.jsdelivr.net/gh/orestbida/cookieconsent@v3.0.0/dist/cookieconsent.css"
@@ -88,11 +91,12 @@
             rel="stylesheet"
         />
     </head>
+
     <body class="bg-slate-950 text-slate-200 min-h-screen font-sans">
         <!-- The initial view shown on page load -->
         <div
             id="input-section"
-            class="fixed inset-0 bg-slate-950 z-50 flex items-center justify-center p-4"
+            class="fixed inset-0 bg-slate-950 z-50 flex items-center justify-center"
         >
             <!-- This container will be populated by the new three-panel input-view renderer -->
         </div>
@@ -103,11 +107,11 @@
         <!-- Global UI overlays that must exist at boot -->
         <div
             id="toast-container"
-            class="fixed top-5 right-5 z-100 space-y-2"
+            class="fixed bottom-5 right-5 z-[110] space-y-2 flex flex-col justify-end"
         ></div>
         <div
             id="global-loader"
-            class="hidden fixed inset-0 bg-slate-950/70 flex-col items-center justify-center z-200 space-y-4"
+            class="hidden fixed inset-0 bg-slate-950/70 flex-col items-center justify-center z-[200] space-y-4"
         >
             <div class="loader-animation flex items-end justify-center h-12">
                 <span class="w-2 h-3 mx-0.5 bg-blue-400 origin-bottom"></span
@@ -122,30 +126,39 @@
         <!-- Global Modal -->
         <div
             id="segment-modal"
-            class="fixed inset-0 text-white bg-slate-950/80 hidden flex items-center justify-center z-60"
+            class="fixed inset-0 text-white bg-slate-950/90 hidden flex items-center justify-center z-60"
         >
             <div
-                class="bg-slate-800 p-6 rounded-lg max-h-[90vh] overflow-y-auto w-11/12 max-w-4xl border border-slate-700"
+                class="bg-slate-800 p-0 rounded-xl h-[90vh] w-11/12 max-w-6xl border border-slate-700 flex flex-col overflow-hidden shadow-2xl ring-1 ring-white/10"
             >
-                <div class="flex justify-between items-center mb-4">
+                <!-- Header (Fixed) -->
+                <div
+                    class="flex justify-between items-center p-5 border-b border-slate-700 shrink-0 bg-slate-800 z-10"
+                >
                     <h3
                         id="modal-title"
-                        class="text-xl font-bold text-white"
+                        class="text-lg font-bold text-white flex items-center gap-2"
                     ></h3>
                     <button
                         id="close-modal-btn"
-                        class="text-2xl text-slate-400 hover:text-white"
+                        class="text-2xl text-slate-400 hover:text-white transition-colors w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10"
                     >
                         &times;
                     </button>
                 </div>
-                <p
-                    id="modal-segment-url"
-                    class="font-mono text-slate-100 text-xs bg-slate-900 p-2 rounded break-all mb-4"
-                ></p>
+
+                <!-- URL Bar (Fixed) -->
+                <div class="px-5 py-2 shrink-0 bg-slate-800/50">
+                    <p
+                        id="modal-segment-url"
+                        class="font-mono text-blue-200 text-xs bg-blue-900/20 p-2.5 rounded border border-blue-500/30 break-all select-all"
+                    ></p>
+                </div>
+
+                <!-- Content (Scrollable Flex Child) -->
                 <div
                     id="modal-content-area"
-                    class="text-xs max-h-[60vh] overflow-y-auto"
+                    class="text-xs flex-1 min-h-0 overflow-hidden flex flex-col p-0"
                 ></div>
             </div>
         </div>
@@ -153,13 +166,13 @@
         <!-- Global Tooltip -->
         <div
             id="global-tooltip"
-            class="fixed z-100 p-2.5 rounded-md bg-slate-900 text-white text-left text-xs leading-relaxed border border-slate-700 min-w-[200px] max-w-sm pointer-events-none invisible opacity-0 transition-opacity"
+            class="fixed z-[120] p-2.5 rounded-md bg-slate-900 text-white text-left text-xs leading-relaxed border border-slate-700 min-w-[200px] max-w-sm pointer-events-none invisible opacity-0 transition-opacity shadow-xl"
         ></div>
 
-        <!-- Global Dropdown Container -->
+        <!-- Global Dropdown Container (Higher Z-Index than modal) -->
         <div
             id="dropdown-container"
-            class="fixed inset-0 z-40 pointer-events-none"
+            class="fixed inset-0 z-[100] pointer-events-none"
         ></div>
 
         <script

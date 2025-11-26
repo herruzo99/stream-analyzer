@@ -1,6 +1,4 @@
 import { html } from 'lit-html';
-
-// Side-effect import to register the <icon-component>
 import './components/icon.js';
 
 const icon = (name, classes = 'h-5 w-5') => {
@@ -16,6 +14,7 @@ export const comparison = icon('columns');
 export const integrators = icon('settings-2');
 export const timeline = icon('gantt-chart-square');
 export const advertising = icon('tag');
+export const tag = icon('tag');
 export const binary = icon('binary');
 export const features = icon('check-check');
 export const compliance = icon('shield-check');
@@ -24,9 +23,11 @@ export const updates = icon('refresh-cw');
 export const explorer = icon('file-search-2');
 export const interactiveSegment = icon('binary');
 export const parserCoverage = icon('code-2');
+export const code = icon('code');
 export const network = icon('network');
 export const play = icon('play-circle');
 export const fileScan = icon('file-scan');
+export const search = icon('search');
 export const searchCode = icon('search-code');
 export const folderTree = icon('folder-tree');
 export const folder = icon('folder');
@@ -54,6 +55,8 @@ export const locateFixed = icon('locate-fixed');
 export const settings = icon('settings');
 export const timerReset = icon('timer-reset');
 export const alertTriangle = icon('alert-triangle');
+export const wrench = icon('wrench');
+export const power = icon('power');
 
 // --- Misc UI Icons ---
 export const plusCircle = icon('plus-circle');
@@ -91,11 +94,15 @@ export const target = icon('target');
 export const clock = icon('clock');
 export const fastForward = icon('fast-forward');
 export const timer = icon('timer');
-export const shieldCheck = icon('shield-check');
+export const shieldCheck = icon('shield-check', 'h-8 w-8');
+export const shield = icon('shield');
 export const puzzle = icon('puzzle');
 export const gripHorizontal = icon('grip-horizontal');
 export const github = icon('github', 'h-4 w-4');
 export const unlink = icon('unlink');
+export const link = icon('link'); // Verified Correct
+export const grid = icon('grid-3x3');
+export const gitMerge = icon('git-merge');
 
 // --- Property Icons ---
 export const aligned = icon('align-vertical-space-around', 'h-4 w-4');
@@ -107,6 +114,8 @@ export const clapperboard = icon('clapperboard');
 export const audioLines = icon('audio-lines');
 export const fileText = icon('file-text');
 export const server = icon('server');
+export const monitor = icon('monitor');
+export const display = icon('tv');
 
 // --- PiP Icons ---
 export const pipEnter = icon('picture-in-picture-2');
@@ -121,3 +130,31 @@ export const calculator = icon('calculator');
 export const layers = icon('layers');
 export const info = icon('info');
 export const list = icon('list');
+export const template = icon('layout-template');
+export const database = icon('database');
+export const star = icon('star');
+export const trendingUp = icon('trending-up');
+export const trendingDown = icon('trending-down');
+export const columns = icon('columns-3');
+export const radar = icon('radar');
+export const layout = icon('panel-left-dashed');
+
+// --- New Icons for Feature Matrix ---
+export const cpu = icon('cpu');
+export const circle = icon('circle', 'h-3 w-3');
+export const more = icon('more-horizontal');
+export const ghost = icon('ghost');
+export const activity = icon('activity');
+export const touchApp = icon('touchpad');
+export const percent = icon('percent');
+export const stop = icon('square');
+export const radio = icon('radio');
+export const refresh = icon('refresh-cw');
+export const zap = icon('zap');
+export const sun = icon('sun');
+export const hardDrive = icon('hard-drive');
+export const camera = icon('camera');
+export const image = icon('image');
+export const copy = icon('copy');
+export const trash = icon('trash');
+export const save = icon('save');

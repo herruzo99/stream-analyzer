@@ -1,7 +1,6 @@
 import { eventBus } from '@/application/event-bus';
 import { multiPlayerService } from './multiPlayerService.js';
 import { useMultiPlayerStore } from '@/state/multiPlayerStore';
-import { uiActions } from '@/state/uiStore.js';
 import { EVENTS } from '@/types/events';
 
 export function initializeMultiPlayerController() {
@@ -11,17 +10,17 @@ export function initializeMultiPlayerController() {
     eventBus.subscribe(EVENTS.UI.MP_PAUSE_ALL, () =>
         multiPlayerService.pauseAll()
     );
+
     eventBus.subscribe(EVENTS.UI.MP_MUTE_ALL, () => {
         useMultiPlayerStore.getState().setMuteAll(true);
         multiPlayerService.muteAll();
     });
+
     eventBus.subscribe(EVENTS.UI.MP_UNMUTE_ALL, () => {
         useMultiPlayerStore.getState().setMuteAll(false);
         multiPlayerService.unmuteAll();
     });
-    eventBus.subscribe(EVENTS.UI.MP_SET_CARD_TAB, ({ streamId, tab }) => {
-        useMultiPlayerStore.getState().setPlayerCardTab(streamId, tab);
-    });
+
     eventBus.subscribe(EVENTS.UI.MP_SYNC_ALL_TO, ({ streamId }) =>
         multiPlayerService.syncAllTo(streamId)
     );
@@ -31,18 +30,32 @@ export function initializeMultiPlayerController() {
     eventBus.subscribe(EVENTS.UI.MP_CLEAR_ALL, () =>
         multiPlayerService.clearAndResetPlayers()
     );
-    eventBus.subscribe(EVENTS.UI.MP_RESET_FAILED, () => {
-        multiPlayerService.resetFailedPlayers();
-    });
-    eventBus.subscribe(EVENTS.UI.MP_RESET_SINGLE, ({ streamId }) => {
-        multiPlayerService.resetSinglePlayer(streamId);
-    });
-    eventBus.subscribe(EVENTS.UI.MP_TOGGLE_AUTO_RESET, () => {
-        useMultiPlayerStore.getState().toggleAutoReset();
-    });
-    eventBus.subscribe(EVENTS.UI.MP_TOGGLE_IMMERSIVE, () => {
-        uiActions.toggleMultiPlayerViewMode();
-    });
+    eventBus.subscribe(EVENTS.UI.MP_RESET_FAILED, () =>
+        multiPlayerService.resetFailedPlayers()
+    );
+    eventBus.subscribe(EVENTS.UI.MP_RESET_SINGLE, ({ streamId }) =>
+        multiPlayerService.resetSinglePlayer(streamId)
+    );
+    eventBus.subscribe(EVENTS.UI.MP_TOGGLE_AUTO_RESET, () =>
+        useMultiPlayerStore.getState().toggleAutoReset()
+    );
+
+    // Layout & HUD
+    eventBus.subscribe('ui:multi-player:set-layout', ({ mode }) =>
+        useMultiPlayerStore.getState().setLayoutMode(mode)
+    );
+    eventBus.subscribe('ui:multi-player:set-grid-columns', ({ columns }) =>
+        useMultiPlayerStore.getState().setGridColumns(columns)
+    );
+    eventBus.subscribe('ui:multi-player:set-focus', ({ streamId }) =>
+        useMultiPlayerStore.getState().setFocusedStreamId(streamId)
+    );
+    eventBus.subscribe('ui:multi-player:toggle-global-hud', () =>
+        useMultiPlayerStore.getState().toggleGlobalHud()
+    );
+    eventBus.subscribe('ui:multi-player:toggle-player-hud', ({ streamId }) =>
+        useMultiPlayerStore.getState().togglePlayerHud(streamId)
+    );
 
     // Global Control Listeners
     eventBus.subscribe(EVENTS.UI.MP_SET_GLOBAL_ABR, ({ enabled }) => {
@@ -64,7 +77,7 @@ export function initializeMultiPlayerController() {
         }
     );
 
-    // Per-stream and Group Action Listeners
+    // Per-stream Actions
     eventBus.subscribe(
         EVENTS.UI.PLAYER_SELECT_VIDEO_TRACK,
         ({ streamId, track }) => {
@@ -102,12 +115,12 @@ export function initializeMultiPlayerController() {
     eventBus.subscribe(EVENTS.UI.MP_TOGGLE_SELECTION, ({ streamId }) => {
         useMultiPlayerStore.getState().toggleStreamSelection(streamId);
     });
-    eventBus.subscribe(EVENTS.UI.MP_SELECT_ALL, () => {
-        useMultiPlayerStore.getState().selectAllStreams();
-    });
-    eventBus.subscribe(EVENTS.UI.MP_DESELECT_ALL, () => {
-        useMultiPlayerStore.getState().deselectAllStreams();
-    });
+    eventBus.subscribe(EVENTS.UI.MP_SELECT_ALL, () =>
+        useMultiPlayerStore.getState().selectAllStreams()
+    );
+    eventBus.subscribe(EVENTS.UI.MP_DESELECT_ALL, () =>
+        useMultiPlayerStore.getState().deselectAllStreams()
+    );
     eventBus.subscribe(
         EVENTS.UI.MP_SET_STREAM_OVERRIDE,
         ({ streamId, override }) => {
@@ -117,13 +130,13 @@ export function initializeMultiPlayerController() {
             multiPlayerService.applyStreamConfig(streamId);
         }
     );
-    eventBus.subscribe(EVENTS.UI.MP_DUPLICATE_STREAM, ({ streamId }) => {
-        multiPlayerService.duplicateStream(streamId);
-    });
-    eventBus.subscribe(EVENTS.UI.MP_APPLY_TO_SELECTED, ({ action }) => {
-        multiPlayerService.applyActionToSelected(action);
-    });
-    eventBus.subscribe(EVENTS.UI.MP_REMOVE_STREAM, ({ streamId }) => {
-        useMultiPlayerStore.getState().removePlayer(streamId);
-    });
+    eventBus.subscribe(EVENTS.UI.MP_DUPLICATE_STREAM, ({ streamId }) =>
+        multiPlayerService.duplicateStream(streamId)
+    );
+    eventBus.subscribe(EVENTS.UI.MP_APPLY_TO_SELECTED, ({ action }) =>
+        multiPlayerService.applyActionToSelected(action)
+    );
+    eventBus.subscribe(EVENTS.UI.MP_REMOVE_STREAM, ({ streamId }) =>
+        useMultiPlayerStore.getState().removePlayer(streamId)
+    );
 }

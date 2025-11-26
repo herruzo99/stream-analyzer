@@ -3,12 +3,6 @@ import { inferMediaInfoFromExtension } from '../../parsing/utils/media-types.js'
 import { appLog } from '../../../shared/utils/debug.js';
 import { handleParseSegmentStructure } from '../parsingService.js';
 
-/**
- * Maps Shaka Player's request type values to our internal resource types for logging.
- * @param {any} request The simplified, serializable request object.
- * @param {number} requestType The numeric enum value for the request type from shaka.net.NetworkingEngine.RequestType
- * @returns {import('@/types').ResourceType}
- */
 function mapShakaRequestType(request, requestType) {
     const MANIFEST = 0,
         SEGMENT = 1,
@@ -25,52 +19,30 @@ function mapShakaRequestType(request, requestType) {
             const { contentType } = inferMediaInfoFromExtension(
                 request.uris[0]
             );
-            if (request.uris[0].includes('init')) {
-                return 'init';
-            }
+            if (request.uris[0].includes('init')) return 'init';
             return ['video', 'audio', 'text'].includes(contentType)
-                ? /** @type {import('@/types').ResourceType} */ (contentType)
-                : 'video'; // Default to video for segments if inference fails
+                ? contentType
+                : 'video';
         }
         default:
             return 'other';
     }
 }
 
-/**
- * Fetches a non-manifest resource for Shaka player (segment, license, key), logs it, and returns the ArrayBuffer.
- * @param {object} payload
- * @param {any} payload.request The simplified, serializable request object.
- * @param {number} payload.requestType The request type enum value.
- * @param {import('@/types').AuthInfo} payload.auth Authentication info.
- * @param {number} payload.streamId The ID of the stream this request belongs to.
- * @param {any} payload.shakaManifest The shaka player manifest object.
- * @param {string} payload.segmentUniqueId The canonical unique ID for the segment.
- * @param {AbortSignal} signal - The AbortSignal for the operation.
- * @returns {Promise<any>}
- */
 export async function handleShakaResourceFetch(
     { request, requestType, auth, streamId, segmentUniqueId },
     signal
 ) {
-    const REQUEST_FAILED = 6001;
-    const NETWORK_CATEGORY = 1;
-    const CRITICAL_SEVERITY = 2;
     const url = request.uris[0];
     const uniqueIdToUse = segmentUniqueId || url;
 
-    appLog(
-        'shakaResourceHandler',
-        'info',
-        `Fetching resource from network: ${url}.`
-    );
-
     try {
-        const body = /** @type {BodyInit | null} */ (request.body || null);
-
+        const body = request.body || null;
+        const method = request.method || 'GET';
         const resourceType = mapShakaRequestType(request, requestType);
         const loggingContext = { streamId, resourceType };
 
+        // Force POST if Shaka requested it, even if body is empty (though unusual)
         const response = await fetchWithAuth(
             url,
             auth,
@@ -78,19 +50,17 @@ export async function handleShakaResourceFetch(
             request.headers,
             body,
             signal,
-            loggingContext
+            loggingContext,
+            method
         );
 
         if (!response.ok) {
-            const responseHeaders = {};
-            Object.entries(response.headers).forEach(
-                ([key, value]) => (responseHeaders[key] = value)
-            );
+            // Return the error response to Shaka so it can retry or fail gracefully
             return {
                 uri: response.url,
                 originalUri: url,
                 data: new ArrayBuffer(0),
-                headers: responseHeaders,
+                headers: response.headers,
                 status: response.status,
                 originalRequest: request,
             };
@@ -98,13 +68,11 @@ export async function handleShakaResourceFetch(
 
         const data = await response.arrayBuffer();
 
-        // --- ARCHITECTURAL FIX: Only parse and cache actual media segments ---
+        // Background parsing for media segments
         const isMediaSegment = ['video', 'audio', 'text', 'init'].includes(
             resourceType
         );
-
         if (isMediaSegment) {
-            // This now runs non-blockingly in the background.
             (async () => {
                 try {
                     const formatHint =
@@ -112,7 +80,7 @@ export async function handleShakaResourceFetch(
                             ? 'isobmff'
                             : null;
                     const parsedData = await handleParseSegmentStructure({
-                        data: data.slice(0), // Use a slice to avoid transferring ownership
+                        data: data.slice(0),
                         url,
                         formatHint,
                         context: {},
@@ -129,45 +97,32 @@ export async function handleShakaResourceFetch(
                         },
                     });
                 } catch (e) {
-                    console.error(
-                        `[shakaResourceHandler] Background segment parse failed for ${url}:`,
-                        e
-                    );
+                    console.error(`Background parse failed: ${e.message}`);
                 }
             })();
         }
-        // --- END FIX ---
-
-        const responseHeaders = {};
-        Object.entries(response.headers).forEach(
-            ([key, value]) => (responseHeaders[key] = value)
-        );
 
         return {
             uri: response.url,
             originalUri: url,
             data,
-            headers: responseHeaders,
+            headers: response.headers,
             status: response.status,
             originalRequest: request,
         };
     } catch (error) {
         if (error.name === 'AbortError') {
-            appLog('shakaResourceHandler', 'info', `Fetch aborted for ${url}`);
             throw error;
         }
-        appLog(
-            'shakaResourceHandler',
-            'error',
-            'Caught catastrophic fetch error, re-throwing as Shaka-compatible object.',
-            error
-        );
+        appLog('shakaResourceHandler', 'error', `Fetch failed: ${url}`, error);
+
+        // Propagate error info back to Shaka
         throw {
-            message: error.message || 'A network error occurred.',
-            code: error.code || REQUEST_FAILED,
-            category: error.category || NETWORK_CATEGORY,
-            severity: error.severity || CRITICAL_SEVERITY,
-            data: error.data || [url, null, request, requestType, error],
+            code: 6001, // REQUEST_FAILED
+            severity: 2, // CRITICAL
+            category: 1, // NETWORK
+            data: [url, error.message],
+            message: error.message,
         };
     }
 }

@@ -334,8 +334,8 @@ function parseRepresentation(repEl, parentMergedEl) {
             getAttr(mergedRepEl, 'codingDependency') === 'true'
                 ? true
                 : getAttr(mergedRepEl, 'codingDependency') === 'false'
-                    ? false
-                    : null,
+                  ? false
+                  : null,
         eptDelta: null,
         pdDelta: null,
         representationIndex: null,
@@ -354,12 +354,12 @@ function parseRepresentation(repEl, parentMergedEl) {
                     ref: getAttr(cpEl, 'ref'),
                     pssh: psshData
                         ? [
-                            {
-                                systemId: schemeIdUri, // Store the raw UUID
-                                kids: [],
-                                data: psshData,
-                            },
-                        ]
+                              {
+                                  systemId: schemeIdUri, // Store the raw UUID
+                                  kids: [],
+                                  data: psshData,
+                              },
+                          ]
                         : [],
                 };
             }
@@ -540,12 +540,12 @@ function parseAdaptationSet(asEl, parentMergedEl) {
                     ref: getAttr(cpEl, 'ref'),
                     pssh: psshData
                         ? [
-                            {
-                                systemId: schemeIdUri, // Store the raw UUID
-                                kids: [],
-                                data: psshData,
-                            },
-                        ]
+                              {
+                                  systemId: schemeIdUri, // Store the raw UUID
+                                  kids: [],
+                                  data: psshData,
+                              },
+                          ]
                         : [],
                 };
             }
@@ -751,9 +751,9 @@ function parsePeriod(periodEl, parentMergedEl, previousPeriod = null) {
         bitstreamSwitching: getAttr(periodEl, 'bitstreamSwitching') === 'true',
         assetIdentifier: assetIdentifierEl
             ? {
-                schemeIdUri: getAttr(assetIdentifierEl, 'schemeIdUri'),
-                value: getAttr(assetIdentifierEl, 'value'),
-            }
+                  schemeIdUri: getAttr(assetIdentifierEl, 'schemeIdUri'),
+                  value: getAttr(assetIdentifierEl, 'value'),
+              }
             : null,
         subsets: subsets.map((s) => ({
             contains: (getAttr(s, 'contains') || '').split(' '),
@@ -812,7 +812,7 @@ export async function adaptDashToIr(manifestElement, baseUrl, context) {
                 // Heuristic: if media attribute exists, check its extension
                 const extensionBasedFormat =
                     inferMediaInfoFromExtension(mediaUrl).contentType ===
-                        'video'
+                    'video'
                         ? 'isobmff'
                         : 'ts';
                 if (extensionBasedFormat === 'ts') {
@@ -901,12 +901,12 @@ export async function adaptDashToIr(manifestElement, baseUrl, context) {
                     ref: getAttr(cpEl, 'ref'),
                     pssh: psshData
                         ? [
-                            {
-                                systemId: schemeIdUri,
-                                kids: [],
-                                data: psshData,
-                            },
-                        ]
+                              {
+                                  systemId: schemeIdUri,
+                                  kids: [],
+                                  data: psshData,
+                              },
+                          ]
                         : [],
                 };
             }

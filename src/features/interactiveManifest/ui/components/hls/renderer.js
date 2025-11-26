@@ -1,207 +1,197 @@
 import { html } from 'lit-html';
-import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
-import { eventBus } from '@/application/event-bus';
+import { renderSmartToken } from '../smart-tokens.js';
 import '@/ui/components/virtualized-list';
-import { isDebugMode } from '@/shared/utils/env';
 
-const escapeHtml = (str) => {
-    if (!str) return '';
-    return str
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
+const parseHlsLine = (line) => {
+    const trimmed = line.trim();
+    if (!trimmed) return { type: 'empty' };
+    if (trimmed.startsWith('#')) {
+        if (trimmed.startsWith('#EXT')) {
+            const colonIndex = trimmed.indexOf(':');
+            if (colonIndex === -1) {
+                return { type: 'tag', name: trimmed.substring(1), value: null };
+            }
+            const name = trimmed.substring(1, colonIndex);
+            const valueStr = trimmed.substring(colonIndex + 1);
+
+            if (valueStr.includes('=')) {
+                const attributes = [];
+                const regex = /([A-Z0-9-]+)=("[^"]*"|[^,]+)/g;
+                let match;
+                while ((match = regex.exec(valueStr)) !== null) {
+                    let val = match[2];
+                    if (val.startsWith('"')) val = val.slice(1, -1);
+                    attributes.push({ key: match[1], value: val });
+                }
+                return { type: 'tag-attrs', name, attributes };
+            }
+            return { type: 'tag-value', name, value: valueStr };
+        }
+        return { type: 'comment', content: trimmed };
+    }
+    return { type: 'uri', content: trimmed };
 };
 
-const getInteractiveHlsLineHTML = (
-    line,
-    lineNumber,
+const renderLine = (
+    item,
+    index,
     hoveredItem,
     selectedItem,
-    missingTooltips
+    missingTooltips,
+    isModified
 ) => {
-    line = line.trim();
-    if (!line.startsWith('#EXT')) {
-        const isComment = line.startsWith('#');
-        return `<span class="${
-            isComment ? 'text-gray-500 italic' : 'text-cyan-400'
-        }">${escapeHtml(line)}</span>`;
-    }
+    const { type, name, value, attributes, content } = parseHlsLine(
+        item.content
+    );
+    const path = `L${item.lineNumber}`;
 
-    const tagClass = 'text-purple-300';
-    const attributeClass = 'text-emerald-300';
-    const valueClass = 'text-yellow-300';
+    const isHovered = hoveredItem && hoveredItem.path === path;
+    const isSelected = selectedItem && selectedItem.path === path;
 
-    const separatorIndex = line.indexOf(':');
-    if (separatorIndex === -1) {
-        const tagName = line.substring(1);
-        const path = `L${lineNumber}`;
-        const isHovered = hoveredItem && hoveredItem.path === path;
-        const isSelected = selectedItem && selectedItem.path === path;
-        const isMissing = isDebugMode && missingTooltips.has(tagName);
-        let highlightClass = '';
-        if (isSelected) highlightClass = 'bg-blue-900/80';
-        else if (isHovered) highlightClass = 'bg-slate-700/80';
-        else if (isMissing)
-            highlightClass =
-                'bg-red-900/50 underline decoration-red-400 decoration-dotted';
+    let lineContent;
 
-        return `#<span class="interactive-hls-token ${highlightClass}" data-type="tag" data-name="${tagName}" data-path="${path}">${tagName}</span>`;
-    }
+    // Removed flex-wrap to enforce single line height for virtual scrolling
+    const baseClass = `flex grow items-center pl-4 whitespace-nowrap ${isModified ? 'bg-orange-500/10' : ''}`;
+    const selectClass = isSelected
+        ? 'bg-blue-900/50 ring-1 ring-blue-500 rounded px-1'
+        : 'hover:bg-slate-800 rounded px-1 transition-colors cursor-pointer';
 
-    const tagName = line.substring(1, separatorIndex);
-    const tagPath = `L${lineNumber}`;
-    const tagValue = line.substring(separatorIndex + 1);
+    if (type === 'tag' || type === 'tag-value') {
+        lineContent = html`
+            <div class="${baseClass}">
+                <span
+                    class="${selectClass}"
+                    data-type="tag"
+                    data-name=${name}
+                    data-path=${path}
+                >
+                    <span class="text-slate-500">#</span
+                    ><span class="text-purple-300 font-bold">${name}</span>
+                    ${value
+                        ? html`<span class="text-slate-400">:</span
+                              ><span
+                                  class="text-yellow-200/90 whitespace-pre"
+                                  >${value}</span
+                              >`
+                        : ''}
+                </span>
+            </div>
+        `;
+    } else if (type === 'tag-attrs') {
+        const attributesMap = attributes.reduce((acc, curr) => {
+            acc[curr.key] = curr.value;
+            return acc;
+        }, {});
 
-    let valueHtml = '';
-    if (tagValue.includes('=')) {
-        const regex = /([A-Z0-9-]+)=("[^"]*"|[^,]+)/g;
-        let match;
-        const parts = [];
-        let lastIndex = 0;
+        lineContent = html`
+            <div class="${baseClass}">
+                <span
+                    class="${selectClass} mr-1 mb-0.5"
+                    data-type="tag"
+                    data-name=${name}
+                    data-path=${path}
+                >
+                    <span class="text-slate-500">#</span
+                    ><span class="text-purple-300 font-bold">${name}</span
+                    ><span class="text-slate-400">:</span>
+                </span>
+                <div
+                    class="inline-flex gap-x-1 gap-y-0.5 ml-2 align-baseline"
+                >
+                    ${attributes.map((attr, i) => {
+                        const attrKey = `${name}@${attr.key}`;
+                        const attrPath = `${path}@${attr.key}`;
+                        const smartToken = renderSmartToken(
+                            attr.key,
+                            attr.value,
+                            null,
+                            attributesMap
+                        );
 
-        while ((match = regex.exec(tagValue)) !== null) {
-            if (match.index > lastIndex) {
-                parts.push(
-                    escapeHtml(tagValue.substring(lastIndex, match.index))
-                );
-            }
-            const attr = match[1];
-            const attrKey = `${tagName}@${attr}`;
-            const attrPath = `${tagPath}@${attr}`;
-            let val = match[2];
-            const isQuoted = val.startsWith('"') && val.endsWith('"');
-            if (isQuoted) val = val.substring(1, val.length - 1);
-
-            const isHovered = hoveredItem && hoveredItem.path === attrPath;
-            const isSelected = selectedItem && selectedItem.path === attrPath;
-            const isMissing = isDebugMode && missingTooltips.has(attrKey);
-            let highlightClass = '';
-            if (isSelected) highlightClass = 'bg-blue-900/80';
-            else if (isHovered) highlightClass = 'bg-slate-700/80';
-            else if (isMissing)
-                highlightClass =
-                    'bg-red-900/50 underline decoration-red-400 decoration-dotted';
-
-            parts.push(
-                `<span class="interactive-hls-token ${attributeClass} ${highlightClass}" data-type="attribute" data-name="${attrKey}" data-path="${attrPath}">${escapeHtml(
-                    attr
-                )}</span>=<span class="${valueClass}">${
-                    isQuoted ? '&quot;' : ''
-                }${escapeHtml(val)}${isQuoted ? '&quot;' : ''}</span>`
-            );
-            lastIndex = regex.lastIndex;
-        }
-        if (lastIndex < tagValue.length) {
-            parts.push(escapeHtml(tagValue.substring(lastIndex)));
-        }
-        valueHtml = parts.join('');
+                        return html`<span
+                            class="group relative cursor-pointer align-baseline hover:bg-slate-800 rounded pl-1 transition-colors"
+                            data-type="attribute"
+                            data-name=${attrKey}
+                            data-path=${attrPath}
+                            ><span class="text-emerald-300/90 font-semibold"
+                                >${attr.key}</span
+                            ><span class="text-slate-400">=</span
+                            ><span class="text-amber-200/90"
+                                >"${attr.value}"</span
+                            >${smartToken}${i < attributes.length - 1
+                                ? html`<span class="text-slate-600">,</span>`
+                                : ''}</span
+                        >`;
+                    })}
+                </div>
+            </div>
+        `;
+    } else if (type === 'comment') {
+        // FIX: Collapsed template literal to avoid extra whitespace in whitespace-pre container
+        lineContent = html`<div class="${baseClass} text-slate-500 italic whitespace-pre leading-relaxed">${content}</div>`;
+    } else if (type === 'uri') {
+        // FIX: Collapsed template literal to avoid extra whitespace in whitespace-pre container
+        lineContent = html`<div class="${baseClass} text-cyan-300/90 whitespace-pre leading-relaxed">${content}</div>`;
     } else {
-        valueHtml = `<span class="${valueClass}">${escapeHtml(tagValue)}</span>`;
+        lineContent = html`<div class="${baseClass}"></div>`;
     }
 
-    const isTagHovered = hoveredItem && hoveredItem.path === tagPath;
-    const isTagSelected = selectedItem && selectedItem.path === tagPath;
-    const isTagMissing = isDebugMode && missingTooltips.has(tagName);
-    let tagHighlightClass = '';
-    if (isTagSelected) tagHighlightClass = 'bg-blue-900/80';
-    else if (isTagHovered) tagHighlightClass = 'bg-slate-700/80';
-    else if (isTagMissing)
-        tagHighlightClass =
-            'bg-red-900/50 underline decoration-red-400 decoration-dotted';
-
-    return `#<span class="interactive-hls-token ${tagClass} ${tagHighlightClass}" data-type="tag" data-name="${tagName}" data-path="${tagPath}">${tagName}</span>:<span class="font-normal">${valueHtml}</span>`;
+    return html`
+        <div
+            class="flex w-full items-stretch hover:bg-slate-800/30 transition-colors font-mono text-sm"
+        >
+            <div
+                class="w-12 shrink-0 text-right pr-2 text-slate-600 select-none text-xs border-r border-slate-800/50 bg-slate-900 py-1 leading-relaxed sticky left-0 z-10"
+            >
+                ${item.lineNumber}
+            </div>
+            <div class="grow min-w-0 py-0.5 pr-6 leading-relaxed">
+                ${lineContent}
+            </div>
+        </div>
+    `;
 };
 
 export const hlsManifestTemplate = (
     stream,
-    showSubstituted,
+    manifestString,
     hoveredItem,
     selectedItem,
-    missingTooltips
+    missingTooltips,
+    diffModel
 ) => {
-    let activeManifest;
-    let rawManifestStringForToggle;
+    if (!manifestString)
+        return html`<div class="p-8 text-center text-slate-500">
+            No content.
+        </div>`;
 
-    if (stream.activeMediaPlaylistUrl) {
-        const mediaPlaylist = stream.mediaPlaylists.get(
-            stream.activeMediaPlaylistId
+    const allLines = manifestString.split(/\r?\n/).map((line, index) => ({
+        id: `${index}-${line.substring(0, 20)}`,
+        lineNumber: index + 1,
+        content: line,
+    }));
+
+    const renderer = (item, index) => {
+        const isModified = diffModel && diffModel[index] === 'modified';
+        return renderLine(
+            item,
+            index,
+            hoveredItem,
+            selectedItem,
+            missingTooltips,
+            isModified
         );
-        if (!mediaPlaylist)
-            return html`<div class="text-yellow-400 p-4">Loading...</div>`;
-        rawManifestStringForToggle = mediaPlaylist.rawManifest;
-        activeManifest = mediaPlaylist.manifest;
-    } else {
-        rawManifestStringForToggle = stream.rawManifest;
-        activeManifest = stream.manifest;
-    }
-
-    // --- ARCHITECTURAL FIX: Defensively select the string to display ---
-    const manifestStringToDisplay =
-        showSubstituted && activeManifest?.serializedManifest?.substitutedRaw
-            ? activeManifest.serializedManifest.substitutedRaw
-            : rawManifestStringForToggle;
-    // --- END FIX ---
-
-    if (!manifestStringToDisplay || !activeManifest)
-        return html`<div class="text-yellow-400 p-4">Awaiting content...</div>`;
-
-    const allLines = manifestStringToDisplay
-        .split(/\r?\n/)
-        .map((line, index) => ({
-            id: `${index}-${line}`,
-            lineNumber: index + 1,
-            html: getInteractiveHlsLineHTML(
-                line,
-                index + 1,
-                hoveredItem,
-                selectedItem,
-                missingTooltips
-            ),
-        }));
-
-    const rowRenderer = (item) => html`
-        <div class="flex">
-            <span
-                class="text-right text-gray-500 pr-4 select-none shrink-0 w-12"
-                >${item.lineNumber}</span
-            >
-            <span class="grow whitespace-pre-wrap break-all"
-                >${unsafeHTML(item.html)}</span
-            >
-        </div>
-    `;
-
-    const handleToggle = () =>
-        eventBus.dispatch('ui:interactive-manifest:toggle-substitution');
-
-    const variableControls =
-        stream.hlsDefinedVariables && stream.hlsDefinedVariables.size > 0
-            ? html`<div class="mb-4">
-                  <button
-                      @click=${handleToggle}
-                      class="text-xs px-3 py-1.5 rounded-md font-semibold transition-colors ${showSubstituted
-                          ? 'bg-blue-800 text-blue-200'
-                          : 'bg-gray-700 text-gray-300'}"
-                  >
-                      ${showSubstituted
-                          ? 'Show Raw Manifest'
-                          : 'Show Substituted Values'}
-                  </button>
-              </div>`
-            : '';
+    };
 
     return html`
-        ${variableControls}
-        <div
-            class="bg-slate-800 rounded-lg p-2 font-mono text-sm leading-relaxed overflow-x-auto"
-        >
+        <div class="bg-slate-900 h-full flex flex-col">
             <virtualized-list
+                id="manifest-virtual-list"
                 .items=${allLines}
-                .rowTemplate=${rowRenderer}
-                .rowHeight=${22}
+                .rowTemplate=${renderer}
+                .rowHeight=${28}
                 .itemId=${(item) => item.id}
-                class="h-[75vh]"
+                class="grow scrollbar-hide"
             ></virtualized-list>
         </div>
     `;

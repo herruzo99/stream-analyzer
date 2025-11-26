@@ -6,8 +6,6 @@ import { networkToolbarTemplate } from './components/network-toolbar.js';
 import { summaryCardsTemplate } from './components/summary-cards.js';
 import { waterfallChartTemplate } from './components/waterfall-chart.js';
 import { networkDetailsPanelTemplate } from './components/network-details-panel.js';
-
-// New ECharts integration
 import { renderChart, disposeChart } from '@/ui/shared/charts/chart-renderer';
 import { throughputChartOptions } from '@/ui/shared/charts/throughput-chart';
 
@@ -19,102 +17,129 @@ function renderNetworkView() {
     if (!container) return;
 
     const { streams } = useAnalysisStore.getState();
+    // Handle empty state if needed, though the view is usually robust
     if (streams.length === 0) {
-        networkAnalysisView.unmount();
-        return;
+        // Optional: render empty state
     }
 
     const { events, selectedEventId, filters, visibleStreamIds } =
         useNetworkStore.getState();
 
-    // --- ARCHITECTURAL FIX: Filter out internal app requests ---
-    // Only include events that have a non-null streamId and are in the visible set.
     const allVisibleStreamEvents = events.filter(
         (event) =>
             event.streamId !== null && visibleStreamIds.has(event.streamId)
     );
-    // --- END FIX ---
 
     let filteredStreamEvents = allVisibleStreamEvents;
+
     if (filters.type !== 'all') {
-        filteredStreamEvents = allVisibleStreamEvents.filter(
+        filteredStreamEvents = filteredStreamEvents.filter(
             (event) => event.resourceType === filters.type
+        );
+    }
+
+    if (filters.search) {
+        const term = filters.search.toLowerCase();
+        filteredStreamEvents = filteredStreamEvents.filter((e) =>
+            e.url.toLowerCase().includes(term)
         );
     }
 
     const selectedEvent = filteredStreamEvents.find(
         (event) => event.id === selectedEventId
     );
-
     const viewModel = createNetworkViewModel(
         filteredStreamEvents,
         allVisibleStreamEvents
     );
 
-    const chartOpts = throughputChartOptions(viewModel.throughputData);
-    // Defer chart rendering until after lit-html has created the container div
-    setTimeout(() => {
+    // Render Chart Logic
+    // We use RAF to ensure the DOM element exists after Lit renders the template below.
+    requestAnimationFrame(() => {
         const chartContainer = container?.querySelector(
             '#throughput-chart-container'
         );
-        if (chartContainer) {
-            renderChart(chartContainer, chartOpts);
+        if (chartContainer && chartContainer.isConnected) {
+            if (viewModel.throughputData.length > 0) {
+                renderChart(
+                    chartContainer,
+                    throughputChartOptions(viewModel.throughputData)
+                );
+            } else {
+                // If no data, we might want to clear the chart or show "No Data"
+                // Re-rendering with empty options handles clearing/updating title
+                renderChart(chartContainer, throughputChartOptions([]));
+            }
         }
-    }, 0);
+    });
 
     const template = html`
-        <div class="flex flex-col h-full">
-            <div class="shrink-0">
-                <h3 class="text-xl font-bold mb-4">Network Analysis</h3>
+        <div
+            class="flex flex-col h-full p-4 sm:p-6 bg-slate-950 overflow-hidden"
+        >
+            <!-- Top Section -->
+            <div class="shrink-0 space-y-4">
+                <h3 class="text-xl font-bold text-white">Network Inspector</h3>
                 ${networkToolbarTemplate()}
-                <div class="mt-6">
-                    ${summaryCardsTemplate(viewModel.summary)}
-                </div>
+                ${summaryCardsTemplate(viewModel.summary)}
             </div>
+
+            <!-- Throughput Chart -->
             <div
-                class="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6 mt-6 grow min-h-0"
+                class="mt-4 h-32 shrink-0 bg-slate-900 rounded-lg border border-slate-800 p-2 relative"
             >
-                <div class="flex flex-col gap-6 min-h-0">
-                    <div class="bg-gray-800 p-4 rounded-lg shrink-0">
-                        <h4 class="font-bold text-gray-300 mb-2">
-                            Throughput Over Time
-                        </h4>
-                        <div id="throughput-chart-container" class="h-48"></div>
-                    </div>
-                    <div class="grow min-h-0">
-                        ${waterfallChartTemplate(
-                            viewModel.waterfallData,
-                            viewModel.timeline
-                        )}
-                    </div>
+                <h4
+                    class="absolute top-2 left-3 text-[10px] font-bold text-slate-500 uppercase z-10"
+                >
+                    Throughput
+                </h4>
+                <div
+                    id="throughput-chart-container"
+                    class="w-full h-full"
+                ></div>
+            </div>
+
+            <!-- Split View: Waterfall + Details -->
+            <div class="flex gap-4 mt-4 grow min-h-0 h-full overflow-hidden">
+                <!-- Waterfall Area -->
+                <div
+                    class="grow min-w-0 flex flex-col h-full overflow-hidden rounded-lg border border-slate-700 bg-slate-900"
+                >
+                    ${waterfallChartTemplate(viewModel.waterfallData)}
                 </div>
-                <div class="min-h-0">
+
+                <!-- Details Panel -->
+                <div
+                    class="w-[350px] shrink-0 h-full overflow-hidden rounded-lg border border-slate-700 bg-slate-900"
+                >
                     ${networkDetailsPanelTemplate(selectedEvent)}
                 </div>
             </div>
         </div>
     `;
+
     render(template, container);
 }
 
 export const networkAnalysisView = {
     mount(containerElement) {
         container = containerElement;
+        const { streams } = useAnalysisStore.getState();
+        const { visibleStreamIds } = useNetworkStore.getState();
+        if (visibleStreamIds.size === 0 && streams.length > 0) {
+            networkActions.setVisibleStreamIds(streams.map((s) => s.id));
+        }
 
         if (networkUnsubscribe) networkUnsubscribe();
         if (analysisUnsubscribe) analysisUnsubscribe();
 
-        const { streams } = useAnalysisStore.getState();
-        const allStreamIds = streams.map((s) => s.id);
-        networkActions.setVisibleStreamIds(allStreamIds);
-
         networkUnsubscribe = useNetworkStore.subscribe(renderNetworkView);
         analysisUnsubscribe = useAnalysisStore.subscribe(renderNetworkView);
-
         renderNetworkView();
     },
 
     unmount() {
+        // Explicitly dispose of the chart before clearing the DOM to prevent leaks/orphans
         const chartContainer = container?.querySelector(
             '#throughput-chart-container'
         );
@@ -127,9 +152,7 @@ export const networkAnalysisView = {
         networkUnsubscribe = null;
         analysisUnsubscribe = null;
 
-        if (container) {
-            render(html``, container);
-        }
+        if (container) render(html``, container);
         container = null;
     },
 };

@@ -10,12 +10,19 @@ const mobileTabButton = (label, tabKey, icon) => {
     return html`
         <button
             @click=${() => uiActions.setInteractiveSegmentActiveTab(tabKey)}
-            class="flex-1 flex flex-col items-center justify-center p-2 transition-colors ${isActive
-                ? 'text-blue-400 bg-slate-800'
-                : 'text-slate-500 hover:text-slate-300'}"
+            class="flex-1 flex flex-col items-center justify-center py-3 transition-all duration-200 border-t-2 ${isActive
+                ? 'text-blue-400 border-blue-500 bg-blue-500/5'
+                : 'text-slate-500 border-transparent hover:text-slate-300 hover:bg-white/5'}"
         >
-            ${icon}
-            <span class="text-xs font-semibold mt-1">${label}</span>
+            <span
+                class="${isActive
+                    ? 'scale-110'
+                    : ''} transition-transform duration-200"
+                >${icon}</span
+            >
+            <span class="text-[10px] font-bold mt-1 uppercase tracking-wider"
+                >${label}</span
+            >
         </button>
     `;
 };
@@ -24,91 +31,85 @@ export const inspectorLayoutTemplate = ({
     inspectorContent,
     structureContent,
     hexContent,
+    toolbar = null,
 }) => {
     const { interactiveSegmentActiveTab } = useUiStore.getState();
-
-    const tabs = [
-        { key: 'inspector', label: 'Inspector' },
-        { key: 'hex', label: 'Hex View' },
-    ];
 
     const mobileViewClasses = (key) => ({
         'lg:hidden': true,
         hidden: interactiveSegmentActiveTab !== key,
         'h-full': true,
         'w-full': true,
+        'animate-fadeIn': true,
     });
 
     return html`
-        <!-- Desktop Layout: Responsive 2-column and 3-column Grid -->
-        <div
-            class="hidden lg:grid lg:grid-cols-[minmax(320px,25%)_1fr] 2xl:grid-cols-[minmax(320px,20%)_35%_1fr] lg:gap-4 h-full"
-        >
-            <!-- Column 1: Structure Tree (Always visible on desktop) -->
-            <div class="h-full min-h-0">${structureContent}</div>
+        <div class="h-full w-full bg-slate-950 flex flex-col overflow-hidden">
+            <!-- Optional Toolbar -->
+            ${toolbar
+                ? html`<div
+                      class="shrink-0 border-b border-slate-800 bg-slate-900 z-20 relative"
+                  >
+                      ${toolbar}
+                  </div>`
+                : ''}
 
-            <!-- Column 2 (for 2XL): Inspector Panel -->
-            <div class="hidden 2xl:flex flex-col h-full min-h-0">
-                ${inspectorContent}
-            </div>
-
-            <!-- Column 3 (for 2XL): Hex View Panel -->
-            <div class="hidden 2xl:flex flex-col h-full min-h-0">
-                ${hexContent}
-            </div>
-
-            <!-- Tabbed container for LG screens (hidden on 2XL) -->
-            <div class="flex flex-col h-full min-h-0 2xl:hidden">
-                ${connectedTabBar(
-                    tabs,
-                    interactiveSegmentActiveTab,
-                    uiActions.setInteractiveSegmentActiveTab
-                )}
+            <!-- Desktop Grid Layout -->
+            <div
+                class="hidden lg:grid lg:grid-cols-[minmax(250px,300px)_minmax(400px,1fr)_minmax(280px,320px)] 2xl:grid-cols-[minmax(300px,360px)_minmax(500px,1fr)_minmax(350px,400px)] grow min-h-0 divide-x divide-slate-800"
+            >
+                <!-- Left: Structure Tree -->
                 <div
-                    class="grow bg-slate-900 rounded-b-lg min-h-0 border-x border-b border-slate-700"
+                    class="h-full min-h-0 flex flex-col bg-slate-900/30 overflow-hidden relative"
                 >
-                    <div
-                        class="h-full ${interactiveSegmentActiveTab !==
-                        'inspector'
-                            ? 'hidden'
-                            : ''}"
-                    >
-                        ${inspectorContent}
-                    </div>
-                    <div
-                        class="h-full ${interactiveSegmentActiveTab !== 'hex'
-                            ? 'hidden'
-                            : ''}"
-                    >
-                        ${hexContent}
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Mobile Layout: Fullscreen with Bottom Tabs -->
-        <div class="lg:hidden flex flex-col h-full w-full">
-            <div class="grow min-h-0 overflow-y-auto mb-16">
-                <div class=${classMap(mobileViewClasses('structure'))}>
                     ${structureContent}
                 </div>
-                <div class=${classMap(mobileViewClasses('inspector'))}>
-                    ${inspectorContent}
-                </div>
-                <div class=${classMap(mobileViewClasses('hex'))}>
+
+                <!-- Center: Hex View (The Workbench) -->
+                <div
+                    class="h-full min-h-0 flex flex-col bg-slate-950 relative z-10 shadow-2xl overflow-hidden"
+                >
                     ${hexContent}
                 </div>
+
+                <!-- Right: Inspector (Details) -->
+                <div
+                    class="h-full min-h-0 flex flex-col bg-slate-900/50 overflow-hidden relative"
+                >
+                    ${inspectorContent}
+                </div>
             </div>
-            <div
-                class="fixed bottom-0 left-0 right-0 h-16 bg-slate-800/80 backdrop-blur-sm border-t border-slate-700 flex items-stretch z-10"
-            >
-                ${mobileTabButton('Structure', 'structure', icons.folderTree)}
-                ${mobileTabButton(
-                    'Inspector',
-                    'inspector',
-                    icons.slidersHorizontal
-                )}
-                ${mobileTabButton('Hex View', 'hex', icons.binary)}
+
+            <!-- Mobile Layout -->
+            <div class="lg:hidden flex flex-col grow min-h-0 relative">
+                <div class="grow min-h-0 relative">
+                    <div class=${classMap(mobileViewClasses('structure'))}>
+                        ${structureContent}
+                    </div>
+                    <div class=${classMap(mobileViewClasses('hex'))}>
+                        ${hexContent}
+                    </div>
+                    <div class=${classMap(mobileViewClasses('inspector'))}>
+                        ${inspectorContent}
+                    </div>
+                </div>
+
+                <!-- Mobile Bottom Nav -->
+                <div
+                    class="shrink-0 bg-slate-900 border-t border-slate-800 flex items-stretch z-50 pb-safe"
+                >
+                    ${mobileTabButton(
+                        'Structure',
+                        'structure',
+                        icons.folderTree
+                    )}
+                    ${mobileTabButton('Hex View', 'hex', icons.binary)}
+                    ${mobileTabButton(
+                        'Inspector',
+                        'inspector',
+                        icons.slidersHorizontal
+                    )}
+                </div>
             </div>
         </div>
     `;

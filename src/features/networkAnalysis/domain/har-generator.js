@@ -67,7 +67,9 @@ export function generateHar(events, streams) {
                 ),
                 content: {
                     size: event.response.contentLength || 0,
-                    mimeType: event.response.contentType || 'application/octet-stream',
+                    mimeType:
+                        event.response.contentType ||
+                        'application/octet-stream',
                     // text: ... // We don't store response bodies in memory for performance
                 },
                 redirectURL: '',
@@ -81,7 +83,8 @@ export function generateHar(events, streams) {
                 connect: -1,
                 send: 0,
                 wait: event.timing.breakdown?.ttfb || 0,
-                receive: event.timing.breakdown?.download || event.timing.duration,
+                receive:
+                    event.timing.breakdown?.download || event.timing.duration,
                 ssl: -1,
             },
             serverIPAddress: '',

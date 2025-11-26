@@ -1,241 +1,423 @@
-import { html } from 'lit-html';
-import { classMap } from 'lit-html/directives/class-map.js';
+import { html, render } from 'lit-html';
 import { copyTextToClipboard } from '@/ui/shared/clipboard';
+import { useUiStore } from '@/state/uiStore';
 import * as icons from '@/ui/icons';
 import '@/ui/components/virtualized-list';
-import { useUiStore } from '@/state/uiStore';
 
-const escapeHtml = (str) => {
-    if (!str) return '';
-    return str
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
+// Caches row offsets for a given buffer (memory optimization)
+const rowCache = new WeakMap();
+// Caches computed box IDs and Color Indices for a given row (CPU optimization)
+const metadataCache = new WeakMap();
+
+const getCachedRows = (buffer) => {
+    if (rowCache.has(buffer)) {
+        return rowCache.get(buffer);
+    }
+    const rowCount = Math.ceil(buffer.byteLength / 16);
+    const rows = new Float64Array(rowCount);
+    for (let i = 0; i < rowCount; i++) {
+        rows[i] = i * 16;
+    }
+    rowCache.set(buffer, rows);
+    metadataCache.set(buffer, new Map());
+    return rows;
 };
 
-/**
- * Renders a single row for the virtualized hex grid.
- * @param {{offset: number}} row - An object representing the row to render.
- * @param {number} index - The index of the row.
- * @param {Uint8Array} view - The byte array view.
- * @param {Map<number, object>} fullByteMap - The pre-built map of all byte properties for the segment.
- * @param {object} allTooltips - The aggregated tooltip data for all formats.
- * @param {{start: number, end: number} | null} highlightRange - An optional range to highlight (for I-Frames).
- * @returns {import('lit-html').TemplateResult}
- */
-const renderHexRow = (
-    row,
-    index,
-    view,
-    fullByteMap,
-    allTooltips,
-    highlightRange
-) => {
-    const {
-        interactiveSegmentSelectedItem,
-        interactiveSegmentHighlightedItem,
-    } = useUiStore.getState();
+export class HexViewComponent extends HTMLElement {
+    constructor() {
+        super();
+        this._buffer = null;
+        this._view = null;
+        this._maps = null;
+        this._rows = null;
+        this._renderRow = this._renderRow.bind(this);
 
-    const rowStartOffset = row.offset;
-    const hexSpans = [];
-    const asciiSpans = [];
-    const endOffset = Math.min(rowStartOffset + 16, view.length);
+        this._state = {
+            selOffset: -1,
+            selEnd: -1,
+            hovOffset: -1,
+            hovEnd: -1,
+            rangeStart: -1,
+            rangeEnd: -1,
+        };
+        this.unsubscribe = null;
+    }
 
-    for (
-        let byteOffset = rowStartOffset;
-        byteOffset < endOffset;
-        byteOffset++
-    ) {
-        const byte = view[byteOffset];
-        const mapEntry = fullByteMap.get(byteOffset);
-        const item = mapEntry?.box || mapEntry?.packet || mapEntry?.sample;
-        const fieldName = mapEntry?.fieldName;
+    connectedCallback() {
+        this.classList.add(
+            'flex',
+            'flex-col',
+            'h-full',
+            'overflow-hidden',
+            'bg-slate-950',
+            'border-x',
+            'border-slate-800',
+            'relative'
+        );
+        this.renderStructure();
+        this.unsubscribe = useUiStore.subscribe((state) =>
+            this._handleUiStateChange(state)
+        );
+        this._handleUiStateChange(useUiStore.getState());
+    }
 
-        let tooltipText = '';
-        let isoRefText = '';
+    disconnectedCallback() {
+        if (this.unsubscribe) this.unsubscribe();
+        this._buffer = null;
+        this._view = null;
+        this._rows = null;
+        this._maps = null;
+    }
 
-        if (mapEntry) {
-            if (item?.isSample) {
-                tooltipText = `Sample ${item.index}`;
-            } else {
-                const itemType = item?.type;
-                const fieldTooltipKey = itemType
-                    ? `${itemType}@${fieldName}`
-                    : fieldName;
-                const fieldInfo = allTooltips[fieldTooltipKey];
-                tooltipText = fieldInfo?.text || fieldName || 'Unknown Data';
-                isoRefText = fieldInfo?.ref || '';
+    _handleUiStateChange(state) {
+        if (!this.isConnected) return;
+
+        const {
+            interactiveSegmentSelectedItem,
+            interactiveSegmentHighlightedItem,
+            activeSegmentHighlightRange,
+        } = state;
+
+        const newSelOffset = interactiveSegmentSelectedItem?.item?.offset ?? -1;
+        const newSelEnd =
+            newSelOffset !== -1
+                ? newSelOffset +
+                  (interactiveSegmentSelectedItem?.item?.size || 1)
+                : -1;
+
+        let newHovOffset = -1;
+        let newHovEnd = -1;
+
+        if (interactiveSegmentHighlightedItem) {
+            const { item, field } = interactiveSegmentHighlightedItem;
+            if (item) {
+                // Specific field highlighting (e.g. from Inspector hover)
+                if (field && item.details && item.details[field]) {
+                    const fieldData = item.details[field];
+                    if (typeof fieldData.offset === 'number') {
+                        newHovOffset = fieldData.offset;
+                        newHovEnd = fieldData.offset + fieldData.length;
+                    }
+                }
+
+                // Fallback to whole item highlighting if no field specified or found
+                if (newHovOffset === -1 && typeof item.offset === 'number') {
+                    newHovOffset = item.offset;
+                    newHovEnd = item.offset + (item.size || 1);
+                }
             }
         }
 
-        const isSelected =
-            item &&
-            interactiveSegmentSelectedItem?.item?.offset === item.offset;
-        const isHovered =
-            item &&
-            interactiveSegmentHighlightedItem?.item?.offset === item.offset;
-        const isFieldHovered =
-            isHovered && interactiveSegmentHighlightedItem?.field === fieldName;
-        const isIFrameRange =
-            highlightRange &&
-            byteOffset >= highlightRange.start &&
-            byteOffset <= highlightRange.end;
+        const newRangeStart = activeSegmentHighlightRange?.start ?? -1;
+        const newRangeEnd = activeSegmentHighlightRange?.end ?? -1;
 
-        const baseClasses = {
-            relative: true,
-            [mapEntry?.color?.bgClass || '']: !!mapEntry?.color?.bgClass,
-            'highlight-hover-field': isFieldHovered,
-            'highlight-select-box': isSelected,
-            'highlight-hover-box': isHovered && !isFieldHovered,
-            'highlight-iframe-range': isIFrameRange,
-        };
+        if (
+            this._state.selOffset !== newSelOffset ||
+            this._state.selEnd !== newSelEnd ||
+            this._state.hovOffset !== newHovOffset ||
+            this._state.hovEnd !== newHovEnd ||
+            this._state.rangeStart !== newRangeStart ||
+            this._state.rangeEnd !== newRangeEnd
+        ) {
+            this._state = {
+                selOffset: newSelOffset,
+                selEnd: newSelEnd,
+                hovOffset: newHovOffset,
+                hovEnd: newHovEnd,
+                rangeStart: newRangeStart,
+                rangeEnd: newRangeEnd,
+            };
+            /** @type {any} */
+            const list = this.querySelector('virtualized-list');
+            if (list) {
+                list.requestUpdate();
+            }
+        }
+    }
 
-        const hexClasses = { ...baseClasses, 'hex-byte': true };
-        const asciiClasses = { ...baseClasses, 'ascii-char': true };
+    set data({ buffer, maps }) {
+        if (this._buffer !== buffer) {
+            this._buffer = buffer;
+            this._view = new Uint8Array(buffer);
+            this._rows = getCachedRows(buffer);
+            this._maps = maps;
 
-        const hexByte = byte.toString(16).padStart(2, '0').toUpperCase();
-        hexSpans.push(
-            html`<span
-                data-byte-offset="${byteOffset}"
-                data-tooltip="${escapeHtml(tooltipText)}"
-                data-iso="${escapeHtml(isoRefText)}"
-                class=${classMap(hexClasses)}
-                >${hexByte}</span
-            >`
-        );
+            /** @type {any} */
+            const list = this.querySelector('virtualized-list');
+            if (list) {
+                list.items = this._rows;
+            } else {
+                this.renderStructure();
+            }
+        } else if (this._maps !== maps) {
+            if (this._buffer) metadataCache.set(this._buffer, new Map());
+            this._maps = maps;
 
-        const asciiChar =
-            byte >= 32 && byte <= 126 ? String.fromCharCode(byte) : '.';
-        asciiSpans.push(
-            html`<span
-                data-byte-offset="${byteOffset}"
-                data-tooltip="${escapeHtml(tooltipText)}"
-                data-iso="${escapeHtml(isoRefText)}"
-                class=${classMap(asciiClasses)}
-                >${asciiChar}</span
-            >`
+            /** @type {any} */
+            const list = this.querySelector('virtualized-list');
+            if (list) list.requestUpdate();
+        }
+    }
+
+    handleCopy(mode) {
+        if (!this._view) return;
+        const limit = Math.min(this._view.length, 100 * 1024);
+        const viewSlice = this._view.subarray(0, limit);
+        let text = '';
+        if (mode === 'hex') {
+            text = Array.from(viewSlice)
+                .map((b) => b.toString(16).padStart(2, '0'))
+                .join(' ');
+        } else {
+            text = Array.from(viewSlice)
+                .map((b) =>
+                    b >= 32 && b <= 126 ? String.fromCharCode(b) : '.'
+                )
+                .join('');
+        }
+        copyTextToClipboard(
+            text,
+            `${mode.toUpperCase()} copied! ${limit < this._view.length ? '(Truncated to 100KB)' : ''}`
         );
     }
 
-    return html`
-        <div class="flex">
-            <div
-                class="text-slate-500 select-none text-right shrink-0 w-24 pr-4"
-            >
-                ${rowStartOffset.toString(16).padStart(8, '0').toUpperCase()}
-            </div>
-            <div class="hex-row grow border-r border-slate-700 pr-2 mr-2">
-                ${hexSpans}
-            </div>
-            <div class="ascii-row shrink-0 w-40 pl-2">${asciiSpans}</div>
-        </div>
-    `;
-};
+    _computeRowStyles(rowStart) {
+        const cache = this._buffer ? metadataCache.get(this._buffer) : null;
+        if (cache && cache.has(rowStart)) {
+            return cache.get(rowStart);
+        }
 
-export const hexViewTemplate = (
-    buffer,
-    fullByteMap,
-    allTooltips,
-    highlightRange
-) => {
-    const view = new Uint8Array(buffer);
-    const rowCount = Math.ceil(view.length / 16);
-    const rows = Array.from({ length: rowCount }, (_, i) => ({
-        offset: i * 16,
-    }));
+        const rowEnd = rowStart + 16;
+        const rowColors = new Int8Array(16).fill(-1);
 
-    const handleCopyHex = () => {
-        const hexString = Array.from(view)
-            .map((byte) => byte.toString(16).padStart(2, '0').toUpperCase())
-            .join(' ');
-        copyTextToClipboard(hexString, 'Hex data copied to clipboard!');
-    };
+        if (!this._maps) {
+            const result = { rowColors };
+            if (cache) cache.set(rowStart, result);
+            return result;
+        }
 
-    const handleCopyAscii = () => {
-        const asciiString = Array.from(view)
-            .map((byte) =>
-                byte >= 32 && byte <= 126 ? String.fromCharCode(byte) : '.'
-            )
-            .join('');
-        copyTextToClipboard(asciiString, 'ASCII data copied to clipboard!');
-    };
-
-    const rowRenderer = (row, index) =>
-        renderHexRow(
-            row,
-            index,
-            view,
-            fullByteMap,
-            allTooltips,
-            highlightRange
-        );
-
-    return html`
-        <style>
-            .hex-row,
-            .ascii-row {
-                display: grid;
-                grid-template-columns: repeat(16, minmax(0, 1fr));
+        if (this._maps.packetMap) {
+            const { packetMap } = this._maps;
+            const TS_SIZE = 188;
+            for (let i = 0; i < 16; i++) {
+                const byteOffset = rowStart + i;
+                const packetIndex = Math.floor(byteOffset / TS_SIZE);
+                if (packetIndex < packetMap.length) {
+                    rowColors[i] = packetMap[packetIndex];
+                }
             }
-            .hex-byte,
-            .ascii-char {
-                text-align: center;
-                padding: 0 0.125rem;
+            const result = { rowColors };
+            if (cache) cache.set(rowStart, result);
+            return result;
+        }
+
+        if (this._maps.boxLayout) {
+            const { boxLayout } = this._maps;
+            const STRIDE = 6;
+            const numBoxes = boxLayout.length / STRIDE;
+            let low = 0,
+                high = numBoxes;
+            while (low < high) {
+                const mid = (low + high) >>> 1;
+                if (boxLayout[mid * STRIDE + 1] <= rowStart) low = mid + 1;
+                else high = mid;
             }
-            .clear-byte-pattern {
-                background-image: repeating-linear-gradient(
-                    45deg,
-                    transparent,
-                    transparent 2px,
-                    rgba(255, 255, 255, 0.1) 2px,
-                    rgba(255, 255, 255, 0.1) 4px
-                );
+
+            for (let i = low; i < numBoxes; i++) {
+                const base = i * STRIDE;
+                const start = boxLayout[base];
+                const end = boxLayout[base + 1];
+                if (start >= rowEnd) break;
+                const drawStart = Math.max(rowStart, start);
+                const drawEnd = Math.min(rowEnd, end);
+
+                if (drawEnd > drawStart) {
+                    const color = boxLayout[base + 2];
+                    const relStart = drawStart - rowStart;
+                    const relEnd = drawEnd - rowStart;
+                    for (let k = relStart; k < relEnd; k++) {
+                        rowColors[k] = color;
+                    }
+                }
             }
-        </style>
-        <div
-            class="bg-slate-900 rounded-lg font-mono text-sm leading-relaxed flex flex-col h-full border border-slate-700"
-        >
+
+            const result = { rowColors };
+            if (cache) cache.set(rowStart, result);
+            return result;
+        }
+
+        return { rowColors };
+    }
+
+    _renderRow(rowOffset) {
+        if (!this._view) return html``;
+
+        const rowStartOffset = rowOffset;
+        const endOffset = Math.min(rowStartOffset + 16, this._view.length);
+        const { selOffset, selEnd, hovOffset, hovEnd, rangeStart, rangeEnd } =
+            this._state;
+        const palette = this._maps?.palette || [];
+        const { rowColors } = this._computeRowStyles(rowStartOffset);
+
+        const byteNodes = new Array(16);
+        const asciiNodes = new Array(16);
+
+        for (let i = 0; i < 16; i++) {
+            const byteOffset = rowStartOffset + i;
+
+            if (byteOffset >= endOffset) {
+                byteNodes[i] = html`<span
+                    class="inline-block w-6 h-5 text-center text-slate-800"
+                    >..</span
+                >`;
+                asciiNodes[i] = html`<span
+                    class="inline-block w-4 h-5 text-center text-slate-800"
+                    >.</span
+                >`;
+                continue;
+            }
+
+            const byte = this._view[byteOffset];
+            const colorIdx = rowColors[i];
+
+            let baseClass = '';
+            let textClass = 'text-slate-400';
+
+            if (colorIdx !== -1 && palette[colorIdx]) {
+                const colorName = palette[colorIdx];
+                if (colorName === 'slate') {
+                    baseClass = 'bg-slate-800/60';
+                } else {
+                    baseClass = `bg-${colorName}-900/40`;
+                    textClass = 'text-slate-300';
+                }
+            }
+
+            let highlightClass = '';
+            const isSelected = byteOffset >= selOffset && byteOffset < selEnd;
+            const isHovered =
+                !isSelected && byteOffset >= hovOffset && byteOffset < hovEnd;
+            const isRange =
+                rangeStart !== -1 &&
+                byteOffset >= rangeStart &&
+                byteOffset <= rangeEnd;
+
+            if (isSelected) {
+                highlightClass =
+                    'bg-blue-600 font-bold text-white z-10 shadow-sm';
+                textClass = 'text-white';
+            } else if (isHovered) {
+                // Solid hover state
+                highlightClass = 'bg-slate-700 text-white z-10';
+                textClass = 'text-white';
+            } else if (isRange) {
+                baseClass = 'bg-yellow-500/30';
+                textClass = 'text-yellow-100';
+            }
+
+            const hexByte = byte.toString(16).padStart(2, '0').toUpperCase();
+            const char =
+                byte >= 32 && byte <= 126 ? String.fromCharCode(byte) : '.';
+
+            byteNodes[i] = html`<span
+                class="inline-block text-center w-6 h-5 leading-5 text-[11px] cursor-crosshair relative ${baseClass} ${highlightClass} ${textClass}"
+                data-byte-offset="${byteOffset}"
+                >${hexByte}</span
+            >`;
+            asciiNodes[i] = html`<span
+                class="inline-block text-center w-4 h-5 leading-5 text-[11px] relative ${baseClass} ${highlightClass} ${textClass}"
+                >${char}</span
+            >`;
+        }
+
+        return html`
             <div
-                class="flex items-center justify-between p-2 border-b border-slate-700 shrink-0"
+                class="flex font-mono h-5 hover:bg-white/[0.03] min-w-[580px]"
+                style="contain: content; transform: translateZ(0);"
             >
-                <div class="flex items-center gap-2">
-                    <button
-                        @click=${handleCopyHex}
-                        class="text-xs bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded flex items-center gap-1.5"
-                    >
-                        ${icons.clipboardCopy} Copy Hex
-                    </button>
-                    <button
-                        @click=${handleCopyAscii}
-                        class="text-xs bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded flex items-center gap-1.5"
-                    >
-                        ${icons.clipboardCopy} Copy ASCII
-                    </button>
-                </div>
-                <div class="text-xs text-slate-500">
-                    Total Size: ${(buffer.byteLength / 1024).toFixed(2)} KB
-                </div>
-            </div>
-            <div
-                class="sticky top-0 bg-slate-800 z-10 flex text-xs font-semibold text-slate-400"
-            >
-                <div class="shrink-0 w-24 pr-4 text-right">Offset</div>
                 <div
-                    class="grow text-center border-r border-slate-700 pr-2 mr-2"
+                    class="w-24 text-right pr-4 text-slate-500 select-none bg-slate-900/50 border-r border-slate-800 shrink-0 text-[10px] leading-5"
                 >
-                    Hexadecimal
+                    ${rowStartOffset
+                        .toString(16)
+                        .padStart(8, '0')
+                        .toUpperCase()}
                 </div>
-                <div class="shrink-0 w-40 text-center pl-2">ASCII</div>
+                <div class="flex px-3 select-none shrink-0 gap-px">
+                    ${byteNodes}
+                </div>
+                <div class="w-px bg-slate-800/50 mx-2 shrink-0"></div>
+                <div class="flex select-none shrink-0 gap-px">
+                    ${asciiNodes}
+                </div>
             </div>
-            <virtualized-list
-                .items=${rows}
-                .rowTemplate=${rowRenderer}
-                .rowHeight=${22}
-                .itemId=${(item) => item.offset}
-                class="grow"
+        `;
+    }
+
+    renderStructure() {
+        const fileSizeKB = this._buffer
+            ? (this._buffer.byteLength / 1024).toFixed(2)
+            : '0.00';
+        const template = html`
+            <div
+                class="shrink-0 h-10 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4 shadow-sm z-30 relative"
+            >
+                <div
+                    class="text-xs font-bold text-slate-400 flex items-center gap-2"
+                >
+                    ${icons.binary}
+                    <span class="uppercase tracking-wider"
+                        >Bitstream Explorer</span
+                    >
+                    <span
+                        class="bg-slate-800 text-slate-500 px-1.5 rounded border border-slate-700/50 font-mono"
+                        >${fileSizeKB} KB</span
+                    >
+                </div>
+                <div class="flex gap-1">
+                    <button
+                        @click=${() => this.handleCopy('hex')}
+                        class="p-1.5 text-slate-500 hover:text-white transition-colors rounded hover:bg-slate-800"
+                        title="Copy Hex"
+                    >
+                        ${icons.clipboardCopy}
+                    </button>
+                </div>
+            </div>
+
+            <div
+                class="flex bg-slate-900/95 border-b border-slate-800 text-[10px] font-bold text-slate-500 uppercase py-1.5 select-none z-20 backdrop-blur font-mono min-w-[580px] overflow-hidden"
+            >
+                <div class="w-24 text-right pr-4 shrink-0">Offset</div>
+                <div class="w-[384px] px-3 shrink-0">
+                    Hexadecimal (16 bytes)
+                </div>
+                <div class="pl-4 shrink-0">ASCII</div>
+            </div>
+
+            <div
+                class="grow relative bg-slate-900 overflow-auto"
                 id="hex-grid-content"
-            ></virtualized-list>
-        </div>
-    `;
+            >
+                <div class="absolute inset-0 min-w-[580px]" translate="no">
+                    <virtualized-list
+                        class="h-full w-full"
+                        .items=${this._rows || []}
+                        .rowTemplate=${this._renderRow}
+                        .rowHeight=${20}
+                        .itemId=${(item) => item}
+                    ></virtualized-list>
+                </div>
+            </div>
+        `;
+        render(template, this);
+    }
+}
+
+customElements.define('hex-view-component', HexViewComponent);
+
+export const hexViewTemplate = (buffer, maps) => {
+    return html`<hex-view-component
+        .data=${{ buffer, maps }}
+    ></hex-view-component>`;
 };

@@ -1,5 +1,5 @@
 import { eventBus } from '@/application/event-bus';
-import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
+import { useAnalysisStore } from '@/state/analysisStore';
 import { playerActions, usePlayerStore } from '@/state/playerStore';
 import { getShaka } from '@/infrastructure/player/shaka';
 import { formatBitrate } from '@/ui/shared/format';
@@ -19,7 +19,7 @@ class PlayerService {
         this.activeStreamIds = new Set();
         this.activeManifestVariants = [];
         this.isInitialized = false;
-        this.ui = null; // Holds the Shaka UI instance
+        // this.ui = null; // REMOVED: We control the UI manually now
         this.tickerSubscription = null;
         this.stallCalculator = new StallCalculator();
     }
@@ -109,6 +109,7 @@ class PlayerService {
         const playheadTime = videoEl.currentTime;
         const isLive = this.player.isLive();
 
+        // --- Enhanced Buffer Calculation ---
         let bufferEnd = 0;
         const buffered = videoEl.buffered;
         if (buffered) {
@@ -127,6 +128,10 @@ class PlayerService {
         }
         const forwardBuffer = Math.max(0, bufferEnd - playheadTime);
 
+        // Retrieve separate audio/video buffer info if available (Shaka specific internal structure,
+        // but accessible via getBufferedInfo() in newer versions, or we infer from buffered ranges)
+        // For now, we rely on the unified buffer, but we can expose loaded bytes.
+
         const bufferInfo = {
             label: /** @type {'Live Latency' | 'Buffer Health'} */ (
                 isLive ? 'Live Latency' : 'Buffer Health'
@@ -139,20 +144,20 @@ class PlayerService {
             playheadTime: playheadTime,
             manifestTime: manifestTime,
             playbackQuality: {
-                resolution: `${shakaStats.width || 0}x${
-                    shakaStats.height || 0
-                }`,
+                resolution: `${shakaStats.width || 0}x${shakaStats.height || 0}`,
                 droppedFrames: shakaStats.droppedFrames || 0,
                 corruptedFrames: shakaStats.corruptedFrames || 0,
                 totalStalls: totalStalls,
                 totalStallDuration: totalStallDuration,
                 timeToFirstFrame: timeToFirstFrame,
+                decodedFrames: shakaStats.decodedFrames || 0, // NEW
             },
             abr: {
                 currentVideoBitrate: videoOnlyBitrate,
                 estimatedBandwidth: shakaStats.estimatedBandwidth || 0,
                 switchesUp: switchesUp,
                 switchesDown: switchesDown,
+                loadLatency: shakaStats.loadLatency || 0, // NEW: Time to download last segment
             },
             buffer: {
                 label: bufferInfo.label,
@@ -189,16 +194,9 @@ class PlayerService {
         this.player = new shaka.Player();
         await this.player.attach(videoEl);
 
-        this.ui = new shaka.ui.Overlay(this.player, videoContainer, videoEl);
-        this.ui.configure({
-            overflowMenuButtons: [
-                'playback_rate',
-                'captions',
-                'language',
-                'picture_in_picture',
-                'loop',
-            ],
-        });
+        // --- ARCHITECTURAL CHANGE: Removed Shaka UI Overlay initialization ---
+        // We are now managing all controls via our custom UI to prevent conflict and
+        // allow for a "Glass Cockpit" aesthetic.
 
         const videoElement = this.player.getMediaElement();
         if (!videoElement) {
@@ -208,6 +206,8 @@ class PlayerService {
             return;
         }
 
+        // Ensure native controls are off
+        videoElement.controls = false;
         videoElement.muted = usePlayerStore.getState().isMuted;
 
         this.player.streamAnalyzerStreamId = null;
@@ -366,13 +366,14 @@ class PlayerService {
         });
 
         const isDynamic = stream.manifest?.type === 'dynamic';
-        analysisActions.setStreamPolling(stream.id, isDynamic);
+        useAnalysisStore.getState().setStreamPolling(stream.id, isDynamic);
 
         try {
             const drmConfig = await playerConfigService.buildDrmConfig(stream);
             this.player.configure({ drm: drmConfig });
 
-            await this.player.load(stream.originalUrl);
+            const manifestUrl = stream.patchedManifestUrl || stream.originalUrl;
+            await this.player.load(manifestUrl);
 
             const rawVariantTracks = this.player.getVariantTracks();
             const uniqueVideoTracks = new Map();
@@ -429,10 +430,7 @@ class PlayerService {
     destroy() {
         if (!this.isInitialized) return;
         this.stopStatsCollection();
-        if (this.ui) {
-            this.ui.destroy();
-            this.ui = null;
-        }
+        // Removed UI destroy call as this.ui is no longer used
         if (this.player) {
             this.player.destroy();
             this.player = null;
