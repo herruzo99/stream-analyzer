@@ -22,6 +22,24 @@ export function analyzeHlsFeatures(manifestIR) {
         const allAdaptationSets = manifestIR.periods.flatMap(
             (p) => p.adaptationSets
         );
+        const isMaster = manifestIR.isMaster;
+        const segments = manifestIR.segments || [];
+        const hasSegments = segments.length > 0;
+
+        // Helper for Media Playlist dependent checks
+        const mediaCheck = (condition, successMsg) => {
+            if (isMaster && !hasSegments) {
+                // If we are a master and haven't loaded segments (only variants),
+                // we can't check segment-level tags unless we look at parsed sub-playlists
+                // which aren't fully available here in the IR.
+                return { used: false, details: 'N/A (Master Playlist)' };
+            }
+            const result = condition();
+            return {
+                used: result,
+                details: result ? successMsg : 'Not detected.',
+            };
+        };
 
         results['Presentation Type'] = {
             used: true,
@@ -32,21 +50,21 @@ export function analyzeHlsFeatures(manifestIR) {
         };
 
         results['Multivariant Playlist'] = {
-            used: manifestIR.isMaster,
-            details: manifestIR.isMaster
+            used: isMaster,
+            details: isMaster
                 ? `${manifestIR.variants?.length || 0} Variant Streams found.`
                 : 'Media Playlist.',
         };
 
-        results['Byte-Range Segments'] = {
-            used: tags.some((t) => t.name === 'EXT-X-BYTERANGE'),
-            details: 'Uses #EXT-X-BYTERANGE to define segments as sub-ranges.',
-        };
+        results['Byte-Range Segments'] = mediaCheck(
+            () => tags.some((t) => t.name === 'EXT-X-BYTERANGE'),
+            'Uses #EXT-X-BYTERANGE.'
+        );
 
-        results['Discontinuity Sequence'] = {
-            used: tags.some((t) => t.name === 'EXT-X-DISCONTINUITY-SEQUENCE'),
-            details: 'Uses #EXT-X-DISCONTINUITY-SEQUENCE for synchronization.',
-        };
+        results['Discontinuity Sequence'] = mediaCheck(
+            () => tags.some((t) => t.name === 'EXT-X-DISCONTINUITY-SEQUENCE'),
+            'Uses #EXT-X-DISCONTINUITY-SEQUENCE.'
+        );
 
         results['HDCP Level'] = {
             used: (manifestIR.variants || []).some(
@@ -62,7 +80,7 @@ export function analyzeHlsFeatures(manifestIR) {
         results['Stable Variant/Rendition IDs'] = {
             used: hasStableIds,
             details: hasStableIds
-                ? 'Uses STABLE-VARIANT-ID and/or STABLE-RENDITION-ID for persistent references.'
+                ? 'Uses STABLE-VARIANT-ID and/or STABLE-RENDITION-ID.'
                 : 'Not used.',
         };
 
@@ -88,15 +106,10 @@ export function analyzeHlsFeatures(manifestIR) {
                 : 'Not used.',
         };
 
-        const hasDiscontinuity = (manifestIR.segments || []).some(
-            (s) => s.discontinuity
+        results['Discontinuity'] = mediaCheck(
+            () => segments.some((s) => s.discontinuity),
+            'Contains #EXT-X-DISCONTINUITY tags.'
         );
-        results['Discontinuity'] = {
-            used: hasDiscontinuity,
-            details: hasDiscontinuity
-                ? 'Contains #EXT-X-DISCONTINUITY tags.'
-                : 'No discontinuities found.',
-        };
 
         const keyTag = tags.find((t) => t.name === 'EXT-X-KEY');
         if (keyTag && keyTag.value.METHOD !== 'NONE') {
@@ -126,21 +139,15 @@ export function analyzeHlsFeatures(manifestIR) {
                 : 'Likely Transport Stream (TS) segments.',
         };
 
-        const hasGap = (manifestIR.segments || []).some((s) => s.gap);
-        results['Gap Segments'] = {
-            used: hasGap,
-            details: hasGap
-                ? 'Contains #EXT-X-GAP tags to signal missing media.'
-                : 'No gap tags found.',
-        };
+        results['Gap Segments'] = mediaCheck(
+            () => segments.some((s) => s.gap),
+            'Contains #EXT-X-GAP tags.'
+        );
 
-        const hasBitrate = (manifestIR.segments || []).some((s) => s.bitrate);
-        results['Bitrate Hinting'] = {
-            used: hasBitrate,
-            details: hasBitrate
-                ? 'Contains #EXT-X-BITRATE tags.'
-                : 'No bitrate tags found.',
-        };
+        results['Bitrate Hinting'] = mediaCheck(
+            () => segments.some((s) => s.bitrate),
+            'Contains #EXT-X-BITRATE tags.'
+        );
 
         results['I-Frame Playlists'] = {
             used: tags.some((t) => t.name === 'EXT-X-I-FRAME-STREAM-INF'),
@@ -179,11 +186,30 @@ export function analyzeHlsFeatures(manifestIR) {
                     : 'Not used.',
         };
 
+        // Check specifically for Interstitials (HLS Ad Insertion v2)
+        const hasInterstitials = manifestIR.events.some(
+            (e) =>
+                e.type === 'hls-daterange' &&
+                e.messageData &&
+                e.messageData['CLASS'] === 'com.apple.hls.interstitial'
+        );
+        results['Interstitials'] = {
+            used: hasInterstitials,
+            details: hasInterstitials
+                ? 'HLS Interstitial DATERANGE found.'
+                : 'Not detected.',
+        };
+
         results['Date Ranges / Timed Metadata'] = {
             used: manifestIR.events.some((e) => e.type === 'hls-daterange'),
             details:
                 'Carries timed metadata, often used for ad insertion signaling.',
         };
+
+        results['Program Date Time'] = mediaCheck(
+            () => segments.some((s) => s.dateTime),
+            'Segments associated with Wall Clock time.'
+        );
 
         const hasSubtitles = mediaTags.some(
             (m) => m.value.TYPE === 'SUBTITLES'
@@ -217,7 +243,7 @@ export function analyzeHlsFeatures(manifestIR) {
         // --- Low-Latency HLS Feature Check ---
         const llhlsTags = [];
         if (manifestIR.partInf) llhlsTags.push('EXT-X-PART-INF');
-        if ((manifestIR.segments || []).some((s) => (s.parts || []).length > 0))
+        if (hasSegments && segments.some((s) => (s.parts || []).length > 0))
             llhlsTags.push('EXT-X-PART');
         if (manifestIR.serverControl) llhlsTags.push('EXT-X-SERVER-CONTROL');
         if ((manifestIR.preloadHints || []).length > 0)
@@ -314,14 +340,6 @@ export function analyzeHlsFeatures(manifestIR) {
             advancedMetadata.push('STABLE-VARIANT-ID');
         if (mediaTags.some((m) => m.value['STABLE-RENDITION-ID']))
             advancedMetadata.push('STABLE-RENDITION-ID');
-        if (
-            manifestIR.events.some(
-                (e) =>
-                    e.type === 'hls-daterange' &&
-                    e.message.toLowerCase().includes('interstitial')
-            )
-        )
-            advancedMetadata.push('Interstitials');
 
         results['Advanced Metadata & Rendition Selection'] = {
             used: advancedMetadata.length > 0,
@@ -339,7 +357,6 @@ export function analyzeHlsFeatures(manifestIR) {
             'Failed to analyze HLS features due to an unexpected error:',
             e
         );
-        // Return empty results on error to prevent cascading failures
         return {};
     }
 

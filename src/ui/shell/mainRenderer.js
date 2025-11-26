@@ -6,6 +6,8 @@ import { appLog } from '@/shared/utils/debug';
 
 // Import the component class for its side-effect (registration)
 import './components/app-shell.js';
+import '@/features/search/ui/search-modal.js';
+import '@/features/drm/ui/drm-inspector-modal.js';
 
 import { summaryView } from '@/features/summary/ui/index';
 import { comparisonView } from '@/features/comparison/ui/index';
@@ -78,7 +80,11 @@ export function renderApp() {
 
         if (!isShellRendered) {
             render(
-                html`<app-shell-component></app-shell-component>`,
+                html`
+                    <app-shell-component></app-shell-component>
+                    <search-modal></search-modal>
+                    <drm-inspector-modal></drm-inspector-modal>
+                `,
                 initialDomContext.appRoot
             );
             isShellRendered = true;

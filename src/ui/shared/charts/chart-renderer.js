@@ -1,5 +1,5 @@
 import { init as initChart, use as useEchartsModules } from 'echarts/core';
-import { LineChart, BarChart, CustomChart } from 'echarts/charts';
+import { LineChart, BarChart, CustomChart, RadarChart } from 'echarts/charts';
 import {
     GridComponent,
     TooltipComponent,
@@ -8,6 +8,7 @@ import {
     MarkLineComponent,
     MarkAreaComponent,
     TitleComponent,
+    RadarComponent,
 } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
 import { formatBitrate } from '@/ui/shared/format';
@@ -17,6 +18,7 @@ useEchartsModules([
     LineChart,
     BarChart,
     CustomChart,
+    RadarChart,
     GridComponent,
     TooltipComponent,
     LegendComponent,
@@ -24,6 +26,7 @@ useEchartsModules([
     MarkLineComponent,
     MarkAreaComponent,
     TitleComponent,
+    RadarComponent,
 ]);
 
 const chartInstances = new Map();
@@ -71,6 +74,11 @@ const defaultTooltipFormatter = (params) => {
         return content;
     }
 
+    // Radar Chart Tooltip Logic
+    if (p.componentSubType === 'radar') {
+        return `<b>${p.name}</b>`;
+    }
+
     // Default fallback for simple charts (like throughput)
     const time = p.axisValueLabel;
     const value = p.value[1];
@@ -101,6 +109,10 @@ const defaultTooltipFormatter = (params) => {
 export function renderChart(container, options, eventHandlers = {}) {
     if (!container) return;
 
+    // ARCHITECTURAL FIX: Prevent zombie loops.
+    // If the container is detached from the DOM, stop trying to render.
+    if (!container.isConnected) return;
+
     if (container.clientWidth === 0 || container.clientHeight === 0) {
         requestAnimationFrame(() =>
             renderChart(container, options, eventHandlers)
@@ -115,12 +127,16 @@ export function renderChart(container, options, eventHandlers = {}) {
         chartInstances.set(container, chart);
 
         const resizeObserver = new ResizeObserver(() => {
-            chart.resize();
+            // ARCHITECTURAL FIX: Only resize if connected
+            if (container.isConnected) {
+                chart.resize();
+            }
         });
         resizeObserver.observe(container);
         resizeObservers.set(container, resizeObserver);
     }
 
+    // Clear old handlers to prevent duplicates or stale closures
     chart.off('click');
     chart.off('mouseover');
     chart.off('mouseout');
@@ -135,7 +151,6 @@ export function renderChart(container, options, eventHandlers = {}) {
         chart.on('mouseout', eventHandlers.onMouseOut);
     }
 
-    // --- ARCHITECTURAL FIX: Use native ECharts rich text tooltip ---
     const finalOptions = {
         ...options,
         tooltip: {
@@ -148,7 +163,6 @@ export function renderChart(container, options, eventHandlers = {}) {
             textStyle: { color: '#e5e7eb' }, // slate-200
         },
     };
-    // --- END FIX ---
 
     chart.setOption(finalOptions, { notMerge: false, lazyUpdate: true });
 }

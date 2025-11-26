@@ -6,55 +6,88 @@ let keydownListener = null;
 let containerListeners = new Map();
 let rootParsedData = null;
 let hoverDebounceTimeout = null;
+let offsetToBoxMap = new Map();
+let activeBoxLayout = null; // Reference to the Float64Array
 
-export function getInspectorState() {
-    const {
-        interactiveSegmentSelectedItem,
-        interactiveSegmentHighlightedItem,
-    } = useUiStore.getState();
-    return {
-        itemForDisplay:
-            interactiveSegmentSelectedItem?.item ||
-            interactiveSegmentHighlightedItem?.item,
-        fieldForDisplay: interactiveSegmentHighlightedItem?.field,
-    };
+const HOVER_DEBOUNCE_MS = 20;
+
+// Builds a reverse lookup map: Box Offset -> Box Object
+function buildOffsetMap(boxes) {
+    if (!boxes) return;
+    for (const box of boxes) {
+        offsetToBoxMap.set(box.offset, box);
+        if (box.children) buildOffsetMap(box.children);
+    }
 }
 
-function cleanupEventListeners(container) {
-    if (keydownListener) {
-        document.removeEventListener('keydown', keydownListener);
-        keydownListener = null;
+/**
+ * Finds the most specific (deepest) box at a given byte offset using the layout array.
+ */
+function findBoxIdAtOffset(byteOffset, layout) {
+    if (!layout) return -1;
+
+    const STRIDE = 6; // [start, end, color, id, depth, parent]
+    const count = layout.length / STRIDE;
+
+    // Binary Search
+    let low = 0;
+    let high = count;
+    while (low < high) {
+        const mid = (low + high) >>> 1;
+        if (layout[mid * STRIDE] <= byteOffset) {
+            low = mid + 1;
+        } else {
+            high = mid;
+        }
     }
-    const listeners = containerListeners.get(container);
-    if (listeners) {
-        container.removeEventListener(
-            'mouseover',
-            listeners.delegatedMouseOver
-        );
-        container.removeEventListener('mouseout', listeners.delegatedMouseOut);
-        container.removeEventListener('click', listeners.handleClick);
-        containerListeners.delete(container);
+
+    // Scan backwards to find the deepest child that contains the offset
+    for (let i = low - 1; i >= 0; i--) {
+        const base = i * STRIDE;
+        const start = layout[base];
+        const end = layout[base + 1];
+
+        if (byteOffset >= start && byteOffset < end) {
+            return layout[base + 3]; // Return ID (offset)
+        }
     }
+
+    return -1;
 }
 
 export function cleanupSegmentViewInteractivity(dom) {
     const container = dom.mainContent;
-    if (!container) return;
 
+    // 1. Remove Listeners (Fast)
     if (hoverDebounceTimeout) {
         clearTimeout(hoverDebounceTimeout);
         hoverDebounceTimeout = null;
     }
+    if (keydownListener) {
+        document.removeEventListener('keydown', keydownListener);
+        keydownListener = null;
+    }
+    if (container && containerListeners.has(container)) {
+        const l = containerListeners.get(container);
+        container.removeEventListener('mouseover', l.delegatedMouseOver);
+        container.removeEventListener('mouseout', l.delegatedMouseOut);
+        container.removeEventListener('click', l.handleClick);
+        containerListeners.delete(container);
+    }
 
-    cleanupEventListeners(container);
+    // 2. Dereference Data (O(1))
+    // Avoid .clear() on massive maps, just let GC handle it
+    offsetToBoxMap = new Map();
+
     rootParsedData = null;
+    activeBoxLayout = null;
     mainContainer = null;
 }
 
 export function initializeSegmentViewInteractivity(
     dom,
     parsedSegmentData,
-    byteMap,
+    byteMapData,
     findDataByOffset,
     format
 ) {
@@ -62,103 +95,109 @@ export function initializeSegmentViewInteractivity(
     const container = mainContainer;
     if (!container || !parsedSegmentData) return;
 
-    cleanupEventListeners(container);
+    cleanupSegmentViewInteractivity(dom);
+
     rootParsedData = parsedSegmentData;
+    activeBoxLayout = byteMapData?.boxLayout;
+
+    if (parsedSegmentData.data.boxes) {
+        buildOffsetMap(parsedSegmentData.data.boxes);
+    }
 
     const handleHover = (item, field) => {
-        if (hoverDebounceTimeout) {
-            clearTimeout(hoverDebounceTimeout);
-        }
+        if (hoverDebounceTimeout) clearTimeout(hoverDebounceTimeout);
         hoverDebounceTimeout = setTimeout(() => {
             eventBus.dispatch('ui:interactive-segment:item-hovered', {
                 item,
                 field,
             });
-        }, 10);
+        }, HOVER_DEBOUNCE_MS);
     };
 
-    const handleSelection = (targetOffset) => {
-        const item = findDataByOffset(rootParsedData, targetOffset);
-        eventBus.dispatch('ui:interactive-segment:item-clicked', { item });
+    const handleSelection = (item) => {
+        if (item) {
+            eventBus.dispatch('ui:interactive-segment:item-clicked', { item });
+        }
         if (hoverDebounceTimeout) clearTimeout(hoverDebounceTimeout);
-        eventBus.dispatch('ui:interactive-segment:item-unhovered');
     };
 
+    // Hex Hover
     const handleHexHover = (e) => {
         const target = e.target.closest('[data-byte-offset]');
         if (!target) return;
         const byteOffset = parseInt(target.dataset.byteOffset, 10);
-        const mapEntry = byteMap.get(byteOffset);
 
-        if (mapEntry) {
-            handleHover(
-                mapEntry.box || mapEntry.packet || mapEntry.sample,
-                mapEntry.fieldName
-            );
+        // TS Mode
+        if (byteMapData?.packetMap) {
+            const TS_SIZE = 188;
+            const packetIdx = Math.floor(byteOffset / TS_SIZE);
+            const packet = parsedSegmentData.data.packets[packetIdx];
+            if (packet) handleHover(packet, null);
+            return;
+        }
+
+        // ISOBMFF Mode
+        if (activeBoxLayout) {
+            const boxOffset = findBoxIdAtOffset(byteOffset, activeBoxLayout);
+            if (boxOffset !== -1) {
+                const box = offsetToBoxMap.get(boxOffset);
+                if (box) handleHover(box, null);
+            }
         }
     };
 
-    const handleInspectorHover = (e) => {
-        const fieldRow = e.target.closest('[data-field-name]');
-        if (!fieldRow) return;
-        const fieldName = fieldRow.dataset.fieldName;
-        const dataOffset = parseInt(fieldRow.dataset.boxOffset, 10);
-        const item = findDataByOffset(parsedSegmentData, dataOffset);
-        if (item) handleHover(item, fieldName);
-    };
-
     const handleStructureHover = (e) => {
-        const node = e.target.closest(
-            '[data-box-offset], [data-packet-offset]'
-        );
+        const node = e.target.closest('[data-box-offset]');
         if (!node) return;
-        const dataOffset = parseInt(
-            node.dataset.boxOffset || node.dataset.packetOffset,
-            10
-        );
-        const item = findDataByOffset(parsedSegmentData, dataOffset);
-        if (item) handleHover(item, 'Box Header');
+        const offset = parseInt(node.dataset.boxOffset, 10);
+        const box = offsetToBoxMap.get(offset);
+        if (box) handleHover(box, 'Box Header');
     };
 
     const delegatedMouseOver = (e) => {
-        if (e.target.closest('.segment-inspector-panel'))
-            handleInspectorHover(e);
-        else if (e.target.closest('.structure-tree-panel'))
-            handleStructureHover(e);
+        if (e.target.closest('.structure-tree-panel')) handleStructureHover(e);
         else if (e.target.closest('#hex-grid-content')) handleHexHover(e);
     };
 
     const delegatedMouseOut = (e) => {
         if (!e.currentTarget.contains(e.relatedTarget)) {
-            if (hoverDebounceTimeout) {
-                clearTimeout(hoverDebounceTimeout);
-            }
             eventBus.dispatch('ui:interactive-segment:item-unhovered');
         }
     };
 
     const handleClick = (e) => {
-        const treeNode = e.target.closest(
-            '[data-box-offset], [data-packet-offset]'
-        );
-        if (treeNode) {
-            const offset = parseInt(
-                treeNode.dataset.boxOffset || treeNode.dataset.packetOffset,
-                10
-            );
-            handleSelection(offset);
-            return;
-        }
-
+        // Hex Click
         const hexNode = e.target.closest('[data-byte-offset]');
         if (hexNode) {
             const byteOffset = parseInt(hexNode.dataset.byteOffset, 10);
-            const mapEntry = byteMap.get(byteOffset);
-            if (mapEntry) {
-                const itemToSelect =
-                    mapEntry.box || mapEntry.packet || mapEntry.sample;
-                if (itemToSelect) handleSelection(itemToSelect.offset);
+
+            if (byteMapData?.packetMap) {
+                const TS_SIZE = 188;
+                const packetIdx = Math.floor(byteOffset / TS_SIZE);
+                const packet = parsedSegmentData.data.packets[packetIdx];
+                if (packet) handleSelection(packet);
+                return;
             }
+
+            if (activeBoxLayout) {
+                const boxOffset = findBoxIdAtOffset(
+                    byteOffset,
+                    activeBoxLayout
+                );
+                if (boxOffset !== -1) {
+                    const box = offsetToBoxMap.get(boxOffset);
+                    if (box) handleSelection(box);
+                }
+            }
+            return;
+        }
+
+        // Tree Click
+        const treeNode = e.target.closest('[data-box-offset]');
+        if (treeNode) {
+            const offset = parseInt(treeNode.dataset.boxOffset, 10);
+            const box = offsetToBoxMap.get(offset);
+            if (box) handleSelection(box);
         }
     };
 
@@ -172,10 +211,9 @@ export function initializeSegmentViewInteractivity(
     });
 
     keydownListener = (e) => {
-        const { interactiveSegmentSelectedItem } = useUiStore.getState();
-        if (e.key === 'Escape' && interactiveSegmentSelectedItem) {
+        if (e.key === 'Escape') {
             eventBus.dispatch('ui:interactive-segment:item-clicked', {
-                item: interactiveSegmentSelectedItem.item,
+                item: null,
             });
         }
     };

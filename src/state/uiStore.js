@@ -10,14 +10,6 @@ import {
 import { useAnalysisStore } from './analysisStore.js';
 import { eventBus } from '@/application/event-bus.js';
 
-/**
- * @typedef {import('@/types.ts').ModalState} ModalState
- * @typedef {import('@/types.ts').InteractiveManifestHoverItem} InteractiveManifestHoverItem
- * @typedef {import('@/types.ts').ConditionalPollingState} ConditionalPollingState
- * @typedef {import('@/types.ts').UiState} UiState
- * @typedef {import('@/types.ts').UiActions} UiActions
- */
-
 const createInitialUiState = () => ({
     _viewMap: null,
     viewState: 'input',
@@ -35,6 +27,7 @@ const createInitialUiState = () => ({
         modalUrl: '',
         modalContent: null,
     },
+    isLibraryModalOpen: false,
     isCmafSummaryExpanded: false,
     interactiveManifestCurrentPage: 1,
     interactiveManifestShowSubstituted: true,
@@ -47,6 +40,7 @@ const createInitialUiState = () => ({
     isByteMapLoading: false,
     complianceActiveFilter: 'all',
     complianceStandardVersion: 13,
+    comparisonReferenceStreamId: null,
     featureAnalysisStandardVersion: 13,
     segmentExplorerActiveRepId: null,
     segmentExplorerActiveTab: 'video',
@@ -54,16 +48,22 @@ const createInitialUiState = () => ({
     segmentExplorerSortOrder: 'desc',
     segmentExplorerTargetTime: null,
     segmentExplorerScrollToTarget: false,
+    segmentMatrixClickMode: 'inspect',
     highlightedCompliancePathId: null,
     comparisonHideSameRows: false,
     comparisonHideUnusedFeatures: true,
     expandedComparisonTables: new Set(),
     expandedComparisonFlags: new Set(),
     segmentComparisonActiveTab: 'tabular',
+    segmentComparisonSelection: {
+        idA: null,
+        idB: null,
+    },
     playerControlMode: 'standard',
     streamLibraryActiveTab: 'workspaces',
     streamLibrarySearchTerm: '',
-    streamInputActiveMobileTab: 'workspace',
+    
+    inspectorActiveTab: 'stream',
     presetSaveStatus: 'idle',
     workspaces: [],
     presets: [],
@@ -83,7 +83,7 @@ const createInitialUiState = () => ({
     showAllDrmFields: false,
     segmentPollingSelectorState: {
         expandedStreamIds: new Set(),
-        tabState: new Map(), // Maps streamId to active tab key ('video' or 'audio')
+        tabState: new Map(),
     },
     debugCopySelections: {
         analysisState: true,
@@ -102,6 +102,7 @@ export const useUiStore = createStore((set, get) => ({
 
     injectViewMap: (viewMap) => set({ _viewMap: viewMap }),
     setViewState: (view) => set({ viewState: view }),
+
     setActiveTab: (tabName) => {
         set((state) => {
             const newView = state._viewMap ? state._viewMap[tabName] : null;
@@ -111,106 +112,17 @@ export const useUiStore = createStore((set, get) => ({
                   ? null
                   : state.activeSidebar;
 
-            const newState = {
+            return {
                 activeTab: tabName,
                 activeSidebar: newSidebarState,
                 interactiveManifestCurrentPage: 1,
                 interactiveManifestHoveredItem: null,
                 interactiveManifestSelectedItem: null,
-                activeSegmentHighlightRange: null, // Clear highlight on tab change
+                activeSegmentHighlightRange: null,
             };
-
-            if (tabName === 'explorer') {
-                const { streams, activeStreamId } = useAnalysisStore.getState();
-                const activeStream = streams.find(
-                    (s) => s.id === activeStreamId
-                );
-                const { segmentExplorerActiveRepId, segmentExplorerActiveTab } =
-                    get();
-
-                if (activeStream && !segmentExplorerActiveRepId) {
-                    let defaultRepId = null;
-                    let firstRendition = null;
-
-                    if (activeStream.protocol === 'dash') {
-                        const firstPeriod = activeStream.manifest.periods[0];
-                        const firstAs =
-                            firstPeriod?.adaptationSets.find(
-                                (as) =>
-                                    as.contentType === segmentExplorerActiveTab
-                            ) || firstPeriod?.adaptationSets[0];
-                        const firstRep = firstAs?.representations[0];
-
-                        if (firstPeriod && firstRep) {
-                            defaultRepId = `${
-                                firstPeriod.id || 0
-                            }-${firstRep.id}`;
-                        }
-                    } else if (
-                        activeStream.protocol === 'hls' &&
-                        activeStream.manifest?.isMaster
-                    ) {
-                        const asContentType =
-                            segmentExplorerActiveTab === 'text'
-                                ? 'subtitles'
-                                : segmentExplorerActiveTab;
-
-                        const allAdaptationSetsForType =
-                            activeStream.manifest.periods[0].adaptationSets.filter(
-                                (as) => as.contentType === asContentType
-                            );
-
-                        const primaryAdaptationSets =
-                            allAdaptationSetsForType.filter((as) =>
-                                (as.roles || []).every(
-                                    (r) => r.value !== 'trick'
-                                )
-                            );
-
-                        const firstAs =
-                            primaryAdaptationSets[0] ||
-                            allAdaptationSetsForType[0];
-                        firstRendition = firstAs?.representations[0];
-                        defaultRepId = firstRendition?.id;
-                    } else if (
-                        activeStream.protocol === 'hls' &&
-                        !activeStream.manifest?.isMaster
-                    ) {
-                        defaultRepId = activeStream.originalUrl;
-                    }
-
-                    if (defaultRepId) {
-                        newState.segmentExplorerActiveRepId = defaultRepId;
-
-                        if (
-                            activeStream.protocol === 'hls' &&
-                            defaultRepId &&
-                            !activeStream.mediaPlaylists.has(defaultRepId)
-                        ) {
-                            const variantUri =
-                                firstRendition?.__variantUri ||
-                                firstRendition?.serializedManifest.resolvedUri;
-                            setTimeout(
-                                () =>
-                                    eventBus.dispatch(
-                                        'hls:media-playlist-fetch-request',
-                                        {
-                                            streamId: activeStream.id,
-                                            variantId: defaultRepId,
-                                            variantUri: variantUri,
-                                            isBackground: false,
-                                        }
-                                    ),
-                                0
-                            );
-                        }
-                    }
-                }
-            }
-
-            return newState;
         });
     },
+
     setActiveSidebar: (sidebar) => set({ activeSidebar: sidebar }),
     setMultiPlayerActiveTab: (tab) => set({ multiPlayerActiveTab: tab }),
     toggleMultiPlayerViewMode: () =>
@@ -222,12 +134,15 @@ export const useUiStore = createStore((set, get) => ({
         set((state) => ({
             modalState: { ...state.modalState, ...newModalState },
         })),
+    setLibraryModalOpen: (isOpen) => set({ isLibraryModalOpen: isOpen }),
     toggleCmafSummary: () =>
         set((state) => ({
             isCmafSummaryExpanded: !state.isCmafSummaryExpanded,
         })),
     setInteractiveManifestPage: (page) =>
         set({ interactiveManifestCurrentPage: page }),
+    setComparisonReferenceStreamId: (id) =>
+        set({ comparisonReferenceStreamId: id }),
     toggleInteractiveManifestSubstitution: () =>
         set((state) => ({
             interactiveManifestShowSubstituted:
@@ -248,66 +163,15 @@ export const useUiStore = createStore((set, get) => ({
             interactiveSegmentHighlightedItem: item ? { item, field } : null,
         }),
     setIsByteMapLoading: (isLoading) => set({ isByteMapLoading: isLoading }),
-    setComplianceFilter: (filter) => set({ complianceActiveFilter: filter }),
-    setComplianceStandardVersion: (version) =>
-        set({ complianceStandardVersion: version }),
-    setFeatureAnalysisStandardVersion: (version) =>
-        set({ featureAnalysisStandardVersion: version }),
+
     setSegmentExplorerActiveRepId: (repId) => {
         if (get().segmentExplorerActiveRepId === repId) return;
         set({ segmentExplorerActiveRepId: repId });
     },
     setSegmentExplorerActiveTab: (tab) => {
-        set((state) => {
-            const { streams, activeStreamId } = useAnalysisStore.getState();
-            const activeStream = streams.find((s) => s.id === activeStreamId);
-            let newActiveRepId = null;
-
-            if (activeStream) {
-                if (activeStream.protocol === 'dash') {
-                    const firstPeriod = activeStream.manifest.periods[0];
-                    const firstAs = firstPeriod?.adaptationSets.find(
-                        (as) => as.contentType === tab
-                    );
-                    const firstRep = firstAs?.representations[0];
-                    if (firstPeriod && firstRep) {
-                        newActiveRepId = `${firstPeriod.id || 0}-${firstRep.id}`;
-                    }
-                } else if (activeStream.protocol === 'hls') {
-                    if (activeStream.manifest?.isMaster) {
-                        const asContentType =
-                            tab === 'text' ? 'subtitles' : tab;
-                        const allAdaptationSetsForType =
-                            activeStream.manifest.periods[0]?.adaptationSets.filter(
-                                (as) => as.contentType === asContentType
-                            );
-
-                        // Prioritize non-trick-play streams for default selection
-                        const primaryAdaptationSets =
-                            allAdaptationSetsForType.filter((as) =>
-                                (as.roles || []).every(
-                                    (r) => r.value !== 'trick'
-                                )
-                            );
-
-                        const firstAs =
-                            primaryAdaptationSets[0] ||
-                            allAdaptationSetsForType[0];
-                        newActiveRepId =
-                            firstAs?.representations[0]?.id || null;
-                    } else {
-                        // For a media playlist, there's only one "representation"
-                        newActiveRepId = activeStream.originalUrl;
-                    }
-                }
-            }
-
-            return {
-                segmentExplorerActiveTab: tab,
-                segmentExplorerActiveRepId: newActiveRepId,
-            };
-        });
+        set({ segmentExplorerActiveTab: tab });
     },
+    setSegmentMatrixClickMode: (mode) => set({ segmentMatrixClickMode: mode }),
     toggleSegmentExplorerGroup: (groupId) =>
         set((state) => {
             const newSet = new Set(state.segmentExplorerClosedGroups);
@@ -332,24 +196,28 @@ export const useUiStore = createStore((set, get) => ({
         }),
     clearSegmentExplorerScrollTrigger: () =>
         set({ segmentExplorerScrollToTarget: false }),
+
+    setComplianceFilter: (filter) => set({ complianceActiveFilter: filter }),
+    setComplianceStandardVersion: (version) =>
+        set({ complianceStandardVersion: version }),
+    setFeatureAnalysisStandardVersion: (version) =>
+        set({ featureAnalysisStandardVersion: version }),
     setHighlightedCompliancePathId: (pathId) =>
         set({ highlightedCompliancePathId: pathId }),
-    toggleComparisonTable: (tableId) => {
+    toggleComparisonTable: (tableId) =>
         set((state) => {
             const newSet = new Set(state.expandedComparisonTables);
             if (newSet.has(tableId)) newSet.delete(tableId);
             else newSet.add(tableId);
             return { expandedComparisonTables: newSet };
-        });
-    },
-    toggleComparisonFlags: (rowName) => {
+        }),
+    toggleComparisonFlags: (rowName) =>
         set((state) => {
             const newSet = new Set(state.expandedComparisonFlags);
             if (newSet.has(rowName)) newSet.delete(rowName);
             else newSet.add(rowName);
             return { expandedComparisonFlags: newSet };
-        });
-    },
+        }),
     toggleComparisonHideSameRows: () =>
         set((state) => ({
             comparisonHideSameRows: !state.comparisonHideSameRows,
@@ -360,6 +228,13 @@ export const useUiStore = createStore((set, get) => ({
         })),
     setSegmentComparisonActiveTab: (tab) =>
         set({ segmentComparisonActiveTab: tab }),
+    setSegmentComparisonSelection: (selection) =>
+        set((state) => ({
+            segmentComparisonSelection: {
+                ...state.segmentComparisonSelection,
+                ...selection,
+            },
+        })),
     setPlayerControlMode: (mode) => set({ playerControlMode: mode }),
     navigateToInteractiveSegment: (
         segmentUniqueId,
@@ -375,11 +250,13 @@ export const useUiStore = createStore((set, get) => ({
             interactiveSegmentSelectedItem: null,
             interactiveSegmentHighlightedItem: null,
         }),
+
     setStreamLibraryTab: (tab) => set({ streamLibraryActiveTab: tab }),
     setStreamLibrarySearchTerm: (term) =>
         set({ streamLibrarySearchTerm: term }),
-    setStreamInputActiveMobileTab: (tab) =>
-        set({ streamInputActiveMobileTab: tab }),
+    
+   
+    setInspectorActiveTab: (tab) => set({ inspectorActiveTab: tab }),
     setPresetSaveStatus: (status) => set({ presetSaveStatus: status }),
     loadWorkspaces: () => {
         set({
@@ -401,10 +278,8 @@ export const useUiStore = createStore((set, get) => ({
     deleteAndReloadWorkspace: (name) => {
         const { loadedWorkspaceName } = get();
         deleteWorkspace(name);
-        // After deletion, immediately update the internal list
         const newWorkspaces = getWorkspaces();
         const newState = { workspaces: newWorkspaces };
-        // If the deleted workspace was the one currently loaded, unlink it.
         if (loadedWorkspaceName === name) {
             newState.loadedWorkspaceName = null;
         }
@@ -413,6 +288,7 @@ export const useUiStore = createStore((set, get) => ({
     setLoadedWorkspaceName: (name) => set({ loadedWorkspaceName: name }),
     setIsRestoringSession: (isRestoring) =>
         set({ isRestoringSession: isRestoring }),
+
     setSegmentAnalysisActiveTab: (tab) =>
         set({ segmentAnalysisActiveTab: tab }),
     startConditionalPolling: (streamId, featureName) =>
@@ -429,7 +305,6 @@ export const useUiStore = createStore((set, get) => ({
         set((state) => ({
             conditionalPolling: {
                 ...createInitialUiState().conditionalPolling,
-                // Preserve the user's last selection for convenience
                 targetStreamId: state.conditionalPolling.targetStreamId,
                 targetFeatureName: state.conditionalPolling.targetFeatureName,
             },
@@ -438,21 +313,18 @@ export const useUiStore = createStore((set, get) => ({
         set((state) => ({
             conditionalPolling: { ...state.conditionalPolling, status },
         })),
-    setConditionalPollingTarget: (target) => {
+    setConditionalPollingTarget: (target) =>
         set((state) => {
             const currentTarget = state.conditionalPolling;
             const newTarget = { ...currentTarget, ...target };
-
             if (
                 target.targetStreamId !== undefined &&
                 target.targetStreamId !== currentTarget.targetStreamId
             ) {
                 newTarget.targetFeatureName = null;
             }
-
             return { conditionalPolling: newTarget };
-        });
-    },
+        }),
     setInactivityTimeoutOverride: (durationMs) =>
         set({ inactivityTimeoutOverride: durationMs }),
     setGlobalPollingIntervalOverride: (interval) =>
@@ -466,7 +338,7 @@ export const useUiStore = createStore((set, get) => ({
                 [selection]: value,
             },
         })),
-    toggleSegmentPollingSelectorGroup: (streamId) => {
+    toggleSegmentPollingSelectorGroup: (streamId) =>
         set((state) => {
             const newSet = new Set(
                 state.segmentPollingSelectorState.expandedStreamIds
@@ -482,9 +354,8 @@ export const useUiStore = createStore((set, get) => ({
                     expandedStreamIds: newSet,
                 },
             };
-        });
-    },
-    setSegmentPollingTab: (streamId, tab) => {
+        }),
+    setSegmentPollingTab: (streamId, tab) =>
         set((state) => {
             const newTabState = new Map(
                 state.segmentPollingSelectorState.tabState
@@ -496,8 +367,7 @@ export const useUiStore = createStore((set, get) => ({
                     tabState: newTabState,
                 },
             };
-        });
-    },
+        }),
     toggleManifestUpdatesHideDeleted: () =>
         set((state) => ({
             manifestUpdatesHideDeleted: !state.manifestUpdatesHideDeleted,
@@ -505,6 +375,7 @@ export const useUiStore = createStore((set, get) => ({
     setTimelineHoveredItem: (item) => set({ timelineHoveredItem: item }),
     setTimelineSelectedItem: (item) => set({ timelineSelectedItem: item }),
     setTimelineActiveTab: (tab) => set({ timelineActiveTab: tab }),
+
     reset: () => set(createInitialUiState()),
 }));
 

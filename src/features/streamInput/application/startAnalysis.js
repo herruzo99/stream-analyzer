@@ -12,7 +12,7 @@ import { EVENTS } from '@/types/events';
  * @param {{saveLastUsedStreams: Function}} services.storage - Storage service.
  * @param {import('@/infrastructure/worker/workerService').WorkerService} services.workerService - The worker service.
  * @param {import('@/application/event-bus').EventBus} services.eventBus - The application event bus.
- * @param {import('@/state/analysisStore').AnalysisActions} services.analysisActions - The analysis state actions.
+ * @param {typeof import('@/state/analysisStore').analysisActions} services.analysisActions - The analysis state actions.
  */
 export async function startAnalysisUseCase({ inputs }, services) {
     const { storage, workerService, eventBus, analysisActions } = services;

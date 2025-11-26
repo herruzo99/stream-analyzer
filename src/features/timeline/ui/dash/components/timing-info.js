@@ -1,131 +1,127 @@
 import { html } from 'lit-html';
+import * as icons from '@/ui/icons';
+import {
+    getAttr,
+    findChildren,
+} from '@/infrastructure/parsing/utils/recursive-parser.js';
 
-/**
- * Renders a single, compact metric for the timing grid.
- * @param {object} metric - The metric object to render.
- * @returns {import('lit-html').TemplateResult | string}
- */
-const metricTemplate = (metric) => {
-    if (
-        metric.value === 'N/A' ||
-        metric.value === null ||
-        metric.value === undefined
-    )
-        return '';
-    return html`
-        <div
-            class="flex items-baseline justify-between gap-2 bg-slate-950/50 px-2 py-1 rounded border border-slate-700/50"
+const kv = (k, v) => html`
+    <div
+        class="flex justify-between text-[10px] border-b border-slate-800 py-1 last:border-0"
+    >
+        <span class="text-slate-500 font-semibold">${k}</span>
+        <span
+            class="font-mono text-slate-300 truncate max-w-[120px]"
+            title="${v}"
+            >${v}</span
         >
-            <dt
-                class="text-xs text-slate-400 font-semibold truncate"
-                title=${metric.name}
-            >
-                ${metric.name}
-            </dt>
-            <dd
-                class="text-xs font-mono text-white truncate"
-                title=${String(metric.value)}
-            >
-                ${metric.value}
-            </dd>
+    </div>
+`;
+
+const timelineTable = (el) => {
+    const s = findChildren(el, 'S');
+    if (!s.length)
+        return html`<div class="text-[10px] text-slate-500 italic">
+            Empty Timeline
+        </div>`;
+
+    return html`
+        <div class="mt-2 overflow-hidden rounded border border-slate-700">
+            <table class="w-full text-[10px] text-left">
+                <thead class="bg-slate-800 text-slate-400 font-semibold">
+                    <tr>
+                        <th class="px-2 py-1">Start (t)</th>
+                        <th class="px-2 py-1">Dur (d)</th>
+                        <th class="px-2 py-1 text-right">Rpt (r)</th>
+                    </tr>
+                </thead>
+                <tbody
+                    class="bg-slate-900/50 divide-y divide-slate-800 font-mono"
+                >
+                    ${s.slice(0, 10).map(
+                        (entry) => html`
+                            <tr>
+                                <td class="px-2 py-1 text-cyan-400">
+                                    ${getAttr(entry, 't') || '-'}
+                                </td>
+                                <td class="px-2 py-1 text-emerald-400">
+                                    ${getAttr(entry, 'd')}
+                                </td>
+                                <td class="px-2 py-1 text-right text-amber-400">
+                                    ${getAttr(entry, 'r') || 0}
+                                </td>
+                            </tr>
+                        `
+                    )}
+                    ${s.length > 10
+                        ? html`
+                              <tr>
+                                  <td
+                                      colspan="3"
+                                      class="px-2 py-1 text-center text-slate-500 italic"
+                                  >
+                                      ... ${s.length - 10} more entries
+                                  </td>
+                              </tr>
+                          `
+                        : ''}
+                </tbody>
+            </table>
         </div>
     `;
 };
 
-const segmentTemplateMetrics = (segmentInfo) => {
-    const metrics = [
-        { name: 'Timescale', value: segmentInfo.timescale },
-        { name: 'Duration (units)', value: segmentInfo.duration },
-        { name: 'Duration (sec)', value: segmentInfo.calculatedDuration },
-        { name: 'Start Number', value: segmentInfo.startNumber },
-        { name: 'Pres. Time Offset', value: segmentInfo.pto },
-        { name: 'Avail. Time Offset', value: segmentInfo.ato },
-        {
-            name: 'Uses Timeline',
-            value: segmentInfo.usesTimeline ? 'Yes' : 'No',
-        },
-    ];
+export const timingInfoTemplate = (data, stream) => {
+    const { element } = data;
+    if (!element) return html``;
+
+    const commonProps = html`
+        ${kv('Timescale', getAttr(element, 'timescale'))}
+        ${kv(
+            'Presentation Time Offset',
+            getAttr(element, 'presentationTimeOffset')
+        )}
+        ${kv('Start Number', getAttr(element, 'startNumber'))}
+    `;
+
+    const timelineEl = findChildren(element, 'SegmentTimeline')[0];
 
     return html`
-        <dl class="grid gap-2 grid-cols-[repeat(auto-fill,minmax(180px,1fr))]">
-            ${metrics.map(metricTemplate)}
-        </dl>
+        <div class="grid grid-cols-1 gap-3">
+            <div>
+                <h4 class="text-[10px] font-bold text-slate-400 uppercase mb-1">
+                    Attributes
+                </h4>
+                <div class="bg-slate-800/50 rounded p-2">
+                    ${commonProps}
+                    ${getAttr(element, 'media')
+                        ? html`
+                              <div class="mt-1 pt-1 border-t border-slate-700">
+                                  <span
+                                      class="text-[10px] text-slate-500 block mb-0.5"
+                                      >Template</span
+                                  >
+                                  <code
+                                      class="text-[9px] text-blue-300 break-all bg-slate-900 px-1 py-0.5 rounded block"
+                                      >${getAttr(element, 'media')}</code
+                                  >
+                              </div>
+                          `
+                        : ''}
+                </div>
+            </div>
+            ${timelineEl
+                ? html`
+                      <div>
+                          <h4
+                              class="text-[10px] font-bold text-slate-400 uppercase mb-1"
+                          >
+                              Timeline
+                          </h4>
+                          ${timelineTable(timelineEl)}
+                      </div>
+                  `
+                : ''}
+        </div>
     `;
-};
-
-const segmentListMetrics = (segmentInfo) => {
-    const metrics = [
-        { name: 'Timescale', value: segmentInfo.timescale },
-        { name: 'Duration (units)', value: segmentInfo.duration },
-        { name: 'Total Segments', value: segmentInfo.segmentURLs?.length || 0 },
-        {
-            name: 'Init URL',
-            value: segmentInfo.initialization?.url || 'N/A',
-        },
-        {
-            name: 'Init Range',
-            value: segmentInfo.initialization?.range || 'N/A',
-        },
-    ];
-
-    return html`
-        <dl class="grid gap-2 grid-cols-[repeat(auto-fill,minmax(200px,1fr))]">
-            ${metrics.map(metricTemplate)}
-        </dl>
-    `;
-};
-
-const segmentBaseMetrics = (segmentInfo) => {
-    const metrics = [
-        { name: 'Timescale', value: segmentInfo.timescale },
-        {
-            name: 'Inferred Duration',
-            value: segmentInfo.inferredDuration
-                ? `${segmentInfo.inferredDuration.toFixed(3)}s`
-                : 'N/A',
-        },
-        { name: 'Index Range', value: segmentInfo.indexRange || 'N/A' },
-        {
-            name: 'Init Range',
-            value: segmentInfo.initialization?.range || 'N/A',
-        },
-    ];
-
-    return html`
-        <dl class="grid gap-2 grid-cols-[repeat(auto-fill,minmax(200px,1fr))]">
-            ${metrics.map(metricTemplate)}
-        </dl>
-    `;
-};
-
-const baseUrlMetrics = (segmentInfo) => {
-    const metrics = [
-        {
-            name: 'Inferred Duration',
-            value: segmentInfo.inferredDuration
-                ? `${segmentInfo.inferredDuration.toFixed(3)}s`
-                : 'N/A',
-        },
-    ];
-    return html`
-        <dl class="grid gap-2 grid-cols-[repeat(auto-fill,minmax(200px,1fr))]">
-            ${metrics.map(metricTemplate)}
-        </dl>
-    `;
-};
-
-export const timingInfoTemplate = (segmentInfo) => {
-    switch (segmentInfo.type) {
-        case 'SegmentTemplate':
-            return segmentTemplateMetrics(segmentInfo);
-        case 'SegmentList':
-            return segmentListMetrics(segmentInfo);
-        case 'SegmentBase':
-            return segmentBaseMetrics(segmentInfo);
-        case 'BaseURL':
-            return baseUrlMetrics(segmentInfo);
-        case 'unknown':
-        default:
-            return html``;
-    }
 };

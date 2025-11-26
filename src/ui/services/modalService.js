@@ -31,8 +31,6 @@ export function closeModal() {
     const { modalState } = useUiStore.getState();
     if (!modalState.isModalOpen) return;
 
-    // Immediately update the state. The renderer will see this change
-    // and trigger the exit animation.
     uiActions.setModalState({
         isModalOpen: false,
     });

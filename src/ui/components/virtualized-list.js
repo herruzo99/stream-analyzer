@@ -22,33 +22,42 @@ class VirtualizedList extends HTMLElement {
         this._onResize = this._onResize.bind(this);
     }
 
-    // --- Property Setters for Reactivity ---
     set items(newItems) {
         if (this._items === newItems) return;
 
-        const oldScrollTop = this.scrollTop;
-        const oldScrollHeight = this.scrollHeight;
+        // If disconnected, just update state and return to avoid layout thrashing
+        if (!this.isConnected) {
+            this._items = newItems;
+            return;
+        }
 
-        // Check if we are near bottom before update
-        // Use a small threshold (e.g. 10px) to account for fractional pixels
+        let oldScrollTop = 0;
+        let oldScrollHeight = 0;
+
+        // Optimization: Only read layout properties if we are likely visible
+        // offsetParent is null if display:none or detached
+        if (this.offsetParent !== null) {
+            oldScrollTop = this.scrollTop;
+            oldScrollHeight = this.scrollHeight;
+        }
+
         const isScrolledToBottom =
             oldScrollHeight > 0 &&
             oldScrollTop + this.clientHeight >= oldScrollHeight - 10;
 
         this._items = newItems;
-
-        // Force an immediate update when data changes to prevent blank flashes,
-        // but still do it efficiently.
         this._updateVisibleItems();
 
-        // Restore scroll position after render in the next frame to ensure layout is settled
+        // Restore scroll position in the next frame to allow layout to settle
         requestAnimationFrame(() => {
+            if (!this.isConnected) return;
+
             if (isScrolledToBottom) {
                 this.scrollTop = this.scrollHeight;
-            } else {
-                // If the new list is shorter, the browser auto-adjusts scrollTop.
-                // If longer, we maintain position.
-                if (this.scrollTop !== oldScrollTop) {
+            } else if (oldScrollTop > 0) {
+                // Only try to restore if we had a valid scroll position
+                // Check if we drifted significantly to avoid fighting user scroll
+                if (Math.abs(this.scrollTop - oldScrollTop) > 20) {
                     this.scrollTop = oldScrollTop;
                 }
             }
@@ -82,25 +91,33 @@ class VirtualizedList extends HTMLElement {
     set itemId(newItemIdFn) {
         this._itemId = newItemIdFn;
     }
-
     get itemId() {
         return this._itemId;
     }
 
     connectedCallback() {
-        this.classList.add('block', 'overflow-y-auto', 'relative');
+        // strict = size + layout + paint + style containment
+        // We MUST set an explicit height (e.g., 100%) for strict containment to work,
+        // otherwise the browser calculates height as 0 because it ignores children for sizing.
+        this.style.contain = 'strict';
+        this.style.display = 'block';
+        this.style.height = '100%';
+        this.style.overflowY = 'auto';
+        this.style.overflowX = 'auto'; // Enable horizontal scroll for long lines
+        this.style.position = 'relative';
 
         if (!this.container) {
             this.container = document.createElement('div');
-            this.container.className =
-                'list-container relative overflow-hidden w-full';
+            // Removed content-visibility: auto as it interferes with scrollHeight calculation for virtualization
+            this.container.className = 'list-container relative w-full';
             this.appendChild(this.container);
         }
 
         this.addEventListener('scroll', this._onScroll, { passive: true });
 
-        // Use a wrapper for ResizeObserver to hook into the same scheduling logic
-        this.resizeObserver = new ResizeObserver(() => this._onResize());
+        this.resizeObserver = new ResizeObserver(() => {
+            this._scheduleUpdate();
+        });
         this.resizeObserver.observe(this);
 
         this._scheduleUpdate();
@@ -118,52 +135,59 @@ class VirtualizedList extends HTMLElement {
         }
     }
 
-    /**
-     * Schedules a visual update on the next animation frame.
-     * This effectively throttles high-frequency events like scroll and resize.
-     */
+    requestUpdate() {
+        this._scheduleUpdate();
+    }
+
     _scheduleUpdate() {
-        if (this._animationFrameId !== null) {
-            return;
-        }
+        if (this._animationFrameId !== null) return;
         this._animationFrameId = requestAnimationFrame(() => {
             this._animationFrameId = null;
-            this._updateVisibleItems();
+            // Double-check connection status inside the RAF callback
+            if (this.isConnected) {
+                this._updateVisibleItems();
+            }
         });
     }
 
     _onScroll() {
-        this._scheduleUpdate();
+        if (this.isConnected) this._scheduleUpdate();
     }
 
     _onResize() {
-        this._scheduleUpdate();
+        if (this.isConnected) this._scheduleUpdate();
     }
 
     _updateVisibleItems() {
-        if (!this._items || !this._rowHeight || !this.container) return;
+        if (
+            !this.isConnected ||
+            !this._items ||
+            !this._rowHeight ||
+            !this.container
+        )
+            return;
 
         const scrollTop = this.scrollTop;
         const clientHeight = this.clientHeight;
+
+        // If hidden (height 0), skip calculation to save resources
+        if (clientHeight === 0) return;
+
         const totalItems = this._items.length;
         const totalHeight = totalItems * this._rowHeight;
 
-        // Calculate the index range
-        // Add a small buffer (overscan) of 1 item above and below to reduce flickering during fast scrolling
+        // Buffer rows: Render a few extra rows above/below for smoother scrolling
+        const buffer = 4;
         const visibleStartIndex = Math.max(
             0,
-            Math.floor(scrollTop / this._rowHeight) - 1
+            Math.floor(scrollTop / this._rowHeight) - buffer
         );
-
         const numItemsInView = Math.ceil(clientHeight / this._rowHeight);
-
-        // Overscan of 2 below
         const visibleEndIndex = Math.min(
             totalItems - 1,
-            visibleStartIndex + numItemsInView + 2
+            visibleStartIndex + numItemsInView + buffer * 2
         );
 
-        // Calculate padding to simulate the full height of the list
         this.paddingTop = visibleStartIndex * this._rowHeight;
         this.paddingBottom = Math.max(
             0,
@@ -180,21 +204,20 @@ class VirtualizedList extends HTMLElement {
         this.container.style.paddingBottom = `${this.paddingBottom}px`;
 
         const template = html`
-            ${visibleItems.map((item, index) =>
+            ${Array.from(visibleItems).map((item, index) =>
                 this._rowTemplate(item, startIndex + index)
             )}
         `;
+
         render(template, this.container);
 
         if (this.postRenderCallback) {
-            // Defer callback to next frame to ensure DOM is painted
             requestAnimationFrame(this.postRenderCallback);
         }
     }
 }
 
 export default VirtualizedList;
-
 if (!customElements.get('virtualized-list')) {
     customElements.define('virtualized-list', VirtualizedList);
 }

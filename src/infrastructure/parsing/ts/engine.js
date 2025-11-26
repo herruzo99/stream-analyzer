@@ -9,13 +9,100 @@ import { parsePrivateSectionPayload } from './parsers/private-section.js';
 import { parseIpmpPayload } from './parsers/ipmp.js';
 import { parsePesHeader } from './parsers/pes.js';
 import { parseDsmccPayload } from './parsers/dsm-cc.js';
-
+import { analyzeSemantics } from '../../../features/compliance/domain/semantic-analyzer.js';
 
 const TS_PACKET_SIZE = 188;
 const SYNC_BYTE = 0x47;
 
+const KNOWN_PIDS = {
+    0x00: 'PSI (PAT)',
+    0x01: 'PSI (CAT)',
+    0x02: 'PSI (TSDT)',
+    0x03: 'PSI (IPMP)',
+    0x10: 'PSI (NIT)', // DVB Network Information
+    0x11: 'PSI (SDT)', // DVB Service Description
+    0x12: 'PSI (EIT)', // DVB Event Information
+    0x13: 'PSI (RST)', // DVB Running Status
+    0x14: 'PSI (TDT/TOT)', // DVB Time/Date
+    0x1fff: 'Null Packet',
+};
+
+/**
+ * Summarizes the PCR list into meaningful statistics.
+ */
+function summarizePcrList(pcrList) {
+    if (!pcrList || pcrList.length === 0)
+        return { count: 0, status: 'No PCRs found' };
+
+    let minDiff = Infinity;
+    let maxDiff = -Infinity;
+    let totalDiff = 0;
+    let diffCount = 0;
+
+    for (let i = 1; i < pcrList.length; i++) {
+        const diff = Number(pcrList[i].pcr - pcrList[i - 1].pcr) / 27000000; // seconds
+        if (diff > 0) {
+            if (diff < minDiff) minDiff = diff;
+            if (diff > maxDiff) maxDiff = diff;
+            totalDiff += diff;
+            diffCount++;
+        }
+    }
+
+    return {
+        count: pcrList.length,
+        interval: {
+            min: diffCount > 0 ? (minDiff * 1000).toFixed(2) + 'ms' : 'N/A',
+            max: diffCount > 0 ? (maxDiff * 1000).toFixed(2) + 'ms' : 'N/A',
+            avg:
+                diffCount > 0
+                    ? ((totalDiff / diffCount) * 1000).toFixed(2) + 'ms'
+                    : 'N/A',
+        },
+        firstPcr: pcrList[0].pcr.toString(),
+        lastPcr: pcrList[pcrList.length - 1].pcr.toString(),
+    };
+}
+
+/**
+ * Summarizes Continuity Counters to identify gaps without storing every packet's CC.
+ */
+function summarizeContinuityCounters(ccMap) {
+    const summary = {};
+    for (const [pid, counters] of Object.entries(ccMap)) {
+        let errors = 0;
+        let lastCC = -1;
+        let packetCount = 0;
+
+        for (const entry of counters) {
+            packetCount++;
+            if (entry.hasPayload) {
+                if (lastCC !== -1) {
+                    const expected = (lastCC + 1) % 16;
+                    if (entry.cc !== expected && entry.cc !== lastCC) {
+                        // Allow repeat CC
+                        errors++;
+                    }
+                }
+                lastCC = entry.cc;
+            }
+        }
+
+        summary[pid] = {
+            packetCount,
+            errors,
+            status: errors > 0 ? 'Discontinuities Detected' : 'Clean',
+        };
+    }
+    return summary;
+}
+
 export function parseTsSegment(buffer) {
     const packets = [];
+    // We use temporary local structures for raw data collection
+    const rawPcrList = [];
+    const rawCcMap = {};
+
     const summary = {
         totalPackets: 0,
         errors: [],
@@ -24,15 +111,15 @@ export function parseTsSegment(buffer) {
         dsmccPids: new Set(),
         programMap: {},
         pcrPid: null,
-        pcrList: [],
-        continuityCounters: {},
+        // Final summaries will be assigned at the end
+        pcrList: null,
+        continuityCounters: null,
         tsdt: null,
         ipmp: null,
-        semanticResults: null, // Set to null initially
+        semanticResults: null,
     };
     const dataView = new DataView(buffer);
 
-    // --- Sanity Check for TS Format ---
     if (
         buffer.byteLength < TS_PACKET_SIZE ||
         dataView.getUint8(0) !== SYNC_BYTE
@@ -42,58 +129,63 @@ export function parseTsSegment(buffer) {
         );
         return { format: 'ts', data: { summary, packets } };
     }
-    // --- End Sanity Check ---
 
+    // Pass 1: Discovery (PAT -> PMT PIDs)
     for (
         let offset = 0;
         offset + TS_PACKET_SIZE <= buffer.byteLength;
         offset += TS_PACKET_SIZE
     ) {
         if (dataView.getUint8(offset) !== SYNC_BYTE) continue;
-        const header = parseHeader(new DataView(buffer, offset, 4), offset);
-        if (
-            header.pid.value === 0x00 &&
-            header.payload_unit_start_indicator.value
-        ) {
-            let afLength =
-                header.adaptation_field_control.value & 2
-                    ? dataView.getUint8(offset + 4) + 1
-                    : 0;
-            let payloadOffset = offset + 4 + afLength;
-            if (payloadOffset >= offset + TS_PACKET_SIZE) continue;
+        const pid =
+            ((dataView.getUint8(offset + 1) & 0x1f) << 8) |
+            dataView.getUint8(offset + 2);
 
-            const pointerField = dataView.getUint8(payloadOffset);
-            let sectionStart = payloadOffset + 1 + pointerField;
-            if (sectionStart >= offset + TS_PACKET_SIZE) continue;
+        if (pid === 0x00) {
+            const adaptationControl = (dataView.getUint8(offset + 3) >> 4) & 3;
+            const payloadStartIndicator =
+                (dataView.getUint8(offset + 1) >> 6) & 1;
 
-            const sectionView = new DataView(
-                buffer,
-                sectionStart,
-                offset + TS_PACKET_SIZE - sectionStart
-            );
-            const { header: sectionHeader, payload: patPayloadView } =
-                parsePsiSection(sectionView);
-            if (sectionHeader.table_id === '0x00' && !sectionHeader.error) {
-                const patPayloadOffset =
-                    sectionStart +
-                    (sectionHeader.section_syntax_indicator ? 8 : 3);
-                const pat = parsePatPayload(patPayloadView, patPayloadOffset);
-                pat.programs.forEach((p) => {
-                    if (p.type === 'program') {
-                        const pmtPid = p.program_map_PID.value;
-                        summary.pmtPids.add(pmtPid);
-                        if (!summary.programMap[pmtPid]) {
-                            summary.programMap[pmtPid] = {
-                                programNumber: p.program_number.value,
-                                streams: {},
-                            };
+            if (payloadStartIndicator && adaptationControl & 1) {
+                let ptr = offset + 4;
+                if (adaptationControl & 2) {
+                    const afLen = dataView.getUint8(ptr);
+                    ptr += 1 + afLen;
+                }
+                if (ptr < offset + TS_PACKET_SIZE) {
+                    const pointerField = dataView.getUint8(ptr);
+                    const sectionStart = ptr + 1 + pointerField;
+                    if (sectionStart < offset + TS_PACKET_SIZE) {
+                        const sectionView = new DataView(
+                            buffer,
+                            sectionStart,
+                            offset + TS_PACKET_SIZE - sectionStart
+                        );
+                        const { header, payload } =
+                            parsePsiSection(sectionView);
+                        if (header.table_id === '0x00' && !header.error) {
+                            const pat = parsePatPayload(payload, sectionStart);
+                            pat.programs.forEach((p) => {
+                                if (p.type === 'program') {
+                                    const pmtPid = p.program_map_PID.value;
+                                    summary.pmtPids.add(pmtPid);
+                                    if (!summary.programMap[pmtPid]) {
+                                        summary.programMap[pmtPid] = {
+                                            programNumber:
+                                                p.program_number.value,
+                                            streams: {},
+                                        };
+                                    }
+                                }
+                            });
                         }
                     }
-                });
+                }
             }
         }
     }
 
+    // Pass 2: Full Parse
     for (
         let offset = 0;
         offset + TS_PACKET_SIZE <= buffer.byteLength;
@@ -105,22 +197,30 @@ export function parseTsSegment(buffer) {
         const packetView = new DataView(buffer, offset, TS_PACKET_SIZE);
         const header = parseHeader(packetView, offset);
         const pid = header.pid.value;
+
         const packet = {
             offset,
             pid,
             header,
             adaptationField: null,
-            payloadType: 'Data',
+            payloadType: 'Data', // Default
             pes: null,
             psi: null,
             fieldOffsets: { header: { offset, length: 4 } },
         };
 
+        // Identify Payload Type based on PID immediately
+        if (KNOWN_PIDS[pid]) {
+            packet.payloadType = KNOWN_PIDS[pid];
+        } else if (summary.pmtPids.has(pid)) {
+            packet.payloadType = 'PSI (PMT)';
+        }
+
         if (pid !== 0x1fff) {
-            if (!summary.continuityCounters[pid]) {
-                summary.continuityCounters[pid] = [];
+            if (!rawCcMap[pid]) {
+                rawCcMap[pid] = [];
             }
-            summary.continuityCounters[pid].push({
+            rawCcMap[pid].push({
                 cc: header.continuity_counter.value,
                 offset: offset,
                 hasPayload: (header.adaptation_field_control.value & 1) !== 0,
@@ -150,7 +250,7 @@ export function parseTsSegment(buffer) {
                 length: afLength + 1,
             };
             if (packet.adaptationField.pcr) {
-                summary.pcrList.push({
+                rawPcrList.push({
                     pcr: BigInt(packet.adaptationField.pcr.value),
                     offset: offset,
                 });
@@ -164,11 +264,11 @@ export function parseTsSegment(buffer) {
             continue;
         }
 
+        // --- Parsing Payload ---
+        // Check if it is a PSI table (Starts with pointer field)
+        // Logic: If PUSI is set AND (PID is known PSI or PMT)
         const isPsiPid =
-            pid === 0x00 ||
-            pid === 0x01 ||
-            pid === 0x02 ||
-            pid === 0x03 ||
+            pid <= 0x1f || // Reserved / DVB / PSI range
             summary.pmtPids.has(pid) ||
             summary.privateSectionPids.has(pid);
 
@@ -201,23 +301,19 @@ export function parseTsSegment(buffer) {
 
                 if (pid === 0x00) {
                     parsedPayload = parsePatPayload(payload, payloadBaseOffset);
-                    packet.payloadType = 'PSI (PAT)';
                 } else if (pid === 0x01) {
                     parsedPayload = parseCatPayload(payload, payloadBaseOffset);
-                    packet.payloadType = 'PSI (CAT)';
                 } else if (pid === 0x02) {
                     parsedPayload = parseTsdtPayload(
                         payload,
                         payloadBaseOffset
                     );
-                    packet.payloadType = 'PSI (TSDT)';
                     summary.tsdt = parsedPayload;
                 } else if (pid === 0x03) {
                     parsedPayload = parseIpmpPayload(
                         payload,
                         payloadBaseOffset
                     );
-                    packet.payloadType = 'PSI (IPMP-CIT)';
                     summary.ipmp = parsedPayload;
                 } else if (summary.pmtPids.has(pid)) {
                     const tableIdNum = parseInt(sectionHeader.table_id, 16);
@@ -226,7 +322,6 @@ export function parseTsSegment(buffer) {
                             payload,
                             payloadBaseOffset
                         );
-                        packet.payloadType = 'PSI (PMT)';
                         if (parsedPayload && summary.programMap[pid]) {
                             parsedPayload.streams.forEach((stream) => {
                                 summary.programMap[pid].streams[
@@ -244,8 +339,18 @@ export function parseTsSegment(buffer) {
                             sectionHeader.section_syntax_indicator,
                             sectionHeader.section_length
                         );
-                        packet.payloadType = 'PSI (Private Section)';
                     }
+                } else {
+                    // Generic PSI fallback for SDT (0x11), EIT (0x12), etc.
+                    // We don't have a specific parser, but we can show the header info.
+                    parsedPayload = {
+                        type: `PSI Table (0x${parseInt(sectionHeader.table_id, 16).toString(16)})`,
+                        generic_data: {
+                            value: `${payload.byteLength} bytes`,
+                            offset: payloadBaseOffset,
+                            length: payload.byteLength,
+                        },
+                    };
                 }
 
                 if (parsedPayload) {
@@ -256,48 +361,55 @@ export function parseTsSegment(buffer) {
                 }
             }
         } else if (!isPsiPid) {
+            // 2. PES Packet (Starts with 0x000001 start code)
             const pesView = new DataView(
                 buffer,
                 offset + payloadStart,
                 TS_PACKET_SIZE - payloadStart
             );
-            if (
-                header.payload_unit_start_indicator.value &&
-                pesView.byteLength >= 6 &&
-                pesView.getUint32(0) >>> 8 === 0x000001
-            ) {
-                packet.payloadType = 'PES';
-                const pesResult = parsePesHeader(
-                    pesView,
-                    offset + payloadStart
-                );
-                if (pesResult) {
-                    packet.pes = pesResult.header;
-                    const headerLength = pesResult.payloadOffset;
-                    packet.fieldOffsets.pesHeader = {
-                        offset: offset + payloadStart,
-                        length: headerLength,
-                    };
 
-                    const streamId = parseInt(packet.pes.stream_id.value, 16);
-                    if (streamId === 0xf2) {
-                        packet.payloadType = 'PES (DSM-CC)';
-                        const dsmccPayloadOffset = payloadStart + headerLength;
-                        if (
-                            offset + dsmccPayloadOffset <
-                            offset + TS_PACKET_SIZE
-                        ) {
-                            const dsmccView = new DataView(
-                                buffer,
-                                offset + dsmccPayloadOffset,
-                                offset +
-                                TS_PACKET_SIZE -
-                                (offset + dsmccPayloadOffset)
-                            );
-                            packet.pes.payload = parseDsmccPayload(
-                                dsmccView,
-                                offset + dsmccPayloadOffset
-                            );
+            if (header.payload_unit_start_indicator.value) {
+                if (
+                    pesView.byteLength >= 6 &&
+                    pesView.getUint32(0) >>> 8 === 0x000001
+                ) {
+                    packet.payloadType = 'PES';
+                    const pesResult = parsePesHeader(
+                        pesView,
+                        offset + payloadStart
+                    );
+                    if (pesResult) {
+                        packet.pes = pesResult.header;
+                        const headerLength = pesResult.payloadOffset;
+                        packet.fieldOffsets.pesHeader = {
+                            offset: offset + payloadStart,
+                            length: headerLength,
+                        };
+
+                        const streamId = parseInt(
+                            packet.pes.stream_id.value,
+                            16
+                        );
+                        if (streamId === 0xf2) {
+                            packet.payloadType = 'PES (DSM-CC)';
+                            const dsmccPayloadOffset =
+                                payloadStart + headerLength;
+                            if (
+                                offset + dsmccPayloadOffset <
+                                offset + TS_PACKET_SIZE
+                            ) {
+                                const dsmccView = new DataView(
+                                    buffer,
+                                    offset + dsmccPayloadOffset,
+                                    offset +
+                                        TS_PACKET_SIZE -
+                                        (offset + dsmccPayloadOffset)
+                                );
+                                packet.pes.payload = parseDsmccPayload(
+                                    dsmccView,
+                                    offset + dsmccPayloadOffset
+                                );
+                            }
                         }
                     }
                 }
@@ -306,6 +418,7 @@ export function parseTsSegment(buffer) {
         packets.push(packet);
     }
 
+    // Pass 3: Resolution of "Data" packets based on PMT discovery
     const pidToStreamType = {};
     Object.values(summary.programMap).forEach((program) => {
         Object.entries(program.streams).forEach(([pid, type]) => {
@@ -314,12 +427,45 @@ export function parseTsSegment(buffer) {
     });
 
     packets.forEach((packet) => {
-        if (pidToStreamType[packet.pid] && packet.payloadType === 'Data') {
-            packet.payloadType = pidToStreamType[packet.pid];
-        } else if (packet.pid === 0x1fff) {
-            packet.payloadType = 'Null Packet';
+        if (pidToStreamType[packet.pid]) {
+            if (packet.payloadType === 'Data' || packet.payloadType === 'PES') {
+                if (packet.payloadType === 'Data') {
+                    const typeNum = parseInt(pidToStreamType[packet.pid], 16);
+                    let label = `Stream ${pidToStreamType[packet.pid]}`;
+                    if (typeNum === 0x1b) label = 'H.264 Video';
+                    else if (typeNum === 0x24) label = 'HEVC Video';
+                    else if (typeNum === 0x0f) label = 'AAC Audio';
+                    else if (typeNum === 0x15) label = 'ID3 Metadata';
+
+                    packet.payloadType = label;
+                }
+            }
         }
     });
+
+    // --- Perform Semantic Analysis with Raw Data ---
+    summary.pcrList = rawPcrList;
+    summary.continuityCounters = rawCcMap;
+
+    try {
+        // Run the semantic checks using the full dataset
+        summary.semanticResults = analyzeSemantics({ packets, summary });
+    } catch (e) {
+        console.warn('Semantic analysis failed:', e);
+        summary.semanticResults = [
+            {
+                id: 'ERR',
+                text: 'Analysis Failed',
+                status: 'warn',
+                details: e.message,
+            },
+        ];
+    }
+
+    // --- Summarize Data for Output ---
+    // Replace the massive raw arrays with statistical summaries to keep JSON size manageable
+    summary.pcrList = summarizePcrList(rawPcrList);
+    summary.continuityCounters = summarizeContinuityCounters(rawCcMap);
 
     return { format: 'ts', data: { summary, packets } };
 }

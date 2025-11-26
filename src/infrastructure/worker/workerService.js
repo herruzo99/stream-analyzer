@@ -72,7 +72,10 @@ export class WorkerService {
         if (this.pendingTasks.has(id)) {
             const { reject } = this.pendingTasks.get(id);
 
-            this.worker.postMessage({ id, type: 'cancel-task' });
+            // Fire and forget message to worker
+            if (this.worker) {
+                this.worker.postMessage({ id, type: 'cancel-task' });
+            }
 
             const abortError = new Error('Operation aborted by user.');
             abortError.name = 'AbortError';
@@ -98,9 +101,22 @@ export class WorkerService {
         }
 
         const id = this.requestId++;
+
+        // Create promise BEFORE postMessage to catch synchronous serialization errors
         const promise = new Promise((resolve, reject) => {
             this.pendingTasks.set(id, { resolve, reject });
-            this.worker.postMessage({ id, type, payload });
+
+            try {
+                // ARCHITECTURAL FIX: Guard against DataCloneError
+                this.worker.postMessage({ id, type, payload });
+            } catch (e) {
+                console.error(
+                    `[WorkerService] Failed to post message for task ${id} (${type})`,
+                    e
+                );
+                this.pendingTasks.delete(id);
+                reject(new Error(`Serialization failed: ${e.message}`));
+            }
         });
 
         return {

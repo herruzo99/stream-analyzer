@@ -5,14 +5,7 @@ import shaka from 'shaka-player/dist/shaka-player.ui.js';
 
 /**
  * A network plugin for Shaka Player.
- * It intercepts all HTTP/HTTPS requests, performs a robust lookup to find
- * the correct stream context, and forwards them to our web worker for
- * authentication handling and network logging.
- * @param {string} uri
- * @param {any} request
- * @param {any} requestType
- * @param {any} progressUpdated
- * @returns {any}
+ * Intercepts requests and offloads them to a Web Worker.
  */
 export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
     const MANIFEST_REQUEST_TYPE = 0;
@@ -23,193 +16,175 @@ export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
     let streamId = null;
     let auth = null;
     let segmentUniqueId = null;
-    const rangeHeader = request.headers['Range']?.replace('bytes=', '');
 
-    // Stage 1: Primary. Get ID directly from the NetworkingEngine instance if available.
-    const requester = /** @type {any} */ (request['requester']);
-    if (requester?.streamAnalyzerStreamId !== undefined) {
-        streamId = requester.streamAnalyzerStreamId;
-        appLog(
-            'shakaNetworkPlugin',
-            'info',
-            `[Stage 1] Lookup successful. Found stream ID: ${streamId} directly on networking engine.`
-        );
-    }
-
-    // Stage 2: Fallback to urlAuthMap for initial manifest requests.
-    if (streamId === null && requestType === MANIFEST_REQUEST_TYPE) {
-        const context = urlAuthMap.get(uri);
-        if (context) {
-            streamId = context.streamId ?? null;
-            auth = context.auth ?? null;
-            appLog(
-                'shakaNetworkPlugin',
-                'info',
-                `[Stage 2] Lookup successful. Found stream ID: ${streamId} via urlAuthMap for manifest.`
-            );
+    try {
+        // --- Context Lookup ---
+        const requester = /** @type {any} */ (request['requester']);
+        if (requester?.streamAnalyzerStreamId !== undefined) {
+            streamId = requester.streamAnalyzerStreamId;
         }
-    }
 
-    // Stage 2.5: License request fallback (origin-based).
-    if (streamId === null && requestType === LICENSE_REQUEST_TYPE) {
-        appLog(
-            'shakaNetworkPlugin',
-            'info',
-            '[Stage 2.5] License request detected. Attempting fallback lookup.'
-        );
-        try {
-            const requestOrigin = new URL(uri).origin;
-            for (const stream of streams) {
-                const licenseUrls = stream.drmAuth?.licenseServerUrl;
-                if (!licenseUrls) continue;
+        if (streamId === null && requestType === MANIFEST_REQUEST_TYPE) {
+            const context = urlAuthMap.get(uri);
+            if (context) {
+                streamId = context.streamId ?? null;
+                auth = context.auth ?? null;
+            }
+        }
 
-                const urlsToCheck =
-                    typeof licenseUrls === 'string'
-                        ? [licenseUrls]
-                        : Object.values(licenseUrls);
-
-                for (const licenseUrl of urlsToCheck) {
-                    try {
+        // License Request Fallback (Origin Matching)
+        if (streamId === null && requestType === LICENSE_REQUEST_TYPE) {
+            try {
+                const requestOrigin = new URL(uri).origin;
+                for (const stream of streams) {
+                    const licenseUrls = stream.drmAuth?.licenseServerUrl;
+                    if (!licenseUrls) continue;
+                    const urlsToCheck =
+                        typeof licenseUrls === 'string'
+                            ? [licenseUrls]
+                            : Object.values(licenseUrls);
+                    for (const licenseUrl of urlsToCheck) {
                         if (new URL(licenseUrl).origin === requestOrigin) {
                             streamId = stream.id;
-                            auth = stream.auth;
-                            appLog(
-                                'shakaNetworkPlugin',
-                                'info',
-                                `[Stage 2.5] Lookup successful. Matched license URL origin for stream ID: ${streamId}`
-                            );
+                            auth = stream.drmAuth; // Explicitly use drmAuth
                             break;
                         }
-                    } catch {
-                        // Ignore invalid license URLs in config
+                    }
+                    if (streamId !== null) break;
+                }
+            } catch (_) {}
+        }
+
+        // Segment Lookup
+        if (requestType === SEGMENT_REQUEST_TYPE) {
+            const rangeHeader =
+                request.headers &&
+                (request.headers['Range'] || request.headers['range']);
+            const cleanRange = rangeHeader
+                ? rangeHeader.replace('bytes=', '')
+                : null;
+
+            for (const stream of streams) {
+                if (streamId !== null && stream.id !== streamId) continue;
+
+                const findInState = (state) =>
+                    (state.segments || []).find(
+                        (s) =>
+                            s.resolvedUrl === uri &&
+                            (!cleanRange || s.range === cleanRange)
+                    );
+
+                let foundSegment = null;
+                for (const state of stream.dashRepresentationState.values()) {
+                    if ((foundSegment = findInState(state))) break;
+                }
+                if (!foundSegment) {
+                    for (const state of stream.hlsVariantState.values()) {
+                        if ((foundSegment = findInState(state))) break;
                     }
                 }
-                if (streamId !== null) break;
-            }
-        } catch (e) {
-            appLog(
-                'shakaNetworkPlugin',
-                'warn',
-                '[Stage 2.5] Error during license URL origin matching:',
-                e
-            );
-        }
-    }
 
-    // Stage 3: Definitive segment search.
-    if (requestType === SEGMENT_REQUEST_TYPE) {
-        for (const stream of streams) {
-            if (streamId !== null && stream.id !== streamId) {
-                continue;
-            }
-
-            let foundSegment = null;
-            const findInState = (state) =>
-                (state.segments || []).find((s) => {
-                    if (s.resolvedUrl !== uri) return false;
-                    if (rangeHeader) return s.range === rangeHeader;
-                    return !s.range;
-                });
-
-            for (const state of stream.dashRepresentationState.values()) {
-                foundSegment = findInState(state);
-                if (foundSegment) break;
-            }
-            if (!foundSegment) {
-                for (const state of stream.hlsVariantState.values()) {
-                    foundSegment = findInState(state);
-                    if (foundSegment) break;
+                if (foundSegment) {
+                    streamId = stream.id;
+                    auth = stream.auth;
+                    segmentUniqueId = foundSegment.uniqueId;
+                    break;
                 }
             }
 
-            if (foundSegment) {
-                streamId = stream.id;
-                auth = stream.auth;
-                segmentUniqueId = foundSegment.uniqueId;
-                appLog(
-                    'shakaNetworkPlugin',
-                    'info',
-                    `[Stage 3] Definitive lookup successful. Found stream ID: ${streamId} and uniqueId: ${segmentUniqueId} via deep segment search.`
-                );
-                break;
+            if (segmentUniqueId === null && cleanRange) {
+                segmentUniqueId = `${uri}@media@${cleanRange}`;
             }
         }
+
+        // --- FIX: Context-Aware Auth Selection ---
+        if (streamId !== null && auth === null) {
+            const streamForAuth = streams.find((s) => s.id === streamId);
+            if (streamForAuth) {
+                // If it's a license request, prioritize drmAuth
+                if (requestType === LICENSE_REQUEST_TYPE) {
+                    auth = streamForAuth.drmAuth;
+                } else {
+                    auth = streamForAuth.auth;
+                }
+            }
+        }
+
+        if (streamId !== null && auth !== null) {
+            // Note: We don't cache license auth in the general urlAuthMap to avoid
+            // polluting segment requests with license headers.
+            if (requestType !== LICENSE_REQUEST_TYPE) {
+                urlAuthMap.set(uri, { streamId, auth, isShaka: true });
+            }
+        }
+    } catch (e) {
+        console.warn('Shaka context lookup failed non-critically:', e);
     }
 
-    // Stage 4: Last-resort unique ID construction.
-    if (segmentUniqueId === null && requestType === SEGMENT_REQUEST_TYPE) {
-        if (rangeHeader) {
-            segmentUniqueId = `${uri}@media@${rangeHeader}`;
+    // --- Body & Header Sanitization ---
+    const safeHeaders = {};
+    if (request.headers) {
+        for (const key of Object.keys(request.headers)) {
+            safeHeaders[key] = String(request.headers[key]);
         }
     }
 
-    if (streamId !== null && auth === null) {
-        const streamForAuth = streams.find((s) => s.id === streamId);
-        auth = streamForAuth?.auth ?? null;
+    let safeBody = null;
+    if (request.body) {
+        try {
+            if (typeof request.body === 'string') {
+                safeBody = request.body;
+            } else if (ArrayBuffer.isView(request.body)) {
+                safeBody = request.body.buffer.slice(
+                    request.body.byteOffset,
+                    request.body.byteOffset + request.body.byteLength
+                );
+            } else if (request.body instanceof ArrayBuffer) {
+                safeBody = request.body.slice(0);
+            }
+        } catch (err) {
+            console.error('[ShakaPlugin] Body cloning failed:', err);
+            safeBody = null;
+        }
     }
-
-    // Add to urlAuthMap to prevent the global interceptor from double-logging this request.
-    if (streamId !== null && auth !== null) {
-        urlAuthMap.set(uri, { streamId, auth, isShaka: true });
-    }
-
-    appLog(
-        'shakaNetworkPlugin',
-        'info',
-        `Intercepted request. Final lookup found stream ID: ${streamId}`,
-        { uri, requestType }
-    );
 
     const serializableRequest = {
-        uris: request.uris,
-        method: request.method,
-        headers: { ...request.headers },
-        body: request.body,
+        uris: [...request.uris],
+        method: String(request.method || 'GET'),
+        headers: safeHeaders,
+        body: safeBody,
     };
 
-    let taskType;
-    let payload;
+    let taskType = 'shaka-fetch-resource';
+
+    /** @type {any} */
+    let payload = {
+        request: serializableRequest,
+        requestType,
+        auth: auth ? JSON.parse(JSON.stringify(auth)) : null,
+        streamId,
+        segmentUniqueId: segmentUniqueId || uri,
+    };
 
     if (requestType === MANIFEST_REQUEST_TYPE) {
         taskType = 'shaka-fetch-manifest';
         const currentStream = streams.find((s) => s.id === streamId);
-
-        const isPlayerLoad = !currentStream;
-
         payload = {
             streamId,
             url: uri,
-            auth,
-            isPlayerLoadRequest: isPlayerLoad,
+            auth: auth ? JSON.parse(JSON.stringify(auth)) : null,
+            isPlayerLoadRequest: !currentStream,
             isLive: currentStream?.manifest?.type === 'dynamic',
             oldRawManifest: currentStream?.rawManifest || '',
-            protocol: currentStream?.protocol,
+            protocol: currentStream?.protocol || 'dash',
             baseUrl: currentStream?.baseUrl,
             hlsDefinedVariables: currentStream?.hlsDefinedVariables,
             oldManifestObjectForDelta:
                 currentStream?.manifest?.serializedManifest,
-            oldDashRepresentationState: Array.from(
-                currentStream?.dashRepresentationState.entries() || []
-            ),
-            oldHlsVariantState: Array.from(
-                currentStream?.hlsVariantState.entries() || []
-            ),
-            oldAdAvails: currentStream?.adAvails || [],
-            segmentPollingReps: Array.from(
-                currentStream?.segmentPollingReps || []
-            ),
-        };
-    } else {
-        taskType = 'shaka-fetch-resource';
-        const player = requester?.player_;
-        const shakaManifest = player?.getManifest();
-        payload = {
-            request: serializableRequest,
-            requestType,
-            auth,
-            streamId,
-            shakaManifest,
-            segmentUniqueId: segmentUniqueId || uri,
+            oldDashRepresentationState: [],
+            oldHlsVariantState: [],
+            oldAdAvails: [],
+            segmentPollingReps: [],
         };
     }
 
@@ -224,10 +199,10 @@ export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
             );
         }
         throw new shaka.util.Error(
-            error.severity || shaka.util.Error.Severity.CRITICAL,
-            error.category || shaka.util.Error.Category.NETWORK,
-            error.code || shaka.util.Error.Code.HTTP_ERROR,
-            error.data || null
+            shaka.util.Error.Severity.CRITICAL,
+            shaka.util.Error.Category.NETWORK,
+            shaka.util.Error.Code.HTTP_ERROR,
+            null
         );
     });
 

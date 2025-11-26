@@ -46,22 +46,29 @@ export function inferMediaInfoFromExtension(filename) {
 
     const lowerFilename = filename.toLowerCase();
 
-    // --- NEW: Heuristic based on URL content ---
+    // --- Heuristic based on URL content ---
+
+    // Strong Video Signals: Explicit names or video codec keywords
     if (
         lowerFilename.includes('video') ||
         lowerFilename.includes('vid_') ||
-        lowerFilename.includes('_v')
+        lowerFilename.includes('h264') ||
+        lowerFilename.includes('h265') ||
+        lowerFilename.includes('hevc') ||
+        lowerFilename.includes('avc')
     ) {
         return { contentType: 'video', codec: 'avc1' };
     }
+
+    // Strong Audio Signals: Explicit names
     if (
         lowerFilename.includes('audio') ||
         lowerFilename.includes('aud_') ||
-        lowerFilename.includes('_a')
+        lowerFilename.includes('sound')
     ) {
         return { contentType: 'audio', codec: 'mp4a.40.2' };
     }
-    // --- END NEW ---
+    // --- END Heuristics ---
 
     try {
         const path = new URL(filename).pathname;
@@ -127,19 +134,8 @@ export function determineSegmentFormat(hlsParsed) {
         hlsParsed.variants &&
         hlsParsed.variants.length > 0
     ) {
-        // 3a. Check CODECS attribute for ISOBMFF types. This is a very strong signal.
-        for (const variant of hlsParsed.variants) {
-            const codecs = (variant.attributes.CODECS || '').toLowerCase();
-            if (
-                codecs.includes('avc1') ||
-                codecs.includes('hvc1') ||
-                codecs.includes('mp4a')
-            ) {
-                return 'isobmff';
-            }
-        }
-
-        // 3b. Check extensions of variant stream URIs as a fallback.
+        // 3a. Check extensions of variant stream URIs.
+        // NOTE: We REMOVED the codec check (avc1/mp4a) because those codecs are valid for both TS and fMP4.
         for (const variant of hlsParsed.variants) {
             const lowerUri = (variant.uri || '').toLowerCase();
             if (lowerUri.includes('.m4s') || lowerUri.includes('.mp4')) {

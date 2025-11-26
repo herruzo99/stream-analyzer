@@ -3,286 +3,240 @@ import { eventBus } from '@/application/event-bus';
 import { toggleDropdown, closeDropdown } from '@/ui/services/dropdownService';
 import * as icons from '@/ui/icons';
 import { formatBitrate } from '@/ui/shared/format';
+import { connectedTabBar } from '@/ui/components/tabs';
 
-const getBadge = (text, colorClasses) => html`
-    <span class="text-xs font-semibold px-2 py-1 rounded-full ${colorClasses}"
-        >${text}</span
-    >
-`;
+// Local state to manage tabs inside the dropdown
+// We use a closure to keep state between renders of the same dropdown instance
+let activeCategory = 'variants'; // variants | audio | subtitles
 
-const renderHlsContextCard = (item, activeId) => {
+const itemCard = (item, activeId, onClick) => {
     const isActive = item.id === activeId;
-    const activeClasses = 'bg-blue-800 border-blue-600 ring-2 ring-blue-500';
-    const baseClasses =
-        'bg-gray-900/50 p-3 rounded-lg border border-gray-700 cursor-pointer transition-all duration-150 ease-in-out flex flex-col items-start';
-    const hoverClasses =
-        'hover:bg-gray-700 hover:border-gray-500 hover:scale-[1.03]';
+    const containerClass = isActive
+        ? 'bg-blue-600 text-white shadow-md'
+        : 'bg-slate-800/50 text-slate-300 hover:bg-slate-700 hover:text-white';
 
     return html`
-        <div
-            class="${baseClasses} ${hoverClasses} ${isActive
-                ? activeClasses
-                : ''}"
-            data-id="${item.id}"
+        <button
+            @click=${onClick}
+            class="flex flex-col p-3 rounded-lg border border-white/5 transition-all duration-150 text-left group w-full ${containerClass}"
         >
-            <span class="font-semibold text-gray-200 truncate"
-                >${item.label}</span
-            >
-            <div class="shrink-0 flex flex-wrap items-center gap-2 mt-2">
-                ${item.badges.map((b) => getBadge(b.text, b.classes))}
+            <div class="flex justify-between items-start w-full">
+                <span
+                    class="font-bold text-xs uppercase tracking-wider opacity-80"
+                    >${item.label}</span
+                >
+                ${isActive ? html`<span>${icons.checkCircle}</span>` : ''}
             </div>
-        </div>
+
+            <div class="mt-2 flex flex-wrap gap-1">
+                ${item.badges.map(
+                    (b) => html`
+                        <span
+                            class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-black/20 border border-white/10 ${isActive
+                                ? 'text-blue-100'
+                                : 'text-slate-400'}"
+                        >
+                            ${b}
+                        </span>
+                    `
+                )}
+            </div>
+        </button>
     `;
 };
 
-const renderHlsContextGroup = (title, items, activeId) => {
-    if (!items || items.length === 0) return '';
-    return html`
-        <section class="p-3">
-            <h4
-                class="font-bold text-gray-400 text-sm tracking-wider uppercase px-1 pb-2 mb-2 border-b border-gray-700"
-            >
-                ${title}
-            </h4>
-            <div
-                class="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2"
-            >
-                ${items.map((item) => renderHlsContextCard(item, activeId))}
-            </div>
-        </section>
-    `;
-};
-
-const getCanonicalPlaylistItems = (stream) => {
-    const allItems = stream.manifest.periods
-        .flatMap((p) => p.adaptationSets)
-        .flatMap((as) => as.representations.map((rep) => ({ rep, as })));
-
-    const variants = allItems
-        .filter(
-            ({ as }) =>
-                as.contentType === 'video' &&
-                as.roles.every((r) => r.value !== 'trick')
-        )
-        .map(({ rep, as }) => ({
-            id: rep.id,
-            url: rep.__variantUri,
-            label: 'Variant Stream',
-            type: 'variant',
-            data: { rep, as },
-            badges: [
-                {
-                    text: `${formatBitrate(rep.bandwidth)}`,
-                    classes: 'bg-blue-800 text-blue-200',
-                },
-                {
-                    text: `${rep.width?.value || 'N/A'}x${
-                        rep.height?.value || 'N/A'
-                    }`,
-                    classes: 'bg-gray-600 text-gray-300',
-                },
-                {
-                    text: (rep.codecs[0]?.value || 'N/A').split('.')[0],
-                    classes: 'bg-gray-600 text-gray-300',
-                },
-            ],
-        }));
-
-    const iFrameReps = allItems
-        .filter(({ as }) => as.roles.some((r) => r.value === 'trick'))
-        .map(({ rep, as }) => ({
-            id: rep.id,
-            url: rep.__variantUri,
-            label: `I-Frame Stream`,
-            type: 'iframe',
-            data: { rep, as },
-            badges: [
-                {
-                    text: `${formatBitrate(rep.bandwidth)}`,
-                    classes: 'bg-orange-800 text-orange-200',
-                },
-                {
-                    text: `${rep.width?.value || 'N/A'}x${
-                        rep.height?.value || 'N/A'
-                    }`,
-                    classes: 'bg-gray-600 text-gray-300',
-                },
-            ],
-        }));
-
-    const audioRenditions = allItems
-        .filter(({ as }) => as.contentType === 'audio')
-        .map(({ rep, as }) => ({
-            id: rep.id,
-            url: rep.__variantUri,
-            label: `Audio: ${rep.lang || as.lang || rep.id}`,
-            type: 'audio',
-            data: { rep, as },
-            badges: [
-                {
-                    text: rep.lang || as.lang || 'UND',
-                    classes: 'bg-purple-800 text-purple-200',
-                },
-                {
-                    text: as.channels ? `${as.channels} ch` : 'N/A',
-                    classes: 'bg-gray-600 text-gray-300',
-                },
-                ...(rep.serializedManifest.value?.DEFAULT === 'YES'
-                    ? [
-                          {
-                              text: 'DEFAULT',
-                              classes: 'bg-green-800 text-green-200',
-                          },
-                      ]
-                    : []),
-            ],
-        }));
-
-    const subtitleRenditions = allItems
-        .filter(
-            ({ as }) =>
-                as.contentType === 'text' || as.contentType === 'subtitles'
-        )
-        .map(({ rep, as }) => ({
-            id: rep.id,
-            url: rep.__variantUri,
-            label: `Subtitles: ${rep.lang || as.lang || rep.id}`,
-            type: 'subtitles',
-            data: { rep, as },
-            badges: [
-                {
-                    text: rep.lang || as.lang || 'UND',
-                    classes: 'bg-teal-800 text-teal-200',
-                },
-                ...(rep.serializedManifest.value?.DEFAULT === 'YES'
-                    ? [
-                          {
-                              text: 'DEFAULT',
-                              classes: 'bg-green-800 text-green-200',
-                          },
-                      ]
-                    : []),
-                ...(as.forced
-                    ? [
-                          {
-                              text: 'FORCED',
-                              classes: 'bg-yellow-800 text-yellow-200',
-                          },
-                      ]
-                    : []),
-            ],
-        }));
-
-    return { variants, iFrameReps, audioRenditions, subtitleRenditions };
-};
-
-const getActiveHlsContextLabel = (stream) => {
+const hlsDropdownContent = (stream) => {
     const { activeMediaPlaylistId } = stream;
-    if (!activeMediaPlaylistId || activeMediaPlaylistId === 'master') {
-        return 'Master Playlist';
-    }
+    const manifest = stream.manifest;
 
-    const { variants, iFrameReps, audioRenditions, subtitleRenditions } =
-        getCanonicalPlaylistItems(stream);
-    const allItems = [
-        ...variants,
-        ...iFrameReps,
-        ...audioRenditions,
-        ...subtitleRenditions,
-    ];
+    // 1. Extract Data
+    const variants = (manifest.variants || []).map((v, i) => ({
+        id: v.stableId || v.id || `v-${i}`,
+        label: v.attributes.RESOLUTION || `Variant ${i + 1}`,
+        badges: [
+            formatBitrate(v.attributes.BANDWIDTH),
+            (v.attributes.CODECS || '').split('.')[0],
+        ],
+        group: 'variants',
+    }));
 
-    const activeItem = allItems.find(
-        (item) => item.id === activeMediaPlaylistId
+    const mediaGroups = (manifest.media || []).reduce(
+        (acc, m, i) => {
+            const type = m.value.TYPE;
+            const group = m.value['GROUP-ID'];
+            const id = m.value.URI || `media-${type}-${i}`;
+            const label = m.value.NAME || m.value.LANGUAGE || `${type} ${i}`;
+
+            const item = {
+                id,
+                label,
+                badges: [m.value.LANGUAGE || 'UND', group],
+                group:
+                    type === 'AUDIO'
+                        ? 'audio'
+                        : type === 'SUBTITLES'
+                          ? 'subtitles'
+                          : 'other',
+            };
+
+            if (!acc[item.group]) acc[item.group] = [];
+            acc[item.group].push(item);
+            return acc;
+        },
+        { audio: [], subtitles: [] }
     );
 
-    if (activeItem) {
-        if (activeItem.type === 'variant') {
-            const { rep } = activeItem.data;
-            const bw = formatBitrate(rep.bandwidth);
-            const res = `${rep.width?.value || 'N/A'}x${
-                rep.height?.value || 'N/A'
-            }`;
-            return `Variant (${bw}, ${res})`;
-        }
-        if (activeItem.type === 'iframe') {
-            const { rep } = activeItem.data;
-            return `I-Frame: ${rep.width?.value || 'N/A'}x${
-                rep.height?.value || 'N/A'
-            }`;
-        }
-        if (activeItem.type === 'audio') {
-            const { rep, as } = activeItem.data;
-            return `Audio: ${rep.lang || as.lang || rep.id}`;
-        }
-        if (activeItem.type === 'subtitles') {
-            const { rep, as } = activeItem.data;
-            return `Subtitles: ${rep.lang || as.lang || rep.id}`;
-        }
-    }
+    // 2. Render Logic
+    const tabs = [
+        { key: 'variants', label: 'Variants', count: variants.length },
+        { key: 'audio', label: 'Audio', count: mediaGroups.audio.length },
+        {
+            key: 'subtitles',
+            label: 'Subs',
+            count: mediaGroups.subtitles.length,
+        },
+    ].filter((t) => t.count > 0);
 
-    return 'Select View...';
-};
+    const items =
+        activeCategory === 'variants'
+            ? variants
+            : activeCategory === 'audio'
+              ? mediaGroups.audio
+              : mediaGroups.subtitles;
 
-export const hlsContextSwitcherTemplate = (stream) => {
-    if (stream.protocol !== 'hls' || !stream.manifest?.isMaster) {
-        return html``;
-    }
+    const handleTabClick = (key) => {
+        activeCategory = key;
+        // Re-render the dropdown content by updating the container
+        // Since we are inside the toggleDropdown callback, we can't easily trigger a re-render
+        // from here without a state update or forcing the shell update.
+        // TRICK: We dispatch a dummy event or use a local state manager if we had one for this.
+        // For simplicity in this architecture: Close and reopen? No, jarring.
+        // Better: The `toggleDropdown` utility re-renders on store changes.
+        // We can piggyback on a UI store "dummy" update or just manipulate the DOM directly?
+        // Best: Make `activeCategory` part of `uiStore` or a component.
+        // Let's use DOM manipulation for instant response in this isolated component context.
+        const container = document.getElementById('hls-dropdown-container');
+        if (container) {
+            // Re-render the content into the container
+            import('lit-html').then(({ render }) => {
+                render(hlsDropdownContent(stream), container);
+            });
+        }
+    };
 
-    const handleSelect = (e) => {
-        const item = e.target.closest('[data-id]');
-        if (!item) return;
-
-        const variantId = item.dataset.id;
+    const handleSelect = (id) => {
         eventBus.dispatch('hls:media-playlist-activate', {
             streamId: stream.id,
-            variantId,
+            variantId: id === 'master' ? 'master' : id,
         });
         closeDropdown();
     };
 
-    const { variants, iFrameReps, audioRenditions, subtitleRenditions } =
-        getCanonicalPlaylistItems(stream);
-
-    const masterItem = {
-        id: 'master',
-        label: 'Master Playlist',
-        badges: [{ text: 'MASTER', classes: 'bg-gray-600 text-gray-300' }],
-    };
-
-    const activeId = stream.activeMediaPlaylistId || 'master';
-
-    const panelTemplate = () => html`
+    return html`
         <div
-            class="dropdown-panel bg-gray-800 border border-gray-700 rounded-lg shadow-xl max-h-[60vh] w-full min-w-[40rem] max-w-5xl overflow-y-auto"
-            @click=${handleSelect}
+            id="hls-dropdown-container"
+            class="dropdown-panel bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl w-[28rem] flex flex-col max-h-[60vh] ring-1 ring-black/50"
         >
-            ${renderHlsContextGroup('Master', [masterItem], activeId)}
-            ${renderHlsContextGroup('Variant Streams', variants, activeId)}
-            ${renderHlsContextGroup('I-Frame Playlists', iFrameReps, activeId)}
-            ${renderHlsContextGroup(
-                'Audio Renditions',
-                audioRenditions,
-                activeId
-            )}
-            ${renderHlsContextGroup(
-                'Subtitle Renditions',
-                subtitleRenditions,
-                activeId
-            )}
+            <!-- Header & Master Switch -->
+            <div class="p-4 border-b border-white/5">
+                <button
+                    @click=${() => handleSelect('master')}
+                    class="w-full flex items-center justify-between p-3 rounded-lg border ${activeMediaPlaylistId ===
+                    'master'
+                        ? 'bg-purple-600 border-purple-500 text-white shadow-lg'
+                        : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'}"
+                >
+                    <div class="flex items-center gap-3">
+                        <span class="p-1.5 rounded-md bg-black/20"
+                            >${icons.list}</span
+                        >
+                        <div class="text-left">
+                            <div
+                                class="font-bold text-xs uppercase tracking-wider"
+                            >
+                                Master Playlist
+                            </div>
+                            <div class="text-[10px] opacity-70 font-mono">
+                                Contains all variants
+                            </div>
+                        </div>
+                    </div>
+                    ${activeMediaPlaylistId === 'master'
+                        ? html`<span>${icons.checkCircle}</span>`
+                        : ''}
+                </button>
+            </div>
+
+            <!-- Tabs -->
+            <div class="px-4 pt-2 pb-0 border-b border-white/5 bg-white/[0.02]">
+                ${connectedTabBar(tabs, activeCategory, handleTabClick)}
+            </div>
+
+            <!-- Grid -->
+            <div
+                class="p-3 overflow-y-auto custom-scrollbar grow bg-slate-950/30"
+            >
+                <div class="grid grid-cols-2 gap-2">
+                    ${items.map((item) =>
+                        itemCard(item, activeMediaPlaylistId, () =>
+                            handleSelect(item.id)
+                        )
+                    )}
+                </div>
+                ${items.length === 0
+                    ? html`<div
+                          class="text-center p-8 text-slate-500 italic text-xs"
+                      >
+                          No items in this category.
+                      </div>`
+                    : ''}
+            </div>
         </div>
     `;
+};
+
+export const hlsContextSwitcherTemplate = (stream) => {
+    const label =
+        stream.activeMediaPlaylistId &&
+        stream.activeMediaPlaylistId !== 'master'
+            ? 'Media Playlist'
+            : 'Master Playlist';
+
+    const subLabel =
+        stream.activeMediaPlaylistId === 'master'
+            ? 'All Variants'
+            : 'Selected Rendition';
 
     return html`
-        <div class="relative w-full overflow-hidden">
+        <div class="relative w-full px-3 pb-4">
             <button
                 @click=${(e) =>
-                    toggleDropdown(e.currentTarget, panelTemplate, e)}
-                class="bg-slate-700/50 hover:bg-slate-700 text-slate-300 rounded-md p-2 w-full text-left flex items-center justify-between transition-colors"
+                    toggleDropdown(
+                        e.currentTarget,
+                        () => hlsDropdownContent(stream),
+                        e
+                    )}
+                class="w-full bg-slate-800/40 hover:bg-slate-800/80 border border-slate-700/50 hover:border-slate-600 rounded-xl p-3 transition-all text-left group"
             >
-                <span class="truncate min-w-0"
-                    >${getActiveHlsContextLabel(stream)}</span
-                >
-                <span class="text-gray-400 shrink-0">${icons.chevronDown}</span>
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div
+                            class="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-0.5 group-hover:text-purple-300 transition-colors"
+                        >
+                            ${label}
+                        </div>
+                        <div
+                            class="font-semibold text-slate-300 text-sm group-hover:text-white truncate"
+                        >
+                            ${subLabel}
+                        </div>
+                    </div>
+                    <div
+                        class="text-slate-500 group-hover:text-white transition-colors"
+                    >
+                        ${icons.chevronDown}
+                    </div>
+                </div>
             </button>
         </div>
     `;

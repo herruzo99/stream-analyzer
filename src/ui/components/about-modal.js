@@ -1,84 +1,125 @@
 import { html } from 'lit-html';
 import * as icons from '@/ui/icons';
 
+const featureCard = (icon, title, description, colorClass) => html`
+    <div class="bg-slate-800/50 p-4 rounded-xl border border-slate-700/50 hover:border-slate-600 transition-colors">
+        <div class="flex items-center gap-3 mb-2">
+            <div class="p-2 rounded-lg bg-slate-900 border border-slate-700 ${colorClass}">
+                ${icon}
+            </div>
+            <h4 class="font-bold text-slate-200 text-sm">${title}</h4>
+        </div>
+        <p class="text-xs text-slate-400 leading-relaxed">
+            ${description}
+        </p>
+    </div>
+`;
+
 export const aboutModalTemplate = () => html`
-    <div class="space-y-6 text-sm text-slate-300">
-        <div class="text-center">
-            <h2 class="text-2xl font-bold text-white">Stream Analyzer</h2>
-            <p class="text-slate-400 mt-1">
-                An advanced, in-browser tool for media stream analysis.
+    <div class="flex flex-col h-full bg-slate-950 text-slate-300 overflow-hidden">
+        <!-- Header -->
+        <div class="shrink-0 p-8 pb-6 text-center border-b border-slate-800 bg-slate-900/50">
+            <div class="inline-flex p-4 bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl mb-4 shadow-xl border border-slate-700/50">
+                <img src="/icon.png" class="w-12 h-12 object-contain drop-shadow-md opacity-90" alt="Logo" />
+            </div>
+            <h2 class="text-3xl font-black text-white tracking-tight mb-2">Stream Analyzer</h2>
+            <p class="text-sm text-slate-400 font-medium">
+                v1.0.0 <span class="mx-2 text-slate-600">•</span> Open Source Inspection Workbench
             </p>
         </div>
 
-        <div>
-            <h3 class="text-lg font-semibold text-white mb-2">Key Features</h3>
-            <ul class="space-y-2 list-disc pl-5">
-                <li>
-                    <strong class="text-slate-200"
-                        >Multi-Stream Comparison:</strong
-                    >
-                    Analyze and compare multiple DASH & HLS manifests
-                    side-by-side.
-                </li>
-                <li>
-                    <strong class="text-slate-200"
-                        >Interactive Manifests & Segments:</strong
-                    >
-                    Explore manifests with context-aware tooltips and dive into
-                    the byte-level structure of segments with a hex/tree viewer.
-                </li>
-                <li>
-                    <strong class="text-slate-200"
-                        >Compliance & Validation:</strong
-                    >
-                    Check manifests against industry standards (DASH-IF, HLS)
-                    and best practices to identify issues.
-                </li>
-                <li>
-                    <strong class="text-slate-200"
-                        >Live Stream Monitoring:</strong
-                    >
-                    Automatically fetch and diff manifest updates for live
-                    streams, highlighting changes in real-time.
-                </li>
-                <li>
-                    <strong class="text-slate-200"
-                        >Timeline Visualization:</strong
-                    >
-                    Visualize segment and ad break timing on an interactive
-                    timeline.
-                </li>
-            </ul>
+        <!-- Scrollable Content -->
+        <div class="grow overflow-y-auto p-6 sm:p-8 custom-scrollbar space-y-8">
+            
+            <!-- Intro -->
+            <section class="max-w-2xl mx-auto text-center">
+                <p class="text-base text-slate-300 leading-relaxed">
+                    A <strong>client-side debugging workbench</strong> for streaming engineers. 
+                    It parses, visualizes, and validates DASH and HLS manifests directly in your browser. 
+                    Designed as a "second pair of eyes" to identify structural errors, visualize bitrate ladders, 
+                    and inspect low-level segment structures without command-line tools.
+                </p>
+            </section>
+
+            <!-- Capabilities Grid -->
+            <section>
+                <h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4 text-center">Core Capabilities</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    ${featureCard(
+                        icons.fileText,
+                        'Manifest Inspection',
+                        'Deep parsing of MPEG-DASH (.mpd) and HLS (.m3u8). Syntax highlighting, tag explanations, and live update diffing.',
+                        'text-blue-400'
+                    )}
+                    ${featureCard(
+                        icons.binary,
+                        'Segment Analysis',
+                        'Byte-level inspection of ISOBMFF boxes and MPEG-TS packets. Visualize frame sizes, GOP structures, and SCTE-35 signals.',
+                        'text-purple-400'
+                    )}
+                    ${featureCard(
+                        icons.play,
+                        'Playback Simulation',
+                        'Embedded Shaka Player instance for correlating manifest data with real-world playback behavior, buffer health, and ABR logic.',
+                        'text-emerald-400'
+                    )}
+                    ${featureCard(
+                        icons.shieldCheck,
+                        'Compliance Checks',
+                        'Automated heuristic rules engine to detect violations of DASH-IF and HLS guidelines and best practices.',
+                        'text-amber-400'
+                    )}
+                </div>
+            </section>
+
+            <!-- Data Privacy -->
+            <section class="bg-blue-900/10 border border-blue-500/20 rounded-xl p-5 flex gap-4 items-start">
+                <div class="text-blue-400 shrink-0 mt-0.5">${icons.lockClosed}</div>
+                <div>
+                    <h4 class="text-sm font-bold text-blue-100 mb-1">Data & Privacy</h4>
+                    <p class="text-xs text-blue-200/70 leading-relaxed">
+                        This application runs <strong>entirely in your browser</strong>. 
+                        No manifest data, segment content, or DRM keys are sent to any external backend server controlled by this project. 
+                        Network requests occur strictly between your browser and your content servers.
+                    </p>
+                </div>
+            </section>
+
+            <!-- Disclaimer -->
+            <section class="border-t border-slate-800 pt-6">
+                <h4 class="text-xs font-bold text-red-400 uppercase tracking-wider mb-3">Liability & Disclaimer</h4>
+                <div class="text-[11px] text-slate-500 space-y-2 font-mono bg-slate-900/50 p-4 rounded-lg border border-slate-800">
+                    <p>THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED.</p>
+                    <ul class="list-disc pl-4 space-y-1">
+                        <li><strong>No Certification:</strong> This is a debugging tool. A "Pass" does not guarantee playback on all devices. It is a static analysis tool, not a certification authority.</li>
+                        <li><strong>DRM & Security:</strong> While this tool includes a PSSH parser, it does not circumvent DRM. You are responsible for handling keys/licenses according to your content's terms.</li>
+                        <li><strong>Usage:</strong> The author accepts no liability for data loss or production issues resulting from the use of this tool.</li>
+                    </ul>
+                </div>
+            </section>
         </div>
 
-        <div class="pt-4 border-t border-slate-700">
-            <h3 class="text-lg font-semibold text-white mb-2">Disclaimer</h3>
-            <p class="text-slate-400">
-                This software is provided "as is", without warranty of any kind,
-                express or implied, including but not limited to the warranties
-                of merchantability, fitness for a particular purpose and
-                noninfringement. In no event shall the authors or copyright
-                holders be liable for any claim, damages or other liability,
-                whether in an action of contract, tort or otherwise, arising
-                from, out of or in connection with the software or the use or
-                other dealings in the software.
-            </p>
-        </div>
-
-        <div class="pt-4 border-t border-slate-700 text-center text-slate-400">
-            <p>
-                Created by
-                <strong class="text-white">Juan Herruzo Herrero</strong>
-            </p>
-            <a
-                href="https://github.com/herruzo99/stream-analyzer"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="mt-2 inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 transition-colors"
-            >
-                ${icons.github}
-                <span>View Project on GitHub</span>
-            </a>
+        <!-- Footer -->
+        <div class="shrink-0 p-6 border-t border-slate-800 bg-slate-900/50 text-center">
+            <p class="text-xs text-slate-500 mb-3">Created by <strong class="text-slate-300">Juan Herruzo Herrero</strong></p>
+            <div class="flex justify-center gap-3">
+                <a
+                    href="https://github.com/herruzo99/stream-analyzer"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 text-slate-300 text-xs font-bold transition-all"
+                >
+                    ${icons.github} Source Code
+                </a>
+                <a
+                    href="https://github.com/herruzo99/stream-analyzer/issues"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 text-slate-300 text-xs font-bold transition-all"
+                >
+                    ${icons.debug} Report Issue
+                </a>
+            </div>
         </div>
     </div>
 `;

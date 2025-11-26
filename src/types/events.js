@@ -18,11 +18,12 @@ export const EVENTS = {
     UI: {
         SHOW_STATUS: 'ui:show-status',
         STREAM_ANALYSIS_REQUESTED: 'ui:stream-analysis-requested',
+        ADD_STREAMS_REQUESTED: 'ui:add-streams-requested', // NEW
         SAVE_PRESET_REQUESTED: 'ui:save-preset-requested',
         SHOW_SEGMENT_ANALYSIS_MODAL: 'ui:show-segment-analysis-modal',
         REQUEST_SEGMENT_COMPARISON: 'ui:request-segment-comparison',
         SHOW_SCTE35_DETAILS: 'ui:show-scte35-details',
-
+        SHOW_MANIFEST_PATCHER: 'ui:manifest-patcher:open',
         // Stream Input
         STREAM_INPUT_POPULATE_PRESET: 'ui:stream-input:populate-from-preset',
         STREAM_INPUT_REMOVE: 'ui:stream-input:remove-requested',

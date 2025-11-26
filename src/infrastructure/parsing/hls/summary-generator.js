@@ -31,35 +31,51 @@ export async function generateHlsSummary(manifestIR, context) {
 
     let segmentFormat = manifestIR.segmentFormat;
     let targetDuration = manifestIR.minBufferTime;
+    let totalDuration = manifestIR.duration;
+
+    // --- ARCHITECTURAL FIX: Derive Duration & Stats from Media Playlists ---
+    // For a Master Playlist, the top-level IR has no segments and thus 0 duration.
+    // We must inspect the fetched media playlists to calculate these values.
+    let validMediaManifest = null;
 
     if (isMaster && mediaPlaylists && mediaPlaylists.size > 0) {
-        const firstMediaPlaylist = mediaPlaylists.values().next().value;
-        if (firstMediaPlaylist?.manifest) {
-            const mediaPlaylistParsed =
-                firstMediaPlaylist.manifest.serializedManifest;
+        // Prefer the highest bandwidth variant for representative stats
+        const highestBwVariant = (manifestIR.variants || []).sort(
+            (a, b) => b.attributes.BANDWIDTH - a.attributes.BANDWIDTH
+        )[0];
+
+        if (highestBwVariant) {
+            const playlistData = mediaPlaylists.get(highestBwVariant.stableId);
+            validMediaManifest = playlistData?.manifest;
+        }
+
+        // Fallback to first available if variant mapping failed
+        if (!validMediaManifest) {
+            const firstPlaylist = mediaPlaylists.values().next().value;
+            validMediaManifest = firstPlaylist?.manifest;
+        }
+
+        if (validMediaManifest) {
+            const mediaPlaylistParsed = validMediaManifest.serializedManifest;
+
             if (segmentFormat === 'unknown') {
                 segmentFormat = determineSegmentFormat(mediaPlaylistParsed);
             }
+
+            // Use the target duration from the media playlist
             targetDuration = mediaPlaylistParsed.targetDuration;
+
+            // If the master didn't have a duration (VOD), use the media playlist's duration
+            if (!totalDuration || totalDuration === 0) {
+                totalDuration = validMediaManifest.duration;
+            }
         }
     }
 
     let dvrWindow = null;
     if (manifestIR.type === 'dynamic') {
-        if (isMaster) {
-            if (mediaPlaylists && mediaPlaylists.size > 0) {
-                const highestBwVariant = (manifestIR.variants || []).sort(
-                    (a, b) => b.attributes.BANDWIDTH - a.attributes.BANDWIDTH
-                )[0];
-                if (highestBwVariant) {
-                    const mediaPlaylistData = mediaPlaylists.get(
-                        highestBwVariant.stableId
-                    );
-                    if (mediaPlaylistData?.manifest) {
-                        dvrWindow = mediaPlaylistData.manifest.duration;
-                    }
-                }
-            }
+        if (isMaster && validMediaManifest) {
+            dvrWindow = validMediaManifest.duration;
         } else {
             dvrWindow = manifestIR.duration;
         }
@@ -237,33 +253,47 @@ export async function generateHlsSummary(manifestIR, context) {
     }
 
     let mediaPlaylistDetails = null;
-    if (!isMaster) {
-        const segmentCount = manifestIR.segments.length;
-        const totalDuration = manifestIR.duration;
-        const isIFrameOnly = (manifestIR.tags || []).some(
+
+    const statsSource = !isMaster ? manifestIR : validMediaManifest;
+
+    if (statsSource) {
+        const segmentCount = statsSource.segments.length;
+        // Use the calculated totalDuration from above (which handles the Master case)
+        const durationForCalc = !isMaster
+            ? statsSource.duration
+            : totalDuration;
+
+        const isIFrameOnly = (statsSource.tags || []).some(
             (t) => t.name === 'EXT-X-I-FRAMES-ONLY'
         );
 
         mediaPlaylistDetails = {
             segmentCount: segmentCount,
             averageSegmentDuration:
-                segmentCount > 0 ? totalDuration / segmentCount : 0,
-            hasDiscontinuity: (manifestIR.segments || []).some(
+                segmentCount > 0 && durationForCalc > 0
+                    ? durationForCalc / segmentCount
+                    : 0,
+            hasDiscontinuity: (statsSource.segments || []).some(
                 (s) => s.discontinuity
             ),
             isIFrameOnly: isIFrameOnly,
         };
     }
 
-    const iFramePlaylists = (
-        /** @type {any} */ (rawElement).iframeStreams || []
-    ).length;
+    // Correctly cast rawElement to any before accessing internal HLS properties
+    const iFramePlaylists = (/** @type {any} */ (rawElement)).iframeStreams?.length || 0;
 
     const periodSummaries = manifestIR.periods.map((period) => ({
         id: period.id,
         start: period.start,
         duration: period.duration,
-        adaptationSets: period.adaptationSets,
+        adaptationSets: period.adaptationSets.map((as) => ({
+            id: as.id,
+            contentType: as.contentType,
+            lang: as.lang,
+            mimeType: as.mimeType,
+            representationCount: as.representations.length,
+        })),
     }));
 
     const hasMuxedAudio = (allVideoAdaptationSets || []).some((as) =>
@@ -284,7 +314,7 @@ export async function generateHlsSummary(manifestIR, context) {
                 manifestIR.type === 'dynamic'
                     ? 'text-red-400'
                     : 'text-blue-500',
-            duration: manifestIR.duration,
+            duration: totalDuration, // Use the resolved duration
             segmentFormat: segmentFormat.toLowerCase(),
             title: null,
             locations: [],
@@ -311,8 +341,10 @@ export async function generateHlsSummary(manifestIR, context) {
         content: {
             totalPeriods: manifestIR.periods.length,
             totalVideoTracks: videoTracks.length,
+            // Include muxed audio in the count logic if explicit audio tracks are 0
             totalAudioTracks:
-                (allAudioAdaptationSets || []).length + (hasMuxedAudio ? 1 : 0),
+                (allAudioAdaptationSets || []).length +
+                (hasMuxedAudio && audioTracks.length === 0 ? 1 : 0),
             totalTextTracks: textTracks.length,
             mediaPlaylists: isMaster ? (manifestIR.variants || []).length : 1,
             periods: periodSummaries,

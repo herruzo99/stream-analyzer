@@ -26,7 +26,6 @@ const createCountCheck = (tagName, singular, plural) => {
         const elements = findChildrenRecursive(manifestObj, tagName);
         const count = elements.length;
         if (count <= 1) {
-            // FIX: Only count if more than one
             return { used: false, details: '' };
         }
         const noun = count === 1 ? singular : plural;
@@ -40,13 +39,25 @@ const createCountCheck = (tagName, singular, plural) => {
 const featureChecks = {
     'Presentation Type': (manifestObj) => ({
         used: true,
-        details: `<code>${getAttr(manifestObj, 'type')}</code>`,
+        details: `<code>${getAttr(manifestObj, 'type') || 'static (inferred)'}</code>`,
     }),
-    'MPD Locations': createCountCheck(
+    'MPD Location Signaling': createCountCheck(
         'Location',
         'location',
-        'locations provided'
+        'locations'
     ),
+    'CDN Redundancy': (manifestObj) => {
+        const baseUrls = findChildrenRecursive(manifestObj, 'BaseURL');
+        // A simple check: if there are multiple BaseURLs at the same level, redundancy is likely.
+        // Or just total BaseURLs > 1 implies some form of alternative source.
+        // We'll refine to check if they are siblings, but simple count is a good heuristic.
+        const count = baseUrls.length;
+        return {
+            used: count > 1,
+            details:
+                count > 1 ? `${count} BaseURLs detected.` : 'Single BaseURL.',
+        };
+    },
     'Scoped Profiles': (manifestObj) => {
         const adaptationSets = findChildrenRecursive(
             manifestObj,
@@ -85,37 +96,48 @@ const featureChecks = {
         }
         return { used: false, details: 'No encryption descriptors found.' };
     },
-    'Client Authentication': createCheck(
-        'EssentialProperty',
-        () => 'Signals requirement for client authentication.',
-        ''
-    ),
-    'Content Authorization': createCheck(
-        'SupplementalProperty',
-        () => 'Signals requirement for content authorization.',
-        ''
-    ),
     'Segment Templates': createCheck(
         'SegmentTemplate',
         () => 'Uses templates for segment URL generation.',
         ''
     ),
-    'Segment Timeline': createCheck(
-        'SegmentTimeline',
-        () =>
-            'Provides explicit segment timing via <code>&lt;S&gt;</code> elements.',
-        ''
-    ),
+    'Segment Timeline': (manifestObj) => {
+        const timelines = findChildrenRecursive(manifestObj, 'SegmentTimeline');
+        // It's only "used" if it actually contains S elements.
+        const used = timelines.some((tl) => findChildRecursive(tl, 'S'));
+        return {
+            used,
+            details: used
+                ? 'Timeline with <code>&lt;S&gt;</code> elements found.'
+                : '',
+        };
+    },
     'Segment List': createCheck(
         'SegmentList',
         () => 'Provides an explicit list of segment URLs.',
         ''
     ),
-    'Representation Index': createCountCheck(
-        'RepresentationIndex',
-        'representation index',
-        'representation indices'
-    ),
+    'Representation Index': (manifestObj) => {
+        const repIndex = findChildRecursive(manifestObj, 'RepresentationIndex');
+        if (repIndex)
+            return {
+                used: true,
+                details: '<RepresentationIndex> element found.',
+            };
+
+        // Also check for indexRange attribute on SegmentBase (On-Demand Profile style)
+        const segBase = findChildrenRecursive(manifestObj, 'SegmentBase');
+        const hasIndexRange = segBase.some((sb) => getAttr(sb, 'indexRange'));
+
+        if (hasIndexRange)
+            return {
+                used: true,
+                details:
+                    '<code>indexRange</code> attribute found on SegmentBase.',
+            };
+
+        return { used: false, details: '' };
+    },
     'Low Latency Streaming': (manifestObj) => {
         if (getAttr(manifestObj, 'type') !== 'dynamic') {
             return { used: false, details: 'Not a dynamic (live) manifest.' };
@@ -145,6 +167,22 @@ const featureChecks = {
         'PatchLocation',
         (el) => `Patch location: <code>${el['#text']?.trim()}</code>`,
         'Uses full manifest reloads.'
+    ),
+    'Content Steering': createCheck(
+        'ContentSteering',
+        (el) =>
+            `Steering ID: <code>${getAttr(el, 'defaultServiceLocation')}</code>`,
+        'No content steering found.'
+    ),
+    Preselections: createCountCheck(
+        'Preselection',
+        'Preselection',
+        'Preselections'
+    ),
+    'Failover Content': createCheck(
+        'FailoverContent',
+        () => 'Signals available failover content.',
+        ''
     ),
     'UTC Timing Source': (manifestObj) => {
         const utcTimings = findChildrenRecursive(manifestObj, 'UTCTiming');
@@ -178,24 +216,25 @@ const featureChecks = {
             };
         return { used: false, details: '' };
     },
-    'Associated Representations': (manifestObj) => {
-        const reps = findChildrenRecursive(
-            manifestObj,
-            'Representation'
-        ).filter((r) => getAttr(r, 'associationId'));
-        if (reps.length > 0)
-            return { used: true, details: `${reps.length} associations` };
-        return { used: false, details: '' };
-    },
     'Trick Modes': (manifestObj) => {
         const subRep = findChildRecursive(manifestObj, 'SubRepresentation');
         const trickRole = findChildrenRecursive(manifestObj, 'Role').some(
             (r) => getAttr(r, 'value') === 'trick'
         );
-        if (subRep || trickRole) {
+        const essentialTrick = findChildrenRecursive(
+            manifestObj,
+            'EssentialProperty'
+        ).some(
+            (ep) =>
+                getAttr(ep, 'schemeIdUri') ===
+                'http://dashif.org/guidelines/trickmode'
+        );
+
+        if (subRep || trickRole || essentialTrick) {
             const details = [];
             if (subRep) details.push('<code>&lt;SubRepresentation&gt;</code>');
             if (trickRole) details.push('<code>Role="trick"</code>');
+            if (essentialTrick) details.push('DASH-IF Trick Mode Descriptor');
             return {
                 used: true,
                 details: `Detected via: ${details.join(', ')}`,
@@ -235,23 +274,37 @@ const featureChecks = {
             details: 'No text or application AdaptationSets found.',
         };
     },
-    'Role Descriptors': (manifestObj) => {
-        const roles = findChildrenRecursive(manifestObj, 'Role');
-        if (roles.length > 0) {
-            const roleValues = [
-                ...new Set(
-                    roles.map(
-                        (role) => `<code>${getAttr(role, 'value')}</code>`
-                    )
-                ),
-            ];
-            return {
-                used: true,
-                details: `Roles found: ${roleValues.join(', ')}`,
-            };
+    'Service Description': createCheck(
+        'ServiceDescription',
+        () => 'Service description parameters found.',
+        ''
+    ),
+    'Resync Points': createCheck(
+        'Resync',
+        () => 'Resync elements present.',
+        ''
+    ),
+    'Bitstream Switching': (manifestObj) => {
+        const period = findChildRecursive(manifestObj, 'Period');
+        if (getAttr(period, 'bitstreamSwitching') === 'true') {
+            return { used: true, details: 'Enabled on Period.' };
         }
-        return { used: false, details: 'No roles specified.' };
+        const as = findChildRecursive(manifestObj, 'AdaptationSet');
+        if (getAttr(as, 'bitstreamSwitching') === 'true') {
+            return { used: true, details: 'Enabled on AdaptationSet.' };
+        }
+        return { used: false, details: '' };
     },
+    'Asset Identifier': createCheck(
+        'AssetIdentifier',
+        (el) => `Scheme: ${getAttr(el, 'schemeIdUri')}`,
+        ''
+    ),
+    'Accessibility Descriptors': createCheck(
+        'Accessibility',
+        () => 'Accessibility descriptors present.',
+        ''
+    ),
     'MPD Events': createCheck(
         'EventStream',
         () => 'Uses <EventStream> for out-of-band event signaling.',
@@ -261,6 +314,16 @@ const featureChecks = {
         'InbandEventStream',
         () => 'Uses <InbandEventStream> to signal events within segments.',
         ''
+    ),
+    'Essential Descriptors': createCountCheck(
+        'EssentialProperty',
+        'Essential Property',
+        'Essential Properties'
+    ),
+    'Supplemental Descriptors': createCountCheck(
+        'SupplementalProperty',
+        'Supplemental Property',
+        'Supplemental Properties'
     ),
 };
 

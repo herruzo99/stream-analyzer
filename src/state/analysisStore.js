@@ -12,6 +12,15 @@ import { playerService } from '@/features/playerSimulation/application/playerSer
 import { usePlayerStore } from './playerStore.js';
 import { useSegmentCacheStore } from './segmentCacheStore.js';
 import { EVENTS } from '@/types/events';
+import {
+    applyPatches,
+    generateBlobUrl,
+} from '@/features/manifestPatcher/domain/patchService';
+import { parseManifest as parseHls } from '@/infrastructure/parsing/hls/index.js';
+import { parseManifest as parseDash } from '@/infrastructure/parsing/dash/parser.js';
+import { generateDashSummary } from '@/infrastructure/parsing/dash/summary-generator.js';
+import { generateHlsSummary } from '@/infrastructure/parsing/hls/summary-generator.js';
+import { rebaseManifest } from '@/infrastructure/parsing/utils/manifest-rebaser.js';
 
 // --- Type Definitions ---
 /** @typedef {import('@/types.ts').Stream} Stream */
@@ -23,51 +32,6 @@ import { EVENTS } from '@/types/events';
 /** @typedef {{streamId: number, repId: string, segmentUniqueId: string}} SegmentToCompare */
 /** @typedef {import('@/types').MediaSegment} MediaSegment */
 
-/**
- * @typedef {object} AnalysisState
- * @property {Stream[]} streams
- * @property {number | null} activeStreamId
- * @property {number} streamIdCounter
- * @property {StreamInput[]} streamInputs
- * @property {number} activeStreamInputId
- * @property {SegmentToCompare[]} segmentsForCompare
- * @property {Map<string, DecodedSample>} decodedSamples
- * @property {Map<string, {streamId: number, auth: AuthInfo}>} urlAuthMap
- */
-
-/**
- * @typedef {object} AnalysisActions
- * @property {() => void} startAnalysis
- * @property {(streams: Stream[], urlAuthMapArray: [string, {streamId: number, auth: AuthInfo}][], inputs: Partial<StreamInput>[]) => void} completeAnalysis
- * @property {(streamId: number) => void} setActiveStreamId
- * @property {(streamId: number, updateId: string) => void} setActiveManifestUpdate
- * @property {(id: string) => void} setActiveSegmentUrl
- * @property {() => void} addStreamInput
- * @property {(preset: Partial<StreamInput>) => void} addStreamInputFromPreset
- * @property {(id: number) => void} removeStreamInput
- * @property {() => void} clearAllStreamInputs
- * @property {(data: object[]) => void} setStreamInputs
- * @property {(id: number, field: keyof StreamInput, value: any) => void} updateStreamInput
- * @property {(inputId: number, type: 'headers' | 'queryParams') => void} addAuthParam
- * @property {(inputId: number, type: 'headers' | 'queryParams', paramId: number) => void} removeAuthParam
- * @property {(inputId: number, type: 'headers' | 'queryParams', paramId: number, field: 'key' | 'value', value: string) => void} updateAuthParam
- * @property {(inputId: number, type: 'headers' | 'queryParams') => void} addDrmAuthParam
- * @property {(inputId: number, type: 'headers' | 'queryParams', paramId: number) => void} removeDrmAuthParam
- * @property {(inputId: number, type: 'headers' | 'queryParams', paramId: number, field: 'key' | 'value', value: string) => void} updateDrmAuthParam
- * @property {(inputId: number, preset: Partial<StreamInput>) => void} populateStreamInput
- * @property {(item: SegmentToCompare) => void} addSegmentToCompare
- * @property {(segmentUniqueId: string) => void} removeSegmentFromCompare
- * @property {() => void} clearSegmentsToCompare
- * @property {(streamId: number, updatedStreamData: Partial<Stream> & { inbandEventsToAdd?: Event[] }) => void} updateStream
- * @property {(isPolling: boolean, options?: { fromInactivity?: boolean }) => void} setAllLiveStreamsPolling
- * @property {(streamId: number, isPolling: boolean) => void} setStreamPolling
- * @property {(streamId: number, interval: number | null) => void} setStreamPollingIntervalOverride
- * @property {(streamId: number, direction: number) => void} navigateManifestUpdate
- * @property {(streamId: number, events: Event[]) => void} addInbandEvents
- * @property {(id: number) => void} setActiveStreamInputId
- * @property {(streamId: number, repId: string) => void} toggleSegmentPollingForRep
- */
-
 const createInitialAnalysisState = () => ({
     streams: [],
     activeStreamId: null,
@@ -78,6 +42,78 @@ const createInitialAnalysisState = () => ({
     decodedSamples: new Map(),
     urlAuthMap: new Map(),
 });
+
+const hydrateStream = (s) => {
+    const newStream = { ...s };
+    newStream.originalSerializedManifest = JSON.parse(
+        JSON.stringify(s.manifest.serializedManifest)
+    );
+
+    const newDashRepState = new Map();
+    if (s.dashRepresentationState) {
+        for (const [key, value] of s.dashRepresentationState) {
+            newDashRepState.set(key, {
+                ...value,
+                currentSegmentUrls: new Set(value.currentSegmentUrls || []),
+                newlyAddedSegmentUrls: new Set(
+                    value.newlyAddedSegmentUrls || []
+                ),
+            });
+        }
+    }
+    newStream.dashRepresentationState = newDashRepState;
+
+    const newHlsVariantState = new Map();
+    if (s.hlsVariantState) {
+        for (const [key, value] of s.hlsVariantState) {
+            newHlsVariantState.set(key, {
+                ...value,
+                currentSegmentUrls: new Set(value.currentSegmentUrls || []),
+                newlyAddedSegmentUrls: new Set(
+                    value.newlyAddedSegmentUrls || []
+                ),
+            });
+        }
+    }
+    newStream.hlsVariantState = newHlsVariantState;
+
+    if (s.manifest?.hlsDefinedVariables) {
+        s.manifest.hlsDefinedVariables = new Map(
+            s.manifest.hlsDefinedVariables
+        );
+    }
+
+    newStream.wasStoppedByInactivity = false;
+    newStream.activeMediaPlaylistUrl = null;
+    newStream.activeMediaPlaylistBaseUrl = null;
+    newStream.activeMediaPlaylistId = null;
+    newStream.adAvails = s.adAvails || [];
+
+    newStream.mediaPlaylists = new Map(s.mediaPlaylists || []);
+    if (s.protocol === 'hls' && s.manifest?.isMaster) {
+        if (!newStream.mediaPlaylists.has('master')) {
+            newStream.mediaPlaylists.set('master', {
+                manifest: s.manifest,
+                rawManifest: s.rawManifest,
+                lastFetched: new Date(),
+                updates: s.manifestUpdates,
+                activeUpdateId: s.manifestUpdates[0]?.id || null,
+            });
+        }
+        newStream.activeMediaPlaylistId = 'master';
+    } else if (s.protocol === 'hls' && !s.manifest?.isMaster) {
+        newStream.activeMediaPlaylistId = s.originalUrl;
+        newStream.activeMediaPlaylistUrl = s.originalUrl;
+    }
+
+    newStream.activeManifestUpdateId = s.manifestUpdates[0]?.id || null;
+    newStream.segmentPollingReps = new Set(s.segmentPollingReps || []);
+    newStream.patchRules = s.patchRules || [];
+    newStream.patchedRawManifest = s.patchedRawManifest || s.rawManifest;
+    newStream.patchedManifestUrl = s.patchedManifestUrl || null;
+
+    return newStream;
+};
 
 export const useAnalysisStore = createStore((set, get) => ({
     ...createInitialAnalysisState(),
@@ -94,84 +130,13 @@ export const useAnalysisStore = createStore((set, get) => ({
     },
 
     completeAnalysis: (streams, urlAuthMapArray, inputs) => {
-        const hydratedInputs = inputs.map(
-            (input) =>
-                /** @type {StreamInput} */ ({
-                    ...input,
-                    detectedDrm: null,
-                    isDrmInfoLoading: false,
-                })
-        );
+        const hydratedInputs = inputs.map((input) => ({
+            ...input,
+            detectedDrm: null,
+            isDrmInfoLoading: false,
+        }));
 
-        const fullyFormedStreams = streams.map((s) => {
-            const newStream = { ...s };
-
-            const newDashRepState = new Map();
-            if (s.dashRepresentationState) {
-                for (const [key, value] of s.dashRepresentationState) {
-                    newDashRepState.set(key, {
-                        ...value,
-                        currentSegmentUrls: new Set(
-                            value.currentSegmentUrls || []
-                        ),
-                        newlyAddedSegmentUrls: new Set(
-                            value.newlyAddedSegmentUrls || []
-                        ),
-                    });
-                }
-            }
-            newStream.dashRepresentationState = newDashRepState;
-
-            const newHlsVariantState = new Map();
-            if (s.hlsVariantState) {
-                for (const [key, value] of s.hlsVariantState) {
-                    newHlsVariantState.set(key, {
-                        ...value,
-                        currentSegmentUrls: new Set(
-                            value.currentSegmentUrls || []
-                        ),
-                        newlyAddedSegmentUrls: new Set(
-                            value.newlyAddedSegmentUrls || []
-                        ),
-                    });
-                }
-            }
-            newStream.hlsVariantState = newHlsVariantState;
-
-            if (s.manifest?.hlsDefinedVariables) {
-                s.manifest.hlsDefinedVariables = new Map(
-                    s.manifest.hlsDefinedVariables
-                );
-            }
-
-            newStream.wasStoppedByInactivity = false;
-            newStream.activeMediaPlaylistUrl = null;
-            newStream.activeMediaPlaylistBaseUrl = null;
-            newStream.activeMediaPlaylistId = null;
-            newStream.adAvails = s.adAvails || [];
-
-            newStream.mediaPlaylists = new Map(s.mediaPlaylists || []);
-            if (s.protocol === 'hls' && s.manifest?.isMaster) {
-                if (!newStream.mediaPlaylists.has('master')) {
-                    newStream.mediaPlaylists.set('master', {
-                        manifest: s.manifest,
-                        rawManifest: s.rawManifest,
-                        lastFetched: new Date(),
-                        updates: s.manifestUpdates,
-                        activeUpdateId: s.manifestUpdates[0]?.id || null,
-                    });
-                }
-                newStream.activeMediaPlaylistId = 'master';
-            } else if (s.protocol === 'hls' && !s.manifest?.isMaster) {
-                newStream.activeMediaPlaylistId = s.originalUrl;
-                newStream.activeMediaPlaylistUrl = s.originalUrl;
-            }
-
-            newStream.activeManifestUpdateId = s.manifestUpdates[0]?.id || null;
-            newStream.segmentPollingReps = new Set(s.segmentPollingReps || []);
-
-            return newStream;
-        });
+        const fullyFormedStreams = streams.map(hydrateStream);
 
         set({
             streams: fullyFormedStreams,
@@ -189,6 +154,45 @@ export const useAnalysisStore = createStore((set, get) => ({
         });
     },
 
+    appendStreams: (newStreams, newUrlAuthMapArray) => {
+        const currentStreams = get().streams;
+        const fullyFormedNewStreams = newStreams.map(hydrateStream);
+
+        // Merge Auth Map
+        const currentAuthMap = get().urlAuthMap;
+        const newAuthMap = new Map(newUrlAuthMapArray);
+        for (const [key, val] of newAuthMap.entries()) {
+            currentAuthMap.set(key, val);
+        }
+
+        // Append Streams
+        const updatedStreams = [...currentStreams, ...fullyFormedNewStreams];
+
+        set({
+            streams: updatedStreams,
+            urlAuthMap: new Map(currentAuthMap), // Trigger update
+            // Set active stream to the first of the newly added streams
+            activeStreamId:
+                fullyFormedNewStreams[0]?.id ?? get().activeStreamId,
+        });
+
+        // Initialize players for ONLY the new streams
+        fullyFormedNewStreams.forEach((stream) => {
+            useMultiPlayerStore
+                .getState()
+                .addPlayer(
+                    stream.id,
+                    stream.name,
+                    stream.originalUrl,
+                    stream.manifest?.type === 'dynamic' ? 'live' : 'vod'
+                );
+        });
+
+        eventBus.dispatch(EVENTS.STATE.ANALYSIS_COMPLETE, {
+            streams: updatedStreams,
+        });
+    },
+
     setActiveStreamId: (streamId) => set({ activeStreamId: streamId }),
     setActiveStreamInputId: (id) => set({ activeStreamInputId: id }),
     setActiveManifestUpdate: (streamId, updateId) => {
@@ -196,7 +200,6 @@ export const useAnalysisStore = createStore((set, get) => ({
             streams: state.streams.map((s) => {
                 if (s.id !== streamId) return s;
 
-                // Context-aware update
                 const activeId =
                     s.activeMediaPlaylistId ||
                     (s.protocol === 'hls' ? 'master' : null);
@@ -211,8 +214,6 @@ export const useAnalysisStore = createStore((set, get) => ({
                         return { ...s, mediaPlaylists: newMediaPlaylists };
                     }
                 }
-
-                // Fallback to DASH (which doesn't use mediaPlaylists map)
                 return { ...s, activeManifestUpdateId: updateId };
             }),
         }));
@@ -317,30 +318,69 @@ export const useAnalysisStore = createStore((set, get) => ({
     },
 
     removeStreamInput: (id) => {
-        set((state) => {
-            const remaining = state.streamInputs.filter((i) => i.id !== id);
+        // Clean up associated player resources
+        useMultiPlayerStore.getState().removePlayer(id);
 
-            let newActiveId = state.activeStreamInputId;
-            if (remaining.length === 0) {
-                newActiveId = null;
-            } else if (state.activeStreamInputId === id) {
-                const removedIndex = state.streamInputs.findIndex(
-                    (i) => i.id === id
-                );
-                newActiveId = remaining[Math.max(0, removedIndex - 1)].id;
+        set((state) => {
+            // Filter inputs
+            const remainingInputs = state.streamInputs.filter(
+                (i) => i.id !== id
+            );
+
+            // Filter active analyzed streams
+            const remainingStreams = state.streams.filter((s) => s.id !== id);
+
+            // Remove any segments queued for comparison from this stream
+            const remainingComparisons = state.segmentsForCompare.filter(
+                (s) => s.streamId !== id
+            );
+
+            // Determine new active input ID
+            let newActiveInputId = state.activeStreamInputId;
+            if (state.activeStreamInputId === id) {
+                if (remainingInputs.length === 0) {
+                    newActiveInputId = null;
+                } else {
+                    // Fallback to the first available input
+                    newActiveInputId = remainingInputs[0].id;
+                }
+            }
+
+            // Determine new active stream ID
+            let newActiveStreamId = state.activeStreamId;
+            if (state.activeStreamId === id) {
+                if (remainingStreams.length === 0) {
+                    newActiveStreamId = null;
+                } else {
+                    // Fallback to the first available stream
+                    newActiveStreamId = remainingStreams[0].id;
+                }
             }
 
             return {
-                streamInputs: remaining,
-                activeStreamInputId: newActiveId,
+                streamInputs: remainingInputs,
+                streams: remainingStreams,
+                activeStreamInputId: newActiveInputId,
+                activeStreamId: newActiveStreamId,
+                segmentsForCompare: remainingComparisons,
             };
+        });
+
+        // Trigger event to notify UI components that rely on the stream list (e.g. MultiPlayer, Comparison)
+        eventBus.dispatch(EVENTS.STATE.STREAM_UPDATED, { streamId: -1 });
+        eventBus.dispatch(EVENTS.STATE.COMPARE_LIST_CHANGED, {
+            count: get().segmentsForCompare.length,
         });
     },
 
     clearAllStreamInputs: () => {
+        useMultiPlayerStore.getState().clearPlayersAndLogs();
         set({
             streamInputs: [],
+            streams: [],
+            segmentsForCompare: [],
             activeStreamInputId: null,
+            activeStreamId: null,
         });
     },
 
@@ -556,13 +596,10 @@ export const useAnalysisStore = createStore((set, get) => ({
             streams: state.streams.map((s) => {
                 if (s.id !== streamId) return s;
 
-                // Create a new stream object by merging the update payload.
                 const newStream = { ...s, ...updatedStreamData };
 
-                // Deeply update representation states if they are in the payload.
                 if (updatedStreamData.dashRepresentationState) {
                     const rehydrated = new Map();
-                    // The payload from liveUpdateProcessor is already a Map, but its Sets might be arrays.
                     for (const [
                         key,
                         value,
@@ -599,7 +636,6 @@ export const useAnalysisStore = createStore((set, get) => ({
                     newStream.hlsVariantState = rehydrated;
                 }
 
-                // Process in-band events. This logic modifies the maps created above.
                 if (updatedStreamData.inbandEventsToAdd?.length > 0) {
                     const newEvents = updatedStreamData.inbandEventsToAdd;
                     newStream.inbandEvents = [
@@ -791,6 +827,92 @@ export const useAnalysisStore = createStore((set, get) => ({
                 return s;
             }),
         }));
+    },
+
+    updatePatchRules: (streamId, rules) => {
+        set((state) => ({
+            streams: state.streams.map((s) =>
+                s.id === streamId ? { ...s, patchRules: rules } : s
+            ),
+        }));
+    },
+
+    applyPatchesToStream: async (streamId) => {
+        const state = get();
+        const stream = state.streams.find((s) => s.id === streamId);
+        if (!stream) return;
+
+        const patchedContent = applyPatches(
+            stream.rawManifest,
+            stream.patchRules
+        );
+
+        if (stream.patchedManifestUrl) {
+            URL.revokeObjectURL(stream.patchedManifestUrl);
+        }
+
+        const rebasedContent = rebaseManifest(
+            patchedContent,
+            stream.baseUrl,
+            stream.protocol
+        );
+
+        const mimeType =
+            stream.protocol === 'dash'
+                ? 'application/dash+xml'
+                : 'application/x-mpegurl';
+        const newUrl = generateBlobUrl(rebasedContent, mimeType);
+
+        const parsingOptions = {
+            isPrimary: true,
+            isLive: stream.manifest.type === 'dynamic',
+            hls: {
+                masterPlaylist: stream.manifest.isMaster,
+            },
+        };
+
+        let parsedResult;
+        let newManifest;
+        if (stream.protocol === 'hls') {
+            parsedResult = await parseHls(
+                patchedContent,
+                newUrl,
+                undefined,
+                parsingOptions
+            );
+            newManifest = parsedResult.manifest;
+            const summaryResult = await generateHlsSummary(newManifest, {
+                mediaPlaylists: stream.mediaPlaylists,
+            });
+            newManifest.summary = summaryResult.summary;
+        } else {
+            parsedResult = await parseDash(
+                patchedContent,
+                newUrl,
+                parsingOptions
+            );
+            newManifest = parsedResult.manifest;
+            const summary = await generateDashSummary(
+                newManifest,
+                parsedResult.serializedManifest
+            );
+            newManifest.summary = summary;
+        }
+
+        set((state) => ({
+            streams: state.streams.map((s) =>
+                s.id === streamId
+                    ? {
+                          ...s,
+                          patchedRawManifest: patchedContent,
+                          patchedManifestUrl: newUrl,
+                          manifest: newManifest,
+                      }
+                    : s
+            ),
+        }));
+
+        eventBus.dispatch(EVENTS.STATE.STREAM_UPDATED, { streamId });
     },
 }));
 

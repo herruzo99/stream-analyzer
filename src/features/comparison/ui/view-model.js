@@ -1,296 +1,347 @@
 import { formatBitrate } from '@/ui/shared/format';
-import { dashFeatureDefinitions } from '@/infrastructure/parsing/dash/feature-definitions';
-import { hlsFeatureDefinitions } from '@/infrastructure/parsing/hls/feature-definitions';
+import { getDrmSystemName } from '@/infrastructure/parsing/utils/drm';
 
 const renderList = (items) =>
     items && items.length > 0
-        ? `<div class="flex flex-wrap gap-1">${items
-              .map(
-                  (item) =>
-                      `<span class="bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full text-xs">${
-                          typeof item === 'object' ? item.value : item
-                      }</span>`
-              )
-              .join('')}</div>`
+        ? items
+              .map((item) => (typeof item === 'object' ? item.value : item))
+              .join(', ')
         : 'N/A';
 
 const createRow = (
     label,
     tooltip,
     isoRef,
-    values,
+    values, // Array of { streamId, value }
+    referenceStreamId,
     formatter = (v) => String(v ?? 'N/A')
 ) => {
-    const valueGroups = new Map();
-    let nextGroupId = 0;
+    // Find the reference value
+    const refEntry = values.find((v) => v.streamId === referenceStreamId);
+    const refValue = refEntry ? refEntry.value : undefined;
+    const refString = JSON.stringify(refValue);
 
-    const valuesWithInfo = values.map((v) => {
-        const valueString = JSON.stringify(v);
-        let groupId = -1;
-        let status = 'same'; // Default status
+    const processedValues = values.map((entry) => {
+        const valString = JSON.stringify(entry.value);
+        let status = 'neutral';
 
-        if (v === null || v === undefined || v === '') {
+        if (
+            entry.value === null ||
+            entry.value === undefined ||
+            entry.value === ''
+        ) {
             status = 'missing';
-        } else {
-            if (valueGroups.has(valueString)) {
-                groupId = valueGroups.get(valueString);
+        } else if (
+            referenceStreamId !== null &&
+            referenceStreamId !== undefined
+        ) {
+            // Compare against reference
+            // If this is the reference stream itself, it's always a match
+            if (entry.streamId === referenceStreamId) {
+                status = 'match';
+            } else if (valString === refString) {
+                status = 'match';
             } else {
-                groupId = nextGroupId++;
-                valueGroups.set(valueString, groupId);
+                status = 'diff';
             }
+        } else {
+            // No reference selected: check if all are same
+            // We compare the current value against ALL other values in the row.
+            const allSame = values.every(
+                (v) => JSON.stringify(v.value) === valString
+            );
+            status = allSame ? 'match' : 'diff';
         }
 
         return {
-            value: formatter(v),
-            groupId,
+            streamId: entry.streamId,
+            displayValue: formatter(entry.value),
+            rawValue: entry.value,
             status,
         };
     });
-
-    const hasDifferences = valueGroups.size > 1;
-    const overallStatus = !hasDifferences
-        ? 'same'
-        : values.some((v) => v === null || v === undefined || v === '')
-          ? 'missing'
-          : 'different';
 
     return {
         label,
         tooltip,
         isoRef,
-        values: valuesWithInfo,
-        status: overallStatus,
-        isUsedByAny: values.some((v) => v === true),
+        values: processedValues,
+        isDiff: processedValues.some((v) => v.status === 'diff'),
+        isUsedByAny: values.some(
+            (v) => v.value !== null && v.value !== false && v.value !== 'N/A'
+        ),
     };
 };
 
-const createFeatureRows = (streams) => {
-    const allFeatureDefs = [
-        ...dashFeatureDefinitions,
-        ...hlsFeatureDefinitions,
-    ];
-    const uniqueFeatureNames = [
-        ...new Set(allFeatureDefs.map((f) => f.name)),
-    ].sort();
+/**
+ * @param {import('@/types').Stream[]} streams
+ * @param {number | null} referenceStreamId
+ */
+export function createComparisonViewModel(streams, referenceStreamId) {
+    const mapValues = (accessor) =>
+        streams.map((s) => ({ streamId: s.id, value: accessor(s) }));
 
-    const featureFormatter = (value) => {
-        if (value === true) {
-            return `<span class="text-green-400 font-semibold">Used</span>`;
-        }
-        if (value === false) {
-            return `<span class="text-slate-500">Not Used</span>`;
-        }
-        return 'N/A';
-    };
+    // Helper to access the normalized summary safely
+    const summary = (s) => s.manifest?.summary;
 
-    return uniqueFeatureNames.map((name) => {
-        const def = allFeatureDefs.find((f) => f.name === name);
-        const values = streams.map((s) => {
-            const result = s.featureAnalysis.results.get(name);
-            if (!result) return null;
-            return result.used;
-        });
-
-        return createRow(name, def.desc, def.isoRef, values, featureFormatter);
-    });
-};
-
-const createComplianceRows = (streams) => {
-    const errorCounts = streams.map(
-        (s) =>
-            s.manifestUpdates[0]?.complianceResults.filter(
-                (r) => r.status === 'fail'
-            ).length || 0
-    );
-    const warningCounts = streams.map(
-        (s) =>
-            s.manifestUpdates[0]?.complianceResults.filter(
-                (r) => r.status === 'warn'
-            ).length || 0
-    );
-
-    return [
-        createRow(
-            'Errors',
-            'Number of compliance rule failures.',
-            '',
-            errorCounts
-        ),
-        createRow(
-            'Warnings',
-            'Number of compliance rule warnings.',
-            '',
-            warningCounts
-        ),
-    ];
-};
-
-export function createComparisonViewModel(streams) {
+    // --- 1. General Configuration ---
     const generalPoints = [
+        createRow(
+            'Protocol',
+            'Streaming protocol used.',
+            'N/A',
+            mapValues((s) => summary(s)?.general.protocol),
+            referenceStreamId
+        ),
         createRow(
             'Type',
             'static (VOD) vs dynamic (live)',
             'DASH: 5.3.1.2 / HLS: 4.3.3.5',
-            streams.map((s) => s.manifest?.type ?? null)
+            mapValues((s) => summary(s)?.general.streamType),
+            referenceStreamId
         ),
         createRow(
             'Profiles / Version',
             'Declared feature sets or HLS version.',
             'DASH: 8.1 / HLS: 4.3.1.2',
-            streams.map((s) => s.manifest?.profiles ?? null)
+            mapValues((s) =>
+                s.protocol === 'dash'
+                    ? summary(s)?.dash?.profiles
+                    : `v${summary(s)?.hls?.version}`
+            ),
+            referenceStreamId
         ),
         createRow(
-            'Segment Format',
-            'The container format used for media segments (e.g., ISOBFF or MPEG-2 TS).',
-            'DASH: 5.3.7 / HLS: 4.3.2.5',
-            streams.map((s) => s.manifest?.segmentFormat ?? null)
+            'Duration',
+            'Total duration of the content.',
+            'N/A',
+            mapValues((s) => summary(s)?.general.duration),
+            referenceStreamId,
+            (v) => (v ? `${v.toFixed(2)}s` : 'Unknown')
         ),
     ];
 
-    const abrData = streams.map((stream) => {
-        const videoRepresentations =
-            stream.manifest?.periods
-                .flatMap((p) => p.adaptationSets)
-                .filter((as) => as.contentType === 'video')
-                .flatMap((as) => as.representations) || [];
+    // --- 2. Video Configuration ---
+    const videoPoints = [
+        createRow(
+            'Track Count',
+            'Total number of video tracks/variants.',
+            'N/A',
+            mapValues((s) => summary(s)?.content.totalVideoTracks ?? 0),
+            referenceStreamId
+        ),
+        createRow(
+            'Max Bitrate',
+            'Highest available video bitrate.',
+            'N/A',
+            mapValues((s) => {
+                const tracks = summary(s)?.videoTracks || [];
+                if (tracks.length === 0) return 0;
+                return Math.max(...tracks.map((t) => t.bandwidth));
+            }),
+            referenceStreamId,
+            formatBitrate
+        ),
+        createRow(
+            'Codecs',
+            'Video codecs used.',
+            'ISO/IEC 14496-15',
+            mapValues((s) => {
+                const tracks = summary(s)?.videoTracks || [];
+                // Extract unique codecs prefixes (e.g., avc1, hvc1)
+                const codecs = new Set(
+                    tracks.flatMap((t) =>
+                        t.codecs.map((c) => c.value.split('.')[0])
+                    )
+                );
+                return Array.from(codecs).sort();
+            }),
+            referenceStreamId,
+            renderList
+        ),
+        createRow(
+            'Video Range',
+            'Dynamic range (SDR, HLG, PQ).',
+            'N/A',
+            mapValues((s) => {
+                const tracks = summary(s)?.videoTracks || [];
+                return (
+                    Array.from(
+                        new Set(tracks.map((t) => t.videoRange).filter(Boolean))
+                    ).join(', ') || 'SDR'
+                );
+            }),
+            referenceStreamId
+        ),
+    ];
 
+    // --- 3. Audio Configuration ---
+    const audioPoints = [
+        createRow(
+            'Track Count',
+            'Total number of audio renditions.',
+            'N/A',
+            mapValues((s) => summary(s)?.content.totalAudioTracks ?? 0),
+            referenceStreamId
+        ),
+        createRow(
+            'Codecs',
+            'Audio codecs used.',
+            'N/A',
+            mapValues((s) => {
+                const tracks = summary(s)?.audioTracks || [];
+                const codecs = new Set(
+                    tracks.flatMap((t) =>
+                        t.codecs.map((c) => c.value.split('.')[0])
+                    )
+                );
+                return Array.from(codecs).sort();
+            }),
+            referenceStreamId,
+            renderList
+        ),
+        createRow(
+            'Languages',
+            'Available audio languages.',
+            'RFC 5646',
+            mapValues((s) => {
+                const tracks = summary(s)?.audioTracks || [];
+                return Array.from(
+                    new Set(tracks.map((t) => t.lang).filter(Boolean))
+                ).sort();
+            }),
+            referenceStreamId,
+            renderList
+        ),
+    ];
+
+    // --- 4. Text / Accessibility ---
+    const textPoints = [
+        createRow(
+            'Track Count',
+            'Total number of text/subtitle tracks.',
+            'N/A',
+            mapValues((s) => summary(s)?.content.totalTextTracks ?? 0),
+            referenceStreamId
+        ),
+        createRow(
+            'Formats',
+            'Subtitle formats (e.g. vtt, stpp).',
+            'N/A',
+            mapValues((s) => {
+                const tracks = summary(s)?.textTracks || [];
+                const formats = new Set(
+                    tracks.flatMap((t) =>
+                        t.codecsOrMimeTypes.map((c) => c.value)
+                    )
+                );
+                return Array.from(formats);
+            }),
+            referenceStreamId,
+            renderList
+        ),
+        createRow(
+            'Forced Subs',
+            'Contains forced subtitles for translation.',
+            'N/A',
+            mapValues((s) =>
+                (summary(s)?.textTracks || []).some((t) => t.isForced)
+            ),
+            referenceStreamId,
+            (v) => (v ? 'Yes' : 'No')
+        ),
+    ];
+
+    // --- 5. Security / DRM ---
+    const securityPoints = [
+        createRow(
+            'Encryption',
+            'Is the content encrypted?',
+            'CENC / HLS',
+            mapValues((s) => summary(s)?.security?.isEncrypted),
+            referenceStreamId,
+            (v) => (v ? 'Encrypted' : 'Clear')
+        ),
+        createRow(
+            'DRM Systems',
+            'Supported DRM Systems.',
+            'PSSH / EXT-X-KEY',
+            mapValues((s) => {
+                const systems = summary(s)?.security?.systems || [];
+                return systems.map((sys) => {
+                    const uuid = sys.systemId.toLowerCase();
+                    if (uuid.includes('edef8ba9')) return 'Widevine';
+                    if (uuid.includes('9a04f079')) return 'PlayReady';
+                    if (uuid.includes('94ce86fb')) return 'FairPlay';
+                    return 'Unknown';
+                });
+            }),
+            referenceStreamId,
+            renderList
+        ),
+        createRow(
+            'License Servers',
+            'Distinct license server URLs detected.',
+            'N/A',
+            mapValues(
+                (s) => (summary(s)?.security?.licenseServerUrls || []).length
+            ),
+            referenceStreamId
+        ),
+    ];
+
+    // --- 6. Timing & Latency ---
+    const timingPoints = [
+        createRow(
+            'Low Latency Mode',
+            'Is low-latency streaming signaled?',
+            'LL-HLS / LL-DASH',
+            mapValues((s) => summary(s)?.lowLatency?.isLowLatency),
+            referenceStreamId,
+            (v) => (v ? 'Enabled' : 'Standard')
+        ),
+        createRow(
+            'Target Latency',
+            'Suggested end-to-end latency.',
+            'N/A',
+            mapValues((s) => {
+                const ll = summary(s)?.lowLatency;
+                return ll?.targetLatency ? `${ll.targetLatency}s` : null;
+            }),
+            referenceStreamId
+        ),
+        createRow(
+            'Segment Duration',
+            'Average or target segment duration.',
+            'N/A',
+            mapValues((s) => {
+                const sum = summary(s);
+                if (sum?.hls?.targetDuration)
+                    return `${sum.hls.targetDuration}s`;
+                if (sum?.dash?.maxSegmentDuration)
+                    return `~${sum.dash.maxSegmentDuration}s`;
+                return null;
+            }),
+            referenceStreamId
+        ),
+    ];
+
+    // --- ABR Ladder Data ---
+    const abrData = streams.map((stream) => {
+        const videoTracks = summary(stream)?.videoTracks || [];
         return {
             name: stream.name,
-            tracks: videoRepresentations
-                .map((rep) => ({
-                    width: rep.width?.value,
-                    height: rep.height?.value,
-                    bandwidth: rep.bandwidth,
+            streamId: stream.id,
+            isReference: stream.id === referenceStreamId,
+            tracks: videoTracks
+                .map((t) => ({
+                    width: t.resolutions[0]?.value.split('x')[0],
+                    height: t.resolutions[0]?.value.split('x')[1],
+                    bandwidth: t.bandwidth,
                 }))
                 .filter((t) => t.width && t.height && t.bandwidth),
         };
     });
-
-    const videoPoints = [
-        createRow(
-            '# Video Quality Levels',
-            'Total number of video tracks or variants.',
-            'DASH: 5.3.5 / HLS: 4.3.4.2',
-            streams.map(
-                (s) => s.manifest?.summary?.content.totalVideoTracks ?? null
-            )
-        ),
-        createRow(
-            'Bitrate Range',
-            'Min and Max bandwidth values for video from the manifest.',
-            'DASH: 5.3.5.2 / HLS: 4.3.4.2',
-            streams.map((s) => {
-                const tracks = s.manifest?.summary?.videoTracks;
-                if (!tracks || tracks.length === 0) return null;
-                const bitrates = tracks
-                    .map((track) => track.bandwidth)
-                    .filter((b) => typeof b === 'number' && !isNaN(b));
-                if (bitrates.length === 0) return null;
-                const min = Math.min(...bitrates);
-                const max = Math.max(...bitrates);
-                if (min === max) return formatBitrate(min);
-                return `${formatBitrate(min)} - ${formatBitrate(max)}`;
-            })
-        ),
-        createRow(
-            'Video Resolutions',
-            'List of unique video resolutions.',
-            'DASH: 5.3.7.2 / HLS: 4.3.4.2',
-            streams.map((s) =>
-                renderList(
-                    [
-                        ...new Set(
-                            s.manifest?.summary?.videoTracks.flatMap(
-                                (vt) => vt.resolutions.map((r) => r.value) || []
-                            )
-                        ),
-                    ].sort()
-                )
-            )
-        ),
-        createRow(
-            'Video Codecs',
-            'Unique video codecs found.',
-            'DASH: 5.3.7.2 / HLS: 4.3.4.2',
-            streams.map((s) =>
-                renderList(
-                    [
-                        ...new Set(
-                            s.manifest?.summary?.videoTracks.flatMap(
-                                (vt) => vt.codecs.map((c) => c.value) || []
-                            )
-                        ),
-                    ].sort()
-                )
-            )
-        ),
-    ];
-
-    const audioPoints = [
-        createRow(
-            '# Audio Tracks',
-            'Groups of audio tracks, often by language.',
-            'DASH: 5.3.3 / HLS: 4.3.4.1',
-            streams.map(
-                (s) => s.manifest?.summary?.content.totalAudioTracks ?? null
-            )
-        ),
-        createRow(
-            'Audio Languages',
-            'Declared languages for audio tracks.',
-            'DASH: 5.3.3.2 / HLS: 4.3.4.1',
-            streams.map((s) =>
-                renderList(
-                    [
-                        ...new Set(
-                            s.manifest?.summary?.audioTracks
-                                .map((at) => at.lang)
-                                .filter(Boolean) || []
-                        ),
-                    ].sort()
-                )
-            )
-        ),
-        createRow(
-            'Audio Codecs',
-            'Unique audio codecs.',
-            'DASH: 5.3.7.2 / HLS: 4.3.4.2',
-            streams.map((s) =>
-                renderList(
-                    [
-                        ...new Set(
-                            s.manifest?.summary?.audioTracks.flatMap(
-                                (at) => at.codecs.map((c) => c.value) || []
-                            )
-                        ),
-                    ].sort()
-                )
-            )
-        ),
-    ];
-
-    const securityPoints = [
-        createRow(
-            'Encrypted',
-            'Whether content protection is signaled.',
-            'DASH: 5.8.4.1 / HLS: 4.3.2.4',
-            streams.map((s) =>
-                s.manifest?.summary?.security?.isEncrypted ? 'Yes' : 'No'
-            )
-        ),
-        createRow(
-            'DRM Systems',
-            'Detected DRM systems.',
-            'DASH: 5.8.4.1 / HLS: 4.3.2.4',
-            streams.map((s) =>
-                renderList(
-                    s.manifest?.summary?.security?.systems.map(
-                        (sys) => sys.name
-                    ) || []
-                )
-            )
-        ),
-    ];
 
     return {
         abrData,
@@ -301,26 +352,14 @@ export function createComparisonViewModel(streams) {
                 icon: 'clapperboard',
                 points: videoPoints,
             },
+            { title: 'Audio Details', icon: 'audioLines', points: audioPoints },
             {
-                title: 'Audio Details',
-                icon: 'audio-lines',
-                points: audioPoints,
+                title: 'Text & Accessibility',
+                icon: 'fileText',
+                points: textPoints,
             },
-            {
-                title: 'Security',
-                icon: 'shield-check',
-                points: securityPoints,
-            },
-            {
-                title: 'Feature Usage',
-                icon: 'features',
-                points: createFeatureRows(streams),
-            },
-            {
-                title: 'Compliance',
-                icon: 'compliance',
-                points: createComplianceRows(streams),
-            },
+            { title: 'Security', icon: 'shieldCheck', points: securityPoints },
+            { title: 'Timing & Latency', icon: 'timer', points: timingPoints },
         ],
     };
 }

@@ -1,146 +1,70 @@
 import { html } from 'lit-html';
-import { useNetworkStore, networkActions } from '@/state/networkStore';
-import { formatBitrate } from '@/ui/shared/format';
+import { useNetworkStore } from '@/state/networkStore';
+import { waterfallRowTemplate } from './waterfall-row.js';
+import '@/ui/components/virtualized-list';
 
-const getStatusColor = (status) => {
-    if (status >= 500) return 'text-red-400';
-    if (status >= 400) return 'text-yellow-400';
-    if (status >= 300) return 'text-blue-400';
-    return 'text-green-400';
-};
-
-const resourceTypeClasses = {
-    manifest: 'border-purple-500',
-    video: 'border-blue-500',
-    audio: 'border-cyan-500',
-    text: 'border-green-500',
-    init: 'border-yellow-500',
-    key: 'border-orange-500',
-    license: 'border-red-500',
-    other: 'border-gray-500',
-};
-
-const formatSize = (bytes) => {
-    if (bytes === null || bytes === undefined) return 'N/A';
-    if (bytes < 1024) return `${bytes} B`;
-    return `${(bytes / 1024).toFixed(2)} KB`;
-};
-
-const rowTemplate = (event, timelineStart, timelineDuration) => {
+export const waterfallChartTemplate = (waterfallData) => {
     const { selectedEventId } = useNetworkStore.getState();
-    const isActive = event.id === selectedEventId;
 
-    const cellBaseClasses =
-        'p-2 text-xs border-b border-gray-700/50 group-hover:bg-gray-700/50 whitespace-nowrap';
-    const activeCellClasses = isActive ? 'bg-blue-900/30' : '';
-
-    return html`
-        <div
-            class="group contents"
-            @click=${() => networkActions.setSelectedEventId(event.id)}
-        >
+    if (waterfallData.length === 0) {
+        return html`
             <div
-                class="${cellBaseClasses} ${activeCellClasses} flex items-center gap-2 truncate border-l-4 ${resourceTypeClasses[
-                    event.resourceType
-                ]} min-w-0"
+                class="h-full flex flex-col items-center justify-center text-slate-500 bg-slate-900/30 rounded-lg border border-slate-800 border-dashed"
             >
-                <span
-                    class="font-mono text-gray-300 truncate"
-                    title=${event.url}
-                    >${new URL(event.url).pathname.split('/').pop() ||
-                    event.url}</span
-                >
+                <div class="opacity-50 scale-150 mb-4">📡</div>
+                <p class="text-sm font-medium">No requests logged.</p>
+                <p class="text-xs opacity-70 mt-1">
+                    Check your filters or start playback.
+                </p>
             </div>
-            <div
-                class="${cellBaseClasses} ${activeCellClasses} font-mono ${getStatusColor(
-                    event.response.status
-                )}"
-            >
-                ${event.response.status}
-            </div>
-            <div class="${cellBaseClasses} ${activeCellClasses} truncate">
-                ${event.resourceType}
-            </div>
-            <div
-                class="${cellBaseClasses} ${activeCellClasses} font-mono text-right truncate"
-            >
-                ${formatSize(event.size)}
-            </div>
-            <div
-                class="${cellBaseClasses} ${activeCellClasses} font-mono text-right truncate"
-            >
-                ${formatBitrate(event.throughput)}
-            </div>
-            <div
-                class="${cellBaseClasses} ${activeCellClasses} font-mono text-right"
-            >
-                ${event.timing.duration.toFixed(0)}ms
-            </div>
-        </div>
-    `;
-};
-
-export const waterfallChartTemplate = (events, timeline) => {
-    if (events.length === 0) {
-        return html`<div
-            class="h-48 bg-gray-800 rounded-lg flex items-center justify-center text-gray-500"
-        >
-            No network requests to display.
-        </div>`;
+        `;
     }
 
-    const { start: timelineStart, duration: timelineDuration } = timeline;
-
     return html`
-        <style>
-            .grid-waterfall {
-                display: grid;
-                grid-template-columns:
-                    minmax(200px, 1fr)
-                    60px 80px 80px 100px 80px;
-            }
-        </style>
         <div
-            class="bg-gray-800 border border-gray-700 rounded-lg overflow-hidden h-full flex flex-col"
+            class="flex flex-col h-full bg-slate-900 border border-slate-700 rounded-lg overflow-hidden shadow-inner relative"
         >
-            <div class="overflow-y-auto grow">
-                <div class="grid-waterfall sticky top-0 z-10">
-                    <!-- Header -->
-                    <div
-                        class="p-2 text-xs font-bold text-gray-400 bg-gray-900 border-b border-gray-700 whitespace-nowrap"
-                    >
-                        Name
-                    </div>
-                    <div
-                        class="p-2 text-xs font-bold text-gray-400 bg-gray-900 border-b border-gray-700 whitespace-nowrap"
-                    >
-                        Status
-                    </div>
-                    <div
-                        class="p-2 text-xs font-bold text-gray-400 bg-gray-900 border-b border-gray-700 whitespace-nowrap"
-                    >
-                        Type
-                    </div>
-                    <div
-                        class="p-2 text-xs font-bold text-gray-400 bg-gray-900 border-b border-gray-700 text-right whitespace-nowrap"
-                    >
-                        Size
-                    </div>
-                    <div
-                        class="p-2 text-xs font-bold text-gray-400 bg-gray-900 border-b border-gray-700 text-right whitespace-nowrap"
-                    >
-                        Throughput
-                    </div>
-                    <div
-                        class="p-2 text-xs font-bold text-gray-400 bg-gray-900 border-b border-gray-700 text-right whitespace-nowrap"
-                    >
-                        Time
-                    </div>
-                    <!-- Rows -->
-                    ${events.map((event) =>
-                        rowTemplate(event, timelineStart, timelineDuration)
-                    )}
+            <!-- Header -->
+            <div
+                class="flex items-center bg-slate-950 border-b border-slate-800 h-9 text-xs font-bold text-slate-400 uppercase tracking-wider select-none shrink-0 z-10"
+            >
+                <div class="w-[250px] px-3 border-r border-slate-800/50">
+                    Name
                 </div>
+                <div
+                    class="w-[60px] px-2 text-center border-r border-slate-800/50"
+                >
+                    Stat
+                </div>
+                <div
+                    class="w-[80px] px-2 text-center border-r border-slate-800/50"
+                >
+                    Type
+                </div>
+                <div
+                    class="w-[80px] px-2 text-right border-r border-slate-800/50"
+                >
+                    Size
+                </div>
+                <div class="grow px-3">Waterfall</div>
+            </div>
+
+            <!-- Virtual List Container -->
+            <!-- 
+                CRITICAL FIX: 
+                1. 'grow relative' makes this div fill the remaining height.
+                2. The child 'virtualized-list' uses 'absolute inset-0' to exactly match this parent's dimensions.
+                3. This forces the virtual-list's internal 'overflow-y-auto' to trigger when content exceeds height.
+            -->
+            <div class="grow relative w-full min-h-0 bg-slate-900">
+                <virtualized-list
+                    class="absolute inset-0 w-full h-full"
+                    .items=${waterfallData}
+                    .rowTemplate=${(item) =>
+                        waterfallRowTemplate(item, item.id === selectedEventId)}
+                    .rowHeight=${32}
+                    .itemId=${(item) => item.id}
+                ></virtualized-list>
             </div>
         </div>
     `;

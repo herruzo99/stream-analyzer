@@ -36,9 +36,8 @@ export const llHlsRules = [
                 return 'skip';
             return !!hls.partInf;
         },
-        passDetails: 'OK, EXT-X-PART-INF is present as required.',
-        failDetails:
-            'The playlist contains PARTs or PART hints but is missing the required EXT-X-PART-INF tag.',
+        passDetails: 'OK, EXT-X-PART-INF is present.',
+        failDetails: 'Missing required EXT-X-PART-INF tag.',
     },
     {
         id: 'LL-HLS-2',
@@ -160,5 +159,63 @@ export const llHlsRules = [
         passDetails: 'OK, rendition reports are present.',
         failDetails:
             'The Low-Latency HLS profile requires rendition reports in each media playlist to avoid tune-in delays.',
+    },
+    {
+        id: 'LL-HLS-9',
+        text: 'PART-TARGET must be less than TARGETDURATION',
+        isoRef: 'HLS 2nd Ed: 4.4.3.7',
+        version: 9,
+        severity: 'fail',
+        scope: 'MediaPlaylist',
+        category: 'Low-Latency HLS',
+        check: (hls) => {
+            if (!hls.partInf || !hls.targetDuration) return 'skip';
+            return hls.partInf['PART-TARGET'] < hls.targetDuration;
+        },
+        passDetails: 'OK, PART-TARGET is strictly less than TARGETDURATION.',
+        failDetails:
+            'PART-TARGET must be strictly less than EXT-X-TARGETDURATION.',
+    },
+    {
+        id: 'LL-HLS-10',
+        text: 'Preload Hint URI must not appear in segments list',
+        isoRef: 'HLS 2nd Ed: 4.4.5.3',
+        version: 9,
+        severity: 'warn',
+        scope: 'MediaPlaylist',
+        category: 'Low-Latency HLS',
+        check: (hls) => {
+            if (hls.preloadHints.length === 0) return 'skip';
+            const hintUris = new Set(hls.preloadHints.map((h) => h.URI));
+            // Check if any hint URI is already fully published as a segment or part
+            const hasDupe = hls.segments.some(
+                (s) =>
+                    hintUris.has(s.uri) ||
+                    (s.parts && s.parts.some((p) => hintUris.has(p.URI)))
+            );
+            return !hasDupe;
+        },
+        passDetails: 'OK, Preload Hints point to future content.',
+        failDetails:
+            'A Preload Hint URI matches an existing Segment or Part URI. Hints should only point to future content.',
+    },
+    {
+        id: 'LL-HLS-11',
+        text: 'Server Control CAN-BLOCK-RELOAD required for LL-HLS',
+        isoRef: 'HLS 2nd Ed: 6.2.2',
+        version: 9,
+        severity: 'warn', // Standard says "Should", effectively required for functionality
+        scope: 'MediaPlaylist',
+        category: 'Low-Latency HLS',
+        check: (hls) => {
+            if (!hls.partInf) return 'skip';
+            return (
+                hls.serverControl &&
+                hls.serverControl['CAN-BLOCK-RELOAD'] === 'YES'
+            );
+        },
+        passDetails: 'OK, Blocking reload supported.',
+        failDetails:
+            'LL-HLS playlists should support blocking reloads (CAN-BLOCK-RELOAD=YES) for efficiency.',
     },
 ];

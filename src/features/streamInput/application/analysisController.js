@@ -1,5 +1,6 @@
 import { eventBus } from '@/application/event-bus';
 import { startAnalysisUseCase } from './startAnalysis';
+import { addStreamsToSessionUseCase } from './addStreamsToSession.js';
 import { container } from '@/application/container';
 import { EVENTS } from '@/types/events';
 
@@ -9,5 +10,9 @@ import { EVENTS } from '@/types/events';
 export function initializeAnalysisController() {
     eventBus.subscribe(EVENTS.UI.STREAM_ANALYSIS_REQUESTED, ({ inputs }) => {
         startAnalysisUseCase({ inputs }, container.services);
+    });
+
+    eventBus.subscribe(EVENTS.UI.ADD_STREAMS_REQUESTED, ({ inputs }) => {
+        addStreamsToSessionUseCase({ inputs }, container.services);
     });
 }

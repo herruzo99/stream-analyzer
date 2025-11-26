@@ -4,126 +4,111 @@ import * as icons from '@/ui/icons';
 import { formatBitrate } from '@/ui/shared/format';
 import {
     getInheritedElement,
-    getAttr,
     findChildren,
-} from '../../../../../infrastructure/parsing/utils/recursive-parser.js';
+} from '@/infrastructure/parsing/utils/recursive-parser.js';
 
-const infoItem = (label, value, valueClass = 'text-slate-200') => {
-    if (value === undefined || value === null || value === '') return '';
-    return html`
-        <div
-            class="flex items-baseline gap-x-2 min-w-0"
-            title="${label}: ${value}"
-        >
-            <span class="text-slate-400 font-medium shrink-0">${label}:</span>
-            <span class="font-mono ${valueClass} truncate">${value}</span>
-        </div>
-    `;
-};
-
-export const representationCardTemplate = (rep, as, stream, period) => {
+const getSegmentStrategy = (rep, as, period) => {
     const hierarchy = [
         rep.serializedManifest,
         as.serializedManifest,
         period.serializedManifest,
     ];
+    if (getInheritedElement('SegmentTemplate', hierarchy))
+        return {
+            label: 'Template',
+            icon: icons.template,
+            color: 'text-purple-400',
+        };
+    if (getInheritedElement('SegmentList', hierarchy))
+        return { label: 'List', icon: icons.list, color: 'text-blue-400' };
+    if (getInheritedElement('SegmentBase', hierarchy))
+        return { label: 'Base', icon: icons.database, color: 'text-amber-400' };
+    return { label: 'BaseURL', icon: icons.link, color: 'text-slate-400' };
+};
 
-    let segmentInfo = { type: 'unknown' };
+export const representationCardTemplate = (rep, as, stream, period) => {
+    const strategy = getSegmentStrategy(rep, as, period);
+    const width = rep.width?.value;
+    const height = rep.height?.value;
+    const resLabel = width && height ? `${width}x${height}` : null;
+
+    // Determine segment data context for timing info
+    const hierarchy = [
+        rep.serializedManifest,
+        as.serializedManifest,
+        period.serializedManifest,
+    ];
     const templateEl = getInheritedElement('SegmentTemplate', hierarchy);
     const listEl = getInheritedElement('SegmentList', hierarchy);
     const baseEl = getInheritedElement('SegmentBase', hierarchy);
-    const baseUrlEl = findChildren(rep.serializedManifest, 'BaseURL')[0];
-
-    if (templateEl) {
-        const timescale = getAttr(templateEl, 'timescale');
-        const duration = getAttr(templateEl, 'duration');
-        segmentInfo = {
-            type: 'SegmentTemplate',
-            template: getAttr(templateEl, 'media'),
-            duration: duration,
-            timescale: timescale,
-            startNumber: getAttr(templateEl, 'startNumber'),
-            pto: getAttr(templateEl, 'presentationTimeOffset'),
-            ato: getAttr(templateEl, 'availabilityTimeOffset'),
-            usesTimeline:
-                findChildren(templateEl, 'SegmentTimeline').length > 0,
-            calculatedDuration:
-                timescale && duration
-                    ? `${(duration / timescale).toFixed(3)}s`
-                    : 'N/A',
-            initialization: getAttr(templateEl, 'initialization')
-                ? { template: getAttr(templateEl, 'initialization') }
-                : null,
-        };
-    } else if (listEl) {
-        const initEl = findChildren(listEl, 'Initialization')[0];
-        segmentInfo = {
-            type: 'SegmentList',
-            duration: getAttr(listEl, 'duration'),
-            timescale: getAttr(listEl, 'timescale'),
-            segmentURLs: findChildren(listEl, 'SegmentURL').map((el) => ({
-                media: getAttr(el, 'media'),
-                mediaRange: getAttr(el, 'mediaRange'),
-            })),
-            initialization: initEl
-                ? {
-                      url: getAttr(initEl, 'sourceURL'),
-                      range: getAttr(initEl, 'range'),
-                  }
-                : null,
-        };
-    } else if (baseEl) {
-        const initEl = findChildren(baseEl, 'Initialization')[0];
-        segmentInfo = {
-            type: 'SegmentBase',
-            timescale: getAttr(baseEl, 'timescale'),
-            indexRange: getAttr(baseEl, 'indexRange'),
-            initialization: initEl ? { range: getAttr(initEl, 'range') } : null,
-            inferredDuration: period.duration || stream.manifest.duration,
-        };
-    } else if (baseUrlEl) {
-        segmentInfo = {
-            type: 'BaseURL',
-            url: baseUrlEl['#text'],
-            inferredDuration: period.duration || stream.manifest.duration,
-        };
-    }
-
-    const resolutionText =
-        rep.width?.value && rep.height?.value
-            ? `${rep.width.value}x${rep.height.value}`
-            : '';
+    const segmentData = templateEl
+        ? { type: 'SegmentTemplate', element: templateEl }
+        : listEl
+          ? { type: 'SegmentList', element: listEl }
+          : baseEl
+            ? { type: 'SegmentBase', element: baseEl }
+            : {
+                  type: 'BaseURL',
+                  element: findChildren(rep.serializedManifest, 'BaseURL')[0],
+              };
 
     return html`
         <details
-            class="bg-slate-800/80 rounded-lg border border-slate-600/80 details-animated"
-            open
+            class="group bg-slate-900 border border-slate-700/50 rounded hover:border-blue-500/30 transition-colors"
         >
             <summary
-                class="flex items-center gap-4 p-2 cursor-pointer list-none hover:bg-slate-700/80"
+                class="flex items-center justify-between p-2 cursor-pointer select-none"
             >
-                <span
-                    class="text-slate-500 group-open:rotate-90 transition-transform"
-                    >${icons.chevronDown}</span
-                >
-                <span class="text-slate-400 shrink-0">${icons.binary}</span>
-                <div class="font-semibold text-slate-300 text-xs shrink-0">
-                    ID: ${rep.id}
-                </div>
-                <div
-                    class="flex items-baseline gap-x-4 gap-y-1 text-xs ml-auto shrink min-w-0"
-                >
-                    ${infoItem('Bitrate', formatBitrate(rep.bandwidth))}
-                    ${infoItem('Resolution', resolutionText)}
+                <div class="flex items-center gap-2 min-w-0">
                     <span
-                        class="text-xs font-semibold px-2 py-1 rounded-full bg-amber-800 text-amber-200 shrink-0"
-                        >${segmentInfo.type}</span
+                        class="text-slate-500 group-open:rotate-90 transition-transform scale-75"
+                        >${icons.chevronRight}</span
                     >
+
+                    <div class="flex flex-col min-w-0">
+                        <div class="flex items-baseline gap-2">
+                            <span
+                                class="font-bold text-xs text-slate-200 truncate"
+                                title="${rep.id}"
+                                >${rep.id}</span
+                            >
+                            <span class="font-mono text-[10px] text-cyan-400"
+                                >${formatBitrate(rep.bandwidth)}</span
+                            >
+                        </div>
+                        <div
+                            class="flex items-center gap-2 text-[10px] text-slate-500"
+                        >
+                            ${resLabel
+                                ? html`<span>${resLabel}</span>
+                                      <span class="text-slate-700">•</span>`
+                                : ''}
+                            <span
+                                class="${strategy.color} flex items-center gap-1"
+                            >
+                                <span class="scale-75">${strategy.icon}</span>
+                                ${strategy.label}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Codec Pill -->
+                <div class="hidden xs:block shrink-0">
+                    ${rep.codecs.map(
+                        (c) => html`
+                            <span
+                                class="text-[9px] font-mono bg-slate-800 border border-slate-700 text-slate-400 px-1.5 py-0.5 rounded"
+                                title="${c.value}"
+                                >${c.value.split('.')[0]}</span
+                            >
+                        `
+                    )}
                 </div>
             </summary>
 
-            <div class="border-t border-slate-600/80 p-3">
-                ${timingInfoTemplate(segmentInfo)}
+            <div class="border-t border-slate-700/50 p-2 bg-slate-950/30">
+                ${timingInfoTemplate(segmentData, stream)}
             </div>
         </details>
     `;

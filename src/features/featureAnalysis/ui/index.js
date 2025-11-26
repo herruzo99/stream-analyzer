@@ -1,208 +1,269 @@
 import { html, render } from 'lit-html';
-import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { useUiStore } from '@/state/uiStore';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { eventBus } from '@/application/event-bus';
 import { createFeatureViewModel } from '@/features/featureAnalysis/domain/analyzer';
 import { standardSelectorTemplate } from '@/features/compliance/ui/components/standard-selector';
+import { featureCardTemplate } from './components/feature-card.js';
+import { featureDetailsModalTemplate } from './components/details-modal.js';
 import * as icons from '@/ui/icons';
 
 let container = null;
 let uiUnsubscribe = null;
 let analysisUnsubscribe = null;
+let activeModalFeature = null;
 
-const featureCardTemplate = (feature) => {
-    const badge = feature.used
-        ? html`<span
-              class="text-xs font-semibold px-2 py-1 bg-green-800 text-green-200 rounded-full"
-              >Used</span
-          >`
-        : html`<span
-              class="text-xs font-semibold px-2 py-1 bg-slate-600 text-slate-300 rounded-full"
-              >Not Used</span
-          >`;
-
-    return html`
-        <div
-            class="bg-slate-800/50 p-4 rounded-lg border border-slate-700 flex flex-col gap-2 h-full"
-        >
-            <div class="flex justify-between items-start">
-                <p class="font-semibold text-slate-200 pr-4">${feature.name}</p>
-                ${badge}
-            </div>
-            <p class="text-xs text-slate-400">${feature.desc}</p>
-            ${feature.details
-                ? html`<p
-                      class="text-xs text-slate-300 font-mono bg-slate-900/50 p-2 rounded-md mt-1"
-                  >
-                      ${unsafeHTML(feature.details)}
-                  </p>`
-                : ''}
-            <p
-                class="text-xs text-slate-500 font-mono mt-auto pt-2 border-t border-slate-700/50"
-            >
-                Ref: ${feature.isoRef}
-            </p>
-        </div>
-    `;
+const categoryIcons = {
+    'Core Streaming': icons.server,
+    'Timeline & Segment Management': icons.timeline,
+    'Live & Dynamic': icons.play,
+    'Advanced Content': icons.puzzle,
+    'Client Guidance & Optimization': icons.slidersHorizontal,
+    'Accessibility & Metadata': icons.fileText,
 };
 
-const categoryTemplate = (category, categoryFeatures) => {
-    const categoryIcons = {
-        'Core Streaming': icons.server,
-        'Timeline & Segment Management': icons.timeline,
-        'Live & Dynamic': icons.play,
-        'Advanced Content': icons.puzzle,
-        'Client Guidance & Optimization': icons.slidersHorizontal,
-        'Accessibility & Metadata': icons.fileText,
-    };
-    const icon = categoryIcons[category] || icons.features;
-
-    return html`
-        <section class="space-y-4">
-            <h4
-                class="text-lg font-semibold text-slate-300 flex items-center gap-2"
-            >
-                ${icon}
-                <span>${category}</span>
-            </h4>
-            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                ${categoryFeatures.map((feature) =>
-                    featureCardTemplate(feature)
-                )}
-            </div>
-        </section>
-    `;
-};
+function toggleModal(feature) {
+    activeModalFeature = feature;
+    renderFeaturesAnalysis();
+}
 
 function renderFeaturesAnalysis() {
     if (!container) return;
 
     const { streams, activeStreamId } = useAnalysisStore.getState();
     const stream = streams.find((s) => s.id === activeStreamId);
+    const { featureAnalysisStandardVersion, comparisonHideUnusedFeatures } =
+        useUiStore.getState();
 
     if (!stream) {
-        featuresView.unmount();
-        return;
-    }
-
-    if (stream.protocol !== 'dash' && stream.protocol !== 'hls') {
         render(
-            html`<p class="text-slate-400">
-                Feature analysis is only available for DASH and HLS streams.
-            </p>`,
+            html`<div class="p-8 text-center text-slate-500">
+                No stream loaded.
+            </div>`,
             container
         );
         return;
     }
 
-    const { featureAnalysisStandardVersion } = useUiStore.getState();
     const { results, manifestCount } = stream.featureAnalysis;
     const viewModel = createFeatureViewModel(
         results,
         stream.protocol,
         featureAnalysisStandardVersion
     );
-    const groupedFeatures = viewModel.reduce((acc, feature) => {
+
+    const usedFeaturesCount = viewModel.features.filter((f) => f.used).length;
+    const scoreColor =
+        viewModel.score > 70
+            ? 'text-emerald-400'
+            : viewModel.score > 40
+              ? 'text-blue-400'
+              : 'text-slate-400';
+    const ringColor =
+        viewModel.score > 70
+            ? 'stroke-emerald-500'
+            : viewModel.score > 40
+              ? 'stroke-blue-500'
+              : 'stroke-slate-600';
+
+    const filteredFeatures = comparisonHideUnusedFeatures
+        ? viewModel.features.filter((f) => f.used)
+        : viewModel.features;
+
+    const groupedFeatures = filteredFeatures.reduce((acc, feature) => {
         if (!acc[feature.category]) acc[feature.category] = [];
         acc[feature.category].push(feature);
         return acc;
     }, {});
 
-    const selector =
-        stream.protocol === 'hls'
-            ? standardSelectorTemplate({
-                  selectedVersion: featureAnalysisStandardVersion,
-                  onVersionChange: (version) =>
-                      eventBus.dispatch(
-                          'ui:feature-analysis:standard-version-changed',
-                          { version }
-                      ),
-              })
-            : '';
+    const radius = 36;
+    const circumference = 2 * Math.PI * radius;
+    const offset = circumference - (viewModel.score / 100) * circumference;
 
-    const getStatusIndicator = () => {
-        if (stream.manifest?.type !== 'dynamic') {
-            return html`<div
-                class="bg-slate-800 border border-slate-700 rounded-lg p-4 flex items-center gap-4 mb-6"
-            >
-                <div
-                    class="w-12 h-12 rounded-full bg-slate-700 flex items-center justify-center shrink-0 text-slate-400"
-                >
-                    ${icons.fileText}
-                </div>
-                <div>
-                    <p class="font-semibold text-slate-200">
-                        Static Manifest (VOD)
-                    </p>
-                    <p class="text-sm text-slate-400">
-                        Feature analysis is based on the single, initial
-                        manifest load.
-                    </p>
-                </div>
-            </div>`;
-        }
-
-        const isPolling = stream.isPolling;
-        const statusText = isPolling ? 'Polling Active' : 'Polling Paused';
-        const statusColor = isPolling ? 'text-cyan-400' : 'text-yellow-400';
-        const iconColor = isPolling ? 'bg-cyan-500' : 'bg-yellow-500';
-
-        return html`<div
-            class="bg-slate-800 border border-slate-700 rounded-lg p-4 flex items-center gap-4 mb-6"
+    const scoreWidget = html`
+        <div
+            class="flex items-center gap-6 bg-slate-800 rounded-2xl p-6 border border-slate-700 shadow-xl relative overflow-hidden"
         >
             <div
-                class="w-12 h-12 rounded-full bg-slate-700 flex items-center justify-center shrink-0 relative"
-            >
-                ${isPolling
-                    ? html`<div
-                          class="absolute inset-0 rounded-full ${iconColor} opacity-75 animate-ping"
-                      ></div>`
-                    : ''}
+                class="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"
+            ></div>
+
+            <div class="relative w-24 h-24 flex items-center justify-center">
+                <svg class="w-full h-full transform -rotate-90">
+                    <circle
+                        cx="48"
+                        cy="48"
+                        r="${radius}"
+                        stroke="currentColor"
+                        stroke-width="6"
+                        fill="transparent"
+                        class="text-slate-700"
+                    />
+                    <circle
+                        cx="48"
+                        cy="48"
+                        r="${radius}"
+                        stroke="currentColor"
+                        stroke-width="6"
+                        fill="transparent"
+                        stroke-dasharray="${circumference}"
+                        stroke-dashoffset="${offset}"
+                        stroke-linecap="round"
+                        class="${ringColor} transition-all duration-1000 ease-out"
+                    />
+                </svg>
                 <div
-                    class="absolute inset-1 rounded-full ${iconColor} opacity-50"
-                ></div>
-                <div class="text-white relative">${icons.updates}</div>
-            </div>
-            <div class="grow">
-                <p class="font-semibold text-slate-200">
-                    Live Analysis:
-                    <span class="font-bold ${statusColor}">${statusText}</span>
-                </p>
-                <p class="text-sm text-slate-400">
-                    New features will be detected automatically as the manifest
-                    updates.
-                </p>
-            </div>
-            <div class="text-right shrink-0">
-                <div
-                    class="text-xs text-slate-400 uppercase font-semibold tracking-wider"
+                    class="absolute inset-0 flex flex-col items-center justify-center"
                 >
-                    Versions Analyzed
+                    <span class="text-2xl font-bold text-white"
+                        >${viewModel.score}</span
+                    >
+                    <span
+                        class="text-[10px] text-slate-400 uppercase tracking-wider"
+                        >Score</span
+                    >
                 </div>
-                <div class="text-3xl font-bold text-white">
+            </div>
+
+            <div>
+                <h3 class="text-lg font-bold text-white">Stream Complexity</h3>
+                <div class="text-sm ${scoreColor} font-semibold mb-2">
+                    ${viewModel.scoreLabel}
+                </div>
+                <div class="text-xs text-slate-400 max-w-[200px]">
+                    Based on the usage of advanced features and configuration
+                    depth.
+                </div>
+            </div>
+        </div>
+    `;
+
+    const versionSelector =
+        stream.protocol === 'hls'
+            ? html`
+                  <div
+                      class="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-col justify-center"
+                  >
+                      <div
+                          class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3"
+                      >
+                          Standard Compliance
+                      </div>
+                      ${standardSelectorTemplate({
+                          selectedVersion: featureAnalysisStandardVersion,
+                          onVersionChange: (version) =>
+                              eventBus.dispatch(
+                                  'ui:feature-analysis:standard-version-changed',
+                                  { version }
+                              ),
+                      })}
+                  </div>
+              `
+            : '';
+
+    const statsWidget = html`
+        <div class="grid grid-cols-2 gap-4 flex-1">
+            <div
+                class="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-col items-center justify-center"
+            >
+                <div class="text-3xl font-bold text-white mb-1">
+                    ${usedFeaturesCount}
+                </div>
+                <div
+                    class="text-xs text-slate-400 uppercase tracking-wider font-semibold"
+                >
+                    Features Detected
+                </div>
+            </div>
+            <div
+                class="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-col items-center justify-center"
+            >
+                <div class="text-3xl font-bold text-white mb-1">
                     ${manifestCount}
                 </div>
+                <div
+                    class="text-xs text-slate-400 uppercase tracking-wider font-semibold"
+                >
+                    Updates Scanned
+                </div>
             </div>
-        </div>`;
-    };
-
-    const template = html`
-        <div
-            class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-2"
-        >
-            <h3 class="text-xl text-white font-bold">Feature Usage Analysis</h3>
-            ${selector}
         </div>
-        ${getStatusIndicator()}
-        <p class="text-sm text-slate-500 mb-6 -mt-2">
-            A breakdown of key features detected across all analyzed manifest
-            versions.
-        </p>
-        <div class="space-y-8">
-            ${Object.entries(groupedFeatures).map(([category, features]) =>
-                categoryTemplate(category, features)
-            )}
+    `;
+
+    const controls = html`
+        <div class="flex items-center justify-end gap-4 mb-6">
+            <label
+                class="flex items-center gap-2 cursor-pointer text-sm text-slate-300 select-none bg-slate-800 px-3 py-2 rounded-lg border border-slate-700 hover:border-slate-500 transition-colors"
+            >
+                <input
+                    type="checkbox"
+                    .checked=${!comparisonHideUnusedFeatures}
+                    @change=${() => {
+                        const uiActions = require('@/state/uiStore').uiActions;
+                        uiActions.toggleComparisonHideUnusedFeatures();
+                    }}
+                    class="rounded bg-slate-700 border-slate-600 text-blue-500 focus:ring-blue-500"
+                />
+                Show Unused Features
+            </label>
+        </div>
+    `;
+
+    const gridContent = Object.entries(groupedFeatures).map(
+        ([category, features]) => html`
+            <section class="mb-10 animate-fadeIn">
+                <div
+                    class="flex items-center gap-3 mb-5 pb-2 border-b border-slate-800"
+                >
+                    <div class="text-blue-400 p-1.5 bg-blue-900/20 rounded-lg">
+                        ${categoryIcons[category] || icons.features}
+                    </div>
+                    <h2 class="text-xl font-bold text-white">${category}</h2>
+                    <span
+                        class="bg-slate-800 text-slate-400 text-xs font-bold px-2 py-0.5 rounded-full ml-auto"
+                    >
+                        ${features.length}
+                    </span>
+                </div>
+
+                <div
+                    class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4"
+                >
+                    ${features.map((feature) =>
+                        featureCardTemplate(feature, toggleModal)
+                    )}
+                </div>
+            </section>
+        `
+    );
+
+    // Fixed: Added 'custom-scrollbar' and ensured overflow-y-auto on root
+    const template = html`
+        <div class="flex flex-col h-full overflow-y-auto p-4 sm:p-6 custom-scrollbar pb-20">
+            <!-- Header Dashboard -->
+            <div class="flex flex-col xl:flex-row gap-6 mb-8 shrink-0">
+                ${scoreWidget}
+                <div class="flex gap-6 flex-1">
+                    ${versionSelector} ${statsWidget}
+                </div>
+            </div>
+
+            ${controls}
+
+            <!-- Main Grid -->
+            <div class="grow min-h-0">
+                ${Object.keys(groupedFeatures).length === 0
+                    ? html`<div class="text-center py-20 text-slate-500 italic">
+                          No features match the current filter.
+                      </div>`
+                    : gridContent}
+            </div>
+
+            ${activeModalFeature
+                ? featureDetailsModalTemplate(activeModalFeature, () =>
+                      toggleModal(null)
+                  )
+                : ''}
         </div>
     `;
 
@@ -212,7 +273,6 @@ function renderFeaturesAnalysis() {
 export const featuresView = {
     mount(containerElement) {
         container = containerElement;
-
         if (uiUnsubscribe) uiUnsubscribe();
         if (analysisUnsubscribe) analysisUnsubscribe();
 
@@ -220,7 +280,6 @@ export const featuresView = {
         analysisUnsubscribe = useAnalysisStore.subscribe(
             renderFeaturesAnalysis
         );
-
         renderFeaturesAnalysis();
     },
     unmount() {
@@ -228,6 +287,7 @@ export const featuresView = {
         if (analysisUnsubscribe) analysisUnsubscribe();
         uiUnsubscribe = null;
         analysisUnsubscribe = null;
+        activeModalFeature = null;
         if (container) render(html``, container);
         container = null;
     },

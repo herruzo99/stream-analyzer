@@ -9,14 +9,27 @@ const abrLadderChartOptions = (abrData) => {
 
     const series = abrData.map((streamData) => {
         const trackMap = new Map(streamData.tracks.map((t) => [t.height, t]));
+        const isRef = streamData.isReference;
 
         return {
             name: streamData.name,
             type: 'bar',
-            barGap: 0,
+            barGap: '10%', // Slight gap between bars
+            barCategoryGap: '20%',
             emphasis: {
                 focus: 'series',
             },
+            // Highlight reference stream visually
+            itemStyle: isRef
+                ? {
+                      color: '#fbbf24', // Amber-400
+                      borderColor: '#fff',
+                      borderWidth: 1,
+                      shadowBlur: 5,
+                      shadowColor: 'rgba(251, 191, 36, 0.5)',
+                  }
+                : undefined,
+            z: isRef ? 10 : 1, // Bring reference to front
             data: allHeights.map((height) => {
                 const track = trackMap.get(height);
                 return track
@@ -30,34 +43,41 @@ const abrLadderChartOptions = (abrData) => {
     });
 
     return {
+        backgroundColor: 'transparent',
         legend: {
             data: abrData.map((d) => d.name),
-            textStyle: { color: '#e5e7eb' },
+            textStyle: { color: '#9ca3af' }, // slate-400
             bottom: 0,
             type: 'scroll',
+            pageTextStyle: { color: '#9ca3af' },
         },
-        // ARCHITECTURAL FIX: Increased bottom margin to prevent overlap with legend.
-        grid: { top: '50', right: '20', bottom: '90', left: '80' },
+        grid: {
+            top: '30',
+            right: '20',
+            bottom: '60',
+            left: '60',
+            containLabel: true,
+        },
         xAxis: {
             type: 'category',
             name: 'Resolution',
             nameLocation: 'middle',
             nameGap: 30,
-            nameTextStyle: { color: '#9ca3af' },
-            axisLine: { lineStyle: { color: '#4b5563' } },
-            axisLabel: { color: '#9ca3af' },
+            nameTextStyle: { color: '#9ca3af', fontSize: 12 },
+            axisLine: { lineStyle: { color: '#475569' } }, // slate-600
+            axisLabel: { color: '#cbd5e1', fontWeight: 'bold' }, // slate-300
             data: allHeights.map((h) => `${h}p`),
         },
         yAxis: {
             type: 'value',
             name: 'Bitrate',
             nameTextStyle: { color: '#9ca3af' },
-            axisLine: { lineStyle: { color: '#4b5563' } },
+            axisLine: { lineStyle: { color: '#475569' } },
             axisLabel: {
                 formatter: (value) => formatBitrate(value),
                 color: '#9ca3af',
             },
-            splitLine: { lineStyle: { color: '#374151' } },
+            splitLine: { lineStyle: { color: '#334155', type: 'dashed' } }, // slate-700
         },
         series,
     };
@@ -105,7 +125,7 @@ class AbrLadderChart extends HTMLElement {
         ) {
             render(
                 html`<div
-                    class="flex items-center justify-center h-full text-center text-slate-500"
+                    class="flex items-center justify-center h-full text-center text-slate-500 text-sm"
                 >
                     No comparable video tracks found.
                 </div>`,

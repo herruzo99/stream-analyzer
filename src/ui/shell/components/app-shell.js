@@ -2,22 +2,15 @@ import { html, render } from 'lit-html';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { useUiStore, uiActions } from '@/state/uiStore';
 import { usePlayerStore } from '@/state/playerStore';
-import { sidebarNavTemplate, getNavGroups } from './sidebar-nav.js';
+import { sidebarNavTemplate } from './sidebar-nav.js';
 import { renderContextSwitcher } from './context-switcher.js';
 import { globalControlsTemplate } from './global-controls.js';
 import { mainContentControlsTemplate } from './main-content-controls.js';
-import { startLiveSegmentHighlighter } from '@/features/segmentExplorer/ui/components/hls/index';
 import * as icons from '@/ui/icons';
+// Ensure the component is registered
+import '@/features/streamInput/ui/components/library-modal.js';
 
 class AppShellComponent extends HTMLElement {
-    constructor() {
-        super();
-        this.dom = {};
-        this.uiUnsubscribe = null;
-        this.analysisUnsubscribe = null;
-        this.playerUnsubscribe = null;
-    }
-
     connectedCallback() {
         this.render();
         this.uiUnsubscribe = useUiStore.subscribe(() => this.updateDOM());
@@ -30,214 +23,164 @@ class AppShellComponent extends HTMLElement {
     }
 
     disconnectedCallback() {
-        this.removeEventListeners();
         if (this.uiUnsubscribe) this.uiUnsubscribe();
         if (this.analysisUnsubscribe) this.analysisUnsubscribe();
         if (this.playerUnsubscribe) this.playerUnsubscribe();
     }
 
-    removeEventListeners() {
-        if (this.dom.sidebarNav) {
-            this.dom.sidebarNav.removeEventListener(
-                'click',
-                this.handleTabClick
-            );
-        }
-        if (this.dom.sidebarToggleBtn) {
-            this.dom.sidebarToggleBtn.removeEventListener(
-                'click',
-                this.handleSidebarToggle
-            );
-            this.dom.sidebarOverlay.removeEventListener(
-                'click',
-                this.handleOverlayClick
-            );
-        }
-    }
+    updateDOM() {
+        const { activeSidebar } = useUiStore.getState();
+        const isPrimaryOpen = activeSidebar === 'primary';
+        const isContextualOpen = activeSidebar === 'contextual';
 
-    handleTabClick(e) {
-        const target = /** @type {HTMLElement} */ (e.target);
-        const targetTab = /** @type {HTMLElement} */ (
-            target.closest('[data-tab]')
-        );
-        if (!targetTab) return;
+        // --- 1. Handle Primary Sidebar (Mobile) ---
+        const sidebarContainer = this.querySelector('#sidebar-container');
+        const sidebarOverlay = this.querySelector('#sidebar-overlay');
 
-        e.preventDefault();
-        const tabKey = targetTab.dataset.tab;
-        const { activeTab } = useUiStore.getState();
-
-        if (activeTab === tabKey) {
-            uiActions.setActiveSidebar(null);
-            return;
+        if (sidebarContainer) {
+            // Toggle transform classes directly based on state
+            if (isPrimaryOpen) {
+                sidebarContainer.classList.remove('-translate-x-full');
+                sidebarContainer.classList.add('translate-x-0');
+            } else {
+                sidebarContainer.classList.add('-translate-x-full');
+                sidebarContainer.classList.remove('translate-x-0');
+            }
         }
 
-        uiActions.setActiveTab(tabKey);
-        uiActions.setActiveSidebar(null);
-    }
+        if (sidebarOverlay) {
+            if (isPrimaryOpen) {
+                sidebarOverlay.classList.remove('hidden');
+                sidebarOverlay.classList.add('block', 'animate-fadeIn');
+            } else {
+                sidebarOverlay.classList.add('hidden');
+                sidebarOverlay.classList.remove('block', 'animate-fadeIn');
+            }
+        }
 
-    handleSidebarToggle() {
-        uiActions.setActiveSidebar('primary');
-    }
+        // --- 2. Handle Contextual Sidebar (Desktop/Mobile) ---
+        const contextSidebar = this.querySelector('#contextual-sidebar');
+        if (contextSidebar) {
+             if (isContextualOpen) {
+                contextSidebar.classList.remove('translate-x-full');
+                contextSidebar.classList.add('translate-x-0');
+                document.body.classList.add('contextual-sidebar-open');
+             } else {
+                contextSidebar.classList.add('translate-x-full');
+                contextSidebar.classList.remove('translate-x-0');
+                document.body.classList.remove('contextual-sidebar-open');
+             }
+        }
 
-    handleOverlayClick() {
-        uiActions.setActiveSidebar(null);
+        // --- 3. Render Inner Content ---
+        if (sidebarContainer) {
+            const headerContainer = sidebarContainer.querySelector('#stream-identity-header');
+            if (headerContainer) {
+                render(renderContextSwitcher(), /** @type {HTMLElement} */ (headerContainer));
+            }
+
+            const navContainer = sidebarContainer.querySelector('#sidebar-nav');
+            if (navContainer) {
+                render(sidebarNavTemplate(), /** @type {HTMLElement} */ (navContainer));
+            }
+
+            const footerContainer = sidebarContainer.querySelector('#sidebar-footer');
+            if (footerContainer) {
+                render(globalControlsTemplate(), /** @type {HTMLElement} */ (footerContainer));
+            }
+        }
+
+        const contextHeader = this.querySelector('#context-header');
+        if (contextHeader) {
+            render(mainContentControlsTemplate(), /** @type {HTMLElement} */ (contextHeader));
+        }
     }
 
     render() {
-        const appShellTemplate = html`
-            <header
-                id="mobile-header"
-                class="hidden xl:hidden shrink-0 bg-slate-900/80 backdrop-blur-sm border-b border-slate-800 p-3 flex items-center justify-between gap-4 fixed top-0 left-0 right-0 z-20"
-            >
-                <button
-                    id="sidebar-toggle-btn"
-                    class="text-slate-300 hover:text-white p-1"
-                >
-                    ${icons.menu}
-                </button>
-                <h2
-                    id="mobile-page-title"
-                    class="text-lg font-bold text-white"
-                ></h2>
-                <div class="w-7"></div>
-            </header>
+        // Changed: h-screen -> h-[100dvh] to handle mobile address bars correctly
+        // Added: w-full max-w-[100vw] to prevent horizontal overflows
+        const template = html`
             <div
                 id="app-root-inner"
-                class="h-screen xl:grid xl:grid-cols-[18rem_1fr_auto]"
+                class="h-[100dvh] w-full max-w-[100vw] xl:grid xl:grid-cols-[var(--sidebar-width)_minmax(0,1fr)_auto] overflow-hidden bg-slate-950 fixed inset-0"
             >
+                <!-- Mobile Overlay -->
                 <div
                     id="sidebar-overlay"
-                    class="fixed inset-0 bg-black/50 z-30 hidden xl:hidden"
+                    class="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 hidden xl:hidden"
+                    @click=${() => uiActions.setActiveSidebar(null)}
                 ></div>
+
+                <!-- Sidebar -->
                 <aside
                     id="sidebar-container"
-                    class="bg-slate-950 border-r border-slate-800 flex flex-col fixed xl:relative top-0 left-0 bottom-0 z-40 w-72 -translate-x-full xl:translate-x-0 transition-transform duration-300 ease-in-out flex-shrink-0"
+                    class="glass-panel flex flex-col fixed xl:relative top-0 left-0 bottom-0 z-40 w-[var(--sidebar-width)] -translate-x-full xl:translate-x-0 transition-transform duration-300 ease-out shadow-2xl xl:shadow-none"
                 >
-                    <header class="p-3">
-                        <h2 class="text-xl font-bold text-white mb-4 px-2">
-                            Stream Analyzer
-                        </h2>
-                    </header>
+                    <div id="stream-identity-header" class="shrink-0"></div>
                     <nav
                         id="sidebar-nav"
-                        class="flex flex-col grow overflow-y-auto p-3"
+                        class="flex-col grow overflow-y-auto scrollbar-hide pt-2"
                     ></nav>
-                    <footer
-                        id="sidebar-footer"
-                        class="shrink-0 p-3 space-y-4"
-                    ></footer>
+                    <footer id="sidebar-footer" class="shrink-0"></footer>
                 </aside>
+
+                <!-- Main Content Area -->
                 <div
-                    id="app-shell"
-                    class="h-full flex flex-col min-h-0 bg-slate-900 min-w-0"
+                    class="flex flex-col min-h-0 bg-slate-900 relative w-full max-w-full h-full"
                 >
-                    <div
-                        id="main-content-wrapper"
-                        class="flex flex-col overflow-scroll grow pt-[60px] xl:pt-0"
+                    <!-- Mobile Header -->
+                    <header
+                        class="xl:hidden shrink-0 bg-slate-900/90 border-b border-slate-800 p-3 flex items-center justify-between gap-4 z-20"
                     >
-                        <header
-                            id="main-header"
-                            class="shrink-0 bg-slate-900/80 backdrop-blur-sm border-b border-slate-800 p-3 flex items-center justify-between gap-4"
+                        <button
+                            @click=${() =>
+                                uiActions.setActiveSidebar('primary')}
+                            class="text-slate-300 p-2 -ml-2 hover:bg-slate-800 rounded-lg transition-colors"
                         >
-                            <div
-                                id="context-header"
-                                class="flex items-center gap-2 sm:gap-4 flex-wrap justify-start w-full"
-                            ></div>
-                        </header>
-                        <main
-                            class="grow flex text-white flex-col relative bg-slate-900 min-h-0"
+                            ${icons.menu}
+                        </button>
+                        <span class="font-bold text-slate-200"
+                            >Stream Analyzer</span
                         >
-                            <div
-                                id="tab-view-container"
-                                class="grow flex flex-col p-4 sm:p-6 min-h-0"
-                            ></div>
-                            <div
-                                id="persistent-player-container"
-                                class="grow flex flex-col hidden p-4 sm:p-6"
-                            ></div>
-                        </main>
-                    </div>
+                        <div class="w-8"></div> <!-- Spacer for balance -->
+                    </header>
+
+                    <!-- Desktop Header -->
+                    <header
+                        class="hidden xl:flex shrink-0 h-14 items-center justify-between px-6 border-b border-slate-800 bg-slate-900"
+                    >
+                        <div id="context-header" class="w-full flex items-center"></div>
+                    </header>
+
+                    <!-- View Container -->
+                    <!-- 
+                        CRITICAL FIX: 
+                        - grow: Fills available space
+                        - min-h-0: Allows flex child to shrink below content size (enabling scroll)
+                        - h-full: Ensures explicit height context for children
+                    -->
+                    <main
+                        id="tab-view-container"
+                        class="grow flex flex-col min-h-0 relative w-full max-w-full overflow-hidden h-full"
+                    ></main>
+
+                    <div
+                        id="persistent-player-container"
+                        class="hidden p-4"
+                    ></div>
                 </div>
+
+                <!-- Contextual Sidebar -->
                 <aside
                     id="contextual-sidebar"
-                    class="bg-slate-800 border-l border-slate-700/50 fixed xl:relative top-0 right-0 bottom-0 z-40 w-96 max-w-[90vw] translate-x-full xl:translate-x-0 transition-transform duration-300 ease-in-out flex flex-col min-h-0"
+                    class="bg-slate-900 border-l border-slate-800 fixed xl:relative top-0 right-0 bottom-0 z-40 w-96 translate-x-full xl:translate-x-0 transition-transform duration-300 ease-in-out flex flex-col min-h-0 shadow-2xl xl:shadow-none"
                 ></aside>
+
+                <!-- Library Modal (Always available for interaction) -->
+                <library-modal-component></library-modal-component>
             </div>
         `;
-        render(appShellTemplate, this);
-
-        this.dom = {
-            mainContent: this.querySelector('#tab-view-container'),
-            sidebarNav: this.querySelector('#sidebar-nav'),
-            sidebarFooter: this.querySelector('#sidebar-footer'),
-            contextHeader: this.querySelector('#context-header'),
-            mobileHeader: this.querySelector('#mobile-header'),
-            sidebarOverlay: this.querySelector('#sidebar-overlay'),
-            sidebarToggleBtn: this.querySelector('#sidebar-toggle-btn'),
-            mobilePageTitle: this.querySelector('#mobile-page-title'),
-        };
-
-        this.updateDOM();
-    }
-
-    updateDOM() {
-        const { activeStreamId } = useAnalysisStore.getState();
-        const { activeTab, activeSidebar } = useUiStore.getState();
-        const activeStream = useAnalysisStore
-            .getState()
-            .streams.find((s) => s.id === activeStreamId);
-
-        this.removeEventListeners();
-        if (this.dom.sidebarNav)
-            this.dom.sidebarNav.addEventListener('click', this.handleTabClick);
-        if (this.dom.sidebarToggleBtn) {
-            this.dom.sidebarToggleBtn.addEventListener(
-                'click',
-                this.handleSidebarToggle
-            );
-            this.dom.sidebarOverlay.addEventListener(
-                'click',
-                this.handleOverlayClick
-            );
-        }
-
-        if (this.dom.mobilePageTitle) {
-            const navGroups = getNavGroups();
-            const allNavItems = navGroups.flatMap((g) => g.items);
-            const currentTab = allNavItems.find(
-                (item) => item.key === activeTab
-            );
-            this.dom.mobilePageTitle.textContent = currentTab
-                ? currentTab.label
-                : '';
-        }
-        this.dom.mobileHeader?.classList.toggle('hidden', !activeStream);
-
-        document.body.classList.toggle(
-            'primary-sidebar-open',
-            activeSidebar === 'primary'
-        );
-        document.body.classList.toggle(
-            'contextual-sidebar-open',
-            activeSidebar === 'contextual'
-        );
-
-        const footerTemplate = html`
-            ${renderContextSwitcher()} ${globalControlsTemplate()}
-        `;
-
-        render(sidebarNavTemplate(), this.dom.sidebarNav);
-        render(footerTemplate, this.dom.sidebarFooter);
-        render(mainContentControlsTemplate(), this.dom.contextHeader);
-
-        if (
-            activeStream &&
-            activeStream.manifest.type === 'dynamic' &&
-            activeStream.protocol === 'hls' &&
-            activeTab === 'explorer'
-        ) {
-            startLiveSegmentHighlighter(this.dom.mainContent, activeStream);
-        }
+        render(template, this);
     }
 }
 

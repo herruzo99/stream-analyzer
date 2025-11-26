@@ -47,20 +47,33 @@ export function highlightDash(text) {
  */
 export function highlightHls(text) {
     if (!text) return '';
-    const escaped = escapeHtml(text.trim());
+    // FIX: Do not trim() here; preserve leading whitespace for indentation.
+    const escaped = escapeHtml(text);
+    const trimmed = escaped.trim();
 
-    if (escaped.startsWith('#EXT')) {
+    if (trimmed.startsWith('#EXT')) {
         const separatorIndex = escaped.indexOf(':');
         if (separatorIndex === -1) {
-            return `#<span class="text-purple-300">${escaped.substring(
-                1
-            )}</span>`;
+            // It's a tag without value, e.g. #EXTM3U
+            // We need to separate the leading whitespace from the tag for coloring
+            const tagMatch = escaped.match(/^(\s*)(#EXT[\w-]+)(.*)$/);
+            if (tagMatch) {
+                return `${tagMatch[1]}<span class="text-purple-300">${tagMatch[2]}</span>${tagMatch[3]}`;
+            }
+            return `<span class="text-purple-300">${escaped}</span>`;
         }
-        const tagName = escaped.substring(1, separatorIndex);
-        let attributesPart = escaped.substring(separatorIndex + 1);
+
+        const preTag = escaped.substring(0, separatorIndex);
+        const attributesPart = escaped.substring(separatorIndex + 1);
+
+        // Color the Tag (handle indentation if present)
+        const tagHtml = preTag.replace(
+            /(#EXT[\w-]+)/,
+            '<span class="text-purple-300">$1</span>'
+        );
 
         // Highlight attributes and their values
-        attributesPart = attributesPart.replace(
+        const highlightedAttrs = attributesPart.replace(
             /([A-Z0-9-]+)=(&quot;[^&quot;]*&quot;|[^,]+)/g,
             (match, key, value) => {
                 const isQuoted = value.startsWith('&quot;');
@@ -74,15 +87,22 @@ export function highlightHls(text) {
         );
 
         // Handle values without an attribute key (like in EXTINF)
-        if (!attributesPart.includes('=')) {
-            attributesPart = `<span class="text-yellow-300">${attributesPart}</span>`;
-        }
+        const finalAttrs =
+            !highlightedAttrs.includes('=') && !attributesPart.includes('=')
+                ? `<span class="text-yellow-300">${attributesPart}</span>`
+                : highlightedAttrs;
 
-        return `#<span class="text-purple-300">${tagName}</span>:${attributesPart}`;
+        return `${tagHtml}:${finalAttrs}`;
     }
-    if (escaped.startsWith('#')) {
+    if (trimmed.startsWith('#')) {
         return `<span class="text-slate-500">${escaped}</span>`;
     }
+
     // URIs and other content
+    // Detect indentation vs content
+    const uriMatch = escaped.match(/^(\s*)(.*)$/);
+    if (uriMatch) {
+        return `${uriMatch[1]}<span class="text-cyan-400">${uriMatch[2]}</span>`;
+    }
     return `<span class="text-cyan-400">${escaped}</span>`;
 }

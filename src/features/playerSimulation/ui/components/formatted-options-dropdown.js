@@ -1,60 +1,12 @@
 import { html } from 'lit-html';
 import { closeDropdown } from '@/ui/services/dropdownService';
-import { tooltipTriggerClasses } from '@/ui/shared/constants';
+import * as icons from '@/ui/icons';
 
 /**
- * Renders a single option card within the dropdown.
- * @param {object} params
- * @param {string} params.label - Primary text.
- * @param {string} [params.description] - Secondary text.
- * @param {boolean} params.isActive - Visual active state.
- * @param {Function} params.onClick - Click handler.
- */
-const optionCardTemplate = ({ label, description, isActive, onClick }) => {
-    const activeClasses = 'bg-blue-800 border-blue-600 ring-2 ring-blue-500';
-    const baseClasses =
-        'bg-gray-900/50 p-3 rounded-lg border border-gray-700 cursor-pointer transition-all duration-150 ease-in-out text-left w-full';
-    const hoverClasses = 'hover:bg-gray-700 hover:border-gray-500';
-
-    return html`
-        <button
-            class="${baseClasses} ${hoverClasses} ${isActive
-                ? activeClasses
-                : ''}"
-            @click=${(e) => onClick(e)}
-            data-tooltip=${description || ''}
-        >
-            <div class="flex justify-between items-center">
-                <span
-                    class="font-semibold text-gray-200 truncate ${description
-                        ? tooltipTriggerClasses
-                        : ''}"
-                    >${label}</span
-                >
-                ${isActive
-                    ? html`<span
-                          class="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-600 text-white shrink-0 ml-2"
-                          >ACTIVE</span
-                      >`
-                    : ''}
-            </div>
-            ${description
-                ? html`<div
-                      class="text-xs text-gray-400 mt-1 whitespace-normal"
-                  >
-                      ${description}
-                  </div>`
-                : ''}
-        </button>
-    `;
-};
-
-/**
- * A generic dropdown panel for selecting from a list of formatted options.
- * @param {Array<{id: string|number, label: string, description?: string}>} options - The list of options to display.
- * @param {string|number|null} activeId - The ID of the currently active option.
- * @param {(option: object, event: MouseEvent) => void} onSelect - Callback function when an option is selected.
- * @returns {import('lit-html').TemplateResult}
+ * A generic, styled dropdown for selecting options with descriptions.
+ * @param {Array<{id: any, label: string, description?: string}>} options
+ * @param {any} activeId
+ * @param {(option: any, event: Event) => void} onSelect
  */
 export const formattedOptionsDropdownTemplate = (
     options,
@@ -68,16 +20,49 @@ export const formattedOptionsDropdownTemplate = (
 
     return html`
         <div
-            class="dropdown-panel bg-gray-800 border border-gray-700 rounded-lg shadow-xl w-80 p-2 space-y-2 max-h-[60vh] overflow-y-auto"
+            class="dropdown-panel bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl w-80 p-2 space-y-1 ring-1 ring-black/50 max-h-[60vh] overflow-y-auto custom-scrollbar"
         >
-            ${options.map((option) =>
-                optionCardTemplate({
-                    label: option.label,
-                    description: option.description,
-                    isActive: option.id === activeId,
-                    onClick: (e) => handleSelect(option, e),
-                })
-            )}
+            ${options.map((option) => {
+                const isActive = option.id === activeId;
+                return html`
+                    <button
+                        @click=${(e) => handleSelect(option, e)}
+                        class="group w-full text-left p-3 rounded-lg transition-all duration-200 border ${isActive
+                            ? 'bg-blue-600 border-blue-500 shadow-md shadow-blue-900/20'
+                            : 'bg-transparent border-transparent hover:bg-white/5 hover:border-white/10'}"
+                    >
+                        <div class="flex items-start gap-3">
+                            <div
+                                class="shrink-0 mt-0.5 ${isActive
+                                    ? 'text-white'
+                                    : 'text-slate-500 group-hover:text-slate-400'}"
+                            >
+                                ${isActive ? icons.radio : icons.circle}
+                            </div>
+                            <div>
+                                <div
+                                    class="font-bold text-sm ${isActive
+                                        ? 'text-white'
+                                        : 'text-slate-200'}"
+                                >
+                                    ${option.label}
+                                </div>
+                                ${option.description
+                                    ? html`
+                                          <div
+                                              class="text-xs mt-1 leading-relaxed ${isActive
+                                                  ? 'text-blue-100'
+                                                  : 'text-slate-400'}"
+                                          >
+                                              ${option.description}
+                                          </div>
+                                      `
+                                    : ''}
+                            </div>
+                        </div>
+                    </button>
+                `;
+            })}
         </div>
     `;
 };

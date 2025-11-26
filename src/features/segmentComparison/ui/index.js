@@ -1,228 +1,162 @@
 import { html, render } from 'lit-html';
-import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
-import { useUiStore, uiActions } from '@/state/uiStore';
+import { useAnalysisStore } from '@/state/analysisStore';
 import { useSegmentCacheStore } from '@/state/segmentCacheStore';
+import { useUiStore, uiActions } from '@/state/uiStore';
 import { createComparisonModel } from '../domain/comparisonEngine.js';
-import { comparisonHeaderTemplate } from './components/comparisonHeader.js';
-import { comparisonSectionTemplate } from './components/comparisonSection.js';
-import { semanticDiffTemplate } from './components/semanticDiff.js';
-import { connectedTabBar } from '@/ui/components/tabs';
+import { comparisonLayoutTemplate } from './components/comparison-layout.js';
+import * as icons from '@/ui/icons';
 
 let container = null;
-let analysisUnsubscribe = null;
-let uiUnsubscribe = null;
+let unsubs = [];
 
-function renderSegmentComparison() {
+function resolveSegmentData(meta) {
+    const { streams } = useAnalysisStore.getState();
+    const { get } = useSegmentCacheStore.getState();
+
+    const cacheEntry = get(meta.segmentUniqueId);
+    if (!cacheEntry || !cacheEntry.parsedData) return null;
+
+    // Resolve stream even if it's not the currently active one
+    const stream = streams.find((s) => s.id === meta.streamId);
+    if (!stream) return null;
+
+    // Find segment metadata in stream state for numbering/timing info
+    // Simplified lookup: check dash/hls states
+    let segmentMeta = null;
+    const findSeg = (map) => {
+        for (const state of map.values()) {
+            const s = state.segments.find(
+                (seg) => seg.uniqueId === meta.segmentUniqueId
+            );
+            if (s) return s;
+        }
+    };
+
+    if (stream.protocol === 'dash')
+        segmentMeta = findSeg(stream.dashRepresentationState);
+    else if (stream.protocol === 'hls')
+        segmentMeta = findSeg(stream.hlsVariantState);
+    // Fallback for init segments or local files where deep lookup might fail
+    if (!segmentMeta)
+        segmentMeta = { number: '?', uniqueId: meta.segmentUniqueId };
+
+    return {
+        ...cacheEntry.parsedData,
+        stream,
+        segment: segmentMeta,
+    };
+}
+
+function renderView() {
     if (!container) return;
 
-    const { streams, segmentsForCompare } = useAnalysisStore.getState();
-    const { comparisonHideSameRows, segmentComparisonActiveTab } =
-        useUiStore.getState();
-    const { get: getFromCache } = useSegmentCacheStore.getState();
+    const { segmentsForCompare } = useAnalysisStore.getState();
+    // Use persistent UI state instead of local vars
+    const { segmentComparisonSelection } = useUiStore.getState();
+    let { idA, idB } = segmentComparisonSelection;
 
-    let template;
-
-    if (segmentsForCompare.length < 2) {
-        template = html`<div class="text-center py-12 text-slate-400">
-            <p>
-                Select at least two segments from the Segment Explorer to
-                compare.
-            </p>
-        </div>`;
-    } else {
-        const enrichedSegments = segmentsForCompare
-            .map((item) => {
-                const cachedEntry = getFromCache(item.segmentUniqueId);
-                if (
-                    !cachedEntry ||
-                    cachedEntry.status !== 200 ||
-                    !cachedEntry.parsedData
-                ) {
-                    return null;
-                }
-                const stream = streams.find((s) => s.id === item.streamId);
-                if (!stream) return null;
-
-                let segment = null;
-
-                if (stream.protocol === 'dash') {
-                    const repState = stream.dashRepresentationState.get(
-                        item.repId
-                    );
-                    if (repState) {
-                        segment = repState.segments.find(
-                            (s) => s.uniqueId === item.segmentUniqueId
-                        );
-                    }
-                } else if (stream.protocol === 'hls') {
-                    const variantState = stream.hlsVariantState.get(item.repId);
-                    if (variantState) {
-                        segment = variantState.segments.find(
-                            (s) => s.uniqueId === item.segmentUniqueId
-                        );
-                    }
-                }
-
-                if (!segment) return null;
-
-                return { ...cachedEntry.parsedData, stream, segment };
-            })
-            .filter(Boolean);
-
-        if (enrichedSegments.length !== segmentsForCompare.length) {
-            template = html`<div class="text-center py-12 text-yellow-400">
-                <p>
-                    One or more selected segments have not been loaded yet.
-                    Please load them from the Segment Explorer first.
-                </p>
-            </div>`;
-        } else {
-            try {
-                const { headers, sections, structuralDiff } =
-                    createComparisonModel(enrichedSegments);
-
-                const hasStructuralDiff =
-                    structuralDiff && structuralDiff.length > 0;
-                const tabs = [
-                    { key: 'tabular', label: 'Tabular Comparison' },
-                    ...(hasStructuralDiff
-                        ? [
-                              {
-                                  key: 'structural',
-                                  label: 'Structural Diff',
-                              },
-                          ]
-                        : []),
-                ];
-
-                const filteredSections = sections
-                    .map((section) => ({
-                        ...section,
-                        rows: comparisonHideSameRows
-                            ? section.rows.filter(
-                                  (row) => row.status !== 'same'
-                              )
-                            : section.rows,
-                        tableData: section.tableData,
-                    }))
-                    .filter(
-                        (section) =>
-                            section.rows.length > 0 || section.tableData
-                    );
-
-                let tabContent;
-                if (segmentComparisonActiveTab === 'structural') {
-                    tabContent = html`<div class="overflow-auto grow mt-6">
-                        <p class="text-sm text-slate-400 mb-2">
-                            Visual comparison of the ISOBMFF box tree. Only the
-                            first two selected segments are used for this view.
-                        </p>
-                        ${semanticDiffTemplate(structuralDiff)}
-                    </div>`;
-                } else {
-                    tabContent = html`
-                        <!-- Sticky Table Header -->
-                        <div class="shrink-0 mt-6">
-                            <div class="min-w-[1024px]">
-                                ${comparisonHeaderTemplate(headers)}
-                            </div>
-                        </div>
-                        <!-- Scrollable Table Body -->
-                        <div class="overflow-auto grow">
-                            <div class="min-w-[1024px]">
-                                ${filteredSections.map((section) =>
-                                    comparisonSectionTemplate(
-                                        section,
-                                        headers.length
-                                    )
-                                )}
-                            </div>
-                        </div>
-                    `;
-                }
-
-                template = html`
-                    <div class="flex flex-col h-full">
-                        <div
-                            class="flex justify-between items-center mb-4 shrink-0"
-                        >
-                            <h3 class="text-xl font-bold">
-                                Segment Comparison
-                            </h3>
-                            <div class="flex items-center gap-4">
-                                <div class="flex items-center gap-2">
-                                    <label
-                                        for="hide-same-toggle"
-                                        class="text-sm text-slate-400"
-                                        >Hide identical rows</label
-                                    >
-                                    <button
-                                        @click=${() =>
-                                            uiActions.toggleComparisonHideSameRows()}
-                                        role="switch"
-                                        aria-checked="${comparisonHideSameRows}"
-                                        id="hide-same-toggle"
-                                        class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${comparisonHideSameRows
-                                            ? 'bg-blue-600'
-                                            : 'bg-slate-600'}"
-                                    >
-                                        <span
-                                            class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${comparisonHideSameRows
-                                                ? 'translate-x-6'
-                                                : 'translate-x-1'}"
-                                        ></span>
-                                    </button>
-                                </div>
-                                <button
-                                    @click=${() =>
-                                        analysisActions.clearSegmentsToCompare()}
-                                    class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3 rounded-md transition-colors text-sm"
-                                >
-                                    Clear Selection
-                                </button>
-                            </div>
-                        </div>
-
-                        <div class="shrink-0">
-                            ${connectedTabBar(
-                                tabs,
-                                segmentComparisonActiveTab,
-                                uiActions.setSegmentComparisonActiveTab
-                            )}
-                        </div>
-                        ${tabContent}
+    if (segmentsForCompare.length === 0) {
+        render(
+            html`
+                <div
+                    class="flex flex-col items-center justify-center h-full text-slate-500 bg-slate-950"
+                >
+                    <div
+                        class="p-6 bg-slate-900 rounded-full border border-slate-800 shadow-xl mb-4"
+                    >
+                        ${icons.list}
                     </div>
-                `;
-            } catch (e) {
-                template = html`<div class="text-center py-12 text-red-400">
-                    <p class="font-bold">Could not generate comparison:</p>
-                    <p class="font-mono mt-2">${e.message}</p>
-                </div>`;
-            }
+                    <h3 class="text-lg font-bold text-slate-300">
+                        Comparison Queue Empty
+                    </h3>
+                    <p class="text-sm mt-2 max-w-md text-center">
+                        Go to the
+                        <strong class="text-blue-400">Segment Explorer</strong>
+                        and select segments (click or check) to add them to this
+                        comparison workspace.
+                    </p>
+                </div>
+            `,
+            container
+        );
+        return;
+    }
+
+    // Resolve all available segments
+    const availableSegments = segmentsForCompare
+        .map(resolveSegmentData)
+        .filter(Boolean);
+
+    // Default selection logic if state is null or invalid
+    const validId = (id) =>
+        availableSegments.some((s) => s.segment.uniqueId === id);
+
+    if (!idA || !validId(idA)) {
+        idA = availableSegments[0]?.segment.uniqueId;
+        // Update store to keep sync (defer to avoid render loop)
+        if (idA)
+            setTimeout(
+                () => uiActions.setSegmentComparisonSelection({ idA }),
+                0
+            );
+    }
+
+    if ((!idB || !validId(idB)) && availableSegments.length > 1) {
+        // Pick the second available one that isn't A, if possible
+        const candidate =
+            availableSegments.find((s) => s.segment.uniqueId !== idA) ||
+            availableSegments[1];
+        idB = candidate?.segment.uniqueId;
+        if (idB)
+            setTimeout(
+                () => uiActions.setSegmentComparisonSelection({ idB }),
+                0
+            );
+    }
+
+    const segmentA = availableSegments.find((s) => s.segment.uniqueId === idA);
+    const segmentB = availableSegments.find((s) => s.segment.uniqueId === idB);
+
+    let structuralDiff = [];
+    if (segmentA && segmentB) {
+        // Re-use the domain logic
+        try {
+            const model = createComparisonModel([segmentA, segmentB]);
+            structuralDiff = model.structuralDiff;
+        } catch (e) {
+            console.error('Comparison generation failed:', e);
         }
     }
 
-    render(template, container);
+    const layout = comparisonLayoutTemplate({
+        availableSegments,
+        segmentA,
+        segmentB,
+        structuralDiff,
+        onSelectA: (seg) =>
+            uiActions.setSegmentComparisonSelection({
+                idA: seg.segment.uniqueId,
+            }),
+        onSelectB: (seg) =>
+            uiActions.setSegmentComparisonSelection({
+                idB: seg.segment.uniqueId,
+            }),
+    });
+
+    render(layout, container);
 }
 
 export const segmentComparisonView = {
-    mount(containerElement, { streams }) {
-        container = containerElement;
-        if (analysisUnsubscribe) analysisUnsubscribe();
-        if (uiUnsubscribe) uiUnsubscribe();
-
-        analysisUnsubscribe = useAnalysisStore.subscribe(
-            renderSegmentComparison
-        );
-        uiUnsubscribe = useUiStore.subscribe(renderSegmentComparison);
-
-        renderSegmentComparison();
+    mount(el) {
+        container = el;
+        unsubs.push(useAnalysisStore.subscribe(renderView));
+        unsubs.push(useSegmentCacheStore.subscribe(renderView));
+        unsubs.push(useUiStore.subscribe(renderView));
+        renderView();
     },
     unmount() {
-        if (analysisUnsubscribe) analysisUnsubscribe();
-        if (uiUnsubscribe) uiUnsubscribe();
-        analysisUnsubscribe = null;
-        uiUnsubscribe = null;
+        unsubs.forEach((u) => u());
+        unsubs = [];
         if (container) render(html``, container);
         container = null;
     },

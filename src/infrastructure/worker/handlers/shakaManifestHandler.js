@@ -10,9 +10,6 @@ import xmlFormatter from 'xml-formatter';
 import { appLog } from '../../../shared/utils/debug.js';
 import { resolveAdAvailsInWorker } from '../../../features/advertising/application/resolveAdAvailWorker.js';
 
-
-
-
 function detectProtocol(manifestString, hint) {
     if (hint) return hint;
     if (typeof manifestString !== 'string') return 'dash';
@@ -22,12 +19,6 @@ function detectProtocol(manifestString, hint) {
     return 'dash';
 }
 
-/**
- * An asynchronous, non-blocking function to perform all application-level analysis for a live manifest update.
- * @param {object} payload - The original payload received by the handler.
- * @param {string} newManifestString - The newly fetched manifest content.
- * @param {string} finalUrl - The final URL after any redirects.
- */
 async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
     const {
         streamId,
@@ -37,7 +28,7 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
         hlsDefinedVariables,
         oldDashRepresentationState: oldDashRepStateArray,
         oldAdAvails,
-        isLive, // <-- Use the authoritative value from the plugin
+        isLive,
     } = payload;
     const now = Date.now();
     const detectedProtocol = detectProtocol(
@@ -268,8 +259,8 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
                 id:
                     String(
                         event.scte35?.splice_command?.splice_event_id ||
-                        event.scte35?.descriptors?.[0]
-                            ?.segmentation_event_id
+                            event.scte35?.descriptors?.[0]
+                                ?.segmentation_event_id
                     ) || String(event.startTime),
                 startTime: event.startTime,
                 duration:
@@ -279,7 +270,7 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
                 scte35Signal: event.scte35,
                 adManifestUrl:
                     event.scte35?.descriptors?.[0]?.segmentation_upid_type ===
-                        0x0c
+                    0x0c
                         ? event.scte35.descriptors[0].segmentation_upid
                         : null,
                 creatives: [],
@@ -331,11 +322,23 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
 }
 
 export async function handleShakaManifestFetch(payload, signal) {
-    const { streamId, url, auth, isLive } = payload;
+    const { streamId, url, auth, isLive, baseUrl } = payload;
     const startTime = performance.now();
     appLog('shakaManifestHandler', 'info', `Fetching manifest for ${url}`);
 
-    const response = await fetchWithAuth(url, auth, null, {}, null, signal);
+    // Pass empty object for loggingContext to disable fetchWithAuth's automatic logging,
+    // because we log it manually below.
+    const response = await fetchWithAuth(
+        url,
+        auth,
+        null,
+        {},
+        null,
+        signal,
+        {}, // Disable auto logging
+        'GET'
+    );
+
     const requestHeadersForLogging = {};
     if (auth?.headers) {
         for (const header of auth.headers) {
@@ -374,10 +377,46 @@ export async function handleShakaManifestFetch(payload, signal) {
         );
     }
 
-    const newManifestString = await response.text();
+    let newManifestString = await response.text();
+
+    // --- ARCHITECTURAL FIX: Determine correct Base URI for Shaka ---
+    // If the manifest was loaded from a Blob URL (patched), we must return
+    // the original stream's base URL as the `uri` so that relative paths resolve correctly.
+    let responseUri = response.url;
+    if (response.url.startsWith('blob:') && baseUrl) {
+        appLog(
+            'shakaManifestHandler',
+            'info',
+            `Detected Blob URL manifest. Overriding response URI to: ${baseUrl}`
+        );
+        responseUri = baseUrl;
+
+        // --- ADDITIONAL FIX: Inject BaseURL into DASH manifest ---
+        // Shaka's internal DASH parser sometimes relies on the manifest content
+        // itself to resolve relative paths if the MPD BaseURL handling logic kicks in.
+        // Injecting the absolute BaseURL ensures no ambiguity.
+        const detectedProtocol = detectProtocol(newManifestString);
+        if (detectedProtocol === 'dash') {
+            const mpdRegex = /<MPD[^>]*>/;
+            const match = newManifestString.match(mpdRegex);
+            if (match) {
+                const insertIndex = match.index + match[0].length;
+                const baseTag = `\n  <BaseURL>${baseUrl}</BaseURL>`;
+                newManifestString =
+                    newManifestString.slice(0, insertIndex) +
+                    baseTag +
+                    newManifestString.slice(insertIndex);
+                appLog(
+                    'shakaManifestHandler',
+                    'info',
+                    `Injected <BaseURL> for DASH path resolution.`
+                );
+            }
+        }
+    }
 
     if (isLive) {
-        await analyzeUpdateAndNotify(payload, newManifestString, response.url);
+        await analyzeUpdateAndNotify(payload, newManifestString, responseUri);
     } else {
         appLog(
             'shakaManifestHandler',
@@ -391,9 +430,10 @@ export async function handleShakaManifestFetch(payload, signal) {
         'info',
         'Returning raw manifest to Shaka player immediately.'
     );
+
     return {
-        uri: response.url,
-        originalUri: url,
+        uri: responseUri,
+        originalUri: responseUri, // Override this too to prevent fallback logic in Shaka
         data: new TextEncoder().encode(newManifestString).buffer,
         headers: response.headers,
         status: response.status,

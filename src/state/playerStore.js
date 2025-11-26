@@ -34,7 +34,7 @@ import { createStore } from 'zustand/vanilla';
  * @property {boolean} hasUnreadLogs
  * @property {AbrHistoryEntry[]} abrHistory
  * @property {PlaybackHistoryEntry[]} playbackHistory
- * @property {'controls' | 'stats' | 'log' | 'graphs'} activeTab
+ * @property {'controls' | 'stats' | 'log' | 'graphs' | 'telemetry'} activeTab
  * @property {number} retryCount
  */
 
@@ -50,7 +50,7 @@ import { createStore } from 'zustand/vanilla';
  * @property {(stats: PlayerStats) => void} updateStats
  * @property {(event: PlayerEvent) => void} logEvent
  * @property {(entry: AbrHistoryEntry) => void} logAbrSwitch
- * @property {(tab: 'controls' | 'stats' | 'log' | 'graphs') => void} setActiveTab
+ * @property {(tab: 'controls' | 'stats' | 'log' | 'graphs' | 'telemetry') => void} setActiveTab
  * @property {() => void} reset
  * @property {(tracks: {videoTracks: object[], audioTracks: object[], textTracks: object[], isAbrEnabled: boolean}) => void} setPlayerLoadedWithTracks
  * @property {(manifest: import('@/types').Manifest) => void} setInitialTracksFromManifest

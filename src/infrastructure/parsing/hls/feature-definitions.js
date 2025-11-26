@@ -6,6 +6,7 @@
  * @property {string} isoRef
  * @property {number} version - The HLS protocol version where this feature was introduced.
  * @property {boolean} [isDynamic] - True if the feature can appear dynamically in a live stream.
+ * @property {number} [complexityScore] - Weighted score (1-5).
  */
 
 /** @type {Feature[]} */
@@ -16,6 +17,7 @@ export const hlsFeatureDefinitions = [
         desc: 'Defines if the stream is live (`EVENT`) or on-demand (`VOD`).',
         isoRef: 'HLS 2nd Ed: 4.4.3.5',
         version: 1,
+        complexityScore: 1,
     },
     {
         name: 'Multivariant Playlist',
@@ -23,6 +25,7 @@ export const hlsFeatureDefinitions = [
         desc: 'The manifest is an HLS multivariant playlist that references multiple variant streams at different bitrates.',
         isoRef: 'HLS 2nd Ed: 4.4.6.2',
         version: 1,
+        complexityScore: 1,
     },
     {
         name: 'Discontinuity',
@@ -31,6 +34,7 @@ export const hlsFeatureDefinitions = [
         isoRef: 'HLS 2nd Ed: 4.4.4.3',
         version: 1,
         isDynamic: true,
+        complexityScore: 3,
     },
     {
         name: 'Content Protection',
@@ -39,6 +43,7 @@ export const hlsFeatureDefinitions = [
         isoRef: 'HLS 2nd Ed: 4.4.4.4',
         version: 1,
         isDynamic: true,
+        complexityScore: 3,
     },
     {
         name: 'Session Keys',
@@ -47,6 +52,7 @@ export const hlsFeatureDefinitions = [
         isoRef: 'HLS 2nd Ed: 4.4.6.5',
         version: 1,
         isDynamic: true,
+        complexityScore: 2,
     },
     {
         name: 'Fragmented MP4 Segments',
@@ -54,6 +60,7 @@ export const hlsFeatureDefinitions = [
         desc: 'Content is structured using fMP4 segments instead of MPEG-2 Transport Stream (TS), indicated by #EXT-X-MAP.',
         isoRef: 'HLS 2nd Ed: 4.4.4.5',
         version: 5,
+        complexityScore: 2,
     },
     {
         name: 'Byte-Range Segments',
@@ -61,6 +68,7 @@ export const hlsFeatureDefinitions = [
         desc: 'Media Segments are defined as sub-ranges of a larger resource using the #EXT-X-BYTERANGE tag.',
         isoRef: 'HLS 2nd Ed: 4.4.4.2',
         version: 4,
+        complexityScore: 2,
     },
     {
         name: 'Discontinuity Sequence',
@@ -69,14 +77,16 @@ export const hlsFeatureDefinitions = [
         isoRef: 'HLS 2nd Ed: 4.4.3.3',
         version: 1,
         isDynamic: true,
+        complexityScore: 3,
     },
     {
         name: 'Gap Segments',
-        category: 'Core Streaming',
+        category: 'Timeline & Segment Management',
         desc: 'Uses EXT-X-GAP to signal the absence of media data, for example during a temporary encoder outage.',
         isoRef: 'HLS 2nd Ed: 4.4.4.7',
         version: 8,
         isDynamic: true,
+        complexityScore: 3,
     },
     {
         name: 'Independent Segments',
@@ -84,6 +94,7 @@ export const hlsFeatureDefinitions = [
         desc: 'The playlist uses #EXT-X-INDEPENDENT-SEGMENTS, indicating that all media samples in a segment can be decoded without information from other segments.',
         isoRef: 'HLS 2nd Ed: 4.4.2.1',
         version: 1,
+        complexityScore: 2,
     },
     {
         name: 'Date Ranges / Timed Metadata',
@@ -92,6 +103,24 @@ export const hlsFeatureDefinitions = [
         isoRef: 'HLS 2nd Ed: 4.4.5.1',
         version: 1,
         isDynamic: true,
+        complexityScore: 3,
+    },
+    {
+        name: 'Program Date Time',
+        category: 'Live & Dynamic',
+        desc: 'Associates media segments with an absolute date and time, enabling wall-clock synchronization.',
+        isoRef: 'HLS 2nd Ed: 4.4.4.6',
+        version: 1,
+        complexityScore: 2,
+    },
+    {
+        name: 'Interstitials',
+        category: 'Live & Dynamic',
+        desc: '[Ad Insertion] Uses HLS Interstitials (EXT-X-DATERANGE with CLASS="com.apple.hls.interstitial") for separate ad asset scheduling.',
+        isoRef: 'HLS 2nd Ed: Appendix D',
+        version: 10,
+        isDynamic: true,
+        complexityScore: 5,
     },
     {
         name: 'Low-Latency HLS',
@@ -100,6 +129,7 @@ export const hlsFeatureDefinitions = [
         isoRef: 'HLS 2nd Ed: Appendices A, B, C',
         version: 9,
         isDynamic: true,
+        complexityScore: 5,
     },
     {
         name: 'Playlist Delta Updates',
@@ -108,6 +138,7 @@ export const hlsFeatureDefinitions = [
         isoRef: 'HLS 2nd Ed: 4.4.5.2, 6.2.5.1',
         version: 9,
         isDynamic: true,
+        complexityScore: 4,
     },
     {
         name: 'Variable Substitution',
@@ -115,6 +146,7 @@ export const hlsFeatureDefinitions = [
         desc: 'Uses #EXT-X-DEFINE to create playlist variables, allowing for dynamic generation of URIs and attributes.',
         isoRef: 'HLS 2nd Ed: 4.4.2.3',
         version: 8,
+        complexityScore: 3,
     },
     {
         name: 'Content Steering',
@@ -123,6 +155,7 @@ export const hlsFeatureDefinitions = [
         isoRef: 'HLS 2nd Ed: 4.4.6.6',
         version: 11,
         isDynamic: true,
+        complexityScore: 4,
     },
     {
         name: 'I-Frame Playlists',
@@ -130,14 +163,16 @@ export const hlsFeatureDefinitions = [
         desc: 'Provides special, I-Frame only playlists to enable efficient fast-forward and rewind.',
         isoRef: 'HLS 2nd Ed: 4.4.6.3',
         version: 4,
+        complexityScore: 3,
     },
     {
         name: 'Advanced Metadata & Rendition Selection',
         category: 'Advanced Content',
-        desc: 'Utilizes advanced attributes (e.g., SCORE, STABLE-VARIANT-ID) and semantic tags (e.g., Interstitials) to provide richer context for client ABR and UI logic.',
+        desc: 'Utilizes advanced attributes (e.g., SCORE, STABLE-VARIANT-ID) to provide richer context for client ABR logic.',
         isoRef: 'HLS 2nd Ed: Appendices D, G',
         version: 9,
         isDynamic: true,
+        complexityScore: 3,
     },
     {
         name: 'Immersive Video (REQ-VIDEO-LAYOUT)',
@@ -145,6 +180,7 @@ export const hlsFeatureDefinitions = [
         desc: 'Specifies video projection for immersive experiences (e.g., equirectangular, Apple Immersive Video).',
         isoRef: 'HLS 2nd Ed: 4.4.6.2',
         version: 12,
+        complexityScore: 5,
     },
     {
         name: 'Generalized INSTREAM-ID',
@@ -152,20 +188,23 @@ export const hlsFeatureDefinitions = [
         desc: 'Allows INSTREAM-ID to be used for all media types, not just closed captions, for identifying tracks within a segment.',
         isoRef: 'HLS 2nd Ed: 4.4.6.1',
         version: 13,
+        complexityScore: 4,
     },
     {
         name: 'Session Data',
         category: 'Client Guidance & Optimization',
-        desc: 'The multivariant playlist carries arbitrary session data using #EXT-X-SESSION-DATA, which can be used for things like analytics or custom configuration.',
+        desc: 'The multivariant playlist carries arbitrary session data using #EXT-X-SESSION-DATA.',
         isoRef: 'HLS 2nd Ed: 4.4.6.4',
         version: 1,
+        complexityScore: 1,
     },
     {
         name: 'Start Offset',
         category: 'Client Guidance & Optimization',
-        desc: 'The playlist uses #EXT-X-START to indicate a preferred starting point, for example to start playback closer to the live edge.',
+        desc: 'The playlist uses #EXT-X-START to indicate a preferred starting point.',
         isoRef: 'HLS 2nd Ed: 4.4.2.2',
         version: 1,
+        complexityScore: 2,
     },
     {
         name: 'Bitrate Hinting',
@@ -174,6 +213,7 @@ export const hlsFeatureDefinitions = [
         isoRef: 'HLS 2nd Ed: 4.4.4.8',
         version: 8,
         isDynamic: true,
+        complexityScore: 2,
     },
     {
         name: 'HDCP Level',
@@ -181,6 +221,7 @@ export const hlsFeatureDefinitions = [
         desc: 'Advises that the Variant Stream may fail to play unless the output is protected by HDCP.',
         isoRef: 'HLS 2nd Ed: 4.4.6.2',
         version: 1,
+        complexityScore: 2,
     },
     {
         name: 'Stable Variant/Rendition IDs',
@@ -188,6 +229,7 @@ export const hlsFeatureDefinitions = [
         desc: 'Provides stable identifiers for Variant Streams and Renditions, allowing their URIs to change between playlist reloads.',
         isoRef: 'HLS 2nd Ed: 4.4.6.1, 4.4.6.2',
         version: 10,
+        complexityScore: 3,
     },
     {
         name: 'Alternative Renditions',
@@ -195,6 +237,7 @@ export const hlsFeatureDefinitions = [
         desc: 'Uses #EXT-X-MEDIA to provide alternative tracks for language, commentary, or camera angles.',
         isoRef: 'HLS 2nd Ed: 4.4.6.1',
         version: 4,
+        complexityScore: 2,
     },
     {
         name: 'Associated Language',
@@ -202,6 +245,7 @@ export const hlsFeatureDefinitions = [
         desc: 'The ASSOC-LANGUAGE attribute links renditions with different roles, like spoken vs. written language.',
         isoRef: 'HLS 2nd Ed: 4.4.6.1',
         version: 4,
+        complexityScore: 2,
     },
     {
         name: 'Forced Subtitles',
@@ -209,6 +253,7 @@ export const hlsFeatureDefinitions = [
         desc: 'The FORCED=YES attribute on a SUBTITLES rendition indicates content considered essential to play (e.g., translating foreign dialogue).',
         isoRef: 'HLS 2nd Ed: 4.4.6.1',
         version: 4,
+        complexityScore: 2,
     },
     {
         name: 'Rendition Characteristics',
@@ -216,6 +261,7 @@ export const hlsFeatureDefinitions = [
         desc: 'The CHARACTERISTICS attribute provides detailed properties of a rendition (e.g., for accessibility).',
         isoRef: 'HLS 2nd Ed: 4.4.6.1',
         version: 4,
+        complexityScore: 2,
     },
     {
         name: 'Machine-Generated Content Flag',
@@ -223,6 +269,7 @@ export const hlsFeatureDefinitions = [
         desc: 'The "public.machine-generated" characteristic indicates a rendition was authored or translated programmatically.',
         isoRef: 'HLS 2nd Ed: 4.4.6.1',
         version: 13,
+        complexityScore: 3,
     },
     {
         name: 'Subtitles & Captions',
@@ -230,6 +277,7 @@ export const hlsFeatureDefinitions = [
         desc: 'Provides text-based tracks for subtitles or closed captions via #EXT-X-MEDIA.',
         isoRef: 'HLS 2nd Ed: 4.4.6.1',
         version: 4,
+        complexityScore: 2,
     },
     {
         name: 'Advanced Spatial Audio (CHANNELS)',
@@ -237,6 +285,7 @@ export const hlsFeatureDefinitions = [
         desc: 'Provides enhanced descriptors for spatial audio, including channel beds (BED-*) and degrees of freedom (DOF-*).',
         isoRef: 'HLS 2nd Ed: 4.4.6.1',
         version: 13,
+        complexityScore: 4,
     },
     {
         name: 'Video Range (SDR/PQ/HLG)',
@@ -244,5 +293,6 @@ export const hlsFeatureDefinitions = [
         desc: 'Specifies the dynamic range of the video content using the VIDEO-RANGE attribute.',
         isoRef: 'HLS 2nd Ed: 4.4.6.2',
         version: 9,
+        complexityScore: 3,
     },
 ];

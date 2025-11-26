@@ -43,7 +43,6 @@ async function buildDrmConfig(streamDef) {
             if (finalUrl) {
                 drmConfig.servers[keySystem] = finalUrl;
 
-                // --- NEW CERTIFICATE LOGIC ---
                 let certSource = null;
                 if (
                     typeof streamDef.drmAuth.serverCertificate === 'object' &&
@@ -51,7 +50,6 @@ async function buildDrmConfig(streamDef) {
                 ) {
                     certSource = streamDef.drmAuth.serverCertificate[keySystem];
                 } else {
-                    // Fallback to single certificate for backward compatibility
                     certSource = streamDef.drmAuth.serverCertificate;
                 }
 
@@ -63,13 +61,11 @@ async function buildDrmConfig(streamDef) {
                 } else if (certSource instanceof File) {
                     certBuffer = await certSource.arrayBuffer();
                 }
-                // --- END NEW LOGIC ---
 
                 drmConfig.advanced[keySystem] = {
                     serverCertificate: certBuffer
                         ? new Uint8Array(certBuffer)
                         : undefined,
-                    headers: licenseRequestHeaders,
                 };
             }
         }
@@ -82,78 +78,95 @@ function setAbrEnabled(player, enabled) {
     player.configure({ abr: { enabled } });
 }
 
-function selectTrack(player, type, selectionCriteria) {
+function setRestrictions(player, restrictions) {
+    if (!player) return;
+    player.configure({ restrictions });
+}
+
+function setBufferConfiguration(player, config) {
+    if (!player) return;
+    player.configure({
+        streaming: {
+            rebufferingGoal: config.rebufferingGoal,
+            bufferingGoal: config.bufferingGoal,
+            bufferBehind: config.bufferBehind,
+            ignoreTextStreamFailures: config.ignoreTextStreamFailures,
+        },
+    });
+}
+
+function setLatencyConfiguration(player, config) {
     if (!player) return;
 
-    if (type === 'variant') {
-        const tracks = player.getVariantTracks();
-        let trackToSelect;
+    const {
+        enabled,
+        targetLatency,
+        targetLatencyTolerance,
+        minPlaybackRate,
+        maxPlaybackRate,
+        panicMode,
+        panicThreshold,
+        rebufferingGoal,
+    } = config;
 
-        if (
-            typeof selectionCriteria === 'object' &&
-            selectionCriteria !== null
-        ) {
-            // Find by properties, which is necessary when the object doesn't have Shaka's internal properties
-            trackToSelect = tracks.find(
-                (t) =>
-                    t.bandwidth === selectionCriteria.bandwidth &&
-                    t.height === selectionCriteria.height &&
-                    t.width === selectionCriteria.width
-            );
-        } else {
-            // Find by ID for direct Shaka track objects
-            trackToSelect = tracks.find((t) => t.id === selectionCriteria);
-        }
+    // We adjust bufferBehind to ensure we don't aggressively evict data we might need if latency drifts
+    const bufferBehind = targetLatency + 10;
 
-        if (trackToSelect) {
-            player.configure({ abr: { enabled: false } });
-            player.selectVariantTrack(trackToSelect, true);
-        } else {
-            appLog(
-                'PlayerConfigService.selectTrack',
-                'warn',
-                `Could not find matching variant track for criteria`,
-                selectionCriteria
-            );
-        }
-    } else if (type === 'audio') {
-        const language = selectionCriteria;
-        const audioTracks = player.getAudioLanguagesAndRoles();
-        const trackToSelect =
-            audioTracks.find((t) => t.label === language) ||
-            audioTracks.find((t) => t.language === language);
-        if (trackToSelect) {
-            player.selectAudioLanguage(trackToSelect.language);
-        }
-    } else if (type === 'text') {
-        const track = selectionCriteria;
-        // --- ARCHITECTURAL FIX: Use correct Shaka API to disable text tracks ---
-        if (!track) {
-            player.setTextTrackVisibility(false);
-        } else {
-            let trackToSelect = track;
-            // Handle cases where a simplified track object is passed
-            if (typeof track.id !== 'number') {
-                const shakaTracks = player.getTextTracks();
-                trackToSelect = shakaTracks.find(
-                    (t) =>
-                        t.language === track.language && t.kind === track.kind
-                );
-            }
+    const newConfig = {
+        streaming: {
+            rebufferingGoal,
+            bufferBehind,
+            liveSync: {
+                enabled,
+                targetLatency,
+                targetLatencyTolerance,
+                minPlaybackRate,
+                maxPlaybackRate,
+                panicMode,
+                panicThreshold,
+                // Removed maxLatency as it is not a valid Shaka 4.x configuration key for liveSync
+            },
+        },
+    };
 
-            if (trackToSelect) {
-                player.selectTextTrack(trackToSelect);
-                player.setTextTrackVisibility(true); // Explicitly enable visibility
-            } else {
-                appLog(
-                    'PlayerConfigService.selectTrack',
-                    'warn',
-                    `Could not find matching text track for criteria`,
-                    track
-                );
-            }
-        }
-        // --- END FIX ---
+    appLog(
+        'playerConfigService',
+        'info',
+        'Applying new liveSync configuration:',
+        newConfig
+    );
+
+    player.configure(newConfig);
+}
+
+function setAbrConfiguration(player, config) {
+    if (!player) return;
+    player.configure({
+        abr: {
+            bandwidthUpgradeTarget: config.bandwidthUpgradeTarget,
+            bandwidthDowngradeTarget: config.bandwidthDowngradeTarget,
+        },
+    });
+}
+
+function selectVariantTrack(player, track, clearBuffer = true) {
+    if (!player) return;
+    player.configure({ abr: { enabled: false } });
+    player.selectVariantTrack(track, clearBuffer);
+}
+
+function selectAudioLanguage(player, language) {
+    if (!player) return;
+    player.selectAudioLanguage(language);
+}
+
+function selectTextTrack(player, track) {
+    if (!player) return;
+    if (!track) {
+        player.setTextTrackVisibility(false);
+    } else {
+        player.selectTextTrack(track);
+        player.setTextTrackVisibility(true);
     }
 }
 
@@ -222,7 +235,13 @@ function setGlobalTrackByHeight(player, height) {
 export const playerConfigService = {
     buildDrmConfig,
     setAbrEnabled,
-    selectTrack,
+    setRestrictions,
+    setBufferConfiguration,
+    setLatencyConfiguration,
+    setAbrConfiguration,
+    selectVariantTrack,
+    selectAudioLanguage,
+    selectTextTrack,
     applyStreamConfig,
     setGlobalTrackByHeight,
 };

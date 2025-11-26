@@ -8,7 +8,7 @@ import { appLog } from '@/shared/utils/debug';
  * @typedef {object} NetworkState
  * @property {NetworkEvent[]} events
  * @property {string | null} selectedEventId
- * @property {{type: ResourceFilterType}} filters
+ * @property {{type: ResourceFilterType, search: string}} filters
  * @property {Set<number>} visibleStreamIds
  */
 
@@ -18,7 +18,7 @@ import { appLog } from '@/shared/utils/debug';
  * @property {(updatedEvent: NetworkEvent) => void} updateEvent
  * @property {(eventId: string | null) => void} setSelectedEventId
  * @property {() => void} clearEvents
- * @property {(newFilters: Partial<{type: ResourceFilterType}>) => void} setFilters
+ * @property {(newFilters: Partial<{type: ResourceFilterType, search: string}>) => void} setFilters
  * @property {(streamIds: number[]) => void} setVisibleStreamIds
  * @property {(streamId: number) => void} toggleVisibleStreamId
  * @property {() => void} reset
@@ -31,6 +31,7 @@ const createInitialNetworkState = () => ({
     selectedEventId: null,
     filters: {
         type: 'all',
+        search: '',
     },
     visibleStreamIds: new Set(),
 });

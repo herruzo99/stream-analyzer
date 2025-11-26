@@ -1,47 +1,9 @@
 import { html } from 'lit-html';
 import { representationCardTemplate } from './representation-card.js';
 import * as icons from '@/ui/icons';
-import {
-    getInheritedElement,
-    getAttr,
-    findChildren,
-} from '../../../../../infrastructure/parsing/utils/recursive-parser.js';
+import { getAttr } from '@/infrastructure/parsing/utils/recursive-parser.js';
 
-/**
- * Renders a single, compact metric for the timing grid.
- * @param {object} metric - The metric object to render.
- * @returns {import('lit-html').TemplateResult | string}
- */
-const metricTemplate = (metric) => {
-    if (
-        metric.value === 'N/A' ||
-        metric.value === null ||
-        metric.value === undefined ||
-        metric.value === false
-    )
-        return '';
-    return html`
-        <div
-            class="flex items-baseline justify-between gap-2 bg-slate-900/50 px-2 py-1 rounded border border-slate-700/50"
-        >
-            <dt
-                class="text-xs text-slate-400 font-semibold truncate"
-                title=${metric.name}
-            >
-                ${metric.name}
-            </dt>
-            <dd
-                class="text-xs font-mono text-white truncate ${metric.color ||
-                ''}"
-                title=${String(metric.value)}
-            >
-                ${metric.value === true ? 'Yes' : metric.value}
-            </dd>
-        </div>
-    `;
-};
-
-const getIconForType = (type) => {
+const getTypeIcon = (type) => {
     switch (type) {
         case 'video':
             return icons.clapperboard;
@@ -50,130 +12,110 @@ const getIconForType = (type) => {
         case 'text':
             return icons.fileText;
         default:
-            return icons.puzzle;
+            return icons.binary;
     }
 };
 
-export const adaptationSetCardTemplate = (as, stream, period) => {
-    // --- Data Extraction Logic ---
-    const hierarchy = [as.serializedManifest, period.serializedManifest];
-    const templateEl = getInheritedElement('SegmentTemplate', hierarchy);
-
-    let segmentInfo = {};
-    if (templateEl) {
-        const timescale = getAttr(templateEl, 'timescale');
-        const duration = getAttr(templateEl, 'duration');
-        segmentInfo = {
-            timescale: timescale,
-            duration: duration,
-            startNumber: getAttr(templateEl, 'startNumber'),
-            pto: getAttr(templateEl, 'presentationTimeOffset'),
-            ato: getAttr(templateEl, 'availabilityTimeOffset'),
-            usesTimeline:
-                findChildren(templateEl, 'SegmentTimeline').length > 0,
-            calculatedDuration:
-                timescale && duration
-                    ? `${(duration / timescale).toFixed(3)}s`
-                    : 'N/A',
-        };
+const getTypeColor = (type) => {
+    switch (type) {
+        case 'video':
+            return 'text-blue-400 bg-blue-400/10 border-blue-400/20';
+        case 'audio':
+            return 'text-purple-400 bg-purple-400/10 border-purple-400/20';
+        case 'text':
+            return 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20';
+        default:
+            return 'text-slate-400 bg-slate-400/10 border-slate-400/20';
     }
+};
 
-    const timingMetrics = [
-        { name: 'Timescale', value: segmentInfo.timescale },
-        { name: 'Segment Duration', value: segmentInfo.calculatedDuration },
-        { name: 'Uses Timeline', value: segmentInfo.usesTimeline },
-        {
-            name: 'Segment Alignment',
-            value:
-                getAttr(as.serializedManifest, 'segmentAlignment') === 'true',
-        },
-        {
-            name: 'Subsegment Alignment',
-            value:
-                getAttr(as.serializedManifest, 'subsegmentAlignment') ===
-                'true',
-        },
-        {
-            name: 'Bitstream Switching',
-            value:
-                getAttr(as.serializedManifest, 'bitstreamSwitching') === 'true',
-        },
-        {
-            name: 'Start w/ SAP',
-            value: getAttr(as.serializedManifest, 'startWithSAP'),
-        },
-        { name: 'Start Number', value: segmentInfo.startNumber },
-        { name: 'Pres. Time Offset', value: segmentInfo.pto },
-        { name: 'Avail. Time Offset', value: segmentInfo.ato },
-    ].filter(
-        (m) =>
-            m.value !== 'N/A' &&
-            m.value !== null &&
-            m.value !== undefined &&
-            m.value !== false
-    );
-    // --- End Data Extraction ---
+const badge = (label, val) => {
+    if (!val && val !== 0) return '';
+    return html`
+        <div
+            class="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-900 border border-slate-700 text-[10px]"
+        >
+            <span class="text-slate-500 font-semibold uppercase">${label}</span>
+            <span class="text-slate-200 font-mono">${val}</span>
+        </div>
+    `;
+};
+
+export const adaptationSetCardTemplate = (as, stream, period) => {
+    const type = as.contentType || 'unknown';
+    const colorClass = getTypeColor(type);
+    const align =
+        getAttr(as.serializedManifest, 'segmentAlignment') === 'true'
+            ? 'Aligned'
+            : null;
+    const subAlign =
+        getAttr(as.serializedManifest, 'subsegmentAlignment') === 'true'
+            ? 'Sub-Aligned'
+            : null;
 
     return html`
-        <details
-            class="bg-slate-900/50 rounded-lg border border-slate-700/50 details-animated"
-            open
+        <div
+            class="bg-slate-800/30 rounded-lg border border-slate-700/50 flex flex-col h-full hover:border-slate-600 transition-colors"
         >
-            <summary
-                class="flex items-center gap-3 p-2 cursor-pointer list-none hover:bg-slate-800/50 rounded-t-lg"
+            <!-- Header -->
+            <div
+                class="px-3 py-2 border-b border-slate-700/50 flex items-center justify-between bg-slate-800/50 rounded-t-lg"
             >
-                <span
-                    class="text-slate-500 group-open:rotate-90 transition-transform"
-                    >${icons.chevronDown}</span
-                >
-                <span class="text-teal-400"
-                    >${getIconForType(as.contentType)}</span
-                >
-                <div class="font-semibold text-slate-300 text-sm">
-                    AdaptationSet ${as.id || ''}
-                    <span class="ml-2 font-mono text-xs text-slate-500"
-                        >(Lang: ${as.lang || 'und'}, Type:
-                        ${as.contentType || 'N/A'})</span
+                <div class="flex items-center gap-2">
+                    <div class="p-1.5 rounded-md border ${colorClass}">
+                        ${getTypeIcon(type)}
+                    </div>
+                    <span class="font-bold text-sm text-slate-200"
+                        >AS ${as.id}</span
                     >
                 </div>
-            </summary>
-            <div class="border-t border-slate-700/50 p-2 space-y-3">
-                ${timingMetrics.length > 0
-                    ? html`
-                          <div
-                              class="bg-slate-950/50 rounded p-3 border border-slate-600/50"
-                          >
-                              <h4
-                                  class="text-xs font-semibold text-slate-300 mb-2 flex items-center gap-2"
-                              >
-                                  ${icons.timer}
-                                  <span>Timing & Segmentation Attributes</span>
-                              </h4>
-                              <dl
-                                  class="grid gap-2 grid-cols-[repeat(auto-fill,minmax(180px,1fr))]"
-                              >
-                                  ${timingMetrics.map(metricTemplate)}
-                              </dl>
-                          </div>
-                      `
-                    : ''}
-
-                <!-- Representations -->
-                <div class="space-y-2">
-                    <h4
-                        class="text-xs font-semibold text-slate-300 flex items-center gap-2 px-1"
-                    >
-                        ${icons.layers}
-                        <span
-                            >Representations
-                            (${as.representations?.length || 0})</span
-                        >
-                    </h4>
-                    ${as.representations.map((rep) =>
-                        representationCardTemplate(rep, as, stream, period)
-                    )}
+                <div class="flex gap-1">
+                    ${as.lang
+                        ? html`<span
+                              class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-700 text-slate-300 uppercase"
+                              >${as.lang}</span
+                          >`
+                        : ''}
+                    ${as.mimeType
+                        ? html`<span
+                              class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-slate-700 text-slate-400"
+                              >${as.mimeType.split('/')[1]}</span
+                          >`
+                        : ''}
                 </div>
             </div>
-        </details>
+
+            <!-- Props -->
+            <div
+                class="px-3 py-2 flex flex-wrap gap-2 border-b border-slate-700/30 bg-slate-800/20"
+            >
+                ${badge('Role', (as.roles || []).map((r) => r.value).join(','))}
+                ${badge(
+                    'Codecs',
+                    (as.codecs || []).map((c) => c.value).join(',')
+                )}
+                ${align
+                    ? html`<span
+                          class="text-[10px] text-green-400 flex items-center gap-1"
+                          >${icons.checkCircle} ${align}</span
+                      >`
+                    : ''}
+                ${subAlign
+                    ? html`<span
+                          class="text-[10px] text-green-400 flex items-center gap-1"
+                          >${icons.checkCircle} ${subAlign}</span
+                      >`
+                    : ''}
+            </div>
+
+            <!-- Representations Grid -->
+            <div
+                class="p-3 grid grid-cols-1 sm:grid-cols-2 gap-2 grow content-start"
+            >
+                ${as.representations.map((rep) =>
+                    representationCardTemplate(rep, as, stream, period)
+                )}
+            </div>
+        </div>
     `;
 };

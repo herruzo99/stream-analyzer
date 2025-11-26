@@ -158,4 +158,62 @@ export const liveRules = [
         failDetails:
             'Inconsistent latency values found. The logical order is @min <= @target <= @max.',
     },
+    {
+        id: 'LIVE-5',
+        text: 'Dynamic MPD should have ServiceDescription for Low Latency',
+        isoRef: 'Annex K',
+        severity: 'info',
+        scope: 'MPD',
+        profiles: ['isoff-live:2011'],
+        category: 'Live Stream Properties',
+        check: (mpd, { isDynamic }) => {
+            if (!isDynamic) return 'skip';
+            // Check for SegmentTemplate availabilityTimeComplete="false" (Chunked)
+            const templates = findChildren(mpd, 'Period').flatMap((p) =>
+                findChildren(p, 'AdaptationSet').flatMap((as) =>
+                    findChildren(as, 'SegmentTemplate')
+                )
+            );
+            const isChunked = templates.some(
+                (t) => getAttr(t, 'availabilityTimeComplete') === 'false'
+            );
+
+            if (isChunked) {
+                return findChildren(mpd, 'ServiceDescription').length > 0;
+            }
+            return 'skip';
+        },
+        passDetails: 'ServiceDescription found.',
+        failDetails:
+            'Low-latency (chunked) streams should provide a ServiceDescription to guide client latency targets.',
+    },
+    {
+        id: 'LIVE-6',
+        text: 'AvailabilityTimeOffset should be consistent',
+        isoRef: 'Clause 5.3.9.2',
+        severity: 'warn',
+        scope: 'Representation',
+        profiles: ['common'],
+        category: 'Live Stream Properties',
+        check: (rep, { isDynamic }) => {
+            if (!isDynamic) return 'skip';
+            // Check if ATO > SegmentDuration (illogical)
+            // This requires traversing up to finding SegmentTemplate... simplified here:
+            const segmentTemplate = findChildren(rep, 'SegmentTemplate')[0]; // Simplified lookup
+            if (segmentTemplate) {
+                const ato = parseFloat(
+                    getAttr(segmentTemplate, 'availabilityTimeOffset')
+                );
+                const dur = parseFloat(getAttr(segmentTemplate, 'duration'));
+                const scale = parseFloat(getAttr(segmentTemplate, 'timescale'));
+                if (!isNaN(ato) && !isNaN(dur) && !isNaN(scale) && scale > 0) {
+                    return ato < dur / scale;
+                }
+            }
+            return 'skip';
+        },
+        passDetails: 'OK',
+        failDetails:
+            'AvailabilityTimeOffset is larger than the segment duration, which is unusual.',
+    },
 ];

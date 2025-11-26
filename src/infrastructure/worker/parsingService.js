@@ -3,134 +3,430 @@ import { parse as parseTsSegment } from '../parsing/ts/index.js';
 import { parseVTT } from '../parsing/vtt/parser.js';
 import { appLog } from '../../shared/utils/debug.js';
 import { boxParsers } from '../parsing/isobmff/index.js';
-import { fetchWithAuth } from './http.js';
 import { analyzeSemantics } from '../../features/compliance/domain/semantic-analyzer.js';
-
-// New Imports
 import { parseNalUnits } from '../parsing/video/nal-parser.js';
 import { analyzeGopStructure } from '../../features/segmentAnalysis/domain/gop-analyzer.js';
+import { fetchWithAuth } from './http.js';
 
-const COLOR_NAMES = [
-    'red',
-    'orange',
-    'amber',
-    'yellow',
-    'lime',
-    'green',
-    'emerald',
-    'teal',
-    'cyan',
-    'sky',
-    'blue',
-    'indigo',
-    'violet',
-    'purple',
-    'fuchsia',
-    'pink',
-    'rose',
+// --- Color Palette Definition ---
+const PALETTE = [
+    'slate', // 0: Null / Default
+    'red', // 1: PAT
+    'orange', // 2: TS Error / Discontinuity
+    'amber', // 3:
+    'yellow', // 4: PMT
+    'lime', // 5: NIT/SDT
+    'green', // 6: Data
+    'emerald', // 7: ID3 / SCTE
+    'teal', // 8: TSDT
+    'cyan', // 9:
+    'sky', // 10: Video (H.264/HEVC)
+    'blue', // 11: PES Header
+    'indigo', // 12: DSM-CC
+    'violet', // 13: Audio
+    'purple', // 14: Private Section
+    'fuchsia', // 15: CAT
+    'pink', // 16:
+    'rose', // 17
 ];
-const generateColorFamilies = (names) => {
-    const families = {};
-    for (const name of names) {
-        families[name] = [
-            { bg: `bg-${name}-800`, border: `border-${name}-600` },
-            { bg: `bg-${name}-700`, border: `border-${name}-500` },
-            { bg: `bg-${name}-600`, border: `border-${name}-400` },
-        ];
-    }
-    families['slate'] = [
-        { bg: 'bg-slate-800', border: 'border-slate-600' },
-        { bg: 'bg-slate-700', border: 'border-slate-500' },
-        { bg: 'bg-slate-800/70', border: 'border-slate-600/80' },
-    ];
-    return families;
-};
-const TAILWIND_COLORS = generateColorFamilies(COLOR_NAMES);
 
-const generateBoxColorMap = () => {
-    const map = {};
-    let colorIndex = 0;
-    const knownBoxTypes = Object.keys(boxParsers);
-    for (const boxType of knownBoxTypes) {
-        map[boxType] = COLOR_NAMES[colorIndex];
-        colorIndex = (colorIndex + 1) % COLOR_NAMES.length;
-    }
-    map['mdat'] = 'slate';
-    map['free'] = 'slate';
-    map['skip'] = 'slate';
-    map['emsg'] = 'purple';
-    map['default'] = 'slate';
-    return map;
-};
-const BOX_TYPE_COLOR_MAP = generateBoxColorMap();
+const BOX_TYPE_COLOR_INDICES = {};
+// Assign stable colors to box types
+Object.keys(boxParsers).forEach((type, index) => {
+    BOX_TYPE_COLOR_INDICES[type] = (index % (PALETTE.length - 1)) + 1;
+});
 
-const TS_PACKET_COLOR_MAP = {
-    'PSI (PAT)': 'red',
-    'PSI (PMT)': 'yellow',
-    'PSI (CAT)': 'pink',
-    'PSI (TSDT)': 'teal',
-    'PSI (Private Section)': 'purple',
-    PES: 'blue',
-    'PES (DSM-CC)': 'indigo',
-    Data: 'green',
-    'Null Packet': 'slate',
-    default: 'slate',
+// Manual Overrides for critical high-level boxes for visual consistency
+BOX_TYPE_COLOR_INDICES['ftyp'] = 1; // Red
+BOX_TYPE_COLOR_INDICES['styp'] = 1;
+BOX_TYPE_COLOR_INDICES['moov'] = 12; // Indigo
+BOX_TYPE_COLOR_INDICES['moof'] = 11; // Blue
+BOX_TYPE_COLOR_INDICES['mdat'] = 0; // Slate (Default)
+BOX_TYPE_COLOR_INDICES['free'] = 0;
+BOX_TYPE_COLOR_INDICES['skip'] = 0;
+BOX_TYPE_COLOR_INDICES['emsg'] = 14; // Purple
+BOX_TYPE_COLOR_INDICES['sidx'] = 9; // Cyan
+BOX_TYPE_COLOR_INDICES['CMAF Chunk'] = 0; // Transparent container
+
+BOX_TYPE_COLOR_INDICES['ID32'] = 7;
+BOX_TYPE_COLOR_INDICES['stpp'] = 7;
+BOX_TYPE_COLOR_INDICES['wvtt'] = 7;
+BOX_TYPE_COLOR_INDICES['cprt'] = 16;
+BOX_TYPE_COLOR_INDICES['udta'] = 16;
+BOX_TYPE_COLOR_INDICES['meta'] = 16;
+BOX_TYPE_COLOR_INDICES['ilst'] = 16;
+BOX_TYPE_COLOR_INDICES['kind'] = 16;
+BOX_TYPE_COLOR_INDICES['elst'] = 15;
+BOX_TYPE_COLOR_INDICES['url '] = 9;
+
+// Enhanced TS Color Mapping
+const TS_PACKET_COLOR_INDICES = {
+    'PSI (PAT)': 1, // Red
+    'PSI (PMT)': 4, // Yellow
+    'PSI (CAT)': 15, // Fuchsia
+    'PSI (TSDT)': 8, // Teal
+    'PSI (Private Section)': 14, // Purple
+    'PSI (IPMP)': 3,
+    'PSI (NIT)': 5, // Lime
+    'PSI (SDT)': 5, // Lime
+    'PSI (EIT)': 5, // Lime
+    PES: 11, // Blue
+    'PES (DSM-CC)': 12, // Indigo
+    Data: 6, // Green
+    'Null Packet': 0, // Slate
+    // Stream Types
+    'H.264 Video': 10, // Sky
+    'HEVC Video': 10,
+    'AAC Audio': 13, // Violet
+    'ID3 Metadata': 7, // Emerald
 };
 
-function assignBoxColors(boxes) {
-    if (!boxes) return;
-    const traverse = (boxList) => {
-        let lastColorFamilyName = null;
-        let lastColorIndex = 0;
-        for (const box of boxList) {
-            const colorFamilyName =
-                (box.isChunk ? 'slate' : BOX_TYPE_COLOR_MAP[box.type]) ||
-                'slate';
-            const colorFamily = TAILWIND_COLORS[colorFamilyName];
-            let colorIndex;
-            if (colorFamilyName === lastColorFamilyName) {
-                colorIndex = (lastColorIndex + 1) % colorFamily.length;
-            } else {
-                colorIndex = 0;
-            }
-            const selectedShade = colorFamily[colorIndex];
-            box.color = {
-                name: colorFamilyName,
-                bgClass: selectedShade.bg,
-                border: selectedShade.border,
-            };
-            lastColorFamilyName = colorFamilyName;
-            lastColorIndex = colorIndex;
+function generateIsoBoxLayout(parsedData, rawDataSize) {
+    const flatBoxes = [];
+
+    const traverse = (boxes, depth, parentIdx) => {
+        if (!boxes) return;
+        for (const box of boxes) {
+            const colorIdx = BOX_TYPE_COLOR_INDICES[box.type] ?? 0;
+            const end = Math.min(box.offset + box.size, rawDataSize);
+            const currentIdx = flatBoxes.length;
+
+            flatBoxes.push({
+                start: box.offset,
+                end: end,
+                color: colorIdx,
+                id: box.offset,
+                depth: depth,
+                parentIdx: parentIdx,
+            });
+
             if (box.children?.length > 0) {
-                traverse(box.children);
+                traverse(box.children, depth + 1, currentIdx);
             }
         }
     };
-    traverse(boxes);
-}
 
-function assignTsPacketColors(packets) {
-    if (!packets) return;
-    for (const [index, packet] of packets.entries()) {
-        const colorFamilyName =
-            TS_PACKET_COLOR_MAP[packet.payloadType] ||
-            TS_PACKET_COLOR_MAP.default;
-        const colorFamily = TAILWIND_COLORS[colorFamilyName];
-        const colorIndex = index % colorFamily.length;
-        const selectedShade = colorFamily[colorIndex];
-        packet.color = {
-            name: colorFamilyName,
-            bgClass: selectedShade.bg,
-            border: selectedShade.border,
-        };
+    traverse(parsedData.data.boxes, 0, -1);
+
+    const boxLayout = new Float64Array(flatBoxes.length * 6);
+    for (let i = 0; i < flatBoxes.length; i++) {
+        const b = flatBoxes[i];
+        const base = i * 6;
+        boxLayout[base + 0] = b.start;
+        boxLayout[base + 1] = b.end;
+        boxLayout[base + 2] = b.color;
+        boxLayout[base + 3] = b.id;
+        boxLayout[base + 4] = b.depth;
+        boxLayout[base + 5] = b.parentIdx;
     }
+
+    return { boxLayout, palette: PALETTE };
 }
 
-/**
- * Creates a summary of media information from parsed TS data.
- * @param {object} tsData - The parsed TS segment data from the engine.
- * @returns {import('@/types').MediaInfoSummary | null}
- */
+function generateTsPacketMap(parsedData) {
+    const packets = parsedData.data.packets;
+    const packetCount = packets.length;
+    const packetMap = new Uint8Array(packetCount);
+
+    for (let i = 0; i < packetCount; i++) {
+        const p = packets[i];
+        // Fallback to 'Data' color (6) if unknown, or specific stream type color
+        const color =
+            TS_PACKET_COLOR_INDICES[p.payloadType] !== undefined
+                ? TS_PACKET_COLOR_INDICES[p.payloadType]
+                : 6;
+        packetMap[i] = color;
+    }
+
+    return { packetMap, palette: PALETTE };
+}
+
+function isValidIsobmff(parsedData) {
+    if (
+        !parsedData ||
+        parsedData.format !== 'isobmff' ||
+        !parsedData.data.boxes
+    )
+        return false;
+    if (parsedData.data.boxes.length === 0) return false;
+    const firstBox = parsedData.data.boxes[0];
+    if (
+        firstBox.issues?.some(
+            (i) => i.type === 'error' && i.message.includes('truncated')
+        )
+    )
+        return false;
+    if (!/^[a-zA-Z0-9 ]{4}$/.test(firstBox.type)) return false;
+    if (firstBox.size > parsedData.data.size && parsedData.data.size > 0)
+        return false;
+    return true;
+}
+
+async function parseSegment({ data, formatHint, url, context }) {
+    const dataView = new DataView(data);
+    const decoder = new TextDecoder();
+
+    if (formatHint) {
+        let result = null;
+        if (formatHint === 'isobmff') result = parseISOBMFF(data, 0, context);
+        else if (formatHint === 'ts') result = parseTsSegment(data);
+        else if (formatHint === 'vtt')
+            result = { format: 'vtt', data: parseVTT(decoder.decode(data)) };
+
+        if (formatHint === 'isobmff' && result && !isValidIsobmff(result)) {
+            appLog(
+                'parsingService',
+                'warn',
+                `Format hint was ISOBMFF but parsing failed validation. Falling back to content sniffing. URL: ${url}`
+            );
+        } else {
+            return result;
+        }
+    }
+
+    if (url) {
+        let path = url.toLowerCase();
+        try {
+            path = new URL(url).pathname.toLowerCase();
+        } catch (e) {}
+
+        if (path.endsWith('.vtt') || path.endsWith('.webvtt')) {
+            return { format: 'vtt', data: parseVTT(decoder.decode(data)) };
+        }
+        if (path.endsWith('.aac')) {
+            return {
+                format: 'aac',
+                data: { message: 'Raw AAC Audio Segment' },
+            };
+        }
+        if (path.endsWith('.ts')) {
+            return parseTsSegment(data);
+        }
+        if (
+            path.endsWith('.m4s') ||
+            path.endsWith('.mp4') ||
+            path.endsWith('.m4v') ||
+            path.endsWith('.cmfv') ||
+            path.endsWith('.cmfa')
+        ) {
+            const result = parseISOBMFF(data, 0, context);
+            if (isValidIsobmff(result)) return result;
+        }
+    }
+
+    try {
+        const startText = decoder.decode(data.slice(0, 10));
+        if (startText.startsWith('WEBVTT')) {
+            return { format: 'vtt', data: parseVTT(decoder.decode(data)) };
+        }
+    } catch (_e) {}
+
+    if (data.byteLength >= 188) {
+        const firstByte = dataView.getUint8(0);
+        if (firstByte === 0x47) {
+            return parseTsSegment(data);
+        }
+    }
+
+    return parseISOBMFF(data, 0, context);
+}
+
+export async function handleParseSegmentStructure({
+    url,
+    data,
+    formatHint,
+    context,
+}) {
+    const parsedData = await parseSegment({ data, formatHint, url, context });
+    parsedData.mediaInfo = null;
+
+    if (parsedData.format === 'isobmff' && parsedData.data.boxes) {
+        parsedData.data.size = data.byteLength;
+        if (parsedData.data.events && parsedData.data.events.length > 0) {
+            const canonicalEvents = parsedData.data.events
+                .map((emsgBox) => {
+                    if (emsgBox.messagePayloadType === 'scte35') {
+                        const timescale = emsgBox.details.timescale.value;
+                        const presentationTime =
+                            emsgBox.details.presentation_time?.value ?? 0;
+                        return {
+                            startTime: presentationTime / timescale,
+                            duration:
+                                emsgBox.details.event_duration.value /
+                                timescale,
+                            message: `SCTE-35 (ID: ${emsgBox.details.id.value})`,
+                            type: 'scte35-inband',
+                            scte35: emsgBox.messagePayload,
+                        };
+                    }
+                    return null;
+                })
+                .filter(Boolean);
+            parsedData.data.events = canonicalEvents;
+        }
+    } else if (parsedData.format === 'ts' && parsedData.data.packets) {
+        parsedData.mediaInfo = generateMediaInfoSummary(parsedData.data);
+    }
+    return parsedData;
+}
+
+const findBox = (boxes, type) => {
+    for (const box of boxes) {
+        if (box.type === type) return box;
+        if (box.children) {
+            const found = findBox(box.children, type);
+            if (found) return found;
+        }
+    }
+    return null;
+};
+
+export async function handleFullSegmentAnalysis({ parsedData, rawData }) {
+    appLog('parsingService', 'info', 'Generating optimized bitstream maps.');
+
+    let byteMap = {};
+    const transferables = [];
+
+    if (parsedData.format === 'isobmff') {
+        const layout = generateIsoBoxLayout(parsedData, rawData.byteLength);
+        byteMap = layout;
+        transferables.push(layout.boxLayout.buffer);
+    } else if (parsedData.format === 'ts') {
+        const layout = generateTsPacketMap(parsedData);
+        byteMap = layout;
+        transferables.push(layout.packetMap.buffer);
+    }
+
+    let bitstreamAnalysis = null;
+    if (parsedData.format === 'isobmff' && rawData) {
+        const boxes = parsedData.data.boxes;
+        const avcC = findBox(boxes, 'avcC');
+        const hvcC = findBox(boxes, 'hvcC');
+        const mdat = findBox(boxes, 'mdat');
+
+        let codec = null;
+        let lengthSizeMinusOne = 3;
+
+        if (avcC && avcC.details.lengthSizeMinusOne) {
+            codec = 'avc';
+            lengthSizeMinusOne = avcC.details.lengthSizeMinusOne.value;
+        } else if (hvcC && hvcC.details.lengthSizeMinusOne) {
+            codec = 'hevc';
+            lengthSizeMinusOne = hvcC.details.lengthSizeMinusOne.value;
+        }
+
+        if (codec && mdat) {
+            try {
+                const mdatStart = mdat.contentOffset;
+                const mdatEnd = mdat.offset + mdat.size;
+                const rawUint8 = new Uint8Array(rawData);
+                const mdatBody = rawUint8.subarray(mdatStart, mdatEnd);
+                const nalUnits = parseNalUnits(
+                    mdatBody,
+                    lengthSizeMinusOne,
+                    /** @type {'avc' | 'hevc'} */ (codec),
+                    mdatStart
+                );
+                const duration = parsedData.samples
+                    ? parsedData.samples.reduce(
+                          (acc, s) => acc + s.duration,
+                          0
+                      ) / (parsedData.samples[0]?.timescale || 90000)
+                    : 0;
+                bitstreamAnalysis = analyzeGopStructure(nalUnits, duration);
+            } catch (e) {
+                console.warn('Bitstream analysis warning:', e.message);
+            }
+        }
+    }
+
+    return {
+        byteMap,
+        bitstreamAnalysis,
+        transferables,
+    };
+}
+
+export async function handleFetchAndParseSegment(
+    { uniqueId, streamId, formatHint, auth, decryption, context },
+    signal
+) {
+    const [url, , range] = uniqueId.split('@');
+    const response = await fetchWithAuth(url, auth, range, {}, null, signal);
+    if (!response.ok) throw new Error(`HTTP error ${response.status}`);
+    const data = await response.arrayBuffer();
+    let finalData = data;
+    if (decryption) {
+        const { key, iv } = decryption;
+        const cryptoKey = await self.crypto.subtle.importKey(
+            'raw',
+            key,
+            { name: 'AES-CBC' },
+            false,
+            ['decrypt']
+        );
+        finalData = await self.crypto.subtle.decrypt(
+            { name: 'AES-CBC', iv: iv },
+            cryptoKey,
+            data
+        );
+    }
+    const parsedData = await handleParseSegmentStructure({
+        data: finalData,
+        formatHint,
+        url,
+        context,
+    });
+    return { data: finalData, parsedData };
+}
+
+export async function handleDecryptAndParseSegment(
+    { url, key, iv, formatHint },
+    signal
+) {
+    const response = await fetchWithAuth(url, null, null, {}, null, signal);
+    if (!response.ok) throw new Error(`HTTP error ${response.status}`);
+    const encryptedData = await response.arrayBuffer();
+    const cryptoKey = await self.crypto.subtle.importKey(
+        'raw',
+        key,
+        { name: 'AES-CBC' },
+        false,
+        ['decrypt']
+    );
+    const decryptedData = await self.crypto.subtle.decrypt(
+        { name: 'AES-CBC', iv: iv },
+        cryptoKey,
+        encryptedData
+    );
+    const parsedData = await handleParseSegmentStructure({
+        data: decryptedData,
+        formatHint,
+        url,
+        context: {},
+    });
+    return { parsedData, decryptedData };
+}
+
+export async function handleFetchKey({ uri, auth }, signal) {
+    if (uri.startsWith('data:')) {
+        const base64Data = uri.split(',')[1];
+        const binaryString = atob(base64Data);
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) bytes[i] = binaryString.charCodeAt(i);
+        return bytes.buffer;
+    }
+    const response = await fetchWithAuth(uri, auth, null, {}, null, signal);
+    if (!response.ok)
+        throw new Error(`HTTP error ${response.status} fetching key`);
+    return response.arrayBuffer();
+}
+
+export async function handleRunTsSemanticAnalysis({ packets, summary }) {
+    return analyzeSemantics({ packets, summary });
+}
+
 function generateMediaInfoSummary(tsData) {
     if (!tsData?.summary?.programMap) return null;
 
@@ -234,406 +530,5 @@ function generateMediaInfoSummary(tsData) {
         return null;
     }
 
-    appLog(
-        'parsingService',
-        'info',
-        'Generated mediaInfo summary from TS segment.',
-        mediaInfo
-    );
     return mediaInfo;
-}
-// Re-implementing generateFullByteMap to ensure context
-function generateFullByteMap(parsedData) {
-    const byteMap = new Map();
-    if (parsedData.format === 'isobmff') {
-        const walkAndMap = (boxes) => {
-            if (!boxes) return;
-            for (const box of boxes) {
-                for (let i = box.offset; i < box.contentOffset; i++) {
-                    byteMap.set(i, {
-                        box,
-                        color: box.color,
-                        fieldName: 'Box Header',
-                    });
-                }
-                for (const [fieldName, field] of Object.entries(box.details)) {
-                    const fieldEnd = field.offset + Math.ceil(field.length);
-                    for (let i = field.offset; i < fieldEnd; i++) {
-                        byteMap.set(i, { box, color: box.color, fieldName });
-                    }
-                }
-                if (box.children?.length > 0) walkAndMap(box.children);
-            }
-        };
-        walkAndMap(parsedData.data.boxes);
-        if (parsedData.samples) {
-            const boxMapByOffset = new Map();
-            const buildBoxMap = (boxes) => {
-                if (!boxes) return;
-                for (const box of boxes) {
-                    boxMapByOffset.set(box.offset, box);
-                    if (box.children) buildBoxMap(box.children);
-                }
-            };
-            buildBoxMap(parsedData.data.boxes);
-
-            for (const sample of parsedData.samples) {
-                const parentTrun = boxMapByOffset.get(sample.trunOffset);
-                let sampleColor;
-                if (parentTrun?.color?.bgClass) {
-                    const parts = parentTrun.color.bgClass.split('-');
-                    if (parts.length === 3) {
-                        sampleColor = {
-                            bgClass: `bg-${parts[1]}-900/30`,
-                        };
-                    } else {
-                        sampleColor = { bgClass: 'bg-gray-700/30' };
-                    }
-                } else {
-                    sampleColor = { bgClass: 'bg-gray-700/30' };
-                }
-
-                for (
-                    let i = sample.offset;
-                    i < sample.offset + sample.size;
-                    i++
-                ) {
-                    byteMap.set(i, {
-                        sample,
-                        color: sampleColor,
-                        fieldName: 'Sample Data',
-                    });
-                }
-                if (sample.encryption?.subsamples) {
-                    let currentByte = sample.offset;
-                    for (const subsample of sample.encryption.subsamples) {
-                        for (let i = 0; i < subsample.BytesOfClearData; i++) {
-                            const bytePos = currentByte + i;
-                            const entry = byteMap.get(bytePos) || {
-                                sample,
-                                color: sampleColor,
-                                fieldName: 'Sample Data',
-                            };
-                            entry.isClear = true;
-                            byteMap.set(bytePos, entry);
-                        }
-                        currentByte +=
-                            subsample.BytesOfClearData +
-                            subsample.BytesOfProtectedData;
-                    }
-                }
-            }
-        }
-    } else if (parsedData.format === 'ts') {
-        parsedData.data.packets.forEach((packet) => {
-            const baseClass = packet.color?.bgClass;
-            for (let i = packet.offset; i < packet.offset + 188; i++) {
-                const color = baseClass ? { bgClass: baseClass } : {};
-                byteMap.set(i, { packet, color, fieldName: 'Packet Data' });
-            }
-        });
-    }
-    return Array.from(byteMap.entries());
-}
-
-// generateMediaInfoSummary is already defined above
-
-async function parseSegment({ data, formatHint, url, context }) {
-    const dataView = new DataView(data);
-    const decoder = new TextDecoder();
-    if (formatHint) {
-        if (formatHint === 'isobmff') return parseISOBMFF(data, 0, context);
-        if (formatHint === 'ts') return parseTsSegment(data);
-        if (formatHint === 'vtt')
-            return { format: 'vtt', data: parseVTT(decoder.decode(data)) };
-    }
-
-    if (url) {
-        try {
-            const path = new URL(url).pathname.toLowerCase();
-            if (path.endsWith('.vtt'))
-                return { format: 'vtt', data: parseVTT(decoder.decode(data)) };
-            if (path.endsWith('.aac'))
-                return {
-                    format: 'aac',
-                    data: { message: 'Raw AAC Audio Segment' },
-                };
-        } catch (_e) {
-            // Non-URL string, proceed to byte-sniffing
-        }
-    }
-
-    try {
-        if (decoder.decode(data.slice(0, 10)).startsWith('WEBVTT')) {
-            return { format: 'vtt', data: parseVTT(decoder.decode(data)) };
-        }
-    } catch (_e) {
-        // Not valid UTF-8, so it's not VTT. Intentionally empty.
-    }
-
-    if (
-        data.byteLength > 188 &&
-        dataView.getUint8(0) === 0x47 &&
-        dataView.getUint8(188) === 0x47
-    ) {
-        return parseTsSegment(data);
-    }
-
-    if (data.byteLength >= 8) {
-        const size = dataView.getUint32(0);
-        const typeCode1 = dataView.getUint8(4);
-        const typeCode2 = dataView.getUint8(5);
-        const typeCode3 = dataView.getUint8(6);
-        const typeCode4 = dataView.getUint8(7);
-        const isPrintable = (code) => code >= 32 && code <= 126;
-        if (
-            (size >= 8 || size === 1) &&
-            size <= data.byteLength &&
-            isPrintable(typeCode1) &&
-            isPrintable(typeCode2) &&
-            isPrintable(typeCode3) &&
-            isPrintable(typeCode4)
-        ) {
-            return parseISOBMFF(data, 0, context);
-        }
-    }
-    return parseISOBMFF(data, 0, context);
-}
-
-export async function handleParseSegmentStructure({
-    url,
-    data,
-    formatHint,
-    context,
-}) {
-    const parsedData = await parseSegment({ data, formatHint, url, context });
-    parsedData.mediaInfo = null;
-
-    if (parsedData.format === 'isobmff' && parsedData.data.boxes) {
-        assignBoxColors(parsedData.data.boxes);
-        parsedData.data.size = data.byteLength;
-
-        if (parsedData.data.events && parsedData.data.events.length > 0) {
-            const canonicalEvents = parsedData.data.events
-                .map((emsgBox) => {
-                    if (emsgBox.messagePayloadType === 'scte35') {
-                        const timescale = emsgBox.details.timescale.value;
-                        const presentationTime =
-                            emsgBox.details.presentation_time?.value ??
-                            emsgBox.details.presentation_time_delta?.value ??
-                            0;
-                        const eventDuration =
-                            emsgBox.details.event_duration.value;
-                        if (timescale === 0) return null;
-                        return {
-                            startTime: presentationTime / timescale,
-                            duration: eventDuration / timescale,
-                            message: `SCTE-35 Signal (ID: ${emsgBox.details.id.value})`,
-                            type: 'scte35-inband',
-                            scte35: emsgBox.messagePayload,
-                            messageData: null,
-                            cue: null,
-                        };
-                    }
-                    return null;
-                })
-                .filter(Boolean);
-            parsedData.data.events = canonicalEvents;
-        }
-    } else if (parsedData.format === 'ts' && parsedData.data.packets) {
-        assignTsPacketColors(parsedData.data.packets);
-        parsedData.mediaInfo = generateMediaInfoSummary(parsedData.data);
-    }
-    return parsedData;
-}
-
-// --- NEW: Helper to find boxes recursively ---
-const findBox = (boxes, type) => {
-    for (const box of boxes) {
-        if (box.type === type) return box;
-        if (box.children) {
-            const found = findBox(box.children, type);
-            if (found) return found;
-        }
-    }
-    return null;
-};
-
-// --- NEW: Full Segment Analysis with Bitstream Inspection ---
-export async function handleFullSegmentAnalysis({ parsedData, rawData }) {
-    appLog(
-        'parsingService',
-        'info',
-        'Performing full L2 analysis on segment (Byte Map + Bitstream).'
-    );
-
-    const byteMap = generateFullByteMap(parsedData);
-    let bitstreamAnalysis = null;
-
-    if (parsedData.format === 'isobmff' && rawData) {
-        // 1. Locate Configuration (avcC or hvcC)
-        const boxes = parsedData.data.boxes;
-        const avcC = findBox(boxes, 'avcC');
-        const hvcC = findBox(boxes, 'hvcC');
-
-        let codec = null;
-        let lengthSizeMinusOne = 3; // Default to 4 bytes
-
-        if (avcC && avcC.details.lengthSizeMinusOne) {
-            codec = 'avc';
-            lengthSizeMinusOne = avcC.details.lengthSizeMinusOne.value;
-        } else if (hvcC && hvcC.details.lengthSizeMinusOne) {
-            codec = 'hevc';
-            lengthSizeMinusOne = hvcC.details.lengthSizeMinusOne.value;
-        }
-
-        // 2. Locate Media Data (mdat)
-        const mdat = findBox(boxes, 'mdat');
-
-        if (codec && mdat) {
-            try {
-                // 3. Extract Buffer Slice
-                // mdat.contentOffset is where the data starts
-                const mdatStart = mdat.contentOffset;
-                const mdatEnd = mdat.offset + mdat.size;
-
-                // Ensure we have the raw buffer available (passed in payload now)
-                const rawUint8 = new Uint8Array(rawData);
-                const mdatBody = rawUint8.subarray(mdatStart, mdatEnd);
-
-                // 4. Parse NAL Units
-                const nalUnits = parseNalUnits(
-                    mdatBody,
-                    lengthSizeMinusOne,
-                    /** @type {'avc' | 'hevc'} */(codec),
-                    mdatStart
-                );
-
-                // 5. Analyze GOP
-                // Estimate duration from parsedData samples if available, or default to 0
-                const duration = parsedData.samples
-                    ? parsedData.samples.reduce(
-                        (acc, s) => acc + s.duration,
-                        0
-                    ) / (parsedData.samples[0]?.timescale || 90000)
-                    : 0;
-
-                bitstreamAnalysis = analyzeGopStructure(nalUnits, duration);
-                appLog(
-                    'parsingService',
-                    'info',
-                    'Bitstream analysis complete.',
-                    bitstreamAnalysis.summary
-                );
-            } catch (e) {
-                console.error('Bitstream analysis failed:', e);
-                bitstreamAnalysis = { error: e.message };
-            }
-        }
-    }
-
-    return {
-        byteMap: byteMap,
-        bitstreamAnalysis: bitstreamAnalysis,
-    };
-}
-
-export async function handleFetchAndParseSegment(
-    { uniqueId, streamId, formatHint, auth, decryption, context },
-    signal
-) {
-    const [url, , range] = uniqueId.split('@');
-
-    const response = await fetchWithAuth(url, auth, range, {}, null, signal);
-
-    if (response.status !== 200 && response.status !== 206) {
-        throw new Error(`HTTP error ${response.status} fetching segment`);
-    }
-
-    const data = await response.arrayBuffer();
-
-    let finalData = data;
-    if (decryption) {
-        const { key, iv } = decryption;
-        const cryptoKey = await self.crypto.subtle.importKey(
-            'raw',
-            key,
-            { name: 'AES-CBC' },
-            false,
-            ['decrypt']
-        );
-        finalData = await self.crypto.subtle.decrypt(
-            { name: 'AES-CBC', iv: iv },
-            cryptoKey,
-            data
-        );
-    }
-
-    const parsedData = await handleParseSegmentStructure({
-        data: finalData,
-        formatHint,
-        url,
-        context,
-    });
-    return { data: finalData, parsedData };
-}
-
-export async function handleDecryptAndParseSegment(
-    { url, key, iv, formatHint },
-    signal
-) {
-    const response = await fetchWithAuth(url, null, null, {}, null, signal);
-    if (!response.ok) {
-        throw new Error(`HTTP error ${response.status} fetching segment`);
-    }
-    const encryptedData = await response.arrayBuffer();
-    const cryptoKey = await self.crypto.subtle.importKey(
-        'raw',
-        key,
-        { name: 'AES-CBC' },
-        false,
-        ['decrypt']
-    );
-    const decryptedData = await self.crypto.subtle.decrypt(
-        { name: 'AES-CBC', iv: iv },
-        cryptoKey,
-        encryptedData
-    );
-    const parsedData = await handleParseSegmentStructure({
-        data: decryptedData,
-        formatHint,
-        url,
-        context: {},
-    });
-    return { parsedData, decryptedData };
-}
-
-export async function handleFetchKey({ uri, auth }, signal) {
-    if (uri.startsWith('data:')) {
-        const base64Data = uri.split(',')[1];
-        const binaryString = atob(base64Data);
-        const len = binaryString.length;
-        const bytes = new Uint8Array(len);
-        for (let i = 0; i < len; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
-        }
-        return bytes.buffer;
-    }
-    const response = await fetchWithAuth(uri, auth, null, {}, null, signal);
-    if (!response.ok) {
-        throw new Error(`HTTP error ${response.status} fetching key`);
-    }
-    return response.arrayBuffer();
-}
-
-/**
- * Runs on-demand semantic analysis for a TS segment.
- * @param {object} payload
- * @param {object[]} payload.packets
- * @param {object} payload.summary
- * @returns {Promise<object[]>}
- */
-export async function handleRunTsSemanticAnalysis({ packets, summary }) {
-    appLog('parsingService', 'info', 'Running on-demand TS semantic analysis.');
-    return analyzeSemantics({ packets, summary });
 }

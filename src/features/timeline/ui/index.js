@@ -1,82 +1,140 @@
 import { html, render } from 'lit-html';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { useUiStore, uiActions } from '@/state/uiStore';
-import { dashTimelineTemplate } from './dash/index.js';
-import { hlsTimelineTemplate } from './hls/index.js';
-import { connectedTabBar } from '@/ui/components/tabs.js';
-import { usePlayerStore } from '@/state/playerStore.js';
-
+import { createTimelineViewModel } from './view-model.js';
+import { timelineControlsTemplate } from './components/timeline-controls.js';
+import { timelineInspectorTemplate } from './components/timeline-inspector.js';
+import { metricPanelTemplate } from './components/metric-panel.js';
+import { hlsCascadeViewTemplate } from './hls/components/cascade-view.js';
+import { cascadeViewTemplate as dashCascadeViewTemplate } from './dash/components/cascade-view.js';
+import './components/timeline-chart.js';
+import * as icons from '@/ui/icons';
 
 let container = null;
-let analysisUnsubscribe = null;
-let uiUnsubscribe = null;
-let playerUnsubscribe = null;
+let unsubs = [];
 
-function renderTimelineView() {
+function renderTimeline() {
     if (!container) return;
 
     const { streams, activeStreamId } = useAnalysisStore.getState();
     const { timelineActiveTab } = useUiStore.getState();
-    const { currentStats } = usePlayerStore.getState();
     const stream = streams.find((s) => s.id === activeStreamId);
 
     if (!stream) {
-        timelineView.unmount();
+        render(
+            html`<div class="p-8 text-center text-slate-500">
+                No stream loaded.
+            </div>`,
+            container
+        );
         return;
     }
 
-    let viewContent;
-    const tabs = [{ key: 'overview', label: 'General' }];
+    const viewModel = createTimelineViewModel(stream);
+    const hasDrilldown =
+        stream.protocol === 'dash' ||
+        (stream.protocol === 'hls' && stream.manifest.isMaster);
 
-    if (stream.protocol === 'dash') {
-        tabs.push({ key: 'cascade', label: 'Drilldown' });
-        viewContent = dashTimelineTemplate(stream, currentStats?.playheadTime);
-    } else if (stream.protocol === 'hls') {
-        if (stream.manifest?.isMaster) {
-            tabs.push({ key: 'cascade', label: 'Drilldown' });
-        }
-        viewContent = hlsTimelineTemplate(stream, currentStats?.playheadTime);
+    const toggleDrilldown = () => {
+        const newTab =
+            timelineActiveTab === 'drilldown' ? 'overview' : 'drilldown';
+        uiActions.setTimelineActiveTab(newTab);
+    };
+
+    let content;
+    if (timelineActiveTab === 'drilldown') {
+        content = html`
+            <div
+                class="p-6 h-full overflow-y-auto custom-scrollbar bg-slate-950"
+            >
+                <div class="flex items-center justify-between mb-6">
+                    <h2
+                        class="text-xl font-bold text-white flex items-center gap-2"
+                    >
+                        ${icons.folderTree} Structural Drilldown
+                    </h2>
+                    <button
+                        @click=${toggleDrilldown}
+                        class="flex items-center gap-2 text-xs font-bold px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors"
+                    >
+                        ${icons.arrowLeft} Back to Timeline
+                    </button>
+                </div>
+                ${stream.protocol === 'dash'
+                    ? dashCascadeViewTemplate(stream)
+                    : hlsCascadeViewTemplate(stream)}
+            </div>
+        `;
     } else {
-        viewContent = html`<p class="text-yellow-400">
-            Timeline view is not supported for this stream type.
-        </p>`;
+        // Unified Dashboard
+        content = html`
+            <div
+                class="flex flex-col h-full p-6 gap-6 bg-slate-950 overflow-hidden"
+            >
+                <!-- Header Controls -->
+                <div
+                    class="shrink-0 flex justify-between items-end border-b border-slate-800 pb-4"
+                >
+                    ${timelineControlsTemplate(stream)}
+                    <div class="flex items-center gap-2">
+                        ${hasDrilldown
+                            ? html`
+                                  <button
+                                      @click=${toggleDrilldown}
+                                      class="flex items-center gap-2 text-xs font-bold px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors"
+                                  >
+                                      ${icons.list} Structure Tree
+                                  </button>
+                              `
+                            : ''}
+                    </div>
+                </div>
+
+                <!-- Metrics Grid -->
+                <div class="shrink-0 animate-fadeIn">
+                    ${metricPanelTemplate(viewModel.metricsGroups)}
+                </div>
+
+                <!-- Chart (Smaller Height) -->
+                <div
+                    class="shrink-0 h-64 bg-slate-900/50 rounded-xl border border-slate-800 p-1 relative overflow-hidden shadow-inner"
+                >
+                    <div
+                        class="absolute inset-0 bg-[url('/assets/grid.svg')] opacity-5 pointer-events-none"
+                    ></div>
+                    <timeline-chart .data=${viewModel}></timeline-chart>
+                </div>
+
+                <!-- Inspector (Fills remaining space) -->
+                <div
+                    class="grow min-h-0 bg-slate-900 rounded-xl border border-slate-800 overflow-hidden flex flex-col shadow-lg"
+                >
+                    <div
+                        class="p-3 bg-slate-800/80 border-b border-slate-700 font-bold text-xs text-slate-400 uppercase tracking-wider"
+                    >
+                        Selection Inspector
+                    </div>
+                    <div class="grow overflow-hidden">
+                        ${timelineInspectorTemplate()}
+                    </div>
+                </div>
+            </div>
+        `;
     }
 
-    const template = html`
-        <div class="flex flex-col h-full">
-            <div class="shrink-0">
-                ${connectedTabBar(
-        tabs,
-        timelineActiveTab,
-        uiActions.setTimelineActiveTab
-    )}
-            </div>
-            <div class="grow min-h-0 overflow-auto pt-4">${viewContent}</div>
-        </div>
-    `;
-
-    render(template, container);
+    render(content, container);
 }
 
 export const timelineView = {
     mount(containerElement) {
         container = containerElement;
-        if (analysisUnsubscribe) analysisUnsubscribe();
-        if (uiUnsubscribe) uiUnsubscribe();
-        if (playerUnsubscribe) playerUnsubscribe();
-
-        analysisUnsubscribe = useAnalysisStore.subscribe(renderTimelineView);
-        uiUnsubscribe = useUiStore.subscribe(renderTimelineView);
-        playerUnsubscribe = usePlayerStore.subscribe(renderTimelineView);
-        renderTimelineView();
+        unsubs.push(useAnalysisStore.subscribe(renderTimeline));
+        unsubs.push(useUiStore.subscribe(renderTimeline));
+        renderTimeline();
     },
     unmount() {
-        if (analysisUnsubscribe) analysisUnsubscribe();
-        if (uiUnsubscribe) uiUnsubscribe();
-        if (playerUnsubscribe) playerUnsubscribe();
-        analysisUnsubscribe = null;
-        uiUnsubscribe = null;
-        playerUnsubscribe = null;
+        unsubs.forEach((u) => u());
+        unsubs = [];
         if (container) render(html``, container);
         container = null;
     },

@@ -1,59 +1,65 @@
 import { html } from 'lit-html';
 import { analysisActions, useAnalysisStore } from '@/state/analysisStore';
-import { eventBus } from '@/application/event-bus';
-import { showToast } from '@/ui/components/toast';
-import {
-    getPresets,
-    prepareForStorage,
-    canonicalStringify,
-} from '@/infrastructure/persistence/streamStorage';
 import * as icons from '@/ui/icons';
-import { useUiStore, uiActions } from '@/state/uiStore';
-import { exampleStreams } from '@/data/example-streams';
-import { connectedTabBar } from '@/ui/components/tabs';
 
-const authParamRowTemplate = (param, inputId, type, isDrm) => {
-    const updateAction = isDrm
-        ? analysisActions.updateDrmAuthParam
-        : analysisActions.updateAuthParam;
-    const removeAction = isDrm
-        ? analysisActions.removeDrmAuthParam
-        : analysisActions.removeAuthParam;
+const configSection = (title, icon, content) => html`
+    <section class="mb-8 animate-fadeIn">
+        <h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2 border-b border-slate-800 pb-2">
+            <span class="text-blue-500">${icon}</span> ${title}
+        </h3>
+        ${content}
+    </section>
+`;
+
+const drmToggle = (systemName, detected, isConfigured, onClick) => html`
+    <div 
+        @click=${onClick}
+        class="flex items-center justify-between p-4 rounded-t-xl border-t border-x transition-all cursor-pointer select-none ${
+            isConfigured 
+                ? 'bg-blue-900/10 border-blue-500/30' 
+                : 'bg-slate-900 border-slate-800 hover:bg-slate-800/80'
+        } ${!isConfigured ? 'rounded-b-xl border-b' : ''}"
+    >
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-lg font-bold text-slate-400 border border-slate-700 shadow-inner">
+                ${systemName[0]}
+            </div>
+            <div>
+                <div class="font-bold text-slate-200 text-sm">${systemName}</div>
+                <div class="text-[10px] ${detected ? 'text-emerald-400' : 'text-slate-500'}">
+                    ${detected ? 'Signal Detected' : 'Not Detected'}
+                </div>
+            </div>
+        </div>
+        <div class="relative w-10 h-5 bg-slate-800 rounded-full border border-slate-700 transition-colors ${isConfigured ? 'bg-blue-600 border-blue-500' : ''}">
+            <div class="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${isConfigured ? 'translate-x-5' : 'translate-x-0'}"></div>
+        </div>
+    </div>
+`;
+
+const headerInputRow = (header, index, inputId, isDrm) => {
+    const update = isDrm ? analysisActions.updateDrmAuthParam : analysisActions.updateAuthParam;
+    const remove = isDrm ? analysisActions.removeDrmAuthParam : analysisActions.removeAuthParam;
 
     return html`
-        <div class="flex items-center gap-2">
-            <input
-                type="text"
-                class="bg-slate-700 text-white rounded px-2 py-1.5 text-sm w-full border border-slate-600"
-                placeholder="Key"
-                .value=${param.key}
-                @input=${(e) =>
-                    updateAction(
-                        inputId,
-                        type,
-                        param.id,
-                        'key',
-                        e.target.value
-                    )}
+        <div class="flex gap-2 mb-2 group animate-scaleIn">
+            <input 
+                type="text" 
+                placeholder="Header-Name" 
+                class="bg-slate-900 border border-slate-700 text-slate-300 text-xs rounded px-3 py-2 font-mono w-1/3 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors"
+                .value=${header.key}
+                @input=${(e) => update(inputId, 'headers', header.id, 'key', e.target.value)}
             />
-            <input
-                type="text"
-                class="bg-slate-700 text-white rounded px-2 py-1.5 text-sm w-full border border-slate-600"
-                placeholder="Value"
-                .value=${param.value}
-                @input=${(e) =>
-                    updateAction(
-                        inputId,
-                        type,
-                        param.id,
-                        'value',
-                        e.target.value
-                    )}
+            <input 
+                type="text" 
+                placeholder="Value" 
+                class="bg-slate-900 border border-slate-700 text-emerald-300 text-xs rounded px-3 py-2 font-mono flex-1 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-colors"
+                .value=${header.value}
+                @input=${(e) => update(inputId, 'headers', header.id, 'value', e.target.value)}
             />
-            <button
-                type="button"
-                @click=${() => removeAction(inputId, type, param.id)}
-                class="text-red-400 hover:text-red-300 p-1 shrink-0"
+            <button 
+                @click=${() => remove(inputId, 'headers', header.id)}
+                class="p-2 text-slate-500 hover:text-red-400 hover:bg-red-900/10 rounded transition-colors opacity-50 group-hover:opacity-100"
             >
                 ${icons.xCircle}
             </button>
@@ -61,454 +67,232 @@ const authParamRowTemplate = (param, inputId, type, isDrm) => {
     `;
 };
 
-const authSectionTemplate = (title, type, params, inputId, isDrm) => {
-    const addAction = isDrm
-        ? analysisActions.addDrmAuthParam
-        : analysisActions.addAuthParam;
-    return html`
-        <div>
-            <div class="flex justify-between items-center mb-2">
-                <h5 class="font-semibold text-slate-300 text-sm">${title}</h5>
-                <button
-                    type="button"
-                    @click=${() => addAction(inputId, type)}
-                    class="text-xs text-blue-400 hover:text-blue-300 font-bold"
-                >
-                    + Add
-                </button>
-            </div>
-            <div class="space-y-2">
-                ${params.length > 0
-                    ? params.map((p) =>
-                          authParamRowTemplate(p, inputId, type, isDrm)
-                      )
-                    : html`<p class="text-xs text-slate-500 italic">
-                          No ${title.toLowerCase()} configured.
-                      </p>`}
-            </div>
-        </div>
-    `;
-};
-
-const streamAuthSettingsTemplate = (inputId, auth) => html`
-    <div class="space-y-4">
-        ${authSectionTemplate(
-            'Request Headers',
-            'headers',
-            auth.headers,
-            inputId,
-            false
-        )}
-    </div>
-`;
-
-const certificateInputTemplate = (
-    label,
-    keySystem,
-    inputId,
-    drmAuth,
-    onUrlChange,
-    onFileChange
-) => {
-    const certs = drmAuth.serverCertificate;
-    let certValue = null;
-    if (typeof certs === 'object' && certs !== null && !Array.isArray(certs)) {
-        certValue = certs[keySystem];
-    } else if (
-        ['com.apple.fps'].includes(keySystem) &&
-        (typeof certs === 'string' || certs instanceof File)
-    ) {
-        // Backward compatibility for FairPlay
-        certValue = certs;
-    }
-
-    const isFile = certValue instanceof File;
-    const isFileStub = isFile && certValue.size === 0;
-    const certUrlValue = !isFile ? certValue || '' : '';
-
-    let certFileLabel = 'Upload .der';
-    let certFileClasses = 'bg-slate-600 hover:bg-slate-700';
-    if (isFileStub) {
-        certFileLabel = `RE-SELECT: ${certValue.name}`;
-        certFileClasses =
-            'bg-yellow-600 hover:bg-yellow-700 text-yellow-900 animate-pulse';
-    } else if (isFile) {
-        certFileLabel = certValue.name;
-        certFileClasses = 'bg-green-600 text-white';
-    }
-
-    return html`
-        <div>
-            <label class="block text-sm font-medium text-slate-400 mb-1"
-                >${label}</label
-            >
-            <div class="flex items-center gap-2">
-                <input
-                    type="url"
-                    class="bg-slate-800 text-white rounded px-2 py-1.5 text-sm w-full border border-slate-600"
-                    placeholder="Enter URL..."
-                    .value=${certUrlValue}
-                    ?disabled=${isFile}
-                    @input=${(e) => onUrlChange(keySystem, e.target.value)}
-                />
-                <label
-                    for="cert-file-${inputId}-${keySystem}"
-                    class="shrink-0 cursor-pointer ${certFileClasses} text-white font-bold py-2 px-3 rounded-md text-center text-xs truncate"
-                    >${certFileLabel}</label
-                >
-                <input
-                    type="file"
-                    id="cert-file-${inputId}-${keySystem}"
-                    class="hidden"
-                    accept=".der,.cer"
-                    @change=${(e) => onFileChange(keySystem, e.target.files[0])}
-                />
-            </div>
-        </div>
-    `;
-};
-
-const drmAuthSettingsTemplate = (inputId, drmAuth, detectedDrm, showAll) => {
-    const handleLicenseUrlInput = (keySystem, value) => {
-        const normalizedValue = value.trim() === '' ? null : value;
-        let newLicenseServerUrl;
-        if (
-            typeof drmAuth.licenseServerUrl === 'string' ||
-            drmAuth.licenseServerUrl === null
-        ) {
-            newLicenseServerUrl = { [keySystem]: normalizedValue };
-        } else {
-            newLicenseServerUrl = {
-                ...drmAuth.licenseServerUrl,
-                [keySystem]: normalizedValue,
-            };
-        }
-
-        // If all values in the object are null, revert the whole object to null.
-        if (
-            typeof newLicenseServerUrl === 'object' &&
-            Object.values(newLicenseServerUrl).every((v) => v === null)
-        ) {
-            newLicenseServerUrl = null;
-        }
-
-        analysisActions.updateStreamInput(inputId, 'drmAuth', {
-            ...drmAuth,
-            licenseServerUrl: newLicenseServerUrl,
-        });
-    };
-
-    const handleCertChange = (keySystem, value) => {
-        const normalizedValue =
-            typeof value === 'string' && value.trim() === '' ? null : value;
-        let newCerts;
-        if (
-            typeof drmAuth.serverCertificate === 'object' &&
-            drmAuth.serverCertificate !== null &&
-            !Array.isArray(drmAuth.serverCertificate)
-        ) {
-            newCerts = {
-                ...drmAuth.serverCertificate,
-                [keySystem]: normalizedValue,
-            };
-        } else {
-            newCerts = { [keySystem]: normalizedValue };
-        }
-
-        // If all values in the object are null, revert the whole object to null.
-        if (
-            typeof newCerts === 'object' &&
-            Object.values(newCerts).every((v) => v === null)
-        ) {
-            newCerts = null;
-        }
-
-        analysisActions.updateStreamInput(inputId, 'drmAuth', {
-            ...drmAuth,
-            serverCertificate: newCerts,
-        });
-    };
-
-    const licenseUrlFor = (keySystem) => {
-        if (
-            typeof drmAuth.licenseServerUrl === 'string' ||
-            drmAuth.licenseServerUrl === null
-        ) {
-            return drmAuth.licenseServerUrl || '';
-        }
-        return drmAuth.licenseServerUrl?.[keySystem] || '';
-    };
-
-    const licenseServerInput = (label, keySystem) => html`
-        <div>
-            <label class="block text-sm font-medium text-slate-400 mb-1"
-                >${label}</label
-            >
-            <input
-                type="url"
-                class="bg-slate-800 text-white rounded px-2 py-1.5 text-sm w-full border border-slate-600"
-                placeholder="Leave blank for auto-discovery"
-                .value=${licenseUrlFor(keySystem)}
-                @input=${(e) =>
-                    handleLicenseUrlInput(keySystem, e.target.value)}
-            />
-        </div>
-    `;
-
-    const showWidevine = showAll || detectedDrm?.includes('Widevine');
-    const showPlayReady = showAll || detectedDrm?.includes('PlayReady');
-    const showFairPlay = showAll || detectedDrm?.includes('FairPlay');
-
-    if (!showWidevine && !showPlayReady && !showFairPlay) {
-        return html`
-            <div class="text-center p-4 bg-slate-800/50 rounded-md">
-                <div class="text-green-400 mx-auto w-8 h-8">
-                    ${icons.shieldCheck}
-                </div>
-                <p class="text-sm font-semibold text-slate-300 mt-2">
-                    No DRM Detected
-                </p>
-                <p class="text-xs text-slate-400 mt-1">
-                    This appears to be a clear, unencrypted stream.
-                </p>
-                <button
-                    @click=${() => uiActions.toggleShowAllDrmFields()}
-                    class="text-xs text-blue-400 hover:underline mt-2"
-                >
-                    Manual Override
-                </button>
-            </div>
-        `;
-    }
-
-    return html`
-        <div class="space-y-4">
-            ${showWidevine
-                ? html`<div>
-                      ${licenseServerInput(
-                          'Widevine License URL',
-                          'com.widevine.alpha'
-                      )}
-                      ${certificateInputTemplate(
-                          'Widevine Certificate',
-                          'com.widevine.alpha',
-                          inputId,
-                          drmAuth,
-                          handleCertChange,
-                          handleCertChange
-                      )}
-                  </div>`
-                : ''}
-            ${showPlayReady
-                ? html`<div>
-                      ${licenseServerInput(
-                          'PlayReady License URL',
-                          'com.microsoft.playready'
-                      )}
-                      ${certificateInputTemplate(
-                          'PlayReady Certificate',
-                          'com.microsoft.playready',
-                          inputId,
-                          drmAuth,
-                          handleCertChange,
-                          handleCertChange
-                      )}
-                  </div>`
-                : ''}
-            ${showFairPlay
-                ? html`<div>
-                      ${licenseServerInput(
-                          'FairPlay License URL',
-                          'com.apple.fps'
-                      )}
-                      ${certificateInputTemplate(
-                          'FairPlay Certificate',
-                          'com.apple.fps',
-                          inputId,
-                          drmAuth,
-                          handleCertChange,
-                          handleCertChange
-                      )}
-                  </div>`
-                : ''}
-            ${authSectionTemplate(
-                'License Request Headers',
-                'headers',
-                drmAuth.headers,
-                inputId,
-                true
-            )}
-            ${!showAll
-                ? html`<button
-                      @click=${() => uiActions.toggleShowAllDrmFields()}
-                      class="text-xs text-blue-400 hover:underline mt-2"
-                  >
-                      Show All / Manual Override
-                  </button>`
-                : ''}
-        </div>
-    `;
-};
-
 export const inspectorPanelTemplate = () => {
     const { streamInputs, activeStreamInputId } = useAnalysisStore.getState();
-    const { streamInputActiveMobileTab, showAllDrmFields, presetSaveStatus } =
-        useUiStore.getState();
-    const activeInput = streamInputs.find((i) => i.id === activeStreamInputId);
+    const activeInput = streamInputs.find(i => i.id === activeStreamInputId);
 
-    if (!activeInput) {
-        return html`
-            <div
-                class="flex flex-col h-full items-center justify-center text-center text-slate-500 p-6"
-            >
-                ${icons.fileScan}
-                <p class="mt-2 font-semibold">No Stream Selected</p>
-                <p class="text-sm">
-                    Select a stream from the workspace to configure its
-                    properties.
-                </p>
+    if (!activeInput) return html``;
+
+    const detectedDrm = activeInput.detectedDrm || [];
+    
+    // Identity Section
+    const identityContent = html`
+        <div class="grid grid-cols-1 gap-4">
+            <div class="relative">
+                <label class="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Friendly Name</label>
+                <input 
+                    type="text" 
+                    class="w-full bg-slate-900 text-white text-sm border border-slate-700 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
+                    .value=${activeInput.name || ''}
+                    @input=${(e) => analysisActions.updateStreamInput(activeInput.id, 'name', e.target.value)}
+                    placeholder="e.g. Production Stream A"
+                />
             </div>
-        `;
-    }
+            <div class="relative opacity-60">
+                <label class="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Source URL</label>
+                <input 
+                    type="text" 
+                    readonly
+                    class="w-full bg-slate-900 text-slate-400 text-xs font-mono border border-slate-800 rounded-lg px-4 py-3 select-all"
+                    .value=${activeInput.url}
+                />
+            </div>
+        </div>
+    `;
 
-    const { detectedDrm, isDrmInfoLoading } = activeInput;
+    // Network Section
+    const networkContent = html`
+        <div class="bg-slate-800/30 rounded-xl p-4 border border-slate-800">
+            <div class="flex justify-between items-center mb-4">
+                <span class="text-xs font-medium text-slate-300">Custom Headers</span>
+                <button 
+                    @click=${() => analysisActions.addAuthParam(activeInput.id, 'headers')}
+                    class="text-[10px] font-bold text-blue-400 hover:text-blue-300 uppercase tracking-wider flex items-center gap-1"
+                >
+                    ${icons.plusCircle} Add
+                </button>
+            </div>
+            <div class="space-y-1">
+                ${activeInput.auth.headers.length > 0 
+                    ? activeInput.auth.headers.map((h, i) => headerInputRow(h, i, activeInput.id, false))
+                    : html`<div class="text-center py-4 text-slate-600 text-xs italic border border-dashed border-slate-700 rounded-lg">No headers configured</div>`
+                }
+            </div>
+        </div>
+    `;
 
-    const presets = getPresets();
-    const savedPreset = presets.find((p) => p.url === activeInput.url);
-    const isPreset = !!savedPreset;
-    const isExample = exampleStreams.some((s) => s.url === activeInput.url);
+    // DRM Section
+    const drmContent = html`
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            ${['Widevine', 'PlayReady', 'FairPlay'].map(sys => {
+                const keySys = sys === 'Widevine' ? 'com.widevine.alpha' : sys === 'PlayReady' ? 'com.microsoft.playready' : 'com.apple.fps';
+                
+                // Logic to handle simple string vs object structure for URLs
+                const currentUrl = typeof activeInput.drmAuth.licenseServerUrl === 'string' 
+                    ? activeInput.drmAuth.licenseServerUrl 
+                    : activeInput.drmAuth.licenseServerUrl?.[keySys];
 
-    let isPresetModified = false;
-    if (isPreset) {
-        const storableActive = prepareForStorage(activeInput);
-        const storableSaved = prepareForStorage(savedPreset);
-        isPresetModified =
-            canonicalStringify(storableActive) !==
-            canonicalStringify(storableSaved);
-    }
+                // Logic for Certificate (object structure preferred)
+                const certsObj = activeInput.drmAuth.serverCertificate && typeof activeInput.drmAuth.serverCertificate === 'object' && !(activeInput.drmAuth.serverCertificate instanceof ArrayBuffer)
+                    ? activeInput.drmAuth.serverCertificate
+                    : {}; // Fallback if simple value (legacy/single)
+                
+                const currentCert = certsObj[keySys];
+                
+                const toggleConfig = () => {
+                    const newUrlObj = typeof activeInput.drmAuth.licenseServerUrl === 'object' 
+                        ? { ...activeInput.drmAuth.licenseServerUrl } 
+                        : {};
+                    
+                    if (currentUrl) {
+                        delete newUrlObj[keySys]; // Disable
+                    } else {
+                        newUrlObj[keySys] = 'https://'; // Enable with placeholder
+                    }
+                    analysisActions.updateStreamInput(activeInput.id, 'drmAuth', { ...activeInput.drmAuth, licenseServerUrl: newUrlObj });
+                };
 
-    const handleSavePreset = () => {
-        if (!activeInput.name || !activeInput.url) {
-            showToast({
-                message:
-                    'URL and a custom name are required to save or update a preset.',
-                type: 'warn',
-            });
-            return;
-        }
-        eventBus.dispatch('ui:save-preset-requested', {
-            name: activeInput.name,
-            url: activeInput.url,
-            isPreset,
-        });
-    };
+                const handleCertUpload = (e) => {
+                    if (e.target.files.length > 0) {
+                        const file = e.target.files[0];
+                        const newCerts = { ...certsObj, [keySys]: file };
+                        analysisActions.updateStreamInput(activeInput.id, 'drmAuth', { ...activeInput.drmAuth, serverCertificate: newCerts });
+                    }
+                    e.target.value = ''; // Reset input
+                };
+                
+                const handleCertUrlInput = (e) => {
+                    const val = e.target.value.trim();
+                    const newCerts = { ...certsObj, [keySys]: val || null };
+                    // If empty string, removing the key effectively
+                    if (!val) delete newCerts[keySys];
+                    analysisActions.updateStreamInput(activeInput.id, 'drmAuth', { ...activeInput.drmAuth, serverCertificate: newCerts });
+                };
 
-    let saveButtonText;
-    switch (presetSaveStatus) {
-        case 'saving':
-            saveButtonText = 'Saving...';
-            break;
-        case 'saved':
-            saveButtonText = isPreset ? 'Updated!' : 'Saved!';
-            break;
-        case 'error':
-            saveButtonText = 'Error!';
-            break;
-        default:
-            saveButtonText = isPreset ? 'Update Preset' : 'Save as Preset';
-    }
+                const removeCert = () => {
+                    const newCerts = { ...certsObj };
+                    delete newCerts[keySys];
+                    analysisActions.updateStreamInput(activeInput.id, 'drmAuth', { ...activeInput.drmAuth, serverCertificate: newCerts });
+                };
 
-    let saveButtonDisabled =
-        !activeInput.url ||
-        !activeInput.name ||
-        isExample ||
-        presetSaveStatus !== 'idle';
-    if (isPreset && presetSaveStatus === 'idle') {
-        saveButtonDisabled = !isPresetModified;
-    }
+                const isCertFile = currentCert && typeof currentCert === 'object';
+                const isCertString = typeof currentCert === 'string';
 
-    let drmTabIndicator = null;
-    if (isDrmInfoLoading) {
-        drmTabIndicator = icons.spinner;
-    } else if (detectedDrm && detectedDrm.length > 0) {
-        drmTabIndicator = html`<span class="text-yellow-400"
-            >${icons.lockClosed}</span
-        >`;
-    }
+                return html`
+                    <div class="rounded-xl shadow-sm transition-all duration-300 ${currentUrl ? 'bg-slate-800/50 border border-blue-500/30' : 'opacity-100'}">
+                        
+                        ${drmToggle(sys, detectedDrm.includes(sys), !!currentUrl, toggleConfig)}
+                        
+                        ${currentUrl ? html`
+                            <div class="p-4 border-x border-b border-blue-500/30 bg-slate-900/50 rounded-b-xl space-y-4 animate-fadeIn">
+                                
+                                <!-- License URL -->
+                                <div>
+                                    <label class="text-[10px] font-bold text-slate-500 mb-1.5 block uppercase tracking-wider">License Server URL</label>
+                                    <div class="relative">
+                                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-600">
+                                            ${icons.link}
+                                        </div>
+                                        <input 
+                                            type="text"
+                                            class="w-full bg-slate-950 text-white text-xs border border-slate-700 rounded-lg py-2.5 pl-9 pr-3 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors font-mono"
+                                            .value=${currentUrl === 'https://' ? '' : currentUrl}
+                                            placeholder="https://license.example.com..."
+                                            @input=${(e) => {
+                                                const newUrlObj = typeof activeInput.drmAuth.licenseServerUrl === 'object' ? { ...activeInput.drmAuth.licenseServerUrl } : {};
+                                                newUrlObj[keySys] = e.target.value;
+                                                analysisActions.updateStreamInput(activeInput.id, 'drmAuth', { ...activeInput.drmAuth, licenseServerUrl: newUrlObj });
+                                            }}
+                                        />
+                                    </div>
+                                </div>
 
-    const tabs = [
-        { key: 'stream', label: 'Stream Auth' },
-        { key: 'drm', label: 'DRM Settings', indicator: drmTabIndicator },
-    ];
+                                <!-- Certificate: File or URL -->
+                                <div>
+                                    <label class="text-[10px] font-bold text-slate-500 mb-1.5 block uppercase tracking-wider">
+                                        Server Certificate
+                                        ${sys === 'FairPlay' ? html`<span class="text-red-400 ml-1">* Required</span>` : ''}
+                                    </label>
+                                    
+                                    ${isCertFile
+                                        ? html`
+                                            <div class="flex items-center justify-between bg-emerald-900/10 border border-emerald-500/30 rounded-lg p-2 animate-scaleIn">
+                                                <div class="flex items-center gap-2 text-emerald-400">
+                                                    ${icons.checkCircle}
+                                                    <span class="text-xs font-mono truncate max-w-[150px]">
+                                                        ${currentCert.name || 'Certificate Loaded'}
+                                                    </span>
+                                                </div>
+                                                <button 
+                                                    @click=${removeCert}
+                                                    class="text-slate-500 hover:text-red-400 p-1 rounded hover:bg-red-900/20 transition-colors"
+                                                    title="Remove Certificate"
+                                                >
+                                                    ${icons.xCircle}
+                                                </button>
+                                            </div>
+                                        ` 
+                                        : html`
+                                            <div class="relative flex items-center group">
+                                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-600">
+                                                    ${icons.shield}
+                                                </div>
+                                                <input 
+                                                    type="text"
+                                                    class="w-full bg-slate-950 text-white text-xs border border-slate-700 rounded-lg py-2.5 pl-9 pr-10 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors font-mono"
+                                                    .value=${isCertString ? currentCert : ''}
+                                                    placeholder="https://... or upload .cer"
+                                                    @input=${handleCertUrlInput}
+                                                />
+                                                <label class="absolute inset-y-1 right-1 flex items-center cursor-pointer">
+                                                    <input type="file" class="hidden" @change=${handleCertUpload} />
+                                                    <div class="p-1.5 rounded bg-slate-800 text-slate-400 hover:text-blue-400 hover:bg-slate-700 transition-colors border border-slate-700" title="Upload Certificate File">
+                                                        ${icons.upload}
+                                                    </div>
+                                                </label>
+                                            </div>
+                                        `
+                                    }
+                                </div>
 
-    const activeTabKey = ['stream', 'drm'].includes(streamInputActiveMobileTab)
-        ? streamInputActiveMobileTab
-        : 'stream';
-
-    let drmContent;
-    if (isDrmInfoLoading) {
-        drmContent = html`<div
-            class="flex items-center justify-center p-8 text-slate-400"
-        >
-            <span class="animate-spin mr-2">${icons.spinner}</span>
-            <span>Detecting DRM...</span>
-        </div>`;
-    } else {
-        drmContent = drmAuthSettingsTemplate(
-            activeInput.id,
-            activeInput.drmAuth,
-            detectedDrm,
-            showAllDrmFields
-        );
-    }
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            })}
+        </div>
+        
+        <!-- Additional Global Headers -->
+        <div class="mt-6 pt-6 border-t border-slate-800">
+            <div class="bg-slate-800/30 rounded-xl p-4 border border-slate-800">
+                <div class="flex justify-between items-center mb-4">
+                    <div class="flex items-center gap-2 text-slate-400">
+                        ${icons.settings}
+                        <span class="text-xs font-bold uppercase tracking-wider">Global License Headers</span>
+                    </div>
+                    <button 
+                        @click=${() => analysisActions.addDrmAuthParam(activeInput.id, 'headers')}
+                        class="text-[10px] font-bold text-blue-400 hover:text-blue-300 uppercase tracking-wider flex items-center gap-1"
+                    >
+                        ${icons.plusCircle} Add Header
+                    </button>
+                </div>
+                <div class="space-y-1">
+                    ${activeInput.drmAuth.headers.length > 0 
+                        ? activeInput.drmAuth.headers.map((h, i) => headerInputRow(h, i, activeInput.id, true))
+                        : html`<div class="text-center py-3 text-slate-600 text-xs italic">No global license headers.</div>`
+                    }
+                </div>
+            </div>
+        </div>
+    `;
 
     return html`
-        <div class="flex flex-col h-full">
-            <div class="p-3 border-b border-slate-700">
-                <h3 class="text-lg font-bold text-white">Inspector</h3>
-            </div>
-            <div class="grow overflow-y-auto p-4 space-y-4">
-                <div>
-                    <label class="block text-sm font-medium text-slate-400 mb-1"
-                        >Stream Name</label
-                    >
-                    <input
-                        type="text"
-                        class="bg-slate-800 text-white rounded px-2 py-1.5 text-sm w-full border border-slate-600"
-                        placeholder="e.g., 'My Test Stream'"
-                        .value=${activeInput.name || ''}
-                        @input=${(e) =>
-                            analysisActions.updateStreamInput(
-                                activeInput.id,
-                                'name',
-                                e.target.value
-                            )}
-                    />
-                </div>
-
-                ${connectedTabBar(
-                    tabs,
-                    activeTabKey,
-                    uiActions.setStreamInputActiveMobileTab
-                )}
-
-                <div class="pt-4 bg-slate-900 p-4 rounded-b-lg">
-                    ${activeTabKey === 'drm'
-                        ? drmContent
-                        : streamAuthSettingsTemplate(
-                              activeInput.id,
-                              activeInput.auth
-                          )}
-                </div>
-            </div>
-            <div class="p-4 border-t border-slate-700 shrink-0">
-                <button
-                    class="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-md disabled:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                    @click=${handleSavePreset}
-                    ?disabled=${saveButtonDisabled}
-                >
-                    ${saveButtonText}
-                </button>
+        <div class="h-full overflow-y-auto custom-scrollbar p-8">
+            <div class="max-w-4xl mx-auto">
+                ${configSection('Stream Identity', icons.tag, identityContent)}
+                ${configSection('Network Request', icons.network, networkContent)}
+                ${configSection('Content Protection', icons.lockClosed, drmContent)}
             </div>
         </div>
     `;

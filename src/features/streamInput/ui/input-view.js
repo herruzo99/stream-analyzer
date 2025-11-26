@@ -1,37 +1,21 @@
 import { html, render } from 'lit-html';
-import { classMap } from 'lit-html/directives/class-map.js';
-import { useUiStore, uiActions } from '@/state/uiStore';
 import { useAnalysisStore } from '@/state/analysisStore';
-import { libraryPanelTemplate } from '@/features/streamInput/ui/components/library-panel';
-import { workspacePanelTemplate } from '@/features/streamInput/ui/components/workspace-panel';
-import { inspectorPanelTemplate } from '@/features/streamInput/ui/components/inspector-panel';
-import * as appIcons from '@/ui/icons';
+import { useUiStore } from '@/state/uiStore';
+import { landingViewTemplate } from './components/landing-view.js';
+import { stagingViewTemplate } from './components/staging-view.js';
+import * as icons from '@/ui/icons';
 import { openModalWithContent } from '@/ui/services/modalService';
+import './components/library-modal.js';
 
 let container = null;
-let analysisUnsubscribe = null;
-let uiUnsubscribe = null;
+let unsubAnalysis = null;
+let unsubUi = null;
 
-const mobileTabButton = (key, label, icon) => {
-    const { streamInputActiveMobileTab } = useUiStore.getState();
-    const isActive = streamInputActiveMobileTab === key;
-    return html`
-        <button
-            @click=${() => uiActions.setStreamInputActiveMobileTab(key)}
-            class="flex-1 flex flex-col items-center justify-center p-2 transition-colors ${isActive
-                ? 'text-blue-400'
-                : 'text-slate-500 hover:text-slate-300'}"
-        >
-            ${icon}
-            <span class="text-xs font-semibold mt-1">${label}</span>
-        </button>
-    `;
-};
-
-function _renderInputView() {
+function renderInputView() {
     if (!container) return;
 
-    const { streamInputActiveMobileTab } = useUiStore.getState();
+    const { streamInputs } = useAnalysisStore.getState();
+    const hasInputs = streamInputs.length > 0;
 
     const aboutClickHandler = (e) => {
         e.preventDefault();
@@ -42,86 +26,44 @@ function _renderInputView() {
         });
     };
 
-    const mobileViewClasses = {
-        'lg:hidden': true,
-        'flex flex-col': true,
-        'h-full': true,
-        'w-full': true,
-    };
+    const header = html`
+        <div
+            class="absolute top-0 left-0 right-0 p-6 flex justify-between items-start z-50 pointer-events-none"
+        >
+            <div class="pointer-events-auto"></div>
+            <div class="flex gap-4 pointer-events-auto">
+                <button
+                    @click=${aboutClickHandler}
+                    class="text-slate-400 hover:text-white transition-colors bg-slate-900/20 backdrop-blur-md px-4 py-2 rounded-full border border-white/5 text-xs font-bold flex items-center gap-2 hover:bg-white/5"
+                >
+                    ${icons.info} About
+                </button>
+                <a
+                    href="https://github.com/herruzo99/stream-analyzer"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="text-slate-400 hover:text-white transition-colors bg-slate-900/20 backdrop-blur-md px-4 py-2 rounded-full border border-white/5 text-xs font-bold flex items-center gap-2 hover:bg-white/5"
+                >
+                    ${icons.github} GitHub
+                </a>
+            </div>
+        </div>
+    `;
+
+    // Use keying to force re-render if swapping between major views to ensure animations trigger
+    const content = hasInputs ? stagingViewTemplate() : landingViewTemplate();
 
     const template = html`
         <div
-            class="w-full h-full max-w-8xl mx-auto flex flex-col p-4 sm:p-6 lg:p-8"
+            class="h-full w-full bg-slate-950 text-slate-200 font-sans relative overflow-hidden selection:bg-blue-500/30"
         >
-            <header
-                class="flex items-start justify-between gap-4 mb-6 shrink-0"
-            >
-                <div>
-                    <h1 class="text-3xl sm:text-4xl font-bold text-white">
-                        Stream Analyzer
-                    </h1>
-                    <p class="text-slate-400 mt-2 text-sm sm:text-base">
-                        An advanced, in-browser tool for analyzing DASH & HLS
-                        streams.
-                    </p>
-                </div>
-                <button
-                    @click=${aboutClickHandler}
-                    title="About this application"
-                    class="text-slate-500 hover:text-white transition-colors shrink-0"
-                >
-                    ${appIcons.informationCircle}
-                </button>
-            </header>
-
-            <!-- Desktop 3-Panel Layout -->
-            <div
-                class="grow hidden lg:grid lg:grid-cols-[25%_1.5rem_auto_1.5rem_30%] min-h-0"
-            >
-                <div
-                    class="flex flex-col min-h-0 animate-slideInUp"
-                    style="animation-delay: 100ms;"
-                >
-                    ${libraryPanelTemplate()}
-                </div>
-                <div></div>
-                <div class="flex flex-col min-h-0 animate-slideInUp">
-                    ${workspacePanelTemplate()}
-                </div>
-                <div></div>
-                <div
-                    class="flex flex-col min-h-0 bg-slate-900 rounded-lg border border-slate-700 animate-slideInUp"
-                    style="animation-delay: 200ms;"
-                >
-                    ${inspectorPanelTemplate()}
-                </div>
-            </div>
-
-            <!-- Mobile Tabbed Layout -->
-            <div class=${classMap(mobileViewClasses)}>
-                <div class="grow min-h-0 mb-16">
-                    ${streamInputActiveMobileTab === 'library'
-                        ? libraryPanelTemplate()
-                        : streamInputActiveMobileTab === 'workspace'
-                          ? workspacePanelTemplate()
-                          : inspectorPanelTemplate()}
-                </div>
-                <div
-                    class="fixed bottom-0 left-0 right-0 h-16 bg-slate-800/80 backdrop-blur-sm border-t border-slate-700 flex items-stretch z-10"
-                >
-                    ${mobileTabButton('library', 'Library', appIcons.library)}
-                    ${mobileTabButton(
-                        'workspace',
-                        'Workspace',
-                        appIcons.clipboardList
-                    )}
-                    ${mobileTabButton(
-                        'inspector',
-                        'Inspector',
-                        appIcons.slidersHorizontal
-                    )}
-                </div>
-            </div>
+            <!-- Grid Background Layer -->
+            <div class="absolute inset-0 bg-[url('/assets/grid.svg')] opacity-[0.03] pointer-events-none"></div>
+            
+            ${!hasInputs ? header : ''} 
+            ${content}
+            
+            <library-modal-component></library-modal-component>
         </div>
     `;
 
@@ -131,18 +73,16 @@ function _renderInputView() {
 export const inputView = {
     mount(containerElement) {
         container = containerElement;
-        _renderInputView();
-        analysisUnsubscribe = useAnalysisStore.subscribe(_renderInputView);
-        uiUnsubscribe = useUiStore.subscribe(_renderInputView);
+        unsubAnalysis = useAnalysisStore.subscribe(renderInputView);
+        unsubUi = useUiStore.subscribe(renderInputView);
+        renderInputView();
     },
     unmount() {
-        if (analysisUnsubscribe) analysisUnsubscribe();
-        if (uiUnsubscribe) uiUnsubscribe();
-        analysisUnsubscribe = null;
-        uiUnsubscribe = null;
-        if (container) {
-            render(html``, container);
-        }
+        if (unsubAnalysis) unsubAnalysis();
+        if (unsubUi) unsubUi();
+        unsubAnalysis = null;
+        unsubUi = null;
+        if (container) render(html``, container);
         container = null;
     },
 };

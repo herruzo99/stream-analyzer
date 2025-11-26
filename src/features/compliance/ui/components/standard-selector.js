@@ -5,80 +5,64 @@ import * as icons from '@/ui/icons';
 
 const HLS_VERSIONS = [
     {
-        id: 1,
-        label: 'Protocol Version 1-3',
-        description: 'Baseline HLS. Segments, basic encryption (AES-128).',
-        spec: 'Initial Apple Drafts',
-    },
-    {
-        id: 4,
-        label: 'Protocol Version 4',
-        description:
-            'Introduced I-Frame playlists for trick play and byte-range addressing.',
-        spec: 'Apple Draft v10',
-    },
-    {
-        id: 7,
-        label: 'Protocol Version 7 (RFC 8216)',
-        description:
-            'First official standard. Formalized fMP4 segments with EXT-X-MAP, sample-AES.',
-        spec: 'IETF RFC 8216',
-    },
-    {
-        id: 8,
-        label: 'Protocol Version 8',
-        description:
-            'Added Variable Substitution (EXT-X-DEFINE) and bitrate hinting.',
-        spec: 'Apple Draft v21',
-    },
-    {
-        id: 9,
-        label: 'Protocol Version 9',
-        description: 'Introduced Low-Latency HLS (Partial Segments, Preload).',
-        spec: 'Apple LL-HLS Spec',
-    },
-    {
-        id: 10,
-        label: 'Protocol Version 10',
-        description:
-            'Added Stable Variant/Rendition IDs for consistent identification.',
-        spec: 'Apple Draft v24',
-    },
-    {
-        id: 11,
-        label: 'Protocol Version 11',
-        description: 'Introduced Content Steering for CDN redundancy.',
-        spec: 'Apple Draft v25',
+        id: 13,
+        label: 'Protocol v13+ (Drafts)',
+        description: 'Latest features: Generalized INSTREAM-ID, Spatial Audio.',
     },
     {
         id: 12,
-        label: 'Protocol Version 12 (RFC 8216bis)',
-        description:
-            'Second edition of the RFC. Added immersive video layouts.',
-        spec: 'IETF RFC 8216 (2nd Ed.)',
+        label: 'Protocol v12 (RFC 8216bis)',
+        description: 'Second edition RFC. Immersive video layouts.',
     },
     {
-        id: 13,
-        label: 'Protocol Version 13+',
-        description:
-            'Future-proofing. Includes generalized INSTREAM-ID, advanced spatial audio.',
-        spec: 'WWDC Drafts',
+        id: 11,
+        label: 'Protocol v11 (Steering)',
+        description: 'Content Steering for CDN redundancy.',
     },
-].reverse(); // Show newest first
+    {
+        id: 10,
+        label: 'Protocol v10 (Stable IDs)',
+        description: 'Stable Variant/Rendition IDs.',
+    },
+    {
+        id: 9,
+        label: 'Protocol v9 (LL-HLS)',
+        description: 'Low-Latency HLS: Partial Segments, Preload Hints.',
+    },
+    {
+        id: 8,
+        label: 'Protocol v8 (Variables)',
+        description: 'Variable Substitution (EXT-X-DEFINE).',
+    },
+    {
+        id: 7,
+        label: 'Protocol v7 (RFC 8216)',
+        description: 'First official standard. fMP4, Sample-AES.',
+    },
+    {
+        id: 4,
+        label: 'Protocol v4 (I-Frames)',
+        description: 'I-Frame playlists, Byte Ranges.',
+    },
+    {
+        id: 1,
+        label: 'Protocol v1-3 (Baseline)',
+        description: 'Legacy HLS. MPEG-TS, AES-128.',
+    },
+];
 
 /**
  * Renders a rich, button-based dropdown to select the standard version for HLS analysis.
  * @param {object} options
- * @param {number} options.selectedVersion - The currently selected version number.
- * @param {Function} options.onVersionChange - The callback function to execute on change.
- * @returns {import('lit-html').TemplateResult}
+ * @param {number} options.selectedVersion
+ * @param {Function} options.onVersionChange
  */
 export const standardSelectorTemplate = ({
     selectedVersion,
     onVersionChange,
 }) => {
-    const activeVersion = HLS_VERSIONS.find((v) => v.id === selectedVersion) ||
-        HLS_VERSIONS[0] || { id: 0, label: 'Unknown' };
+    const activeVersion =
+        HLS_VERSIONS.find((v) => v.id === selectedVersion) || HLS_VERSIONS[0];
 
     const handleDropdownToggle = (e) => {
         toggleDropdown(
@@ -94,16 +78,22 @@ export const standardSelectorTemplate = ({
     };
 
     return html`
-        <div class="flex items-center gap-2">
-            <label class="text-sm font-medium text-gray-400"
-                >HLS Standard:</label
+        <div
+            class="flex items-center gap-3 bg-slate-900/50 p-1.5 rounded-lg border border-slate-700"
+        >
+            <span
+                class="text-[10px] font-bold uppercase tracking-wider text-slate-500 pl-2"
+                >Standard</span
             >
             <button
                 @click=${handleDropdownToggle}
-                class="bg-gray-700 hover:bg-gray-600 text-white rounded-md border border-gray-600 p-2 text-sm flex items-center justify-between min-w-[200px]"
+                class="flex items-center justify-between gap-3 bg-slate-800 hover:bg-slate-700 text-white rounded-md px-3 py-1.5 border border-slate-600 hover:border-slate-500 transition-all text-xs font-semibold min-w-[160px] group"
             >
                 <span class="truncate">${activeVersion.label}</span>
-                <span class="ml-2 shrink-0">${icons.chevronDown}</span>
+                <span
+                    class="text-slate-500 group-hover:text-white transition-colors scale-75"
+                    >${icons.chevronDown}</span
+                >
             </button>
         </div>
     `;

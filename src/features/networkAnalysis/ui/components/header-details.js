@@ -77,7 +77,7 @@ const categorizeHeaders = (headers) => {
     return categories;
 };
 
-export const headerDetailsTemplate = (headers) => {
+export const headerDetailsTemplate = (headers, flaggedKeys = new Set()) => {
     if (!headers || Object.keys(headers).length === 0) {
         return html`<p class="text-xs text-slate-500 italic p-2">
             No headers found.
@@ -102,14 +102,22 @@ export const headerDetailsTemplate = (headers) => {
                             <tbody class="divide-y divide-slate-700/50">
                                 ${Object.entries(headerGroup).map(
                                     ([key, value]) => {
+                                        const lowerKey = key.toLowerCase();
                                         const definition =
-                                            HEADER_DEFINITIONS[
-                                                key.toLowerCase()
-                                            ];
+                                            HEADER_DEFINITIONS[lowerKey];
+                                        const isFlagged =
+                                            flaggedKeys.has(lowerKey);
+                                        const rowClass = isFlagged
+                                            ? 'bg-red-900/20'
+                                            : 'hover:bg-slate-700/50';
+                                        const textClass = isFlagged
+                                            ? 'text-red-200'
+                                            : 'text-slate-300';
+
                                         return html`
-                                            <tr class="hover:bg-slate-700/50">
+                                            <tr class="${rowClass}">
                                                 <td
-                                                    class="p-2 font-semibold text-slate-300 align-top w-1/3 ${definition
+                                                    class="p-2 font-semibold ${textClass} align-top w-1/3 ${definition
                                                         ? tooltipTriggerClasses
                                                         : ''}"
                                                     data-tooltip=${definition ||
@@ -118,7 +126,7 @@ export const headerDetailsTemplate = (headers) => {
                                                     ${key}
                                                 </td>
                                                 <td
-                                                    class="p-2 font-mono text-slate-300 break-all"
+                                                    class="p-2 font-mono ${textClass} break-all"
                                                 >
                                                     ${value}
                                                 </td>

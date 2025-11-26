@@ -8,21 +8,18 @@
 
 @theme {
     /* --- Fonts --- */
-    /* We set the CSS variables directly */
     --font-sans:
         Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica,
         Arial, sans-serif;
     --font-mono: 'Fira Code', Menlo, Monaco, monospace;
 
     /* --- Custom Colors --- */
-    /* This creates 'bg-success', 'text-success', etc. */
     --color-success: #22c55e;
     --color-warning: #f59e0b;
     --color-danger: #ef4444;
     --color-info: #3b82f6;
 
     /* --- Custom Animations --- */
-    /* This creates 'animate-fadeIn', 'animate-fadeOut', etc. */
     --animation-fadeIn: fadeIn 0.3s ease-out forwards;
     --animation-fadeOut: fadeOut 0.3s ease-in forwards;
     --animation-scaleIn: scaleIn 0.2s ease-out forwards;
@@ -40,298 +37,159 @@
     --color-text-secondary: var(--color-slate-400);
     --color-text-heading: var(--color-white);
 
-    /* Your custom theme colors are exposed as variables automatically */
     --color-success: var(--color-success);
     --color-warning: var(--color-warning);
     --color-danger: var(--color-danger);
     --color-info: var(--color-info);
+
+    /* Sidebar Specifics */
+    --sidebar-width: 280px;
+    --sidebar-bg: rgb(2, 6, 23);
 }
 
 /* --- Global Styles --- */
+html, body {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden; /* Prevent scroll on body, let AppShell handle it */
+    overscroll-behavior: none; /* Disable pull-to-refresh/bounce */
+}
+
 body {
     background-color: var(--color-bg-base);
-    color: var(--color-text-primary);
-    overflow-x: hidden;
+    color: #cbd5e1;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* Ensure all code blocks inherit this color unless overridden */
+pre,
+code {
+    color: inherit;
 }
 
 /* --- Custom Scrollbar --- */
 ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 6px;
+    height: 6px;
 }
+
 ::-webkit-scrollbar-track {
     background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
     background: var(--color-border-primary);
-    border-radius: 4px;
-}
-::-webkit-scrollbar-thumb:hover {
-    background: var(--color-slate-600);
+    border-radius: 3px;
 }
 
-/* --- ARCHITECTURAL FIX: Scrollbar Hide Utility --- */
+::-webkit-scrollbar-thumb:hover {
+    background: var(--color-slate-500);
+}
+
 .scrollbar-hide::-webkit-scrollbar {
     display: none;
 }
+
 .scrollbar-hide {
-    -ms-overflow-style: none; /* IE and Edge */
-    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none;
+    scrollbar-width: none;
 }
-/* --- END FIX --- */
+
+/* --- Mobile Scrolling Helper --- */
+.custom-scrollbar {
+    -webkit-overflow-scrolling: touch; /* Enable momentum scrolling on iOS */
+}
 
 /* --- Tailwind CSS Safelist --- */
-/* These v4 directives are correct as-is */
 @source inline('bg-{red,orange,amber,yellow,lime,green,emerald,teal,cyan,sky,blue,indigo,violet,purple,fuchsia,pink,rose,slate,zinc}-{400,500,600,700,800,900}');
 @source inline('bg-{red,orange,amber,yellow,lime,green,emerald,teal,cyan,sky,blue,indigo,violet,purple,fuchsia,pink,rose,slate,zinc}-{400,500,600,700,800,900}/{20,30,40,50,60,70,80,90}');
 @source inline('border-{red,orange,amber,yellow,lime,green,emerald,teal,cyan,sky,blue,indigo,violet,purple,fuchsia,pink,rose,slate,zinc}-{400,500,600,700,800,900}');
 @source inline('border-{red,orange,amber,yellow,lime,green,emerald,teal,cyan,sky,blue,indigo,violet,purple,fuchsia,pink,rose,slate,zinc}-{400,500,600,700,800,900}/{80}');
 @source inline('bg-sky-950/50', 'bg-teal-950/50', 'bg-fuchsia-950/50', 'bg-lime-950/50', 'bg-rose-950/50', 'bg-cyan-950/50', 'bg-violet-950/50');
 
-/* --- Keyframe Animations --- */
-/* These are correct as-is. They are referenced by the @theme block */
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-    }
-    to {
-        opacity: 1;
-    }
-}
-@keyframes fadeOut {
-    from {
-        opacity: 1;
-    }
-    to {
-        opacity: 0;
-    }
-}
-@keyframes scaleIn {
-    from {
-        transform: scale(0.95);
-        opacity: 0;
-    }
-    to {
-        transform: scale(1);
-        opacity: 1;
-    }
-}
-@keyframes scaleOut {
-    from {
-        transform: scale(1);
-        opacity: 1;
-    }
-    to {
-        transform: scale(0.95);
-        opacity: 0;
-    }
-}
-@keyframes slideInUp {
-    from {
-        transform: translateY(20px);
-        opacity: 0;
-    }
-    to {
-        transform: translateY(0);
-        opacity: 1;
-    }
-}
-@keyframes slideInRight {
-    from {
-        transform: translateX(100%);
-        opacity: 0;
-    }
-    to {
-        transform: translateX(0);
-        opacity: 1;
-    }
-}
-@keyframes flash-green {
-    0% {
-        background-color: rgba(74, 222, 128, 0.5);
-    }
-    100% {
-        background-color: transparent;
-    }
+/* --- Glassmorphism Utilities --- */
+.glass-panel {
+    background: var(--sidebar-bg);
+    border-right: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-/* --- Animation Utilities --- */
-/* These custom classes are a good v4-compliant pattern */
-.animate-fadeIn {
-    animation: fadeIn 0.3s ease-out forwards;
+.nav-item-active {
+    background: linear-gradient(
+        90deg,
+        rgba(59, 130, 246, 0.2) 0%,
+        rgba(59, 130, 246, 0.05) 100%
+    );
+    border-left: 3px solid #3b82f6;
+    color: #ffffff !important;
 }
+
+.nav-item-inactive {
+    border-left: 3px solid transparent;
+    color: #94a3b8;
+}
+
+.nav-item-inactive:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: #e2e8f0;
+}
+
+/* ... Animation Keyframes unchanged ... */
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+@keyframes scaleIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes scaleOut { from { transform: scale(1); opacity: 1; } to { transform: scale(0.95); opacity: 0; } }
+@keyframes slideInUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes pulse-glow { 0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4); } 50% { box-shadow: 0 0 0 4px rgba(34, 197, 94, 0); } }
+@keyframes flash-overlay-fade { 0% { opacity: 1; } 100% { opacity: 0; } }
+
+.animate-fadeIn { animation: fadeIn 0.3s ease-out forwards; }
+.animate-slideInUp { animation: slideInUp 0.3s ease-out forwards; }
+.animate-pulse-glow { animation: pulse-glow 2s infinite; }
+
 #input-section:not(.hidden),
 #app-root:not(.hidden) > div {
     animation: fadeIn 0.3s ease-out forwards;
 }
-.animate-slideInUp {
-    animation: slideInUp 0.3s ease-out forwards;
-}
-.modal-enter {
-    animation: fadeIn 0.2s ease-out forwards;
-}
-.modal-enter > div {
-    animation: scaleIn 0.2s ease-out forwards;
-}
-.modal-leave {
-    animation: fadeOut 0.2s ease-in forwards;
-    pointer-events: none;
-}
-.modal-leave > div {
-    animation: scaleOut 0.2s ease-in forwards;
-}
-.dropdown-panel {
-    transform-origin: top right;
-    animation: scaleIn 0.15s ease-out forwards;
-}
-details.details-animated[open] > *:not(summary) {
-    animation: fadeIn 0.3s ease-out;
-}
-.flash-new-segment {
-    animation: flash-green 1.5s ease-out forwards;
-}
 
-/* --- Loader Styles --- */
-.loader-animation span {
-    animation: streaming-bars 1.2s ease-in-out infinite;
-}
-.loader-animation span:nth-child(1) {
-    animation-delay: 0s;
-}
-.loader-animation span:nth-child(2) {
-    animation-delay: 0.1s;
-}
-.loader-animation span:nth-child(3) {
-    animation-delay: 0.2s;
-}
-.loader-animation span:nth-child(4) {
-    animation-delay: 0.3s;
-}
-.loader-animation span:nth-child(5) {
-    animation-delay: 0.4s;
-}
-@keyframes streaming-bars {
-    0%,
-    100% {
-        transform: scaleY(0.2);
-    }
-    50% {
-        transform: scaleY(1);
-    }
-}
+.modal-enter { animation: fadeIn 0.2s ease-out forwards; }
+.modal-enter > div { animation: scaleIn 0.2s ease-out forwards; }
+.modal-leave { animation: fadeOut 0.2s ease-in forwards; pointer-events: none; }
+.modal-leave > div { animation: scaleOut 0.2s ease-in forwards; }
 
-/* --- Custom Effects (NO @apply) --- */
-.highlight-select-box {
-    box-shadow: inset 0 0 0 99px rgb(59 130 246 / 0.6);
-}
-.highlight-hover-box {
-    box-shadow: inset 0 0 0 99px rgb(100 116 139 / 0.5);
-}
-.highlight-hover-field {
-    box-shadow: inset 0 0 0 99px rgb(168 85 247 / 0.55);
-}
-.highlight-select-box.highlight-hover-box {
-    box-shadow: inset 0 0 0 99px rgb(96 165 250 / 0.7);
-}
-.highlight-iframe-range {
-    box-shadow: inset 0 0 0 99px rgb(234 179 8 / 0.4);
-    outline: 1px solid rgb(234 179 8 / 0.7);
-}
+.dropdown-panel { transform-origin: top right; animation: scaleIn 0.15s ease-out forwards; }
+details.details-animated[open] > *:not(summary) { animation: fadeIn 0.3s ease-out; }
+
+.flash-new-segment { position: relative; overflow: hidden; }
+.flash-new-segment::after { content: ''; position: absolute; inset: 0; background-color: rgba(74, 222, 128, 0.6); animation: flash-overlay-fade 2s ease-out forwards; pointer-events: none; z-index: 5; }
+
+.highlight-select-box { box-shadow: inset 0 0 0 99px rgb(59 130 246 / 0.6); }
+.highlight-hover-box { box-shadow: inset 0 0 0 99px rgb(100 116 139 / 0.5); }
+.highlight-hover-field { box-shadow: inset 0 0 0 99px rgb(168 85 247 / 0.55); }
 
 .dropzone-active {
-    /* Re-implementation of: ring-4 ring-blue-500/50 ring-offset-4 ring-offset-slate-900 */
     --tw-ring-color: rgb(var(--color-blue-500-rgb) / 0.5);
     --tw-ring-offset-width: 4px;
     --tw-ring-offset-color: var(--color-slate-900);
-
-    --tw-ring-offset-shadow: 0 0 0 var(--tw-ring-offset-width)
-        var(--tw-ring-offset-color);
-    --tw-ring-shadow: 0 0 0 calc(4px + var(--tw-ring-offset-width))
-        var(--tw-ring-color);
-
-    box-shadow:
-        var(--tw-ring-offset-shadow), var(--tw-ring-shadow),
-        var(--tw-shadow, 0 0 #0000);
+    box-shadow: 0 0 0 4px var(--color-slate-900), 0 0 0 8px rgba(59, 130, 246, 0.5);
 }
 
-/* --- Sidebar State (NO @apply) --- */
-body.primary-sidebar-open #sidebar-overlay {
-    display: block; /* Replaced @apply block */
-    animation: fadeIn 0.3s ease;
-}
-body.primary-sidebar-open #sidebar-container {
-    transform: translateX(0); /* Replaced @apply translate-x-0 */
-}
-body.contextual-sidebar-open #contextual-sidebar {
-    transform: translateX(0); /* Replaced @apply translate-x-0 */
-}
+body.primary-sidebar-open #sidebar-overlay { display: block; animation: fadeIn 0.3s ease; }
+body.primary-sidebar-open #sidebar-container { transform: translateX(0); }
+body.contextual-sidebar-open #contextual-sidebar { transform: translateX(0); }
 
-/* --- Live Update Diff View --- */
-.diff-container.hide-deleted .diff-line.removed {
-    display: none;
-}
+.diff-container.hide-deleted .diff-line.removed { display: none; }
 
-.bg-diff-add,
-.bg-diff-add-striped,
-.bg-diff-remove,
-.bg-diff-remove-striped,
-.bg-diff-mod,
-.bg-diff-mod-striped {
-    padding: 0 0.25em;
-    margin: 0 -0.25em;
-    border-radius: 3px;
-}
+.bg-diff-add { background-color: rgba(22, 101, 52, 0.4); outline: 1px solid rgba(74, 222, 128, 0.4); }
+.bg-diff-remove { background-color: rgba(127, 29, 29, 0.4); outline: 1px solid rgba(248, 113, 113, 0.4); }
+.bg-diff-mod { background-color: rgba(113, 63, 18, 0.6); outline: 1px solid rgba(251, 191, 36, 0.5); }
 
-.bg-diff-add {
-    background-color: rgba(22, 101, 52, 0.4);
-}
-.bg-diff-remove {
-    background-color: rgba(127, 29, 29, 0.4);
-}
-.bg-diff-mod {
-    background-color: rgba(113, 63, 18, 0.6);
-}
+.loader-animation span { animation: streaming-bars 1.2s ease-in-out infinite; }
+.loader-animation span:nth-child(1) { animation-delay: 0s; }
+.loader-animation span:nth-child(2) { animation-delay: 0.1s; }
+.loader-animation span:nth-child(3) { animation-delay: 0.2s; }
+.loader-animation span:nth-child(4) { animation-delay: 0.3s; }
+.loader-animation span:nth-child(5) { animation-delay: 0.4s; }
 
-.bg-diff-add,
-.bg-diff-add-striped {
-    outline: 1px solid rgba(74, 222, 128, 0.4);
-}
-.bg-diff-remove,
-.bg-diff-remove-striped {
-    outline: 1px solid rgba(248, 113, 113, 0.4);
-}
-.bg-diff-mod,
-.bg-diff-mod-striped {
-    outline: 1px solid rgba(251, 191, 36, 0.5);
-}
-
-.bg-diff-add-striped {
-    background-color: transparent;
-    background-image: repeating-linear-gradient(
-        45deg,
-        rgba(34, 197, 94, 0.2),
-        rgba(34, 197, 94, 0.2) 5px,
-        transparent 5px,
-        transparent 10px
-    );
-}
-.bg-diff-remove-striped {
-    background-color: transparent;
-    background-image: repeating-linear-gradient(
-        45deg,
-        rgba(239, 68, 68, 0.2),
-        rgba(239, 68, 68, 0.2) 5px,
-        transparent 5px,
-        transparent 10px
-    );
-}
-.bg-diff-mod-striped {
-    background-color: transparent;
-    background-image: repeating-linear-gradient(
-        45deg,
-        rgba(245, 158, 11, 0.3),
-        rgba(245, 158, 11, 0.3) 5px,
-        transparent 5px,
-        transparent 10px
-    );
-}
+@keyframes streaming-bars { 0%, 100% { transform: scaleY(0.2); } 50% { transform: scaleY(1); } }
