@@ -1,9 +1,9 @@
 import {} from '../../utils/recursive-parser.js';
-import { structureRules } from './structure.js';
-import { liveRules } from './live.js';
-import { segmentRules } from './segments.js';
-import { profileRules } from './profiles.js';
 import { bestPracticeRules } from './best-practices.js';
+import { liveRules } from './live.js';
+import { profileRules } from './profiles.js';
+import { segmentRules } from './segments.js';
+import { structureRules } from './structure.js';
 
 /**
  * @typedef {'error' | 'warn' | 'info' | 'pass' | 'fail'} CheckStatus

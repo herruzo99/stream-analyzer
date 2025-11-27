@@ -1,7 +1,7 @@
-import { html, render } from 'lit-html';
-import { useUiStore, uiActions } from '@/state/uiStore';
-import * as icons from '@/ui/icons';
+import { uiActions, useUiStore } from '@/state/uiStore';
 import '@/ui/components/virtualized-list';
+import * as icons from '@/ui/icons';
+import { html, render } from 'lit-html';
 
 // --- Visual Configuration ---
 const BOX_COLORS = {

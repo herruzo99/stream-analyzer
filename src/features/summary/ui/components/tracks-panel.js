@@ -1,8 +1,6 @@
+import * as icons from '@/ui/icons';
 import { html, render } from 'lit-html';
 import { trackTableTemplate } from './shared.js';
-import { useUiStore, uiActions } from '@/state/uiStore'; // We might need a local UI state for this tab if we want it isolated
-import { connectedTabBar } from '@/ui/components/tabs';
-import * as icons from '@/ui/icons';
 
 // For this specific component, we can use a simplified local tab state approach
 // or leverage the existing store if we add a key. Let's use a custom element to hold local state

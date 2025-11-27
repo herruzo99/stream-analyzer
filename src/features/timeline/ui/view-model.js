@@ -1,8 +1,4 @@
-import { formatBitrate } from '@/ui/shared/format';
-import {
-    findChildrenRecursive,
-    getAttr,
-} from '@/infrastructure/parsing/utils/recursive-parser.js';
+import { findChildrenRecursive } from '@/infrastructure/parsing/utils/recursive-parser.js';
 
 /**
  * Helper to create a metric object with visual status cues.
@@ -422,21 +418,21 @@ function createVisualTracks(stream) {
         items: periodItems,
     });
 
-    return { tracks, contentMaxTime };
+    return { tracks };
 }
 
 export function createTimelineViewModel(stream) {
     if (!stream) return null;
 
     // 1. Generate raw tracks and find bounds
-    const { tracks: rawTracks, contentMaxTime } = createVisualTracks(stream);
+    const { tracks } = createVisualTracks(stream);
     const isLive = stream.manifest.type === 'dynamic';
 
     // 2. Calculate Offset and Duration for Chart
     let timeOffset = 0;
     let totalDuration = stream.manifest.duration || 60;
 
-    const allItems = rawTracks.flatMap((t) => t.items);
+    const allItems = tracks.flatMap((t) => t.items);
     if (allItems.length > 0) {
         const minStart = Math.min(...allItems.map((i) => i.start));
         const maxEnd = Math.max(...allItems.map((i) => i.end));
@@ -453,7 +449,7 @@ export function createTimelineViewModel(stream) {
 
     // 3. Normalize Tracks (Shift by timeOffset)
     // We perform this mapping explicitly to avoid ReferenceErrors or shadowing.
-    const normalizedTracks = rawTracks.map((t) => {
+    const normalizedTracks = tracks.map((t) => {
         const normalizedItems = normalizeTrackItems(t.items, timeOffset);
         return {
             ...t,

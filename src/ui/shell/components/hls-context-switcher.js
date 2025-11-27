@@ -1,9 +1,9 @@
-import { html } from 'lit-html';
 import { eventBus } from '@/application/event-bus';
-import { toggleDropdown, closeDropdown } from '@/ui/services/dropdownService';
-import * as icons from '@/ui/icons';
-import { formatBitrate } from '@/ui/shared/format';
 import { connectedTabBar } from '@/ui/components/tabs';
+import * as icons from '@/ui/icons';
+import { closeDropdown, toggleDropdown } from '@/ui/services/dropdownService';
+import { formatBitrate } from '@/ui/shared/format';
+import { html } from 'lit-html';
 
 // Local state to manage tabs inside the dropdown
 // We use a closure to keep state between renders of the same dropdown instance

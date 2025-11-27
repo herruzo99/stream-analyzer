@@ -1,20 +1,21 @@
-import { html, render } from 'lit-html';
+import { useAnalysisStore } from '@/state/analysisStore';
 import { usePlayerStore } from '@/state/playerStore';
-import { useUiStore, uiActions } from '@/state/uiStore';
+import { uiActions, useUiStore } from '@/state/uiStore';
 import * as icons from '@/ui/icons';
 import { toggleDropdown } from '@/ui/services/dropdownService';
+import { formatBitrate } from '@/ui/shared/format';
+import { html, render } from 'lit-html';
+import { playerService } from '../../application/playerService.js';
 import {
-    videoSelectionPanelTemplate,
+    abrFormTemplate,
+    bufferFormTemplate,
+    latencyFormTemplate,
+} from './advanced-config-forms.js';
+import {
     audioSelectionPanelTemplate,
     textSelectionPanelTemplate,
+    videoSelectionPanelTemplate,
 } from './track-selection-dropdown.js';
-import { playerService } from '../../application/playerService.js';
-import { formatBitrate } from '@/ui/shared/format';
-import {
-    latencyFormTemplate,
-    bufferFormTemplate,
-    abrFormTemplate,
-} from './advanced-config-forms.js';
 
 const actionButton = (
     icon,
@@ -72,9 +73,12 @@ class PlayerControlsComponent extends HTMLElement {
 
     render() {
         const store = usePlayerStore.getState();
-        const { playerControlMode } = useUiStore.getState();
-        const { activeStreamId } =
-            require('@/state/analysisStore').useAnalysisStore.getState();
+        const {
+            playerControlMode,
+            isSignalMonitorOpen,
+            playerTelemetrySidebarOpen,
+        } = useUiStore.getState();
+        const { activeStreamId } = useAnalysisStore.getState();
 
         const {
             isAbrEnabled,
@@ -134,8 +138,8 @@ class PlayerControlsComponent extends HTMLElement {
                         )}
                         ${actionButton(icons.sync, 'Reload', () =>
                             playerService.load(
-                                require('@/state/analysisStore')
-                                    .useAnalysisStore.getState()
+                                useAnalysisStore
+                                    .getState()
                                     .streams.find(
                                         (s) => s.id === activeStreamId
                                     ),
@@ -202,6 +206,23 @@ class PlayerControlsComponent extends HTMLElement {
                     <div
                         class="flex gap-2 shrink-0 border-l border-slate-800 pl-6"
                     >
+                        <!-- QC Toggle -->
+                        ${actionButton(
+                            icons.activity,
+                            'QC Scope',
+                            () => uiActions.toggleSignalMonitor(),
+                            isSignalMonitorOpen,
+                            'text-emerald-400 hover:text-emerald-300 hover:border-emerald-500/30'
+                        )}
+
+                        <!-- Sidebar Toggle (Moved here) -->
+                        ${actionButton(
+                            icons.sidebarRight,
+                            'Sidebar',
+                            () => uiActions.togglePlayerTelemetrySidebar(),
+                            playerTelemetrySidebarOpen,
+                            'text-blue-400 hover:text-blue-300 hover:border-blue-500/30'
+                        )}
                         ${actionButton(
                             icons.slidersHorizontal,
                             'Config',

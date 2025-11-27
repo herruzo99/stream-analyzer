@@ -1,7 +1,7 @@
-import { html } from 'lit-html';
-import { useNotificationStore } from '@/state/notificationStore';
 import { notificationService } from '@/application/services/notificationService';
+import { useNotificationStore } from '@/state/notificationStore';
 import * as icons from '@/ui/icons';
+import { html } from 'lit-html';
 
 const NOTIFICATION_DESCRIPTIONS = {
     playerError: {

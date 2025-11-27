@@ -1,7 +1,7 @@
-import { html } from 'lit-html';
 import { uiActions } from '@/state/uiStore';
-import { calculateComplianceScore } from '../../../compliance/domain/compliance-scoring.js';
 import * as icons from '@/ui/icons';
+import { html } from 'lit-html';
+import { calculateComplianceScore } from '../../../compliance/domain/compliance-scoring.js';
 
 export const complianceWidgetTemplate = (stream) => {
     const updates = stream.manifestUpdates || [];

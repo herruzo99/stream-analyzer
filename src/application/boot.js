@@ -1,26 +1,27 @@
-import { initializeLiveStreamMonitor } from '@/application/services/primaryStreamMonitorService';
-import { initializeViewManager } from '@/ui/shell/view-manager';
 import { initializeLiveUpdateProcessor } from '@/application/services/liveUpdateProcessor';
-import { initializeRenderer } from '@/ui/shell/mainRenderer';
-import { initializeConsentManager } from './consent-manager.js';
-import { container } from './container.js';
+import { initializeLiveStreamMonitor } from '@/application/services/primaryStreamMonitorService';
 import { workerService } from '@/infrastructure/worker/workerService';
-import { initializeToastManager } from '@/ui/components/toast';
+import { uiActions } from '@/state/uiStore';
 import { initializeLoader } from '@/ui/components/loader';
 import { initializeModalComponent } from '@/ui/components/modal';
+import { initializeToastManager } from '@/ui/components/toast';
 import { setupGlobalTooltipListener } from '@/ui/components/tooltip';
 import { initializeDropdownService } from '@/ui/services/dropdownService';
+import { initializeRenderer } from '@/ui/shell/mainRenderer';
+import { initializeViewManager } from '@/ui/shell/view-manager';
+import { initializeConsentManager } from './consent-manager.js';
+import { container } from './container.js';
 import { sessionService } from './services/sessionService.js';
-import { uiActions } from '@/state/uiStore';
 
 // Relocated Service Initializers
+import { emeInterceptor } from '@/features/drm/domain/eme-interceptor.js'; // Import EME Interceptor
 import { keyManagerService } from '@/infrastructure/decryption/keyManagerService';
+import { initializeGlobalRequestInterceptor } from '@/infrastructure/http/globalRequestInterceptor.js';
+import { initializeNetworkEnrichmentService } from '@/infrastructure/http/networkEnrichmentService';
 import { initializeSegmentService } from '@/infrastructure/segments/segmentService';
 import { initializeUiOrchestration } from '@/ui/services/uiOrchestrationService';
-import { initializeNetworkEnrichmentService } from '@/infrastructure/http/networkEnrichmentService';
-import { tickerService } from './services/tickerService.js';
 import { playerEventOrchestratorService } from './services/playerEventOrchestratorService.js';
-import { initializeGlobalRequestInterceptor } from '@/infrastructure/http/globalRequestInterceptor.js';
+import { tickerService } from './services/tickerService.js';
 
 // Feature Initializers
 import { initializeAdvertisingFeature } from '@/features/advertising/index';
@@ -28,24 +29,17 @@ import { initializeComplianceFeature } from '@/features/compliance/index';
 import { initializeFeatureAnalysisFeature } from '@/features/featureAnalysis/index';
 import { initializeInteractiveManifestFeature } from '@/features/interactiveManifest/index';
 import { initializeInteractiveSegmentFeature } from '@/features/interactiveSegment/index';
-import { initializeSegmentExplorerFeature } from '@/features/segmentExplorer/index';
-import { initializeStreamInputFeature } from '@/features/streamInput/index';
-import { initializePlayerSimulationFeature } from '@/features/playerSimulation/index';
 import { initializeMultiPlayerFeature } from '@/features/multiPlayer/index';
 import { initializeNotificationFeature } from '@/features/notifications/index.js';
+import { initializePlayerSimulationFeature } from '@/features/playerSimulation/index';
+import { initializeSegmentExplorerFeature } from '@/features/segmentExplorer/index';
+import { initializeStreamInputFeature } from '@/features/streamInput/index';
 
-// Side-effect driven imports for services that primarily listen to the event bus
 import '@/application/services/streamService';
-// Import the canonical shaka module to ensure it's initialized early.
 import { getShaka } from '@/infrastructure/player/shaka';
 
-/**
- * The main entry point for the application.
- * This function orchestrates the setup and startup of all application components.
- */
 export async function startApp() {
     const rootElement = document.body;
-
     const dom = {
         root: rootElement,
         inputSection: rootElement.querySelector('#input-section'),
@@ -62,23 +56,6 @@ export async function startApp() {
         dropdownContainer: rootElement.querySelector('#dropdown-container'),
     };
 
-    // --- Enhanced Diagnostic Logging ---
-    console.log('[Boot] Verifying DOM context initialization...');
-    const domVerification = Object.entries(dom).reduce((acc, [key, value]) => {
-        if (!value) {
-            console.error(
-                `[Boot] DOM element query failed for key: '${key}'. The selector may be incorrect or the element may not exist at boot time.`
-            );
-            acc[key] = '🔴 MISSING';
-        } else {
-            acc[key] = '🟢 Found';
-        }
-        return acc;
-    }, {});
-    console.table(domVerification);
-    // --- End Diagnostic Logging ---
-
-    // --- INITIALIZATION SEQUENCE ---
     const { app } = container;
 
     await getShaka();
@@ -86,14 +63,15 @@ export async function startApp() {
     // --- Layer 1: Core Worker, Consent & Session Handling ---
     workerService.initialize();
     initializeConsentManager();
+
+    // Initialize EME Interceptor EARLY to catch all player events
+    emeInterceptor.initialize();
+
     initializeRenderer(dom);
     tickerService.start();
     await initializeGlobalRequestInterceptor();
 
-    // --- ARCHITECTURAL FIX: One-time data load ---
-    // Load persisted workspaces into the reactive state store at boot time.
     uiActions.loadWorkspaces();
-    // --- END FIX ---
 
     const isRestoringSession = sessionService.applySessionOnBoot();
     if (isRestoringSession) {

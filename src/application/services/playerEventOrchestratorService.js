@@ -1,6 +1,6 @@
 import { eventBus } from '@/application/event-bus';
-import { analysisActions } from '@/state/analysisStore';
 import { parseScte35 } from '@/infrastructure/parsing/scte35/parser';
+import { analysisActions } from '@/state/analysisStore';
 import { EVENTS } from '@/types/events';
 
 /**

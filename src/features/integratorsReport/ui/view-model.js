@@ -1,5 +1,4 @@
 import { getDrmSystemName } from '@/infrastructure/parsing/utils/drm';
-import { formatBitrate } from '@/ui/shared/format';
 
 /**
  * Generates a generic player configuration object based on stream metadata.
@@ -88,22 +87,11 @@ function checkCompatibility(videoCodecs, audioCodecs, drmSystems) {
     const hasAv1 = code('av01');
     const hasAc3 = audio('ac-3') || audio('ec-3');
 
-    // DRM Availability (Relaxed check: generic CENC counts as "needs config")
-    const hasWidevine = drmSystems.some((s) =>
-        s.toLowerCase().includes('widevine')
-    );
-    const hasPlayReady = drmSystems.some((s) =>
-        s.toLowerCase().includes('playready')
-    );
-    const hasFairPlay = drmSystems.some((s) =>
-        s.toLowerCase().includes('fairplay')
-    );
-
     // Helper to build platform object
     const checkPlatform = (
         name,
         engine,
-        { drmType, hevcSupport, av1Support }
+        { drmType, hevcSupport, av1Support, ac3Support }
     ) => {
         const reqs = [];
         let status = 'supported'; // supported | config-required | partial | unsupported
@@ -123,6 +111,18 @@ function checkCompatibility(videoCodecs, audioCodecs, drmSystems) {
         if (hasAv1 && !av1Support) {
             status = 'unsupported';
             reqs.push({ label: 'AV1', ok: false, msg: 'Codec not supported' });
+        }
+
+        // Audio Check
+        if (hasAc3 && !ac3Support) {
+            status = 'unsupported';
+            reqs.push({
+                label: 'Dolby Audio',
+                ok: false,
+                msg: 'Codec not supported',
+            });
+        } else if (hasAc3) {
+            reqs.push({ label: 'Dolby Audio', ok: true, msg: 'Supported' });
         }
 
         // DRM Check
@@ -172,21 +172,25 @@ function checkCompatibility(videoCodecs, audioCodecs, drmSystems) {
             drmType: 'Widevine',
             hevcSupport: true, // Edge/Chrome usually support via HW
             av1Support: true,
+            ac3Support: false, // Generally needs OS extension or passthrough, unsafe default
         }),
         checkPlatform('Safari (macOS/iOS)', 'WebKit', {
             drmType: 'FairPlay',
             hevcSupport: true,
             av1Support: true, // M3/iPhone 15
+            ac3Support: true, // Native support
         }),
         checkPlatform('Android TV / Mobile', 'ExoPlayer', {
             drmType: 'Widevine',
             hevcSupport: true,
             av1Support: true,
+            ac3Support: true, // Passthrough or software decode usually available
         }),
         checkPlatform('Tizen / WebOS', 'Smart TV', {
             drmType: 'PlayReady',
             hevcSupport: true,
             av1Support: false,
+            ac3Support: true, // Native support
         }),
     ];
 }
@@ -230,7 +234,7 @@ export function createIntegratorsReportViewModel(stream) {
             summary.general.locations.forEach((l) =>
                 domains.add(new URL(l).origin)
             );
-    } catch (e) {
+    } catch (_e) {
         /* ignore */
     }
 

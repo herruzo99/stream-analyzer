@@ -1,9 +1,8 @@
-import { html } from 'lit-html';
-import * as icons from '@/ui/icons';
 import {
-    getAttr,
     findChildren,
+    getAttr,
 } from '@/infrastructure/parsing/utils/recursive-parser.js';
+import { html } from 'lit-html';
 
 const kv = (k, v) => html`
     <div

@@ -1,15 +1,17 @@
 import { eventBus } from '@/application/event-bus';
-import { openModalWithContent } from '@/ui/services/modalService';
-import { showToast } from '@/ui/components/toast';
-import { showLoader, hideLoader } from '@/ui/components/loader';
+import {
+    findChildrenRecursive,
+    getAttr,
+    getInheritedElement,
+} from '@/infrastructure/parsing/utils/recursive-parser';
 import { getParsedSegment } from '@/infrastructure/segments/segmentService';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { useSegmentCacheStore } from '@/state/segmentCacheStore';
 import { EVENTS } from '@/types/events';
+import { hideLoader, showLoader } from '@/ui/components/loader';
+import { showToast } from '@/ui/components/toast';
+import { openModalWithContent } from '@/ui/services/modalService';
 
-/**
- * Initializes listeners for global UI events that orchestrate application-level responses.
- */
 export function initializeUiOrchestration() {
     // --- Segment Analysis Modal ---
     eventBus.subscribe(
@@ -27,6 +29,7 @@ export function initializeUiOrchestration() {
                         data: {
                             parsedData: cachedEntry.parsedData,
                             isIFrame: isIFrame,
+                            uniqueId: uniqueId, // Pass uniqueId for raw data retrieval
                         },
                     },
                 });
@@ -44,7 +47,11 @@ export function initializeUiOrchestration() {
                         url: uniqueId,
                         content: {
                             type: 'segmentAnalysis',
-                            data: { parsedData: parsedData, isIFrame },
+                            data: {
+                                parsedData: parsedData,
+                                isIFrame,
+                                uniqueId: uniqueId, // Pass uniqueId here too
+                            },
                         },
                     });
                 })
@@ -135,4 +142,60 @@ export function initializeUiOrchestration() {
             isFullWidth: true,
         });
     });
+
+    // --- DASH Timing Calculator ---
+    eventBus.subscribe(
+        EVENTS.UI.SHOW_DASH_TIMING_CALCULATOR,
+        ({ streamId }) => {
+            const stream = useAnalysisStore
+                .getState()
+                .streams.find((s) => s.id === streamId);
+            if (!stream || stream.protocol !== 'dash') return;
+
+            const manifest = stream.manifest.serializedManifest;
+            const period = findChildrenRecursive(manifest, 'Period')[0];
+            const adaptationSet = findChildrenRecursive(
+                period,
+                'AdaptationSet'
+            )[0];
+            const representation = findChildrenRecursive(
+                adaptationSet,
+                'Representation'
+            )[0];
+
+            const hierarchy = [representation, adaptationSet, period];
+            const template = getInheritedElement('SegmentTemplate', hierarchy);
+
+            if (!template) {
+                showToast({
+                    message: 'No SegmentTemplate found in this manifest.',
+                    type: 'warn',
+                });
+                return;
+            }
+
+            const data = {
+                ast: new Date(
+                    getAttr(manifest, 'availabilityStartTime') || 0
+                ).getTime(),
+                periodStart: parseFloat(getAttr(period, 'start') || 0),
+                timescale: parseFloat(getAttr(template, 'timescale')),
+                duration: parseFloat(getAttr(template, 'duration')),
+                startNumber: parseInt(getAttr(template, 'startNumber') || 1),
+                pto: parseFloat(
+                    getAttr(template, 'presentationTimeOffset') || 0
+                ),
+                mediaTemplate: getAttr(template, 'media'),
+            };
+
+            openModalWithContent({
+                title: 'DASH Timing Calculator',
+                url: stream.originalUrl,
+                content: {
+                    type: 'dashCalculator',
+                    data,
+                },
+            });
+        }
+    );
 }

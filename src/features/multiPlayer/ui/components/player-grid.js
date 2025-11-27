@@ -1,22 +1,26 @@
-import { html, render } from 'lit-html';
-import { useMultiPlayerStore } from '@/state/multiPlayerStore';
 import { eventBus } from '@/application/event-bus';
-import './player-card.js';
+import { useMultiPlayerStore } from '@/state/multiPlayerStore';
 import * as icons from '@/ui/icons';
+import { html, render } from 'lit-html';
+import './player-card.js';
 
 class PlayerGridComponent extends HTMLElement {
     constructor() {
         super();
-        this.unsubscribe = null;
+        this.unsubscribeMultiPlayer = null;
     }
 
     connectedCallback() {
+        // Simply re-render on any store update.
+        // Lit-html handles DOM diffing efficiently, so this is safe and robust.
+        this.unsubscribeMultiPlayer = useMultiPlayerStore.subscribe(() =>
+            this.render()
+        );
         this.render();
-        this.unsubscribe = useMultiPlayerStore.subscribe(() => this.render());
     }
 
     disconnectedCallback() {
-        if (this.unsubscribe) this.unsubscribe();
+        if (this.unsubscribeMultiPlayer) this.unsubscribeMultiPlayer();
     }
 
     render() {
@@ -66,12 +70,43 @@ class PlayerGridComponent extends HTMLElement {
                 });
             };
 
+            const renderSidebarItem = (id) => {
+                const p = players.get(id);
+                if (!p) return '';
+                return html`
+                    <div
+                        class="p-3 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-700 hover:border-blue-500/50 cursor-pointer transition-all group"
+                        @click=${() => handleSidebarClick(id)}
+                    >
+                        <div class="flex justify-between items-start mb-2">
+                            <span
+                                class="text-xs font-bold text-slate-200 truncate max-w-[180px]"
+                                >${p.streamName}</span
+                            >
+                            <div
+                                class="w-2 h-2 rounded-full ${p.state ===
+                                'playing'
+                                    ? 'bg-green-500'
+                                    : 'bg-slate-500'}"
+                            ></div>
+                        </div>
+                        <div
+                            class="text-[10px] font-mono text-slate-500 truncate"
+                        >
+                            ${p.stats?.playbackQuality?.resolution || 'Init...'}
+                        </div>
+                    </div>
+                `;
+            };
+
             const template = html`
-                <div class="h-full w-full bg-slate-950 flex overflow-hidden">
+                <div
+                    class="h-full w-full bg-slate-950 flex overflow-hidden animate-fadeIn"
+                >
                     <!-- Main Stage -->
                     <div class="grow relative p-4 flex flex-col min-w-0">
                         <div
-                            class="relative w-full h-full rounded-2xl overflow-hidden shadow-2xl border border-slate-800"
+                            class="relative w-full h-full rounded-2xl overflow-hidden shadow-2xl border border-slate-800 bg-black"
                         >
                             <player-card-component
                                 stream-id="${focusedStreamId}"
@@ -80,11 +115,11 @@ class PlayerGridComponent extends HTMLElement {
                         </div>
                     </div>
 
-                    <!-- Sidebar (Thumbnails) -->
+                    <!-- Sidebar (List View) -->
                     ${otherPlayerIds.length > 0
                         ? html`
                               <div
-                                  class="w-80 shrink-0 border-l border-slate-800 bg-slate-900/50 flex flex-col"
+                                  class="w-64 shrink-0 border-l border-slate-800 bg-slate-900/50 flex flex-col"
                               >
                                   <div
                                       class="p-3 border-b border-slate-800 text-xs font-bold text-slate-500 uppercase tracking-wider"
@@ -94,24 +129,7 @@ class PlayerGridComponent extends HTMLElement {
                                   <div
                                       class="grow overflow-y-auto p-3 space-y-3 custom-scrollbar"
                                   >
-                                      ${otherPlayerIds.map(
-                                          (id) => html`
-                                              <div
-                                                  class="aspect-video relative rounded-lg overflow-hidden cursor-pointer hover:ring-2 ring-blue-500 transition-all group"
-                                                  @click=${() =>
-                                                      handleSidebarClick(id)}
-                                              >
-                                                  <!-- Overlay to block interaction in sidebar -->
-                                                  <div
-                                                      class="absolute inset-0 z-50 bg-transparent"
-                                                  ></div>
-                                                  <player-card-component
-                                                      stream-id="${id}"
-                                                      class="h-full w-full block pointer-events-none"
-                                                  ></player-card-component>
-                                              </div>
-                                          `
-                                      )}
+                                      ${otherPlayerIds.map(renderSidebarItem)}
                                   </div>
                               </div>
                           `
@@ -139,7 +157,7 @@ class PlayerGridComponent extends HTMLElement {
 
         const template = html`
             <div
-                class="h-full w-full overflow-y-auto custom-scrollbar bg-slate-950"
+                class="h-full w-full overflow-y-auto custom-scrollbar bg-slate-950 animate-fadeIn"
             >
                 <div style="${gridStyle}">
                     ${playerIds.map(

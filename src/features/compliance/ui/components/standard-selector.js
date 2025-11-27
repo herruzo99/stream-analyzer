@@ -1,7 +1,7 @@
-import { html } from 'lit-html';
-import { toggleDropdown } from '@/ui/services/dropdownService';
 import { formattedOptionsDropdownTemplate } from '@/features/playerSimulation/ui/components/formatted-options-dropdown';
 import * as icons from '@/ui/icons';
+import { toggleDropdown } from '@/ui/services/dropdownService';
+import { html } from 'lit-html';
 
 const HLS_VERSIONS = [
     {

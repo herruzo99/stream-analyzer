@@ -1,5 +1,5 @@
-import { appLog } from '@/shared/utils/debug';
 import { eventBus } from '@/application/event-bus';
+import { appLog } from '@/shared/utils/debug';
 
 export class WorkerService {
     constructor() {

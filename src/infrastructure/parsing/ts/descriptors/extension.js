@@ -1,19 +1,19 @@
-import { parseHevcTimingAndHrdDescriptor } from './hevc-timing-hrd.js';
-import { parseHevcOperationPointDescriptor } from './hevc-operation-point.js';
 import { parseGreenExtensionDescriptor } from './green-extension.js';
+import { parseHevcOperationPointDescriptor } from './hevc-operation-point.js';
+import { parseHevcSubregionDescriptor } from './hevc-subregion.js';
+import { parseHevcTileSubstreamDescriptor } from './hevc-tile-substream.js';
+import { parseHevcTimingAndHrdDescriptor } from './hevc-timing-hrd.js';
 import {
-    parseMpegH3dAudioDescriptor,
+    parseMpegH3dAudioCommandDescriptor,
     parseMpegH3dAudioConfigDescriptor,
+    parseMpegH3dAudioDescriptor,
+    parseMpegH3dAudioDrcLoudnessDescriptor,
+    parseMpegH3dAudioMultiStreamDescriptor,
     parseMpegH3dAudioSceneDescriptor,
     parseMpegH3dAudioTextLabelDescriptor,
-    parseMpegH3dAudioMultiStreamDescriptor,
-    parseMpegH3dAudioDrcLoudnessDescriptor,
-    parseMpegH3dAudioCommandDescriptor,
 } from './mpeg-h-3d-audio.js';
 import { parseQualityExtensionDescriptor } from './quality-extension.js';
 import { parseVirtualSegmentationDescriptor } from './virtual-segmentation.js';
-import { parseHevcTileSubstreamDescriptor } from './hevc-tile-substream.js';
-import { parseHevcSubregionDescriptor } from './hevc-subregion.js';
 
 /**
  * Parses the Extension Descriptor, which acts as a container for other descriptors.

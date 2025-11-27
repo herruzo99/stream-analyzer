@@ -1,6 +1,6 @@
-import { html, render } from 'lit-html';
 import { useMultiPlayerStore } from '@/state/multiPlayerStore';
 import { useUiStore } from '@/state/uiStore';
+import { html, render } from 'lit-html';
 import { classMap } from 'lit-html/directives/class-map.js';
 import './player-card.js';
 

@@ -1,11 +1,11 @@
-import { formatBitrate } from '@/ui/shared/format';
-import { multiPlayerService } from '../application/multiPlayerService';
 import { useMultiPlayerStore } from '@/state/multiPlayerStore';
 import * as icons from '@/ui/icons';
+import { formatBitrate } from '@/ui/shared/format';
+import { multiPlayerService } from '../application/multiPlayerService';
 
 /**
  * Creates the view model for the new multi-player grid view.
- * @param {Map<number, import('@/state/multiPlayerStore').PlayerInstance>} playersMap
+ * @param {Map<number, import('@/types').PlayerInstance>} playersMap
  * @returns {{
  *   cards: Array<object>
  * }} An object containing card view models.

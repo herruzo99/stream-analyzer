@@ -1,9 +1,9 @@
-import { useSegmentCacheStore } from '@/state/segmentCacheStore';
 import { eventBus } from '@/application/event-bus';
-import { workerService } from '@/infrastructure/worker/workerService';
-import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
 import { keyManagerService } from '@/infrastructure/decryption/keyManagerService';
+import { workerService } from '@/infrastructure/worker/workerService';
 import { appLog } from '@/shared/utils/debug';
+import { analysisActions, useAnalysisStore } from '@/state/analysisStore';
+import { useSegmentCacheStore } from '@/state/segmentCacheStore';
 import { EVENTS } from '@/types/events';
 
 export function getParsedSegment(

@@ -1,7 +1,7 @@
 import { eventBus } from '@/application/event-bus';
 import { uiActions } from '@/state/uiStore';
-import { renderApp } from '@/ui/shell/mainRenderer';
 import { EVENTS } from '@/types/events';
+import { renderApp } from '@/ui/shell/mainRenderer';
 
 export function initializeComplianceController() {
     eventBus.subscribe(EVENTS.UI.COMPLIANCE_FILTER_CHANGED, ({ filter }) => {

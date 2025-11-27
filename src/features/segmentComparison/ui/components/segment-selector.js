@@ -1,6 +1,6 @@
-import { html } from 'lit-html';
-import { toggleDropdown, closeDropdown } from '@/ui/services/dropdownService';
 import * as icons from '@/ui/icons';
+import { closeDropdown, toggleDropdown } from '@/ui/services/dropdownService';
+import { html } from 'lit-html';
 
 const segmentOption = (seg, isActive, onClick) => html`
     <button

@@ -1,9 +1,9 @@
-import { html, render } from 'lit-html';
 import { useMultiPlayerStore } from '@/state/multiPlayerStore';
-import './global-controls.js';
-import './player-roster.js';
-import './playback-controls.js';
 import '@/ui/components/labeled-control';
+import { html, render } from 'lit-html';
+import './global-controls.js';
+import './playback-controls.js';
+import './player-roster.js';
 
 class ControlsViewComponent extends HTMLElement {
     constructor() {

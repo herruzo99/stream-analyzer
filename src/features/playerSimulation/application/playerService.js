@@ -1,15 +1,15 @@
 import { eventBus } from '@/application/event-bus';
+import { StallCalculator } from '@/features/multiPlayer/domain/stall-calculator';
+import { getShaka } from '@/infrastructure/player/shaka';
+import { parseShakaError } from '@/infrastructure/player/shaka-error';
+import { appLog } from '@/shared/utils/debug';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { playerActions, usePlayerStore } from '@/state/playerStore';
-import { getShaka } from '@/infrastructure/player/shaka';
 import { formatBitrate } from '@/ui/shared/format';
-import { StallCalculator } from '@/features/multiPlayer/domain/stall-calculator';
-import { parseShakaError } from '@/infrastructure/player/shaka-error';
 import { playerConfigService } from './playerConfigService.js';
-import { appLog } from '@/shared/utils/debug';
 
 const MAX_RETRIES = 5;
-const INITIAL_RETRY_DELAY_MS = 1000;
+const INITIAL_RETRY_DELAY_MS = 2000;
 const JITTER_FACTOR = 0.3;
 
 class PlayerService {
@@ -19,7 +19,6 @@ class PlayerService {
         this.activeStreamIds = new Set();
         this.activeManifestVariants = [];
         this.isInitialized = false;
-        // this.ui = null; // REMOVED: We control the UI manually now
         this.tickerSubscription = null;
         this.stallCalculator = new StallCalculator();
     }
@@ -109,7 +108,6 @@ class PlayerService {
         const playheadTime = videoEl.currentTime;
         const isLive = this.player.isLive();
 
-        // --- Enhanced Buffer Calculation ---
         let bufferEnd = 0;
         const buffered = videoEl.buffered;
         if (buffered) {
@@ -127,10 +125,6 @@ class PlayerService {
             }
         }
         const forwardBuffer = Math.max(0, bufferEnd - playheadTime);
-
-        // Retrieve separate audio/video buffer info if available (Shaka specific internal structure,
-        // but accessible via getBufferedInfo() in newer versions, or we infer from buffered ranges)
-        // For now, we rely on the unified buffer, but we can expose loaded bytes.
 
         const bufferInfo = {
             label: /** @type {'Live Latency' | 'Buffer Health'} */ (
@@ -150,14 +144,14 @@ class PlayerService {
                 totalStalls: totalStalls,
                 totalStallDuration: totalStallDuration,
                 timeToFirstFrame: timeToFirstFrame,
-                decodedFrames: shakaStats.decodedFrames || 0, // NEW
+                decodedFrames: shakaStats.decodedFrames || 0,
             },
             abr: {
                 currentVideoBitrate: videoOnlyBitrate,
                 estimatedBandwidth: shakaStats.estimatedBandwidth || 0,
                 switchesUp: switchesUp,
                 switchesDown: switchesDown,
-                loadLatency: shakaStats.loadLatency || 0, // NEW: Time to download last segment
+                loadLatency: shakaStats.loadLatency || 0,
             },
             buffer: {
                 label: bufferInfo.label,
@@ -191,12 +185,10 @@ class PlayerService {
             return;
         }
 
+        videoEl.crossOrigin = 'anonymous';
+
         this.player = new shaka.Player();
         await this.player.attach(videoEl);
-
-        // --- ARCHITECTURAL CHANGE: Removed Shaka UI Overlay initialization ---
-        // We are now managing all controls via our custom UI to prevent conflict and
-        // allow for a "Glass Cockpit" aesthetic.
 
         const videoElement = this.player.getMediaElement();
         if (!videoElement) {
@@ -206,7 +198,6 @@ class PlayerService {
             return;
         }
 
-        // Ensure native controls are off
         videoElement.controls = false;
         videoElement.muted = usePlayerStore.getState().isMuted;
 
@@ -430,7 +421,6 @@ class PlayerService {
     destroy() {
         if (!this.isInitialized) return;
         this.stopStatsCollection();
-        // Removed UI destroy call as this.ui is no longer used
         if (this.player) {
             this.player.destroy();
             this.player = null;
@@ -517,21 +507,29 @@ class PlayerService {
         const originalMessage = parseShakaError(error);
 
         const { isAutoResetEnabled, retryCount } = usePlayerStore.getState();
+
+        // Log the error regardless of auto-reset state
+        eventBus.dispatch('player:error', {
+            message: originalMessage,
+            error,
+        });
+
         if (!isAutoResetEnabled) {
-            eventBus.dispatch('player:error', {
-                message: originalMessage,
-                error,
-            });
             return;
         }
 
         const newRetryCount = retryCount + 1;
         if (newRetryCount > MAX_RETRIES) {
-            const finalMessage = `Permanent Failure: ${originalMessage}`;
-            eventBus.dispatch('player:error', {
-                message: finalMessage,
-                error,
+            const finalMessage = `Permanent Failure: ${originalMessage}. Max retries (${MAX_RETRIES}) reached.`;
+
+            // Log detailed error to player history
+            playerActions.logEvent({
+                timestamp: new Date().toLocaleTimeString(),
+                type: 'error',
+                details: finalMessage,
             });
+
+            // Dispatch global notification
             const { streams, activeStreamId } = useAnalysisStore.getState();
             const stream = streams.find((s) => s.id === activeStreamId);
             eventBus.dispatch('notify:player-error', {
@@ -547,9 +545,17 @@ class PlayerService {
             (1 + Math.random() * JITTER_FACTOR);
         const delay = Math.min(backoff, 30000); // Cap delay at 30s
 
+        const delaySec = (delay / 1000).toFixed(1);
+        const retryMessage = `Auto-reset enabled. Retrying (${newRetryCount}/${MAX_RETRIES}) in ${delaySec}s...`;
+
         playerActions.setRetryCount(newRetryCount);
-        const retryMessage = `Retrying (${newRetryCount}/${MAX_RETRIES})...`;
-        eventBus.dispatch('player:error', { message: retryMessage, error });
+
+        // Log the retry intent clearly
+        playerActions.logEvent({
+            timestamp: new Date().toLocaleTimeString(),
+            type: 'lifecycle',
+            details: retryMessage,
+        });
 
         setTimeout(() => {
             const { streams, activeStreamId } = useAnalysisStore.getState();

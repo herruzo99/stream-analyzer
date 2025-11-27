@@ -1,20 +1,19 @@
-import { html } from 'lit-html';
-import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
-import { usePlayerStore } from '@/state/playerStore';
-import { playerService } from '@/features/playerSimulation/application/playerService';
-import { toggleAllPolling } from '@/ui/services/streamActionsService';
-import { copyShareUrlToClipboard } from '@/ui/services/shareService';
-import { resetApplicationState } from '@/application/use_cases/resetApplicationState';
-import { getLastUsedStreams } from '@/infrastructure/persistence/streamStorage';
-import { toggleDropdown, closeDropdown } from '@/ui/services/dropdownService';
-import { pollingDropdownPanelTemplate } from './polling-dropdown-panel.js';
-import { notificationSettingsPanelTemplate } from '@/features/notifications/ui/components/notification-settings-panel.js';
-import { debugDropdownPanelTemplate } from './debug-dropdown-panel.js';
 import { eventBus } from '@/application/event-bus';
+import { resetApplicationState } from '@/application/use_cases/resetApplicationState';
+import { notificationSettingsPanelTemplate } from '@/features/notifications/ui/components/notification-settings-panel.js';
+import { playerService } from '@/features/playerSimulation/application/playerService';
+import { getLastUsedStreams } from '@/infrastructure/persistence/streamStorage';
+import { isDebugMode } from '@/shared/utils/env';
+import { analysisActions, useAnalysisStore } from '@/state/analysisStore';
+import { usePlayerStore } from '@/state/playerStore';
 import { EVENTS } from '@/types/events';
 import * as icons from '@/ui/icons';
-import { isDebugMode } from '@/shared/utils/env';
-import { showToast } from '@/ui/components/toast';
+import { closeDropdown, toggleDropdown } from '@/ui/services/dropdownService';
+import { copyShareUrlToClipboard } from '@/ui/services/shareService';
+import { toggleAllPolling } from '@/ui/services/streamActionsService';
+import { html } from 'lit-html';
+import { debugDropdownPanelTemplate } from './debug-dropdown-panel.js';
+import { pollingDropdownPanelTemplate } from './polling-dropdown-panel.js';
 
 function handleRestart() {
     if (
@@ -27,6 +26,14 @@ function handleRestart() {
         }
     }
 }
+
+const handleFileSelect = (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length > 0) {
+        eventBus.dispatch(EVENTS.UI.SEGMENT_ANALYSIS_REQUESTED, { files });
+    }
+    e.target.value = ''; // Reset
+};
 
 // --- Templates for Button Styles ---
 
@@ -100,7 +107,7 @@ const toolMenuItem = (icon, title, desc, onClick, badge = null) => html`
 
 // --- Dropdown Menus ---
 
-const utilitiesMenuTemplate = () => html`
+const utilitiesMenuTemplate = (activeStream) => html`
     <div
         class="dropdown-panel bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl w-72 p-2 ring-1 ring-black/50 space-y-1 animate-scaleIn origin-bottom-left"
     >
@@ -113,6 +120,30 @@ const utilitiesMenuTemplate = () => html`
             >
         </div>
 
+        ${activeStream?.protocol === 'dash'
+            ? toolMenuItem(
+                  icons.calculator,
+                  'Timing Calculator',
+                  'Debug DASH segment availability',
+                  () => {
+                      closeDropdown();
+                      eventBus.dispatch(EVENTS.UI.SHOW_DASH_TIMING_CALCULATOR, {
+                          streamId: activeStream.id,
+                      });
+                  },
+                  'DASH'
+              )
+            : ''}
+        ${toolMenuItem(
+            icons.fileScan,
+            'Segment Inspector',
+            'Analyze local ISOBMFF/TS files',
+            () => {
+                closeDropdown();
+                const input = document.getElementById('global-segment-upload');
+                if (input) input.click();
+            }
+        )}
         ${toolMenuItem(
             icons.shield,
             'PSSH Inspector',
@@ -137,9 +168,10 @@ const utilitiesMenuTemplate = () => html`
 // --- Main Component ---
 
 export const globalControlsTemplate = () => {
-    const { streams } = useAnalysisStore.getState();
+    const { streams, activeStreamId } = useAnalysisStore.getState();
     const { isLoaded } = usePlayerStore.getState();
 
+    const activeStream = streams.find((s) => s.id === activeStreamId);
     const liveStreams = streams.filter((s) => s.manifest?.type === 'dynamic');
     const isAnyPolling = liveStreams.some((s) => s.isPolling);
     const hasLive = liveStreams.length > 0;
@@ -148,6 +180,15 @@ export const globalControlsTemplate = () => {
         <div
             class="mt-auto border-t border-white/5 bg-slate-950/80 backdrop-blur-md p-4 space-y-4"
         >
+            <!-- Hidden Global File Input -->
+            <input
+                type="file"
+                id="global-segment-upload"
+                class="hidden"
+                multiple
+                @change=${handleFileSelect}
+            />
+
             <!-- 1. Primary Session Controls -->
             <div class="flex gap-3">
                 ${primaryButton(
@@ -224,7 +265,7 @@ export const globalControlsTemplate = () => {
                     (e) =>
                         toggleDropdown(
                             e.currentTarget,
-                            utilitiesMenuTemplate,
+                            () => utilitiesMenuTemplate(activeStream),
                             e
                         ),
                     'text-purple-400 hover:text-purple-300 hover:bg-purple-900/20'

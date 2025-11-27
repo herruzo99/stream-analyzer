@@ -16,23 +16,6 @@
  * @property {string} [header]
  */
 
-/**
- * @param {string | null} contentType
- * @returns {boolean}
- */
-const isTextResource = (contentType) => {
-    if (!contentType) return false;
-    const ct = contentType.toLowerCase();
-    return (
-        ct.includes('text') ||
-        ct.includes('xml') ||
-        ct.includes('json') ||
-        ct.includes('javascript') ||
-        ct.includes('dash+xml') ||
-        ct.includes('vnd.apple.mpegurl')
-    );
-};
-
 /** @type {Rule[]} */
 const RULES = [
     {

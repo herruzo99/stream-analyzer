@@ -1,6 +1,6 @@
+import * as icons from '@/ui/icons';
 import { html } from 'lit-html';
 import { mediaPlaylistCardTemplate } from './media-playlist-card.js';
-import * as icons from '@/ui/icons';
 
 const getIcon = (type) => {
     if (type === 'video') return icons.clapperboard;

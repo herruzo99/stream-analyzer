@@ -1,8 +1,8 @@
-import { eventBus } from '@/application/event-bus';
-import { startAnalysisUseCase } from './startAnalysis';
-import { addStreamsToSessionUseCase } from './addStreamsToSession.js';
 import { container } from '@/application/container';
+import { eventBus } from '@/application/event-bus';
 import { EVENTS } from '@/types/events';
+import { addStreamsToSessionUseCase } from './addStreamsToSession.js';
+import { startAnalysisUseCase } from './startAnalysis';
 
 /**
  * Listens for UI events related to starting analysis and orchestrates the use case.

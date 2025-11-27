@@ -1,6 +1,6 @@
-import { fetchWithAuth } from '../http.js';
-import { inferMediaInfoFromExtension } from '../../parsing/utils/media-types.js';
 import { appLog } from '../../../shared/utils/debug.js';
+import { inferMediaInfoFromExtension } from '../../parsing/utils/media-types.js';
+import { fetchWithAuth } from '../http.js';
 import { handleParseSegmentStructure } from '../parsingService.js';
 
 function mapShakaRequestType(request, requestType) {

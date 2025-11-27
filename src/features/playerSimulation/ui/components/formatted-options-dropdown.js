@@ -1,6 +1,6 @@
-import { html } from 'lit-html';
-import { closeDropdown } from '@/ui/services/dropdownService';
 import * as icons from '@/ui/icons';
+import { closeDropdown } from '@/ui/services/dropdownService';
+import { html } from 'lit-html';
 
 /**
  * A generic, styled dropdown for selecting options with descriptions.

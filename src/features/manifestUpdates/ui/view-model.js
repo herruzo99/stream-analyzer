@@ -1,5 +1,3 @@
-import { formatBitrate } from '@/ui/shared/format';
-
 /**
  * heuristic to determine what "kind" of update this was.
  */
@@ -8,7 +6,6 @@ function determineUpdateType(update, prevUpdate) {
         return { type: 'init', label: 'Initial Load', icon: 'play' };
 
     const tags = [];
-    let icon = 'activity';
 
     // Check for Errors/Warnings
     const errors =

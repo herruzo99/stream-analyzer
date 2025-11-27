@@ -1,7 +1,7 @@
-import { html } from 'lit-html';
-import { formatBitrate } from '@/ui/shared/format';
-import * as icons from '@/ui/icons';
 import { useAnalysisStore } from '@/state/analysisStore';
+import * as icons from '@/ui/icons';
+import { formatBitrate } from '@/ui/shared/format';
+import { html } from 'lit-html';
 
 const metricTile = (label, value, unit = '', status = 'neutral') => {
     const statusColors = {

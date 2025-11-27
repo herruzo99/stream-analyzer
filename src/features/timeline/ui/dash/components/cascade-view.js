@@ -1,6 +1,6 @@
+import * as icons from '@/ui/icons';
 import { html } from 'lit-html';
 import { periodCardTemplate } from './period-card.js';
-import * as icons from '@/ui/icons';
 
 export const cascadeViewTemplate = (stream) => {
     if (!stream || !stream.manifest || !stream.manifest.periods) {

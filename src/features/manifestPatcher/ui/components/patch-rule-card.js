@@ -1,6 +1,6 @@
+import * as icons from '@/ui/icons';
 import { html } from 'lit-html';
 import { classMap } from 'lit-html/directives/class-map.js';
-import * as icons from '@/ui/icons';
 
 export const patchRuleCardTemplate = ({
     rule,
@@ -16,7 +16,7 @@ export const patchRuleCardTemplate = ({
     if (isRegex && rule.target) {
         try {
             new RegExp(rule.target);
-        } catch (e) {
+        } catch (_e) {
             isValidRegex = false;
         }
     }

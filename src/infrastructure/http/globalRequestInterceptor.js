@@ -1,8 +1,8 @@
-import { setupWorker } from 'msw/browser';
 import { http, passthrough } from 'msw';
+import { setupWorker } from 'msw/browser';
 
-import { useAnalysisStore } from '@/state/analysisStore';
 import { appLog } from '@/shared/utils/debug';
+import { useAnalysisStore } from '@/state/analysisStore';
 import { networkActions } from '@/state/networkStore';
 
 // --- Configuration ---
@@ -66,52 +66,64 @@ function classifyRequest(urlString, streams) {
         const ctx = urlAuthMap.get(urlString);
         return {
             streamId: ctx.streamId,
-            resourceType: 'video', // Default assumption for cached segments
+            resourceType: 'video', // Default assumption for cached segments, refined if needed
         };
     }
 
     // 2. Heuristic: Match against Stream Base URLs (Fast)
-    // Most segments share a prefix with the manifest or a declared BaseURL.
     for (const stream of streams) {
         if (stream.originalUrl === urlString || stream.baseUrl === urlString) {
             return { streamId: stream.id, resourceType: 'manifest' };
         }
-        
+
         // License Server Check
         const licenseUrl = stream.drmAuth?.licenseServerUrl;
         if (licenseUrl) {
-            const target = typeof licenseUrl === 'string' ? licenseUrl : Object.values(licenseUrl)[0];
+            const target =
+                typeof licenseUrl === 'string'
+                    ? licenseUrl
+                    : Object.values(licenseUrl)[0];
             if (target && urlString.startsWith(target)) {
                 return { streamId: stream.id, resourceType: 'license' };
             }
         }
-        
+
         // Base Path Matching
-        // If the request URL starts with the stream's base path, assign it to that stream.
-        const basePath = stream.baseUrl ? stream.baseUrl.substring(0, stream.baseUrl.lastIndexOf('/')) : '';
+        const basePath = stream.baseUrl
+            ? stream.baseUrl.substring(0, stream.baseUrl.lastIndexOf('/'))
+            : '';
         if (basePath && urlString.startsWith(basePath)) {
-            // Refine type based on extension
             let type = 'video';
-            if (urlString.includes('.m4a') || urlString.includes('audio')) type = 'audio';
-            else if (urlString.includes('.vtt') || urlString.includes('subs')) type = 'text';
+            if (urlString.includes('.m4a') || urlString.includes('audio'))
+                type = 'audio';
+            else if (urlString.includes('.vtt') || urlString.includes('subs'))
+                type = 'text';
             else if (urlString.includes('init')) type = 'init';
-            
-            return { streamId: stream.id, resourceType: type };
+            else if (urlString.includes('.key')) type = 'key'; // HLS Key
+
+            return {
+                streamId: stream.id,
+                resourceType: /** @type {import('@/types').ResourceType} */ (
+                    type
+                ),
+            };
         }
     }
 
     // 3. Fallback: Deep Scan (Slow)
-    // Only do this if we really haven't matched yet.
-    // Using a basic find is better than flatMap for performance (stops early).
     for (const stream of streams) {
         // Check DASH State
         for (const repState of stream.dashRepresentationState.values()) {
-            const found = repState.segments.find(s => s.resolvedUrl === urlString);
+            const found = repState.segments.find(
+                (s) => s.resolvedUrl === urlString
+            );
             if (found) return { streamId: stream.id, resourceType: 'video' };
         }
         // Check HLS State
         for (const varState of stream.hlsVariantState.values()) {
-            const found = varState.segments.find(s => s.resolvedUrl === urlString);
+            const found = varState.segments.find(
+                (s) => s.resolvedUrl === urlString
+            );
             if (found) return { streamId: stream.id, resourceType: 'video' };
         }
     }
@@ -126,54 +138,97 @@ export async function initializeGlobalRequestInterceptor() {
     appLog('GlobalRequestInterceptor', 'info', 'Initializing optimized MSW...');
 
     const handlers = [
-        http.all('*', ({ request }) => {
+        http.all('*', async ({ request }) => {
             const url = new URL(request.url);
 
-            // CRITICAL: Return undefined to let the browser handle it natively.
-            // Do NOT use passthrough() for ignored hosts, as that still routes
-            // traffic through the Service Worker context, causing CORS issues.
             if (shouldBypass(url)) {
                 return undefined;
             }
 
-            // For everything else (potential streams), use passthrough to observe it.
+            // ARCHITECTURAL FIX: For external assets that cause CORS/SW issues, we bypass manually
+            if (
+                url.hostname.endsWith('fonts.gstatic.com') ||
+                url.hostname.endsWith('fonts.googleapis.com') ||
+                url.hostname === 'cdn.jsdelivr.net' ||
+                url.hostname === 'js-de.sentry-cdn.com' ||
+                url.hostname === 'www.googletagmanager.com' ||
+                request.destination === 'font'
+            ) {
+                try {
+                    const response = await fetch(request.url, {
+                        method: 'GET',
+                        mode: 'cors',
+                        credentials: 'omit',
+                        cache: 'default',
+                    });
+                    return response;
+                } catch (_e) {
+                    return new Response(null, {
+                        status: 404,
+                        statusText: 'Not Found (Interceptor Fallback)',
+                    });
+                }
+            }
+
             return passthrough();
         }),
     ];
 
     const worker = setupWorker(...handlers);
 
-    // Use the 'response:bypass' lifecycle event to log requests non-intrusively.
-    // This fires after the response is received.
-    worker.events.on('response:bypass', ({ response, request }) => {
+    worker.events.on('response:bypass', async ({ response, request }) => {
         const urlString = request.url;
-        
-        // Re-check bypass logic to ensure we don't log noise
+
         try {
             if (shouldBypass(new URL(urlString))) return;
-        } catch { return; }
+        } catch {
+            return;
+        }
 
         const { streams } = useAnalysisStore.getState();
         const { streamId, resourceType } = classifyRequest(urlString, streams);
 
-        // If we can't associate it with a stream, and it's not explicitly interesting, skip logging
         if (streamId === null && resourceType === 'other') {
             return;
         }
 
-        // Performance: Do NOT clone/read body for large binary files.
-        // Just trust Content-Length or estimate 0.
         const contentLengthHeader = response.headers.get('content-length');
         const contentLength = contentLengthHeader
             ? parseInt(contentLengthHeader, 10)
             : 0;
 
-        // Convert Headers to plain object
+        /** @type {Record<string, string>} */
         const responseHeaders = {};
-        response.headers.forEach((val, key) => { responseHeaders[key] = val; });
-        
+        response.headers.forEach((val, key) => {
+            responseHeaders[key] = val;
+        });
+
+        /** @type {Record<string, string>} */
         const requestHeaders = {};
-        request.headers.forEach((val, key) => { requestHeaders[key] = val; });
+        request.headers.forEach((val, key) => {
+            requestHeaders[key] = val;
+        });
+
+        // --- BODY CAPTURE LOGIC ---
+        // Only capture bodies for specific types to avoid performance hit
+        let requestBody = null;
+        let responseBody = null;
+
+        const shouldCapture =
+            resourceType === 'license' ||
+            resourceType === 'key' ||
+            resourceType === 'manifest';
+
+        if (shouldCapture) {
+            // We must clone before reading because the stream might be locked or consumed
+            // NOTE: response.clone() might fail if body is already used.
+            // MSW's response:bypass gives us a fresh clone usually, but safe to wrap.
+            if (!request.bodyUsed) {
+                requestBody = await request.clone().arrayBuffer();
+            }
+            // Responses in bypass event are usually fresh clones
+            responseBody = await response.clone().arrayBuffer();
+        }
 
         const eventPayload = {
             id: crypto.randomUUID(),
@@ -183,6 +238,7 @@ export async function initializeGlobalRequestInterceptor() {
             request: {
                 method: request.method,
                 headers: requestHeaders,
+                body: requestBody,
             },
             response: {
                 status: response.status,
@@ -190,9 +246,10 @@ export async function initializeGlobalRequestInterceptor() {
                 headers: responseHeaders,
                 contentLength: contentLength,
                 contentType: response.headers.get('content-type') || '',
+                body: responseBody,
             },
             timing: {
-                startTime: performance.now(), // Approximate, enriched later by PerformanceObserver
+                startTime: performance.now(),
                 endTime: performance.now(),
                 duration: 0,
                 breakdown: null,
@@ -204,10 +261,14 @@ export async function initializeGlobalRequestInterceptor() {
 
     try {
         await worker.start({
-            onUnhandledRequest: 'bypass', // Strict fallback: Browser handles anything we missed
+            onUnhandledRequest: 'bypass',
             quiet: true,
         });
-        appLog('GlobalRequestInterceptor', 'info', 'MSW active (Low-Overhead Mode).');
+        appLog(
+            'GlobalRequestInterceptor',
+            'info',
+            'MSW active (Low-Overhead Mode).'
+        );
     } catch (error) {
         console.error('Failed to start MSW:', error);
     }

@@ -2,8 +2,8 @@ import { rules as dashRules } from '@/infrastructure/parsing/dash/compliance-rul
 import { rules as hlsRules } from '@/infrastructure/parsing/hls/compliance-rules/index';
 import {
     findChildren,
-    getAttr,
     findChildrenRecursive,
+    getAttr,
 } from '@/infrastructure/parsing/utils/recursive-parser.js';
 
 /**

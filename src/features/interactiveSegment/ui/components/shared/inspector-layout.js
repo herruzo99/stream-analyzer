@@ -1,8 +1,7 @@
+import { uiActions, useUiStore } from '@/state/uiStore';
+import * as icons from '@/ui/icons';
 import { html } from 'lit-html';
 import { classMap } from 'lit-html/directives/class-map.js';
-import { useUiStore, uiActions } from '@/state/uiStore';
-import { connectedTabBar } from '@/ui/components/tabs';
-import * as icons from '@/ui/icons';
 
 const mobileTabButton = (label, tabKey, icon) => {
     const { interactiveSegmentActiveTab } = useUiStore.getState();

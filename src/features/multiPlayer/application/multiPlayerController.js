@@ -1,7 +1,7 @@
 import { eventBus } from '@/application/event-bus';
-import { multiPlayerService } from './multiPlayerService.js';
 import { useMultiPlayerStore } from '@/state/multiPlayerStore';
 import { EVENTS } from '@/types/events';
+import { multiPlayerService } from './multiPlayerService.js';
 
 export function initializeMultiPlayerController() {
     eventBus.subscribe(EVENTS.UI.MP_PLAY_ALL, () =>

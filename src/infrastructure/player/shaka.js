@@ -1,6 +1,6 @@
-import { shakaNetworkPlugin } from './shaka-network-plugin.js';
 import { appLog } from '@/shared/utils/debug';
 import shaka from 'shaka-player/dist/shaka-player.ui.js';
+import { shakaNetworkPlugin } from './shaka-network-plugin.js';
 
 let shakaSingleton = null;
 

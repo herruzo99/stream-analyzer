@@ -1,5 +1,5 @@
-import { parseTsSegment } from './engine.js';
 import { tooltipData } from './descriptors/tooltips.js';
+import { parseTsSegment } from './engine.js';
 
 /**
  * The main entry point for parsing an MPEG-2 Transport Stream segment.

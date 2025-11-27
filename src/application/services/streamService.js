@@ -1,6 +1,5 @@
 import { eventBus } from '@/application/event-bus';
-import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
-import { appLog } from '@/shared/utils/debug';
+import { analysisActions, useAnalysisStore } from '@/state/analysisStore';
 import { EVENTS } from '@/types/events';
 
 function activateHlsMediaPlaylist({ streamId, variantId }) {

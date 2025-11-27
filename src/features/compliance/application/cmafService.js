@@ -1,12 +1,12 @@
 import { eventBus } from '@/application/event-bus';
-import { analysisActions } from '@/state/analysisStore';
 import {
-    validateCmafTrack,
     validateCmafSwitchingSets,
+    validateCmafTrack,
 } from '@/features/compliance/domain/cmaf/validator';
-import { resolveBaseUrl } from '@/infrastructure/parsing/utils/recursive-parser';
 import { findInitSegmentUrl } from '@/infrastructure/parsing/dash/segment-parser';
+import { resolveBaseUrl } from '@/infrastructure/parsing/utils/recursive-parser';
 import { getParsedSegment } from '@/infrastructure/segments/segmentService';
+import { analysisActions } from '@/state/analysisStore';
 
 /**
  * Runs all CMAF validation checks for a given stream and stores the results.

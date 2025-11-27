@@ -1,6 +1,6 @@
 import { eventBus } from '@/application/event-bus';
-import { analysisActions, useAnalysisStore } from '@/state/analysisStore';
 import { playerService } from '@/features/playerSimulation/application/playerService';
+import { analysisActions, useAnalysisStore } from '@/state/analysisStore';
 
 /**
  * Toggles the active state for all streams. For live streams, it toggles polling.

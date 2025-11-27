@@ -1,8 +1,8 @@
 import { eventBus } from '@/application/event-bus';
+import { analysisActions, useAnalysisStore } from '@/state/analysisStore';
 import { uiActions } from '@/state/uiStore';
-import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
-import { showToast } from '@/ui/components/toast';
 import { EVENTS } from '@/types/events';
+import { showToast } from '@/ui/components/toast';
 
 export function initializeSegmentExplorerController() {
     eventBus.subscribe(

@@ -1,14 +1,14 @@
-import { html, render } from 'lit-html';
 import { useAnalysisStore } from '@/state/analysisStore';
-import { useUiStore, uiActions } from '@/state/uiStore';
-import { createTimelineViewModel } from './view-model.js';
+import { uiActions, useUiStore } from '@/state/uiStore';
+import * as icons from '@/ui/icons';
+import { html, render } from 'lit-html';
+import { metricPanelTemplate } from './components/metric-panel.js';
+import './components/timeline-chart.js';
 import { timelineControlsTemplate } from './components/timeline-controls.js';
 import { timelineInspectorTemplate } from './components/timeline-inspector.js';
-import { metricPanelTemplate } from './components/metric-panel.js';
-import { hlsCascadeViewTemplate } from './hls/components/cascade-view.js';
 import { cascadeViewTemplate as dashCascadeViewTemplate } from './dash/components/cascade-view.js';
-import './components/timeline-chart.js';
-import * as icons from '@/ui/icons';
+import { hlsCascadeViewTemplate } from './hls/components/cascade-view.js';
+import { createTimelineViewModel } from './view-model.js';
 
 let container = null;
 let unsubs = [];

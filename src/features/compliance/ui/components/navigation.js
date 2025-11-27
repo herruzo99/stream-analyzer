@@ -1,5 +1,5 @@
-import { html } from 'lit-html';
 import { analysisActions } from '@/state/analysisStore';
+import { html } from 'lit-html';
 
 export const navigationTemplate = (stream) => {
     if (stream.manifest.type !== 'dynamic') return html``;

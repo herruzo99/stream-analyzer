@@ -17,15 +17,15 @@
 
 import { getDrmSystemName } from '@/infrastructure/parsing/utils/drm';
 import { parseDuration } from '@/shared/utils/time';
-import {
-    getAttr,
-    findChildren,
-    findChildrenRecursive,
-    mergeElements,
-    linkParents,
-} from '../utils/recursive-parser.js';
 import { parseScte35 } from '../scte35/parser.js';
 import { inferMediaInfoFromExtension } from '../utils/media-types.js';
+import {
+    findChildren,
+    findChildrenRecursive,
+    getAttr,
+    linkParents,
+    mergeElements,
+} from '../utils/recursive-parser.js';
 
 import { isCodecSupported } from '../utils/codec-support.js';
 

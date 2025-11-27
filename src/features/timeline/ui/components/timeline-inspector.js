@@ -1,6 +1,6 @@
-import { html } from 'lit-html';
+import { uiActions, useUiStore } from '@/state/uiStore';
 import * as icons from '@/ui/icons';
-import { uiActions } from '@/state/uiStore';
+import { html } from 'lit-html';
 
 const row = (label, value, isCode = false) => html`
     <div
@@ -22,10 +22,7 @@ const row = (label, value, isCode = false) => html`
 `;
 
 export const timelineInspectorTemplate = () => {
-    // We use require to avoid circular dependencies if uiStore imports this file (though it shouldn't)
-    // But strictly following the previous pattern:
-    const { timelineSelectedItem } =
-        require('@/state/uiStore').useUiStore.getState();
+    const { timelineSelectedItem } = useUiStore.getState();
 
     if (!timelineSelectedItem) {
         return html`

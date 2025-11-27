@@ -1,9 +1,9 @@
-import { html, render } from 'lit-html';
 import { eventBus } from '@/application/event-bus';
+import { useMultiPlayerStore } from '@/state/multiPlayerStore.js';
 import '@/ui/components/labeled-control';
 import { toggleDropdown } from '@/ui/services/dropdownService';
+import { html, render } from 'lit-html';
 import { virtualTrackDropdownTemplate } from './virtual-track-dropdown.js';
-import { useMultiPlayerStore } from '@/state/multiPlayerStore.js';
 
 const RESOLUTION_OPTIONS = [
     { label: 'Auto', value: Infinity },
@@ -171,7 +171,7 @@ const globalControlsTemplate = ({
                 </h5>
                 <labeled-control-component
                     label="Auto-reset on failure"
-                    description="Automatically reload a player 3 seconds after a critical error."
+                    description="Automatically attempts to reload players with exponential backoff (up to 5 attempts)."
                 >
                     <button
                         @click=${() =>

@@ -1,15 +1,15 @@
-import { parseHeader } from './parsers/header.js';
-import { parseAdaptationField } from './parsers/adaptation-field.js';
-import { parsePsiSection } from './parsers/psi-section.js';
-import { parsePatPayload } from './parsers/pat.js';
-import { parsePmtPayload } from './parsers/pmt.js';
-import { parseCatPayload } from './parsers/cat.js';
-import { parseTsdtPayload } from './parsers/tsdt.js';
-import { parsePrivateSectionPayload } from './parsers/private-section.js';
-import { parseIpmpPayload } from './parsers/ipmp.js';
-import { parsePesHeader } from './parsers/pes.js';
-import { parseDsmccPayload } from './parsers/dsm-cc.js';
 import { analyzeSemantics } from '../../../features/compliance/domain/semantic-analyzer.js';
+import { parseAdaptationField } from './parsers/adaptation-field.js';
+import { parseCatPayload } from './parsers/cat.js';
+import { parseDsmccPayload } from './parsers/dsm-cc.js';
+import { parseHeader } from './parsers/header.js';
+import { parseIpmpPayload } from './parsers/ipmp.js';
+import { parsePatPayload } from './parsers/pat.js';
+import { parsePesHeader } from './parsers/pes.js';
+import { parsePmtPayload } from './parsers/pmt.js';
+import { parsePrivateSectionPayload } from './parsers/private-section.js';
+import { parsePsiSection } from './parsers/psi-section.js';
+import { parseTsdtPayload } from './parsers/tsdt.js';
 
 const TS_PACKET_SIZE = 188;
 const SYNC_BYTE = 0x47;

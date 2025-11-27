@@ -1,7 +1,7 @@
-import { html, render } from 'lit-html';
-import * as icons from '@/ui/icons';
 import { eventBus } from '@/application/event-bus';
 import { showToast } from '@/ui/components/toast';
+import * as icons from '@/ui/icons';
+import { html, render } from 'lit-html';
 
 const applyAction = (type, delta = 0, selectedCount) => {
     if (selectedCount === 0) {

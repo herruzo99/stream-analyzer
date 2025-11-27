@@ -57,6 +57,7 @@ export const timerReset = icon('timer-reset');
 export const alertTriangle = icon('alert-triangle');
 export const wrench = icon('wrench');
 export const power = icon('power');
+export const terminal = icon('terminal'); // Added for Event Log
 
 // --- Misc UI Icons ---
 export const plusCircle = icon('plus-circle');
@@ -77,6 +78,7 @@ export const lockOpen = icon('unlock');
 export const spinner = icon('loader-2', 'h-5 w-5 animate-spin');
 export const film = icon('film');
 export const sidebar = icon('panel-left-close');
+export const sidebarRight = icon('panel-right-close');
 export const sortAscending = icon('arrow-up-a-z');
 export const sortDescending = icon('arrow-down-z-a');
 export const filter = icon('filter');
@@ -94,15 +96,16 @@ export const target = icon('target');
 export const clock = icon('clock');
 export const fastForward = icon('fast-forward');
 export const timer = icon('timer');
-export const shieldCheck = icon('shield-check', 'h-8 w-8');
+export const shieldCheck = icon('shield-check');
 export const shield = icon('shield');
 export const puzzle = icon('puzzle');
 export const gripHorizontal = icon('grip-horizontal');
 export const github = icon('github', 'h-4 w-4');
 export const unlink = icon('unlink');
-export const link = icon('link'); // Verified Correct
+export const link = icon('link');
 export const grid = icon('grid-3x3');
 export const gitMerge = icon('git-merge');
+export const barChart = icon('bar-chart-2');
 
 // --- Property Icons ---
 export const aligned = icon('align-vertical-space-around', 'h-4 w-4');

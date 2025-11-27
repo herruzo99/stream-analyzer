@@ -1,6 +1,5 @@
-import { useAnalysisStore } from '@/state/analysisStore';
 import { workerService } from '@/infrastructure/worker/workerService';
-import { appLog } from '@/shared/utils/debug';
+import { useAnalysisStore } from '@/state/analysisStore';
 import shaka from 'shaka-player/dist/shaka-player.ui.js';
 
 /**
@@ -34,25 +33,23 @@ export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
 
         // License Request Fallback (Origin Matching)
         if (streamId === null && requestType === LICENSE_REQUEST_TYPE) {
-            try {
-                const requestOrigin = new URL(uri).origin;
-                for (const stream of streams) {
-                    const licenseUrls = stream.drmAuth?.licenseServerUrl;
-                    if (!licenseUrls) continue;
-                    const urlsToCheck =
-                        typeof licenseUrls === 'string'
-                            ? [licenseUrls]
-                            : Object.values(licenseUrls);
-                    for (const licenseUrl of urlsToCheck) {
-                        if (new URL(licenseUrl).origin === requestOrigin) {
-                            streamId = stream.id;
-                            auth = stream.drmAuth; // Explicitly use drmAuth
-                            break;
-                        }
+            const requestOrigin = new URL(uri).origin;
+            for (const stream of streams) {
+                const licenseUrls = stream.drmAuth?.licenseServerUrl;
+                if (!licenseUrls) continue;
+                const urlsToCheck =
+                    typeof licenseUrls === 'string'
+                        ? [licenseUrls]
+                        : Object.values(licenseUrls);
+                for (const licenseUrl of urlsToCheck) {
+                    if (new URL(licenseUrl).origin === requestOrigin) {
+                        streamId = stream.id;
+                        auth = stream.drmAuth; // Explicitly use drmAuth
+                        break;
                     }
-                    if (streamId !== null) break;
                 }
-            } catch (_) {}
+                if (streamId !== null) break;
+            }
         }
 
         // Segment Lookup

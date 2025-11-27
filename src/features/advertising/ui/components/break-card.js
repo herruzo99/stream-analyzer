@@ -1,6 +1,5 @@
-import { html } from 'lit-html';
-import { classMap } from 'lit-html/directives/class-map.js';
 import * as icons from '@/ui/icons';
+import { html } from 'lit-html';
 
 export const breakCardTemplate = (avail, isSelected, onClick) => {
     const methodLabels = {

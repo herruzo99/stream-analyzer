@@ -1,29 +1,30 @@
-import { render, html } from 'lit-html';
-import { useAnalysisStore } from '@/state/analysisStore';
-import { useUiStore, uiActions } from '@/state/uiStore';
 import { inputView } from '@/features/streamInput/ui/input-view';
 import { appLog } from '@/shared/utils/debug';
+import { useAnalysisStore } from '@/state/analysisStore';
+import { uiActions, useUiStore } from '@/state/uiStore';
+import { html, render } from 'lit-html';
 
 // Import the component class for its side-effect (registration)
-import './components/app-shell.js';
-import '@/features/search/ui/search-modal.js';
 import '@/features/drm/ui/drm-inspector-modal.js';
+import '@/features/search/ui/search-modal.js';
+import './components/app-shell.js';
 
-import { summaryView } from '@/features/summary/ui/index';
-import { comparisonView } from '@/features/comparison/ui/index';
-import { integratorsReportView } from '@/features/integratorsReport/ui/index';
-import { featuresView } from '@/features/featureAnalysis/ui/index';
-import { complianceView } from '@/features/compliance/ui/index';
 import { advertisingView } from '@/features/advertising/ui/index';
+import { comparisonView } from '@/features/comparison/ui/index';
+import { complianceView } from '@/features/compliance/ui/index';
+import { drmView } from '@/features/drm/ui/index.js'; // New View
+import { featuresView } from '@/features/featureAnalysis/ui/index';
+import { integratorsReportView } from '@/features/integratorsReport/ui/index';
 import { interactiveManifestView } from '@/features/interactiveManifest/ui/index';
-import { manifestUpdatesView } from '@/features/manifestUpdates/ui/index';
-import { segmentExplorerView } from '@/features/segmentExplorer/ui/index';
 import { interactiveSegmentView } from '@/features/interactiveSegment/ui/index';
-import { parserCoverageView } from '@/features/parserCoverage/ui/index';
+import { manifestUpdatesView } from '@/features/manifestUpdates/ui/index';
+import { multiPlayerView } from '@/features/multiPlayer/ui/index';
 import { networkAnalysisView } from '@/features/networkAnalysis/ui/index';
+import { parserCoverageView } from '@/features/parserCoverage/ui/index';
 import { playerView } from '@/features/playerSimulation/ui/index';
 import { segmentComparisonView } from '@/features/segmentComparison/ui/index';
-import { multiPlayerView } from '@/features/multiPlayer/ui/index';
+import { segmentExplorerView } from '@/features/segmentExplorer/ui/index';
+import { summaryView } from '@/features/summary/ui/index';
 import { timelineView } from '@/features/timeline/ui/index.js';
 
 const viewMap = {
@@ -43,6 +44,7 @@ const viewMap = {
     'interactive-manifest': interactiveManifestView,
     updates: manifestUpdatesView,
     'segment-comparison': segmentComparisonView,
+    drm: drmView, // Register DRM View
 };
 
 let initialDomContext;
@@ -52,7 +54,7 @@ let currentMountedStreamId = null;
 
 export function initializeRenderer(domContext) {
     initialDomContext = domContext;
-    uiActions.injectViewMap(viewMap); // Inject viewMap for state actions
+    uiActions.injectViewMap(viewMap);
     useAnalysisStore.subscribe(renderApp);
     useUiStore.subscribe(renderApp);
 }
@@ -179,7 +181,6 @@ export function renderApp() {
                     if (newView === playerView) {
                         newView.activate?.(activeStream);
                     } else {
-                        // newView must be multiPlayerView
                         newView.activate?.(mainContentContainer);
                     }
                 } else {

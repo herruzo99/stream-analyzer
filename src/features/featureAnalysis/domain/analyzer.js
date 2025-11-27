@@ -1,7 +1,7 @@
-import { dashFeatureDefinitions } from '@/infrastructure/parsing/dash/feature-definitions';
-import { hlsFeatureDefinitions } from '@/infrastructure/parsing/hls/feature-definitions';
 import { analyzeDashFeatures } from '@/infrastructure/parsing/dash/feature-analyzer';
+import { dashFeatureDefinitions } from '@/infrastructure/parsing/dash/feature-definitions';
 import { analyzeHlsFeatures } from '@/infrastructure/parsing/hls/feature-analyzer';
+import { hlsFeatureDefinitions } from '@/infrastructure/parsing/hls/feature-definitions';
 
 /**
  * Analyzes a manifest for feature usage.

@@ -1,5 +1,5 @@
-import { BoxParser } from '../utils.js';
 import { formatUUID } from '../../utils/drm.js';
+import { BoxParser } from '../utils.js';
 
 /**
  * Extracts the license server URL from a Widevine PSSH data payload.

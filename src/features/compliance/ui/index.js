@@ -1,14 +1,14 @@
-import { html, render } from 'lit-html';
-import { useUiStore } from '@/state/uiStore';
-import { useAnalysisStore } from '@/state/analysisStore';
 import { eventBus } from '@/application/event-bus';
+import { useAnalysisStore } from '@/state/analysisStore';
+import { useUiStore } from '@/state/uiStore';
+import * as icons from '@/ui/icons';
+import { html, render } from 'lit-html';
 import { calculateComplianceScore } from '../domain/compliance-scoring';
-import { standardSelectorTemplate } from './components/standard-selector.js';
-import { navigationTemplate } from './components/navigation.js';
-import { manifestViewTemplate } from './components/renderer.js';
 import './components/compliance-scorecard.js';
 import './components/issue-list.js';
-import * as icons from '@/ui/icons';
+import { navigationTemplate } from './components/navigation.js';
+import { manifestViewTemplate } from './components/renderer.js';
+import { standardSelectorTemplate } from './components/standard-selector.js';
 
 let container = null;
 let currentStreamId = null;

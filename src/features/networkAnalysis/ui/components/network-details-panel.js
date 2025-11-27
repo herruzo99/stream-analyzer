@@ -1,7 +1,7 @@
-import { html } from 'lit-html';
 import * as icons from '@/ui/icons';
-import { headerDetailsTemplate } from './header-details.js';
 import { formatBitrate } from '@/ui/shared/format';
+import { html } from 'lit-html';
+import { headerDetailsTemplate } from './header-details.js';
 
 const detailItem = (label, value, isMono = false) => html`
     <div

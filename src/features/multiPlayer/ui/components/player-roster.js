@@ -1,8 +1,8 @@
-import { html, render } from 'lit-html';
-import { classMap } from 'lit-html/directives/class-map.js';
 import { eventBus } from '@/application/event-bus';
 import { useMultiPlayerStore } from '@/state/multiPlayerStore';
 import { formatPlayerTime } from '@/ui/shared/time-format';
+import { html, render } from 'lit-html';
+import { classMap } from 'lit-html/directives/class-map.js';
 import { multiPlayerService } from '../../application/multiPlayerService.js';
 
 class PlayerRosterComponent extends HTMLElement {

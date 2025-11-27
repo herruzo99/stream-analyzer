@@ -1,6 +1,7 @@
-import { html } from 'lit-html';
-import { formatBitrate } from '@/ui/shared/format';
+import { useMultiPlayerStore } from '@/state/multiPlayerStore';
 import * as icons from '@/ui/icons';
+import { formatBitrate } from '@/ui/shared/format';
+import { html, render } from 'lit-html';
 
 export class MetricsHudComponent extends HTMLElement {
     set data(player) {
@@ -10,11 +11,23 @@ export class MetricsHudComponent extends HTMLElement {
 
     render() {
         if (!this._player || !this._player.stats) return;
-        const { stats, error, state, streamType, variantTracks } = this._player;
+        const { stats, error, state, streamType, variantTracks, retryCount } =
+            this._player;
+        const { isAutoResetEnabled } = useMultiPlayerStore.getState();
 
         // Error State Visual
         if (state === 'error') {
             this.innerHTML = '';
+
+            const retryMessage =
+                isAutoResetEnabled && retryCount > 0
+                    ? html`<div
+                          class="mt-2 text-xs text-yellow-400 font-mono animate-pulse"
+                      >
+                          Retrying (${retryCount}/5)...
+                      </div>`
+                    : html``;
+
             const errorTemplate = html`
                 <div
                     class="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/90 backdrop-blur-sm text-center p-6 animate-fadeIn z-50"
@@ -32,11 +45,10 @@ export class MetricsHudComponent extends HTMLElement {
                     <p class="text-white text-xs leading-relaxed max-w-[250px]">
                         ${error || 'Unknown Error'}
                     </p>
+                    ${retryMessage}
                 </div>
             `;
-            import('lit-html').then(({ render }) =>
-                render(errorTemplate, this)
-            );
+            render(errorTemplate, this);
             return;
         }
 
@@ -56,13 +68,15 @@ export class MetricsHudComponent extends HTMLElement {
         // Dynamic Buffer Color Logic
         let bufferColorClass = '';
         if (bufferHealth < 25) {
-            bufferColorClass = 'bg-gradient-to-r from-red-600 to-red-500 shadow-[0_0_10px_rgba(239,68,68,0.4)]';
+            bufferColorClass =
+                'bg-gradient-to-r from-red-600 to-red-500 shadow-[0_0_10px_rgba(239,68,68,0.4)]';
         } else if (bufferHealth < 50) {
             bufferColorClass = 'bg-gradient-to-r from-orange-600 to-orange-500';
         } else if (bufferHealth < 75) {
             bufferColorClass = 'bg-gradient-to-r from-yellow-500 to-yellow-400';
         } else {
-            bufferColorClass = 'bg-gradient-to-r from-emerald-600 to-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.3)]';
+            bufferColorClass =
+                'bg-gradient-to-r from-emerald-600 to-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.3)]';
         }
 
         const template = html`
@@ -79,18 +93,27 @@ export class MetricsHudComponent extends HTMLElement {
                         class="flex justify-between items-start p-3 border-b border-white/5 bg-white/[0.02]"
                     >
                         <div>
-                            <div class="text-2xl font-black text-white leading-none tracking-tight font-mono">
+                            <div
+                                class="text-2xl font-black text-white leading-none tracking-tight font-mono"
+                            >
                                 ${playbackQuality.resolution || 'Init...'}
                             </div>
-                            <div class="text-[10px] font-bold text-slate-400 mt-1 flex items-center gap-1">
-                                ${icons.activity} ${playbackQuality.droppedFrames > 0
-                                    ? html`<span class="text-red-400">${playbackQuality.droppedFrames} Dropped</span>`
+                            <div
+                                class="text-[10px] font-bold text-slate-400 mt-1 flex items-center gap-1"
+                            >
+                                ${icons.activity}
+                                ${playbackQuality.droppedFrames > 0
+                                    ? html`<span class="text-red-400"
+                                          >${playbackQuality.droppedFrames}
+                                          Dropped</span
+                                      >`
                                     : 'Stable'}
                             </div>
                         </div>
                         <div class="flex flex-col items-end gap-1">
                             <span
-                                class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase border ${streamType === 'live'
+                                class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase border ${streamType ===
+                                'live'
                                     ? 'bg-red-500/20 text-red-400 border-red-500/30'
                                     : 'bg-blue-500/20 text-blue-400 border-blue-500/30'}"
                             >
@@ -106,38 +129,68 @@ export class MetricsHudComponent extends HTMLElement {
 
                     <!-- Metrics Grid -->
                     <div class="p-3 space-y-3">
-                        
                         <!-- Network Efficiency -->
                         <div>
-                            <div class="flex justify-between text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">
+                            <div
+                                class="flex justify-between text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider"
+                            >
                                 <span>Bitrate / BW</span>
-                                <span class="${bandwidthUsage > 90 ? 'text-yellow-400' : 'text-emerald-400'}">
+                                <span
+                                    class="${bandwidthUsage > 90
+                                        ? 'text-yellow-400'
+                                        : 'text-emerald-400'}"
+                                >
                                     ${formatBitrate(abr.currentVideoBitrate)}
                                 </span>
                             </div>
-                            <div class="h-1.5 bg-slate-800 rounded-full overflow-hidden relative">
+                            <div
+                                class="h-1.5 bg-slate-800 rounded-full overflow-hidden relative"
+                            >
                                 <!-- Bandwidth Usage Bar -->
-                                <div 
-                                    class="absolute top-0 left-0 bottom-0 rounded-full transition-all duration-500 ${bandwidthUsage > 90 ? 'bg-yellow-500' : 'bg-blue-500'}"
-                                    style="width: ${Math.min(bandwidthUsage, 100)}%"
+                                <div
+                                    class="absolute top-0 left-0 bottom-0 rounded-full transition-all duration-500 ${bandwidthUsage >
+                                    90
+                                        ? 'bg-yellow-500'
+                                        : 'bg-blue-500'}"
+                                    style="width: ${Math.min(
+                                        bandwidthUsage,
+                                        100
+                                    )}%"
                                 ></div>
                             </div>
                             <div class="flex justify-between mt-1">
-                                <span class="text-[9px] text-slate-600 font-mono">EST: ${formatBitrate(abr.estimatedBandwidth)}</span>
-                                <span class="text-[9px] text-slate-600 font-mono">${bandwidthUsage.toFixed(0)}% Load</span>
+                                <span
+                                    class="text-[9px] text-slate-600 font-mono"
+                                    >EST:
+                                    ${formatBitrate(
+                                        abr.estimatedBandwidth
+                                    )}</span
+                                >
+                                <span
+                                    class="text-[9px] text-slate-600 font-mono"
+                                    >${bandwidthUsage.toFixed(0)}% Load</span
+                                >
                             </div>
                         </div>
 
                         <!-- Buffer Health -->
                         <div>
-                            <div class="flex justify-between text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">
+                            <div
+                                class="flex justify-between text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider"
+                            >
                                 <span>Buffer</span>
-                                <span class="${buffer.seconds < 5 ? 'text-red-400' : 'text-emerald-400'}">
+                                <span
+                                    class="${buffer.seconds < 5
+                                        ? 'text-red-400'
+                                        : 'text-emerald-400'}"
+                                >
                                     ${buffer.seconds.toFixed(1)}s
                                 </span>
                             </div>
-                            <div class="h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                                <div 
+                            <div
+                                class="h-1.5 bg-slate-800 rounded-full overflow-hidden"
+                            >
+                                <div
                                     class="h-full rounded-full transition-all duration-300 ${bufferColorClass}"
                                     style="width: ${bufferHealth}%"
                                 ></div>
@@ -145,17 +198,40 @@ export class MetricsHudComponent extends HTMLElement {
                         </div>
 
                         <!-- Bottom Stats Row -->
-                         <div class="grid grid-cols-2 gap-2 pt-2 border-t border-white/5">
-                            <div class="bg-slate-900/50 rounded p-1.5 text-center border border-white/5">
-                                <div class="text-[9px] text-slate-500 font-bold uppercase">Stalls</div>
-                                <div class="text-sm font-mono font-bold ${playbackQuality.totalStalls > 0 ? 'text-red-400' : 'text-slate-300'}">
+                        <div
+                            class="grid grid-cols-2 gap-2 pt-2 border-t border-white/5"
+                        >
+                            <div
+                                class="bg-slate-900/50 rounded p-1.5 text-center border border-white/5"
+                            >
+                                <div
+                                    class="text-[9px] text-slate-500 font-bold uppercase"
+                                >
+                                    Stalls
+                                </div>
+                                <div
+                                    class="text-sm font-mono font-bold ${playbackQuality.totalStalls >
+                                    0
+                                        ? 'text-red-400'
+                                        : 'text-slate-300'}"
+                                >
                                     ${playbackQuality.totalStalls}
                                 </div>
                             </div>
-                            <div class="bg-slate-900/50 rounded p-1.5 text-center border border-white/5">
-                                <div class="text-[9px] text-slate-500 font-bold uppercase">Latency</div>
-                                <div class="text-sm font-mono font-bold text-slate-300">
-                                    ${buffer.label === 'Live Latency' ? buffer.seconds.toFixed(1) + 's' : 'N/A'}
+                            <div
+                                class="bg-slate-900/50 rounded p-1.5 text-center border border-white/5"
+                            >
+                                <div
+                                    class="text-[9px] text-slate-500 font-bold uppercase"
+                                >
+                                    Latency
+                                </div>
+                                <div
+                                    class="text-sm font-mono font-bold text-slate-300"
+                                >
+                                    ${buffer.label === 'Live Latency'
+                                        ? buffer.seconds.toFixed(1) + 's'
+                                        : 'N/A'}
                                 </div>
                             </div>
                         </div>
@@ -182,7 +258,7 @@ export class MetricsHudComponent extends HTMLElement {
                 : ''}
         `;
 
-        import('lit-html').then(({ render }) => render(template, this));
+        render(template, this);
     }
 }
 

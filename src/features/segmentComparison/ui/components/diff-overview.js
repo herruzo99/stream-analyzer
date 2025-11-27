@@ -1,6 +1,6 @@
-import { html } from 'lit-html';
-import { formatBitrate } from '@/ui/shared/format';
 import * as icons from '@/ui/icons';
+import { formatBitrate } from '@/ui/shared/format';
+import { html } from 'lit-html';
 
 const diffValue = (valA, valB, formatter = (v) => v) => {
     // Loose equality check for numbers to handle minor float precision differences

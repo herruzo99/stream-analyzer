@@ -1,7 +1,7 @@
-import { html } from 'lit-html';
 import { eventBus } from '@/application/event-bus';
-import { closeDropdown } from '@/ui/services/dropdownService';
 import * as icons from '@/ui/icons';
+import { closeDropdown } from '@/ui/services/dropdownService';
+import { html } from 'lit-html';
 
 // Helper to format Date objects for datetime-local input
 const toDateTimeLocal = (date) => {

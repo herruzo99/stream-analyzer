@@ -1,7 +1,7 @@
-import { html, render } from 'lit-html';
+import { eventBus } from '@/application/event-bus';
 import { useUiStore } from '@/state/uiStore';
 import * as icons from '@/ui/icons';
-import { eventBus } from '@/application/event-bus';
+import { html, render } from 'lit-html';
 import { renderSmartToken } from './smart-tokens.js';
 
 const placeholderTemplate = () => html`

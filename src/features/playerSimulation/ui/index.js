@@ -1,18 +1,21 @@
-import { html, render } from 'lit-html';
-import { playerService } from '../application/playerService.js';
 import { useAnalysisStore } from '@/state/analysisStore';
-import { usePlayerStore, playerActions } from '@/state/playerStore';
+import { playerActions, usePlayerStore } from '@/state/playerStore';
+import { useUiStore } from '@/state/uiStore';
+import { html, render } from 'lit-html';
+import { classMap } from 'lit-html/directives/class-map.js';
 import 'shaka-player/dist/controls.css';
+import { playerService } from '../application/playerService.js';
 
 // Components
-import './components/player-controls.js';
-import './components/custom-transport-bar.js';
-import { customTransportBarTemplate } from './components/custom-transport-bar.js';
-import { hudOverlayTemplate } from './components/hud-overlay.js';
-import { telemetryPanelTemplate } from './components/telemetry-panel.js';
-import { eventLogTemplate } from './components/event-log.js';
+import '@/features/signalQuality/ui/signal-monitor.js';
 import { connectedTabBar } from '@/ui/components/tabs';
 import * as icons from '@/ui/icons';
+import './components/custom-transport-bar.js';
+import { customTransportBarTemplate } from './components/custom-transport-bar.js';
+import { eventLogTemplate } from './components/event-log.js';
+import { hudOverlayTemplate } from './components/hud-overlay.js';
+import './components/player-controls.js';
+import { telemetryPanelTemplate } from './components/telemetry-panel.js';
 
 const viewState = {
     container: null,
@@ -25,8 +28,23 @@ const viewState = {
 };
 
 const cockpitLayoutTemplate = (stream, playerState) => {
-    const { currentStats, eventLog, activeTab, isLoaded } = playerState;
+    const {
+        currentStats,
+        eventLog,
+        activeTab,
+        isLoaded,
+        retryCount,
+        isAutoResetEnabled,
+    } = playerState;
     const { isSwitching } = viewState;
+    const { isSignalMonitorOpen, playerTelemetrySidebarOpen } =
+        useUiStore.getState();
+
+    let activeError = null;
+    if (retryCount > 0 && eventLog.length > 0) {
+        const lastError = eventLog.find((e) => e.type === 'error');
+        if (lastError) activeError = lastError.details;
+    }
 
     const handleToggleHud = () => {
         viewState.isHudVisible = !viewState.isHudVisible;
@@ -35,9 +53,6 @@ const cockpitLayoutTemplate = (stream, playerState) => {
 
     const handleManualLaunch = () => {
         if (stream) {
-            console.log(
-                `[PlayerView] User initiated launch for: ${stream.name}`
-            );
             viewState.lastLoadedStreamId = stream.id;
             playerService.load(stream, true);
         }
@@ -48,7 +63,6 @@ const cockpitLayoutTemplate = (stream, playerState) => {
         { key: 'logs', label: 'Event Log', icon: icons.list },
     ];
 
-    // Determine overlay content
     let videoOverlayContent = html``;
 
     if (isSwitching) {
@@ -62,8 +76,7 @@ const cockpitLayoutTemplate = (stream, playerState) => {
                 >
             </div>
         `;
-    } else if (!isLoaded) {
-        // Stopped / Idle / Error State -> Show Launch Button
+    } else if (!isLoaded && !activeError) {
         videoOverlayContent = html`
             <div
                 class="absolute inset-0 z-40 flex flex-col items-center justify-center bg-slate-900/80 backdrop-blur-sm animate-fadeIn"
@@ -90,80 +103,118 @@ const cockpitLayoutTemplate = (stream, playerState) => {
         `;
     }
 
+    // L-Shape Layout Classes
+    const audioMonitorClasses = classMap({
+        'shrink-0': true,
+        'border-r': true,
+        'border-slate-800': true,
+        'z-20': true,
+        'w-12': true,
+        'bg-slate-950': true,
+        'transition-[width]': true,
+        'duration-300': true,
+        hidden: !isSignalMonitorOpen,
+        flex: true,
+        'flex-col': true,
+    });
+
+    const videoMonitorHeight = 'h-64';
+
+    const sidebarClasses = classMap({
+        flex: true,
+        'flex-col': true,
+        'border-l': true,
+        'border-slate-800': true,
+        'bg-slate-950/50': true,
+        'shrink-0': true,
+        'transition-[width]': true,
+        'duration-300': true,
+        'w-[350px]': playerTelemetrySidebarOpen,
+        'w-[0px]': !playerTelemetrySidebarOpen,
+        'overflow-hidden': true,
+    });
+
     return html`
         <div
             class="flex flex-col h-full bg-slate-950 text-slate-200 overflow-hidden"
         >
-            <!-- TOP ROW: Visual Stage & Telemetry -->
-            <div
-                class="flex-1 flex flex-col lg:flex-row min-h-0 relative border-b border-slate-800"
-            >
-                <!-- Left: Player Stage -->
-                <div
-                    class="flex-grow relative bg-black flex items-center justify-center overflow-hidden group"
-                >
-                    <!-- Header Overlay -->
-                    <div
-                        class="absolute top-0 left-0 right-0 p-4 z-30 opacity-0 hover:opacity-100 transition-opacity duration-300 bg-gradient-to-b from-black/80 to-transparent pointer-events-none"
-                    >
-                        <h2 class="text-lg font-bold text-white drop-shadow-md">
-                            ${stream.name}
-                        </h2>
-                        <div class="flex gap-2 mt-1">
-                            <span
-                                class="px-2 py-0.5 bg-blue-600 text-white text-[10px] font-bold rounded uppercase"
-                                >${stream.protocol}</span
-                            >
-                            <span
-                                class="px-2 py-0.5 bg-slate-700 text-slate-300 text-[10px] font-mono rounded"
-                                >${stream.manifest.type}</span
-                            >
-                        </div>
-                    </div>
-
-                    ${videoOverlayContent}
-
-                    <!-- HUD Overlay -->
-                    ${isLoaded && !isSwitching
-                        ? hudOverlayTemplate(
-                              currentStats,
-                              viewState.isHudVisible,
-                              stream // Pass the full stream object for context
-                          )
-                        : ''}
-
-                    <!-- HUD Toggle -->
-                    <button
-                        @click=${handleToggleHud}
-                        class="absolute top-4 right-4 z-40 p-2 rounded-full bg-black/40 hover:bg-black/80 text-slate-300 hover:text-white transition-all backdrop-blur-sm border border-white/10 shadow-lg cursor-pointer pointer-events-auto"
-                        title="Toggle HUD"
-                    >
-                        ${icons.monitor}
-                    </button>
-
-                    <!-- Video Element -->
-                    <div
-                        id="video-container-element"
-                        class="w-full h-full relative"
-                    >
-                        <video
-                            id="player-video-element"
-                            class="w-full h-full object-contain"
-                        ></video>
-                    </div>
-
-                    <!-- Custom Scrubber -->
-                    ${isLoaded && !isSwitching
-                        ? customTransportBarTemplate(playerState)
+            <!-- MAIN STAGE ROW -->
+            <div class="flex-1 flex min-h-0 relative">
+                <!-- 1. LEFT: Audio QC (Vertical) -->
+                <div class="${audioMonitorClasses}">
+                    ${isSignalMonitorOpen
+                        ? html`<signal-monitor-audio></signal-monitor-audio>`
                         : ''}
                 </div>
 
-                <!-- Right: Telemetry Sidebar -->
-                <div
-                    class="w-full lg:w-[350px] xl:w-[400px] flex flex-col border-l border-slate-800 bg-slate-950/50 shrink-0"
-                >
+                <!-- 2. CENTER: Player & Video QC -->
+                <div class="flex-grow flex flex-col min-w-0 relative bg-black">
+                    <!-- Player Area (Flex Grow) -->
                     <div
-                        class="px-4 pt-2 bg-slate-900/80 border-b border-slate-800"
+                        class="flex-grow relative overflow-hidden group bg-black min-h-0"
+                    >
+                        <!-- Header Overlay -->
+                        <div
+                            class="absolute top-0 left-0 right-0 p-4 z-30 opacity-0 hover:opacity-100 transition-opacity duration-300 bg-gradient-to-b from-black/80 to-transparent pointer-events-none"
+                        >
+                            <h2
+                                class="text-lg font-bold text-white drop-shadow-md"
+                            >
+                                ${stream.name}
+                            </h2>
+                        </div>
+
+                        ${videoOverlayContent}
+                        ${!isSwitching
+                            ? hudOverlayTemplate(
+                                  currentStats,
+                                  viewState.isHudVisible,
+                                  stream,
+                                  activeError,
+                                  retryCount,
+                                  isAutoResetEnabled
+                              )
+                            : ''}
+
+                        <button
+                            @click=${handleToggleHud}
+                            class="absolute top-4 right-4 z-40 p-2 rounded-full bg-black/40 hover:bg-black/80 text-slate-300 hover:text-white transition-all backdrop-blur-sm border border-white/10 shadow-lg cursor-pointer pointer-events-auto"
+                            title="Toggle HUD"
+                        >
+                            ${icons.monitor}
+                        </button>
+
+                        <div
+                            id="video-container-element"
+                            class="w-full h-full relative"
+                        >
+                            <video
+                                id="player-video-element"
+                                class="w-full h-full object-contain"
+                            ></video>
+                        </div>
+
+                        ${isLoaded && !isSwitching && !activeError
+                            ? customTransportBarTemplate(playerState)
+                            : ''}
+                    </div>
+
+                    <!-- Bottom: Video QC (Fixed Height) -->
+                    ${isSignalMonitorOpen
+                        ? html`
+                              <div
+                                  class="${videoMonitorHeight} shrink-0 border-t border-slate-800 relative z-10 bg-slate-950"
+                              >
+                                  <signal-monitor-video></signal-monitor-video>
+                              </div>
+                          `
+                        : ''}
+                </div>
+
+                <!-- 3. RIGHT: Telemetry (Sidebar) -->
+                <div class="${sidebarClasses}">
+                    <div
+                        class="px-4 pt-2 bg-slate-900/80 border-b border-slate-800 flex justify-between items-center h-10 shrink-0"
                     >
                         ${connectedTabBar(tabs, activeTab, (t) =>
                             playerActions.setActiveTab(t)
@@ -191,11 +242,9 @@ const cockpitLayoutTemplate = (stream, playerState) => {
 
 function renderPlayerView() {
     if (!viewState.container) return;
-
     const { streams, activeStreamId } = useAnalysisStore.getState();
     const activeStream = streams.find((s) => s.id === activeStreamId);
     const playerState = usePlayerStore.getState();
-
     if (!activeStream) {
         render(
             html`<div class="p-10 text-center text-slate-500">
@@ -205,13 +254,10 @@ function renderPlayerView() {
         );
         return;
     }
-
     render(
         cockpitLayoutTemplate(activeStream, playerState),
         viewState.container
     );
-
-    // Ensure DOM references are captured after render
     if (!viewState.videoEl) {
         viewState.videoEl = viewState.container.querySelector(
             '#player-video-element'
@@ -219,8 +265,6 @@ function renderPlayerView() {
         viewState.videoContainer = viewState.container.querySelector(
             '#video-container-element'
         );
-
-        // Initialize player if DOM is ready (but DO NOT load stream yet)
         if (viewState.videoEl && !playerService.isInitialized) {
             playerService.initialize(
                 viewState.videoEl,
@@ -230,51 +274,26 @@ function renderPlayerView() {
     }
 }
 
-/**
- * Handles logic for stream switching.
- * This now ONLY acts if the player is currently loaded (hot-swapping).
- * It will NOT auto-start the player if it is in an idle/stopped state.
- */
 async function checkAndLoadStream() {
     if (viewState.isSwitching) return;
-
     const { isLoaded } = usePlayerStore.getState();
-
-    // --- CRITICAL FIX: Do not auto-load if player is not running ---
     if (!isLoaded) return;
-
     const { streams, activeStreamId } = useAnalysisStore.getState();
     const activeStream = streams.find((s) => s.id === activeStreamId);
-
     if (!activeStream) return;
-
-    // Check if we need to switch
     if (activeStreamId !== viewState.lastLoadedStreamId) {
-        console.log(
-            `[PlayerView] Hot-swapping stream to: ${activeStream.name} (ID: ${activeStreamId})`
-        );
-
-        // 1. Lock & Update View State
         viewState.lastLoadedStreamId = activeStreamId;
         viewState.isSwitching = true;
-
         renderPlayerView();
-
         try {
-            // 2. Perform Switch
-            // We don't need to full destroy/init for hot-swap, just load new manifest
-            // But destroy/init is safer for clean state between different protocols
             playerService.destroy();
-
             await new Promise((resolve) => requestAnimationFrame(resolve));
-
             const videoEl = viewState.container.querySelector(
                 '#player-video-element'
             );
             const videoContainer = viewState.container.querySelector(
                 '#video-container-element'
             );
-
             if (videoEl && videoContainer) {
                 await playerService.initialize(videoEl, videoContainer);
                 await playerService.load(activeStream, true);
@@ -291,57 +310,41 @@ async function checkAndLoadStream() {
 
 export const playerView = {
     hasContextualSidebar: false,
-
     activate(stream) {
         playerActions.setPipUnmountState(false);
         playerActions.setActiveTab('telemetry');
-
-        // We do NOT force load here. We just check if a hot-swap is needed.
-        // If player was stopped, this will do nothing (user sees Launch button).
         checkAndLoadStream();
     },
-
     deactivate() {
         const { playbackState, isPictureInPicture } = usePlayerStore.getState();
         const isPlaying =
             playbackState === 'PLAYING' || playbackState === 'BUFFERING';
-
         if (isPlaying || isPictureInPicture) {
             playerActions.setPipUnmountState(true);
         } else {
-            // If not playing or Pip, we can unload to save resources,
-            // but keeping it initialized allows faster resume.
-            // Standard behavior: Stop on tab switch unless PiP.
             playerService.unload();
             viewState.lastLoadedStreamId = null;
         }
     },
-
     mount(containerElement, { stream }) {
         viewState.container = containerElement;
         viewState.lastLoadedStreamId = null;
         viewState.isSwitching = false;
-
         viewState.subscriptions.forEach((unsub) => unsub());
         viewState.subscriptions = [];
-
         viewState.subscriptions.push(
             usePlayerStore.subscribe(renderPlayerView)
         );
-
+        viewState.subscriptions.push(useUiStore.subscribe(renderPlayerView));
         viewState.subscriptions.push(
             useAnalysisStore.subscribe(() => {
-                // On analysis store update (e.g. stream switch), check if we need to hot-swap
                 checkAndLoadStream();
                 renderPlayerView();
             })
         );
-
         renderPlayerView();
-        // Initial check - will only load if player state was somehow persisted as loaded (unlikely on fresh mount)
         checkAndLoadStream();
     },
-
     unmount() {
         playerService.destroy();
         viewState.subscriptions.forEach((unsub) => unsub());

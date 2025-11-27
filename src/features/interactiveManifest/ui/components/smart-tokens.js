@@ -1,5 +1,5 @@
-import { html } from 'lit-html';
 import { formatBitrate } from '@/ui/shared/format';
+import { html } from 'lit-html';
 
 const parseDuration = (str) => {
     if (!str || typeof str !== 'string') return null;

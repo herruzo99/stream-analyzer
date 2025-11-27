@@ -1,6 +1,6 @@
-import { html } from 'lit-html';
 import * as icons from '@/ui/icons';
 import { formatBitrate } from '@/ui/shared/format';
+import { html } from 'lit-html';
 
 class SegmentGeneralSummary extends HTMLElement {
     set vm(val) {

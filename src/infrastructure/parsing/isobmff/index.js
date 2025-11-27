@@ -1,81 +1,81 @@
-import { parseFtypStyp, ftypStypTooltip } from './boxes/ftyp.js';
-import { parseMvhd, mvhdTooltip } from './boxes/mvhd.js';
-import { parseMfhd, mfhdTooltip } from './boxes/mfhd.js';
-import { parseTfhd, tfhdTooltip } from './boxes/tfhd.js';
-import { parseTfdt, tfdtTooltip } from './boxes/tfdt.js';
-import { parseTrun, trunTooltip } from './boxes/trun.js';
-import { parseSidx, sidxTooltip } from './boxes/sidx.js';
-import { parseTkhd, tkhdTooltip } from './boxes/tkhd.js';
-import { parseMdhd, mdhdTooltip } from './boxes/mdhd.js';
-import { parseHdlr, hdlrTooltip } from './boxes/hdlr.js';
-import { parseVmhd, vmhdTooltip } from './boxes/vmhd.js';
-import { parseStsd, stsdTooltip } from './boxes/stsd.js';
-import { parseStts, sttsTooltip } from './boxes/stts.js';
-import { parseStsc, stscTooltip } from './boxes/stsc.js';
-import { parseStsz, stszTooltip } from './boxes/stsz.js';
-import { parseStco, stcoTooltip } from './boxes/stco.js';
-import { parseElst, elstTooltip } from './boxes/elst.js';
-import { parseTrex, trexTooltip } from './boxes/trex.js';
-import { parseAvcc, avccTooltip } from './boxes/avcc.js';
-import { parseHvc1, hvc1Tooltip } from './boxes/hvc1.js';
-import { parseHvcC, hvcCTooltip } from './boxes/hvcC.js';
-import { parseEsds, esdsTooltip } from './boxes/esds.js';
-import { parseSmhd, smhdTooltip } from './boxes/smhd.js';
-import { parsePssh, psshTooltip } from './boxes/pssh.js';
-import { parseCtts, cttsTooltip } from './boxes/ctts.js';
-import { parseStz2, stz2Tooltip } from './boxes/stz2.js';
-import { parseSbgp, sbgpTooltip } from './boxes/sbgp.js';
-import { parseTref, trefTypeParsers, trefTooltip } from './boxes/tref.js';
-import { parseSubs, subsTooltip } from './boxes/subs.js';
-import { parseSaiz, saizTooltip } from './boxes/saiz.js';
-import { parseSaio, saioTooltip } from './boxes/saio.js';
-import { parseSinf, sinfTooltip } from './boxes/sinf.js';
-import { parseFrma, frmaTooltip } from './boxes/frma.js';
-import { parseSchm, schmTooltip } from './boxes/schm.js';
-import { parseSchi, schiTooltip } from './boxes/schi.js';
-import { parseStss, stssTooltip } from './boxes/stss.js';
-import { parseSgpd, sgpdTooltip } from './boxes/sgpd.js';
-import { parseMehd, mehdTooltip } from './boxes/mehd.js';
-import { parseSdtp, sdtpTooltip } from './boxes/sdtp.js';
-import { parseMfro, mfroTooltip } from './boxes/mfro.js';
-import { parsePdin, pdinTooltip } from './boxes/pdin.js';
-import { parseCprt, cprtTooltip } from './boxes/cprt.js';
-import { parseCslg, cslgTooltip } from './boxes/cslg.js';
-import { parseStdp, stdpTooltip } from './boxes/stdp.js';
-import { parseDref, parseUrl, parseUrn, drefTooltip } from './boxes/dref.js';
-import { parseAvc1, avc1Tooltip } from './boxes/avc1.js';
-import { parseMp4a, mp4aTooltip } from './boxes/mp4a.js';
-import { parseBtrt, btrtTooltip } from './boxes/btrt.js';
-import { parseFree, freeTooltip } from './boxes/free.js';
-import { parseIods, iodsTooltip } from './boxes/iods.js';
-import { parseTrep, trepTooltip } from './boxes/trep.js';
-import { parsePasp, paspTooltip } from './boxes/pasp.js';
-import { parseColr, colrTooltip } from './boxes/colr.js';
-import { parseMeta, metaTooltip } from './boxes/meta.js';
-import { parseEncv, encvTooltip } from './boxes/encv.js';
-import { parseSenc, sencTooltip } from './boxes/senc.js';
-import { parseEnca, encaTooltip } from './boxes/enca.js';
-import { parseTenc, tencTooltip } from './boxes/tenc.js';
-import { parseId32, id32Tooltip } from './boxes/id32.js';
-import { parseEmsg, emsgTooltip } from './boxes/emsg.js';
-import { stppParsers, stppTooltip } from './boxes/stpp.js';
-import { parseTfra, tfraTooltip } from './boxes/tfra.js';
-import { parseUuid, uuidTooltip } from './boxes/uuid.js';
+import { avc1Tooltip, parseAvc1 } from './boxes/avc1.js';
+import { avccTooltip, parseAvcc } from './boxes/avcc.js';
+import { btrtTooltip, parseBtrt } from './boxes/btrt.js';
+import { colrTooltip, parseColr } from './boxes/colr.js';
 import {
-    parseMoov,
-    parseTrak,
-    parseEdts,
-    parseMvex,
-    parseMfra,
-    parseUdta,
-    parseMdia,
-    parseMinf,
-    parseStbl,
-    parseMoof,
-    parseTraf,
-    parseDinf,
     groupTooltipData,
+    parseDinf,
+    parseEdts,
+    parseMdia,
+    parseMfra,
+    parseMinf,
+    parseMoof,
+    parseMoov,
+    parseMvex,
+    parseStbl,
+    parseTraf,
+    parseTrak,
+    parseUdta,
 } from './boxes/container.js';
+import { cprtTooltip, parseCprt } from './boxes/cprt.js';
+import { cslgTooltip, parseCslg } from './boxes/cslg.js';
+import { cttsTooltip, parseCtts } from './boxes/ctts.js';
+import { drefTooltip, parseDref, parseUrl, parseUrn } from './boxes/dref.js';
+import { elstTooltip, parseElst } from './boxes/elst.js';
+import { emsgTooltip, parseEmsg } from './boxes/emsg.js';
+import { encaTooltip, parseEnca } from './boxes/enca.js';
+import { encvTooltip, parseEncv } from './boxes/encv.js';
+import { esdsTooltip, parseEsds } from './boxes/esds.js';
+import { freeTooltip, parseFree } from './boxes/free.js';
+import { frmaTooltip, parseFrma } from './boxes/frma.js';
+import { ftypStypTooltip, parseFtypStyp } from './boxes/ftyp.js';
+import { hdlrTooltip, parseHdlr } from './boxes/hdlr.js';
+import { hvc1Tooltip, parseHvc1 } from './boxes/hvc1.js';
+import { hvcCTooltip, parseHvcC } from './boxes/hvcC.js';
+import { id32Tooltip, parseId32 } from './boxes/id32.js';
+import { iodsTooltip, parseIods } from './boxes/iods.js';
+import { mdhdTooltip, parseMdhd } from './boxes/mdhd.js';
+import { mehdTooltip, parseMehd } from './boxes/mehd.js';
+import { metaTooltip, parseMeta } from './boxes/meta.js';
+import { mfhdTooltip, parseMfhd } from './boxes/mfhd.js';
+import { mfroTooltip, parseMfro } from './boxes/mfro.js';
+import { mp4aTooltip, parseMp4a } from './boxes/mp4a.js';
+import { mvhdTooltip, parseMvhd } from './boxes/mvhd.js';
+import { parsePasp, paspTooltip } from './boxes/pasp.js';
+import { parsePdin, pdinTooltip } from './boxes/pdin.js';
+import { parsePssh, psshTooltip } from './boxes/pssh.js';
+import { parseSaio, saioTooltip } from './boxes/saio.js';
+import { parseSaiz, saizTooltip } from './boxes/saiz.js';
+import { parseSbgp, sbgpTooltip } from './boxes/sbgp.js';
+import { parseSchi, schiTooltip } from './boxes/schi.js';
+import { parseSchm, schmTooltip } from './boxes/schm.js';
+import { parseSdtp, sdtpTooltip } from './boxes/sdtp.js';
+import { parseSenc, sencTooltip } from './boxes/senc.js';
+import { parseSgpd, sgpdTooltip } from './boxes/sgpd.js';
+import { parseSidx, sidxTooltip } from './boxes/sidx.js';
+import { parseSinf, sinfTooltip } from './boxes/sinf.js';
+import { parseSmhd, smhdTooltip } from './boxes/smhd.js';
+import { parseStco, stcoTooltip } from './boxes/stco.js';
+import { parseStdp, stdpTooltip } from './boxes/stdp.js';
+import { stppParsers, stppTooltip } from './boxes/stpp.js';
+import { parseStsc, stscTooltip } from './boxes/stsc.js';
+import { parseStsd, stsdTooltip } from './boxes/stsd.js';
+import { parseStss, stssTooltip } from './boxes/stss.js';
+import { parseStsz, stszTooltip } from './boxes/stsz.js';
+import { parseStts, sttsTooltip } from './boxes/stts.js';
+import { parseStz2, stz2Tooltip } from './boxes/stz2.js';
+import { parseSubs, subsTooltip } from './boxes/subs.js';
+import { parseTenc, tencTooltip } from './boxes/tenc.js';
+import { parseTfdt, tfdtTooltip } from './boxes/tfdt.js';
+import { parseTfhd, tfhdTooltip } from './boxes/tfhd.js';
+import { parseTfra, tfraTooltip } from './boxes/tfra.js';
+import { parseTkhd, tkhdTooltip } from './boxes/tkhd.js';
+import { parseTref, trefTooltip, trefTypeParsers } from './boxes/tref.js';
+import { parseTrep, trepTooltip } from './boxes/trep.js';
+import { parseTrex, trexTooltip } from './boxes/trex.js';
+import { parseTrun, trunTooltip } from './boxes/trun.js';
+import { parseUuid, uuidTooltip } from './boxes/uuid.js';
+import { parseVmhd, vmhdTooltip } from './boxes/vmhd.js';
 
 export const boxParsers = {
     ftyp: parseFtypStyp,

@@ -1,6 +1,4 @@
 import { html } from 'lit-html';
-import * as icons from '@/ui/icons';
-import { reloadStream } from '@/ui/services/streamActionsService';
 
 export const timelineControlsTemplate = (stream) => {
     if (!stream) return html``;

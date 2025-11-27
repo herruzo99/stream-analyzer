@@ -1,8 +1,8 @@
+import { uiActions, useUiStore } from '@/state/uiStore';
 import { html, render } from 'lit-html';
-import { useUiStore, uiActions } from '@/state/uiStore';
-import './graphs-view.js';
 import './controls-view.js';
 import './event-log.js';
+import './graphs-view.js';
 
 class SidebarShellComponent extends HTMLElement {
     constructor() {

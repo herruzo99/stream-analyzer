@@ -1,9 +1,9 @@
-import { html } from 'lit-html';
-import * as icons from '@/ui/icons';
 import { eventBus } from '@/application/event-bus';
-import { useUiStore, uiActions } from '@/state/uiStore';
-import { formatBitrate } from '@/ui/shared/format';
+import { uiActions, useUiStore } from '@/state/uiStore';
 import { connectedTabBar } from '@/ui/components/tabs';
+import * as icons from '@/ui/icons';
+import { formatBitrate } from '@/ui/shared/format';
+import { html } from 'lit-html';
 
 // --- DASH Specific Templates ---
 const dashRepresentationCardTemplate = (rep, activeRepId, compositeKey) => {

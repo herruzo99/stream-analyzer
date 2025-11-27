@@ -1,15 +1,15 @@
+import { eventBus } from '@/application/event-bus';
+import { getShaka } from '@/infrastructure/player/shaka';
+import { parseShakaError } from '@/infrastructure/player/shaka-error';
+import { appLog } from '@/shared/utils/debug';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { useMultiPlayerStore } from '@/state/multiPlayerStore';
-import { appLog } from '@/shared/utils/debug';
-import { getShaka } from '@/infrastructure/player/shaka';
 import { showToast } from '@/ui/components/toast';
-import { eventBus } from '@/application/event-bus';
 import { StallCalculator } from '../domain/stall-calculator.js';
-import { parseShakaError } from '@/infrastructure/player/shaka-error';
 import { playerConfigService } from './playerConfigService.js';
 
 const MAX_RETRIES = 5;
-const INITIAL_RETRY_DELAY_MS = 1000;
+const INITIAL_RETRY_DELAY_MS = 2000;
 const JITTER_FACTOR = 0.3;
 
 class MultiPlayerService {
@@ -20,8 +20,9 @@ class MultiPlayerService {
         this.videoElements = new Map();
         this.stallCalculators = new Map();
         this.tickerSubscription = null;
+        this.retryTimers = new Map(); // Track active timeouts to clear them on destroy
     }
-
+    // ... (methods initialize, bindMediaElement, unbindMediaElement, createAndLoadPlayer, loadStreamIntoPlayer, addVideoElementListeners, _handlePlayerError, startStatsCollection, stopStatsCollection, destroyAll remain unchanged) ...
     initialize() {
         appLog('MultiPlayerService.initialize', 'info', 'Service initialized.');
     }
@@ -114,12 +115,16 @@ class MultiPlayerService {
         initialState
     ) {
         try {
-            useMultiPlayerStore
-                .getState()
-                .updatePlayerState(uniqueStreamId, {
-                    state: 'loading',
-                    error: null,
-                });
+            // Clear any pending retry timers if manual load is triggered
+            if (this.retryTimers.has(uniqueStreamId)) {
+                clearTimeout(this.retryTimers.get(uniqueStreamId));
+                this.retryTimers.delete(uniqueStreamId);
+            }
+
+            useMultiPlayerStore.getState().updatePlayerState(uniqueStreamId, {
+                state: 'loading',
+                error: null,
+            });
             const drmConfig =
                 await playerConfigService.buildDrmConfig(streamDef);
             player.configure({ drm: drmConfig });
@@ -146,7 +151,7 @@ class MultiPlayerService {
                 activeVideoTrack: activeVideoTrack,
                 audioTracks: player.getAudioLanguagesAndRoles(),
                 textTracks: player.getTextTracks(),
-                retryCount: 0,
+                retryCount: 0, // Reset retry count on successful load
             });
 
             if (finalState === 'playing' && videoEl) {
@@ -179,23 +184,78 @@ class MultiPlayerService {
     _handlePlayerError(streamId, error) {
         if (error.code === 7000) return; // Ignore LOAD_INTERRUPTED
         const message = parseShakaError(error);
+        const store = useMultiPlayerStore.getState();
+        const playerState = store.players.get(streamId);
+        const streamName = playerState?.streamName || `Stream ${streamId}`;
 
-        // Update State
-        useMultiPlayerStore
-            .getState()
-            .updatePlayerState(streamId, { state: 'error', error: message });
+        // 1. Update State to Error
+        store.updatePlayerState(streamId, { state: 'error', error: message });
 
-        // Log to Event History
-        const playerState = useMultiPlayerStore
-            .getState()
-            .players.get(streamId);
-        useMultiPlayerStore.getState().logEvent({
+        // 2. Log the initial error
+        store.logEvent({
             streamId,
-            streamName: playerState?.streamName || `Stream ${streamId}`,
+            streamName,
             type: 'error',
             details: message,
             severity: 'critical',
         });
+
+        // 3. Auto-Reset Logic
+        if (store.isAutoResetEnabled) {
+            const currentRetries = playerState?.retryCount || 0;
+
+            if (currentRetries < MAX_RETRIES) {
+                const nextRetryCount = currentRetries + 1;
+
+                // Exponential Backoff with Jitter
+                const backoff =
+                    INITIAL_RETRY_DELAY_MS *
+                    Math.pow(2, currentRetries) *
+                    (1 + Math.random() * JITTER_FACTOR);
+                const delay = Math.min(backoff, 30000); // Cap at 30s
+
+                const delaySec = (delay / 1000).toFixed(1);
+
+                // Log the restart attempt
+                store.logEvent({
+                    streamId,
+                    streamName,
+                    type: 'lifecycle',
+                    details: `Auto-reset enabled. Retrying attempt ${nextRetryCount}/${MAX_RETRIES} in ${delaySec}s...`,
+                    severity: 'warning',
+                });
+
+                // Increment retry count in state immediately
+                store.updatePlayerState(streamId, {
+                    retryCount: nextRetryCount,
+                });
+
+                // Clear existing timer if any
+                if (this.retryTimers.has(streamId)) {
+                    clearTimeout(this.retryTimers.get(streamId));
+                }
+
+                // Schedule Reset
+                const timerId = setTimeout(() => {
+                    // Check if player still exists before resetting
+                    if (this.players.has(streamId)) {
+                        this.resetSinglePlayer(streamId);
+                    }
+                    this.retryTimers.delete(streamId);
+                }, delay);
+
+                this.retryTimers.set(streamId, timerId);
+            } else {
+                // Max retries exhausted
+                store.logEvent({
+                    streamId,
+                    streamName,
+                    type: 'error',
+                    details: `Auto-reset failed after ${MAX_RETRIES} attempts. Manual intervention required.`,
+                    severity: 'critical',
+                });
+            }
+        }
     }
 
     startStatsCollection() {
@@ -325,6 +385,8 @@ class MultiPlayerService {
 
     async destroyAll() {
         this.stopStatsCollection();
+        this.retryTimers.forEach((timer) => clearTimeout(timer));
+        this.retryTimers.clear();
         this.#loadQueue = Promise.resolve();
         for (const player of this.players.values()) await player.destroy();
         this.players.clear();
@@ -370,10 +432,11 @@ class MultiPlayerService {
                         );
                     }
                     break;
-                case 'syncLive':
+                case 'syncLive': {
                     const player = this.players.get(playerState.streamId);
                     if (player && player.isLive()) player.goToLive();
                     break;
+                }
             }
         }
     }
@@ -431,6 +494,12 @@ class MultiPlayerService {
     }
 
     async destroyPlayer(streamId) {
+        // Clear any pending retry timers
+        if (this.retryTimers.has(streamId)) {
+            clearTimeout(this.retryTimers.get(streamId));
+            this.retryTimers.delete(streamId);
+        }
+
         const player = this.players.get(streamId);
         if (player) {
             await player.destroy();
@@ -445,6 +514,12 @@ class MultiPlayerService {
             .getState()
             .players.get(streamId);
         if (playerState) {
+            // Explicitly clear retry timer on manual reset to avoid double reset
+            if (this.retryTimers.has(streamId)) {
+                clearTimeout(this.retryTimers.get(streamId));
+                this.retryTimers.delete(streamId);
+            }
+
             useMultiPlayerStore
                 .getState()
                 .updatePlayerState(streamId, { state: 'loading', error: null });
@@ -563,12 +638,23 @@ class MultiPlayerService {
         useMultiPlayerStore.getState().initializePlayers(streams);
     }
 
+    /**
+     * Iterates through all players and resets only those currently in an error state.
+     */
     async resetFailedPlayers() {
         const { players } = useMultiPlayerStore.getState();
+        let resetCount = 0;
         for (const [streamId, player] of players.entries()) {
             if (player.state === 'error') {
                 await this.resetSinglePlayer(streamId);
+                resetCount++;
             }
+        }
+        if (resetCount > 0) {
+            showToast({
+                message: `Resetting ${resetCount} failed players...`,
+                type: 'info',
+            });
         }
     }
 

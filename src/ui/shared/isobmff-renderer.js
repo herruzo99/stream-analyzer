@@ -1,13 +1,11 @@
-import { html } from 'lit-html';
-import { classMap } from 'lit-html/directives/class-map.js';
-import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { getTooltipData as getAllIsoTooltipData } from '@/infrastructure/parsing/isobmff/index';
-import { tooltipTriggerClasses } from '@/ui/shared/constants';
-import { copyTextToClipboard } from '@/ui/shared/clipboard';
 import { isDebugMode } from '@/shared/utils/env';
 import { uiActions } from '@/state/uiStore'; // Needed for field highlighting
 import '@/ui/components/virtualized-list';
 import * as icons from '@/ui/icons';
+import { copyTextToClipboard } from '@/ui/shared/clipboard';
+import { tooltipTriggerClasses } from '@/ui/shared/constants';
+import { html } from 'lit-html';
 
 const allIsoTooltipData = getAllIsoTooltipData();
 
@@ -482,13 +480,15 @@ export const isoBoxTreeTemplate = (box, context = {}) => {
             class="absolute top-3 left-0 w-3 h-px bg-slate-800 group-hover:bg-slate-600 transition-colors"
         ></div>
     `;
-const fieldsToRender = Object.entries(box.details).filter(([key, field]) => {
-        if (field.internal) return false;
-        if (key.endsWith('_raw')) return false;
-        // Exclude redundant fields already shown in header
-        if (key === 'size' || key === 'type') return false;
-        return true;
-    });
+    const fieldsToRender = Object.entries(box.details).filter(
+        ([key, field]) => {
+            if (field.internal) return false;
+            if (key.endsWith('_raw')) return false;
+            // Exclude redundant fields already shown in header
+            if (key === 'size' || key === 'type') return false;
+            return true;
+        }
+    );
 
     return html`
         <div class="${containerClass} my-1">

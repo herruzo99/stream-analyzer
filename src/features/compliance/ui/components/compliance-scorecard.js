@@ -1,6 +1,5 @@
+import { disposeChart, renderChart } from '@/ui/shared/charts/chart-renderer';
 import { html, render } from 'lit-html';
-import { renderChart, disposeChart } from '@/ui/shared/charts/chart-renderer';
-import * as icons from '@/ui/icons';
 
 class ComplianceScorecard extends HTMLElement {
     constructor() {

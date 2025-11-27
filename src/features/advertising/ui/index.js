@@ -1,11 +1,11 @@
-import { html, render } from 'lit-html';
+import { statCardTemplate } from '@/features/summary/ui/components/shared';
 import { useAnalysisStore } from '@/state/analysisStore';
-import { createAdvertisingViewModel } from './view-model.js';
+import * as icons from '@/ui/icons';
+import { html, render } from 'lit-html';
 import { adTimelineTemplate } from './components/ad-timeline.js';
 import { breakCardTemplate } from './components/break-card.js';
 import { inspectorTemplate } from './components/inspector.js';
-import { statCardTemplate } from '@/features/summary/ui/components/shared';
-import * as icons from '@/ui/icons';
+import { createAdvertisingViewModel } from './view-model.js';
 
 let container = null;
 let unsubscribe = null;

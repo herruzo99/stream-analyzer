@@ -1,10 +1,8 @@
-import { html } from 'lit-html';
 import { eventBus } from '@/application/event-bus';
 import { showToast } from '@/ui/components/toast';
 import * as icons from '@/ui/icons';
+import { html } from 'lit-html';
 
-const inputBaseClass =
-    'w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs font-mono text-cyan-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all';
 const labelClass =
     'text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1 block';
 

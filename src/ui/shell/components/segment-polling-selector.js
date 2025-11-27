@@ -1,8 +1,8 @@
-import { html } from 'lit-html';
-import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
-import { useUiStore, uiActions } from '@/state/uiStore';
-import { formatBitrate } from '@/ui/shared/format';
+import { analysisActions, useAnalysisStore } from '@/state/analysisStore';
+import { uiActions, useUiStore } from '@/state/uiStore';
 import * as icons from '@/ui/icons';
+import { formatBitrate } from '@/ui/shared/format';
+import { html } from 'lit-html';
 
 const representationToggle = (stream, rep, subtext) => {
     const isChecked = stream.segmentPollingReps.has(rep.id);

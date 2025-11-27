@@ -1,6 +1,6 @@
 import { useMultiPlayerStore } from '@/state/multiPlayerStore';
 import { useUiStore } from '@/state/uiStore';
-import { renderChart, disposeChart } from '@/ui/shared/charts/chart-renderer';
+import { disposeChart, renderChart } from '@/ui/shared/charts/chart-renderer';
 import { formatBitrate } from '@/ui/shared/format';
 
 const createChartOptions = (title, yAxisName, yAxisFormatter, seriesData) => ({

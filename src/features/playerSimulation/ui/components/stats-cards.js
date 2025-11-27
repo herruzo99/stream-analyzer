@@ -1,7 +1,7 @@
-import { html } from 'lit-html';
-import { formatBitrate } from '@/ui/shared/format';
 import * as icons from '@/ui/icons';
 import { tooltipTriggerClasses } from '@/ui/shared/constants';
+import { formatBitrate } from '@/ui/shared/format';
+import { html } from 'lit-html';
 
 const formatTooltip = (tooltip) => {
     if (!tooltip || !tooltip.text) return '';

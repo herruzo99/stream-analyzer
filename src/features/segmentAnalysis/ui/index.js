@@ -1,13 +1,16 @@
-import { html, render } from 'lit-html';
-import { createSegmentAnalysisViewModel } from './view-model.js';
+import { structureContentTemplate } from '@/features/interactiveSegment/ui/components/ts/index.js';
+import { workerService } from '@/infrastructure/worker/workerService';
+import { useSegmentCacheStore } from '@/state/segmentCacheStore';
 import { connectedTabBar } from '@/ui/components/tabs';
 import * as icons from '@/ui/icons';
 import { isoBoxTreeTemplate } from '@/ui/shared/isobmff-renderer';
-import { structureContentTemplate } from '@/features/interactiveSegment/ui/components/ts/index.js';
 import { scte35DetailsTemplate } from '@/ui/shared/scte35-details.js';
-import { vttAnalysisTemplate } from './vtt-analysis.js';
-import './components/general-summary.js';
+import { html, render } from 'lit-html';
+import { bitrateHeatmapTemplate } from './components/bitrate-heatmap.js';
 import './components/bitstream-visualizer.js';
+import './components/general-summary.js';
+import { createSegmentAnalysisViewModel } from './view-model.js';
+import { vttAnalysisTemplate } from './vtt-analysis.js';
 
 class SegmentAnalysisComponent extends HTMLElement {
     constructor() {
@@ -15,22 +18,69 @@ class SegmentAnalysisComponent extends HTMLElement {
         this._activeTab = 'overview';
         this._data = null;
         this._viewModel = null;
+        this._isAnalyzing = false;
     }
 
     /**
-     * @param {{parsedData: any, parsedDataB?: any, isIFrame?: boolean}} val
+     * @param {{parsedData: any, parsedDataB?: any, isIFrame?: boolean, uniqueId?: string}} val
      */
     set data(val) {
-        // Simple equality check to avoid unnecessary re-calculations
         if (this._data === val) return;
 
         this._data = val;
-        this._viewModel = null; // Invalidate cached view model
+        this._viewModel = null;
 
-        // ARCHITECTURAL FIX: Do NOT reset the tab here.
-        // This preserves the user's context (e.g. Structure view) during polling updates.
+        // Check if we need to trigger full analysis
+        this.checkBitstreamAnalysis();
 
         this.render();
+    }
+
+    checkBitstreamAnalysis() {
+        if (
+            this._data?.parsedData &&
+            !this._data.parsedData.bitstreamAnalysis &&
+            !this._isAnalyzing &&
+            this._data.uniqueId &&
+            ['isobmff', 'ts'].includes(this._data.parsedData.format)
+        ) {
+            this.triggerFullAnalysis(
+                this._data.uniqueId,
+                this._data.parsedData
+            );
+        }
+    }
+
+    async triggerFullAnalysis(uniqueId, parsedData) {
+        this._isAnalyzing = true;
+        const { get, set } = useSegmentCacheStore.getState();
+        const entry = get(uniqueId);
+
+        if (entry && entry.data) {
+            try {
+                const result = await workerService.postTask(
+                    'full-segment-analysis',
+                    {
+                        parsedData: parsedData,
+                        rawData: entry.data,
+                    }
+                ).promise;
+
+                // Update cache
+                const updatedParsedData = { ...parsedData, ...result };
+                const newEntry = { ...entry, parsedData: updatedParsedData };
+                set(uniqueId, newEntry);
+
+                // Update local state to trigger re-render
+                this._data = { ...this._data, parsedData: updatedParsedData };
+                this._viewModel = null; // Invalidate VM
+                this.render();
+                // showToast({ message: 'Bitstream analysis complete.', type: 'info' });
+            } catch (e) {
+                console.warn('Full analysis failed:', e);
+            }
+        }
+        this._isAnalyzing = false;
     }
 
     get viewModel() {
@@ -57,7 +107,6 @@ class SegmentAnalysisComponent extends HTMLElement {
         const { parsedData, parsedDataB, isIFrame } = this._data;
         const vm = this.viewModel;
 
-        // Comparison Mode Warning
         if (parsedDataB) {
             render(
                 html`
@@ -77,9 +126,11 @@ class SegmentAnalysisComponent extends HTMLElement {
             return;
         }
 
-        // Tab Configuration
         const tabs = [{ key: 'overview', label: 'Overview' }];
-        if (vm.bitstream) tabs.push({ key: 'bitstream', label: 'Bitstream' });
+        if (vm.bitstream) {
+            tabs.push({ key: 'bitstream', label: 'Frame Size' });
+            tabs.push({ key: 'heatmap', label: 'Bitrate Heatmap' });
+        }
         if (['isobmff', 'ts'].includes(vm.format))
             tabs.push({ key: 'structure', label: 'Structure' });
 
@@ -137,6 +188,20 @@ class SegmentAnalysisComponent extends HTMLElement {
                           </div>
                       `
                     : ''}
+                ${!vm.bitstream && ['isobmff', 'ts'].includes(vm.format)
+                    ? html`
+                          <div
+                              class="mt-4 p-4 bg-blue-900/10 border border-blue-500/20 rounded-xl flex items-center justify-center gap-3"
+                          >
+                              <span class="animate-spin text-blue-400"
+                                  >${icons.spinner}</span
+                              >
+                              <span class="text-xs text-blue-300 font-medium"
+                                  >Analyzing bitstream structure...</span
+                              >
+                          </div>
+                      `
+                    : ''}
             </div>
         `;
 
@@ -152,8 +217,16 @@ class SegmentAnalysisComponent extends HTMLElement {
             </div>
         `;
 
-        // Layout Fix: Structure view (TS/ISO) often uses virtualized lists which require explicit height.
-        // We remove padding from the container and ensure the child fills 100% of the height.
+        const renderHeatmap = () => html`
+            <div
+                class="absolute inset-0 overflow-y-auto p-4 custom-scrollbar animate-fadeIn"
+            >
+                <div class="h-full">
+                    ${bitrateHeatmapTemplate(vm.bitstream)}
+                </div>
+            </div>
+        `;
+
         const renderStructure = () => html`
             <div
                 class="absolute inset-0 flex flex-col animate-fadeIn h-full w-full bg-slate-950"
@@ -194,11 +267,13 @@ class SegmentAnalysisComponent extends HTMLElement {
                 </div>
 
                 <!-- Main Content Area -->
-                <!-- ARCHITECTURAL FIX: Use relative positioning and absolute children to ensure full height utilization -->
                 <div class="grow relative w-full min-h-0 bg-slate-900">
                     ${this._activeTab === 'overview' ? renderOverview() : ''}
                     ${this._activeTab === 'bitstream' && vm.bitstream
                         ? renderBitstream()
+                        : ''}
+                    ${this._activeTab === 'heatmap' && vm.bitstream
+                        ? renderHeatmap()
                         : ''}
                     ${this._activeTab === 'structure' ? renderStructure() : ''}
                 </div>

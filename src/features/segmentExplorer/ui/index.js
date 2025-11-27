@@ -1,12 +1,12 @@
-import { html, render } from 'lit-html';
 import { useAnalysisStore } from '@/state/analysisStore';
-import { useUiStore } from '@/state/uiStore';
 import { useSegmentCacheStore } from '@/state/segmentCacheStore';
-import { createSegmentExplorerViewModel } from './view-model.js';
-import { explorerToolbarTemplate } from './components/explorer-toolbar.js';
-import { timelineGridTemplate } from './components/timeline-grid.js';
-import { segmentBottomPanelTemplate } from './components/segment-bottom-panel.js';
+import { useUiStore } from '@/state/uiStore';
 import * as icons from '@/ui/icons';
+import { html, render } from 'lit-html';
+import { explorerToolbarTemplate } from './components/explorer-toolbar.js';
+import { segmentBottomPanelTemplate } from './components/segment-bottom-panel.js';
+import { timelineGridTemplate } from './components/timeline-grid.js';
+import { createSegmentExplorerViewModel } from './view-model.js';
 
 let container = null;
 let unsubs = [];

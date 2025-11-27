@@ -1,16 +1,16 @@
-import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
-import { useSegmentCacheStore } from '@/state/segmentCacheStore';
 import { eventBus } from '@/application/event-bus';
-import { appLog } from '@/shared/utils/debug';
-import { useUiStore, uiActions } from '@/state/uiStore';
-import { generateFeatureAnalysis } from '@/features/featureAnalysis/domain/analyzer';
-import { inferMediaInfoFromExtension } from '@/infrastructure/parsing/utils/media-types';
 import { runChecks } from '@/features/compliance/domain/engine';
-import { diffManifest } from '@/ui/shared/diff';
-import { EVENTS } from '@/types/events';
+import { generateFeatureAnalysis } from '@/features/featureAnalysis/domain/analyzer';
 import { applyPatches } from '@/features/manifestPatcher/domain/patchService';
-import { parseManifest as parseHls } from '@/infrastructure/parsing/hls/index.js';
 import { parseManifest as parseDash } from '@/infrastructure/parsing/dash/parser.js';
+import { parseManifest as parseHls } from '@/infrastructure/parsing/hls/index.js';
+import { inferMediaInfoFromExtension } from '@/infrastructure/parsing/utils/media-types';
+import { appLog } from '@/shared/utils/debug';
+import { analysisActions, useAnalysisStore } from '@/state/analysisStore';
+import { useSegmentCacheStore } from '@/state/segmentCacheStore';
+import { uiActions, useUiStore } from '@/state/uiStore';
+import { EVENTS } from '@/types/events';
+import { diffManifest } from '@/ui/shared/diff';
 
 const MAX_MANIFEST_UPDATES_HISTORY = 1000;
 

@@ -1,5 +1,5 @@
-import { showToast } from '@/ui/components/toast';
 import { sessionService } from '@/application/services/sessionService';
+import { showToast } from '@/ui/components/toast';
 
 /**
  * Constructs a shareable URL from the current application state and

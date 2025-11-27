@@ -1,6 +1,6 @@
-import { html, render } from 'lit-html';
-import { renderChart, disposeChart } from '@/ui/shared/charts/chart-renderer';
+import { disposeChart, renderChart } from '@/ui/shared/charts/chart-renderer';
 import { formatBitrate } from '@/ui/shared/format';
+import { html, render } from 'lit-html';
 
 const abrLadderChartOptions = (abrData) => {
     const allHeights = [

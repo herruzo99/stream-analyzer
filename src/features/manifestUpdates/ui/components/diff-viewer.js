@@ -1,9 +1,9 @@
-import { html } from 'lit-html';
-import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { uiActions, useUiStore } from '@/state/uiStore';
+import * as icons from '@/ui/icons';
 import { copyTextToClipboard } from '@/ui/shared/clipboard';
 import { highlightDash, highlightHls } from '@/ui/shared/syntax-highlighter';
-import * as icons from '@/ui/icons';
+import { html } from 'lit-html';
+import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 
 const renderDiffRow = (line, isMerged, protocol) => {
     const highlightFn = protocol === 'dash' ? highlightDash : highlightHls;

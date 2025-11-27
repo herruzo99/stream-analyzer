@@ -1,14 +1,14 @@
+import { eventBus } from '@/application/event-bus';
+import { inferMediaInfoFromExtension } from '@/infrastructure/parsing/utils/media-types';
+import { analysisActions, useAnalysisStore } from '@/state/analysisStore';
+import { useSegmentCacheStore } from '@/state/segmentCacheStore';
+import { uiActions, useUiStore } from '@/state/uiStore';
+import { showToast } from '@/ui/components/toast';
+import { tooltipTriggerClasses } from '@/ui/shared/constants';
+import { formatBitrate } from '@/ui/shared/format';
 import { html, render } from 'lit-html';
 import { repeat } from 'lit-html/directives/repeat.js';
-import { useUiStore, uiActions } from '@/state/uiStore';
-import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
-import { useSegmentCacheStore } from '@/state/segmentCacheStore';
-import { eventBus } from '@/application/event-bus';
-import { showToast } from '@/ui/components/toast';
-import { inferMediaInfoFromExtension } from '@/infrastructure/parsing/utils/media-types';
 import { renderSegmentNode } from './segment-node.js';
-import { formatBitrate } from '@/ui/shared/format';
-import { tooltipTriggerClasses } from '@/ui/shared/constants';
 
 // Constants for layout
 const TRACK_HEADER_WIDTH = 240;
@@ -18,7 +18,7 @@ const OVERSCAN_COLS = 10;
 // --- Render Helpers ---
 
 const renderTrackHeader = (track, initSegment, ctx) => {
-    const { inspectedId, compareSet, clickMode, streamId, segmentFormat } = ctx;
+    const { inspectedId, compareSet } = ctx;
     const codec = track.meta?.codecs?.split('.')[0] || 'Unknown';
     const resolution = track.meta?.width
         ? `${track.meta.width}x${track.meta.height}`

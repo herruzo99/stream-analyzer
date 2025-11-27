@@ -1,10 +1,10 @@
-import { html, render } from 'lit-html';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { useSegmentCacheStore } from '@/state/segmentCacheStore';
-import { useUiStore, uiActions } from '@/state/uiStore';
+import { uiActions, useUiStore } from '@/state/uiStore';
+import * as icons from '@/ui/icons';
+import { html, render } from 'lit-html';
 import { createComparisonModel } from '../domain/comparisonEngine.js';
 import { comparisonLayoutTemplate } from './components/comparison-layout.js';
-import * as icons from '@/ui/icons';
 
 let container = null;
 let unsubs = [];

@@ -1,11 +1,11 @@
-import { parseISOBMFF } from '../parsing/isobmff/parser.js';
-import { parse as parseTsSegment } from '../parsing/ts/index.js';
-import { parseVTT } from '../parsing/vtt/parser.js';
+import { analyzeSemantics } from '../../features/compliance/domain/semantic-analyzer.js';
+import { analyzeGopStructure } from '../../features/segmentAnalysis/domain/gop-analyzer.js';
 import { appLog } from '../../shared/utils/debug.js';
 import { boxParsers } from '../parsing/isobmff/index.js';
-import { analyzeSemantics } from '../../features/compliance/domain/semantic-analyzer.js';
+import { parseISOBMFF } from '../parsing/isobmff/parser.js';
+import { parse as parseTsSegment } from '../parsing/ts/index.js';
 import { parseNalUnits } from '../parsing/video/nal-parser.js';
-import { analyzeGopStructure } from '../../features/segmentAnalysis/domain/gop-analyzer.js';
+import { parseVTT } from '../parsing/vtt/parser.js';
 import { fetchWithAuth } from './http.js';
 
 // --- Color Palette Definition ---
@@ -186,9 +186,7 @@ async function parseSegment({ data, formatHint, url, context }) {
 
     if (url) {
         let path = url.toLowerCase();
-        try {
-            path = new URL(url).pathname.toLowerCase();
-        } catch (e) {}
+        path = new URL(url).pathname.toLowerCase();
 
         if (path.endsWith('.vtt') || path.endsWith('.webvtt')) {
             return { format: 'vtt', data: parseVTT(decoder.decode(data)) };
@@ -214,12 +212,10 @@ async function parseSegment({ data, formatHint, url, context }) {
         }
     }
 
-    try {
-        const startText = decoder.decode(data.slice(0, 10));
-        if (startText.startsWith('WEBVTT')) {
-            return { format: 'vtt', data: parseVTT(decoder.decode(data)) };
-        }
-    } catch (_e) {}
+    const startText = decoder.decode(data.slice(0, 10));
+    if (startText.startsWith('WEBVTT')) {
+        return { format: 'vtt', data: parseVTT(decoder.decode(data)) };
+    }
 
     if (data.byteLength >= 188) {
         const firstByte = dataView.getUint8(0);

@@ -1,5 +1,5 @@
-import { html } from 'lit-html';
 import * as icons from '@/ui/icons';
+import { html } from 'lit-html';
 
 const sparkline = (data, colorClass, height = 24, width = 100) => {
     if (data.length < 2) return '';

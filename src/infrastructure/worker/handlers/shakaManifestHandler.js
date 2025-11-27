@@ -1,14 +1,14 @@
-import { parseManifest as parseDashManifest } from '../../parsing/dash/parser.js';
-import { parseManifest as parseHlsManifest } from '../../parsing/hls/index.js';
-import { generateDashSummary } from '../../parsing/dash/summary-generator.js';
-import { generateHlsSummary } from '../../parsing/hls/summary-generator.js';
-import { runChecks } from '../../../features/compliance/domain/engine.js';
-import { parseAllSegmentUrls as parseDashSegments } from '../../parsing/dash/segment-parser.js';
-import { diffManifest } from '../../../ui/shared/diff.js';
-import { fetchWithAuth } from '../http.js';
 import xmlFormatter from 'xml-formatter';
-import { appLog } from '../../../shared/utils/debug.js';
 import { resolveAdAvailsInWorker } from '../../../features/advertising/application/resolveAdAvailWorker.js';
+import { runChecks } from '../../../features/compliance/domain/engine.js';
+import { appLog } from '../../../shared/utils/debug.js';
+import { diffManifest } from '../../../ui/shared/diff.js';
+import { parseManifest as parseDashManifest } from '../../parsing/dash/parser.js';
+import { parseAllSegmentUrls as parseDashSegments } from '../../parsing/dash/segment-parser.js';
+import { generateDashSummary } from '../../parsing/dash/summary-generator.js';
+import { parseManifest as parseHlsManifest } from '../../parsing/hls/index.js';
+import { generateHlsSummary } from '../../parsing/hls/summary-generator.js';
+import { fetchWithAuth } from '../http.js';
 
 function detectProtocol(manifestString, hint) {
     if (hint) return hint;

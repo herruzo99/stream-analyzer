@@ -1,5 +1,5 @@
 import { eventBus } from '@/application/event-bus';
-import { useUiStore, uiActions } from '@/state/uiStore';
+import { uiActions, useUiStore } from '@/state/uiStore';
 
 export function initializeInteractiveSegmentController() {
     eventBus.subscribe(

@@ -1,8 +1,8 @@
-import { html } from 'lit-html';
+import { getTooltipData } from '@/infrastructure/parsing/isobmff/index';
 import { useUiStore } from '@/state/uiStore';
 import * as icons from '@/ui/icons';
 import { inspectorDetailsTemplate } from '@/ui/shared/isobmff-renderer';
-import { getTooltipData } from '@/infrastructure/parsing/isobmff/index';
+import { html } from 'lit-html';
 
 const allTooltips = getTooltipData();
 

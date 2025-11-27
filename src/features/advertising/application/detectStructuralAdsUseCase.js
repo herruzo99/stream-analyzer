@@ -1,6 +1,6 @@
 import { eventBus } from '@/application/event-bus';
-import { analysisActions } from '@/state/analysisStore';
 import { findChildrenRecursive } from '@/infrastructure/parsing/utils/recursive-parser';
+import { analysisActions } from '@/state/analysisStore';
 import { AdAvail } from '../domain/AdAvail';
 
 /**

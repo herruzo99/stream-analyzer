@@ -1,12 +1,12 @@
-import { html, render } from 'lit-html';
 import { useAnalysisStore } from '@/state/analysisStore';
-import { useUiStore, uiActions } from '@/state/uiStore';
 import { usePlayerStore } from '@/state/playerStore';
-import { sidebarNavTemplate } from './sidebar-nav.js';
+import { uiActions, useUiStore } from '@/state/uiStore';
+import * as icons from '@/ui/icons';
+import { html, render } from 'lit-html';
 import { renderContextSwitcher } from './context-switcher.js';
 import { globalControlsTemplate } from './global-controls.js';
 import { mainContentControlsTemplate } from './main-content-controls.js';
-import * as icons from '@/ui/icons';
+import { sidebarNavTemplate } from './sidebar-nav.js';
 // Ensure the component is registered
 import '@/features/streamInput/ui/components/library-modal.js';
 
@@ -61,38 +61,53 @@ class AppShellComponent extends HTMLElement {
         // --- 2. Handle Contextual Sidebar (Desktop/Mobile) ---
         const contextSidebar = this.querySelector('#contextual-sidebar');
         if (contextSidebar) {
-             if (isContextualOpen) {
+            if (isContextualOpen) {
                 contextSidebar.classList.remove('translate-x-full');
                 contextSidebar.classList.add('translate-x-0');
                 document.body.classList.add('contextual-sidebar-open');
-             } else {
+            } else {
                 contextSidebar.classList.add('translate-x-full');
                 contextSidebar.classList.remove('translate-x-0');
                 document.body.classList.remove('contextual-sidebar-open');
-             }
+            }
         }
 
         // --- 3. Render Inner Content ---
         if (sidebarContainer) {
-            const headerContainer = sidebarContainer.querySelector('#stream-identity-header');
+            const headerContainer = sidebarContainer.querySelector(
+                '#stream-identity-header'
+            );
             if (headerContainer) {
-                render(renderContextSwitcher(), /** @type {HTMLElement} */ (headerContainer));
+                render(
+                    renderContextSwitcher(),
+                    /** @type {HTMLElement} */ (headerContainer)
+                );
             }
 
             const navContainer = sidebarContainer.querySelector('#sidebar-nav');
             if (navContainer) {
-                render(sidebarNavTemplate(), /** @type {HTMLElement} */ (navContainer));
+                render(
+                    sidebarNavTemplate(),
+                    /** @type {HTMLElement} */ (navContainer)
+                );
             }
 
-            const footerContainer = sidebarContainer.querySelector('#sidebar-footer');
+            const footerContainer =
+                sidebarContainer.querySelector('#sidebar-footer');
             if (footerContainer) {
-                render(globalControlsTemplate(), /** @type {HTMLElement} */ (footerContainer));
+                render(
+                    globalControlsTemplate(),
+                    /** @type {HTMLElement} */ (footerContainer)
+                );
             }
         }
 
         const contextHeader = this.querySelector('#context-header');
         if (contextHeader) {
-            render(mainContentControlsTemplate(), /** @type {HTMLElement} */ (contextHeader));
+            render(
+                mainContentControlsTemplate(),
+                /** @type {HTMLElement} */ (contextHeader)
+            );
         }
     }
 
@@ -142,14 +157,18 @@ class AppShellComponent extends HTMLElement {
                         <span class="font-bold text-slate-200"
                             >Stream Analyzer</span
                         >
-                        <div class="w-8"></div> <!-- Spacer for balance -->
+                        <div class="w-8"></div>
+                        <!-- Spacer for balance -->
                     </header>
 
                     <!-- Desktop Header -->
                     <header
                         class="hidden xl:flex shrink-0 h-14 items-center justify-between px-6 border-b border-slate-800 bg-slate-900"
                     >
-                        <div id="context-header" class="w-full flex items-center"></div>
+                        <div
+                            id="context-header"
+                            class="w-full flex items-center"
+                        ></div>
                     </header>
 
                     <!-- View Container -->
