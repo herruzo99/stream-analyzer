@@ -1,6 +1,6 @@
-import { html } from 'lit-html';
-import { useUiStore, uiActions } from '@/state/uiStore';
+import { uiActions } from '@/state/uiStore';
 import * as icons from '@/ui/icons';
+import { html } from 'lit-html';
 
 // --- Generic Helpers ---
 

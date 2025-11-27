@@ -1,5 +1,5 @@
-import { adaptDashToIr } from './adapter.js';
 import { XMLParser } from 'fast-xml-parser';
+import { adaptDashToIr } from './adapter.js';
 
 /**
  * Parses a DASH Manifest XML string and returns a protocol-agnostic Intermediate Representation.

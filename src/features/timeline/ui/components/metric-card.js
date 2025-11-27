@@ -1,6 +1,6 @@
+import * as icons from '@/ui/icons';
 import { html } from 'lit-html';
 import { classMap } from 'lit-html/directives/class-map.js';
-import * as icons from '@/ui/icons';
 
 /**
  * Renders a single, compact metric for the timeline.

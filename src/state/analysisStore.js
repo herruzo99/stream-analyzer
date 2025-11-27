@@ -1,26 +1,26 @@
-import { createStore } from 'zustand/vanilla';
 import { eventBus } from '@/application/event-bus';
-import { uiActions } from './uiStore.js';
-import { appLog } from '@/shared/utils/debug';
-import {
-    prepareForStorage,
-    restoreFromStorage,
-} from '@/infrastructure/persistence/streamStorage';
-import { useMultiPlayerStore } from './multiPlayerStore.js';
-import { showToast } from '@/ui/components/toast.js';
-import { playerService } from '@/features/playerSimulation/application/playerService.js';
-import { usePlayerStore } from './playerStore.js';
-import { useSegmentCacheStore } from './segmentCacheStore.js';
-import { EVENTS } from '@/types/events';
 import {
     applyPatches,
     generateBlobUrl,
 } from '@/features/manifestPatcher/domain/patchService';
-import { parseManifest as parseHls } from '@/infrastructure/parsing/hls/index.js';
+import { playerService } from '@/features/playerSimulation/application/playerService.js';
 import { parseManifest as parseDash } from '@/infrastructure/parsing/dash/parser.js';
 import { generateDashSummary } from '@/infrastructure/parsing/dash/summary-generator.js';
+import { parseManifest as parseHls } from '@/infrastructure/parsing/hls/index.js';
 import { generateHlsSummary } from '@/infrastructure/parsing/hls/summary-generator.js';
 import { rebaseManifest } from '@/infrastructure/parsing/utils/manifest-rebaser.js';
+import {
+    prepareForStorage,
+    restoreFromStorage,
+} from '@/infrastructure/persistence/streamStorage';
+import { appLog } from '@/shared/utils/debug';
+import { EVENTS } from '@/types/events';
+import { showToast } from '@/ui/components/toast.js';
+import { createStore } from 'zustand/vanilla';
+import { useMultiPlayerStore } from './multiPlayerStore.js';
+import { usePlayerStore } from './playerStore.js';
+import { useSegmentCacheStore } from './segmentCacheStore.js';
+import { uiActions } from './uiStore.js';
 
 // --- Type Definitions ---
 /** @typedef {import('@/types.ts').Stream} Stream */

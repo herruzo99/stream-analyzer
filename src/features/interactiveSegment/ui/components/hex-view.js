@@ -1,8 +1,8 @@
-import { html, render } from 'lit-html';
-import { copyTextToClipboard } from '@/ui/shared/clipboard';
 import { useUiStore } from '@/state/uiStore';
-import * as icons from '@/ui/icons';
 import '@/ui/components/virtualized-list';
+import * as icons from '@/ui/icons';
+import { copyTextToClipboard } from '@/ui/shared/clipboard';
+import { html, render } from 'lit-html';
 
 // Caches row offsets for a given buffer (memory optimization)
 const rowCache = new WeakMap();

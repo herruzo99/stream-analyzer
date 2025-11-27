@@ -1,5 +1,5 @@
-import { html } from 'lit-html';
 import { tooltipTriggerClasses } from '@/ui/shared/constants';
+import { html } from 'lit-html';
 
 export const adTimelineTemplate = (avails, duration, onSelect, selectedId) => {
     // If duration is 0 (e.g. Live without duration known), we can't render a proportional timeline easily.

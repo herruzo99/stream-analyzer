@@ -1,8 +1,8 @@
 import { eventBus } from '@/application/event-bus';
-import { playerActions, usePlayerStore } from '@/state/playerStore';
 import { analysisActions, useAnalysisStore } from '@/state/analysisStore';
-import { playerService } from './playerService.js';
+import { playerActions } from '@/state/playerStore';
 import { useUiStore } from '@/state/uiStore';
+import { playerService } from './playerService.js';
 
 function onAdaptation({ oldTrack, newTrack }) {
     const time = new Date().toLocaleTimeString();
@@ -199,11 +199,12 @@ export function initializePlayerController() {
             state.activeStreamId !== null &&
             state.activeStreamId !== prevState.activeStreamId
         ) {
-            const { isLoaded } = usePlayerStore.getState();
-            if (isLoaded) {
-                playerService.destroy();
-                playerActions.reset();
-            }
+            // ARCHITECTURAL FIX: Always clean up previous player state on stream switch.
+            // We purposefully do not check for `isLoaded` here to ensure that error states
+            // or stalled loading states are also cleared, preventing the new stream
+            // from inheriting a broken player instance.
+            playerService.destroy();
+            playerActions.reset();
         }
     });
 }

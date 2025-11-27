@@ -1,10 +1,10 @@
-import { html, render } from 'lit-html';
-import { usePlayerStore, playerActions } from '@/state/playerStore';
+import { playerActions, usePlayerStore } from '@/state/playerStore';
 import { connectedTabBar } from '@/ui/components/tabs';
-import { statsCardsTemplate } from './components/stats-cards.js';
-import { eventLogTemplate } from './components/event-log.js';
-import { playerService } from '../application/playerService.js';
 import * as icons from '@/ui/icons';
+import { html, render } from 'lit-html';
+import { playerService } from '../application/playerService.js';
+import { eventLogTemplate } from './components/event-log.js';
+import { statsCardsTemplate } from './components/stats-cards.js';
 
 export class PlayerSidebarComponent extends HTMLElement {
     constructor() {
@@ -74,11 +74,17 @@ export class PlayerSidebarComponent extends HTMLElement {
                     Session Control
                 </h4>
                 <div class="flex items-center justify-between">
-                    <label
-                        for="auto-reset-toggle"
-                        class="text-sm font-medium text-slate-300"
-                        >Auto-reset on failure</label
-                    >
+                    <div>
+                        <label
+                            for="auto-reset-toggle"
+                            class="text-sm font-medium text-slate-300 block"
+                            >Auto-reset on failure</label
+                        >
+                        <p class="text-[10px] text-slate-500 mt-0.5">
+                            Retry with exponential backoff (max 5)
+                        </p>
+                    </div>
+
                     <button
                         @click=${() => playerActions.toggleAutoReset()}
                         role="switch"

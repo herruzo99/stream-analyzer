@@ -1,8 +1,8 @@
-import { html } from 'lit-html';
-import { useNetworkStore, networkActions } from '@/state/networkStore';
 import { useAnalysisStore } from '@/state/analysisStore';
-import { generateHar, downloadHar } from '../../domain/har-generator';
+import { networkActions, useNetworkStore } from '@/state/networkStore';
 import * as icons from '@/ui/icons';
+import { html } from 'lit-html';
+import { downloadHar, generateHar } from '../../domain/har-generator';
 
 const filterPill = (activeType, type, label, count) => {
     const isActive = activeType === type;
@@ -27,7 +27,7 @@ const filterPill = (activeType, type, label, count) => {
 };
 
 export const networkToolbarTemplate = () => {
-    const { filters, events, visibleStreamIds } = useNetworkStore.getState();
+    const { filters, events } = useNetworkStore.getState();
     const { streams } = useAnalysisStore.getState();
 
     // Filter Logic: Initialize with all keys to satisfy TS inference

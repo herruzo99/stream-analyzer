@@ -1,15 +1,15 @@
-import { html, render } from 'lit-html';
-import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
+import { diffViewerTemplate } from '@/features/manifestUpdates/ui/components/diff-viewer';
 import { useAnalysisStore } from '@/state/analysisStore';
+import * as icons from '@/ui/icons';
+import { closeDropdown, toggleDropdown } from '@/ui/services/dropdownService';
 import { closeModal } from '@/ui/services/modalService';
 import { diffManifest } from '@/ui/shared/diff';
-import { diffViewerTemplate } from '@/features/manifestUpdates/ui/components/diff-viewer';
-import { applyPatches } from '../domain/patchService';
-import { patchRuleCardTemplate } from './components/patch-rule-card.js';
-import { PATCH_PRESETS } from '../domain/presets.js';
 import { highlightDash, highlightHls } from '@/ui/shared/syntax-highlighter';
-import * as icons from '@/ui/icons';
-import { toggleDropdown, closeDropdown } from '@/ui/services/dropdownService';
+import { html, render } from 'lit-html';
+import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
+import { applyPatches } from '../domain/patchService';
+import { PATCH_PRESETS } from '../domain/presets.js';
+import { patchRuleCardTemplate } from './components/patch-rule-card.js';
 
 class ManifestPatcher extends HTMLElement {
     constructor() {
@@ -26,7 +26,6 @@ class ManifestPatcher extends HTMLElement {
     }
 
     set streamId(val) {
-        // eslint-disable-next-line eqeqeq
         if (this._streamId == val) return;
         this._streamId = val;
         this.initializeFromStore();
@@ -50,7 +49,6 @@ class ManifestPatcher extends HTMLElement {
     initializeFromStore() {
         const state = useAnalysisStore.getState();
         if (this._streamId !== null) {
-            // eslint-disable-next-line eqeqeq
             const stream = state.streams.find((s) => s.id == this._streamId);
             if (stream) {
                 this.localRules = stream.patchRules

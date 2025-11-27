@@ -1,8 +1,8 @@
-import esbuild from 'esbuild';
-import fs from 'fs/promises';
-import { watch } from 'fs';
-import path from 'path';
 import crypto from 'crypto';
+import esbuild from 'esbuild';
+import { watch } from 'fs';
+import fs from 'fs/promises';
+import path from 'path';
 
 const isDev = process.argv.includes('--watch');
 
@@ -65,7 +65,7 @@ async function postBuild(meta, cspNonce) {
             .replace(/__CSP_NONCE__/g, cspNonce);
 
         await fs.writeFile(path.join('dist', 'index.html'), finalHtml);
-        
+
         // Copy Static Assets (Icon only)
         await safeCopyFile('icon.png', 'dist/icon.png');
 
@@ -98,7 +98,7 @@ async function prepareDevHtml(cspNonce) {
             .replace('__WORKER_PATH__', '/assets/worker.js')
             .replace(/__CSP_NONCE__/g, cspNonce);
         await fs.writeFile('dist/index.html', devHtml, 'utf-8');
-        
+
         // Copy Static Assets (Icon only)
         await safeCopyFile('icon.png', 'dist/icon.png');
 

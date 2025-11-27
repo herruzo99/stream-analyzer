@@ -1,5 +1,5 @@
-import { html } from 'lit-html';
 import * as icons from '@/ui/icons';
+import { html } from 'lit-html';
 import { classMap } from 'lit-html/directives/class-map.js';
 
 export const featureCardTemplate = (feature, onDetailsClick) => {

@@ -1,8 +1,8 @@
-import { useAnalysisStore } from '@/state/analysisStore';
-import { useUiStore } from '@/state/uiStore';
-import { useSegmentCacheStore } from '@/state/segmentCacheStore';
-import { showToast } from '@/ui/components/toast';
 import { createSafeJsonReplacer } from '@/shared/utils/debug';
+import { useAnalysisStore } from '@/state/analysisStore';
+import { useSegmentCacheStore } from '@/state/segmentCacheStore';
+import { useUiStore } from '@/state/uiStore';
+import { showToast } from '@/ui/components/toast';
 
 /**
  * Gathers the current application state, distills it into a concise debug summary,

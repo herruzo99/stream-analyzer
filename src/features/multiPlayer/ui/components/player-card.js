@@ -1,11 +1,11 @@
-import { html, render } from 'lit-html';
-import { useMultiPlayerStore } from '@/state/multiPlayerStore';
-import { multiPlayerService } from '../../application/multiPlayerService';
 import { eventBus } from '@/application/event-bus';
-import { formatPlayerTime } from '@/ui/shared/time-format';
-import * as icons from '@/ui/icons';
-import './metrics-hud.js';
+import { useMultiPlayerStore } from '@/state/multiPlayerStore';
 import { EVENTS } from '@/types/events';
+import * as icons from '@/ui/icons';
+import { formatPlayerTime } from '@/ui/shared/time-format';
+import { html, render } from 'lit-html';
+import { multiPlayerService } from '../../application/multiPlayerService';
+import './metrics-hud.js';
 
 export class PlayerCardComponent extends HTMLElement {
     constructor() {
@@ -37,6 +37,8 @@ export class PlayerCardComponent extends HTMLElement {
 
     disconnectedCallback() {
         if (this.unsubscribe) this.unsubscribe();
+        // Only unbind if we are truly being removed, not just moved.
+        // However, since custom elements don't have a "moved" callback, we rely on the service re-binding if re-mounted.
         multiPlayerService.unbindMediaElement(this.streamId);
     }
 
@@ -84,20 +86,14 @@ export class PlayerCardComponent extends HTMLElement {
 
     _handleSync(e) {
         e.stopPropagation();
-        // Dispatch sync command with this stream ID as the master
         eventBus.dispatch(EVENTS.UI.MP_SYNC_ALL_TO, {
             streamId: this.streamId,
         });
     }
 
     render() {
-        const {
-            players,
-            hoveredStreamId,
-            focusedStreamId,
-            layoutMode,
-            showGlobalHud,
-        } = useMultiPlayerStore.getState();
+        const { players, focusedStreamId, layoutMode, showGlobalHud } =
+            useMultiPlayerStore.getState();
         const player = players.get(this.streamId);
 
         if (!player) {
@@ -105,29 +101,27 @@ export class PlayerCardComponent extends HTMLElement {
             return;
         }
 
+        // Ensure service has player instance
         if (!multiPlayerService.players.has(this.streamId)) {
             multiPlayerService.createAndLoadPlayer(player);
         }
 
         const isSelected = player.selectedForAction;
         const isFocused = focusedStreamId === this.streamId;
-        const isHovered = hoveredStreamId === this.streamId;
         const isRemovable = !player.isBasePlayer;
 
-        // 1. Container Styling
         let borderClasses = 'border-slate-700 hover:border-slate-500';
-        
-        if (isSelected) {
+
+        // Updated visual logic: Purple only if actually in focus layout
+        if (isFocused && layoutMode === 'focus') {
+            borderClasses =
+                'border-purple-500 ring-1 ring-purple-500/50 shadow-lg shadow-purple-900/20';
+        } else if (isSelected) {
             borderClasses = 'border-blue-500 shadow-lg shadow-blue-900/20';
-        } else if (isFocused && layoutMode !== 'focus') {
-            // Only show purple focus border in GRID mode.
-            // In Focus mode, the layout itself indicates focus.
-            borderClasses = 'border-purple-500 ring-1 ring-purple-500/50';
         }
 
         const containerClass = `group relative flex flex-col overflow-hidden rounded-xl bg-slate-950 border-2 transition-all duration-150 h-full w-full ${borderClasses}`;
 
-        // Progress & Buffer logic
         const progressPercent = (player.normalizedPlayheadTime || 0) * 100;
         let bufferPercent = 0;
 
@@ -169,7 +163,7 @@ export class PlayerCardComponent extends HTMLElement {
                 @mouseleave=${this._handleMouseLeave}
                 @click=${this._toggleSelection}
             >
-                <!-- Selection Checkbox (Top Left) -->
+                <!-- Selection Checkbox -->
                 <div class="absolute top-3 left-3 z-30 pointer-events-none">
                     <div
                         class="w-5 h-5 rounded border ${isSelected
@@ -180,7 +174,7 @@ export class PlayerCardComponent extends HTMLElement {
                     </div>
                 </div>
 
-                <!-- Header Controls (Top Right) -->
+                <!-- Header Controls -->
                 <div
                     class="absolute top-3 right-3 z-30 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
                 >
@@ -225,7 +219,7 @@ export class PlayerCardComponent extends HTMLElement {
                         : ''}
                 </div>
 
-                <!-- Stream Name (Top Center-ish) -->
+                <!-- Stream Name -->
                 <div class="absolute top-3 left-10 z-20 pointer-events-none">
                     <span
                         class="text-xs font-bold text-white bg-black/40 backdrop-blur px-2 py-0.5 rounded text-shadow shadow-sm"
@@ -246,8 +240,6 @@ export class PlayerCardComponent extends HTMLElement {
                     ${showGlobalHud && player.isHudVisible
                         ? html`<metrics-hud .data=${player}></metrics-hud>`
                         : ''}
-
-                    <!-- Centered Play Button Overlay -->
                     ${player.state === 'paused' || player.state === 'idle'
                         ? html`
                               <div
@@ -304,7 +296,6 @@ export class PlayerCardComponent extends HTMLElement {
                     </div>
 
                     <div class="flex items-center gap-1">
-                        <!-- Sync Button -->
                         <button
                             @click=${this._handleSync}
                             class="text-slate-500 hover:text-blue-400 transition-colors p-1 rounded hover:bg-white/5"
@@ -313,7 +304,6 @@ export class PlayerCardComponent extends HTMLElement {
                             ${icons.syncMaster}
                         </button>
 
-                        <!-- Volume Button -->
                         <button
                             @click=${() => {
                                 if (videoElement) {

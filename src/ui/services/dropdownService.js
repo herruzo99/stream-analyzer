@@ -1,8 +1,8 @@
-import { render } from 'lit-html';
 import { useAnalysisStore } from '@/state/analysisStore';
-import { useUiStore } from '@/state/uiStore';
 import { useMultiPlayerStore } from '@/state/multiPlayerStore';
 import { useNotificationStore } from '@/state/notificationStore';
+import { useUiStore } from '@/state/uiStore';
+import { render } from 'lit-html';
 
 let dropdownContainer = null;
 let activeDropdowns = [];

@@ -1,12 +1,12 @@
-import { html, render } from 'lit-html';
-import { useUiStore } from '@/state/uiStore';
-import { useAnalysisStore } from '@/state/analysisStore';
 import { eventBus } from '@/application/event-bus';
-import { createFeatureViewModel } from '@/features/featureAnalysis/domain/analyzer';
 import { standardSelectorTemplate } from '@/features/compliance/ui/components/standard-selector';
-import { featureCardTemplate } from './components/feature-card.js';
-import { featureDetailsModalTemplate } from './components/details-modal.js';
+import { createFeatureViewModel } from '@/features/featureAnalysis/domain/analyzer';
+import { useAnalysisStore } from '@/state/analysisStore';
+import { uiActions, useUiStore } from '@/state/uiStore';
 import * as icons from '@/ui/icons';
+import { html, render } from 'lit-html';
+import { featureDetailsModalTemplate } from './components/details-modal.js';
+import { featureCardTemplate } from './components/feature-card.js';
 
 let container = null;
 let uiUnsubscribe = null;
@@ -199,7 +199,6 @@ function renderFeaturesAnalysis() {
                     type="checkbox"
                     .checked=${!comparisonHideUnusedFeatures}
                     @change=${() => {
-                        const uiActions = require('@/state/uiStore').uiActions;
                         uiActions.toggleComparisonHideUnusedFeatures();
                     }}
                     class="rounded bg-slate-700 border-slate-600 text-blue-500 focus:ring-blue-500"
@@ -237,9 +236,10 @@ function renderFeaturesAnalysis() {
         `
     );
 
-    // Fixed: Added 'custom-scrollbar' and ensured overflow-y-auto on root
     const template = html`
-        <div class="flex flex-col h-full overflow-y-auto p-4 sm:p-6 custom-scrollbar pb-20">
+        <div
+            class="flex flex-col h-full overflow-y-auto p-4 sm:p-6 custom-scrollbar pb-20"
+        >
             <!-- Header Dashboard -->
             <div class="flex flex-col xl:flex-row gap-6 mb-8 shrink-0">
                 ${scoreWidget}

@@ -1,6 +1,6 @@
+import { validateCmafProfiles } from './profile-validator.js';
 import { cmafTrackRules } from './rules.js';
 import { compareBoxes } from './utils.js';
-import { validateCmafProfiles } from './profile-validator.js';
 
 // Configuration for CMAF Switching Set validation based on ISO/IEC 23000-19:2020(E), Table 11.
 // The `stsd` check now ignores child sample entries like `avc1` because fields like resolution are allowed to differ.

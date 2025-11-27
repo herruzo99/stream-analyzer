@@ -1,7 +1,6 @@
-import { html, render } from 'lit-html';
-import { classMap } from 'lit-html/directives/class-map.js';
 import * as icons from '@/ui/icons';
-import { highlightHls, highlightDash } from '@/ui/shared/syntax-highlighter';
+import { highlightHls } from '@/ui/shared/syntax-highlighter';
+import { html, render } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 
 export class ComplianceIssueList extends HTMLElement {

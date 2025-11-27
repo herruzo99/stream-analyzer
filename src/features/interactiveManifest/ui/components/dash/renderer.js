@@ -1,7 +1,7 @@
+import { isDebugMode } from '@/shared/utils/env';
+import '@/ui/components/virtualized-list';
 import { html } from 'lit-html';
 import { renderSmartToken } from '../smart-tokens.js';
-import '@/ui/components/virtualized-list';
-import { isDebugMode } from '@/shared/utils/env';
 
 export const flattenManifest = (
     node,

@@ -1,10 +1,6 @@
-import { html } from 'lit-html';
-import { classMap } from 'lit-html/directives/class-map.js';
-import { getTooltipData } from '@/infrastructure/parsing/isobmff/index';
 import { uiActions, useUiStore } from '@/state/uiStore';
 import * as icons from '@/ui/icons';
-
-const tooltips = getTooltipData();
+import { html } from 'lit-html';
 
 const formatFieldValue = (val) => {
     if (val === null || val === undefined) return 'null';

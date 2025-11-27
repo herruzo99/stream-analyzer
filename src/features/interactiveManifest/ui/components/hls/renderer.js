@@ -1,6 +1,6 @@
+import '@/ui/components/virtualized-list';
 import { html } from 'lit-html';
 import { renderSmartToken } from '../smart-tokens.js';
-import '@/ui/components/virtualized-list';
 
 const parseHlsLine = (line) => {
     const trimmed = line.trim();
@@ -45,7 +45,6 @@ const renderLine = (
     );
     const path = `L${item.lineNumber}`;
 
-    const isHovered = hoveredItem && hoveredItem.path === path;
     const isSelected = selectedItem && selectedItem.path === path;
 
     let lineContent;
@@ -69,8 +68,7 @@ const renderLine = (
                     ><span class="text-purple-300 font-bold">${name}</span>
                     ${value
                         ? html`<span class="text-slate-400">:</span
-                              ><span
-                                  class="text-yellow-200/90 whitespace-pre"
+                              ><span class="text-yellow-200/90 whitespace-pre"
                                   >${value}</span
                               >`
                         : ''}
@@ -95,9 +93,7 @@ const renderLine = (
                     ><span class="text-purple-300 font-bold">${name}</span
                     ><span class="text-slate-400">:</span>
                 </span>
-                <div
-                    class="inline-flex gap-x-1 gap-y-0.5 ml-2 align-baseline"
-                >
+                <div class="inline-flex gap-x-1 gap-y-0.5 ml-2 align-baseline">
                     ${attributes.map((attr, i) => {
                         const attrKey = `${name}@${attr.key}`;
                         const attrPath = `${path}@${attr.key}`;
@@ -128,10 +124,18 @@ const renderLine = (
         `;
     } else if (type === 'comment') {
         // FIX: Collapsed template literal to avoid extra whitespace in whitespace-pre container
-        lineContent = html`<div class="${baseClass} text-slate-500 italic whitespace-pre leading-relaxed">${content}</div>`;
+        lineContent = html`<div
+            class="${baseClass} text-slate-500 italic whitespace-pre leading-relaxed"
+        >
+            ${content}
+        </div>`;
     } else if (type === 'uri') {
         // FIX: Collapsed template literal to avoid extra whitespace in whitespace-pre container
-        lineContent = html`<div class="${baseClass} text-cyan-300/90 whitespace-pre leading-relaxed">${content}</div>`;
+        lineContent = html`<div
+            class="${baseClass} text-cyan-300/90 whitespace-pre leading-relaxed"
+        >
+            ${content}
+        </div>`;
     } else {
         lineContent = html`<div class="${baseClass}"></div>`;
     }

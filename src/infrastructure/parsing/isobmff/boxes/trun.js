@@ -1,5 +1,5 @@
-import { BoxParser } from '../utils.js';
 import { decodeSampleFlags } from '../sample-flags.js';
+import { BoxParser } from '../utils.js';
 
 const TRUN_FLAGS_SCHEMA = {
     0x000001: 'data_offset_present',

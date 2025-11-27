@@ -1,6 +1,6 @@
-import { html } from 'lit-html';
-import { formatBitrate } from '@/ui/shared/format';
 import * as icons from '@/ui/icons';
+import { formatBitrate } from '@/ui/shared/format';
+import { html } from 'lit-html';
 
 export const mediaPlaylistCardTemplate = (item, stream, type) => {
     const isVariant = !!item.attributes; // Differentiate Variant vs Media Tag

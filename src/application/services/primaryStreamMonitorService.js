@@ -1,10 +1,10 @@
 import { eventBus } from '@/application/event-bus';
-import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
+import { playerService } from '@/features/playerSimulation/application/playerService';
 import { workerService } from '@/infrastructure/worker/workerService';
 import { appLog } from '@/shared/utils/debug';
-import { playerService } from '@/features/playerSimulation/application/playerService';
-import { useUiStore } from '@/state/uiStore';
+import { analysisActions, useAnalysisStore } from '@/state/analysisStore';
 import { useMultiPlayerStore } from '@/state/multiPlayerStore';
+import { useUiStore } from '@/state/uiStore';
 import { EVENTS } from '@/types/events';
 
 const pollers = new Map();

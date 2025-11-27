@@ -1,7 +1,7 @@
-import { html } from 'lit-html';
 import { useNetworkStore } from '@/state/networkStore';
-import { waterfallRowTemplate } from './waterfall-row.js';
 import '@/ui/components/virtualized-list';
+import { html } from 'lit-html';
+import { waterfallRowTemplate } from './waterfall-row.js';
 
 export const waterfallChartTemplate = (waterfallData) => {
     const { selectedEventId } = useNetworkStore.getState();

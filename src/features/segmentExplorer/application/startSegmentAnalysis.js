@@ -1,9 +1,9 @@
 import { eventBus } from '@/application/event-bus';
-import { analysisActions } from '@/state/analysisStore';
-import { uiActions } from '@/state/uiStore';
 import { workerService } from '@/infrastructure/worker/workerService';
 import { appLog } from '@/shared/utils/debug';
+import { analysisActions } from '@/state/analysisStore';
 import { useSegmentCacheStore } from '@/state/segmentCacheStore';
+import { uiActions } from '@/state/uiStore';
 
 /**
  * Orchestrates the business logic of starting a new analysis directly from segment files.

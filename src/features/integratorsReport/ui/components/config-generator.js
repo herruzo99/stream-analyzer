@@ -1,6 +1,6 @@
-import { html } from 'lit-html';
-import { copyTextToClipboard } from '@/ui/shared/clipboard';
 import * as icons from '@/ui/icons';
+import { copyTextToClipboard } from '@/ui/shared/clipboard';
+import { html } from 'lit-html';
 
 export const configGeneratorTemplate = (configObject) => {
     const jsonString = JSON.stringify(configObject, null, 2);

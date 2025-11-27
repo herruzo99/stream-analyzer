@@ -1,5 +1,5 @@
-import { isDebugMode } from '@/shared/utils/env';
 import { appLog } from '@/shared/utils/debug';
+import { isDebugMode } from '@/shared/utils/env';
 import { useSegmentCacheStore } from '@/state/segmentCacheStore';
 import { EVENTS } from '@/types/events';
 

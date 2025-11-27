@@ -1,15 +1,15 @@
-import { html } from 'lit-html';
-import { closeDropdown } from '@/ui/services/dropdownService';
-import { formatBitrate } from '@/ui/shared/format';
 import { eventBus } from '@/application/event-bus';
 import { useMultiPlayerStore } from '@/state/multiPlayerStore';
 import * as icons from '@/ui/icons';
+import { closeDropdown } from '@/ui/services/dropdownService';
+import { formatBitrate } from '@/ui/shared/format';
+import { html } from 'lit-html';
 
 // Re-export shared templates for use within the feature
 export {
-    videoSelectionPanelTemplate,
     audioSelectionPanelTemplate,
     textSelectionPanelTemplate,
+    videoSelectionPanelTemplate,
 } from '@/features/playerSimulation/ui/components/track-selection-dropdown.js';
 
 export const virtualTrackDropdownTemplate = () => {

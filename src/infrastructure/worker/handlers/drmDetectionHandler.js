@@ -1,6 +1,6 @@
-import { fetchWithAuth } from '../http.js';
-import { getDrmSystemName } from '../../parsing/utils/drm.js';
 import { appLog } from '../../../shared/utils/debug.js';
+import { getDrmSystemName } from '../../parsing/utils/drm.js';
+import { fetchWithAuth } from '../http.js';
 
 /**
  * Parses attributes from an HLS tag line.

@@ -1,6 +1,6 @@
-import { createStore } from 'zustand/vanilla';
 import { eventBus } from '@/application/event-bus';
 import { EVENTS } from '@/types/events';
+import { createStore } from 'zustand/vanilla';
 
 const SETTINGS_KEY = 'stream-analyzer_notification_settings';
 

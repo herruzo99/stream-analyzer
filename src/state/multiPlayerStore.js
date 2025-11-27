@@ -1,54 +1,5 @@
 import { createStore } from 'zustand/vanilla';
 
-// ... (Keep existing typedefs) ...
-
-/** @typedef {import('@/types.ts').PlayerStats} PlayerStats */
-/** @typedef {{time: number, buffer: number}} PlaybackHistoryEntry */
-/** @typedef {'healthy' | 'warning' | 'critical'} PlayerHealth */
-/** @typedef {{ id: string, timestamp: Date, streamId: number, streamName: string, type: 'stall' | 'error' | 'dropped-frames', details: string, severity: 'warning' | 'critical' }} PlayerEvent */
-
-/**
- * @typedef {object} PlayerInstance
- * @property {number} streamId
- * @property {number} sourceStreamId
- * @property {string} streamName
- * @property {string | null} manifestUrl
- * @property {'live' | 'vod'} streamType
- * @property {'idle' | 'loading' | 'playing' | 'paused' | 'buffering' | 'ended' | 'error'} state
- * @property {string | null} error
- * @property {PlayerStats} stats
- * @property {PlaybackHistoryEntry[]} playbackHistory
- * @property {PlayerHealth} health
- * @property {boolean} selectedForAction
- * @property {boolean | null} abrOverride
- * @property {number | null} maxHeightOverride
- * @property {number | null} bufferingGoalOverride
- * @property {{currentTime: number, paused: boolean} | null} initialState
- * @property {object[]} variantTracks
- * @property {object[]} audioTracks
- * @property {object[]} textTracks
- * @property {object | null} activeVideoTrack
- * @property {{start: number, end: number}} seekableRange
- * @property {number} normalizedPlayheadTime
- * @property {number} retryCount
- * @property {boolean} isHudVisible
- * @property {boolean} isBasePlayer
- */
-
-/**
- * @typedef {object} MultiPlayerState
- * @property {Map<number, PlayerInstance>} players
- * @property {boolean} isMutedAll
- * @property {boolean} isAutoResetEnabled
- * @property {PlayerEvent[]} eventLog
- * @property {number} streamIdCounter
- * @property {number | null} hoveredStreamId
- * @property {'grid' | 'focus'} layoutMode
- * @property {'auto' | 1 | 2 | 3 | 4 | 5} gridColumns
- * @property {number | null} focusedStreamId
- * @property {boolean} showGlobalHud
- */
-
 const defaultStats = {
     playheadTime: 0,
     manifestTime: 0,
@@ -70,7 +21,7 @@ const defaultStats = {
     session: { totalPlayTime: 0, totalBufferingTime: 0 },
 };
 
-/** @returns {MultiPlayerState} */
+/** @returns {import('@/types').MultiPlayerState} */
 const createInitialState = () => ({
     players: new Map(),
     isMutedAll: true,
@@ -106,7 +57,7 @@ export const useMultiPlayerStore = createStore((set, get) => ({
                 stats: defaultStats,
                 playbackHistory: [],
                 health: 'healthy',
-                selectedForAction: false, // Default to false for explicit selection
+                selectedForAction: true, // Default to TRUE as requested
                 abrOverride: null,
                 maxHeightOverride: null,
                 bufferingGoalOverride: null,
@@ -119,7 +70,7 @@ export const useMultiPlayerStore = createStore((set, get) => ({
                 normalizedPlayheadTime: 0,
                 retryCount: 0,
                 isHudVisible: true,
-                isBasePlayer: true, // Initial streams are base players
+                isBasePlayer: true,
             });
         }
         set({
@@ -143,7 +94,7 @@ export const useMultiPlayerStore = createStore((set, get) => ({
                 stats: defaultStats,
                 playbackHistory: [],
                 health: 'healthy',
-                selectedForAction: true, // Auto-select newly added
+                selectedForAction: true, // Default to TRUE
                 abrOverride: null,
                 maxHeightOverride: null,
                 bufferingGoalOverride: null,
@@ -156,7 +107,7 @@ export const useMultiPlayerStore = createStore((set, get) => ({
                 normalizedPlayheadTime: 0,
                 retryCount: 0,
                 isHudVisible: true,
-                isBasePlayer: true, // Added via Add Stream is a base player
+                isBasePlayer: true,
             });
             return {
                 players: newPlayers,
@@ -321,8 +272,13 @@ export const useMultiPlayerStore = createStore((set, get) => ({
 
     setLayoutMode: (mode) => set({ layoutMode: mode }),
     setGridColumns: (columns) => set({ gridColumns: columns }),
+
     setFocusedStreamId: (id) =>
-        set({ focusedStreamId: id, layoutMode: id ? 'focus' : 'grid' }),
+        set({
+            focusedStreamId: id,
+            layoutMode: id !== null ? 'focus' : 'grid',
+        }),
+
     toggleGlobalHud: () =>
         set((state) => ({ showGlobalHud: !state.showGlobalHud })),
     togglePlayerHud: (streamId) =>

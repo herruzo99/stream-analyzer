@@ -1,5 +1,5 @@
 import { getDrmSystemName } from '@/infrastructure/parsing/utils/drm';
-import { getAttr, findChildrenRecursive } from '../utils/recursive-parser.js';
+import { findChildrenRecursive, getAttr } from '../utils/recursive-parser.js';
 
 /**
  * @typedef {object} FeatureCheckResult

@@ -1,7 +1,7 @@
-import { showToast } from '@/ui/components/toast';
 import { workerService } from '@/infrastructure/worker/workerService';
-import { uiActions } from '@/state/uiStore';
 import { useAnalysisStore } from '@/state/analysisStore';
+import { uiActions } from '@/state/uiStore';
+import { showToast } from '@/ui/components/toast';
 
 const HISTORY_KEY = 'stream-analyzer_history';
 const PRESETS_KEY = 'stream-analyzer_presets';

@@ -1,9 +1,9 @@
 import {
-    useNotificationStore,
     notificationActions,
+    useNotificationStore,
 } from '@/state/notificationStore';
-import { eventBus } from '../event-bus';
 import { EVENTS } from '@/types/events';
+import { eventBus } from '../event-bus';
 
 class NotificationService {
     constructor() {

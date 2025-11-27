@@ -1,7 +1,7 @@
-import { html } from 'lit-html';
-import { copyTextToClipboard } from '@/ui/shared/clipboard';
-import * as icons from '@/ui/icons';
 import { getDrmSystemName } from '@/infrastructure/parsing/utils/drm';
+import * as icons from '@/ui/icons';
+import { copyTextToClipboard } from '@/ui/shared/clipboard';
+import { html } from 'lit-html';
 
 export const heroHeaderTemplate = (vm) => {
     const { hero } = vm;
@@ -69,7 +69,10 @@ export const heroHeaderTemplate = (vm) => {
                                 @click=${handleCopy}
                                 class="flex items-center gap-1 text-xs text-slate-400 hover:text-white transition-colors font-mono bg-slate-900/50 px-2 py-0.5 rounded border border-slate-700/50 max-w-full overflow-hidden"
                             >
-                                <span class="truncate max-w-[150px] sm:max-w-[300px]">${hero.url}</span>
+                                <span
+                                    class="truncate max-w-[150px] sm:max-w-[300px]"
+                                    >${hero.url}</span
+                                >
                                 ${icons.clipboardCopy}
                             </button>
                         </div>
@@ -78,7 +81,9 @@ export const heroHeaderTemplate = (vm) => {
 
                 <div class="flex flex-col items-end gap-2 w-full md:w-auto">
                     ${hero.isEncrypted
-                        ? html`<div class="flex flex-wrap gap-2 justify-start md:justify-end w-full">
+                        ? html`<div
+                              class="flex flex-wrap gap-2 justify-start md:justify-end w-full"
+                          >
                               ${drmBadges}
                           </div>`
                         : html`<span

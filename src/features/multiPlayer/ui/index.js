@@ -1,13 +1,11 @@
 import { html, render } from 'lit-html';
-import { useMultiPlayerStore } from '@/state/multiPlayerStore';
 import { multiPlayerService } from '../application/multiPlayerService';
 
 // Import Components
-import './components/player-grid.js';
 import './components/multi-player-bottom-panel.js';
+import './components/player-grid.js';
 
 let container = null;
-let unsubMultiPlayer = null;
 
 function renderMultiPlayerView() {
     if (!container) return;

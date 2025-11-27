@@ -1,5 +1,5 @@
-import { createStore } from 'zustand/vanilla';
 import { appLog } from '@/shared/utils/debug';
+import { createStore } from 'zustand/vanilla';
 
 /** @typedef {import('@/types').NetworkEvent} NetworkEvent */
 /** @typedef {import('@/types').ResourceType | 'all'} ResourceFilterType */

@@ -1,14 +1,14 @@
 import { parseDuration } from '@/shared/utils/time';
-import {
-    getAttr,
-    findChildren,
-    getInheritedElement,
-    resolveBaseUrl,
-} from '../utils/recursive-parser.js';
-import { getDrmSystemName } from '../utils/drm.js';
 import { fetchWithAuth } from '../../worker/http.js';
 import { parseISOBMFF } from '../isobmff/parser.js';
 import { findBoxRecursive } from '../isobmff/utils.js';
+import { getDrmSystemName } from '../utils/drm.js';
+import {
+    findChildren,
+    getAttr,
+    getInheritedElement,
+    resolveBaseUrl,
+} from '../utils/recursive-parser.js';
 
 /**
  * Creates a single MediaSegment object from a URL using template information.

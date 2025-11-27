@@ -1,11 +1,11 @@
-import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
-import { useUiStore, uiActions } from '@/state/uiStore';
 import { eventBus } from '@/application/event-bus';
-import { EVENTS } from '@/types/events';
 import {
     prepareForStorage,
     restoreFromStorage,
 } from '@/infrastructure/persistence/streamStorage';
+import { analysisActions, useAnalysisStore } from '@/state/analysisStore';
+import { uiActions, useUiStore } from '@/state/uiStore';
+import { EVENTS } from '@/types/events';
 
 /**
  * @typedef {import('@/state/analysisStore').StreamInput} StreamInput

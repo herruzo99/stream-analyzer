@@ -1,13 +1,12 @@
-import { html } from 'lit-html';
-import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
-import { useUiStore, uiActions } from '@/state/uiStore';
-import { eventBus } from '@/application/event-bus';
-import { toggleAllPolling } from '@/ui/services/streamActionsService';
-import { toggleDropdown, closeDropdown } from '@/ui/services/dropdownService';
+import { formattedOptionsDropdownTemplate } from '@/features/playerSimulation/ui/components/formatted-options-dropdown.js';
 import { dashFeatureDefinitions } from '@/infrastructure/parsing/dash/feature-definitions';
 import { hlsFeatureDefinitions } from '@/infrastructure/parsing/hls/feature-definitions';
+import { analysisActions, useAnalysisStore } from '@/state/analysisStore';
+import { uiActions, useUiStore } from '@/state/uiStore';
 import * as icons from '@/ui/icons';
-import { formattedOptionsDropdownTemplate } from '@/features/playerSimulation/ui/components/formatted-options-dropdown.js';
+import { closeDropdown, toggleDropdown } from '@/ui/services/dropdownService';
+import { toggleAllPolling } from '@/ui/services/streamActionsService';
+import { html } from 'lit-html';
 import { segmentPollingSelectorTemplate } from './segment-polling-selector';
 
 const INACTIVITY_TIMEOUT_OPTIONS = [

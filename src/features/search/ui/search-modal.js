@@ -1,9 +1,9 @@
-import { html, render } from 'lit-html';
-import { uiActions } from '@/state/uiStore';
-import { useAnalysisStore } from '@/state/analysisStore';
 import { eventBus } from '@/application/event-bus';
-import { searchManifest } from '../domain/searchEngine';
+import { useAnalysisStore } from '@/state/analysisStore';
+import { uiActions } from '@/state/uiStore';
 import * as icons from '@/ui/icons';
+import { html, render } from 'lit-html';
+import { searchManifest } from '../domain/searchEngine';
 
 class SearchModal extends HTMLElement {
     constructor() {

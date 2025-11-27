@@ -1,7 +1,7 @@
-import { html, render } from 'lit-html';
 import { eventBus } from '@/application/event-bus';
-import { parsePsshString } from '../domain/pssh-parser';
 import * as icons from '@/ui/icons';
+import { html, render } from 'lit-html';
+import { parsePsshString } from '../domain/pssh-parser';
 
 class DrmInspectorModal extends HTMLElement {
     constructor() {

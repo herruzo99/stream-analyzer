@@ -1,6 +1,6 @@
-import { html } from 'lit-html';
-import { formatBitrate } from '@/ui/shared/format';
 import * as icons from '@/ui/icons';
+import { formatBitrate } from '@/ui/shared/format';
+import { html } from 'lit-html';
 
 const chip = (text, color = 'bg-slate-700 text-slate-300') => html`
     <span

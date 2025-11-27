@@ -6,8 +6,8 @@
  * @typedef {import('@/types.ts').CodecInfo} CodecInfo
  */
 
-import { isCodecSupported } from '../utils/codec-support.js';
 import { getDrmSystemName } from '@/infrastructure/parsing/utils/drm.js';
+import { isCodecSupported } from '../utils/codec-support.js';
 import { determineSegmentFormat } from '../utils/media-types.js';
 
 const isAudioCodec = (codecString) => {
@@ -114,7 +114,7 @@ export async function generateHlsSummary(manifestIR, context) {
                 });
             } else if (rep.serializedManifest?.attributes?.RESOLUTION) {
                 resolutions.push(
-                    /** @type {import('@/types.ts').SourcedData<string>} */({
+                    /** @type {import('@/types.ts').SourcedData<string>} */ ({
                         value: rep.serializedManifest.attributes.RESOLUTION,
                         source: 'manifest',
                     })
@@ -176,28 +176,28 @@ export async function generateHlsSummary(manifestIR, context) {
     const textTracks = allTextAdaptationSets.map((as) => {
         const mimeTypes =
             as.representations[0]?.codecs?.[0]?.value ||
-                as.representations[0]?.mimeType
+            as.representations[0]?.mimeType
                 ? [
-                    {
-                        value:
-                            as.representations[0].codecs?.[0]?.value ||
-                            as.representations[0].mimeType,
-                        source: as.representations[0].codecs?.[0]
-                            ? 'manifest'
-                            : 'mimeType',
-                    },
-                ]
+                      {
+                          value:
+                              as.representations[0].codecs?.[0]?.value ||
+                              as.representations[0].mimeType,
+                          source: as.representations[0].codecs?.[0]
+                              ? 'manifest'
+                              : 'mimeType',
+                      },
+                  ]
                 : [];
         return {
             id: as.stableRenditionId || as.id,
             lang: as.lang,
             codecsOrMimeTypes: mimeTypes.map(
                 (v) =>
-                    /** @type {import('@/types.ts').CodecInfo} */({
-                    value: v.value,
-                    source: v.source,
-                    supported: isCodecSupported(v.value),
-                })
+                    /** @type {import('@/types.ts').CodecInfo} */ ({
+                        value: v.value,
+                        source: v.source,
+                        supported: isCodecSupported(v.value),
+                    })
             ),
             isDefault:
                 /** @type {any} */ (as.serializedManifest).value?.DEFAULT ===
@@ -208,7 +208,7 @@ export async function generateHlsSummary(manifestIR, context) {
     });
 
     const parsedKeyTags = Array.from(allKeyTags).map((tagStr) =>
-        JSON.parse(/** @type {string} */(tagStr))
+        JSON.parse(/** @type {string} */ (tagStr))
     );
     const contentProtectionIRs = parsedKeyTags
         .filter((value) => value.METHOD && value.METHOD !== 'NONE')
@@ -226,10 +226,10 @@ export async function generateHlsSummary(manifestIR, context) {
         isEncrypted: contentProtectionIRs.length > 0,
         systems: contentProtectionIRs.map(
             (cp) =>
-                /** @type {import('@/types').PsshInfo} */({
-                systemId: cp.schemeIdUri,
-                kids: cp.defaultKid ? [cp.defaultKid] : [],
-            })
+                /** @type {import('@/types').PsshInfo} */ ({
+                    systemId: cp.schemeIdUri,
+                    kids: cp.defaultKid ? [cp.defaultKid] : [],
+                })
         ),
         kids: [
             ...new Set(
@@ -281,7 +281,8 @@ export async function generateHlsSummary(manifestIR, context) {
     }
 
     // Correctly cast rawElement to any before accessing internal HLS properties
-    const iFramePlaylists = (/** @type {any} */ (rawElement)).iframeStreams?.length || 0;
+    const iFramePlaylists =
+        /** @type {any} */ (rawElement).iframeStreams?.length || 0;
 
     const periodSummaries = manifestIR.periods.map((period) => ({
         id: period.id,

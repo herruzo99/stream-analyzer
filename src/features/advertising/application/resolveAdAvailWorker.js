@@ -1,6 +1,6 @@
+import { AdCreative } from '@/features/advertising/domain/AdCreative';
 import { fetchWithRetry } from '@/infrastructure/http/fetch';
 import { parseVast } from '@/infrastructure/parsing/ads/vast-parser';
-import { AdCreative } from '@/features/advertising/domain/AdCreative';
 
 /**
  * A list of common filenames for VAST or VMAP manifests.

@@ -1,7 +1,7 @@
-import { html } from 'lit-html';
-import { formatBitrate } from '@/ui/shared/format';
 import { statCardTemplate } from '@/features/summary/ui/components/shared';
 import * as icons from '@/ui/icons';
+import { formatBitrate } from '@/ui/shared/format';
+import { html } from 'lit-html';
 
 export const summaryCardsTemplate = (summary) => {
     const errorRate =

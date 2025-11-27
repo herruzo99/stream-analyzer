@@ -1,9 +1,9 @@
-import { html } from 'lit-html';
 import { analysisActions } from '@/state/analysisStore';
-import { toggleDropdown, closeDropdown } from '@/ui/services/dropdownService';
-import { copyTextToClipboard } from '@/ui/shared/clipboard';
-import { openModalWithContent } from '@/ui/services/modalService';
 import * as icons from '@/ui/icons';
+import { closeDropdown, toggleDropdown } from '@/ui/services/dropdownService';
+import { openModalWithContent } from '@/ui/services/modalService';
+import { copyTextToClipboard } from '@/ui/shared/clipboard';
+import { html } from 'lit-html';
 
 const streamOptionTemplate = (stream, isActive) => {
     const isLive = stream.manifest?.type === 'dynamic';

@@ -1,5 +1,5 @@
-import { adaptHlsToIr } from './adapter.js';
 import { appLog } from '@/shared/utils/debug';
+import { adaptHlsToIr } from './adapter.js';
 
 // ... (parseAttributeList, resolveKeyUri, applyVariableSubstitution, finalizeCurrentSegment remain unchanged) ...
 export function parseAttributeList(attrString) {
@@ -561,10 +561,11 @@ export async function parseManifest(
                 case 'EXT-X-TARGETDURATION':
                     parsed.targetDuration = parseInt(String(tagValue), 10);
                     break;
-                case 'EXT-X-MEDIA-SEQUENCE':
+                case 'EXT-X-MEDIA-SEQUENCE': {
                     const parsedSeq = parseInt(String(tagValue), 10);
                     parsed.mediaSequence = isNaN(parsedSeq) ? 0 : parsedSeq;
                     break;
+                }
                 case 'EXT-X-PLAYLIST-TYPE':
                     parsed.playlistType = String(tagValue);
                     break;
@@ -637,7 +638,7 @@ export async function parseManifest(
     }
 
     if (currentSegment) {
-        const { finalizedSegment, nextRangeState } = finalizeCurrentSegment(
+        const { finalizedSegment, _nextRangeState } = finalizeCurrentSegment(
             currentSegment,
             currentByteRange,
             lastSeenUri,

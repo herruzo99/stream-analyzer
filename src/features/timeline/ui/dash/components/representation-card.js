@@ -1,11 +1,11 @@
-import { html } from 'lit-html';
-import { timingInfoTemplate } from './timing-info.js';
+import {
+    findChildren,
+    getInheritedElement,
+} from '@/infrastructure/parsing/utils/recursive-parser.js';
 import * as icons from '@/ui/icons';
 import { formatBitrate } from '@/ui/shared/format';
-import {
-    getInheritedElement,
-    findChildren,
-} from '@/infrastructure/parsing/utils/recursive-parser.js';
+import { html } from 'lit-html';
+import { timingInfoTemplate } from './timing-info.js';
 
 const getSegmentStrategy = (rep, as, period) => {
     const hierarchy = [

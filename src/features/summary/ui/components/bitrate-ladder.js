@@ -1,6 +1,6 @@
-import { html } from 'lit-html';
 import { renderChart } from '@/ui/shared/charts/chart-renderer';
 import { formatBitrate } from '@/ui/shared/format';
+import { html } from 'lit-html';
 
 class BitrateLadderComponent extends HTMLElement {
     constructor() {

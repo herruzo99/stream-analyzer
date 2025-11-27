@@ -1,7 +1,7 @@
-import { html } from 'lit-html';
-import { scte35DetailsTemplate } from '@/ui/shared/scte35-details';
-import { copyTextToClipboard } from '@/ui/shared/clipboard';
 import * as icons from '@/ui/icons';
+import { copyTextToClipboard } from '@/ui/shared/clipboard';
+import { scte35DetailsTemplate } from '@/ui/shared/scte35-details';
+import { html } from 'lit-html';
 
 const creativeItem = (creative, idx) => html`
     <div class="bg-slate-950 rounded-lg border border-slate-800 p-3 mb-2">

@@ -1,21 +1,21 @@
-import { parseManifest as parseDashManifest } from '../../parsing/dash/parser.js';
-import { parseManifest as parseHlsManifest } from '../../parsing/hls/index.js';
-import { generateDashSummary } from '../../parsing/dash/summary-generator.js';
-import { generateHlsSummary } from '../../parsing/hls/summary-generator.js';
 import { runChecks } from '../../../features/compliance/domain/engine.js';
 import { validateSteeringManifest } from '../../../features/compliance/domain/hls/steering-validator.js';
+import { generateFeatureAnalysis } from '../../../features/featureAnalysis/domain/analyzer.js';
 import {
     analyzeDashCoverage,
     analyzeParserDrift,
 } from '../../../features/parserCoverage/domain/coverage-analyzer.js';
-import { generateFeatureAnalysis } from '../../../features/featureAnalysis/domain/analyzer.js';
+import { parseManifest as parseDashManifest } from '../../parsing/dash/parser.js';
 import { parseAllSegmentUrls as parseDashSegments } from '../../parsing/dash/segment-parser.js';
+import { generateDashSummary } from '../../parsing/dash/summary-generator.js';
+import { parseManifest as parseHlsManifest } from '../../parsing/hls/index.js';
+import { generateHlsSummary } from '../../parsing/hls/summary-generator.js';
 
-import { handleParseSegmentStructure } from '../parsingService.js';
-import { fetchWithAuth } from '../http.js';
 import xmlFormatter from 'xml-formatter';
-import { appLog } from '../../../shared/utils/debug.js';
 import { resolveAdAvailsInWorker } from '../../../features/advertising/application/resolveAdAvailWorker.js';
+import { appLog } from '../../../shared/utils/debug.js';
+import { fetchWithAuth } from '../http.js';
+import { handleParseSegmentStructure } from '../parsingService.js';
 
 const SCTE35_SCHEME_ID = 'urn:scte:scte35:2013:bin';
 

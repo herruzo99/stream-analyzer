@@ -1,10 +1,10 @@
+import { statCardTemplate } from '@/features/summary/ui/components/shared';
+import { useAnalysisStore } from '@/state/analysisStore';
+import * as icons from '@/ui/icons';
+import { copyTextToClipboard } from '@/ui/shared/clipboard';
+import { highlightDash, highlightHls } from '@/ui/shared/syntax-highlighter';
 import { html, render } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
-import { useAnalysisStore } from '@/state/analysisStore';
-import { highlightDash, highlightHls } from '@/ui/shared/syntax-highlighter';
-import { copyTextToClipboard } from '@/ui/shared/clipboard';
-import { statCardTemplate } from '@/features/summary/ui/components/shared';
-import * as icons from '@/ui/icons';
 
 let container = null;
 let currentStreamId = null;

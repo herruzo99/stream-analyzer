@@ -12,7 +12,7 @@ function toAbsolute(relative, base) {
     }
     try {
         return new URL(relative, base).href;
-    } catch (e) {
+    } catch (_e) {
         return relative; // Fallback
     }
 }

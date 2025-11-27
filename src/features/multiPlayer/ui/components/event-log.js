@@ -1,6 +1,6 @@
-import { html, render } from 'lit-html';
-import { useMultiPlayerStore } from '@/state/multiPlayerStore';
 import { eventBus } from '@/application/event-bus';
+import { useMultiPlayerStore } from '@/state/multiPlayerStore';
+import { html, render } from 'lit-html';
 
 class EventLogComponent extends HTMLElement {
     constructor() {

@@ -1,17 +1,30 @@
 import { fetchWithRetry } from '../http/fetch.js';
-import { appLog } from '../../shared/utils/debug.js';
 
 /**
- * Executes a fetch request, applying authentication parameters.
- * @param {string} url The URL to fetch.
- * @param {import('@/types').AuthInfo} [auth] Optional authentication parameters.
- * @param {string} [range=null] Optional byte range string.
- * @param {Record<string, string>} [extraHeaders={}] Additional headers from Shaka.
- * @param {BodyInit | null} [body=null] Request body.
- * @param {AbortSignal} [signal=null] An AbortSignal.
- * @param {object} [loggingContext={}] Optional context for logging.
- * @param {string} [method=null] Explicit HTTP method.
+ * Helper to clone and read a body for logging without consuming the original if possible,
+ * or managing the double-read.
+ * @param {BodyInit | Response} source
+ * @returns {Promise<ArrayBuffer | string | null>}
  */
+async function captureBody(source) {
+    try {
+        if (typeof source === 'string') return source;
+        if (source instanceof ArrayBuffer) return source.slice(0);
+        if (ArrayBuffer.isView(source))
+            return source.buffer.slice(
+                source.byteOffset,
+                source.byteOffset + source.byteLength
+            );
+        if (source instanceof Response) {
+            // Clone to avoid consuming the stream meant for the caller
+            return await source.clone().arrayBuffer();
+        }
+        return null;
+    } catch (_e) {
+        return null;
+    }
+}
+
 export async function fetchWithAuth(
     url,
     auth,
@@ -23,32 +36,24 @@ export async function fetchWithAuth(
     method = null
 ) {
     const initialUrl = new URL(url);
-
-    // FAILSAFE: Handle explicit null passed for loggingContext
     const safeLoggingContext = loggingContext || {};
 
-    // Merge headers: extraHeaders (from Shaka) take precedence over auth headers
     const headers = new Headers();
 
-    // 1. Apply Auth Headers
     if (auth && auth.headers) {
         auth.headers.forEach((param) => {
             if (param.key) headers.append(param.key, param.value);
         });
     }
 
-    // 2. Apply Shaka Headers (e.g. Content-Type, Range, License headers)
     for (const [key, value] of Object.entries(extraHeaders || {})) {
         headers.set(key, value);
     }
 
-    // 3. Apply Range Param (if not already in extraHeaders)
     if (range && !headers.has('Range')) {
         headers.set('Range', `bytes=${range}`);
     }
 
-    // 4. FIX: Auto-detect Content-Type for binary uploads if missing
-    // Browsers do not set Content-Type for ArrayBuffer bodies automatically.
     const effectiveMethod = method || (body ? 'POST' : 'GET');
     if (
         body &&
@@ -59,7 +64,6 @@ export async function fetchWithAuth(
         headers.set('Content-Type', 'application/octet-stream');
     }
 
-    // 5. Apply Query Params
     if (auth && auth.queryParams) {
         auth.queryParams.forEach((param) => {
             if (param.key)
@@ -77,24 +81,29 @@ export async function fetchWithAuth(
         signal,
     };
 
-    appLog(
-        'worker.fetchWithAuth',
-        'info',
-        `Fetching: ${initialUrl.href} [${options.method}]`,
-        {
-            headers: Object.fromEntries(headers.entries()),
-            bodySize: body
-                ? /** @type {any} */ (body).byteLength ||
-                  /** @type {any} */ (body).length
-                : 0,
-        }
-    );
+    // Determine if we should capture the body for logging (Expensive!)
+    const isDrmTraffic =
+        safeLoggingContext.resourceType === 'license' ||
+        safeLoggingContext.resourceType === 'key';
+    const isManifest = safeLoggingContext.resourceType === 'manifest';
+    const shouldLogBody = isDrmTraffic || isManifest;
+
+    // Capture Request Body
+    let requestBodyForLog = null;
+    if (shouldLogBody && body) {
+        requestBodyForLog = await captureBody(body);
+    }
 
     const startTime = performance.now();
     const response = await fetchWithRetry(initialUrl.href, options);
     const endTime = performance.now();
 
-    // Logging logic
+    // Capture Response Body
+    let responseBodyForLog = null;
+    if (shouldLogBody && response.ok) {
+        responseBodyForLog = await captureBody(response);
+    }
+
     if (
         safeLoggingContext.streamId !== undefined &&
         safeLoggingContext.resourceType
@@ -119,6 +128,7 @@ export async function fetchWithAuth(
                 request: {
                     method: options.method,
                     headers: requestHeadersLog,
+                    body: requestBodyForLog, // Pass captured body
                 },
                 response: {
                     status: response.status,
@@ -127,6 +137,7 @@ export async function fetchWithAuth(
                     contentLength:
                         Number(response.headers.get('content-length')) || null,
                     contentType: response.headers.get('content-type'),
+                    body: responseBodyForLog, // Pass captured body
                 },
                 timing: {
                     startTime,

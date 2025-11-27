@@ -1,6 +1,3 @@
-import { formatBitrate } from '@/ui/shared/format';
-import { inferMediaInfoFromExtension } from '@/infrastructure/parsing/utils/media-types';
-
 /**
  * Extracts high-level ISOBMFF metadata (Video/Audio tracks, Duration).
  */

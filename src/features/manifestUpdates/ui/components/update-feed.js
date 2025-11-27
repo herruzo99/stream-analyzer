@@ -1,7 +1,7 @@
-import { html } from 'lit-html';
-import { classMap } from 'lit-html/directives/class-map.js';
 import { analysisActions } from '@/state/analysisStore';
 import * as icons from '@/ui/icons';
+import { html } from 'lit-html';
+import { classMap } from 'lit-html/directives/class-map.js';
 
 const updateItemTemplate = (update, isActive, streamId) => {
     const { id, sequenceNumber, timestamp, changes, meta } = update;

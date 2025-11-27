@@ -1,6 +1,6 @@
-import { html } from 'lit-html';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { useUiStore } from '@/state/uiStore';
+import { html } from 'lit-html';
 import { hlsContextSwitcherTemplate } from './hls-context-switcher.js';
 import { streamContextSwitcherTemplate } from './stream-context-switcher.js';
 

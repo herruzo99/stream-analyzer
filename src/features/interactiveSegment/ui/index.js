@@ -1,21 +1,21 @@
-import { html, render } from 'lit-html';
-import { useSegmentCacheStore } from '@/state/segmentCacheStore';
-import { useUiStore, uiActions } from '@/state/uiStore';
+import { getParsedSegment } from '@/infrastructure/segments/segmentService.js';
 import { workerService } from '@/infrastructure/worker/workerService';
-import { inspectorLayoutTemplate } from './components/shared/inspector-layout.js';
+import { useSegmentCacheStore } from '@/state/segmentCacheStore';
+import { uiActions, useUiStore } from '@/state/uiStore';
+import * as icons from '@/ui/icons';
+import { html, render } from 'lit-html';
 import { hexViewTemplate } from './components/hex-view.js';
-import { structureContentTemplate as isoStructureTemplate } from './components/structure-tree.js';
-import {
-    structureContentTemplate as tsStructureTemplate,
-    inspectorPanelTemplate as tsInspectorTemplate,
-} from './components/ts/index.js';
 import { inspectorPanelTemplate } from './components/inspector-panel.js';
 import {
-    initializeSegmentViewInteractivity,
     cleanupSegmentViewInteractivity,
+    initializeSegmentViewInteractivity,
 } from './components/interaction-logic.js';
-import { getParsedSegment } from '@/infrastructure/segments/segmentService.js';
-import * as icons from '@/ui/icons';
+import { inspectorLayoutTemplate } from './components/shared/inspector-layout.js';
+import { structureContentTemplate as isoStructureTemplate } from './components/structure-tree.js';
+import {
+    inspectorPanelTemplate as tsInspectorTemplate,
+    structureContentTemplate as tsStructureTemplate,
+} from './components/ts/index.js';
 
 let container = null;
 let uiUnsubscribe = null;
@@ -92,12 +92,8 @@ const backToolbar = (segmentUrl) => {
 function renderView() {
     if (!container) return;
 
-    const {
-        activeSegmentUrl,
-        isByteMapLoading,
-        activeSegmentHighlightRange,
-        activeSegmentIsIFrame,
-    } = useUiStore.getState();
+    const { activeSegmentUrl, isByteMapLoading, activeSegmentIsIFrame } =
+        useUiStore.getState();
     const { get } = useSegmentCacheStore.getState();
 
     if (!activeSegmentUrl) {

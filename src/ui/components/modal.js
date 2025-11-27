@@ -1,16 +1,17 @@
-import { html, render } from 'lit-html';
-import { useUiStore, uiActions } from '@/state/uiStore';
-import { closeModal } from '@/ui/services/modalService';
-import { getSegmentAnalysisTemplate } from '@/features/segmentAnalysis/ui/index';
-import { scte35DetailsTemplate } from '@/ui/shared/scte35-details';
-import { aboutModalTemplate } from './about-modal.js';
-import { segmentPollingSelectorTemplate } from '@/ui/shell/components/segment-polling-selector';
-import '@/features/manifestPatcher/ui/manifest-patcher.js';
-import '@/features/streamInput/ui/components/smart-input.js';
-import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
 import { eventBus } from '@/application/event-bus';
+import { dashTimingCalculatorTemplate } from '@/features/interactiveManifest/ui/components/dash/timing-calculator-modal.js';
+import '@/features/manifestPatcher/ui/manifest-patcher.js';
+import { getSegmentAnalysisTemplate } from '@/features/segmentAnalysis/ui/index';
+import '@/features/streamInput/ui/components/smart-input.js';
+import { analysisActions, useAnalysisStore } from '@/state/analysisStore';
+import { useUiStore } from '@/state/uiStore';
 import { EVENTS } from '@/types/events';
 import * as icons from '@/ui/icons';
+import { closeModal } from '@/ui/services/modalService';
+import { scte35DetailsTemplate } from '@/ui/shared/scte35-details';
+import { segmentPollingSelectorTemplate } from '@/ui/shell/components/segment-polling-selector';
+import { html, render } from 'lit-html';
+import { aboutModalTemplate } from './about-modal.js';
 
 let dom;
 let wasOpen = false;
@@ -84,12 +85,12 @@ function getContentTemplate(modalContent) {
             return html`<manifest-patcher
                 .streamId=${modalContent.data.streamId}
             ></manifest-patcher>`;
-        case 'addStream':
+        case 'dashCalculator':
+            return dashTimingCalculatorTemplate(modalContent.data);
+        case 'addStream': {
             const { streamInputs, streams } = useAnalysisStore.getState();
             const activeIds = new Set(streams.map((s) => s.id));
 
-            // Pending inputs are those in streamInputs that do not have a corresponding active stream
-            // We check if the input's ID is NOT in the set of analyzed active stream IDs.
             const pendingInputs = streamInputs.filter(
                 (i) => !activeIds.has(i.id)
             );
@@ -178,6 +179,7 @@ function getContentTemplate(modalContent) {
                     </div>
                 </div>
             `;
+        }
         default:
             return html`<p class="text-red-400">
                 Unknown modal content type: ${modalContent.type}

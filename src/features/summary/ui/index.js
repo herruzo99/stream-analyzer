@@ -1,13 +1,13 @@
-import { html, render } from 'lit-html';
 import { useAnalysisStore } from '@/state/analysisStore';
-import { createSummaryViewModel } from './view-model.js';
+import * as icons from '@/ui/icons';
+import { html, render } from 'lit-html';
+import { bitrateLadderTemplate } from './components/bitrate-ladder.js';
+import { complianceWidgetTemplate } from './components/compliance-widget.js';
+import { featureGridTemplate } from './components/feature-grid.js';
 import { heroHeaderTemplate } from './components/hero-header.js';
 import { quickStatsTemplate } from './components/quick-stats.js';
-import { bitrateLadderTemplate } from './components/bitrate-ladder.js';
-import { featureGridTemplate } from './components/feature-grid.js';
 import { tracksPanelTemplate } from './components/tracks-panel.js';
-import { complianceWidgetTemplate } from './components/compliance-widget.js';
-import * as icons from '@/ui/icons';
+import { createSummaryViewModel } from './view-model.js';
 
 let container = null;
 let analysisUnsubscribe = null;
@@ -56,7 +56,9 @@ function renderSummary() {
                 <!-- Left: Key Metrics -->
                 <div class="xl:col-span-2">${quickStatsTemplate(vm)}</div>
                 <!-- Right: Compliance Scorecard -->
-                <div class="h-full min-h-[200px]">${complianceWidgetTemplate(stream)}</div>
+                <div class="h-full min-h-[200px]">
+                    ${complianceWidgetTemplate(stream)}
+                </div>
             </div>
 
             <!-- Visualization Section: Ladder & Features -->

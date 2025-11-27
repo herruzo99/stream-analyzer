@@ -1,17 +1,17 @@
-import { init as initChart, use as useEchartsModules } from 'echarts/core';
-import { LineChart, BarChart, CustomChart, RadarChart } from 'echarts/charts';
-import {
-    GridComponent,
-    TooltipComponent,
-    LegendComponent,
-    DataZoomComponent,
-    MarkLineComponent,
-    MarkAreaComponent,
-    TitleComponent,
-    RadarComponent,
-} from 'echarts/components';
-import { CanvasRenderer } from 'echarts/renderers';
 import { formatBitrate } from '@/ui/shared/format';
+import { BarChart, CustomChart, LineChart, RadarChart } from 'echarts/charts';
+import {
+    DataZoomComponent,
+    GridComponent,
+    LegendComponent,
+    MarkAreaComponent,
+    MarkLineComponent,
+    RadarComponent,
+    TitleComponent,
+    TooltipComponent,
+} from 'echarts/components';
+import { init as initChart, use as useEchartsModules } from 'echarts/core';
+import { CanvasRenderer } from 'echarts/renderers';
 
 useEchartsModules([
     CanvasRenderer,

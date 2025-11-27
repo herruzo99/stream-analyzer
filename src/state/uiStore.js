@@ -1,14 +1,13 @@
-import { createStore } from 'zustand/vanilla';
 import {
-    getWorkspaces,
-    getPresets,
-    getHistory,
-    deletePreset,
     deleteHistoryItem,
+    deletePreset,
     deleteWorkspace,
+    getHistory,
+    getPresets,
+    getWorkspaces,
 } from '@/infrastructure/persistence/streamStorage';
+import { createStore } from 'zustand/vanilla';
 import { useAnalysisStore } from './analysisStore.js';
-import { eventBus } from '@/application/event-bus.js';
 
 const createInitialUiState = () => ({
     _viewMap: null,
@@ -62,7 +61,7 @@ const createInitialUiState = () => ({
     playerControlMode: 'standard',
     streamLibraryActiveTab: 'workspaces',
     streamLibrarySearchTerm: '',
-    
+    streamInputActiveMobileTab: 'library',
     inspectorActiveTab: 'stream',
     presetSaveStatus: 'idle',
     workspaces: [],
@@ -95,6 +94,10 @@ const createInitialUiState = () => ({
     timelineHoveredItem: null,
     timelineSelectedItem: null,
     timelineActiveTab: 'overview',
+    isSignalMonitorOpen: false,
+    signalMonitorSize: 'normal',
+    manifestComparisonViewMode: 'table',
+    playerTelemetrySidebarOpen: true,
 });
 
 export const useUiStore = createStore((set, get) => ({
@@ -102,6 +105,15 @@ export const useUiStore = createStore((set, get) => ({
 
     injectViewMap: (viewMap) => set({ _viewMap: viewMap }),
     setViewState: (view) => set({ viewState: view }),
+    toggleSignalMonitor: () =>
+        set((state) => ({ isSignalMonitorOpen: !state.isSignalMonitorOpen })),
+    setSignalMonitorSize: (size) => set({ signalMonitorSize: size }),
+    setManifestComparisonViewMode: (mode) =>
+        set({ manifestComparisonViewMode: mode }),
+    togglePlayerTelemetrySidebar: () =>
+        set((state) => ({
+            playerTelemetrySidebarOpen: !state.playerTelemetrySidebarOpen,
+        })),
 
     setActiveTab: (tabName) => {
         set((state) => {
@@ -121,6 +133,49 @@ export const useUiStore = createStore((set, get) => ({
                 activeSegmentHighlightRange: null,
             };
         });
+
+        const { streams, activeStreamId } = useAnalysisStore.getState();
+        if (tabName === 'explorer' && streams) {
+            const activeStream = streams.find((s) => s.id === activeStreamId);
+            if (activeStream) {
+                let defaultRepId = get().segmentExplorerActiveRepId;
+                const isHls = activeStream.protocol === 'hls';
+                const isDash = activeStream.protocol === 'dash';
+                let isValidRep = false;
+                if (isHls)
+                    isValidRep = activeStream.hlsVariantState.has(defaultRepId);
+                else if (isDash)
+                    isValidRep =
+                        activeStream.dashRepresentationState.has(defaultRepId);
+
+                if (!defaultRepId || !isValidRep) {
+                    if (isDash) {
+                        const firstPeriod = activeStream.manifest.periods[0];
+                        const firstAs = firstPeriod?.adaptationSets[0];
+                        if (firstAs?.representations[0])
+                            set({
+                                segmentExplorerActiveRepId: `${firstPeriod.id || 0}-${firstAs.representations[0].id}`,
+                            });
+                    } else if (isHls) {
+                        if (activeStream.manifest?.isMaster) {
+                            const firstAs =
+                                activeStream.manifest.periods[0]
+                                    ?.adaptationSets[0];
+                            if (firstAs?.representations[0])
+                                set({
+                                    segmentExplorerActiveRepId:
+                                        firstAs.representations[0].id,
+                                });
+                        } else {
+                            set({
+                                segmentExplorerActiveRepId:
+                                    activeStream.originalUrl,
+                            });
+                        }
+                    }
+                }
+            }
+        }
     },
 
     setActiveSidebar: (sidebar) => set({ activeSidebar: sidebar }),
@@ -163,14 +218,12 @@ export const useUiStore = createStore((set, get) => ({
             interactiveSegmentHighlightedItem: item ? { item, field } : null,
         }),
     setIsByteMapLoading: (isLoading) => set({ isByteMapLoading: isLoading }),
-
     setSegmentExplorerActiveRepId: (repId) => {
         if (get().segmentExplorerActiveRepId === repId) return;
         set({ segmentExplorerActiveRepId: repId });
     },
-    setSegmentExplorerActiveTab: (tab) => {
-        set({ segmentExplorerActiveTab: tab });
-    },
+    setSegmentExplorerActiveTab: (tab) =>
+        set({ segmentExplorerActiveTab: tab }),
     setSegmentMatrixClickMode: (mode) => set({ segmentMatrixClickMode: mode }),
     toggleSegmentExplorerGroup: (groupId) =>
         set((state) => {
@@ -196,7 +249,6 @@ export const useUiStore = createStore((set, get) => ({
         }),
     clearSegmentExplorerScrollTrigger: () =>
         set({ segmentExplorerScrollToTarget: false }),
-
     setComplianceFilter: (filter) => set({ complianceActiveFilter: filter }),
     setComplianceStandardVersion: (version) =>
         set({ complianceStandardVersion: version }),
@@ -250,12 +302,11 @@ export const useUiStore = createStore((set, get) => ({
             interactiveSegmentSelectedItem: null,
             interactiveSegmentHighlightedItem: null,
         }),
-
     setStreamLibraryTab: (tab) => set({ streamLibraryActiveTab: tab }),
     setStreamLibrarySearchTerm: (term) =>
         set({ streamLibrarySearchTerm: term }),
-    
-   
+    setStreamInputActiveMobileTab: (tab) =>
+        set({ streamInputActiveMobileTab: tab }),
     setInspectorActiveTab: (tab) => set({ inspectorActiveTab: tab }),
     setPresetSaveStatus: (status) => set({ presetSaveStatus: status }),
     loadWorkspaces: () => {
@@ -288,7 +339,6 @@ export const useUiStore = createStore((set, get) => ({
     setLoadedWorkspaceName: (name) => set({ loadedWorkspaceName: name }),
     setIsRestoringSession: (isRestoring) =>
         set({ isRestoringSession: isRestoring }),
-
     setSegmentAnalysisActiveTab: (tab) =>
         set({ segmentAnalysisActiveTab: tab }),
     startConditionalPolling: (streamId, featureName) =>
@@ -375,8 +425,6 @@ export const useUiStore = createStore((set, get) => ({
     setTimelineHoveredItem: (item) => set({ timelineHoveredItem: item }),
     setTimelineSelectedItem: (item) => set({ timelineSelectedItem: item }),
     setTimelineActiveTab: (tab) => set({ timelineActiveTab: tab }),
-
     reset: () => set(createInitialUiState()),
 }));
-
 export const uiActions = useUiStore.getState();

@@ -2,6 +2,63 @@ export interface SourcedData<T> {
     value: T;
     source: 'manifest' | 'segment';
 }
+// ... [Existing interfaces remain unchanged] ...
+
+export type ResourceType =
+    | 'manifest'
+    | 'video'
+    | 'audio'
+    | 'text'
+    | 'init'
+    | 'key'
+    | 'license'
+    | 'other';
+
+export interface TimingBreakdown {
+    redirect: number;
+    dns: number;
+    tcp: number;
+    tls: number;
+    ttfb: number;
+    download: number;
+}
+
+export interface NetworkEvent {
+    id: string;
+    url: string;
+    resourceType: ResourceType;
+    streamId: number | null;
+    segmentDuration?: number;
+    request: {
+        method: string;
+        headers: Record<string, string>;
+        body?: string | ArrayBuffer | null;
+    };
+    response: {
+        status: number;
+        statusText: string;
+        headers: Record<string, string>;
+        contentLength: number | null;
+        contentType: string | null;
+        body?: string | ArrayBuffer | null;
+    };
+    timing: {
+        startTime: number;
+        endTime: number;
+        duration: number;
+        breakdown: TimingBreakdown | null;
+    };
+    auditIssues?: {
+        id: string;
+        level: 'error' | 'warn';
+        message: string;
+        header?: string;
+    }[];
+    auditStatus?: 'error' | 'warn' | 'pass';
+    visuals?: any;
+    size?: number | null;
+    throughput?: number;
+}
 
 export interface CodecInfo {
     value: string;
@@ -618,50 +675,6 @@ export interface AdAvail {
         | 'UNKNOWN';
 }
 
-export type ResourceType =
-    | 'manifest'
-    | 'video'
-    | 'audio'
-    | 'text'
-    | 'init'
-    | 'key'
-    | 'license'
-    | 'other';
-
-export interface TimingBreakdown {
-    redirect: number;
-    dns: number;
-    tcp: number;
-    tls: number;
-    ttfb: number;
-    download: number;
-}
-
-export interface NetworkEvent {
-    id: string;
-    url: string;
-    resourceType: ResourceType;
-    streamId: number | null;
-    segmentDuration?: number;
-    request: {
-        method: string;
-        headers: Record<string, string>;
-    };
-    response: {
-        status: number;
-        statusText: string;
-        headers: Record<string, string>;
-        contentLength: number | null;
-        contentType: string | null;
-    };
-    timing: {
-        startTime: number;
-        endTime: number;
-        duration: number;
-        breakdown: TimingBreakdown | null;
-    };
-}
-
 export interface PlayerStats {
     playheadTime: number;
     manifestTime: number;
@@ -672,17 +685,20 @@ export interface PlayerStats {
         totalStalls: number;
         totalStallDuration: number;
         timeToFirstFrame: number;
+        decodedFrames: number;
     };
     abr: {
         currentVideoBitrate: number;
         estimatedBandwidth: number;
         switchesUp: number;
         switchesDown: number;
+        loadLatency: number;
     };
     buffer: {
         label: 'Buffer Health' | 'Live Latency';
         seconds: number;
         totalGaps: number;
+        forwardBuffer: number;
     };
     session: {
         totalPlayTime: number;
@@ -724,6 +740,7 @@ export interface PlayerInstance {
     streamId: number;
     streamName: string;
     manifestUrl: string | null;
+    streamType: 'live' | 'vod'; // Added
     state:
         | 'idle'
         | 'loading'
@@ -734,6 +751,35 @@ export interface PlayerInstance {
         | 'error';
     error: string | null;
     stats: PlayerStats | null;
+    playbackHistory: PlaybackHistoryEntry[];
+    health: 'healthy' | 'warning' | 'critical';
+    selectedForAction: boolean;
+    abrOverride: boolean | null;
+    maxHeightOverride: number | null;
+    bufferingGoalOverride: number | null;
+    initialState: any;
+    variantTracks: any[];
+    audioTracks: any[];
+    textTracks: any[];
+    activeVideoTrack: any;
+    seekableRange: { start: number; end: number };
+    normalizedPlayheadTime: number;
+    retryCount: number;
+    isHudVisible: boolean;
+    isBasePlayer: boolean;
+}
+
+export interface MultiPlayerState {
+    players: Map<number, PlayerInstance>;
+    isMutedAll: boolean;
+    isAutoResetEnabled: boolean;
+    eventLog: any[];
+    streamIdCounter: number;
+    hoveredStreamId: number | null;
+    layoutMode: 'grid' | 'focus';
+    gridColumns: number | 'auto';
+    focusedStreamId: number | null;
+    showGlobalHud: boolean;
 }
 
 export interface ConditionalPollingState {
@@ -746,7 +792,7 @@ export interface ConditionalPollingState {
 
 export interface TimedEntity {
     id: string;
-    type: 'period' | 'ad' | 'event' | 'segment' | 'abr';
+    type: 'period' | 'ad' | 'event' | 'segment' | 'abr' | 'gap';
     start: number;
     end: number;
     label: string;
@@ -804,6 +850,7 @@ export interface UiState {
     expandedComparisonTables: Set<string>;
     expandedComparisonFlags: Set<string>;
     segmentComparisonActiveTab: 'tabular' | 'structural';
+    segmentComparisonSelection: { idA: string | null; idB: string | null };
     playerControlMode: 'standard' | 'advanced';
     streamLibraryActiveTab: 'workspaces' | 'presets' | 'history' | 'examples';
     streamLibrarySearchTerm: string;
@@ -833,7 +880,10 @@ export interface UiState {
         parsedSegments: boolean;
     };
     segmentMatrixClickMode: 'inspect' | 'compare';
-    segmentComparisonSelection: { idA: string | null; idB: string | null };
+    isSignalMonitorOpen: boolean;
+    inspectorActiveTab: 'stream';
+    presetSaveStatus: 'idle' | 'saving' | 'saved' | 'error';
+    playerTelemetrySidebarOpen: boolean;
 }
 
 export interface UiActions {

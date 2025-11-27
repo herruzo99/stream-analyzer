@@ -1,5 +1,5 @@
-import { BoxParser } from '../utils.js';
 import { parseScte35 } from '../../scte35/parser.js';
+import { BoxParser } from '../utils.js';
 
 /**
  * Parses the 'emsg' (Event Message) box.

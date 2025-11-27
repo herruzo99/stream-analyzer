@@ -1,7 +1,7 @@
-import { html } from 'lit-html';
+import { isDebugMode } from '@/shared/utils/env';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { useUiStore } from '@/state/uiStore';
-import { isDebugMode } from '@/shared/utils/env';
+import { html } from 'lit-html';
 
 export const renderTabButtons = () => {
     const { streams } = useAnalysisStore.getState();

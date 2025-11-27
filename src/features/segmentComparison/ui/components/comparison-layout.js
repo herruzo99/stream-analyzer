@@ -1,8 +1,8 @@
+import * as icons from '@/ui/icons';
 import { html } from 'lit-html';
 import { diffOverviewTemplate } from './diff-overview.js';
 import { diffTreeTemplate } from './diff-tree.js';
 import { segmentSelectorTemplate } from './segment-selector.js';
-import * as icons from '@/ui/icons';
 
 export const comparisonLayoutTemplate = ({
     availableSegments,

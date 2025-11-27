@@ -1,8 +1,8 @@
-import { html } from 'lit-html';
-import { closeDropdown } from '@/ui/services/dropdownService';
-import { formatBitrate } from '@/ui/shared/format';
 import { eventBus } from '@/application/event-bus';
 import * as icons from '@/ui/icons';
+import { closeDropdown } from '@/ui/services/dropdownService';
+import { formatBitrate } from '@/ui/shared/format';
+import { html } from 'lit-html';
 
 const dropdownContainerClass =
     'dropdown-panel bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl w-80 overflow-hidden ring-1 ring-black/50 flex flex-col max-h-[60vh]';

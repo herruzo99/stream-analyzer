@@ -1,6 +1,6 @@
-import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
 import { workerService } from '@/infrastructure/worker/workerService';
 import { appLog } from '@/shared/utils/debug';
+import { analysisActions, useAnalysisStore } from '@/state/analysisStore';
 
 const inFlightRequests = new Set();
 

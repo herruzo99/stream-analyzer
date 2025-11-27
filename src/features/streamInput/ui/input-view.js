@@ -1,11 +1,11 @@
-import { html, render } from 'lit-html';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { useUiStore } from '@/state/uiStore';
-import { landingViewTemplate } from './components/landing-view.js';
-import { stagingViewTemplate } from './components/staging-view.js';
 import * as icons from '@/ui/icons';
 import { openModalWithContent } from '@/ui/services/modalService';
+import { html, render } from 'lit-html';
+import { landingViewTemplate } from './components/landing-view.js';
 import './components/library-modal.js';
+import { stagingViewTemplate } from './components/staging-view.js';
 
 let container = null;
 let unsubAnalysis = null;
@@ -58,11 +58,12 @@ function renderInputView() {
             class="h-full w-full bg-slate-950 text-slate-200 font-sans relative overflow-hidden selection:bg-blue-500/30"
         >
             <!-- Grid Background Layer -->
-            <div class="absolute inset-0 bg-[url('/assets/grid.svg')] opacity-[0.03] pointer-events-none"></div>
-            
-            ${!hasInputs ? header : ''} 
-            ${content}
-            
+            <div
+                class="absolute inset-0 bg-[url('/assets/grid.svg')] opacity-[0.03] pointer-events-none"
+            ></div>
+
+            ${!hasInputs ? header : ''} ${content}
+
             <library-modal-component></library-modal-component>
         </div>
     `;

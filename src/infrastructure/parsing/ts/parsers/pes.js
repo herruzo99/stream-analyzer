@@ -1,6 +1,6 @@
-import { parsePackHeader } from './pack-header.js';
-import { parseSPS } from '../../video/sps.js';
 import { appLog } from '@/shared/utils/debug.js';
+import { parseSPS } from '../../video/sps.js';
+import { parsePackHeader } from './pack-header.js';
 
 function parseTimestamp(view, offset) {
     const byte0 = view.getUint8(offset);

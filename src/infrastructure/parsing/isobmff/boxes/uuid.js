@@ -1,5 +1,5 @@
-import { BoxParser } from '../utils.js';
 import { formatUUID } from '../../utils/drm.js';
+import { BoxParser } from '../utils.js';
 
 /**
  * Parses the 'uuid' (User-defined Extension) box.

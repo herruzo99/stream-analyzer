@@ -1,10 +1,10 @@
 import { stopAllMonitoring } from '@/application/services/primaryStreamMonitorService';
-import { useAnalysisStore } from '@/state/analysisStore';
-import { useSegmentCacheStore } from '@/state/segmentCacheStore';
-import { useDecryptionStore } from '@/state/decryptionStore';
-import { usePlayerStore } from '@/state/playerStore';
-import { useNetworkStore } from '@/state/networkStore';
 import { multiPlayerService } from '@/features/multiPlayer/application/multiPlayerService';
+import { useAnalysisStore } from '@/state/analysisStore';
+import { useDecryptionStore } from '@/state/decryptionStore';
+import { useNetworkStore } from '@/state/networkStore';
+import { usePlayerStore } from '@/state/playerStore';
+import { useSegmentCacheStore } from '@/state/segmentCacheStore';
 import { uiActions } from '@/state/uiStore';
 
 /**

@@ -1,6 +1,6 @@
-import { html } from 'lit-html';
-import { tooltipTriggerClasses } from '@/ui/shared/constants';
 import * as icons from '@/ui/icons';
+import { tooltipTriggerClasses } from '@/ui/shared/constants';
+import { html } from 'lit-html';
 
 const formatDuration = (d) =>
     d < 1 ? `${(d * 1000).toFixed(0)}ms` : `${d.toFixed(2)}s`;

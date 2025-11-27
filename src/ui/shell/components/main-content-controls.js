@@ -1,6 +1,6 @@
-import { html } from 'lit-html';
 import { useUiStore } from '@/state/uiStore';
 import * as icons from '@/ui/icons';
+import { html } from 'lit-html';
 
 const contextualSidebarToggle = () => {
     const { activeTab } = useUiStore.getState();

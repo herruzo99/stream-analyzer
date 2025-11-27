@@ -1,6 +1,5 @@
-import { html } from 'lit-html';
 import * as icons from '@/ui/icons';
-import { classMap } from 'lit-html/directives/class-map.js';
+import { html } from 'lit-html';
 
 const statusColors = {
     success: 'text-emerald-400 border-emerald-500/30 bg-emerald-900/10',

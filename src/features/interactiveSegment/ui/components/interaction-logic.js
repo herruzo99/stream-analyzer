@@ -1,10 +1,8 @@
-import { useUiStore } from '@/state/uiStore';
 import { eventBus } from '@/application/event-bus';
 
 let mainContainer = null;
 let keydownListener = null;
 let containerListeners = new Map();
-let rootParsedData = null;
 let hoverDebounceTimeout = null;
 let offsetToBoxMap = new Map();
 let activeBoxLayout = null; // Reference to the Float64Array
@@ -79,7 +77,6 @@ export function cleanupSegmentViewInteractivity(dom) {
     // Avoid .clear() on massive maps, just let GC handle it
     offsetToBoxMap = new Map();
 
-    rootParsedData = null;
     activeBoxLayout = null;
     mainContainer = null;
 }
@@ -97,7 +94,6 @@ export function initializeSegmentViewInteractivity(
 
     cleanupSegmentViewInteractivity(dom);
 
-    rootParsedData = parsedSegmentData;
     activeBoxLayout = byteMapData?.boxLayout;
 
     if (parsedSegmentData.data.boxes) {

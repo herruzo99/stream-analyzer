@@ -1,10 +1,10 @@
-import { html } from 'lit-html';
-import { useUiStore, uiActions } from '@/state/uiStore';
-import { useSegmentCacheStore } from '@/state/segmentCacheStore';
 import { eventBus } from '@/application/event-bus';
 import { getSegmentAnalysisTemplate } from '@/features/segmentAnalysis/ui/index';
-import * as icons from '@/ui/icons';
 import { inferMediaInfoFromExtension } from '@/infrastructure/parsing/utils/media-types';
+import { useSegmentCacheStore } from '@/state/segmentCacheStore';
+import { uiActions, useUiStore } from '@/state/uiStore';
+import * as icons from '@/ui/icons';
+import { html } from 'lit-html';
 
 const property = (label, value, copyable = false) => html`
     <div
@@ -50,13 +50,11 @@ export const segmentBottomPanelTemplate = (stream) => {
                   ? null
                   : stream.manifest.segmentFormat;
 
-        useSegmentCacheStore
-            .getState()
-            .set(segment.uniqueId, {
-                status: -1,
-                data: null,
-                parsedData: null,
-            });
+        useSegmentCacheStore.getState().set(segment.uniqueId, {
+            status: -1,
+            data: null,
+            parsedData: null,
+        });
         eventBus.dispatch('segment:fetch', {
             uniqueId: segment.uniqueId,
             streamId: stream.id,

@@ -1,6 +1,5 @@
 import { html } from 'lit-html';
 import { renditionGroupCardTemplate } from './rendition-group-card.js';
-import * as icons from '@/ui/icons';
 
 export const hlsCascadeViewTemplate = (stream) => {
     const { manifest } = stream;

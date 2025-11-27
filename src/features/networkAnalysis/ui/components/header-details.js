@@ -1,5 +1,5 @@
-import { html } from 'lit-html';
 import { tooltipTriggerClasses } from '@/ui/shared/constants';
+import { html } from 'lit-html';
 
 // A curated list of important headers and their descriptions.
 const HEADER_DEFINITIONS = {

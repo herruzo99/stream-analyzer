@@ -1,16 +1,17 @@
-import { html, render } from 'lit-html';
-import { useMultiPlayerStore } from '@/state/multiPlayerStore';
-import { multiPlayerService } from '../../application/multiPlayerService';
 import { eventBus } from '@/application/event-bus';
-import { toggleDropdown, closeDropdown } from '@/ui/services/dropdownService';
-import { virtualTrackDropdownTemplate } from './virtual-track-dropdown';
-import { formatBitrate } from '@/ui/shared/format';
+import { useMultiPlayerStore } from '@/state/multiPlayerStore';
 import * as icons from '@/ui/icons';
+import { toggleDropdown } from '@/ui/services/dropdownService';
+import { html, render } from 'lit-html';
+import { multiPlayerService } from '../../application/multiPlayerService';
+import './event-log.js';
+import { virtualTrackDropdownTemplate } from './virtual-track-dropdown';
 
 class MultiPlayerBottomPanel extends HTMLElement {
     constructor() {
         super();
         this.unsubscribe = null;
+        this.showLog = false;
     }
 
     connectedCallback() {
@@ -22,40 +23,31 @@ class MultiPlayerBottomPanel extends HTMLElement {
         if (this.unsubscribe) this.unsubscribe();
     }
 
+    toggleLog() {
+        this.showLog = !this.showLog;
+        this.render();
+    }
+
     render() {
         const state = useMultiPlayerStore.getState();
         const {
             players,
-            focusedStreamId,
             isMutedAll,
             globalAbrEnabled,
             showGlobalHud,
-            layoutMode,
             gridColumns,
+            isAutoResetEnabled,
         } = state;
 
-        const focusedPlayer =
-            focusedStreamId !== null ? players.get(focusedStreamId) : null;
         const playersList = Array.from(players.values());
-
         const selectedPlayers = playersList.filter((p) => p.selectedForAction);
         const selectedCount = selectedPlayers.length;
         const hasSelection = selectedCount > 0;
         const hasPlayers = players.size > 0;
 
-        // Filter for destructive actions
-        const removablePlayers = selectedPlayers.filter(
-            (p) => !p.isBasePlayer
-        );
+        const removablePlayers = selectedPlayers.filter((p) => !p.isBasePlayer);
         const hasRemovableSelection = removablePlayers.length > 0;
 
-        // --- Aggregate States ---
-        const isAllPaused = selectedPlayers.every(
-            (p) =>
-                p.state === 'paused' ||
-                p.state === 'idle' ||
-                p.state === 'ended'
-        );
         const isAllPlaying = selectedPlayers.every(
             (p) => p.state === 'playing' || p.state === 'buffering'
         );
@@ -88,9 +80,9 @@ class MultiPlayerBottomPanel extends HTMLElement {
             eventBus.dispatch('ui:multi-player:reset-all');
         };
 
-        // --- Grid Options Dropdown ---
-        const gridOptionsTemplate = () => {
-            const options = [
+        // --- Quick Settings Dropdown ---
+        const quickSettingsTemplate = () => {
+            const gridOptions = [
                 { label: 'Auto Fit', value: 'auto' },
                 { label: '1 Column', value: 1 },
                 { label: '2 Columns', value: 2 },
@@ -99,40 +91,73 @@ class MultiPlayerBottomPanel extends HTMLElement {
                 { label: '5 Columns', value: 5 },
             ];
 
-            const handleSelect = (val) => {
+            const handleGridSelect = (val) => {
                 eventBus.dispatch('ui:multi-player:set-grid-columns', {
                     columns: val,
                 });
-                closeDropdown();
             };
 
             return html`
                 <div
-                    class="dropdown-panel bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl w-40 p-1 ring-1 ring-black/50"
+                    class="dropdown-panel bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl w-64 p-3 ring-1 ring-black/50"
                 >
+                    <!-- Auto Reset Toggle -->
                     <div
-                        class="px-3 py-2 border-b border-white/5 text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1"
+                        class="flex items-center justify-between p-2 rounded hover:bg-white/5 mb-2 cursor-pointer"
+                        @click=${(e) => {
+                            e.stopPropagation();
+                            useMultiPlayerStore.getState().toggleAutoReset();
+                        }}
+                    >
+                        <div class="flex flex-col">
+                            <span class="text-sm font-bold text-slate-200"
+                                >Auto-Reset</span
+                            >
+                            <span class="text-[10px] text-slate-500"
+                                >Restart on error</span
+                            >
+                        </div>
+                        <div
+                            class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${isAutoResetEnabled
+                                ? 'bg-blue-600'
+                                : 'bg-slate-600'}"
+                        >
+                            <span
+                                class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${isAutoResetEnabled
+                                    ? 'translate-x-4.5'
+                                    : 'translate-x-0.5'}"
+                            ></span>
+                        </div>
+                    </div>
+
+                    <div class="w-full h-px bg-white/10 mb-2"></div>
+
+                    <!-- Grid Layout -->
+                    <div
+                        class="px-2 mb-1 text-[10px] font-bold uppercase tracking-widest text-slate-500"
                     >
                         Grid Layout
                     </div>
-                    ${options.map(
-                        (opt) => html`
-                            <button
-                                @click=${() => handleSelect(opt.value)}
-                                class="w-full text-left px-3 py-2 rounded-lg text-xs font-bold flex items-center justify-between transition-colors ${gridColumns ===
-                                opt.value
-                                    ? 'bg-blue-600 text-white'
-                                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'}"
-                            >
-                                <span>${opt.label}</span>
-                                ${gridColumns === opt.value
-                                    ? html`<span class="scale-75"
-                                          >${icons.checkCircle}</span
-                                      >`
-                                    : ''}
-                            </button>
-                        `
-                    )}
+                    <div class="space-y-0.5">
+                        ${gridOptions.map(
+                            (opt) => html`
+                                <button
+                                    @click=${() => handleGridSelect(opt.value)}
+                                    class="w-full text-left px-2 py-1.5 rounded text-xs font-medium flex items-center justify-between transition-colors ${gridColumns ===
+                                    opt.value
+                                        ? 'bg-blue-600 text-white'
+                                        : 'text-slate-300 hover:bg-white/10'}"
+                                >
+                                    <span>${opt.label}</span>
+                                    ${gridColumns === opt.value
+                                        ? html`<span class="scale-75"
+                                              >${icons.checkCircle}</span
+                                          >`
+                                        : ''}
+                                </button>
+                            `
+                        )}
+                    </div>
                 </div>
             `;
         };
@@ -147,7 +172,7 @@ class MultiPlayerBottomPanel extends HTMLElement {
                       ? 'text-red-400 hover:bg-red-900/20 hover:text-red-200'
                       : 'text-slate-400 hover:text-white hover:bg-white/10 active:scale-95'
             }
-            disabled:opacity-30 disabled:cursor-not-allowed
+            disabled:opacity-30 disabled:cursor-not-allowed shrink-0
         `;
 
         const playBtn = `
@@ -169,7 +194,7 @@ class MultiPlayerBottomPanel extends HTMLElement {
             disabled:opacity-30 disabled:cursor-not-allowed
         `;
 
-        // --- 1. Selection Indicator (Left) ---
+        // --- Selection UI ---
         const selectionUI = html`
             <div class="${controlGroup} px-1">
                 <button
@@ -207,10 +232,9 @@ class MultiPlayerBottomPanel extends HTMLElement {
             </div>
         `;
 
-        // --- 2. Transport Controls (Center) ---
+        // --- Transport UI ---
         const transportUI = html`
-            <div class="flex items-center gap-4">
-                <!-- Seek / Time -->
+            <div class="flex items-center gap-4 shrink-0">
                 <div class="${controlGroup}">
                     <button
                         class="${iconBtn()}"
@@ -229,20 +253,16 @@ class MultiPlayerBottomPanel extends HTMLElement {
                         ${icons.frameForward}
                     </button>
                 </div>
-
-                <!-- Main Playback -->
                 <button
                     class="${playBtn}"
                     @click=${handlePlayPause}
                     ?disabled=${!hasSelection}
-                    title="Play/Pause Selected"
+                    title="Play/Pause"
                 >
                     <div class="scale-125">
                         ${isAllPlaying ? icons.pause : icons.play}
                     </div>
                 </button>
-
-                <!-- Audio -->
                 <div class="${controlGroup}">
                     <button
                         class="${iconBtn(isMutedAll)}"
@@ -260,35 +280,62 @@ class MultiPlayerBottomPanel extends HTMLElement {
             </div>
         `;
 
-        // --- 3. Right Panel (Config & Operations) ---
+        // --- Log Drawer ---
+        const logDrawer = this.showLog
+            ? html`
+                  <div
+                      class="absolute bottom-full left-4 right-4 h-64 bg-slate-900/95 backdrop-blur-xl border border-slate-700 rounded-t-xl shadow-2xl z-40 overflow-hidden animate-slideInUp flex flex-col"
+                  >
+                      <div
+                          class="flex items-center justify-between px-4 py-2 border-b border-slate-700/50 bg-slate-900/50"
+                      >
+                          <span
+                              class="text-xs font-bold text-slate-400 uppercase tracking-widest"
+                              >Session Event Log</span
+                          >
+                          <button
+                              @click=${() => this.toggleLog()}
+                              class="text-slate-500 hover:text-white transition-colors"
+                          >
+                              ${icons.chevronDown}
+                          </button>
+                      </div>
+                      <div class="grow overflow-hidden">
+                          <event-log-component></event-log-component>
+                      </div>
+                  </div>
+              `
+            : '';
+
+        // --- Config UI ---
         const configUI = html`
-            <div class="flex items-center gap-3">
-                <!-- Grid Layout Control (Only show in Grid Mode) -->
-                ${layoutMode === 'grid'
-                    ? html`
-                          <div class="${controlGroup}">
-                              <button
-                                  @click=${(e) =>
-                                      toggleDropdown(
-                                          e.currentTarget,
-                                          gridOptionsTemplate,
-                                          e
-                                      )}
-                                  class="${pillBtn(gridColumns !== 'auto')}"
-                                  title="Configure Grid Columns"
-                              >
-                                  ${icons.grid}
-                                  ${gridColumns === 'auto'
-                                      ? 'Auto Fit'
-                                      : `${gridColumns} Cols`}
-                              </button>
-                          </div>
-                      `
-                    : ''}
+            <div class="flex items-center gap-3 shrink-0">
+                <button
+                    class="${iconBtn(this.showLog)}"
+                    @click=${() => this.toggleLog()}
+                    title="Toggle Event Log"
+                >
+                    ${icons.terminal}
+                </button>
+                <div class="w-px h-8 bg-slate-800 mx-1"></div>
+
+                <div class="${controlGroup}">
+                    <button
+                        @click=${(e) =>
+                            toggleDropdown(
+                                e.currentTarget,
+                                quickSettingsTemplate,
+                                e
+                            )}
+                        class="${pillBtn(false)}"
+                        title="Settings"
+                    >
+                        ${icons.settings} Settings
+                    </button>
+                </div>
 
                 <div class="w-px h-8 bg-slate-800 mx-1"></div>
 
-                <!-- ABR / Quality -->
                 <div class="${controlGroup}">
                     <button
                         @click=${() =>
@@ -297,53 +344,47 @@ class MultiPlayerBottomPanel extends HTMLElement {
                             })}
                         ?disabled=${!hasSelection}
                         class="${pillBtn(globalAbrEnabled)}"
-                        title="Enable Auto ABR for Selected"
+                        title="Enable Auto ABR"
                     >
                         Auto
                     </button>
                     <div class="w-px h-4 bg-slate-700"></div>
                     <button
-                        @click=${(e) => {
-                            if (!hasSelection) return;
+                        @click=${(e) =>
+                            hasSelection &&
                             toggleDropdown(
                                 e.currentTarget,
                                 () => virtualTrackDropdownTemplate(),
                                 e
-                            );
-                        }}
+                            )}
                         ?disabled=${!hasSelection}
                         class="${pillBtn(!globalAbrEnabled)}"
-                        title="Set Manual Quality"
+                        title="Manual Quality"
                     >
                         Quality ${icons.chevronDown}
                     </button>
                 </div>
 
-                <!-- HUD Toggle -->
                 <button
                     class="${iconBtn(showGlobalHud)}"
                     @click=${() =>
                         eventBus.dispatch('ui:multi-player:toggle-global-hud')}
-                    title="Toggle Telemetry Overlay"
+                    title="Toggle HUD"
                 >
                     ${icons.activity}
                 </button>
-
-                <!-- Reset All Button -->
                 <button
                     class="${iconBtn(false)}"
                     @click=${handleResetAll}
                     ?disabled=${!hasPlayers}
-                    title="Reset All Players"
+                    title="Reset All"
                 >
                     ${icons.sync}
                 </button>
 
-                <!-- Destructive Actions -->
                 ${hasSelection
                     ? html`
                           <div class="w-px h-8 bg-slate-800 mx-1"></div>
-
                           <button
                               class="${iconBtn(false)}"
                               @click=${() =>
@@ -352,11 +393,10 @@ class MultiPlayerBottomPanel extends HTMLElement {
                                           p.streamId
                                       )
                                   )}
-                              title="Clone Selected Players"
+                              title="Clone"
                           >
                               ${icons.copy}
                           </button>
-
                           <div
                               class="${controlGroup} border-red-900/30 bg-red-900/10 ml-1"
                           >
@@ -369,7 +409,7 @@ class MultiPlayerBottomPanel extends HTMLElement {
                                           )
                                       )}
                                   ?disabled=${!hasRemovableSelection}
-                                  title="Remove Selected Players"
+                                  title="Remove"
                               >
                                   ${icons.xCircle}
                               </button>
@@ -379,51 +419,24 @@ class MultiPlayerBottomPanel extends HTMLElement {
             </div>
         `;
 
-        // Contextual info for focused player (Hidden in Focus Mode)
-        let contextInfo = html``;
-        if (focusedPlayer && layoutMode !== 'focus') {
-            const videoTrack = focusedPlayer.activeVideoTrack;
-            const res = videoTrack ? `${videoTrack.height}p` : 'Auto';
-            contextInfo = html`
-                <div
-                    class="hidden 2xl:flex flex-col items-end mr-4 border-r border-slate-800 pr-4 min-w-[120px]"
-                >
-                    <span
-                        class="text-[10px] font-bold text-slate-500 uppercase tracking-wider"
-                        >Focused</span
-                    >
-                    <div class="flex items-center gap-2 max-w-full">
-                        <span
-                            class="text-xs font-bold text-white truncate"
-                            >${focusedPlayer.streamName}</span
-                        >
-                        <span
-                            class="text-[10px] font-mono text-blue-400 bg-blue-900/20 px-1.5 rounded"
-                            >${res}</span
-                        >
-                    </div>
-                </div>
-            `;
-        }
-
-        // ARCHITECTURAL CHANGE: Use CSS Grid for reliable 3-column layout without overlap
         const template = html`
-            <div
-                class="relative shrink-0 h-24 bg-slate-950 border-t border-slate-800/50 shadow-[0_-10px_40px_rgba(0,0,0,0.8)] z-50 grid grid-cols-[1fr_auto_1fr] items-center px-6 animate-slideInUp backdrop-blur-md w-full gap-4"
-            >
-                <!-- Left (Start) -->
-                <div class="flex items-center justify-start min-w-0">
-                    ${selectionUI}
-                </div>
+            <div class="relative w-full">
+                ${logDrawer}
+                <div
+                    class="relative shrink-0 h-24 bg-slate-900 border-t border-slate-800/50 shadow-[0_-10px_40px_rgba(0,0,0,0.8)] z-50 flex items-center justify-between px-6 animate-slideInUp backdrop-blur-md w-full gap-6"
+                >
+                    <div class="shrink-0">${selectionUI}</div>
 
-                <!-- Center (Middle) -->
-                <div class="flex items-center justify-center">
-                    ${transportUI}
-                </div>
-
-                <!-- Right (End) -->
-                <div class="flex items-center justify-end min-w-0">
-                    ${contextInfo} ${configUI}
+                    <!-- Combined Transport & Config Area -->
+                    <div
+                        class="flex items-center gap-6 overflow-x-auto scrollbar-hide justify-end grow py-2"
+                    >
+                        ${transportUI}
+                        <div
+                            class="w-px h-10 bg-slate-800 shrink-0 hidden md:block"
+                        ></div>
+                        ${configUI}
+                    </div>
                 </div>
             </div>
         `;

@@ -1,7 +1,7 @@
+import { useUiStore } from '@/state/uiStore';
+import { highlightDash, highlightHls } from '@/ui/shared/syntax-highlighter';
 import { html } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
-import { highlightDash, highlightHls } from '@/ui/shared/syntax-highlighter';
-import { useUiStore } from '@/state/uiStore';
 
 const highlightColors = {
     fail: 'bg-red-900/60',

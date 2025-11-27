@@ -1,7 +1,7 @@
-import { html } from 'lit-html';
-import { useUiStore, uiActions } from '@/state/uiStore';
-import { useAnalysisStore, analysisActions } from '@/state/analysisStore';
+import { analysisActions, useAnalysisStore } from '@/state/analysisStore';
+import { uiActions, useUiStore } from '@/state/uiStore';
 import * as icons from '@/ui/icons';
+import { html } from 'lit-html';
 
 const filterButton = (isActive, icon, label, onClick) => html`
     <button

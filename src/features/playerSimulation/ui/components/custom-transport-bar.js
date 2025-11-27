@@ -1,7 +1,6 @@
+import { formatPlayerTime } from '@/ui/shared/time-format';
 import { html } from 'lit-html';
 import { playerService } from '../../application/playerService';
-import { formatPlayerTime } from '@/ui/shared/time-format';
-import { eventBus } from '@/application/event-bus';
 
 // Helper to render buffered ranges on the timeline
 const renderBufferedRanges = (videoEl, duration) => {
@@ -23,7 +22,7 @@ const renderBufferedRanges = (videoEl, duration) => {
 };
 
 export const customTransportBarTemplate = (playerState) => {
-    const { currentStats, playbackState } = playerState;
+    const { currentStats } = playerState;
     const videoEl = playerService.player?.getMediaElement();
 
     if (!videoEl || !currentStats) return html``;

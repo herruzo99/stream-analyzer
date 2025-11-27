@@ -1,6 +1,6 @@
-import { useMultiPlayerStore } from '@/state/multiPlayerStore';
-import { appLog } from '@/shared/utils/debug';
 import { schemeIdUriToKeySystem } from '@/infrastructure/parsing/utils/drm';
+import { appLog } from '@/shared/utils/debug';
+import { useMultiPlayerStore } from '@/state/multiPlayerStore';
 
 async function fetchCertificate(url) {
     try {

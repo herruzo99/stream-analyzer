@@ -1,5 +1,3 @@
-import { formatBitrate } from '@/ui/shared/format';
-
 /**
  * Prepares data for the reimagined summary dashboard.
  * @param {import('@/types').Stream} stream

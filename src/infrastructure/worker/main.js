@@ -1,17 +1,17 @@
-import { handleGetManifestMetadata } from './handlers/metadataHandler.js';
-import {
-    handleParseSegmentStructure,
-    handleFetchAndParseSegment,
-    handleDecryptAndParseSegment,
-    handleFetchKey,
-    handleFullSegmentAnalysis,
-    handleRunTsSemanticAnalysis,
-} from './parsingService.js';
-import { handleShakaResourceFetch } from './handlers/shakaResourceHandler.js';
-import { handleShakaManifestFetch } from './handlers/shakaManifestHandler.js';
-import { handleGetStreamDrmInfo } from './handlers/drmDetectionHandler.js';
 import { appLog } from '../../shared/utils/debug.js';
 import { handleStartAnalysis } from './handlers/analysisHandler.js';
+import { handleGetStreamDrmInfo } from './handlers/drmDetectionHandler.js';
+import { handleGetManifestMetadata } from './handlers/metadataHandler.js';
+import { handleShakaManifestFetch } from './handlers/shakaManifestHandler.js';
+import { handleShakaResourceFetch } from './handlers/shakaResourceHandler.js';
+import {
+    handleDecryptAndParseSegment,
+    handleFetchAndParseSegment,
+    handleFetchKey,
+    handleFullSegmentAnalysis,
+    handleParseSegmentStructure,
+    handleRunTsSemanticAnalysis,
+} from './parsingService.js';
 
 const inFlightTasks = new Map();
 

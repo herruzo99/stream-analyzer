@@ -1,7 +1,7 @@
+import { formatDuration } from '@/features/timeline/ui/utils';
+import * as icons from '@/ui/icons';
 import { html } from 'lit-html';
 import { adaptationSetCardTemplate } from './adaptation-set-card.js';
-import * as icons from '@/ui/icons';
-import { formatDuration } from '@/features/timeline/ui/utils';
 
 export const periodCardTemplate = (period, index, stream) => {
     const durationStr =

@@ -1,7 +1,6 @@
-import { html } from 'lit-html';
 import { networkActions } from '@/state/networkStore';
-import { formatBitrate } from '@/ui/shared/format';
 import * as icons from '@/ui/icons';
+import { html } from 'lit-html';
 
 const TYPE_COLORS = {
     manifest: {

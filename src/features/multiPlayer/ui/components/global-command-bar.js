@@ -1,8 +1,8 @@
-import { html, render } from 'lit-html';
-import { useMultiPlayerStore } from '@/state/multiPlayerStore';
 import { eventBus } from '@/application/event-bus';
-import { toggleDropdown, closeDropdown } from '@/ui/services/dropdownService';
+import { useMultiPlayerStore } from '@/state/multiPlayerStore';
 import * as icons from '@/ui/icons';
+import { closeDropdown, toggleDropdown } from '@/ui/services/dropdownService';
+import { html, render } from 'lit-html';
 
 const gridOptionsTemplate = (currentColumns) => {
     const options = [

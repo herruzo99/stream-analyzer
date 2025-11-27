@@ -1,6 +1,6 @@
-import { initializeStreamInputController } from './application/streamInputController.js';
-import { initializeSavePresetUseCase } from './application/savePresetUseCase.js';
 import { initializeAnalysisController } from './application/analysisController.js';
+import { initializeSavePresetUseCase } from './application/savePresetUseCase.js';
+import { initializeStreamInputController } from './application/streamInputController.js';
 import { initializeStreamMetadataService } from './application/streamMetadataService.js';
 
 /**

@@ -1,7 +1,7 @@
-import { html } from 'lit-html';
 import { uiActions } from '@/state/uiStore';
 import * as icons from '@/ui/icons';
 import { tooltipTriggerClasses } from '@/ui/shared/constants';
+import { html } from 'lit-html';
 
 const getStreamHeader = (stream, isReference) => {
     const refButtonClasses = isReference

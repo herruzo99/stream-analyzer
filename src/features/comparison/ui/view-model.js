@@ -1,5 +1,4 @@
 import { formatBitrate } from '@/ui/shared/format';
-import { getDrmSystemName } from '@/infrastructure/parsing/utils/drm';
 
 const renderList = (items) =>
     items && items.length > 0

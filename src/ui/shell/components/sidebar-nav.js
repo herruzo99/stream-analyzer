@@ -1,13 +1,22 @@
-import { html } from 'lit-html';
-import { useUiStore, uiActions } from '@/state/uiStore';
-import { useAnalysisStore } from '@/state/analysisStore';
-import { isDebugMode } from '@/shared/utils/env';
-import * as icons from '@/ui/icons';
+// ... existing imports
 import { hasMissingTooltips } from '@/features/parserCoverage/domain/tooltip-coverage-analyzer';
+import { isDebugMode } from '@/shared/utils/env';
+import { useAnalysisStore } from '@/state/analysisStore';
+import { uiActions, useUiStore } from '@/state/uiStore';
+import * as icons from '@/ui/icons';
+import { html } from 'lit-html';
 
 const NavItem = (item, activeTab) => {
     if (!item.visible) return '';
     const isActive = activeTab === item.key;
+    // ... (existing NavItem rendering logic unchanged)
+
+    const textColorClass = isActive
+        ? 'text-white font-semibold'
+        : 'text-slate-400 group-hover:text-slate-200';
+    const iconColorClass = isActive
+        ? 'text-blue-400'
+        : 'text-slate-400 group-hover:text-slate-200';
 
     let statusIndicator = html``;
     if (item.hasError) {
@@ -20,13 +29,6 @@ const NavItem = (item, activeTab) => {
         ></span>`;
     }
 
-    const textColorClass = isActive
-        ? 'text-white font-semibold'
-        : 'text-slate-400 group-hover:text-slate-200';
-    const iconColorClass = isActive
-        ? 'text-blue-400'
-        : 'text-slate-400 group-hover:text-slate-200';
-
     return html`
         <a
             href="#"
@@ -36,7 +38,6 @@ const NavItem = (item, activeTab) => {
             @click=${(e) => {
                 e.preventDefault();
                 uiActions.setActiveTab(item.key);
-                // Close sidebar on mobile via state update
                 uiActions.setActiveSidebar(null);
             }}
         >
@@ -86,6 +87,8 @@ export function getNavGroups() {
     const hasCoverageIssues =
         isDebugMode && (activeStream?.coverageReport || []).length > 0;
     const hasManifestWarnings = hasMissingTooltips(activeStream);
+
+    const isEncrypted = activeStream?.manifest?.summary?.security?.isEncrypted;
 
     return [
         {
@@ -157,6 +160,14 @@ export function getNavGroups() {
                     label: 'Network Waterfall',
                     icon: icons.network,
                     visible: true,
+                },
+                // New DRM Item
+                {
+                    key: 'drm',
+                    label: 'DRM Workbench',
+                    icon: icons.shieldCheck,
+                    visible: true, // Always visible for utility, but most useful for encrypted streams
+                    hasWarning: isEncrypted, // Highlight if stream is encrypted
                 },
                 {
                     key: 'updates',

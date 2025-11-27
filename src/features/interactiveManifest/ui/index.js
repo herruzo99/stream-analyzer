@@ -1,22 +1,19 @@
-import { html, render } from 'lit-html';
-import { useUiStore, uiActions } from '@/state/uiStore';
-import { useAnalysisStore } from '@/state/analysisStore';
-import {
-    dashManifestTemplate,
-    findPathIndex,
-} from './components/dash/renderer.js';
-import { hlsManifestTemplate } from './components/hls/renderer.js';
-import { copyTextToClipboard } from '@/ui/shared/clipboard';
 import { eventBus } from '@/application/event-bus';
-import { dashTooltipData } from './components/dash/tooltip-data.js';
-import { hlsTooltipData } from './components/hls/tooltip-data.js';
-import * as icons from '@/ui/icons';
-import { openModalWithContent } from '@/ui/services/modalService';
-import { copyDebugInfoToClipboard } from '@/ui/services/debugService';
 import {
     findDashMissingTooltips,
     findHlsMissingTooltips,
 } from '@/features/parserCoverage/domain/tooltip-coverage-analyzer';
+import { useAnalysisStore } from '@/state/analysisStore';
+import { useUiStore } from '@/state/uiStore';
+import { EVENTS } from '@/types/events'; // Import events
+import * as icons from '@/ui/icons';
+import { openModalWithContent } from '@/ui/services/modalService';
+import { copyTextToClipboard } from '@/ui/shared/clipboard';
+import { html, render } from 'lit-html';
+import { dashManifestTemplate } from './components/dash/renderer.js';
+import { dashTooltipData } from './components/dash/tooltip-data.js';
+import { hlsManifestTemplate } from './components/hls/renderer.js';
+import { hlsTooltipData } from './components/hls/tooltip-data.js';
 import './components/sidebar.js';
 
 let container = null;
@@ -28,6 +25,7 @@ let delegatedEventHandler = null;
 let hoverDebounceTimeout = null;
 
 function handleInteraction(e) {
+    // ... (existing logic)
     const stream = useAnalysisStore
         .getState()
         .streams.find(
@@ -67,7 +65,6 @@ function handleInteraction(e) {
             }, 30);
         } else if (e.type === 'click') {
             eventBus.dispatch('ui:interactive-manifest:item-clicked', { item });
-            // Ensure sidebar is open when clicking an item
             document.body.classList.add('contextual-sidebar-open');
         }
     }
@@ -84,7 +81,6 @@ function renderInteractiveManifest() {
             html`<p class="text-slate-500 p-4">No Manifest loaded.</p>`,
             container
         );
-        // Clear sidebar if stream is missing
         if (sidebarContainer) render(html``, sidebarContainer);
         return;
     }
@@ -98,8 +94,6 @@ function renderInteractiveManifest() {
     let manifestToRender = null;
     let stringToRender = null;
     let diffData = null;
-
-    // Determine which manifest object we are currently viewing (Master vs Media Playlist vs DASH MPD)
     let targetSerializedForAnalysis = stream.manifest.serializedManifest;
 
     if (
@@ -141,32 +135,24 @@ function renderInteractiveManifest() {
         });
     };
 
+    const handleTimingCalculator = () => {
+        eventBus.dispatch(EVENTS.UI.SHOW_DASH_TIMING_CALCULATOR, {
+            streamId: stream.id,
+        });
+    };
+
     const handleDownloadDebug = () => {
         let missingItems = [];
-
         if (stream.protocol === 'dash') {
             missingItems = findDashMissingTooltips(targetSerializedForAnalysis);
         } else if (stream.protocol === 'hls') {
             missingItems = findHlsMissingTooltips(targetSerializedForAnalysis);
         }
-
         const reportText =
             missingItems.length > 0
                 ? missingItems.map((m) => `[${m.type}] ${m.name}`).join('\n')
                 : 'No missing tooltip definitions found.';
-
-        const content = `--- MANIFEST CONTENT (${stream.name}) ---
-
-${stringToRender}
-
---- MISSING TOOLTIP DEFINITIONS REPORT ---
-Generated: ${new Date().toISOString()}
-Protocol: ${stream.protocol.toUpperCase()}
-Context: ${stream.activeMediaPlaylistId || 'Main'}
-
-${reportText}
-`;
-
+        const content = `--- MANIFEST CONTENT (${stream.name}) ---\n\n${stringToRender}\n\n--- MISSING TOOLTIP DEFINITIONS REPORT ---\nGenerated: ${new Date().toISOString()}\nProtocol: ${stream.protocol.toUpperCase()}\nContext: ${stream.activeMediaPlaylistId || 'Main'}\n\n${reportText}\n`;
         const blob = new Blob([content], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -195,6 +181,16 @@ ${reportText}
                 >
             </div>
             <div class="flex items-center gap-2">
+                ${stream.protocol === 'dash'
+                    ? html`
+                          <button
+                              @click=${handleTimingCalculator}
+                              class="text-xs bg-blue-900/20 hover:bg-blue-900/40 text-blue-400 px-3 py-1.5 rounded-md font-bold transition-colors flex items-center gap-2 border border-blue-500/20"
+                          >
+                              ${icons.calculator} Timing Calc
+                          </button>
+                      `
+                    : ''}
                 <button
                     @click=${handleDownloadDebug}
                     class="text-xs text-slate-500 hover:text-yellow-400 px-3 py-1.5 rounded-md border border-transparent hover:border-slate-700 transition-colors flex items-center gap-2"
@@ -253,7 +249,6 @@ ${reportText}
 
     render(template, container);
 
-    // --- Render Sidebar Content ---
     if (sidebarContainer) {
         render(
             html`<interactive-manifest-sidebar></interactive-manifest-sidebar>`,
@@ -263,12 +258,11 @@ ${reportText}
 }
 
 export const interactiveManifestView = {
-    // ARCHITECTURAL FIX: Enable the global contextual sidebar for this view
     hasContextualSidebar: true,
 
     mount(containerElement, { stream }) {
         container = containerElement;
-        sidebarContainer = document.getElementById('contextual-sidebar'); // Access the shell's sidebar
+        sidebarContainer = document.getElementById('contextual-sidebar');
         currentStreamId = stream.id;
         if (uiUnsubscribe) uiUnsubscribe();
         if (analysisUnsubscribe) analysisUnsubscribe();
@@ -295,10 +289,7 @@ export const interactiveManifestView = {
             container.removeEventListener('click', delegatedEventHandler);
         }
         if (container) render(html``, container);
-
-        // Clean up the sidebar portal
         if (sidebarContainer) render(html``, sidebarContainer);
-
         container = null;
         sidebarContainer = null;
     },

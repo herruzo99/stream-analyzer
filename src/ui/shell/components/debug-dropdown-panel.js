@@ -1,8 +1,8 @@
-import { html } from 'lit-html';
-import { useUiStore, uiActions } from '@/state/uiStore';
+import { uiActions, useUiStore } from '@/state/uiStore';
+import * as icons from '@/ui/icons';
 import { copyDebugInfoToClipboard } from '@/ui/services/debugService';
 import { closeDropdown } from '@/ui/services/dropdownService';
-import * as icons from '@/ui/icons';
+import { html } from 'lit-html';
 
 const toggleRow = (key, label, description, isChecked) => {
     const handleChange = (e) => {

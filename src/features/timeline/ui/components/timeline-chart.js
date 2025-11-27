@@ -1,7 +1,7 @@
-import { init as initChart } from 'echarts/core';
+import { uiActions } from '@/state/uiStore';
 import { disposeChart } from '@/ui/shared/charts/chart-renderer';
+import { init as initChart } from 'echarts/core';
 import { TRACK_COLORS } from '../utils.js';
-import { useUiStore, uiActions } from '@/state/uiStore';
 
 class TimelineChart extends HTMLElement {
     constructor() {
@@ -47,7 +47,7 @@ class TimelineChart extends HTMLElement {
     updateChart() {
         if (!this._data || !this.chart) return;
 
-        const { tracks, totalDuration, isLive } = this._data;
+        const { tracks, totalDuration } = this._data;
         const categories = tracks.map((t) => t.label);
         const seriesData = [];
 

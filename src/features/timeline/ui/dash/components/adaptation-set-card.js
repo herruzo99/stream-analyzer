@@ -1,7 +1,7 @@
+import { getAttr } from '@/infrastructure/parsing/utils/recursive-parser.js';
+import * as icons from '@/ui/icons';
 import { html } from 'lit-html';
 import { representationCardTemplate } from './representation-card.js';
-import * as icons from '@/ui/icons';
-import { getAttr } from '@/infrastructure/parsing/utils/recursive-parser.js';
 
 const getTypeIcon = (type) => {
     switch (type) {

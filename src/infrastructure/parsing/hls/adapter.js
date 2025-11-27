@@ -18,8 +18,8 @@
 import { getDrmSystemName } from '@/infrastructure/parsing/utils/drm';
 import { parseScte35 } from '../scte35/parser.js';
 import {
-    inferMediaInfoFromExtension,
     determineSegmentFormat,
+    inferMediaInfoFromExtension,
 } from '../utils/media-types.js';
 
 import { isCodecSupported } from '../utils/codec-support.js';

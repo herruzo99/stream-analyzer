@@ -1,5 +1,5 @@
-import { initializeResolveAdAvailUseCase } from './application/resolveAdAvailUseCase.js';
 import { initializeDetectStructuralAdsUseCase } from './application/detectStructuralAdsUseCase.js';
+import { initializeResolveAdAvailUseCase } from './application/resolveAdAvailUseCase.js';
 
 /**
  * Initializes all application-layer logic for the Advertising feature.

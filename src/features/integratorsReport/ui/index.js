@@ -1,10 +1,10 @@
-import { html, render } from 'lit-html';
 import { useAnalysisStore } from '@/state/analysisStore';
-import { createIntegratorsReportViewModel } from './view-model.js';
-import { requirementsCardTemplate } from './components/requirements-card.js';
+import * as icons from '@/ui/icons';
+import { html, render } from 'lit-html';
 import { compatibilityMatrixTemplate } from './components/compatibility-matrix.js';
 import { configGeneratorTemplate } from './components/config-generator.js';
-import * as icons from '@/ui/icons';
+import { requirementsCardTemplate } from './components/requirements-card.js';
+import { createIntegratorsReportViewModel } from './view-model.js';
 
 let container = null;
 let analysisUnsubscribe = null;

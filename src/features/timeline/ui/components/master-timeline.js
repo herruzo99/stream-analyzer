@@ -1,8 +1,7 @@
-import { init as initChart } from 'echarts/core';
+import { useUiStore } from '@/state/uiStore';
 import { disposeChart } from '@/ui/shared/charts/chart-renderer';
-import { useUiStore, uiActions } from '@/state/uiStore';
+import { init as initChart } from 'echarts/core';
 import { shallow } from 'zustand/vanilla/shallow';
-import { formatBitrate } from '@/ui/shared/format';
 
 const Y_AXIS_CATEGORIES = ['Segments', 'Periods', 'Events', 'Ad Breaks', 'ABR'];
 const Y_AXIS_ORDER = {

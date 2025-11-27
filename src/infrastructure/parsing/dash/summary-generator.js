@@ -9,8 +9,8 @@ import {
     resolveBaseUrl,
 } from '../utils/recursive-parser.js';
 
-import { findInitSegmentUrl } from './segment-parser.js';
 import { isCodecSupported } from '../utils/codec-support.js';
+import { findInitSegmentUrl } from './segment-parser.js';
 
 import { appLog } from '@/shared/utils/debug';
 

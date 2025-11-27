@@ -1,6 +1,6 @@
+import * as icons from '@/ui/icons';
 import { html } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
-import * as icons from '@/ui/icons';
 
 export const featureDetailsModalTemplate = (feature, onClose) => {
     if (!feature) return '';

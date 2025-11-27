@@ -1,4 +1,4 @@
-import { icons, createElement } from 'lucide';
+import { createElement, icons } from 'lucide';
 
 class IconComponent extends HTMLElement {
     static observedAttributes = ['name', 'class'];

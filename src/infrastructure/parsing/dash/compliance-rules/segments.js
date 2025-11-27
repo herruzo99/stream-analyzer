@@ -1,7 +1,7 @@
 import {
-    getInheritedElement,
-    getAttr,
     findChildren,
+    getAttr,
+    getInheritedElement,
 } from '../../utils/recursive-parser.js';
 
 /** @typedef {import('./index.js').Rule} Rule */
