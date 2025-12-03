@@ -313,7 +313,6 @@ class ManifestPatcher extends HTMLElement {
 
         let contentArea;
         if (this.activeTab === 'preview') {
-            // Pass the FULL diff object (including changes) to avoid the crash in diffViewerTemplate
             contentArea = diffViewerTemplate(
                 {
                     diffModel: diff.diffModel,
@@ -328,17 +327,9 @@ class ManifestPatcher extends HTMLElement {
             const highlightFn =
                 this.protocol === 'dash' ? highlightDash : highlightHls;
             const highlightedHTML = highlightFn(contentToRender);
-            contentArea = html`
-                <div
-                    class="absolute inset-0 bg-slate-950 overflow-auto custom-scrollbar"
-                >
-                    <pre
-                        class="p-6 text-xs font-mono text-slate-400 whitespace-pre leading-tight w-full min-w-max"
-                    >
-${unsafeHTML(highlightedHTML)}</pre
-                    >
-                </div>
-            `;
+
+            // prettier-ignore
+            contentArea = html`<div class="absolute inset-0 bg-slate-950 overflow-auto custom-scrollbar"><pre class="p-6 text-xs font-mono text-slate-400 whitespace-pre leading-tight w-full min-w-max">${unsafeHTML(highlightedHTML)}</pre></div>`;
         }
 
         const rightPane = html`

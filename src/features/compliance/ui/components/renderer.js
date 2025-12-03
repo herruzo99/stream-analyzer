@@ -118,6 +118,7 @@ const renderDashNode = (
         activeFilter
     );
 
+    // prettier-ignore
     templates.push(
         html`<div class="flex">
             <span
@@ -136,6 +137,7 @@ const renderDashNode = (
 
     if (hasChildren) {
         if (textContent) {
+            // prettier-ignore
             templates.push(
                 html`<div class="flex">
                     <span class="text-right text-gray-500 pr-4 select-none w-12"
@@ -184,6 +186,7 @@ const renderDashNode = (
         });
 
         const closingTagHtml = highlightDash(`</${tagName}>`);
+        // prettier-ignore
         templates.push(
             html`<div class="flex">
                 <span
@@ -253,6 +256,7 @@ export const manifestViewTemplate = (
                 ? 'bg-purple-500/30'
                 : '';
 
+            // prettier-ignore
             return html`<div class="flex">
                 <span class="text-right text-gray-500 pr-4 select-none w-12"
                     >${lineNumber}</span

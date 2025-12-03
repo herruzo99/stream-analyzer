@@ -1,8 +1,10 @@
 import * as icons from '@/ui/icons';
 import { formatBitrate } from '@/ui/shared/format';
-import { html } from 'lit-html';
+import { html } from 'lit-html'; // Ensure render is imported if used, though usually just html
 import { headerDetailsTemplate } from './header-details.js';
+import { responseViewerTemplate } from './response-viewer.js';
 
+// ... (detailItem, breakdownBar, auditFindingsTemplate helpers remain unchanged) ...
 const detailItem = (label, value, isMono = false) => html`
     <div
         class="flex justify-between py-2 border-b border-slate-800 last:border-0 hover:bg-slate-800/30 px-2 transition-colors rounded"
@@ -20,13 +22,13 @@ const detailItem = (label, value, isMono = false) => html`
 `;
 
 const breakdownBar = (label, valueMs, totalMs, colorClass) => {
-    const percent = (valueMs / totalMs) * 100;
-    if (valueMs === 0) return '';
+    if (!valueMs || valueMs <= 0) return '';
+    const percent = totalMs > 0 ? (valueMs / totalMs) * 100 : 0;
     return html`
-        <div class="mb-2">
+        <div class="mb-2 last:mb-0">
             <div class="flex justify-between text-[10px] text-slate-400 mb-1">
                 <span>${label}</span>
-                <span class="font-mono text-slate-300"
+                <span class="text-slate-300 font-mono"
                     >${valueMs.toFixed(1)}ms</span
                 >
             </div>
@@ -86,15 +88,15 @@ export const networkDetailsPanelTemplate = (event) => {
     if (!event) {
         return html`
             <div
-                class="h-full flex flex-col items-center justify-center text-center text-slate-500 p-6 bg-slate-900 border border-slate-800 rounded-lg"
+                class="h-full flex flex-col items-center justify-center text-center text-slate-500 p-6 bg-slate-900 border border-slate-700 rounded-lg"
             >
                 <div class="p-4 bg-slate-800 rounded-full mb-3">
                     ${icons.search}
                 </div>
                 <p class="font-semibold text-slate-300">Select a Request</p>
                 <p class="text-xs mt-1">
-                    Click any row in the waterfall to inspect headers and
-                    timing.
+                    Click any row in the waterfall to inspect headers, timing,
+                    and response bodies.
                 </p>
             </div>
         `;
@@ -103,11 +105,10 @@ export const networkDetailsPanelTemplate = (event) => {
     const breakdown = event.timing.breakdown || { ttfb: 0, download: 0 };
     const totalTime = event.timing.duration;
     const issues = event.auditIssues || [];
-
-    // Pass issues to header template to allow highlighting
     const issueHeaderKeys = new Set(
         issues.map((i) => i.header).filter(Boolean)
     );
+    const hasDetailedTiming = Object.values(breakdown).some((v) => v > 0);
 
     return html`
         <div
@@ -131,107 +132,165 @@ export const networkDetailsPanelTemplate = (event) => {
                 >
             </div>
 
-            <div class="grow overflow-y-auto p-4 space-y-6 custom-scrollbar">
-                ${auditFindingsTemplate(issues)}
+            <div class="grow overflow-y-auto custom-scrollbar">
+                <!-- We use specific IDs for anchors if needed, but simple stacking is fine here -->
 
-                <!-- Summary -->
-                <section>
-                    <h5
-                        class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2"
-                    >
-                        General
-                    </h5>
-                    <div
-                        class="bg-slate-950/30 rounded-lg border border-slate-800 p-1"
-                    >
-                        ${detailItem(
-                            'Status',
-                            `${event.response.status} ${event.response.statusText}`,
-                            true
-                        )}
-                        ${detailItem('Method', event.request.method, true)}
-                        ${detailItem('Type', event.resourceType)}
-                        ${detailItem(
-                            'Size',
-                            `${event.response.contentLength} bytes`,
-                            true
-                        )}
-                        ${event.throughput
-                            ? detailItem(
-                                  'Throughput',
-                                  formatBitrate(event.throughput),
-                                  true
-                              )
-                            : ''}
-                    </div>
-                </section>
+                <div class="p-4 space-y-6">
+                    ${auditFindingsTemplate(issues)}
 
-                <!-- Timing Breakdown -->
-                <section>
-                    <h5
-                        class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2"
-                    >
-                        Timing (${totalTime.toFixed(1)}ms)
-                    </h5>
-                    <div
-                        class="bg-slate-950/30 rounded-lg border border-slate-800 p-3"
-                    >
-                        ${breakdownBar(
-                            'Waiting (TTFB)',
-                            breakdown.ttfb,
-                            totalTime,
-                            'bg-purple-500'
-                        )}
-                        ${breakdownBar(
-                            'Content Download',
-                            breakdown.download,
-                            totalTime,
-                            'bg-blue-500'
-                        )}
-                    </div>
-                </section>
-
-                <!-- Headers -->
-                <details class="group" open>
-                    <summary
-                        class="list-none flex items-center justify-between cursor-pointer py-2 border-b border-slate-800"
-                    >
+                    <!-- Overview -->
+                    <section>
                         <h5
-                            class="text-xs font-bold text-slate-500 uppercase tracking-wider"
+                            class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2"
                         >
-                            Response Headers
+                            Overview
                         </h5>
-                        <span
-                            class="text-slate-500 group-open:rotate-180 transition-transform"
-                            >${icons.chevronDown}</span
+                        <div
+                            class="bg-slate-950/30 rounded-lg border border-slate-800 p-1"
                         >
-                    </summary>
-                    <div class="pt-2">
-                        ${headerDetailsTemplate(
-                            event.response.headers,
-                            issueHeaderKeys
-                        )}
-                    </div>
-                </details>
+                            ${detailItem(
+                                'Status',
+                                `${event.response.status} ${event.response.statusText}`,
+                                true
+                            )}
+                            ${detailItem('Method', event.request.method, true)}
+                            ${detailItem('Type', event.resourceType)}
+                            ${detailItem(
+                                'Size',
+                                `${event.response.contentLength} bytes`,
+                                true
+                            )}
+                            ${event.throughput
+                                ? detailItem(
+                                      'Throughput',
+                                      formatBitrate(event.throughput),
+                                      true
+                                  )
+                                : ''}
+                        </div>
+                    </section>
 
-                <details class="group">
-                    <summary
-                        class="list-none flex items-center justify-between cursor-pointer py-2 border-b border-slate-800"
-                    >
+                    <!-- Response Body (New) -->
+                    <section>
                         <h5
-                            class="text-xs font-bold text-slate-500 uppercase tracking-wider"
+                            class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2"
                         >
-                            Request Headers
+                            Response Body
                         </h5>
-                        <span
-                            class="text-slate-500 group-open:rotate-180 transition-transform"
-                            >${icons.chevronDown}</span
+                        <div
+                            class="bg-slate-950/30 rounded-lg border border-slate-800 p-2 min-h-[200px]"
                         >
-                    </summary>
-                    <div class="pt-2">
-                        ${headerDetailsTemplate(event.request.headers)}
-                    </div>
-                </details>
+                            ${responseViewerTemplate(event)}
+                        </div>
+                    </section>
+
+                    <!-- Headers -->
+                    <details class="group">
+                        <summary
+                            class="list-none flex items-center justify-between cursor-pointer py-2 border-b border-slate-800"
+                        >
+                            <h5
+                                class="text-xs font-bold text-slate-500 uppercase tracking-wider"
+                            >
+                                Response Headers
+                            </h5>
+                            <span
+                                class="text-slate-500 group-open:rotate-180 transition-transform"
+                                >${icons.chevronDown}</span
+                            >
+                        </summary>
+                        <div class="pt-2">
+                            ${headerDetailsTemplate(
+                                event.response.headers,
+                                issueHeaderKeys
+                            )}
+                        </div>
+                    </details>
+
+                    <details class="group">
+                        <summary
+                            class="list-none flex items-center justify-between cursor-pointer py-2 border-b border-slate-800"
+                        >
+                            <h5
+                                class="text-xs font-bold text-slate-500 uppercase tracking-wider"
+                            >
+                                Request Headers
+                            </h5>
+                            <span
+                                class="text-slate-500 group-open:rotate-180 transition-transform"
+                                >${icons.chevronDown}</span
+                            >
+                        </summary>
+                        <div class="pt-2">
+                            ${headerDetailsTemplate(event.request.headers)}
+                        </div>
+                    </details>
+
+                    <!-- Timing -->
+                    <section>
+                        <h5
+                            class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2"
+                        >
+                            Timing (${totalTime.toFixed(1)}ms)
+                        </h5>
+                        <div
+                            class="bg-slate-950/30 rounded-lg border border-slate-800 p-3"
+                        >
+                            ${hasDetailedTiming
+                                ? html`
+                                      ${breakdownBar(
+                                          'Redirect',
+                                          breakdown.redirect,
+                                          totalTime,
+                                          'bg-yellow-500'
+                                      )}
+                                      ${breakdownBar(
+                                          'DNS Lookup',
+                                          breakdown.dns,
+                                          totalTime,
+                                          'bg-cyan-500'
+                                      )}
+                                      ${breakdownBar(
+                                          'TCP Connect',
+                                          breakdown.tcp,
+                                          totalTime,
+                                          'bg-orange-500'
+                                      )}
+                                      ${breakdownBar(
+                                          'TLS Handshake',
+                                          breakdown.tls,
+                                          totalTime,
+                                          'bg-pink-500'
+                                      )}
+                                      ${breakdownBar(
+                                          'Waiting (TTFB)',
+                                          breakdown.ttfb,
+                                          totalTime,
+                                          'bg-purple-500'
+                                      )}
+                                      ${breakdownBar(
+                                          'Content Download',
+                                          breakdown.download,
+                                          totalTime,
+                                          'bg-blue-500'
+                                      )}
+                                  `
+                                : html`
+                                      ${breakdownBar(
+                                          'Total Duration',
+                                          totalTime,
+                                          totalTime,
+                                          'bg-slate-600'
+                                      )}
+                                      <p
+                                          class="text-[9px] text-slate-500 mt-2 italic text-center"
+                                      >
+                                          Detailed timing unavailable.
+                                      </p>
+                                  `}
+                        </div>
+                    </section>
+                </div>
             </div>
         </div>
     `;

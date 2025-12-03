@@ -1,6 +1,5 @@
 import { eventBus } from '@/application/event-bus';
 import { resetApplicationState } from '@/application/use_cases/resetApplicationState';
-import { notificationSettingsPanelTemplate } from '@/features/notifications/ui/components/notification-settings-panel.js';
 import { playerService } from '@/features/playerSimulation/application/playerService';
 import { getLastUsedStreams } from '@/infrastructure/persistence/streamStorage';
 import { isDebugMode } from '@/shared/utils/env';
@@ -14,6 +13,7 @@ import { toggleAllPolling } from '@/ui/services/streamActionsService';
 import { html } from 'lit-html';
 import { debugDropdownPanelTemplate } from './debug-dropdown-panel.js';
 import { pollingDropdownPanelTemplate } from './polling-dropdown-panel.js';
+import { settingsDropdownTemplate } from './settings-dropdown.js'; // New Import
 
 function handleRestart() {
     if (
@@ -178,7 +178,7 @@ export const globalControlsTemplate = () => {
 
     return html`
         <div
-            class="mt-auto border-t border-white/5 bg-slate-950/80 backdrop-blur-md p-4 space-y-4"
+            class="border-t border-white/5 bg-slate-950/80 backdrop-blur-md p-4 space-y-4"
         >
             <!-- Hidden Global File Input -->
             <input
@@ -252,12 +252,9 @@ export const globalControlsTemplate = () => {
                     'Share',
                     copyShareUrlToClipboard
                 )}
+                <!-- Updated Settings Action -->
                 ${labeledIconButton(icons.settings, 'Settings', (e) =>
-                    toggleDropdown(
-                        e.currentTarget,
-                        notificationSettingsPanelTemplate,
-                        e
-                    )
+                    toggleDropdown(e.currentTarget, settingsDropdownTemplate, e)
                 )}
                 ${labeledIconButton(
                     icons.wrench,

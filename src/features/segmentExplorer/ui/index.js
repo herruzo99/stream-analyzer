@@ -37,7 +37,6 @@ function renderExplorer() {
         return;
     }
 
-    // Use the singleton engine to process view model
     const viewModel = createSegmentExplorerViewModel(stream, uiState);
 
     const template = html`

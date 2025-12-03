@@ -32,7 +32,23 @@ export function setupGlobalTooltipListener(dom) {
 
         try {
             if (b64Html) {
-                tooltipContent = atob(b64Html);
+                // Robust UTF-8 Base64 Decoding
+                const binaryString = atob(b64Html);
+                try {
+                    // Convert binary string back to percent-encoded UTF-8 sequence for correct decoding
+                    const percentEncoded = binaryString
+                        .split('')
+                        .map(
+                            (c) =>
+                                '%' +
+                                ('00' + c.charCodeAt(0).toString(16)).slice(-2)
+                        )
+                        .join('');
+                    tooltipContent = decodeURIComponent(percentEncoded);
+                } catch (_e) {
+                    // Fallback for legacy/ASCII-only base64
+                    tooltipContent = binaryString;
+                }
             } else {
                 const text = tooltipTrigger.dataset.tooltip || '';
                 const isoRef = tooltipTrigger.dataset.iso || '';

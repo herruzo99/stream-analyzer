@@ -84,6 +84,18 @@ export const waterfallRowTemplate = (event, isSelected) => {
     const fileName = new URL(event.url).pathname.split('/').pop() || event.url;
     const timeLabel = `${event.timing.duration.toFixed(0)}ms`;
 
+    // Visual bar segments
+    const {
+        redirectWidth,
+        dnsWidth,
+        tcpWidth,
+        tlsWidth,
+        ttfbWidth,
+        downloadWidth,
+        width,
+        left,
+    } = event.visuals;
+
     return html`
         <div
             class="group flex items-center text-xs border-b border-slate-800/50 h-8 cursor-pointer transition-colors ${rowClasses}"
@@ -136,28 +148,55 @@ export const waterfallRowTemplate = (event, isSelected) => {
             >
                 <div
                     class="absolute h-3 rounded-sm flex overflow-hidden"
-                    style="left: ${event.visuals.left}; width: ${event.visuals
-                        .width}; min-width: 2px;"
+                    style="left: ${left}; width: ${width}; min-width: 2px;"
                 >
-                    <!-- TTFB (Waiting) -->
+                    <!-- Redirect (Yellow) -->
                     <div
-                        class="h-full ${colors.bg}"
-                        style="width: ${event.visuals.ttfbWidth}; opacity: 0.3;"
+                        class="h-full bg-yellow-500"
+                        style="width: ${redirectWidth}"
+                        title="Redirect"
                     ></div>
 
-                    <!-- Download -->
+                    <!-- DNS (Cyan) -->
+                    <div
+                        class="h-full bg-cyan-500"
+                        style="width: ${dnsWidth}"
+                        title="DNS Lookup"
+                    ></div>
+
+                    <!-- TCP (Orange) -->
+                    <div
+                        class="h-full bg-orange-500"
+                        style="width: ${tcpWidth}"
+                        title="TCP Connect"
+                    ></div>
+
+                    <!-- TLS (Pink) -->
+                    <div
+                        class="h-full bg-pink-500"
+                        style="width: ${tlsWidth}"
+                        title="TLS Handshake"
+                    ></div>
+
+                    <!-- TTFB (Purple - Waiting) -->
+                    <div
+                        class="h-full bg-purple-500 opacity-80"
+                        style="width: ${ttfbWidth}"
+                        title="Waiting (TTFB)"
+                    ></div>
+
+                    <!-- Download (Blue/Type Color) -->
                     <div
                         class="h-full ${colors.bg}"
-                        style="width: ${event.visuals
-                            .downloadWidth}; opacity: 0.9;"
+                        style="width: ${downloadWidth}; opacity: 0.9;"
+                        title="Content Download"
                     ></div>
                 </div>
 
-                <!-- Time Label (Floating right of bar if space permits, otherwise hide) -->
+                <!-- Time Label -->
                 <span
                     class="absolute text-[10px] text-slate-500 ml-1 pointer-events-none"
-                    style="left: calc(${event.visuals.left} + ${event.visuals
-                        .width});"
+                    style="left: calc(${left} + ${width});"
                 >
                     ${timeLabel}
                 </span>

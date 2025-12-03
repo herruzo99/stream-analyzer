@@ -10,53 +10,59 @@ function processStreamInputs() {
     for (const input of streamInputs) {
         if (
             input.url &&
-            input.isDrmInfoLoading &&
+            input.isTier0AnalysisLoading &&
             !inFlightRequests.has(input.id)
         ) {
             inFlightRequests.add(input.id);
             appLog(
                 'streamMetadataService',
                 'info',
-                `Dispatching DRM detection for input ID: ${input.id}`,
+                `Dispatching Tier 0 analysis for input ID: ${input.id}`,
                 { url: input.url }
             );
 
             workerService
-                .postTask('get-stream-drm-info', {
+                .postTask('tier0-analysis', {
                     url: input.url,
                     auth: input.auth,
                 })
-                .promise.then((detectedDrm) => {
+                .promise.then((tier0Result) => {
                     appLog(
                         'streamMetadataService',
                         'info',
-                        `DRM detection complete for input ID: ${input.id}`,
-                        { detectedDrm }
+                        `Tier 0 analysis complete for input ID: ${input.id}`,
+                        tier0Result
                     );
                     analysisActions.updateStreamInput(
                         input.id,
-                        'detectedDrm',
-                        detectedDrm
+                        'tier0',
+                        tier0Result
                     );
+                    // Backwards compatibility for detectedDrm field
+                    if (
+                        tier0Result.detectedDrm &&
+                        tier0Result.detectedDrm.length > 0
+                    ) {
+                        analysisActions.updateStreamInput(
+                            input.id,
+                            'detectedDrm',
+                            tier0Result.detectedDrm
+                        );
+                    }
                     analysisActions.updateStreamInput(
                         input.id,
-                        'isDrmInfoLoading',
+                        'isTier0AnalysisLoading',
                         false
                     );
                 })
                 .catch((error) => {
                     console.error(
-                        `DRM detection failed for ${input.url}:`,
+                        `Tier 0 analysis failed for ${input.url}:`,
                         error
                     );
                     analysisActions.updateStreamInput(
                         input.id,
-                        'detectedDrm',
-                        []
-                    ); // Empty array on failure
-                    analysisActions.updateStreamInput(
-                        input.id,
-                        'isDrmInfoLoading',
+                        'isTier0AnalysisLoading',
                         false
                     );
                 })

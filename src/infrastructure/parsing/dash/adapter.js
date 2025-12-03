@@ -1,23 +1,7 @@
-/**
- * @typedef {import('@/types.ts').Manifest} Manifest
- * @typedef {import('@/types.ts').Period} Period
- * @typedef {import('@/types.ts').AdaptationSet} AdaptationSet
- * @typedef {import('@/types.ts').Representation} Representation
- * @typedef {import('@/types.ts').SubRepresentation} SubRepresentation
- * @typedef {import('@/types.ts').Descriptor} Descriptor
- * @typedef {import('@/types.ts').ContentComponent} ContentComponent
- * @typedef {import('@/types.ts').Resync} Resync
- * @typedef {import('@/types.ts').Preselection} Preselection
- * @typedef {import('@/types.ts').FailoverContent} FailoverContent
- * @typedef {import('@/types.ts').OutputProtection} OutputProtection
- * @typedef {import('@/types.ts').ExtendedBandwidth} ExtendedBandwidth
- * @typedef {import('@/types.ts').ServiceDescription} ServiceDescription
- * @typedef {import('@/types.ts').InitializationSet} InitializationSet
- */
-
 import { getDrmSystemName } from '@/infrastructure/parsing/utils/drm';
 import { parseDuration } from '@/shared/utils/time';
 import { parseScte35 } from '../scte35/parser.js';
+import { isCodecSupported } from '../utils/codec-support.js';
 import { inferMediaInfoFromExtension } from '../utils/media-types.js';
 import {
     findChildren,
@@ -26,8 +10,6 @@ import {
     linkParents,
     mergeElements,
 } from '../utils/recursive-parser.js';
-
-import { isCodecSupported } from '../utils/codec-support.js';
 
 const isVideoCodec = (codecString) => {
     if (!codecString) return false;
@@ -53,105 +35,63 @@ const isAudioCodec = (codecString) => {
     return audioPrefixes.some((prefix) => lowerCodec.startsWith(prefix));
 };
 
-// --- Sorter Functions ---
 function sortVideoRepresentations(a, b) {
     const heightA = a.height?.value || 0;
     const heightB = b.height?.value || 0;
-    if (heightA !== heightB) {
-        return heightB - heightA; // Descending height
-    }
-
+    if (heightA !== heightB) return heightB - heightA;
     const widthA = a.width?.value || 0;
     const widthB = b.width?.value || 0;
-    if (widthA !== widthB) {
-        return widthB - widthA; // Descending width
-    }
-
-    return (b.bandwidth || 0) - (a.bandwidth || 0); // Descending bandwidth
+    if (widthA !== widthB) return widthB - widthA;
+    return (b.bandwidth || 0) - (a.bandwidth || 0);
 }
 
 function sortAudioRepresentations(a, b) {
-    return (b.bandwidth || 0) - (a.bandwidth || 0); // Descending bandwidth
+    return (b.bandwidth || 0) - (a.bandwidth || 0);
 }
 
 const contentTypeOrder = ['video', 'audio', 'text', 'application'];
 function sortAdaptationSets(a, b) {
     const indexA = contentTypeOrder.indexOf(a.contentType);
     const indexB = contentTypeOrder.indexOf(b.contentType);
-
-    if (indexA !== indexB) {
+    if (indexA !== indexB)
         return (indexA === -1 ? 99 : indexA) - (indexB === -1 ? 99 : indexB);
-    }
-
     if (a.contentType === 'audio' || a.contentType === 'text') {
         const langA = a.lang || '';
         const langB = b.lang || '';
-        if (langA.localeCompare(langB) !== 0) {
-            return langA.localeCompare(langB);
-        }
+        if (langA.localeCompare(langB) !== 0) return langA.localeCompare(langB);
     }
-
-    // Fallback to ID for stable sort
     const idA = a.id || '';
     const idB = b.id || '';
     return idA.localeCompare(idB);
 }
-// --- End Sorter Functions ---
 
-/**
- * Creates a deep copy of a parsed manifest object.
- * @param {any} obj The object to clone.
- * @returns {any} A deep copy of the object.
- */
 function deepClone(obj) {
-    if (obj === null || typeof obj !== 'object') {
-        return obj;
-    }
-    if (obj instanceof Date) {
-        return new Date(obj.getTime());
-    }
-    if (Array.isArray(obj)) {
-        return obj.map((item) => deepClone(item));
-    }
+    if (obj === null || typeof obj !== 'object') return obj;
+    if (obj instanceof Date) return new Date(obj.getTime());
+    if (Array.isArray(obj)) return obj.map((item) => deepClone(item));
     if (obj instanceof Object) {
         const copy = {};
         for (const key in obj) {
-            if (Object.prototype.hasOwnProperty.call(obj, key)) {
+            if (Object.prototype.hasOwnProperty.call(obj, key))
                 copy[key] = deepClone(obj[key]);
-            }
         }
         return copy;
     }
     throw new Error("Unable to copy obj! Its type isn't supported.");
 }
 
-/**
- * Parses a generic DescriptorType element into a consistent IR object.
- * @param {object} el The raw parsed element.
- * @returns {Descriptor}
- */
 const parseGenericDescriptor = (el) => ({
     schemeIdUri: getAttr(el, 'schemeIdUri'),
     value: getAttr(el, 'value'),
     id: getAttr(el, 'id'),
 });
 
-/**
- * Parses a Label or GroupLabel element.
- * @param {object} el The raw parsed element.
- * @returns {import('@/types.ts').Label}
- */
 const parseLabel = (el) => ({
     id: getAttr(el, 'id'),
     lang: getAttr(el, 'lang'),
     text: getText(el),
 });
 
-/**
- * Parses a Resync element.
- * @param {object} el The raw parsed Resync element.
- * @returns {Resync}
- */
 const parseResync = (el) => ({
     type: parseInt(getAttr(el, 'type') || '0', 10),
     dT: getAttr(el, 'dT') ? parseInt(getAttr(el, 'dT'), 10) : null,
@@ -160,11 +100,6 @@ const parseResync = (el) => ({
     marker: getAttr(el, 'marker') === 'true',
 });
 
-/**
- * Parses an OutputProtection element.
- * @param {object} el The raw parsed element.
- * @returns {OutputProtection | null}
- */
 const parseOutputProtection = (el) => {
     const opEl = findChildren(el, 'OutputProtection')[0];
     if (!opEl) return null;
@@ -175,11 +110,6 @@ const parseOutputProtection = (el) => {
     };
 };
 
-/**
- * Parses an ExtendedBandwidth element.
- * @param {object} el The raw parsed element.
- * @returns {ExtendedBandwidth | null}
- */
 const parseExtendedBandwidth = (el) => {
     const ebEl = findChildren(el, 'ExtendedBandwidth')[0];
     if (!ebEl) return null;
@@ -192,20 +122,13 @@ const parseExtendedBandwidth = (el) => {
     };
 };
 
-/**
- * Parses a FailoverContent element.
- * @param {object} mergedEl The merged parent element containing SegmentBase info.
- * @returns {FailoverContent | null}
- */
 function parseFailoverContent(mergedEl) {
     const segmentBaseEl = findChildren(mergedEl, 'SegmentBase')[0];
     if (!segmentBaseEl) return null;
-
     const failoverEl = findChildren(segmentBaseEl, 'FailoverContent')[0];
     if (!failoverEl) return null;
-
     return {
-        valid: getAttr(failoverEl, 'valid') !== 'false', // Defaults to true
+        valid: getAttr(failoverEl, 'valid') !== 'false',
         fcs: findChildren(failoverEl, 'FCS').map((fcsEl) => ({
             t: parseInt(getAttr(fcsEl, 't'), 10),
             d: getAttr(fcsEl, 'd') ? parseInt(getAttr(fcsEl, 'd'), 10) : null,
@@ -213,16 +136,28 @@ function parseFailoverContent(mergedEl) {
     };
 }
 
-/**
- * Parses a SubRepresentation element, inheriting from its parent Representation/AdaptationSet.
- * @param {object} subRepEl The raw parsed SubRepresentation element.
- * @param {object} parentMergedEl The already merged element of the parent Representation.
- * @returns {SubRepresentation}
- */
+const parseSwitching = (el) => {
+    const switchingEls = findChildren(el, 'Switching');
+    if (!switchingEls.length) return null;
+    return switchingEls.map((s) => ({
+        interval: parseInt(getAttr(s, 'interval'), 10),
+        type: getAttr(s, 'type') || 'media',
+    }));
+};
+
+const parseRandomAccess = (el) => {
+    const raEls = findChildren(el, 'RandomAccess');
+    if (!raEls.length) return null;
+    return raEls.map((r) => ({
+        interval: parseInt(getAttr(r, 'interval'), 10),
+        type: getAttr(r, 'type') || 'closed',
+        minBufferTime: parseDuration(getAttr(r, 'minBufferTime')),
+        bandwidth: parseInt(getAttr(r, 'bandwidth'), 10),
+    }));
+};
+
 function parseSubRepresentation(subRepEl, parentMergedEl) {
     const mergedEl = mergeElements(parentMergedEl, subRepEl);
-
-    /** @type {SubRepresentation} */
     const subRepIR = {
         level: getAttr(subRepEl, 'level')
             ? parseInt(getAttr(subRepEl, 'level'), 10)
@@ -249,20 +184,17 @@ function parseSubRepresentation(subRepEl, parentMergedEl) {
         },
         serializedManifest: subRepEl,
     };
-
     return subRepIR;
 }
 
 /**
- * Parses a Representation element, correctly inheriting all common properties
- * from its parent AdaptationSet.
- * @param {object} repEl The raw parsed Representation element.
- * @param {object} parentMergedEl The already merged parent element (from Period or AdaptationSet).
- * @returns {Representation}
+ * Parses a Representation element into an IR.
+ * @param {object} repEl - The raw Representation element.
+ * @param {object} parentMergedEl - The merged properties from the parent AdaptationSet.
+ * @param {string} contentType - The content type of the AdaptationSet (e.g. 'audio', 'video').
  */
-function parseRepresentation(repEl, parentMergedEl) {
+function parseRepresentation(repEl, parentMergedEl, contentType) {
     const mergedRepEl = mergeElements(parentMergedEl, repEl);
-
     const codecString = getAttr(mergedRepEl, 'codecs') || '';
     const allCodecs = codecString
         .split(',')
@@ -273,7 +205,28 @@ function parseRepresentation(repEl, parentMergedEl) {
     const audioCodecs = allCodecs.filter(isAudioCodec);
     const lang = getAttr(mergedRepEl, 'lang') || null;
 
-    /** @type {Representation} */
+    // --- ARCHITECTURAL FIX: Select appropriate codecs list based on Content Type ---
+    let primaryCodecs = videoCodecs;
+    if (contentType === 'audio') {
+        primaryCodecs = audioCodecs;
+    } else if (contentType === 'text' || contentType === 'application') {
+        // For text/app, we assume all parsed codecs are relevant (e.g. stpp, wvtt)
+        // or fall back to the raw string if no specific filters match.
+        primaryCodecs = allCodecs;
+    }
+
+    // If we failed to match any specific codecs but have strings, use all of them
+    // (e.g. unknown codec types)
+    if (primaryCodecs.length === 0 && allCodecs.length > 0) {
+        // Only fallback if it aligns with the expected content type logic
+        // For example, don't put audio codecs in a video track's main list if we are strict.
+        // But here, being permissive is better for debugging.
+        if (contentType !== 'video' || videoCodecs.length === 0) {
+            primaryCodecs = allCodecs;
+        }
+    }
+    // --- END FIX ---
+
     const repIR = {
         id: getAttr(repEl, 'id'),
         bandwidth: parseInt(getAttr(repEl, 'bandwidth'), 10),
@@ -283,7 +236,7 @@ function parseRepresentation(repEl, parentMergedEl) {
         dependencyId: getAttr(repEl, 'dependencyId'),
         associationId: getAttr(repEl, 'associationId'),
         associationType: getAttr(repEl, 'associationType'),
-        codecs: videoCodecs.map((c) => ({
+        codecs: primaryCodecs.map((c) => ({
             value: c,
             source: 'manifest',
             supported: isCodecSupported(c),
@@ -355,7 +308,7 @@ function parseRepresentation(repEl, parentMergedEl) {
                     pssh: psshData
                         ? [
                               {
-                                  systemId: schemeIdUri, // Store the raw UUID
+                                  systemId: schemeIdUri,
                                   kids: [],
                                   data: psshData,
                               },
@@ -389,6 +342,8 @@ function parseRepresentation(repEl, parentMergedEl) {
         resyncs: findChildren(mergedRepEl, 'Resync').map(parseResync),
         outputProtection: parseOutputProtection(mergedRepEl),
         extendedBandwidth: parseExtendedBandwidth(mergedRepEl),
+        switching: parseSwitching(mergedRepEl),
+        randomAccess: parseRandomAccess(mergedRepEl),
         videoRange: undefined,
         stableVariantId: null,
         pathwayId: null,
@@ -405,12 +360,6 @@ function parseRepresentation(repEl, parentMergedEl) {
     return repIR;
 }
 
-/**
- * Parses a ContentComponent element.
- * @param {object} ccEl - The raw parsed ContentComponent element.
- * @param {object} parentEl - The parent AdaptationSet element.
- * @returns {ContentComponent}
- */
 function parseContentComponent(ccEl, parentEl) {
     const mergedEl = mergeElements(parentEl, ccEl);
     return {
@@ -438,6 +387,8 @@ function parseAdaptationSet(asEl, parentMergedEl) {
     let contentType =
         getAttr(asEl, 'contentType') ||
         getAttr(asEl, 'mimeType')?.split('/')[0];
+
+    // If content type isn't explicit, try to infer from first representation
     if (!contentType) {
         const firstRep = findChildren(asEl, 'Representation')[0];
         if (firstRep) {
@@ -457,7 +408,6 @@ function parseAdaptationSet(asEl, parentMergedEl) {
             parseContentComponent(ccEl, asEl)
         );
     } else {
-        // If no explicit ContentComponent, create one implicitly from the AdaptationSet's attributes
         contentComponents = [
             {
                 id: null,
@@ -486,7 +436,7 @@ function parseAdaptationSet(asEl, parentMergedEl) {
     const maxH = getAttr(asEl, 'maxHeight');
 
     const representations = findChildren(asEl, 'Representation').map((repEl) =>
-        parseRepresentation(repEl, mergedAsEl)
+        parseRepresentation(repEl, mergedAsEl, contentType)
     );
 
     if (contentType === 'video') {
@@ -495,7 +445,6 @@ function parseAdaptationSet(asEl, parentMergedEl) {
         representations.sort(sortAudioRepresentations);
     }
 
-    /** @type {AdaptationSet} */
     const asIR = {
         id: getAttr(asEl, 'id'),
         group: getAttr(asEl, 'group')
@@ -541,7 +490,7 @@ function parseAdaptationSet(asEl, parentMergedEl) {
                     pssh: psshData
                         ? [
                               {
-                                  systemId: schemeIdUri, // Store the raw UUID
+                                  systemId: schemeIdUri,
                                   kids: [],
                                   data: psshData,
                               },
@@ -567,7 +516,7 @@ function parseAdaptationSet(asEl, parentMergedEl) {
         accessibility: findChildren(mergedAsEl, 'Accessibility').map(
             parseGenericDescriptor
         ),
-        labels: labels, // Use the new labels array
+        labels: labels,
         groupLabels: findChildren(mergedAsEl, 'GroupLabel').map(parseLabel),
         roles: findChildren(mergedAsEl, 'Role').map(parseGenericDescriptor),
         contentComponents: contentComponents,
@@ -581,17 +530,11 @@ function parseAdaptationSet(asEl, parentMergedEl) {
         characteristics: null,
         forced: false,
         serializedManifest: asEl,
+        switching: parseSwitching(mergedAsEl),
     };
-
     return asIR;
 }
 
-/**
- * Parses a Preselection element.
- * @param {object} preselectionEl The raw parsed Preselection element.
- * @param {object} parentMergedEl The parent Period element.
- * @returns {Preselection}
- */
 function parsePreselection(preselectionEl, parentMergedEl) {
     const mergedEl = mergeElements(parentMergedEl, preselectionEl);
     return {
@@ -612,11 +555,6 @@ function parsePreselection(preselectionEl, parentMergedEl) {
     };
 }
 
-/**
- * Parses a ServiceDescription element.
- * @param {object} sdEl Raw parsed ServiceDescription element.
- * @returns {ServiceDescription}
- */
 const parseServiceDescription = (sdEl) => ({
     id: getAttr(sdEl, 'id'),
     scopes: findChildren(sdEl, 'Scope').map(parseGenericDescriptor),
@@ -635,6 +573,15 @@ const parseServiceDescription = (sdEl) => ({
         max: getAttr(el, 'max') ? parseFloat(getAttr(el, 'max')) : null,
     })),
     serializedManifest: sdEl,
+});
+
+const parseContentPopularityRate = (el) => ({
+    source: getAttr(el, 'source'),
+    source_description: getAttr(el, 'source_description'),
+    rates: findChildren(el, 'PR').map((pr) => ({
+        rate: parseInt(getAttr(pr, 'rate'), 10),
+        popularity: parseInt(getAttr(pr, 'popularity'), 10),
+    })),
 });
 
 const getText = (el) => el?.['#text'] || null;
@@ -701,18 +648,15 @@ function parsePeriod(periodEl, parentMergedEl, previousPeriod = null) {
                     );
                 }
             }
-
             return event;
         });
-
         allEvents.push(...events);
-
         return {
             schemeIdUri: schemeIdUri,
             value: getAttr(esEl, 'value'),
             timescale,
             presentationTimeOffset,
-            events: [], // Events are aggregated at the Period level for the IR
+            events: [],
         };
     });
 
@@ -720,7 +664,6 @@ function parsePeriod(periodEl, parentMergedEl, previousPeriod = null) {
     const adaptationSets = rawAdaptationSets.map((asEl) =>
         parseAdaptationSet(asEl, mergedPeriodEl)
     );
-
     adaptationSets.sort(sortAdaptationSets);
 
     if (
@@ -739,11 +682,10 @@ function parsePeriod(periodEl, parentMergedEl, previousPeriod = null) {
             scte35Signal: { error: 'Unconfirmed In-band Signal' },
             adManifestUrl: null,
             creatives: [],
-            detectionMethod: /** @type {const} */ ('SCTE35_INBAND'),
+            detectionMethod: 'SCTE35_INBAND',
         });
     }
 
-    /** @type {Period} */
     const periodIR = {
         id: periodId,
         start: periodStart,
@@ -775,21 +717,11 @@ function parsePeriod(periodEl, parentMergedEl, previousPeriod = null) {
         ).map(parseGenericDescriptor),
         serializedManifest: periodEl,
     };
-
     return periodIR;
 }
 
-/**
- * Transforms a serialized DASH manifest object into a protocol-agnostic IR.
- * @param {object} manifestElement The root MPD element, serialized.
- * @param {string} baseUrl The base URL for the manifest.
- * @param {object} [context]
- * @returns {Promise<Manifest>} The manifest IR object.
- */
 export async function adaptDashToIr(manifestElement, baseUrl, context) {
     const manifestCopy = deepClone(manifestElement);
-
-    // --- ARCHITECTURAL FIX: Add parent links to the serialized object graph ---
     linkParents(manifestCopy);
 
     const adaptationSets = findChildrenRecursive(manifestCopy, 'AdaptationSet');
@@ -797,7 +729,7 @@ export async function adaptDashToIr(manifestElement, baseUrl, context) {
         (as) => getAttr(as, 'mimeType') === 'video/mp2t'
     );
 
-    let segmentFormat = 'isobmff'; // Default to ISOBFF
+    let segmentFormat = 'isobmff';
     if (hasTsMimeType) {
         segmentFormat = 'ts';
     } else {
@@ -807,22 +739,20 @@ export async function adaptDashToIr(manifestElement, baseUrl, context) {
         )[0];
         if (template) {
             const mediaUrl = getAttr(template, 'media');
-            const { contentType } = inferMediaInfoFromExtension(mediaUrl);
-            if (contentType === 'video') {
-                // Heuristic: if media attribute exists, check its extension
-                const extensionBasedFormat =
-                    inferMediaInfoFromExtension(mediaUrl).contentType ===
-                    'video'
-                        ? 'isobmff'
-                        : 'ts';
-                if (extensionBasedFormat === 'ts') {
-                    segmentFormat = 'ts';
+            if (mediaUrl) {
+                const { contentType } = inferMediaInfoFromExtension(mediaUrl);
+                if (contentType === 'video') {
+                    const extensionBasedFormat =
+                        inferMediaInfoFromExtension(mediaUrl).contentType ===
+                        'video'
+                            ? 'isobmff'
+                            : 'ts';
+                    if (extensionBasedFormat === 'ts') segmentFormat = 'ts';
                 }
             }
         }
     }
 
-    /** @type {Manifest} */
     const manifestIR = {
         id: getAttr(manifestCopy, 'id'),
         type: getAttr(manifestCopy, 'type'),
@@ -873,6 +803,10 @@ export async function adaptDashToIr(manifestElement, baseUrl, context) {
             manifestCopy,
             'ServiceDescription'
         ).map(parseServiceDescription),
+        contentPopularityRates: findChildren(
+            manifestCopy,
+            'ContentPopularityRate'
+        ).map(parseContentPopularityRate),
         initializationSets: findChildren(manifestCopy, 'InitializationSet').map(
             (el) => ({
                 id: getAttr(el, 'id'),
@@ -883,10 +817,8 @@ export async function adaptDashToIr(manifestElement, baseUrl, context) {
                 serializedManifest: el,
             })
         ),
-        periods: [], // Populated below
-        segmentFormat: /** @type {'isobmff' | 'ts' | 'unknown'} */ (
-            segmentFormat
-        ),
+        periods: [],
+        segmentFormat: segmentFormat,
         contentProtections: findChildren(manifestCopy, 'ContentProtection').map(
             (cpEl) => {
                 const psshNode = findChildren(cpEl, 'cenc:pssh')[0];
@@ -927,7 +859,6 @@ export async function adaptDashToIr(manifestElement, baseUrl, context) {
     });
 
     manifestIR.events.push(...manifestIR.periods.flatMap((p) => p.events));
-    // Merge adAvails from all periods into the top-level array
     for (const period of manifestIR.periods) {
         if (period.adAvails) {
             for (const newAvail of period.adAvails) {
@@ -937,6 +868,5 @@ export async function adaptDashToIr(manifestElement, baseUrl, context) {
             }
         }
     }
-
     return manifestIR;
 }

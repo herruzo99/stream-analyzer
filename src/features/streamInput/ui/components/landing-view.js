@@ -1,10 +1,12 @@
+import { eventBus } from '@/application/event-bus';
 import {
     getLastUsedStreams,
     getPresets,
     getWorkspaces,
 } from '@/infrastructure/persistence/streamStorage';
-import { analysisActions } from '@/state/analysisStore';
+import { analysisActions, useAnalysisStore } from '@/state/analysisStore';
 import { uiActions } from '@/state/uiStore';
+import { EVENTS } from '@/types/events';
 import * as icons from '@/ui/icons';
 import { html } from 'lit-html';
 import './smart-input.js';
@@ -15,7 +17,8 @@ const bentoCard = (
     content,
     onClick,
     size = 'sm',
-    color = 'slate'
+    color = 'slate',
+    action = null
 ) => {
     const sizes = { sm: 'col-span-1', md: 'col-span-2' };
     const colors = {
@@ -40,13 +43,15 @@ const bentoCard = (
                 >
                     ${icon}
                 </div>
-                ${size === 'md'
-                    ? html`<div
-                          class="text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity text-slate-400"
-                      >
-                          Quick Load &rarr;
-                      </div>`
-                    : ''}
+                ${action
+                    ? html`<div class="relative z-10">${action}</div>`
+                    : size === 'md'
+                      ? html`<div
+                            class="text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity text-slate-400"
+                        >
+                            Quick Load &rarr;
+                        </div>`
+                      : ''}
             </div>
             <div class="mt-auto">
                 <h3
@@ -64,13 +69,82 @@ const bentoCard = (
     `;
 };
 
+const quickLibraryCard = (item, type) => {
+    const isPreset = type === 'preset';
+    const icon = isPreset ? icons.star : icons.history;
+    const color = isPreset ? 'text-yellow-400' : 'text-blue-400';
+
+    // Action: Queue the item (add to staging without running)
+    const handleQueue = (e) => {
+        e.stopPropagation();
+        analysisActions.addStreamInputFromPreset(item);
+    };
+
+    // Action: Run immediately (replace queue and start analysis)
+    const handleRun = (e) => {
+        e.stopPropagation();
+        analysisActions.setStreamInputs([item]);
+        const { streamInputs } = useAnalysisStore.getState();
+        eventBus.dispatch(EVENTS.UI.STREAM_ANALYSIS_REQUESTED, {
+            inputs: streamInputs,
+        });
+    };
+
+    return html`
+        <div
+            class="flex items-center gap-3 p-3 rounded-xl bg-slate-800/40 border border-slate-700/50 transition-all group w-full hover:bg-slate-800 hover:border-slate-600"
+        >
+            <div
+                class="shrink-0 p-2 rounded-lg bg-slate-900 border border-slate-800 ${color}"
+            >
+                ${icon}
+            </div>
+
+            <div
+                class="grow min-w-0 cursor-pointer"
+                @click=${handleQueue}
+                title="Click to add to queue"
+            >
+                <div
+                    class="text-xs font-bold text-slate-300 group-hover:text-white truncate transition-colors"
+                >
+                    ${item.name}
+                </div>
+                <div
+                    class="text-[10px] font-mono text-slate-500 truncate opacity-60 group-hover:opacity-80 transition-opacity"
+                >
+                    ${new URL(item.url).hostname}
+                </div>
+            </div>
+
+            <div
+                class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+                <button
+                    @click=${handleRun}
+                    class="p-2 text-emerald-400 hover:text-white hover:bg-emerald-500/20 rounded-lg transition-colors"
+                    title="Analyze Now"
+                >
+                    ${icons.play}
+                </button>
+                <button
+                    @click=${handleQueue}
+                    class="p-2 text-blue-400 hover:text-white hover:bg-blue-500/20 rounded-lg transition-colors"
+                    title="Add to Queue"
+                >
+                    ${icons.plusCircle}
+                </button>
+            </div>
+        </div>
+    `;
+};
+
 export const landingViewTemplate = () => {
     const history = getLastUsedStreams();
     const presets = getPresets();
     const workspaces = getWorkspaces();
     const latestStream = history[0];
 
-    // Correctly handle Workspace button click: Set tab THEN open modal
     const openWorkspaces = () => {
         uiActions.setStreamLibraryTab('workspaces');
         uiActions.setLibraryModalOpen(true);
@@ -86,33 +160,70 @@ export const landingViewTemplate = () => {
         uiActions.setLibraryModalOpen(true);
     };
 
-    // Slot 1: Dynamic content but stable size/position
+    // Action: Direct to Analysis (Run)
+    const handleResumeDirect = () => {
+        if (history.length > 0) {
+            analysisActions.setStreamInputs(history);
+            const { streamInputs } = useAnalysisStore.getState();
+            eventBus.dispatch(EVENTS.UI.STREAM_ANALYSIS_REQUESTED, {
+                inputs: streamInputs,
+            });
+        }
+    };
+
+    // Action: Open in Staging Area (Edit)
+    const handleResumeStaging = () => {
+        if (history.length > 0) {
+            analysisActions.setStreamInputs(history);
+            // Setting streamInputs triggers the UI to switch to staging view automatically via input-view logic
+        }
+    };
+
+    // Split Button for Resume Card: Right side (Play) triggers direct analysis
+    const resumeAction = html`
+        <button
+            @click=${(e) => {
+                e.stopPropagation();
+                handleResumeDirect();
+            }}
+            class="p-3 bg-blue-600 hover:bg-blue-500 text-white rounded-full shadow-lg shadow-blue-900/30 transition-all hover:scale-110 active:scale-95 border border-blue-400/20"
+            title="Analyze Immediately"
+        >
+            ${icons.play}
+        </button>
+    `;
+
     const slot1Content = latestStream
         ? bentoCard(
               'Resume Session',
-              icons.play,
+              icons.history, // Using history icon for the main "load to staging" area
               html`Continue with
                   <span class="text-blue-400 font-mono"
                       >${new URL(latestStream.url).hostname}</span
                   >`,
-              () => analysisActions.setStreamInputs(history),
+              handleResumeStaging, // Main card click -> Staging
               'sm',
-              'blue'
+              'blue',
+              resumeAction // Floating action -> Direct Analysis
           )
         : bentoCard(
               'New Analysis',
               icons.plusCircle,
               'Start fresh. Paste a manifest or drop a file above.',
-              () => {}, // No-op, guides user to input
+              () => {
+                  const input = /** @type {HTMLElement} */ (
+                      document.querySelector('smart-input-component')
+                  );
+                  if (input) input.focus();
+              },
               'sm',
               'slate'
           );
 
     return html`
         <div
-            class="flex flex-col items-center min-h-full w-full p-8 pb-20 overflow-y-auto custom-scrollbar"
+            class="flex flex-col items-center h-full w-full p-8 pb-20 overflow-y-auto custom-scrollbar"
         >
-            <!-- Hero Section -->
             <div class="w-full max-w-2xl mb-16 text-center relative z-10">
                 <div class="inline-block mb-6 relative">
                     <div
@@ -140,9 +251,7 @@ export const landingViewTemplate = () => {
                 <smart-input-component variant="hero"></smart-input-component>
             </div>
 
-            <!-- Stable Grid Layout -->
             <div class="w-full max-w-5xl space-y-4">
-                <!-- Top Row: Quick Access -->
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     ${slot1Content}
                     ${bentoCard(
@@ -163,7 +272,6 @@ export const landingViewTemplate = () => {
                     )}
                 </div>
 
-                <!-- Bottom Row: Recent History -->
                 <div
                     class="p-6 rounded-3xl border border-slate-800 bg-slate-900/40 backdrop-blur-sm"
                 >
@@ -184,46 +292,18 @@ export const landingViewTemplate = () => {
                         </button>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        ${history.slice(0, 4).map(
-                            (h) => html`
-                                <button
-                                    @click=${() =>
-                                        analysisActions.addStreamInputFromPreset(
-                                            h
-                                        )}
-                                    class="flex items-center justify-between p-3 rounded-xl bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 hover:border-slate-600 transition-all group text-left"
-                                >
-                                    <div class="min-w-0 pr-4">
-                                        <div
-                                            class="font-bold text-slate-200 text-xs truncate group-hover:text-blue-300 transition-colors"
-                                        >
-                                            ${h.name}
-                                        </div>
-                                        <div
-                                            class="text-[10px] text-slate-500 font-mono truncate opacity-60"
-                                        >
-                                            ${h.url}
-                                        </div>
-                                    </div>
-                                    <div
-                                        class="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-2 py-0.5 rounded bg-black/20 border border-white/5"
-                                    >
-                                        ${h.protocol || 'UNK'}
-                                    </div>
-                                </button>
-                            `
-                        )}
-                        ${history.length === 0
-                            ? html`<div
+                        ${history.length > 0
+                            ? history
+                                  .slice(0, 4)
+                                  .map((h) => quickLibraryCard(h, 'history'))
+                            : html`<div
                                   class="col-span-2 text-center text-slate-600 text-xs italic py-4"
                               >
                                   No recent history found.
-                              </div>`
-                            : ''}
+                              </div>`}
                     </div>
                 </div>
 
-                <!-- Footer Links -->
                 <div class="flex justify-center pt-8 gap-6">
                     <button
                         @click=${openExamples}

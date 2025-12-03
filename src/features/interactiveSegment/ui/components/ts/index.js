@@ -1,16 +1,67 @@
 import { uiActions, useUiStore } from '@/state/uiStore';
 import '@/ui/components/virtualized-list';
 import * as icons from '@/ui/icons';
+import {
+    disposeChart,
+    renderChart,
+} from '@/ui/shared/charts/chart-renderer.js';
 import { tsInspectorDetailsTemplate } from '@/ui/shared/ts-renderer.js';
 import { html, render } from 'lit-html';
 
 // --- Main Panel (Inspector) ---
-
 export const inspectorPanelTemplate = ({ data }) => {
     const { interactiveSegmentSelectedItem } = useUiStore.getState();
     const packet = interactiveSegmentSelectedItem?.item;
-    // Use the shared TS renderer
     return tsInspectorDetailsTemplate(packet);
+};
+
+// --- Buffer Model Chart Options ---
+const createBufferChartOptions = (historyData, pid) => {
+    const data = historyData.map((pt) => [pt.offset, pt.fullness]);
+
+    return {
+        backgroundColor: 'transparent',
+        title: {
+            text: `T-STD Buffer Fullness (PID ${pid})`,
+            textStyle: { color: '#94a3b8', fontSize: 12 },
+            left: 'center',
+        },
+        tooltip: {
+            trigger: 'axis',
+            formatter: (params) => {
+                const pt = params[0];
+                return `Offset: ${pt.value[0]}<br/>Fullness: ${pt.value[1]} B`;
+            },
+        },
+        grid: { top: 30, bottom: 25, left: 50, right: 20 },
+        xAxis: {
+            type: 'value',
+            name: 'Offset',
+            axisLabel: { show: false }, // Hide detailed offsets for cleanliness
+            splitLine: { show: false },
+        },
+        yAxis: {
+            type: 'value',
+            name: 'Bytes',
+            splitLine: { lineStyle: { color: '#334155', type: 'dashed' } },
+            axisLabel: { color: '#64748b' },
+            max: 512, // TBn limit
+        },
+        series: [
+            {
+                type: 'line',
+                showSymbol: false,
+                data: data,
+                lineStyle: { color: '#38bdf8', width: 1 },
+                areaStyle: { color: 'rgba(56, 189, 248, 0.1)' },
+                markLine: {
+                    data: [{ yAxis: 512, name: 'Limit' }],
+                    lineStyle: { color: '#ef4444' },
+                    silent: true,
+                },
+            },
+        ],
+    };
 };
 
 // --- Advanced Structure Viewer ---
@@ -23,6 +74,8 @@ class TsStructureViewer extends HTMLElement {
         this.stats = [];
         this._data = null;
         this.resizeObserver = null;
+        this.chartContainer = null;
+        this.chart = null;
 
         this._handleFilterClick = this._handleFilterClick.bind(this);
         this._rowRenderer = this._rowRenderer.bind(this);
@@ -49,7 +102,6 @@ class TsStructureViewer extends HTMLElement {
         );
         this.render();
 
-        // Observe the container resize to force virtual list updates if needed
         this.resizeObserver = new ResizeObserver(() => {
             this.forceListUpdate();
         });
@@ -60,6 +112,10 @@ class TsStructureViewer extends HTMLElement {
         if (this.resizeObserver) {
             this.resizeObserver.disconnect();
             this.resizeObserver = null;
+        }
+        if (this.chartContainer) {
+            disposeChart(/** @type {HTMLElement} */ (this.chartContainer));
+            this.chartContainer = null;
         }
     }
 
@@ -75,13 +131,13 @@ class TsStructureViewer extends HTMLElement {
         const { packets, summary } = this._data;
 
         const pidMap = new Map();
-
         packets.forEach((p) => {
             if (!pidMap.has(p.pid)) {
                 pidMap.set(p.pid, {
                     pid: p.pid,
                     type: p.payloadType,
                     count: 0,
+                    // --- ARCHITECTURAL UPDATE: Pull specific PID errors from summary ---
                     errors: summary?.continuityCounters?.[p.pid]?.errors || 0,
                 });
             }
@@ -104,6 +160,32 @@ class TsStructureViewer extends HTMLElement {
                 (p) => p.pid === targetPid
             );
         }
+        this.updateChart();
+    }
+
+    updateChart() {
+        if (!this._data?.summary?.bufferHistory || !this.chartContainer) return;
+
+        const bufferHistory = this._data.summary.bufferHistory;
+        let targetPid = this.filterPid;
+
+        // If 'all', pick the first PID with history (usually video/audio)
+        if (targetPid === 'all') {
+            targetPid = Object.keys(bufferHistory)[0];
+        }
+
+        const history = bufferHistory[targetPid];
+        const containerEl = /** @type {HTMLElement} */ (this.chartContainer);
+
+        if (history && history.length > 0) {
+            renderChart(
+                containerEl,
+                createBufferChartOptions(history, targetPid)
+            );
+            containerEl.style.display = 'block';
+        } else {
+            containerEl.style.display = 'none';
+        }
     }
 
     _handleFilterClick(pid) {
@@ -116,17 +198,16 @@ class TsStructureViewer extends HTMLElement {
         const { interactiveSegmentSelectedItem } = useUiStore.getState();
         const isSelected =
             interactiveSegmentSelectedItem?.item?.offset === p.offset;
-
         const handleSelect = (e) => {
             e.stopPropagation();
             uiActions.setInteractiveSegmentSelectedItem(p);
         };
 
+        // ... (Colors logic same as previous) ...
         let typeColor = 'text-slate-500';
         let typeBg = 'bg-slate-800/20';
         let typeBorder = 'border-slate-700/50';
 
-        // Packet coloring logic
         if (p.payloadType.includes('PAT')) {
             typeColor = 'text-red-300';
             typeBg = 'bg-red-900/20';
@@ -152,16 +233,16 @@ class TsStructureViewer extends HTMLElement {
         const bgClass = isSelected
             ? 'bg-blue-600/20 border-blue-500'
             : 'hover:bg-white/[0.03] border-transparent';
-
         const isStart = p.header.payload_unit_start_indicator.value === 1;
         const hasPcr = !!p.adaptationField?.pcr;
         const cc = p.header.continuity_counter.value;
+        // --- NEW: Visualize Priority Flag ---
+        const isPriority = p.header.transport_priority?.value === 1;
 
         return html`
             <div
                 @click=${handleSelect}
                 class="grid grid-cols-[60px_50px_140px_40px_1fr] gap-2 items-center px-3 h-[28px] cursor-pointer text-xs font-mono border-l-2 transition-colors ${bgClass}"
-                data-packet-offset="${p.offset}"
             >
                 <span class="opacity-50 text-[10px]"
                     >${p.offset
@@ -173,9 +254,8 @@ class TsStructureViewer extends HTMLElement {
                 <div class="flex items-center gap-2 min-w-0">
                     <span
                         class="truncate px-1.5 py-0.5 rounded text-[10px] ${typeBg} ${typeColor} border ${typeBorder} w-full text-center block"
+                        >${p.payloadType}</span
                     >
-                        ${p.payloadType}
-                    </span>
                 </div>
                 <span class="text-center text-slate-400">${cc}</span>
                 <div class="flex gap-1 justify-end opacity-80">
@@ -191,11 +271,10 @@ class TsStructureViewer extends HTMLElement {
                               >PCR</span
                           >`
                         : ''}
-                    ${p.header.transport_scrambling_control.value
+                    ${isPriority
                         ? html`<span
-                              class="text-[9px] text-amber-500 px-1"
-                              title="Scrambled"
-                              >🔒</span
+                              class="text-[9px] bg-amber-500/20 text-amber-400 px-1 rounded font-bold border border-amber-500/30"
+                              >PRI</span
                           >`
                         : ''}
                 </div>
@@ -206,67 +285,17 @@ class TsStructureViewer extends HTMLElement {
     render() {
         if (!this._data) return;
 
-        const { totalPackets } = this._data.summary;
+        const { totalPackets, pcrList } = this._data.summary;
         const displayedCount = this.filteredPackets.length;
-
-        const statCard = (stat) => {
-            const isActive = this.filterPid === String(stat.pid);
-            const pct =
-                totalPackets > 0
-                    ? ((stat.count / totalPackets) * 100).toFixed(1)
-                    : '0.0';
-
-            let colorClass = 'border-slate-700 text-slate-400 bg-slate-800/50';
-            if (stat.type.includes('Video'))
-                colorClass = 'border-blue-500/30 text-blue-300 bg-blue-900/20';
-            else if (stat.type.includes('Audio'))
-                colorClass =
-                    'border-purple-500/30 text-purple-300 bg-purple-900/20';
-            else if (stat.type.includes('PAT') || stat.type.includes('PMT'))
-                colorClass =
-                    'border-yellow-500/30 text-yellow-300 bg-yellow-900/20';
-
-            if (isActive)
-                colorClass +=
-                    ' ring-1 ring-white/50 bg-opacity-100 border-white/20';
-
-            return html`
-                <button
-                    @click=${() => this._handleFilterClick(stat.pid)}
-                    class="flex flex-col p-2 rounded border transition-all hover:scale-105 active:scale-95 min-w-[100px] text-left ${colorClass}"
-                >
-                    <div class="flex justify-between w-full mb-1">
-                        <span
-                            class="text-[10px] font-bold uppercase opacity-70 truncate max-w-[80px]"
-                            title="${stat.type}"
-                            >${stat.type}</span
-                        >
-                        <span class="text-[9px] opacity-50 font-mono"
-                            >PID ${stat.pid}</span
-                        >
-                    </div>
-                    <div class="flex items-baseline gap-1">
-                        <span class="text-lg font-bold leading-none"
-                            >${stat.count}</span
-                        >
-                        <span class="text-[10px] opacity-60">${pct}%</span>
-                    </div>
-                    ${stat.errors > 0
-                        ? html`<div
-                              class="mt-1 text-[9px] text-red-400 flex items-center gap-1"
-                          >
-                              <span>●</span> ${stat.errors} CC Errs
-                          </div>`
-                        : ''}
-                </button>
-            `;
-        };
-
         const headerClass =
             'grid grid-cols-[60px_50px_140px_40px_1fr] gap-2 px-3 py-2 bg-slate-900 border-b border-slate-800 text-[10px] font-bold text-slate-500 uppercase tracking-wider select-none z-10';
 
+        // --- NEW: PCR Stats in header ---
+        const pcrStats = pcrList || {
+            interval: { min: 'N/A', max: 'N/A', avg: 'N/A' },
+        };
+
         const template = html`
-            <!-- Outer Container (fill height) -->
             <div
                 class="flex flex-col h-full w-full overflow-hidden bg-slate-950 border-r border-slate-800"
             >
@@ -274,108 +303,143 @@ class TsStructureViewer extends HTMLElement {
                 <div
                     class="shrink-0 p-4 bg-slate-900 border-b border-slate-800 space-y-3 shadow-sm z-20"
                 >
-                    <div class="flex justify-between items-center">
-                        <h3
-                            class="text-xs font-bold text-white flex items-center gap-2 uppercase tracking-wider"
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <h3
+                                class="text-xs font-bold text-white flex items-center gap-2 uppercase tracking-wider mb-1"
+                            >
+                                ${icons.layout} Stream Composition
+                            </h3>
+                            <span
+                                class="text-[10px] text-slate-500 font-mono bg-black/20 px-2 py-0.5 rounded border border-slate-800"
+                            >
+                                ${displayedCount.toLocaleString()} /
+                                ${totalPackets.toLocaleString()} Packets
+                            </span>
+                        </div>
+                        <div
+                            class="flex gap-4 text-[10px] text-slate-400 bg-slate-800/50 px-3 py-1 rounded border border-slate-700/50"
                         >
-                            ${icons.layout} Stream Composition
-                        </h3>
-                        <span
-                            class="text-[10px] text-slate-500 font-mono bg-black/20 px-2 py-0.5 rounded border border-slate-800"
-                        >
-                            ${displayedCount.toLocaleString()} /
-                            ${totalPackets.toLocaleString()} Packets
-                        </span>
-                    </div>
-
-                    <!-- Composition Bar -->
-                    <div
-                        class="flex h-1.5 w-full rounded-full overflow-hidden bg-slate-800"
-                    >
-                        ${this.stats.map((s) => {
-                            let bg = 'bg-slate-600';
-                            if (s.type.includes('Video')) bg = 'bg-blue-500';
-                            else if (s.type.includes('Audio'))
-                                bg = 'bg-purple-500';
-                            else if (
-                                s.type.includes('PAT') ||
-                                s.type.includes('PMT')
-                            )
-                                bg = 'bg-yellow-400';
-                            else if (s.type.includes('PES'))
-                                bg = 'bg-indigo-500';
-                            const width = (s.count / totalPackets) * 100;
-                            return html`<div
-                                class="${bg}"
-                                style="width: ${width}%"
-                                title="${s.type}: ${width.toFixed(1)}%"
-                            ></div>`;
-                        })}
+                            <div>
+                                <span
+                                    class="font-bold text-slate-500 uppercase block mb-0.5"
+                                    >PCR Avg</span
+                                >
+                                <span class="font-mono text-cyan-300"
+                                    >${pcrStats.interval.avg}</span
+                                >
+                            </div>
+                            <div class="border-l border-slate-700 pl-4">
+                                <span
+                                    class="font-bold text-slate-500 uppercase block mb-0.5"
+                                    >PCR Range</span
+                                >
+                                <span class="font-mono text-slate-300"
+                                    >${pcrStats.interval.min} -
+                                    ${pcrStats.interval.max}</span
+                                >
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Stat Cards -->
                     <div class="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-                        ${this.stats.map(statCard)}
+                        ${this.stats.map((stat) => {
+                            const isActive =
+                                this.filterPid === String(stat.pid);
+                            const pct =
+                                totalPackets > 0
+                                    ? (
+                                          (stat.count / totalPackets) *
+                                          100
+                                      ).toFixed(1)
+                                    : '0.0';
+                            let colorClass =
+                                'border-slate-700 text-slate-400 bg-slate-800/50';
+                            if (isActive)
+                                colorClass +=
+                                    ' ring-1 ring-white/50 bg-opacity-100 border-white/20';
+
+                            return html`
+                                <button
+                                    @click=${() =>
+                                        this._handleFilterClick(stat.pid)}
+                                    class="flex flex-col p-2 rounded border transition-all hover:scale-105 active:scale-95 min-w-[100px] text-left ${colorClass}"
+                                >
+                                    <div
+                                        class="flex justify-between w-full mb-1"
+                                    >
+                                        <span
+                                            class="text-[10px] font-bold uppercase opacity-70 truncate max-w-[80px]"
+                                            >${stat.type}</span
+                                        >
+                                        <span
+                                            class="text-[9px] opacity-50 font-mono"
+                                            >PID ${stat.pid}</span
+                                        >
+                                    </div>
+                                    <div class="flex items-baseline gap-1">
+                                        <span
+                                            class="text-lg font-bold leading-none"
+                                            >${stat.count}</span
+                                        >
+                                        <span class="text-[10px] opacity-60"
+                                            >${pct}%</span
+                                        >
+                                    </div>
+                                    ${stat.errors > 0
+                                        ? html`
+                                              <div
+                                                  class="mt-1 text-[9px] font-bold text-red-400 flex items-center gap-1 bg-red-900/20 px-1.5 py-0.5 rounded border border-red-500/20"
+                                              >
+                                                  ${icons.alertTriangle}
+                                                  ${stat.errors} Errors
+                                              </div>
+                                          `
+                                        : ''}
+                                </button>
+                            `;
+                        })}
                     </div>
                 </div>
 
-                <!-- Virtual List Container -->
+                <!-- Buffer Chart Container -->
+                <div
+                    id="buffer-chart-container"
+                    class="shrink-0 h-32 w-full bg-slate-900 border-b border-slate-800"
+                    style="display:none;"
+                ></div>
+
+                <!-- Virtual List -->
                 <div class="flex flex-col grow min-h-0 bg-slate-950 relative">
                     <div class="${headerClass}">
-                        <span>Offset</span>
-                        <span>PID</span>
-                        <span>Type</span>
-                        <span class="text-center">CC</span>
-                        <span class="text-right">Flags</span>
+                        <span>Offset</span><span>PID</span><span>Type</span
+                        ><span class="text-center">CC</span
+                        ><span class="text-right">Flags</span>
                     </div>
-
-                    <!-- Scrollable Area -->
                     <div class="grow relative w-full min-h-0">
-                        ${this.filteredPackets.length > 0
-                            ? html`
-                                  <virtualized-list
-                                      .items=${this.filteredPackets}
-                                      .rowTemplate=${this._rowRenderer}
-                                      .rowHeight=${28}
-                                      .itemId=${(p) => p.offset}
-                                      class="absolute inset-0 h-full w-full"
-                                  ></virtualized-list>
-                              `
-                            : html`
-                                  <div
-                                      class="absolute inset-0 flex flex-col items-center justify-center text-slate-500 italic text-sm"
-                                  >
-                                      <div class="mb-2 opacity-50 scale-150">
-                                          ${icons.filter}
-                                      </div>
-                                      <p>
-                                          No packets match filter (PID:
-                                          ${this.filterPid}).
-                                      </p>
-                                      <button
-                                          @click=${() =>
-                                              this._handleFilterClick(
-                                                  parseInt(this.filterPid, 10)
-                                              )}
-                                          class="mt-4 text-blue-400 hover:underline cursor-pointer"
-                                      >
-                                          Clear Filter
-                                      </button>
-                                  </div>
-                              `}
+                        <virtualized-list
+                            .items=${this.filteredPackets}
+                            .rowTemplate=${this._rowRenderer}
+                            .rowHeight=${28}
+                            .itemId=${(p) => p.offset}
+                            class="absolute inset-0 h-full w-full"
+                        ></virtualized-list>
                     </div>
                 </div>
             </div>
         `;
         render(template, this);
 
-        // Force update in next frame to catch layout changes
+        if (!this.chartContainer) {
+            this.chartContainer = this.querySelector('#buffer-chart-container');
+            this.updateChart();
+        }
+
         requestAnimationFrame(() => this.forceListUpdate());
     }
 }
 
 customElements.define('ts-structure-viewer', TsStructureViewer);
-
-export const structureContentTemplate = ({ data }) => {
-    return html`<ts-structure-viewer .data=${data}></ts-structure-viewer>`;
-};
+export const structureContentTemplate = ({ data }) =>
+    html`<ts-structure-viewer .data=${data}></ts-structure-viewer>`;

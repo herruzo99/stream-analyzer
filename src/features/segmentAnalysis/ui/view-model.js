@@ -56,7 +56,17 @@ function analyzeBitstream(parsedData) {
     };
 }
 
-export function createSegmentAnalysisViewModel(parsedData, rawDataSize) {
+/**
+ * Creates the view model for the segment analysis UI.
+ * @param {object} parsedData - The parsed segment structure.
+ * @param {number} rawDataSize - The size of the raw segment in bytes.
+ * @param {string|null} manifestCodec - Optional codec string derived from the manifest (fallback).
+ */
+export function createSegmentAnalysisViewModel(
+    parsedData,
+    rawDataSize,
+    manifestCodec = null
+) {
     const format = parsedData.format;
 
     // 1. Base Stats
@@ -93,14 +103,36 @@ export function createSegmentAnalysisViewModel(parsedData, rawDataSize) {
 
         // Calculate duration from samples if available (accurate for fragments)
         if (parsedData.samples?.length > 0) {
-            const timescale = parsedData.samples[0].timescale;
+            const timescale = parsedData.samples[0].timescale || 90000;
             const durationTicks = parsedData.samples.reduce(
                 (acc, s) => acc + s.duration,
                 0
             );
             stats.duration = durationTicks / timescale;
         } else {
-            stats.duration = parseFloat(isoSummary.duration) || 0;
+            const parsedDuration = parseFloat(isoSummary.duration);
+            stats.duration = !isNaN(parsedDuration) ? parsedDuration : 0;
+        }
+
+        // Fallback to manifest codec if internal inspection failed (e.g. missing init segment)
+        if (stats.type.includes('Fragment') && codecInfo.name === 'Unknown') {
+            if (manifestCodec) {
+                // Map common MIME codecs to friendly names
+                if (manifestCodec.startsWith('avc'))
+                    codecInfo.name = `H.264 (${manifestCodec})`;
+                else if (
+                    manifestCodec.startsWith('hvc') ||
+                    manifestCodec.startsWith('hev')
+                )
+                    codecInfo.name = `HEVC (${manifestCodec})`;
+                else if (manifestCodec.startsWith('mp4a'))
+                    codecInfo.name = `AAC (${manifestCodec})`;
+                else codecInfo.name = manifestCodec;
+
+                codecInfo.details.push('From Manifest');
+            } else {
+                codecInfo.name = 'Unknown (Missing Init)';
+            }
         }
     } else if (format === 'ts') {
         stats.formatLabel = 'MPEG-TS';

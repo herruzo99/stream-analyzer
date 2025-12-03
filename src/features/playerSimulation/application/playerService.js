@@ -19,6 +19,7 @@ class PlayerService {
         this.activeStreamIds = new Set();
         this.activeManifestVariants = [];
         this.isInitialized = false;
+        this._initPromise = null; // Track pending initialization
         this.tickerSubscription = null;
         this.stallCalculator = new StallCalculator();
     }
@@ -43,6 +44,13 @@ class PlayerService {
         const audioTracks = this.player.getAudioLanguagesAndRoles();
         const textTracks = this.player.getTextTracks();
 
+        // --- ARCHITECTURAL FIX: Get seekable range from player ---
+        const seekRange = this.player.seekRange();
+        const safeSeekRange = {
+            start: seekRange.start || 0,
+            end: seekRange.end || 0,
+        };
+
         playerActions.updatePlaybackInfo({
             videoTracks,
             audioTracks,
@@ -50,6 +58,7 @@ class PlayerService {
             activeVideoTrack: activeVariant,
             activeAudioTrack: audioTracks.find((t) => t.active),
             activeTextTrack: textTracks.find((t) => t.active),
+            seekableRange: safeSeekRange, // Pass to store
         });
 
         const videoOnlyBitrate = activeVariant?.videoBandwidth || 0;
@@ -103,7 +112,6 @@ class PlayerService {
             }
         }
 
-        const seekRange = this.player.seekRange();
         const manifestTime = seekRange.end - seekRange.start;
         const playheadTime = videoEl.currentTime;
         const isLive = this.player.isLive();
@@ -168,110 +176,143 @@ class PlayerService {
         playerActions.updateStats(newStats);
     }
 
-    async initialize(videoEl, videoContainer) {
+    initialize(videoEl, videoContainer) {
         if (this.isInitialized) {
-            return;
+            return Promise.resolve(this.player);
+        }
+        if (this._initPromise) {
+            return this._initPromise;
         }
 
-        const shaka = await getShaka();
-        if (!shaka) {
-            console.error('Shaka Player module not loaded correctly.');
-            return;
-        }
+        this._initPromise = (async () => {
+            try {
+                const shaka = await getShaka();
+                if (!shaka) {
+                    throw new Error(
+                        'Shaka Player module not loaded correctly.'
+                    );
+                }
 
-        shaka.polyfill.installAll();
-        if (!shaka.Player.isBrowserSupported()) {
-            console.error('Shaka Player is not supported by this browser.');
-            return;
-        }
+                shaka.polyfill.installAll();
+                if (!shaka.Player.isBrowserSupported()) {
+                    throw new Error(
+                        'Shaka Player is not supported by this browser.'
+                    );
+                }
 
-        videoEl.crossOrigin = 'anonymous';
+                videoEl.crossOrigin = 'anonymous';
 
-        this.player = new shaka.Player();
-        await this.player.attach(videoEl);
+                this.player = new shaka.Player();
+                await this.player.attach(videoEl);
 
-        const videoElement = this.player.getMediaElement();
-        if (!videoElement) {
-            console.error(
-                'Shaka player did not attach to the video element correctly.'
-            );
-            return;
-        }
+                const videoElement = this.player.getMediaElement();
+                if (!videoElement) {
+                    throw new Error(
+                        'Shaka player did not attach to the video element correctly.'
+                    );
+                }
 
-        videoElement.controls = false;
-        videoElement.muted = usePlayerStore.getState().isMuted;
+                videoElement.controls = false;
+                videoElement.muted = usePlayerStore.getState().isMuted;
 
-        this.player.streamAnalyzerStreamId = null;
-        this.player.getNetworkingEngine().streamAnalyzerStreamId = null;
+                this.player.streamAnalyzerStreamId = null;
+                this.player.getNetworkingEngine().streamAnalyzerStreamId = null;
 
-        this.player.addEventListener('error', this.onErrorEvent.bind(this));
-        this.player.addEventListener(
-            'adaptation',
-            this.onAdaptationEvent.bind(this)
-        );
-        this.player.addEventListener(
-            'buffering',
-            this.onBufferingEvent.bind(this)
-        );
+                this.player.addEventListener(
+                    'error',
+                    this.onErrorEvent.bind(this)
+                );
+                this.player.addEventListener(
+                    'adaptation',
+                    this.onAdaptationEvent.bind(this)
+                );
+                this.player.addEventListener(
+                    'buffering',
+                    this.onBufferingEvent.bind(this)
+                );
 
-        this.player.addEventListener('loading', (e) =>
-            eventBus.dispatch('player:loading', e)
-        );
-        this.player.addEventListener('loaded', (e) =>
-            eventBus.dispatch('player:loaded', e)
-        );
-        this.player.addEventListener('streaming', (e) =>
-            eventBus.dispatch('player:streaming', e)
-        );
-        this.player.addEventListener('ratechange', (e) =>
-            eventBus.dispatch('player:ratechange', {
-                rate: videoElement.playbackRate,
-            })
-        );
-        this.player.addEventListener('emsg', (e) => {
-            const { streams, activeStreamId } = useAnalysisStore.getState();
-            const stream = streams.find((s) => s.id === activeStreamId);
-            if (stream) {
-                eventBus.dispatch('player:emsg', { ...e.detail, stream });
+                this.player.addEventListener('loading', (e) =>
+                    eventBus.dispatch('player:loading', e)
+                );
+                this.player.addEventListener('loaded', (e) =>
+                    eventBus.dispatch('player:loaded', e)
+                );
+                this.player.addEventListener('streaming', (e) =>
+                    eventBus.dispatch('player:streaming', e)
+                );
+                this.player.addEventListener('ratechange', (e) =>
+                    eventBus.dispatch('player:ratechange', {
+                        rate: videoElement.playbackRate,
+                    })
+                );
+                this.player.addEventListener('emsg', (e) => {
+                    const { streams, activeStreamId } =
+                        useAnalysisStore.getState();
+                    const stream = streams.find((s) => s.id === activeStreamId);
+                    if (stream) {
+                        eventBus.dispatch('player:emsg', {
+                            ...e.detail,
+                            stream,
+                        });
+                    }
+                });
+                this.player.addEventListener('texttrackvisibility', (e) =>
+                    eventBus.dispatch(
+                        'player:texttrackvisibility',
+                        /** @type {any} */ (e).detail
+                    )
+                );
+
+                videoElement.addEventListener('play', () =>
+                    playerActions.updatePlaybackInfo({
+                        playbackState: 'PLAYING',
+                    })
+                );
+                videoElement.addEventListener('playing', () =>
+                    playerActions.updatePlaybackInfo({
+                        playbackState: 'PLAYING',
+                    })
+                );
+                videoElement.addEventListener('pause', () =>
+                    playerActions.updatePlaybackInfo({
+                        playbackState: 'PAUSED',
+                    })
+                );
+                videoElement.addEventListener('ended', () =>
+                    playerActions.updatePlaybackInfo({
+                        playbackState: 'ENDED',
+                    })
+                );
+                videoElement.addEventListener('waiting', () =>
+                    playerActions.updatePlaybackInfo({
+                        playbackState: 'BUFFERING',
+                    })
+                );
+                videoElement.addEventListener('volumechange', () => {
+                    const currentElement = this.player?.getMediaElement();
+                    if (currentElement) {
+                        playerActions.setMutedState(currentElement.muted);
+                    }
+                });
+
+                videoElement.addEventListener('enterpictureinpicture', () =>
+                    eventBus.dispatch('player:pip-changed', { isInPiP: true })
+                );
+                videoElement.addEventListener('leavepictureinpicture', () =>
+                    eventBus.dispatch('player:pip-changed', { isInPiP: false })
+                );
+
+                this.isInitialized = true;
+                return this.player;
+            } catch (e) {
+                console.error('Player initialization failed:', e);
+                this._initPromise = null; // Reset to allow retries
+                this.isInitialized = false;
+                throw e;
             }
-        });
-        this.player.addEventListener('texttrackvisibility', (e) =>
-            eventBus.dispatch(
-                'player:texttrackvisibility',
-                /** @type {any} */ (e).detail
-            )
-        );
+        })();
 
-        videoElement.addEventListener('play', () =>
-            playerActions.updatePlaybackInfo({ playbackState: 'PLAYING' })
-        );
-        videoElement.addEventListener('playing', () =>
-            playerActions.updatePlaybackInfo({ playbackState: 'PLAYING' })
-        );
-        videoElement.addEventListener('pause', () =>
-            playerActions.updatePlaybackInfo({ playbackState: 'PAUSED' })
-        );
-        videoElement.addEventListener('ended', () =>
-            playerActions.updatePlaybackInfo({ playbackState: 'ENDED' })
-        );
-        videoElement.addEventListener('waiting', () =>
-            playerActions.updatePlaybackInfo({ playbackState: 'BUFFERING' })
-        );
-        videoElement.addEventListener('volumechange', () => {
-            const currentElement = this.player?.getMediaElement();
-            if (currentElement) {
-                playerActions.setMutedState(currentElement.muted);
-            }
-        });
-
-        videoElement.addEventListener('enterpictureinpicture', () =>
-            eventBus.dispatch('player:pip-changed', { isInPiP: true })
-        );
-        videoElement.addEventListener('leavepictureinpicture', () =>
-            eventBus.dispatch('player:pip-changed', { isInPiP: false })
-        );
-
-        this.isInitialized = true;
+        return this._initPromise;
     }
 
     async reinitializeAndLoad(videoEl, videoContainer, stream) {
@@ -340,7 +381,18 @@ class PlayerService {
     }
 
     async load(stream, autoPlay = false) {
-        if (!this.isInitialized || !this.player || !stream) return;
+        // Ensure initialization is complete before proceeding
+        if (this._initPromise) {
+            await this._initPromise;
+        }
+
+        if (!this.isInitialized || !this.player || !stream) {
+            console.warn(
+                'PlayerService.load called but service is not ready or stream missing.',
+                { initialized: this.isInitialized, hasPlayer: !!this.player }
+            );
+            return;
+        }
 
         this.stallCalculator.reset();
         playerActions.setRetryCount(0);
@@ -426,6 +478,7 @@ class PlayerService {
             this.player = null;
         }
         this.isInitialized = false;
+        this._initPromise = null;
         this.activeStreamIds.clear();
         eventBus.dispatch('player:active-streams-changed', {
             activeStreamIds: this.activeStreamIds,

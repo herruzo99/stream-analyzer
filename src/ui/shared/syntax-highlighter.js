@@ -41,21 +41,38 @@ export function highlightDash(text) {
 }
 
 /**
+ * Helper to highlight HLS attributes within a string.
+ */
+function highlightHlsAttributes(text) {
+    return text.replace(
+        /([A-Z0-9-]+)=(&quot;[^&quot;]*&quot;|[^,]+)/g,
+        (match, key, value) => {
+            const isQuoted = value.startsWith('&quot;');
+            const cleanValue = isQuoted ? value.slice(6, -6) : value; // remove &quot;
+            const valueSpan = `<span class="text-yellow-300">${cleanValue}</span>`;
+
+            return `<span class="text-emerald-300">${key}</span>=${
+                isQuoted ? `&quot;${valueSpan}&quot;` : valueSpan
+            }`;
+        }
+    );
+}
+
+/**
  * Applies syntax highlighting to a single line of a raw HLS manifest string.
  * @param {string} text - A single line from an M3U8 string.
  * @returns {string} An HTML string with syntax highlighting.
  */
 export function highlightHls(text) {
     if (!text) return '';
-    // FIX: Do not trim() here; preserve leading whitespace for indentation.
     const escaped = escapeHtml(text);
     const trimmed = escaped.trim();
 
+    // 1. Standard Tag Highlighting
     if (trimmed.startsWith('#EXT')) {
         const separatorIndex = escaped.indexOf(':');
         if (separatorIndex === -1) {
-            // It's a tag without value, e.g. #EXTM3U
-            // We need to separate the leading whitespace from the tag for coloring
+            // Tag without value (e.g., #EXTM3U)
             const tagMatch = escaped.match(/^(\s*)(#EXT[\w-]+)(.*)$/);
             if (tagMatch) {
                 return `${tagMatch[1]}<span class="text-purple-300">${tagMatch[2]}</span>${tagMatch[3]}`;
@@ -66,40 +83,38 @@ export function highlightHls(text) {
         const preTag = escaped.substring(0, separatorIndex);
         const attributesPart = escaped.substring(separatorIndex + 1);
 
-        // Color the Tag (handle indentation if present)
+        // Color the Tag
         const tagHtml = preTag.replace(
             /(#EXT[\w-]+)/,
             '<span class="text-purple-300">$1</span>'
         );
 
-        // Highlight attributes and their values
-        const highlightedAttrs = attributesPart.replace(
-            /([A-Z0-9-]+)=(&quot;[^&quot;]*&quot;|[^,]+)/g,
-            (match, key, value) => {
-                const isQuoted = value.startsWith('&quot;');
-                const cleanValue = isQuoted ? value.slice(6, -6) : value; // remove &quot;
-                const valueSpan = `<span class="text-yellow-300">${cleanValue}</span>`;
+        // Highlight attributes
+        const finalAttrs = highlightHlsAttributes(attributesPart);
 
-                return `<span class="text-emerald-300">${key}</span>=${
-                    isQuoted ? `&quot;${valueSpan}&quot;` : valueSpan
-                }`;
-            }
-        );
-
-        // Handle values without an attribute key (like in EXTINF)
-        const finalAttrs =
-            !highlightedAttrs.includes('=') && !attributesPart.includes('=')
+        // If no attributes matched, but content exists, color it yellow (value-only tag)
+        const renderedAttrs =
+            finalAttrs === attributesPart &&
+            attributesPart.trim().length > 0 &&
+            !attributesPart.includes('=')
                 ? `<span class="text-yellow-300">${attributesPart}</span>`
-                : highlightedAttrs;
+                : finalAttrs;
 
-        return `${tagHtml}:${finalAttrs}`;
+        return `${tagHtml}:${renderedAttrs}`;
     }
+
+    // 2. Comment Highlighting
     if (trimmed.startsWith('#')) {
         return `<span class="text-slate-500">${escaped}</span>`;
     }
 
-    // URIs and other content
-    // Detect indentation vs content
+    // 3. Fragment/Attribute Fallback (For Diff Views)
+    // If the text contains "KEY=VALUE" patterns, treat it as a list of attributes
+    if (/[A-Z0-9-]+=[^,]+/.test(trimmed)) {
+        return highlightHlsAttributes(escaped);
+    }
+
+    // 4. URI / Generic Content Highlighting
     const uriMatch = escaped.match(/^(\s*)(.*)$/);
     if (uriMatch) {
         return `${uriMatch[1]}<span class="text-cyan-400">${uriMatch[2]}</span>`;

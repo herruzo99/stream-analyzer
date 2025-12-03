@@ -1,13 +1,14 @@
 import { structureContentTemplate } from '@/features/interactiveSegment/ui/components/ts/index.js';
+import { getParsedSegment } from '@/infrastructure/segments/segmentService';
 import { workerService } from '@/infrastructure/worker/workerService';
+import { useAnalysisStore } from '@/state/analysisStore';
 import { useSegmentCacheStore } from '@/state/segmentCacheStore';
 import { connectedTabBar } from '@/ui/components/tabs';
 import * as icons from '@/ui/icons';
 import { isoBoxTreeTemplate } from '@/ui/shared/isobmff-renderer';
 import { scte35DetailsTemplate } from '@/ui/shared/scte35-details.js';
 import { html, render } from 'lit-html';
-import { bitrateHeatmapTemplate } from './components/bitrate-heatmap.js';
-import './components/bitstream-visualizer.js';
+import { advancedBitstreamAnalysisTemplate } from './components/advanced-bitstream-analysis.js';
 import './components/general-summary.js';
 import { createSegmentAnalysisViewModel } from './view-model.js';
 import { vttAnalysisTemplate } from './vtt-analysis.js';
@@ -21,25 +22,24 @@ class SegmentAnalysisComponent extends HTMLElement {
         this._isAnalyzing = false;
     }
 
-    /**
-     * @param {{parsedData: any, parsedDataB?: any, isIFrame?: boolean, uniqueId?: string}} val
-     */
     set data(val) {
         if (this._data === val) return;
 
         this._data = val;
         this._viewModel = null;
-
-        // Check if we need to trigger full analysis
         this.checkBitstreamAnalysis();
-
         this.render();
     }
 
     checkBitstreamAnalysis() {
+        if (this._data?.parsedData?.byteMap) {
+            return;
+        }
+
         if (
             this._data?.parsedData &&
             !this._data.parsedData.bitstreamAnalysis &&
+            !this._data.parsedData.bitstreamAnalysisAttempted &&
             !this._isAnalyzing &&
             this._data.uniqueId &&
             ['isobmff', 'ts'].includes(this._data.parsedData.format)
@@ -51,43 +51,160 @@ class SegmentAnalysisComponent extends HTMLElement {
         }
     }
 
+    _resolveInitSegmentId(segmentUniqueId) {
+        const { streams, activeStreamId } = useAnalysisStore.getState();
+        const activeStream = streams.find((s) => s.id === activeStreamId);
+        const streamList = activeStream
+            ? [activeStream, ...streams.filter((s) => s.id !== activeStreamId)]
+            : streams;
+
+        for (const stream of streamList) {
+            if (stream.protocol === 'dash') {
+                for (const repState of stream.dashRepresentationState.values()) {
+                    if (
+                        repState.segments.some(
+                            (s) => s.uniqueId === segmentUniqueId
+                        )
+                    ) {
+                        const initSeg = repState.segments.find(
+                            (s) => s.type === 'Init'
+                        );
+                        return initSeg ? initSeg.uniqueId : null;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
     async triggerFullAnalysis(uniqueId, parsedData) {
         this._isAnalyzing = true;
+        this.render();
+
         const { get, set } = useSegmentCacheStore.getState();
         const entry = get(uniqueId);
 
         if (entry && entry.data) {
             try {
+                let context = {};
+                if (parsedData.format === 'isobmff') {
+                    const initUniqueId = this._resolveInitSegmentId(uniqueId);
+
+                    if (initUniqueId) {
+                        try {
+                            const { activeStreamId } =
+                                useAnalysisStore.getState();
+                            const initParsed = await getParsedSegment(
+                                initUniqueId,
+                                activeStreamId,
+                                'isobmff'
+                            );
+
+                            if (initParsed?.data?.boxes) {
+                                context.initSegmentBoxes =
+                                    initParsed.data.boxes;
+                            }
+                        } catch (err) {
+                            console.warn(
+                                '[SegmentAnalysis] Failed to auto-load Init Segment:',
+                                err
+                            );
+                        }
+                    }
+                }
+
                 const result = await workerService.postTask(
                     'full-segment-analysis',
                     {
                         parsedData: parsedData,
                         rawData: entry.data,
+                        context,
                     }
                 ).promise;
 
-                // Update cache
-                const updatedParsedData = { ...parsedData, ...result };
+                const updatedParsedData = {
+                    ...parsedData,
+                    ...result,
+                    bitstreamAnalysisAttempted: true,
+                };
                 const newEntry = { ...entry, parsedData: updatedParsedData };
                 set(uniqueId, newEntry);
 
-                // Update local state to trigger re-render
                 this._data = { ...this._data, parsedData: updatedParsedData };
-                this._viewModel = null; // Invalidate VM
-                this.render();
-                // showToast({ message: 'Bitstream analysis complete.', type: 'info' });
+                this._viewModel = null;
             } catch (e) {
                 console.warn('Full analysis failed:', e);
+                const updatedParsedData = {
+                    ...parsedData,
+                    bitstreamAnalysisAttempted: true,
+                };
+                const newEntry = { ...entry, parsedData: updatedParsedData };
+                set(uniqueId, newEntry);
+                this._data = { ...this._data, parsedData: updatedParsedData };
+            } finally {
+                this._isAnalyzing = false;
+                this.render();
             }
+        } else {
+            const updatedParsedData = {
+                ...parsedData,
+                bitstreamAnalysisAttempted: true,
+            };
+            this._data = { ...this._data, parsedData: updatedParsedData };
+            this._isAnalyzing = false;
+            this.render();
         }
-        this._isAnalyzing = false;
     }
 
     get viewModel() {
         if (!this._viewModel && this._data?.parsedData) {
+            let manifestCodec = null;
+
+            if (this._data.uniqueId) {
+                const { streams, activeStreamId } = useAnalysisStore.getState();
+                const activeStream = streams.find(
+                    (s) => s.id === activeStreamId
+                );
+                const streamList = activeStream
+                    ? [
+                          activeStream,
+                          ...streams.filter((s) => s.id !== activeStreamId),
+                      ]
+                    : streams;
+
+                for (const stream of streamList) {
+                    if (stream.protocol === 'dash') {
+                        for (const repState of stream.dashRepresentationState.values()) {
+                            const segMatch = repState.segments.find(
+                                (s) => s.uniqueId === this._data.uniqueId
+                            );
+                            if (segMatch) {
+                                const repId = segMatch.repId;
+                                for (const p of stream.manifest.periods) {
+                                    for (const as of p.adaptationSets) {
+                                        const rep = as.representations.find(
+                                            (r) => r.id === repId
+                                        );
+                                        if (
+                                            rep &&
+                                            rep.codecs &&
+                                            rep.codecs.length > 0
+                                        ) {
+                                            manifestCodec = rep.codecs[0].value;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if (manifestCodec) break;
+                }
+            }
+
             this._viewModel = createSegmentAnalysisViewModel(
                 this._data.parsedData,
-                this._data.parsedData.data?.size || 0
+                this._data.parsedData.data?.size || 0,
+                manifestCodec
             );
         }
         return this._viewModel;
@@ -127,14 +244,13 @@ class SegmentAnalysisComponent extends HTMLElement {
         }
 
         const tabs = [{ key: 'overview', label: 'Overview' }];
+
         if (vm.bitstream) {
-            tabs.push({ key: 'bitstream', label: 'Frame Size' });
-            tabs.push({ key: 'heatmap', label: 'Bitrate Heatmap' });
+            tabs.push({ key: 'deep-analysis', label: 'Deep Analysis' });
         }
+
         if (['isobmff', 'ts'].includes(vm.format))
             tabs.push({ key: 'structure', label: 'Structure' });
-
-        // --- Tab Content Renderers ---
 
         const renderOverview = () => html`
             <div
@@ -188,7 +304,7 @@ class SegmentAnalysisComponent extends HTMLElement {
                           </div>
                       `
                     : ''}
-                ${!vm.bitstream && ['isobmff', 'ts'].includes(vm.format)
+                ${this._isAnalyzing
                     ? html`
                           <div
                               class="mt-4 p-4 bg-blue-900/10 border border-blue-500/20 rounded-xl flex items-center justify-center gap-3"
@@ -197,32 +313,30 @@ class SegmentAnalysisComponent extends HTMLElement {
                                   >${icons.spinner}</span
                               >
                               <span class="text-xs text-blue-300 font-medium"
-                                  >Analyzing bitstream structure...</span
+                                  >Fetching Init & Analyzing Bitstream...</span
                               >
                           </div>
                       `
-                    : ''}
+                    : !vm.bitstream &&
+                        ['isobmff', 'ts'].includes(vm.format) &&
+                        !parsedData.bitstreamAnalysisAttempted
+                      ? html`
+                            <div
+                                class="mt-4 p-4 bg-slate-800/50 border border-slate-700 rounded-xl text-center text-xs text-slate-500 italic"
+                            >
+                                Bitstream analysis pending...
+                            </div>
+                        `
+                      : ''}
             </div>
         `;
 
-        const renderBitstream = () => html`
+        const renderDeepAnalysis = () => html`
             <div
-                class="absolute inset-0 overflow-y-auto p-4 custom-scrollbar animate-fadeIn"
+                class="absolute inset-0 overflow-y-auto p-4 custom-scrollbar animate-fadeIn bg-slate-950"
             >
-                <div class="h-full">
-                    <segment-bitstream-visualizer
-                        .data=${vm.bitstream}
-                    ></segment-bitstream-visualizer>
-                </div>
-            </div>
-        `;
-
-        const renderHeatmap = () => html`
-            <div
-                class="absolute inset-0 overflow-y-auto p-4 custom-scrollbar animate-fadeIn"
-            >
-                <div class="h-full">
-                    ${bitrateHeatmapTemplate(vm.bitstream)}
+                <div class="h-full min-h-[400px]">
+                    ${advancedBitstreamAnalysisTemplate(vm.bitstream)}
                 </div>
             </div>
         `;
@@ -255,7 +369,6 @@ class SegmentAnalysisComponent extends HTMLElement {
 
         const content = html`
             <div class="flex flex-col h-full bg-slate-900 text-slate-200">
-                <!-- Header Toolbar -->
                 <div
                     class="shrink-0 px-4 pt-4 pb-0 border-b border-slate-800 bg-slate-900 sticky top-0 z-20"
                 >
@@ -266,14 +379,10 @@ class SegmentAnalysisComponent extends HTMLElement {
                     </div>
                 </div>
 
-                <!-- Main Content Area -->
                 <div class="grow relative w-full min-h-0 bg-slate-900">
                     ${this._activeTab === 'overview' ? renderOverview() : ''}
-                    ${this._activeTab === 'bitstream' && vm.bitstream
-                        ? renderBitstream()
-                        : ''}
-                    ${this._activeTab === 'heatmap' && vm.bitstream
-                        ? renderHeatmap()
+                    ${this._activeTab === 'deep-analysis' && vm.bitstream
+                        ? renderDeepAnalysis()
                         : ''}
                     ${this._activeTab === 'structure' ? renderStructure() : ''}
                 </div>
@@ -289,9 +398,10 @@ customElements.define('segment-analysis-component', SegmentAnalysisComponent);
 export function getSegmentAnalysisTemplate(
     parsedData,
     parsedDataB = null,
-    isIFrame = false
+    isIFrame = false,
+    uniqueId = null
 ) {
     return html`<segment-analysis-component
-        .data=${{ parsedData, parsedDataB, isIFrame }}
+        .data=${{ parsedData, parsedDataB, isIFrame, uniqueId }}
     ></segment-analysis-component>`;
 }

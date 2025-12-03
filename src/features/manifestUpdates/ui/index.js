@@ -13,6 +13,7 @@ let currentStreamId = null;
 let unsubAnalysis = null;
 let unsubUi = null;
 
+// Local state to manage "Sticky Live" behavior
 let isStickToLive = true;
 
 function renderView() {
@@ -33,9 +34,11 @@ function renderView() {
 
     const vm = createManifestUpdatesViewModel(stream);
 
+    // Sticky Logic: Only update active ID if stickiness is enabled
     if (isStickToLive && vm.updates.length > 0) {
         const latestId = vm.updates[0].id;
         if (stream.activeManifestUpdateId !== latestId) {
+            // Use setTimeout to avoid render loops when dispatching from render
             setTimeout(
                 () =>
                     analysisActions.setActiveManifestUpdate(
@@ -49,6 +52,13 @@ function renderView() {
 
     const toggleSticky = () => {
         isStickToLive = !isStickToLive;
+        renderView();
+    };
+
+    // Callback when user manually selects an update from the feed
+    const handleUpdateSelect = (updateId) => {
+        isStickToLive = false; // Disable sticky mode to allow viewing history
+        analysisActions.setActiveManifestUpdate(stream.id, updateId);
         renderView();
     };
 
@@ -79,13 +89,16 @@ function renderView() {
                         ${updateFeedTemplate(
                             vm.updates,
                             vm.activeUpdate?.id,
-                            stream.id
+                            stream.id,
+                            handleUpdateSelect // Pass handler
                         )}
                     </div>
                 </div>
 
                 <!-- Main Content Area -->
-                <div class="grow min-w-0 bg-slate-900 relative flex flex-col">
+                <div
+                    class="grow min-w-0 bg-slate-900 relative flex flex-col overflow-hidden"
+                >
                     <!-- Diff Viewer (Takes available space) -->
                     <div class="grow min-h-0 relative">
                         ${diffViewerTemplate(vm.activeUpdate, stream.protocol)}

@@ -27,6 +27,11 @@ export function initializeMultiPlayerController() {
     eventBus.subscribe(EVENTS.UI.MP_RESET_ALL, () =>
         multiPlayerService.resetAllPlayers()
     );
+    // --- NEW ---
+    eventBus.subscribe(EVENTS.UI.MP_RESET_SELECTED, () =>
+        multiPlayerService.resetSelectedPlayers()
+    );
+    // --- END NEW ---
     eventBus.subscribe(EVENTS.UI.MP_CLEAR_ALL, () =>
         multiPlayerService.clearAndResetPlayers()
     );
@@ -60,22 +65,30 @@ export function initializeMultiPlayerController() {
     // Global Control Listeners
     eventBus.subscribe(EVENTS.UI.MP_SET_GLOBAL_ABR, ({ enabled }) => {
         useMultiPlayerStore.getState().setGlobalAbrEnabled(enabled);
-        multiPlayerService.setGlobalAbr(enabled);
+        multiPlayerService.applyConfigToSelected({ abrEnabled: enabled });
     });
+
     eventBus.subscribe(EVENTS.UI.MP_SET_GLOBAL_BW_CAP, ({ bps }) => {
         useMultiPlayerStore.getState().setGlobalBandwidthCap(bps);
-        multiPlayerService.setGlobalBandwidthCap(bps);
+        multiPlayerService.applyConfigToSelected({ maxBandwidth: bps });
     });
+
     eventBus.subscribe(EVENTS.UI.MP_SET_GLOBAL_MAX_HEIGHT, ({ height }) => {
         useMultiPlayerStore.getState().setGlobalMaxHeight(height);
-        multiPlayerService.setGlobalMaxHeight(height);
+        multiPlayerService.applyConfigToSelected({ maxHeight: height });
     });
+
     eventBus.subscribe(
         EVENTS.UI.MP_SET_GLOBAL_TRACK_BY_HEIGHT,
         ({ height }) => {
-            multiPlayerService.setGlobalTrackByHeight(height);
+            multiPlayerService.applyConfigToSelected({ trackByHeight: height });
         }
     );
+
+    // New: Audio Language global handler
+    eventBus.subscribe('ui:multi-player:set-global-audio-track', ({ lang }) => {
+        multiPlayerService.applyConfigToSelected({ audioLanguage: lang });
+    });
 
     // Per-stream Actions
     eventBus.subscribe(

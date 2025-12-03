@@ -1,4 +1,7 @@
+import { eventBus } from '@/application/event-bus';
 import { analysisActions, useAnalysisStore } from '@/state/analysisStore';
+import { useUiStore } from '@/state/uiStore';
+import { EVENTS } from '@/types/events';
 import * as icons from '@/ui/icons';
 import { html } from 'lit-html';
 
@@ -105,11 +108,57 @@ const headerInputRow = (header, index, inputId, isDrm) => {
 
 export const inspectorPanelTemplate = () => {
     const { streamInputs, activeStreamInputId } = useAnalysisStore.getState();
+    const { presets, presetSaveStatus } = useUiStore.getState();
     const activeInput = streamInputs.find((i) => i.id === activeStreamInputId);
 
     if (!activeInput) return html``;
 
     const detectedDrm = activeInput.detectedDrm || [];
+    const isKnownPreset = presets.some((p) => p.url === activeInput.url);
+
+    // --- Header Actions Logic ---
+    const handleSavePreset = () => {
+        const nameToSave =
+            activeInput.name || new URL(activeInput.url).hostname;
+        eventBus.dispatch(EVENTS.UI.SAVE_PRESET_REQUESTED, {
+            name: nameToSave,
+            url: activeInput.url,
+            isPreset: isKnownPreset,
+        });
+    };
+
+    let saveBtnText = isKnownPreset ? 'Update Preset' : 'Save as Preset';
+    let saveBtnIcon = icons.save;
+    let saveBtnClass =
+        'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700';
+
+    if (presetSaveStatus === 'saving') {
+        saveBtnText = 'Saving...';
+        saveBtnIcon = icons.spinner;
+    } else if (presetSaveStatus === 'saved') {
+        saveBtnText = 'Saved!';
+        saveBtnIcon = icons.checkCircle;
+        saveBtnClass = 'bg-green-900/20 text-green-400 border-green-900/50';
+    } else if (presetSaveStatus === 'error') {
+        saveBtnText = 'Error';
+        saveBtnIcon = icons.alertTriangle;
+        saveBtnClass = 'bg-red-900/20 text-red-400 border-red-900/50';
+    }
+
+    const headerActions = html`
+        <div class="flex justify-between items-center mb-8">
+            <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                ${icons.settings} Configuration
+            </h2>
+            <button
+                @click=${handleSavePreset}
+                ?disabled=${presetSaveStatus === 'saving'}
+                class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${saveBtnClass}"
+            >
+                ${saveBtnIcon} ${saveBtnText}
+            </button>
+        </div>
+    `;
 
     // Identity Section
     const identityContent = html`
@@ -453,6 +502,7 @@ export const inspectorPanelTemplate = () => {
     return html`
         <div class="h-full overflow-y-auto custom-scrollbar p-8">
             <div class="max-w-4xl mx-auto">
+                ${headerActions}
                 ${configSection('Stream Identity', icons.tag, identityContent)}
                 ${configSection(
                     'Network Request',

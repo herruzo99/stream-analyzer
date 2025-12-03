@@ -354,6 +354,8 @@ export async function generateHlsSummary(manifestIR, context) {
         audioTracks,
         textTracks,
         security,
+        advanced: null,
+        cmafData: { status: 'idle', results: [] },
     };
 
     return { summary, opportunisticallyCachedSegments };

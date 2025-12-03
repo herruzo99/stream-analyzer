@@ -86,6 +86,11 @@ export function createManifestUpdatesViewModel(stream) {
         activeUpdateId = stream.activeManifestUpdateId;
     }
 
+    // Fallback: If no active update is selected but we have updates, select the latest one.
+    if (!activeUpdateId && updates.length > 0) {
+        activeUpdateId = updates[0].id;
+    }
+
     // Sort: Newest first for the feed logic, but we usually store them newest first in store anyway.
     // Let's ensure consistency.
     const sortedUpdates = [...updates];

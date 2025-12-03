@@ -55,6 +55,36 @@ const findBoxRecursive = (boxes, predicateOrType) => {
     return null;
 };
 
+const calculateMaxSegmentDuration = (serializedManifest) => {
+    const template = findChildrenRecursive(
+        serializedManifest,
+        'SegmentTemplate'
+    )[0];
+    if (!template) return null;
+
+    const timescale = parseInt(template[':@']?.timescale || '1', 10);
+    const duration = template[':@']?.duration
+        ? parseInt(template[':@']?.duration, 10)
+        : null;
+
+    if (duration) {
+        return duration / timescale;
+    }
+
+    const timeline = findChildrenRecursive(template, 'SegmentTimeline')[0];
+    if (timeline) {
+        const sElements = findChildrenRecursive(timeline, 'S');
+        let maxDuration = 0;
+        for (const s of sElements) {
+            const d = parseInt(s[':@']?.d || '0', 10);
+            if (d > maxDuration) maxDuration = d;
+        }
+        return maxDuration > 0 ? maxDuration / timescale : null;
+    }
+
+    return null;
+};
+
 /**
  * Creates a protocol-agnostic summary view-model from a DASH manifest.
  * @param {Manifest} manifestIR - The adapted manifest IR.
@@ -367,7 +397,9 @@ export async function generateDashSummary(
             minimumUpdatePeriod: manifestIR.minimumUpdatePeriod,
             availabilityStartTime: manifestIR.availabilityStartTime,
             publishTime: manifestIR.publishTime,
-            maxSegmentDuration: manifestIR.maxSegmentDuration, // Populated from IR
+            maxSegmentDuration:
+                manifestIR.maxSegmentDuration ||
+                calculateMaxSegmentDuration(serializedManifest), // Fallback
         },
         hls: null,
         lowLatency: {

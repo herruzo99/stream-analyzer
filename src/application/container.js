@@ -8,6 +8,7 @@ import {
 } from '@/infrastructure/persistence/streamStorage';
 import { workerService } from '@/infrastructure/worker/workerService';
 import { analysisActions } from '@/state/analysisStore';
+import { urlStateManager } from '@/application/url-state-manager';
 import { Application } from './app.js';
 
 // --- Core Service Dependencies ---
@@ -22,6 +23,7 @@ const services = {
         getHistory,
         getPresets,
     },
+    urlStateManager,
 };
 
 // --- Application Core Instantiation ---

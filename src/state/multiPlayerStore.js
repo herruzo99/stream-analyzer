@@ -33,6 +33,11 @@ const createInitialState = () => ({
     gridColumns: 'auto',
     focusedStreamId: null,
     showGlobalHud: true,
+    // Global defaults for new players
+    globalAbrEnabled: true,
+    globalMaxHeight: Infinity,
+    globalBandwidthCap: Infinity,
+    globalBufferingGoal: 10,
 });
 
 export const useMultiPlayerStore = createStore((set, get) => ({
@@ -57,9 +62,10 @@ export const useMultiPlayerStore = createStore((set, get) => ({
                 stats: defaultStats,
                 playbackHistory: [],
                 health: 'healthy',
-                selectedForAction: true, // Default to TRUE as requested
+                selectedForAction: true,
                 abrOverride: null,
                 maxHeightOverride: null,
+                maxBandwidthOverride: null,
                 bufferingGoalOverride: null,
                 initialState: null,
                 variantTracks: [],
@@ -94,9 +100,10 @@ export const useMultiPlayerStore = createStore((set, get) => ({
                 stats: defaultStats,
                 playbackHistory: [],
                 health: 'healthy',
-                selectedForAction: true, // Default to TRUE
+                selectedForAction: true,
                 abrOverride: null,
                 maxHeightOverride: null,
+                maxBandwidthOverride: null,
                 bufferingGoalOverride: null,
                 initialState: null,
                 variantTracks: [],
@@ -125,7 +132,6 @@ export const useMultiPlayerStore = createStore((set, get) => ({
             let newFocusedId = state.focusedStreamId;
             if (state.focusedStreamId === streamId) {
                 newFocusedId = null;
-                // If removing the focused item, revert to grid
                 if (state.layoutMode === 'focus') state.layoutMode = 'grid';
             }
 
@@ -210,6 +216,7 @@ export const useMultiPlayerStore = createStore((set, get) => ({
         });
     },
 
+    // --- Configuration Overrides ---
     setStreamOverride: (streamId, override) => {
         set((state) => {
             const newPlayers = new Map(state.players);
@@ -225,6 +232,10 @@ export const useMultiPlayerStore = createStore((set, get) => ({
                         override.maxHeight !== undefined
                             ? override.maxHeight
                             : player.maxHeightOverride,
+                    maxBandwidthOverride:
+                        override.maxBandwidth !== undefined
+                            ? override.maxBandwidth
+                            : player.maxBandwidthOverride,
                     bufferingGoalOverride:
                         override.bufferingGoal !== undefined
                             ? override.bufferingGoal
@@ -234,6 +245,11 @@ export const useMultiPlayerStore = createStore((set, get) => ({
             return { players: newPlayers };
         });
     },
+
+    // --- Global Defaults ---
+    setGlobalAbrEnabled: (enabled) => set({ globalAbrEnabled: enabled }),
+    setGlobalMaxHeight: (height) => set({ globalMaxHeight: height }),
+    setGlobalBandwidthCap: (bps) => set({ globalBandwidthCap: bps }),
 
     duplicateStream: (sourceStreamId, initialState = null) => {
         const state = get();
@@ -261,7 +277,7 @@ export const useMultiPlayerStore = createStore((set, get) => ({
                 normalizedPlayheadTime: 0,
                 retryCount: 0,
                 isHudVisible: true,
-                isBasePlayer: false, // Duplicates are not base players
+                isBasePlayer: false,
             }),
             streamIdCounter: newId + 1,
         });

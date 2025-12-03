@@ -2,13 +2,13 @@ import { uiActions } from '@/state/uiStore';
 import * as icons from '@/ui/icons';
 import { html } from 'lit-html';
 
-// --- Generic Helpers ---
+// ... (keep renderValue, kv, renderDeepObject, sectionHeader, renderDescriptor, etc. unchanged - abbreviated for brevity) ...
+// We just need to export the modified tsInspectorDetailsTemplate
 
 const renderValue = (val, customColor = null) => {
     if (val === null || val === undefined)
         return html`<span class="text-slate-600 italic">null</span>`;
 
-    // Handle the { value, offset, length } structure from parsers
     if (typeof val === 'object' && val !== null && 'value' in val) {
         const colorClass = customColor || 'text-cyan-300';
         return html`<span
@@ -39,7 +39,7 @@ const kv = (k, v, color = null, parentPacket = null) => {
         ) {
             const highlightItem = {
                 ...parentPacket,
-                details: { [k]: v }, // Synthesize a details object for the Hex View to target
+                details: { [k]: v },
             };
             uiActions.setInteractiveSegmentHighlightedItem(highlightItem, k);
         }
@@ -63,6 +63,10 @@ const kv = (k, v, color = null, parentPacket = null) => {
         </div>
     `;
 };
+
+// ... (Include other helpers to ensure self-contained module if not importing them, but assuming this file REPLACES the old one, I must include them to be safe or assume module context persists)
+// Since I am replacing the file, I assume I need to keep the helpers.
+// Re-including abbreviated helpers for safety.
 
 const renderDeepObject = (obj, parentPacket = null) => {
     if (!obj || typeof obj !== 'object') return renderValue(obj);
@@ -112,8 +116,6 @@ const sectionHeader = (title, icon = icons.info) => html`
         <span class="scale-75 text-blue-500">${icon}</span> ${title}
     </h4>
 `;
-
-// --- TS Specific Component Renderers ---
 
 const renderDescriptor = (d, parentPacket) => html`
     <div
@@ -299,6 +301,13 @@ const renderAdaptationField = (af, parentPacket) => html`
                   ✓ Random Access
               </div>`
             : ''}
+        ${af.elementary_stream_priority_indicator?.value
+            ? html`<div
+                  class="bg-amber-900/20 border border-amber-500/30 p-1 rounded text-amber-300 text-xs font-bold mt-1 text-center"
+              >
+                  ★ High Priority
+              </div>`
+            : ''}
         ${af.pcr
             ? html`
                   <div class="mt-2 pt-2 border-t border-slate-700/50">
@@ -331,6 +340,39 @@ const renderAdaptationField = (af, parentPacket) => html`
                   </div>
               `
             : ''}
+    </div>
+`;
+
+const renderCatDetails = (cat, parentPacket) => html`
+    ${sectionHeader('Conditional Access Table', icons.lockClosed)}
+    <div class="bg-slate-800/30 rounded p-2 border border-slate-800 mb-2">
+        <p class="text-xs text-slate-400 mb-3">
+            Provides information about the Conditional Access systems used in
+            the multiplex.
+        </p>
+        ${cat.descriptors && cat.descriptors.length > 0
+            ? cat.descriptors.map((d) => renderDescriptor(d, parentPacket))
+            : html`<div class="text-slate-500 italic text-xs">
+                  No CA descriptors found.
+              </div>`}
+    </div>
+`;
+
+const renderTsdtDetails = (tsdt, parentPacket) => html`
+    ${sectionHeader('Transport Stream Description', icons.fileText)}
+    <div class="bg-slate-800/30 rounded p-2 border border-slate-800 mb-2">
+        ${tsdt.descriptors && tsdt.descriptors.length > 0
+            ? tsdt.descriptors.map((d) => renderDescriptor(d, parentPacket))
+            : html`<div class="text-slate-500 italic text-xs">
+                  No descriptors found.
+              </div>`}
+    </div>
+`;
+
+const renderIpmpDetails = (ipmp, parentPacket) => html`
+    ${sectionHeader('IPMP Control Information', icons.shieldCheck)}
+    <div class="bg-slate-800/30 rounded p-2 border border-slate-800 mb-2">
+        ${renderDeepObject(ipmp.info, parentPacket)}
     </div>
 `;
 
@@ -371,6 +413,9 @@ export const tsInspectorDetailsTemplate = (packet) => {
         payloadColor = 'bg-blue-900/20 text-blue-300 border-blue-500/30';
     else if (packet.payloadType.includes('Audio'))
         payloadColor = 'bg-purple-900/20 text-purple-300 border-purple-500/30';
+    else if (packet.payloadType.includes('CAT'))
+        payloadColor =
+            'bg-fuchsia-900/20 text-fuchsia-300 border-fuchsia-500/30';
 
     return html`
         <div
@@ -403,7 +448,7 @@ export const tsInspectorDetailsTemplate = (packet) => {
                         >${packet.payloadType}</span
                     >
                 </div>
-                <div class="flex gap-2 text-xs font-mono">
+                <div class="flex gap-2 text-xs font-mono flex-wrap">
                     <div
                         class="flex items-center gap-2 px-2 py-1 bg-slate-950 rounded border border-slate-800"
                     >
@@ -441,6 +486,21 @@ export const tsInspectorDetailsTemplate = (packet) => {
                                 .value}</span
                         >
                     </div>
+                    <div
+                        class="flex items-center gap-2 px-2 py-1 bg-slate-900 rounded border border-slate-800"
+                    >
+                        <span class="text-slate-500 uppercase font-bold"
+                            >Priority</span
+                        >
+                        <span
+                            class="${packet.header.transport_priority?.value
+                                ? 'text-amber-400 font-bold'
+                                : 'text-slate-500'}"
+                            >${packet.header.transport_priority?.value
+                                ? 'HIGH'
+                                : 'LOW'}</span
+                        >
+                    </div>
                 </div>
             </div>
 
@@ -455,7 +515,18 @@ export const tsInspectorDetailsTemplate = (packet) => {
                           ${psi.type === 'PMT'
                               ? renderPmtDetails(psi, packet)
                               : ''}
-                          ${!['PAT', 'PMT'].includes(psi.type)
+                          ${psi.type === 'CAT'
+                              ? renderCatDetails(psi, packet)
+                              : ''}
+                          ${psi.type === 'TSDT'
+                              ? renderTsdtDetails(psi, packet)
+                              : ''}
+                          ${psi.type === 'IPMP-CIT'
+                              ? renderIpmpDetails(psi, packet)
+                              : ''}
+                          ${!['PAT', 'PMT', 'CAT', 'TSDT', 'IPMP-CIT'].includes(
+                              psi.type
+                          )
                               ? html`${sectionHeader(
                                         `Generic PSI (${psi.type || 'Unknown'})`,
                                         icons.box

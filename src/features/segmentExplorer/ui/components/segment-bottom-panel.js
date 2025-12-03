@@ -120,7 +120,8 @@ export const segmentBottomPanelTemplate = (stream) => {
                     ${getSegmentAnalysisTemplate(
                         cacheEntry.parsedData,
                         null,
-                        false
+                        false,
+                        segment.uniqueId // Pass the uniqueId here
                     )}
                 </div>
             </div>

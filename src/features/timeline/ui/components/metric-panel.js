@@ -1,4 +1,5 @@
 import * as icons from '@/ui/icons';
+import { tooltipTriggerClasses } from '@/ui/shared/constants';
 import { html } from 'lit-html';
 
 const statusColors = {
@@ -9,14 +10,71 @@ const statusColors = {
     info: 'text-blue-400 border-blue-500/30 bg-blue-900/10',
 };
 
+/**
+ * Safely encodes a UTF-8 string to Base64.
+ * Standard btoa() throws on Unicode characters.
+ */
+const safeBtoa = (str) => {
+    return btoa(
+        encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (match, p1) =>
+            String.fromCharCode(parseInt(p1, 16))
+        )
+    );
+};
+
+const createTooltipContent = (metric) => {
+    const content = `
+        <div class="text-left min-w-[220px]">
+            <div class="font-bold text-white text-sm mb-1 border-b border-slate-600 pb-1 flex items-center gap-2">
+                ${metric.name}
+            </div>
+            <div class="text-xs text-slate-300 leading-relaxed mb-2">
+                ${metric.description || 'No description available.'}
+            </div>
+            ${
+                metric.warning
+                    ? `<div class="mb-2 p-2 bg-yellow-900/30 rounded border border-yellow-700/50 flex gap-2 items-start">
+                    <span class="text-yellow-400 text-[10px]">⚠️</span>
+                    <p class="text-xs text-yellow-200">${metric.warning.text}</p>
+                </div>`
+                    : ''
+            }
+            ${
+                metric.technical
+                    ? `<div class="text-[10px] font-mono text-blue-200 bg-blue-900/20 p-1.5 rounded border border-blue-500/20 break-all">
+                    ${metric.technical}
+                </div>`
+                    : ''
+            }
+        </div>
+    `;
+    return safeBtoa(content);
+};
+
 const metricItem = (m) => {
-    const styleClass = statusColors[m.status] || statusColors.neutral;
+    // Tailwind classes don't support dynamic string interpolation for purging unless safelisted.
+    // We map the status directly to the pre-defined strings in statusColors.
+    const colorClasses = statusColors[m.status] || statusColors.neutral;
+
+    const cardClasses = {
+        flex: true,
+        'flex-col': true,
+        'p-2.5': true,
+        'rounded-lg': true,
+        border: true,
+        'transition-all': true,
+        'duration-200': true,
+        'hover:bg-slate-800': true,
+        // Add tooltip trigger class to enable global event listener
+        [tooltipTriggerClasses]: true,
+    };
+
+    // Add the color classes string manually since it contains multiple utility classes
+    const className = `${Object.keys(cardClasses).join(' ')} ${colorClasses}`;
+    const tooltipB64 = createTooltipContent(m);
 
     return html`
-        <div
-            class="flex flex-col p-2.5 rounded-lg border transition-all hover:bg-slate-800 ${styleClass}"
-            title="${m.tooltip || ''}"
-        >
+        <div class="${className}" data-tooltip-html-b64="${tooltipB64}">
             <div class="flex justify-between items-start mb-1">
                 <span
                     class="text-[10px] font-bold uppercase tracking-wider opacity-70"

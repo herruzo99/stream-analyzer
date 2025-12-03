@@ -2,6 +2,7 @@ import { useAnalysisStore } from '@/state/analysisStore';
 import * as icons from '@/ui/icons';
 import { html, render } from 'lit-html';
 import { bitrateLadderTemplate } from './components/bitrate-ladder.js';
+import { cmafWidgetTemplate } from './components/cmaf-widget.js';
 import { complianceWidgetTemplate } from './components/compliance-widget.js';
 import { featureGridTemplate } from './components/feature-grid.js';
 import { heroHeaderTemplate } from './components/hero-header.js';
@@ -51,49 +52,51 @@ function renderSummary() {
             <!-- Top Section: Identity & Security -->
             ${heroHeaderTemplate(vm)}
 
-            <!-- Middle Section: Stats & Compliance -->
+            <!-- Stats Section: Full Width -->
+            ${quickStatsTemplate(vm)}
+
+            <!-- Main Content Grid -->
             <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                <!-- Left: Key Metrics -->
-                <div class="xl:col-span-2">${quickStatsTemplate(vm)}</div>
-                <!-- Right: Compliance Scorecard -->
-                <div class="h-full min-h-[200px]">
+                <!-- Left Column: Visualizations -->
+                <div class="xl:col-span-2 flex flex-col gap-6">
+                    <!-- Bitrate Ladder Chart -->
+                    <div
+                        class="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5 shadow-sm hover:border-slate-600 transition-colors"
+                    >
+                        <div class="flex items-center justify-between mb-4">
+                            <h3
+                                class="text-lg font-bold text-white flex items-center gap-2"
+                            >
+                                ${icons.trendingUp} ABR Ladder
+                            </h3>
+                            <span
+                                class="text-xs font-mono text-slate-400 bg-slate-900/50 px-2 py-1 rounded"
+                            >
+                                ${vm.videoTracks.length} Variants
+                            </span>
+                        </div>
+                        ${bitrateLadderTemplate(vm)}
+                    </div>
+
+                    <!-- Feature Matrix -->
+                    <div
+                        class="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5 shadow-sm hover:border-slate-600 transition-colors"
+                    >
+                        <div class="flex items-center justify-between mb-4">
+                            <h3
+                                class="text-lg font-bold text-white flex items-center gap-2"
+                            >
+                                ${icons.features} Capabilities
+                            </h3>
+                        </div>
+                        ${featureGridTemplate(vm)}
+                    </div>
+                </div>
+
+                <!-- Right Column: Compliance & Health -->
+                <div class="flex flex-col gap-6">
                     ${complianceWidgetTemplate(stream)}
-                </div>
-            </div>
-
-            <!-- Visualization Section: Ladder & Features -->
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <!-- Bitrate Ladder Chart -->
-                <div
-                    class="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5 shadow-sm hover:border-slate-600 transition-colors"
-                >
-                    <div class="flex items-center justify-between mb-4">
-                        <h3
-                            class="text-lg font-bold text-white flex items-center gap-2"
-                        >
-                            ${icons.trendingUp} ABR Ladder
-                        </h3>
-                        <span
-                            class="text-xs font-mono text-slate-400 bg-slate-900/50 px-2 py-1 rounded"
-                        >
-                            ${vm.videoTracks.length} Variants
-                        </span>
-                    </div>
-                    ${bitrateLadderTemplate(vm)}
-                </div>
-
-                <!-- Feature Matrix -->
-                <div
-                    class="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5 shadow-sm hover:border-slate-600 transition-colors"
-                >
-                    <div class="flex items-center justify-between mb-4">
-                        <h3
-                            class="text-lg font-bold text-white flex items-center gap-2"
-                        >
-                            ${icons.features} Capabilities
-                        </h3>
-                    </div>
-                    ${featureGridTemplate(vm)}
+                    ${cmafWidgetTemplate(vm.cmafData)}
                 </div>
             </div>
 

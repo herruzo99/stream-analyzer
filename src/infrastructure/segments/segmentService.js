@@ -105,6 +105,44 @@ export function getParsedSegment(
     });
 }
 
+/**
+ * Ensures the initialization segment for a given representation is loaded.
+ * @param {import('@/types').Stream} stream
+ * @param {import('@/types').MediaSegment} segment
+ * @returns {Promise<object|null>} The parsed init segment data, or null.
+ */
+async function ensureInitSegmentLoaded(stream, segment) {
+    if (stream.protocol !== 'dash' || !segment.repId) return null;
+
+    // Find the state for this representation
+    const repKey = [...stream.dashRepresentationState.keys()].find((key) =>
+        key.endsWith(`-${segment.repId}`)
+    );
+    if (!repKey) return null;
+
+    const repState = stream.dashRepresentationState.get(repKey);
+    if (!repState || !repState.segments) return null;
+
+    const initSegment = repState.segments.find((s) => s.type === 'Init');
+    if (!initSegment) return null;
+
+    // Check cache
+    try {
+        const parsedInit = await getParsedSegment(
+            initSegment.uniqueId,
+            stream.id,
+            'isobmff'
+        );
+        return parsedInit;
+    } catch (e) {
+        console.warn(
+            `[SegmentService] Failed to auto-load Init segment ${initSegment.uniqueId}:`,
+            e
+        );
+        return null;
+    }
+}
+
 export function initializeSegmentService() {
     eventBus.subscribe(
         EVENTS.SEGMENT.FETCH,
@@ -115,44 +153,23 @@ export function initializeSegmentService() {
 
             const {
                 playlist: mediaPlaylist,
-                segment: hlsSegment,
+                segment: segmentMeta,
                 segmentIndex,
-            } = findHlsSegmentAndPlaylist(uniqueId, streamId);
+            } = findSegmentMetadata(uniqueId, streamId);
 
-            const getDecryptionInfo = async () => {
-                if (hlsSegment?.encryptionInfo) {
-                    const {
-                        method,
-                        uri,
-                        iv: ivHex,
-                    } = hlsSegment.encryptionInfo;
-                    if (method === 'AES-128') {
-                        const key = await keyManagerService.getKey(uri);
+            const executeFetch = (decryption, initData = null) => {
+                const workerContext = { ...context };
 
-                        let iv;
-                        if (ivHex && ivHex !== 'null') {
-                            iv = new Uint8Array(
-                                ivHex
-                                    .substring(2)
-                                    .match(/.{1,2}/g)
-                                    .map((byte) => parseInt(byte, 16))
-                            );
-                        } else {
-                            const mediaSequence =
-                                mediaPlaylist?.manifest?.mediaSequence || 0;
-                            const sequenceNumber = mediaSequence + segmentIndex;
-
-                            iv = new Uint8Array(16);
-                            const view = new DataView(iv.buffer);
-                            view.setBigUint64(8, BigInt(sequenceNumber), false);
-                        }
-                        return { key, iv };
-                    }
+                // Inject Init Segment context if available
+                if (initData && initData.data && initData.data.boxes) {
+                    workerContext.initSegmentBoxes = initData.data.boxes;
+                    appLog(
+                        'SegmentService',
+                        'info',
+                        `Injecting Init Segment context for ${uniqueId}`
+                    );
                 }
-                return null;
-            };
 
-            getDecryptionInfo().then((decryption) => {
                 workerService
                     .postTask('segment-fetch-and-parse', {
                         uniqueId,
@@ -160,7 +177,7 @@ export function initializeSegmentService() {
                         formatHint: format,
                         auth: stream?.auth,
                         decryption,
-                        context,
+                        context: workerContext,
                     })
                     .promise.then((workerResult) => {
                         const finalEntry = {
@@ -191,6 +208,7 @@ export function initializeSegmentService() {
                         });
                     })
                     .catch((error) => {
+                        console.error('[SegmentService] Worker error:', error);
                         const errorEntry = {
                             status: 0,
                             data: null,
@@ -203,6 +221,59 @@ export function initializeSegmentService() {
                             uniqueId,
                             entry: errorEntry,
                         });
+                    });
+            };
+
+            const getDecryptionInfo = async () => {
+                if (segmentMeta?.encryptionInfo) {
+                    const {
+                        method,
+                        uri,
+                        iv: ivHex,
+                    } = segmentMeta.encryptionInfo;
+                    if (method === 'AES-128') {
+                        const key = await keyManagerService.getKey(uri);
+                        let iv;
+                        if (ivHex && ivHex !== 'null') {
+                            iv = new Uint8Array(
+                                ivHex
+                                    .substring(2)
+                                    .match(/.{1,2}/g)
+                                    .map((byte) => parseInt(byte, 16))
+                            );
+                        } else {
+                            const mediaSequence =
+                                mediaPlaylist?.manifest?.mediaSequence || 0;
+                            const sequenceNumber = mediaSequence + segmentIndex;
+                            iv = new Uint8Array(16);
+                            const view = new DataView(iv.buffer);
+                            view.setBigUint64(8, BigInt(sequenceNumber), false);
+                        }
+                        return { key, iv };
+                    }
+                }
+                return null;
+            };
+
+            // --- Orchestration Flow ---
+            // 1. Resolve Dependencies (Init Segment)
+            // 2. Resolve Decryption
+            // 3. Execute Fetch
+
+            const dependencyPromise =
+                stream && segmentMeta && segmentMeta.type === 'Media'
+                    ? ensureInitSegmentLoaded(stream, segmentMeta)
+                    : Promise.resolve(null);
+
+            dependencyPromise.then((initData) => {
+                getDecryptionInfo()
+                    .then((decryption) => executeFetch(decryption, initData))
+                    .catch((err) => {
+                        console.error(
+                            '[SegmentService] Decryption setup failed:',
+                            err
+                        );
+                        executeFetch(null, initData); // Try fetching anyway to report error
                     });
             });
         }
@@ -238,24 +309,38 @@ export function initializeSegmentService() {
     );
 }
 
-function findHlsSegmentAndPlaylist(uniqueId, streamId) {
+function findSegmentMetadata(uniqueId, streamId) {
     const { streams } = useAnalysisStore.getState();
     const stream = streams.find((s) => s.id === streamId);
-    if (!stream || stream.protocol !== 'hls') {
-        return { playlist: null, segment: null, segmentIndex: -1 };
-    }
 
-    for (const playlist of stream.mediaPlaylists.values()) {
-        const segmentIndex = (playlist.manifest.segments || []).findIndex(
-            (s) => s.uniqueId === uniqueId
-        );
-        if (segmentIndex !== -1) {
-            return {
-                playlist,
-                segment: playlist.manifest.segments[segmentIndex],
-                segmentIndex,
-            };
+    if (!stream) return { playlist: null, segment: null, segmentIndex: -1 };
+
+    // HLS Lookup
+    if (stream.protocol === 'hls') {
+        for (const playlist of stream.mediaPlaylists.values()) {
+            const segmentIndex = (playlist.manifest.segments || []).findIndex(
+                (s) => s.uniqueId === uniqueId
+            );
+            if (segmentIndex !== -1) {
+                return {
+                    playlist,
+                    segment: playlist.manifest.segments[segmentIndex],
+                    segmentIndex,
+                };
+            }
         }
     }
+    // DASH Lookup
+    else if (stream.protocol === 'dash') {
+        for (const repState of stream.dashRepresentationState.values()) {
+            const segment = repState.segments.find(
+                (s) => s.uniqueId === uniqueId
+            );
+            if (segment) {
+                return { playlist: null, segment, segmentIndex: -1 };
+            }
+        }
+    }
+
     return { playlist: null, segment: null, segmentIndex: -1 };
 }

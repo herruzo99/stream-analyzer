@@ -786,7 +786,7 @@ export async function handleStartAnalysis({ inputs, postProgress }, signal) {
             const complianceResults = runChecks(
                 manifestObjectForChecks,
                 preProcessed.protocol,
-                { isLive: preProcessed.isLive }
+                { isLive: preProcessed.isLive, segmentsByCompositeKey }
             );
             const rawInitialAnalysis = generateFeatureAnalysis(
                 manifestIR,

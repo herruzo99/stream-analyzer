@@ -8,8 +8,8 @@ import { uiActions, useUiStore } from '@/state/uiStore';
 import { EVENTS } from '@/types/events';
 
 /**
- * @typedef {import('@/state/analysisStore').StreamInput} StreamInput
- * @typedef {import('@/state/analysisStore').SegmentToCompare} SegmentToCompare
+ * @typedef {import('@/types').StreamInput} StreamInput
+ * @typedef {import('@/types').SegmentToCompare} SegmentToCompare
  */
 
 /**

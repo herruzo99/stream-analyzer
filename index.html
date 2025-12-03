@@ -109,18 +109,31 @@
             id="toast-container"
             class="fixed bottom-5 right-5 z-[110] space-y-2 flex flex-col justify-end"
         ></div>
+
+        <!-- 
+             REIMAGINED GLOBAL LOADER
+             - Transparent/Blur background (frosted glass)
+             - Canvas fills screen with trails
+             - Text pushed down (mt-48)
+        -->
         <div
             id="global-loader"
-            class="hidden fixed inset-0 bg-slate-950/70 flex-col items-center justify-center z-[200] space-y-4"
+            class="hidden fixed inset-0 z-[200] flex-col items-center justify-center bg-slate-950/40 backdrop-blur-md opacity-0 transition-opacity duration-300"
         >
-            <div class="loader-animation flex items-end justify-center h-12">
-                <span class="w-2 h-3 mx-0.5 bg-blue-400 origin-bottom"></span
-                ><span class="w-2 h-3 mx-0.5 bg-blue-400 origin-bottom"></span
-                ><span class="w-2 h-3 mx-0.5 bg-blue-400 origin-bottom"></span
-                ><span class="w-2 h-3 mx-0.5 bg-blue-400 origin-bottom"></span
-                ><span class="w-2 h-3 mx-0.5 bg-blue-400 origin-bottom"></span>
+            <canvas
+                id="loader-canvas"
+                class="absolute inset-0 w-full h-full block pointer-events-none"
+            ></canvas>
+
+            <!-- Content pushed down to clear the data stream -->
+            <div class="relative z-10 p-4 flex flex-col items-center mt-48">
+                <p
+                    id="loader-message"
+                    class="text-xs font-bold text-slate-400 uppercase tracking-[0.2em] animate-pulse"
+                >
+                    Processing
+                </p>
             </div>
-            <p id="loader-message" class="text-lg text-slate-300"></p>
         </div>
 
         <!-- Global Modal -->

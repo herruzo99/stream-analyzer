@@ -5,11 +5,12 @@ import {
 } from '@/features/parserCoverage/domain/tooltip-coverage-analyzer';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { useUiStore } from '@/state/uiStore';
-import { EVENTS } from '@/types/events'; // Import events
+import { EVENTS } from '@/types/events';
 import * as icons from '@/ui/icons';
 import { openModalWithContent } from '@/ui/services/modalService';
 import { copyTextToClipboard } from '@/ui/shared/clipboard';
 import { html, render } from 'lit-html';
+import xmlFormatter from 'xml-formatter';
 import { dashManifestTemplate } from './components/dash/renderer.js';
 import { dashTooltipData } from './components/dash/tooltip-data.js';
 import { hlsManifestTemplate } from './components/hls/renderer.js';
@@ -25,7 +26,6 @@ let delegatedEventHandler = null;
 let hoverDebounceTimeout = null;
 
 function handleInteraction(e) {
-    // ... (existing logic)
     const stream = useAnalysisStore
         .getState()
         .streams.find(
@@ -123,6 +123,23 @@ function renderInteractiveManifest() {
         if (stream.patchedRawManifest) {
             stringToRender = stream.patchedRawManifest;
             manifestToRender = stream.manifest.serializedManifest;
+        }
+
+        // --- FIX: Auto-format DASH XML if unformatted ---
+        if (stream.protocol === 'dash' && stringToRender) {
+            const lines = stringToRender.split('\n').length;
+            // If few lines but long content, it's likely minified XML
+            if (lines < 10 && stringToRender.length > 200) {
+                try {
+                    stringToRender = xmlFormatter(stringToRender, {
+                        indentation: '  ',
+                        collapseContent: true,
+                        lineSeparator: '\n',
+                    });
+                } catch (e) {
+                    console.warn('Failed to auto-format XML:', e);
+                }
+            }
         }
     }
 

@@ -3,7 +3,7 @@ import * as icons from '@/ui/icons';
 import { tooltipTriggerClasses } from '@/ui/shared/constants';
 import { html } from 'lit-html';
 
-const getStreamHeader = (stream, isReference) => {
+const getStreamHeader = (target, isReference) => {
     const refButtonClasses = isReference
         ? 'bg-amber-500 text-black cursor-default'
         : 'bg-slate-700 text-slate-400 hover:text-amber-400 hover:bg-slate-600';
@@ -24,15 +24,20 @@ const getStreamHeader = (stream, isReference) => {
             <div class="flex items-center justify-between gap-2">
                 <h3
                     class="font-bold text-slate-200 truncate text-sm"
-                    title="${stream.name}"
+                    title="${target.streamName}"
                 >
-                    ${stream.name}
+                    ${target.streamName}
                 </h3>
                 <button
-                    @click=${() =>
+                    @click=${() => {
+                        // Extract stream ID from composite ID if needed, or UI store handles it
+                        // Ideally, we set the composite ID as reference, but UI store expects streamId
+                        // For now, we toggle reference based on the stream ID part
+                        const streamId = parseInt(target.id.split('::')[0]);
                         uiActions.setComparisonReferenceStreamId(
-                            isReference ? null : stream.id
-                        )}
+                            isReference ? null : streamId
+                        );
+                    }}
                     class="shrink-0 w-6 h-6 rounded-full flex items-center justify-center transition-all ${refButtonClasses}"
                     title="${isReference
                         ? 'Unset Reference'
@@ -41,17 +46,27 @@ const getStreamHeader = (stream, isReference) => {
                     ${icons.star}
                 </button>
             </div>
-            <div
-                class="text-xs font-mono text-slate-500 truncate"
-                title="${stream.originalUrl}"
-            >
-                ${stream.originalUrl}
+
+            <!-- Variant Sub-header -->
+            <div class="flex items-center gap-2">
+                <span
+                    class="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] font-mono text-blue-300"
+                >
+                    ${target.label}
+                </span>
+                <span
+                    class="text-[10px] text-slate-500 truncate max-w-[100px]"
+                    title="${target.subLabel}"
+                >
+                    ${target.subLabel}
+                </span>
             </div>
+
             <div class="flex gap-2 mt-1">
                 <span
-                    class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-400"
+                    class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-500 font-mono"
                 >
-                    ID: ${stream.id}
+                    ${target.id}
                 </span>
             </div>
         </div>
@@ -85,48 +100,41 @@ const renderCell = (cellData, isReferenceRow) => {
 };
 
 export const comparisonTableTemplate = ({
-    streams,
+    targetHeaders,
     sections,
-    referenceStreamId,
+    referenceCompositeId,
     hideSameRows,
 }) => {
     // CSS Grid Template: First column fixed (200px), rest split equally
     const gridStyle = `
         display: grid;
-        grid-template-columns: 220px repeat(${streams.length}, minmax(200px, 1fr));
+        grid-template-columns: 220px repeat(${targetHeaders.length}, minmax(200px, 1fr));
     `;
 
     return html`
-        <!-- 
-             ARCHITECTURAL FIX: 
-             We set 'h-full' and 'overflow-auto' here to make THIS container the scroll parent.
-             This ensures 'sticky' inside the grid works relative to this box, keeping headers
-             visible as you scroll down, and the first column visible as you scroll right.
-        -->
         <div
             class="w-full h-full overflow-auto rounded-xl border border-slate-700 bg-slate-900 shadow-2xl custom-scrollbar relative"
         >
             <div style="${gridStyle}" class="min-w-fit">
-                <!-- Header Row -->
-                <!-- Top-Left Corner: Sticky on both axes (z-index 40) -->
+                <!-- Top-Left Corner -->
                 <div
                     class="sticky top-0 left-0 z-40 bg-slate-900 border-b border-slate-700 border-r font-bold text-slate-400 flex items-end pb-4 p-4 shadow-[4px_4px_10px_rgba(0,0,0,0.2)]"
                 >
                     PROPERTIES
                 </div>
 
-                <!-- Stream Headers: Sticky Top (z-index 30) -->
-                ${streams.map(
-                    (stream) => html`
+                <!-- Stream Headers -->
+                ${targetHeaders.map(
+                    (target) => html`
                         <div
-                            class="sticky top-0 z-30 bg-slate-900/95 backdrop-blur-sm border-b border-slate-700 shadow-[0_4px_10px_rgba(0,0,0,0.1)] ${stream.id ===
-                            referenceStreamId
+                            class="sticky top-0 z-30 bg-slate-900/95 backdrop-blur-sm border-b border-slate-700 shadow-[0_4px_10px_rgba(0,0,0,0.1)] ${target.id ===
+                            referenceCompositeId
                                 ? 'bg-amber-900/10'
                                 : ''}"
                         >
                             ${getStreamHeader(
-                                stream,
-                                stream.id === referenceStreamId
+                                target,
+                                target.id === referenceCompositeId
                             )}
                         </div>
                     `
@@ -141,7 +149,7 @@ export const comparisonTableTemplate = ({
                     if (visiblePoints.length === 0) return '';
 
                     return html`
-                        <!-- Section Header: Sticky Left (z-index 20) - Acts as a separator -->
+                        <!-- Section Header -->
                         <div
                             class="col-span-full sticky left-0 z-20 bg-slate-800/90 backdrop-blur border-y border-slate-700 py-2 px-4 text-xs font-bold text-blue-300 uppercase tracking-wider flex items-center gap-2 shadow-sm"
                         >
@@ -151,7 +159,7 @@ export const comparisonTableTemplate = ({
                         <!-- Rows -->
                         ${visiblePoints.map(
                             (point) => html`
-                                <!-- Property Label: Sticky Left (z-index 10) -->
+                                <!-- Property Label -->
                                 <div
                                     class="sticky left-0 z-10 bg-slate-900 border-b border-slate-800 border-r p-3 flex items-center justify-between group shadow-[4px_0_10px_rgba(0,0,0,0.1)]"
                                 >
@@ -175,7 +183,7 @@ export const comparisonTableTemplate = ({
                                 ${point.values.map((val) =>
                                     renderCell(
                                         val,
-                                        val.streamId === referenceStreamId
+                                        val.id === referenceCompositeId
                                     )
                                 )}
                             `

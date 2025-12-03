@@ -90,7 +90,8 @@ export async function parseManifest(xmlString, baseUrl, context) {
     );
 
     return {
-        manifest: manifestIR,
+        // Cast manifest to satisfy strict TS union type for segmentFormat
+        manifest: /** @type {import('@/types.ts').Manifest} */ (manifestIR),
         serializedManifest,
         baseUrl: baseUrl,
     };

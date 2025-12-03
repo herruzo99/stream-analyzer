@@ -4,6 +4,7 @@ import * as icons from '@/ui/icons';
 import { html, render } from 'lit-html';
 import { metricPanelTemplate } from './components/metric-panel.js';
 import './components/timeline-chart.js';
+import './components/drift-chart.js';
 import { timelineControlsTemplate } from './components/timeline-controls.js';
 import { timelineInspectorTemplate } from './components/timeline-inspector.js';
 import { cascadeViewTemplate as dashCascadeViewTemplate } from './dash/components/cascade-view.js';
@@ -104,6 +105,24 @@ function renderTimeline() {
                     ></div>
                     <timeline-chart .data=${viewModel}></timeline-chart>
                 </div>
+
+                <!-- Drift Chart -->
+                ${stream.manifest?.type === 'dynamic'
+                    ? html`
+                          <div
+                              class="shrink-0 h-48 bg-slate-900/50 rounded-xl border border-slate-800 p-1 relative overflow-hidden shadow-inner"
+                          >
+                              <div
+                                  class="absolute top-2 left-4 z-10 text-xs font-bold text-slate-400"
+                              >
+                                  Live Edge Drift
+                              </div>
+                              <drift-chart
+                                  .data=${viewModel.driftHistory}
+                              ></drift-chart>
+                          </div>
+                      `
+                    : ''}
 
                 <!-- Inspector (Fills remaining space) -->
                 <div

@@ -25,11 +25,17 @@ const BANDWIDTH_CAP_OPTIONS = [
 
 const globalControlsTemplate = ({
     state,
-    isAnyPlayerLoading,
+    selectedCount,
     isAutoResetEnabled,
 }) => {
     const selectClasses =
-        'bg-slate-700 text-white rounded-md p-1 text-sm border border-slate-600 w-full max-w-[10rem]';
+        'bg-slate-700 text-white rounded-md p-1 text-sm border border-slate-600 w-full max-w-[10rem] disabled:opacity-50 disabled:cursor-not-allowed';
+
+    const isDisabled = selectedCount === 0;
+    const headerText = `Selection Settings (${selectedCount})`;
+    const subText = isDisabled
+        ? 'Select players to configure'
+        : 'Applies to selected players';
 
     const handleAbrToggle = () =>
         eventBus.dispatch('ui:multi-player:set-global-abr', {
@@ -38,18 +44,26 @@ const globalControlsTemplate = ({
 
     return html`
         <div class="space-y-4">
-            <h4 class="text-md font-bold text-slate-300">Global Settings</h4>
+            <div>
+                <h4 class="text-md font-bold text-slate-300">${headerText}</h4>
+                <p class="text-xs text-slate-500">${subText}</p>
+            </div>
 
-            <div class="space-y-3 p-3 bg-slate-900/50 rounded-md">
+            <div
+                class="space-y-3 p-3 bg-slate-900/50 rounded-md ${isDisabled
+                    ? 'opacity-50 pointer-events-none'
+                    : ''}"
+            >
                 <h5 class="text-sm font-semibold text-slate-400 mb-2">
                     Video Quality
                 </h5>
                 <labeled-control-component
                     label="ABR Mode"
-                    description="Enable/disable Adaptive Bitrate for all players."
+                    description="Enable/disable Adaptive Bitrate."
                 >
                     <button
                         @click=${handleAbrToggle}
+                        ?disabled=${isDisabled}
                         class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
                     >
                         <span
@@ -67,8 +81,8 @@ const globalControlsTemplate = ({
 
                 ${state.globalAbrEnabled
                     ? html` <labeled-control-component
-                          label="Global Max Resolution"
-                          description="Sets a global resolution cap. ABR will not select tracks above this."
+                          label="Max Resolution Cap"
+                          description="ABR will not select tracks above this height."
                       >
                           <select
                               @change=${(e) =>
@@ -80,6 +94,7 @@ const globalControlsTemplate = ({
                                   )}
                               .value=${String(state.globalMaxHeight)}
                               class=${selectClasses}
+                              ?disabled=${isDisabled}
                           >
                               ${RESOLUTION_OPTIONS.map(
                                   (opt) =>
@@ -91,7 +106,7 @@ const globalControlsTemplate = ({
                       </labeled-control-component>`
                     : html` <labeled-control-component
                           label="Manual Track Selection"
-                          description="Select a quality level to apply to all players."
+                          description="Force a specific resolution."
                       >
                           <button
                               @click=${(e) =>
@@ -100,7 +115,7 @@ const globalControlsTemplate = ({
                                       () => virtualTrackDropdownTemplate(),
                                       e
                                   )}
-                              ?disabled=${isAnyPlayerLoading}
+                              ?disabled=${isDisabled}
                               class="bg-slate-700 hover:bg-slate-600 text-white rounded-md p-1 text-sm border border-slate-600 w-full max-w-[10rem] flex justify-between items-center disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                               <span>Select Quality...</span>
@@ -119,7 +134,7 @@ const globalControlsTemplate = ({
                               </svg>
                           </button>
                       </labeled-control-component>`}
-                <labeled-control-component label="Global Audio Language">
+                <labeled-control-component label="Audio Language">
                     <select
                         @change=${(e) =>
                             eventBus.dispatch(
@@ -129,6 +144,7 @@ const globalControlsTemplate = ({
                                 }
                             )}
                         class=${selectClasses}
+                        ?disabled=${isDisabled}
                     >
                         <option value="">Auto (Default)</option>
                         ${(state.availableAudioLangs || []).map(
@@ -139,7 +155,11 @@ const globalControlsTemplate = ({
                 </labeled-control-component>
             </div>
 
-            <div class="space-y-3 p-3 bg-slate-900/50 rounded-md">
+            <div
+                class="space-y-3 p-3 bg-slate-900/50 rounded-md ${isDisabled
+                    ? 'opacity-50 pointer-events-none'
+                    : ''}"
+            >
                 <h5 class="text-sm font-semibold text-slate-400 mb-2">
                     Network Simulation
                 </h5>
@@ -154,6 +174,7 @@ const globalControlsTemplate = ({
                             )}
                         .value=${String(state.globalBandwidthCap)}
                         class=${selectClasses}
+                        ?disabled=${isDisabled}
                     >
                         ${BANDWIDTH_CAP_OPTIONS.map(
                             (opt) =>
@@ -167,11 +188,11 @@ const globalControlsTemplate = ({
 
             <div class="space-y-3 p-3 bg-slate-900/50 rounded-md">
                 <h5 class="text-sm font-semibold text-slate-400 mb-2">
-                    Recovery
+                    System
                 </h5>
                 <labeled-control-component
                     label="Auto-reset on failure"
-                    description="Automatically attempts to reload players with exponential backoff (up to 5 attempts)."
+                    description="Automatically attempts to reload players (Global Setting)."
                 >
                     <button
                         @click=${() =>
@@ -205,7 +226,6 @@ export class GlobalControlsComponent extends HTMLElement {
     }
 
     set state(newState) {
-        // This is still used for the initial state from controls-view
         if (this._state === newState) return;
         this._state = newState;
         this.render();
@@ -217,12 +237,14 @@ export class GlobalControlsComponent extends HTMLElement {
 
     connectedCallback() {
         this.render();
-        // Subscribe to any changes in the players map to re-render.
         this.unsubscribe = useMultiPlayerStore.subscribe(
             (newState, oldState) => {
+                // Re-render on player changes (selection count) or config changes
                 if (
                     newState.players !== oldState.players ||
-                    newState.isAutoResetEnabled !== oldState.isAutoResetEnabled
+                    newState.isAutoResetEnabled !==
+                        oldState.isAutoResetEnabled ||
+                    newState.globalAbrEnabled !== oldState.globalAbrEnabled
                 ) {
                     this.render();
                 }
@@ -238,18 +260,22 @@ export class GlobalControlsComponent extends HTMLElement {
 
     render() {
         const fullState = useMultiPlayerStore.getState();
-        const isAnyPlayerLoading = Array.from(fullState.players.values()).some(
-            (p) => p.state === 'idle' || p.state === 'loading'
-        );
+        const playersArray = Array.from(fullState.players.values());
+        const selectedCount = playersArray.filter(
+            (p) => p.selectedForAction
+        ).length;
 
         const currentState = {
             ...this._state,
             globalAbrEnabled: fullState.globalAbrEnabled,
+            globalMaxHeight: fullState.globalMaxHeight,
+            globalBandwidthCap: fullState.globalBandwidthCap,
         };
+
         render(
             globalControlsTemplate({
                 state: currentState,
-                isAnyPlayerLoading,
+                selectedCount,
                 isAutoResetEnabled: fullState.isAutoResetEnabled,
             }),
             this

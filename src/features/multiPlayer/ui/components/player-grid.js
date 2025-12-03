@@ -1,26 +1,27 @@
-import { eventBus } from '@/application/event-bus';
 import { useMultiPlayerStore } from '@/state/multiPlayerStore';
+import { useUiStore } from '@/state/uiStore';
 import * as icons from '@/ui/icons';
 import { html, render } from 'lit-html';
+import { repeat } from 'lit-html/directives/repeat.js';
 import './player-card.js';
 
 class PlayerGridComponent extends HTMLElement {
     constructor() {
         super();
         this.unsubscribeMultiPlayer = null;
+        this.unsubscribeUi = null;
     }
 
     connectedCallback() {
-        // Simply re-render on any store update.
-        // Lit-html handles DOM diffing efficiently, so this is safe and robust.
-        this.unsubscribeMultiPlayer = useMultiPlayerStore.subscribe(() =>
-            this.render()
-        );
+        const listener = () => this.render();
+        this.unsubscribeMultiPlayer = useMultiPlayerStore.subscribe(listener);
+        this.unsubscribeUi = useUiStore.subscribe(listener);
         this.render();
     }
 
     disconnectedCallback() {
         if (this.unsubscribeMultiPlayer) this.unsubscribeMultiPlayer();
+        if (this.unsubscribeUi) this.unsubscribeUi();
     }
 
     render() {
@@ -32,7 +33,7 @@ class PlayerGridComponent extends HTMLElement {
             render(
                 html`
                     <div
-                        class="flex flex-col items-center justify-center h-full text-slate-500 gap-4"
+                        class="flex flex-col items-center justify-center h-full text-slate-500 gap-4 animate-fadeIn"
                     >
                         <div
                             class="p-6 bg-slate-900 rounded-full border border-slate-800 shadow-xl"
@@ -54,50 +55,53 @@ class PlayerGridComponent extends HTMLElement {
             return;
         }
 
-        // --- Focus Mode Logic ---
-        if (
+        const isFocusMode =
             layoutMode === 'focus' &&
             focusedStreamId !== null &&
-            players.has(focusedStreamId)
-        ) {
+            players.has(focusedStreamId);
+
+        // Dynamic Grid Layout Configuration
+        let containerStyle = '';
+
+        if (isFocusMode) {
+            // Focus Layout: Main area takes remaining space, sidebar is fixed width
+            containerStyle = `
+                display: grid;
+                grid-template-columns: 1fr 320px;
+                grid-template-rows: 100%;
+                gap: 1rem;
+                padding: 1rem;
+                height: 100%;
+                overflow: hidden;
+            `;
+        } else {
+            // Standard Grid Layout
+            let columnsStyle = 'repeat(auto-fill, minmax(400px, 1fr))';
+            if (gridColumns !== 'auto') {
+                columnsStyle = `repeat(${gridColumns}, 1fr)`;
+            }
+
+            // ARCHITECTURAL FIX:
+            // Changed grid-auto-rows from 'minmax(250px, 1fr)' to 'max-content'.
+            // '1fr' was causing rows to stretch and fill the viewport height if there were few items.
+            // 'max-content' allows the aspect-ratio of the card to dictate the height naturally.
+            containerStyle = `
+                display: grid;
+                grid-template-columns: ${columnsStyle};
+                grid-auto-rows: max-content; 
+                gap: 1rem;
+                padding: 1rem;
+                height: 100%;
+                overflow-y: auto;
+            `;
+        }
+
+        // SPLIT LAYOUT LOGIC (Made safe by Video Portal architecture)
+
+        if (isFocusMode) {
             const otherPlayerIds = playerIds.filter(
                 (id) => id !== focusedStreamId
             );
-
-            const handleSidebarClick = (id) => {
-                eventBus.dispatch('ui:multi-player:set-focus', {
-                    streamId: id,
-                });
-            };
-
-            const renderSidebarItem = (id) => {
-                const p = players.get(id);
-                if (!p) return '';
-                return html`
-                    <div
-                        class="p-3 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-700 hover:border-blue-500/50 cursor-pointer transition-all group"
-                        @click=${() => handleSidebarClick(id)}
-                    >
-                        <div class="flex justify-between items-start mb-2">
-                            <span
-                                class="text-xs font-bold text-slate-200 truncate max-w-[180px]"
-                                >${p.streamName}</span
-                            >
-                            <div
-                                class="w-2 h-2 rounded-full ${p.state ===
-                                'playing'
-                                    ? 'bg-green-500'
-                                    : 'bg-slate-500'}"
-                            ></div>
-                        </div>
-                        <div
-                            class="text-[10px] font-mono text-slate-500 truncate"
-                        >
-                            ${p.stats?.playbackQuality?.resolution || 'Init...'}
-                        </div>
-                    </div>
-                `;
-            };
 
             const template = html`
                 <div
@@ -108,9 +112,11 @@ class PlayerGridComponent extends HTMLElement {
                         <div
                             class="relative w-full h-full rounded-2xl overflow-hidden shadow-2xl border border-slate-800 bg-black"
                         >
+                            <!-- Force height 100% and reset aspect ratio for the focused player -->
                             <player-card-component
                                 stream-id="${focusedStreamId}"
                                 class="h-full w-full block"
+                                style="height: 100%; aspect-ratio: auto;"
                             ></player-card-component>
                         </div>
                     </div>
@@ -119,17 +125,31 @@ class PlayerGridComponent extends HTMLElement {
                     ${otherPlayerIds.length > 0
                         ? html`
                               <div
-                                  class="w-64 shrink-0 border-l border-slate-800 bg-slate-900/50 flex flex-col"
+                                  class="w-80 shrink-0 border-l border-slate-800 bg-slate-900/50 flex flex-col"
                               >
                                   <div
-                                      class="p-3 border-b border-slate-800 text-xs font-bold text-slate-500 uppercase tracking-wider"
+                                      class="p-3 border-b border-slate-800 text-xs font-bold text-slate-500 uppercase tracking-wider flex justify-between"
                                   >
-                                      Queue (${otherPlayerIds.length})
+                                      <span
+                                          >Queue
+                                          (${otherPlayerIds.length})</span
+                                      >
                                   </div>
                                   <div
                                       class="grow overflow-y-auto p-3 space-y-3 custom-scrollbar"
                                   >
-                                      ${otherPlayerIds.map(renderSidebarItem)}
+                                      ${repeat(
+                                          otherPlayerIds,
+                                          (id) => id,
+                                          (id) => html`
+                                              <!-- Explicit height for sidebar items to override aspect-video if needed, or let aspect-video work -->
+                                              <div class="w-full">
+                                                  <player-card-component
+                                                      stream-id="${id}"
+                                                  ></player-card-component>
+                                              </div>
+                                          `
+                                      )}
                                   </div>
                               </div>
                           `
@@ -140,27 +160,13 @@ class PlayerGridComponent extends HTMLElement {
             return;
         }
 
-        // --- Grid Mode Logic ---
-        let columnsStyle = 'repeat(auto-fill, minmax(400px, 1fr))';
-        if (gridColumns !== 'auto') {
-            columnsStyle = `repeat(${gridColumns}, 1fr)`;
-        }
-
-        const gridStyle = `
-            display: grid;
-            grid-template-columns: ${columnsStyle};
-            grid-auto-rows: minmax(250px, 1fr);
-            gap: 1rem;
-            padding: 1rem;
-            width: 100%;
-        `;
-
+        // Grid Mode Template
         const template = html`
-            <div
-                class="h-full w-full overflow-y-auto custom-scrollbar bg-slate-950 animate-fadeIn"
-            >
-                <div style="${gridStyle}">
-                    ${playerIds.map(
+            <div class="h-full w-full bg-slate-950 animate-fadeIn">
+                <div style="${containerStyle}" class="custom-scrollbar">
+                    ${repeat(
+                        playerIds,
+                        (id) => id,
                         (id) => html`
                             <player-card-component
                                 stream-id="${id}"

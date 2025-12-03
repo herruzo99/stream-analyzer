@@ -1,3 +1,6 @@
+// Minimal changes required here as most logic moved to components,
+// but ensuring export is clean.
+
 /**
  * Calculates summary statistics from a list of network events.
  * @param {import('@/types').NetworkEvent[]} events
@@ -111,7 +114,6 @@ export function createNetworkViewModel(filteredEvents, allEvents) {
 
     const timelineDuration = Math.max(100, absoluteEndTime - absoluteStartTime);
 
-    // Filter out the throughput data calculation to a separate array to keep waterfall logic clean
     const throughputData = generateThroughputData(
         filteredEvents,
         absoluteStartTime
@@ -119,24 +121,36 @@ export function createNetworkViewModel(filteredEvents, allEvents) {
 
     const waterfallData = filteredEvents
         .map((event) => {
-            // Calculate Waterfall Positioning
             const startRelative = event.timing.startTime - absoluteStartTime;
             const leftPercent = (startRelative / timelineDuration) * 100;
             const widthPercent = Math.max(
                 0.2,
                 (event.timing.duration / timelineDuration) * 100
-            ); // Min width visibility
+            );
 
-            // Calculate Internal Breakdown (Waiting vs Downloading)
-            // Fallback breakdown if not provided by Resource Timing API
             const breakdown = event.timing.breakdown || {
+                redirect: 0,
+                dns: 0,
+                tcp: 0,
+                tls: 0,
                 ttfb: event.timing.duration * 0.1,
                 download: event.timing.duration * 0.9,
             };
 
-            const ttfbPercent = (breakdown.ttfb / event.timing.duration) * 100;
-            const downloadPercent =
-                (breakdown.download / event.timing.duration) * 100;
+            // Calculate relative widths within the event bar (total 100%)
+            const totalDur = event.timing.duration || 1;
+            const getPct = (val) => ((val || 0) / totalDur) * 100;
+
+            const visuals = {
+                left: `${leftPercent.toFixed(3)}%`,
+                width: `${widthPercent.toFixed(3)}%`,
+                redirectWidth: `${getPct(breakdown.redirect).toFixed(1)}%`,
+                dnsWidth: `${getPct(breakdown.dns).toFixed(1)}%`,
+                tcpWidth: `${getPct(breakdown.tcp).toFixed(1)}%`,
+                tlsWidth: `${getPct(breakdown.tls).toFixed(1)}%`,
+                ttfbWidth: `${getPct(breakdown.ttfb).toFixed(1)}%`,
+                downloadWidth: `${getPct(breakdown.download).toFixed(1)}%`,
+            };
 
             const downloadDurationSeconds = (event.timing.duration || 1) / 1000;
             const throughput =
@@ -145,20 +159,20 @@ export function createNetworkViewModel(filteredEvents, allEvents) {
                       downloadDurationSeconds
                     : 0;
 
+            let efficiency = null;
+            if (event.segmentDuration && event.segmentDuration > 0) {
+                efficiency = downloadDurationSeconds / event.segmentDuration;
+            }
+
             return {
                 ...event,
                 size: event.response.contentLength,
                 throughput,
-                visuals: {
-                    left: `${leftPercent.toFixed(3)}%`,
-                    width: `${widthPercent.toFixed(3)}%`,
-                    ttfbWidth: `${ttfbPercent.toFixed(1)}%`,
-                    downloadWidth: `${downloadPercent.toFixed(1)}%`,
-                },
+                efficiency,
+                visuals,
             };
         })
         .sort((a, b) => a.timing.startTime - b.timing.startTime);
-    // Sort by start time for a true waterfall effect
 
     return {
         summary,

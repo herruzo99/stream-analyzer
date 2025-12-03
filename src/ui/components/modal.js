@@ -1,7 +1,9 @@
 import { eventBus } from '@/application/event-bus';
 import { dashTimingCalculatorTemplate } from '@/features/interactiveManifest/ui/components/dash/timing-calculator-modal.js';
 import '@/features/manifestPatcher/ui/manifest-patcher.js';
+import '@/features/networkAnalysis/ui/components/response-viewer.js';
 import { getSegmentAnalysisTemplate } from '@/features/segmentAnalysis/ui/index';
+import { memoryViewTemplate } from '@/features/settings/ui/memory-view.js';
 import '@/features/streamInput/ui/components/smart-input.js';
 import { analysisActions, useAnalysisStore } from '@/state/analysisStore';
 import { useUiStore } from '@/state/uiStore';
@@ -69,11 +71,14 @@ function getContentTemplate(modalContent) {
     }
 
     switch (modalContent.type) {
+        case 'memoryManagement':
+            return memoryViewTemplate();
         case 'segmentAnalysis':
             return getSegmentAnalysisTemplate(
                 modalContent.data.parsedData,
                 modalContent.data.parsedDataB,
-                modalContent.data.isIFrame
+                modalContent.data.isIFrame,
+                modalContent.data.uniqueId
             );
         case 'scte35':
             return scte35DetailsTemplate(modalContent.data.scte35);
@@ -87,6 +92,18 @@ function getContentTemplate(modalContent) {
             ></manifest-patcher>`;
         case 'dashCalculator':
             return dashTimingCalculatorTemplate(modalContent.data);
+        case 'networkResponse':
+            return html`
+                <div
+                    class="h-full flex flex-col bg-slate-900 overflow-hidden p-4"
+                >
+                    <response-viewer
+                        .event=${modalContent.data.event}
+                        is-modal
+                        class="h-full"
+                    ></response-viewer>
+                </div>
+            `;
         case 'addStream': {
             const { streamInputs, streams } = useAnalysisStore.getState();
             const activeIds = new Set(streams.map((s) => s.id));
@@ -199,7 +216,6 @@ function renderModal() {
     if (isOpening) {
         dom.modalTitle.textContent = modalState.modalTitle;
 
-        // URL Bar Visibility Logic
         const hasUrl = !!modalState.modalUrl;
         dom.modalSegmentUrl.textContent = modalState.modalUrl;
         const urlContainer = dom.modalSegmentUrl.parentElement;
@@ -217,21 +233,33 @@ function renderModal() {
         );
 
         const modalContentContainer = dom.segmentModal.querySelector('div');
+
+        // --- ARCHITECTURAL CHANGE: Dynamic Sizing Logic ---
         if (modalContentContainer) {
-            modalContentContainer.classList.toggle(
-                'max-w-7xl',
-                modalState.isModalFullWidth
-            );
-            modalContentContainer.classList.toggle(
-                'max-w-4xl',
-                !modalState.isModalFullWidth
-            );
+            // Reset classes first
+            modalContentContainer.className =
+                'bg-slate-800 p-0 rounded-xl w-11/12 border border-slate-700 flex flex-col overflow-hidden shadow-2xl ring-1 ring-white/10';
+
+            // Apply Width logic
+            if (modalState.isModalFullWidth) {
+                modalContentContainer.classList.add('max-w-7xl');
+            } else {
+                modalContentContainer.classList.add('max-w-4xl');
+            }
+
+            // Apply Height logic
+            // Default: Fixed height (90vh) for heavy tools
+            // 'memoryManagement': Auto height (fit content) for dashboard look
+            if (modalState.modalContent?.type === 'memoryManagement') {
+                modalContentContainer.classList.add('h-auto', 'max-h-[90vh]');
+            } else {
+                modalContentContainer.classList.add('h-[90vh]');
+            }
         }
 
         dom.segmentModal.classList.remove('hidden', 'modal-leave');
         dom.segmentModal.classList.add('modal-enter');
     } else if (isOpen) {
-        // Re-render content if open to reflect store updates (e.g. adding/removing pending streams)
         render(
             getContentTemplate(modalState.modalContent),
             dom.modalContentArea
@@ -277,7 +305,6 @@ export function initializeModalComponent(domContext) {
     if (unsubscribeUiStore) unsubscribeUiStore();
     if (unsubscribeAnalysisStore) unsubscribeAnalysisStore();
 
-    // Subscribe to both stores to ensure the modal updates when inputs change
     unsubscribeUiStore = useUiStore.subscribe(renderModal);
     unsubscribeAnalysisStore = useAnalysisStore.subscribe(renderModal);
 

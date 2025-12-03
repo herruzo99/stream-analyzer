@@ -8,13 +8,23 @@ import { analysisActions, useAnalysisStore } from '@/state/analysisStore';
 import { uiActions, useUiStore } from '@/state/uiStore';
 import * as icons from '@/ui/icons';
 import { openModalWithContent } from '@/ui/services/modalService';
+import { urlStateManager } from '@/application/url-state-manager';
+import { showToast } from '@/ui/components/toast.js';
 import { html } from 'lit-html';
 import { classMap } from 'lit-html/directives/class-map.js';
 import { inspectorPanelTemplate } from './inspector-panel.js';
 import './smart-input.js';
 
+const badge = (text, colorClasses, icon = null) => html`
+    <span
+        class="text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wider flex items-center gap-1 ${colorClasses}"
+    >
+        ${icon ? html`<span class="scale-75">${icon}</span>` : ''} ${text}
+    </span>
+`;
+
 const streamListItem = (streamInput, isActive) => {
-    const isDrm = streamInput.detectedDrm && streamInput.detectedDrm.length > 0;
+    const { tier0, isTier0AnalysisLoading } = streamInput;
     const hasAuth = streamInput.auth?.headers?.length > 0;
 
     const handleDelete = (e) => {
@@ -22,39 +32,100 @@ const streamListItem = (streamInput, isActive) => {
         analysisActions.removeStreamInput(streamInput.id);
     };
 
+    // --- Tier 0 Badge Logic ---
+    let statusBadge = null;
+    let protocolBadge = null;
+    let typeBadge = null;
+    let drmBadge = null;
+    let llBadge = null;
+
+    if (isTier0AnalysisLoading) {
+        statusBadge = badge(
+            'Analyzing...',
+            'text-blue-400 bg-blue-400/10 border-blue-400/20',
+            html`<span class="animate-spin">${icons.spinner}</span>`
+        );
+    } else if (tier0) {
+        // Status
+        if (tier0.status >= 400 || tier0.status === 0) {
+            statusBadge = badge(
+                tier0.status === 0 ? 'NET ERR' : `HTTP ${tier0.status}`,
+                'text-red-400 bg-red-400/10 border-red-400/20',
+                icons.alertTriangle
+            );
+        } else {
+            statusBadge = badge(
+                '200 OK',
+                'text-emerald-400 bg-emerald-400/10 border-emerald-400/20'
+            );
+        }
+
+        // Protocol
+        if (tier0.protocol !== 'Unknown') {
+            protocolBadge = badge(
+                tier0.protocol,
+                tier0.protocol === 'HLS'
+                    ? 'text-purple-400 bg-purple-400/10 border-purple-400/20'
+                    : 'text-blue-400 bg-blue-400/10 border-blue-400/20'
+            );
+        }
+
+        // Type
+        if (tier0.type !== 'Unknown') {
+            typeBadge = badge(
+                tier0.type,
+                tier0.type === 'LIVE'
+                    ? 'text-red-400 bg-red-400/10 border-red-400/20'
+                    : 'text-slate-400 bg-slate-400/10 border-slate-400/20',
+                tier0.type === 'LIVE' ? icons.broadcast : null
+            );
+        }
+
+        // DRM
+        if (tier0.isEncrypted) {
+            drmBadge = badge(
+                'DRM',
+                'text-amber-400 bg-amber-400/10 border-amber-400/20',
+                icons.lockClosed
+            );
+        }
+
+        // LL
+        if (tier0.isLowLatency) {
+            llBadge = badge(
+                'LL',
+                'text-cyan-400 bg-cyan-400/10 border-cyan-400/20',
+                icons.zap
+            );
+        }
+    }
+
     return html`
         <div
             @click=${() =>
                 analysisActions.setActiveStreamInputId(streamInput.id)}
-            class="group relative flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all duration-200 ${isActive
+            class="group relative flex flex-col gap-2 p-3 rounded-xl border-2 cursor-pointer transition-all duration-200 ${isActive
                 ? 'bg-slate-800 border-blue-600 shadow-md'
                 : 'bg-slate-900 border-transparent hover:bg-slate-800 hover:border-slate-700'}"
         >
-            <div
-                class="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${isActive
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-slate-800 text-slate-500 border border-slate-700'}"
-            >
-                ${streamInput.id + 1}
-            </div>
+            <div class="flex items-center gap-3">
+                <div
+                    class="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${isActive
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-slate-800 text-slate-500 border border-slate-700'}"
+                >
+                    ${streamInput.id + 1}
+                </div>
 
-            <div class="grow min-w-0">
-                <div class="flex items-center justify-between">
-                    <span
-                        class="font-bold text-sm truncate ${isActive
-                            ? 'text-white'
-                            : 'text-slate-300'}"
-                    >
-                        ${streamInput.name || 'Untitled Stream'}
-                    </span>
-                    <div class="flex gap-1">
-                        ${isDrm
-                            ? html`<span
-                                  class="text-amber-400 scale-75"
-                                  title="DRM Detected"
-                                  >${icons.lockClosed}</span
-                              >`
-                            : ''}
+                <div class="grow min-w-0">
+                    <div class="flex items-center justify-between">
+                        <span
+                            class="font-bold text-sm truncate ${isActive
+                                ? 'text-white'
+                                : 'text-slate-300'}"
+                        >
+                            ${streamInput.name || 'Untitled Stream'}
+                        </span>
                         ${hasAuth
                             ? html`<span
                                   class="text-purple-400 scale-75"
@@ -63,21 +134,27 @@ const streamListItem = (streamInput, isActive) => {
                               >`
                             : ''}
                     </div>
+                    <div
+                        class="text-[10px] font-mono text-slate-500 truncate opacity-70"
+                    >
+                        ${new URL(streamInput.url).hostname}
+                    </div>
                 </div>
-                <div
-                    class="text-[10px] font-mono text-slate-500 truncate opacity-70"
+
+                <button
+                    @click=${handleDelete}
+                    class="opacity-0 group-hover:opacity-100 p-1.5 text-slate-500 hover:text-red-400 transition-opacity"
+                    title="Remove"
                 >
-                    ${new URL(streamInput.url).hostname}
-                </div>
+                    ${icons.xCircle}
+                </button>
             </div>
 
-            <button
-                @click=${handleDelete}
-                class="opacity-0 group-hover:opacity-100 p-1.5 text-slate-500 hover:text-red-400 transition-opacity"
-                title="Remove"
-            >
-                ${icons.xCircle}
-            </button>
+            <!-- Tier 0 Badges Row -->
+            <div class="flex flex-wrap gap-2 pl-11">
+                ${statusBadge} ${protocolBadge} ${typeBadge} ${drmBadge}
+                ${llBadge}
+            </div>
 
             ${isActive
                 ? html`<div
@@ -172,6 +249,20 @@ const sessionControlDeck = (loadedWorkspaceName, streamInputs) => {
         }
     };
 
+    const handleShare = async () => {
+        const url = urlStateManager.getShareableUrl();
+        try {
+            await navigator.clipboard.writeText(url);
+            showToast({
+                message: 'Shareable link copied to clipboard!',
+                type: 'pass',
+            });
+        } catch (err) {
+            console.error('Failed to copy:', err);
+            showToast({ message: 'Failed to copy link', type: 'fail' });
+        }
+    };
+
     if (loadedWorkspaceName) {
         return html`
             <div class="px-3 pb-3 shrink-0">
@@ -202,6 +293,13 @@ const sessionControlDeck = (loadedWorkspaceName, streamInputs) => {
                                     >
                                 </div>
                             </div>
+                            <button
+                                @click=${handleShare}
+                                class="p-1.5 text-teal-400 hover:text-teal-200 hover:bg-teal-900/30 rounded-lg transition-colors"
+                                title="Share State"
+                            >
+                                ${icons.share}
+                            </button>
                         </div>
                         <div class="flex gap-2">
                             <button
@@ -238,6 +336,14 @@ const sessionControlDeck = (loadedWorkspaceName, streamInputs) => {
                 </div>
                 <div class="flex gap-2">
                     <button
+                        @click=${handleShare}
+                        ?disabled=${!hasItems}
+                        class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-xs font-bold rounded-lg transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Share State"
+                    >
+                        ${icons.share}
+                    </button>
+                    <button
                         @click=${handleLoad}
                         class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-xs font-bold rounded-lg transition-all shadow-sm"
                     >
@@ -255,6 +361,8 @@ const sessionControlDeck = (loadedWorkspaceName, streamInputs) => {
         </div>
     `;
 };
+
+// ... (Rest of file: quickLibraryCard, addStreamDashboard, stagingViewTemplate remain unchanged but use the updated streamListItem function)
 
 const quickLibraryCard = (item, type) => {
     const isPreset = type === 'preset';

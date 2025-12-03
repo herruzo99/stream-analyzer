@@ -52,8 +52,7 @@ export class SemanticDiffChart extends HTMLElement {
     render() {
         if (!this._data || !this.chart) return;
 
-        const { trackA, trackB, diffTrack, duration } = this._data;
-        const maxDuration = Math.max(duration, 60);
+        const { trackA, trackB, diffTrack, minTime, maxTime } = this._data;
         const categories = [trackB.name, 'Difference', trackA.name];
 
         if (trackA.items.length === 0 && trackB.items.length === 0) {
@@ -79,7 +78,7 @@ export class SemanticDiffChart extends HTMLElement {
             }));
 
         // Series 0: Backgrounds (One item per category covering full width)
-        const backgroundData = categories.map((_, i) => [i, 0, maxDuration]);
+        const backgroundData = categories.map((_, i) => [i, minTime, maxTime]);
 
         // Series 1: Actual Items (Flattened list of objects)
         const mainSeriesData = [
@@ -172,8 +171,8 @@ export class SemanticDiffChart extends HTMLElement {
         // Renderer for Background (Ghost Tracks)
         const renderBackground = (params, api) => {
             const yIndex = api.value(0);
-            const start = api.coord([0, yIndex]);
-            const end = api.coord([maxDuration, yIndex]);
+            const start = api.coord([minTime, yIndex]); // Map from strict min
+            const end = api.coord([maxTime, yIndex]); // Map from strict max
             const bandHeight = api.size([0, 1])[1];
             const barHeight = Math.max(30, Math.min(bandHeight * 0.7, 100));
 
@@ -223,8 +222,8 @@ export class SemanticDiffChart extends HTMLElement {
             },
             xAxis: {
                 type: 'value',
-                min: 0,
-                max: maxDuration,
+                min: minTime,
+                max: maxTime,
                 splitLine: {
                     show: true,
                     lineStyle: {
@@ -267,7 +266,7 @@ export class SemanticDiffChart extends HTMLElement {
                     fillerColor: 'rgba(56, 189, 248, 0.2)',
                     handleStyle: { color: '#38bdf8', borderColor: '#38bdf8' },
                     textStyle: { color: '#94a3b8', fontSize: 10 },
-                    start: 0,
+                    start: 0, // percentages
                     end: 100,
                 },
                 { type: 'inside', filterMode: 'weakFilter' },

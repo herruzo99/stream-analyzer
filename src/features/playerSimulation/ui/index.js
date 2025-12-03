@@ -51,10 +51,20 @@ const cockpitLayoutTemplate = (stream, playerState) => {
         requestAnimationFrame(() => renderPlayerView());
     };
 
-    const handleManualLaunch = () => {
+    const handleManualLaunch = async () => {
         if (stream) {
             viewState.lastLoadedStreamId = stream.id;
-            playerService.load(stream, true);
+            try {
+                if (!playerService.isInitialized && viewState.videoEl) {
+                    await playerService.initialize(
+                        viewState.videoEl,
+                        viewState.videoContainer
+                    );
+                }
+                await playerService.load(stream, true);
+            } catch (e) {
+                console.error('Manual launch failed:', e);
+            }
         }
     };
 
@@ -103,7 +113,6 @@ const cockpitLayoutTemplate = (stream, playerState) => {
         `;
     }
 
-    // L-Shape Layout Classes
     const audioMonitorClasses = classMap({
         'shrink-0': true,
         'border-r': true,
@@ -150,8 +159,9 @@ const cockpitLayoutTemplate = (stream, playerState) => {
                 <!-- 2. CENTER: Player & Video QC -->
                 <div class="flex-grow flex flex-col min-w-0 relative bg-black">
                     <!-- Player Area (Flex Grow) -->
+                    <!-- FIX: Enforce minimum height to prevent squat layout -->
                     <div
-                        class="flex-grow relative overflow-hidden group bg-black min-h-0"
+                        class="flex-grow relative overflow-hidden group bg-black min-h-[480px] flex flex-col justify-center"
                     >
                         <!-- Header Overlay -->
                         <div
@@ -186,7 +196,7 @@ const cockpitLayoutTemplate = (stream, playerState) => {
 
                         <div
                             id="video-container-element"
-                            class="w-full h-full relative"
+                            class="w-full h-full relative flex items-center justify-center bg-black"
                         >
                             <video
                                 id="player-video-element"

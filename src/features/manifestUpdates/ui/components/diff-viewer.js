@@ -5,7 +5,27 @@ import { highlightDash, highlightHls } from '@/ui/shared/syntax-highlighter';
 import { html } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 
-const renderDiffRow = (line, isMerged, protocol) => {
+const renderDiffWord = (part, highlightFn) => {
+    // Apply syntax highlighting to the text content of the part.
+    // unsafeHTML is required because highlightFn returns HTML string with color spans.
+    const highlightedText = unsafeHTML(highlightFn(part.value));
+
+    if (part.type === 'added') {
+        return html`<span
+            class="bg-emerald-900/60 text-emerald-300 font-bold px-0.5 rounded-sm"
+            >${highlightedText}</span
+        >`;
+    } else if (part.type === 'removed') {
+        return html`<span
+            class="bg-red-900/60 text-red-300 line-through decoration-red-500/50 opacity-60 px-0.5 rounded-sm"
+            >${highlightedText}</span
+        >`;
+    }
+    // Common text
+    return html`<span>${highlightedText}</span>`;
+};
+
+const renderDiffRow = (line, protocol, hideDeleted) => {
     const highlightFn = protocol === 'dash' ? highlightDash : highlightHls;
     const styles = {
         added: 'bg-emerald-900/20',
@@ -27,31 +47,31 @@ const renderDiffRow = (line, isMerged, protocol) => {
             ? 'text-emerald-500'
             : line.type === 'removed'
               ? 'text-red-500'
-              : 'text-amber-500';
+              : line.type === 'modified'
+                ? 'text-amber-500'
+                : 'text-slate-600';
 
-    // Simplified content rendering with wrapping support
-    const contentHtml =
-        line.type === 'removed'
-            ? html`<span
-                  class="text-red-200/40 line-through decoration-red-500/30 select-none"
-                  >${unsafeHTML(highlightFn(line.content))}</span
-              >`
-            : html`${unsafeHTML(highlightFn(line.indentation + line.content))}`;
+    let contentHtml;
 
-    return html`
-        <tr class="${rowClass} font-mono text-xs leading-6">
-            <td
-                class="w-8 text-right pr-3 select-none opacity-50 border-r border-slate-800/50 ${markerColor} align-top py-0.5"
-            >
-                ${marker}
-            </td>
-            <td
-                class="pl-4 whitespace-pre-wrap break-all text-slate-300 w-full py-0.5"
-            >
-                ${contentHtml}
-            </td>
-        </tr>
-    `;
+    if (line.type === 'modified' && line.parts) {
+        const partsToRender = hideDeleted
+            ? line.parts.filter((p) => p.type !== 'removed')
+            : line.parts;
+
+        // prettier-ignore
+        contentHtml = html`<div class="whitespace-pre-wrap break-all font-mono text-slate-300">${line.indentation}${partsToRender.map(p => renderDiffWord(p, highlightFn))}</div>`;
+    } else if (line.type === 'removed') {
+        if (hideDeleted) return html``;
+        // prettier-ignore
+        contentHtml = html`<span class="text-red-200/40 line-through decoration-red-500/30 select-none">${unsafeHTML(highlightFn(line.indentation + line.content))}</span>`;
+    } else {
+        // Common or Added
+        // prettier-ignore
+        contentHtml = html`${unsafeHTML(highlightFn(line.indentation + line.content))}`;
+    }
+
+    // prettier-ignore
+    return html`<tr class="${rowClass} font-mono text-xs leading-6 group"><td class="w-8 text-right pr-3 select-none opacity-50 border-r border-slate-800/50 ${markerColor} align-top py-0.5 font-bold">${marker}</td><td class="pl-4 w-full py-0.5 align-top whitespace-pre-wrap break-all">${contentHtml}</td></tr>`;
 };
 
 export const diffViewerTemplate = (
@@ -81,6 +101,14 @@ export const diffViewerTemplate = (
         : update.diffModel;
 
     const { additions, removals, modifications } = update.changes;
+
+    // Toggle Button Logic
+    const toggleBtnClass = manifestUpdatesHideDeleted
+        ? 'bg-slate-800 text-slate-200 border-slate-600 shadow-inner shadow-black/20'
+        : 'bg-slate-900 text-slate-400 border-slate-700 hover:border-slate-600 hover:text-slate-200';
+
+    const toggleIcon = manifestUpdatesHideDeleted ? icons.eyeOff : icons.eye;
+    const toggleText = manifestUpdatesHideDeleted ? 'Hidden' : 'Show Deleted';
 
     return html`
         <div
@@ -113,27 +141,26 @@ export const diffViewerTemplate = (
                               </div>
                           </div>
 
-                          <div class="flex items-center gap-4">
-                              <label
-                                  class="flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-400 hover:text-slate-200 transition-colors select-none"
+                          <div class="flex items-center gap-3">
+                              <button
+                                  @click=${() =>
+                                      uiActions.toggleManifestUpdatesHideDeleted()}
+                                  class="flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[10px] font-bold uppercase tracking-wider transition-all ${toggleBtnClass}"
+                                  title="Toggle visibility of removed lines"
                               >
-                                  <input
-                                      type="checkbox"
-                                      .checked=${manifestUpdatesHideDeleted}
-                                      @change=${() =>
-                                          uiActions.toggleManifestUpdatesHideDeleted()}
-                                      class="rounded bg-slate-800 border-slate-600 text-blue-500 focus:ring-0 w-4 h-4"
-                                  />
-                                  Hide Deleted
-                              </label>
-                              <div class="w-px h-4 bg-slate-700"></div>
+                                  ${toggleIcon}
+                                  <span>${toggleText}</span>
+                              </button>
+
+                              <div class="w-px h-4 bg-slate-800 mx-1"></div>
+
                               <button
                                   @click=${() =>
                                       copyTextToClipboard(
                                           update.rawManifest,
                                           'Copied!'
                                       )}
-                                  class="text-slate-400 hover:text-white transition-colors p-1.5 hover:bg-slate-800 rounded"
+                                  class="text-slate-400 hover:text-white transition-colors p-1.5 hover:bg-slate-800 rounded border border-transparent hover:border-slate-700"
                                   title="Copy Raw Manifest"
                               >
                                   ${icons.clipboardCopy}
@@ -155,7 +182,13 @@ export const diffViewerTemplate = (
                         <!-- Code -->
                     </colgroup>
                     <tbody class="font-mono text-xs">
-                        ${lines.map((l) => renderDiffRow(l, false, protocol))}
+                        ${lines.map((l) =>
+                            renderDiffRow(
+                                l,
+                                protocol,
+                                manifestUpdatesHideDeleted
+                            )
+                        )}
                     </tbody>
                 </table>
             </div>

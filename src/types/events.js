@@ -24,7 +24,6 @@ export const EVENTS = {
         REQUEST_SEGMENT_COMPARISON: 'ui:request-segment-comparison',
         SHOW_SCTE35_DETAILS: 'ui:show-scte35-details',
         SHOW_MANIFEST_PATCHER: 'ui:manifest-patcher:open',
-        // New Event
         SHOW_DASH_TIMING_CALCULATOR: 'ui:dash-timing-calculator:open',
 
         // Stream Input
@@ -72,6 +71,7 @@ export const EVENTS = {
         MP_SET_CARD_TAB: 'ui:multi-player:set-card-tab',
         MP_SYNC_ALL_TO: 'ui:multi-player:sync-all-to',
         MP_RESET_ALL: 'ui:multi-player:reset-all',
+        MP_RESET_SELECTED: 'ui:multi-player:reset-selected',
         MP_CLEAR_ALL: 'ui:multi-player:clear-all',
         MP_RESET_FAILED: 'ui:multi-player:reset-failed',
         MP_RESET_SINGLE: 'ui:multi-player:reset-single',

@@ -26,42 +26,40 @@ export const complianceWidgetTemplate = (stream) => {
         labelColor = 'text-yellow-300';
     }
 
-    const radius = 48;
-    const circumference = 2 * Math.PI * radius;
-    const offset = circumference - (totalScore / 100) * circumference;
-
     return html`
         <div
-            class="bg-slate-800/80 rounded-xl border border-slate-700 p-5 h-full flex flex-col items-center justify-center relative overflow-hidden group cursor-pointer"
+            class="bg-slate-800/80 rounded-xl border border-slate-700 p-4 h-full flex flex-row items-center gap-4 relative overflow-hidden group cursor-pointer"
             @click=${() => uiActions.setActiveTab('compliance')}
         >
             <div
-                class="absolute inset-0 bg-gradient-to-b from-transparent to-slate-900/50 pointer-events-none"
+                class="absolute inset-0 bg-gradient-to-r from-transparent to-slate-900/50 pointer-events-none"
             ></div>
 
-            <div class="relative z-10 flex flex-col items-center">
+            <!-- Chart Section (Left) -->
+            <div class="relative z-10 shrink-0">
                 <div
-                    class="relative w-28 h-28 mb-3 bg-slate-900 rounded-full shadow-lg"
+                    class="relative w-20 h-20 bg-slate-900 rounded-full shadow-lg"
                 >
                     <svg class="w-full h-full transform -rotate-90">
                         <circle
-                            cx="56"
-                            cy="56"
-                            r="${radius}"
+                            cx="40"
+                            cy="40"
+                            r="36"
                             stroke="currentColor"
-                            stroke-width="6"
+                            stroke-width="5"
                             fill="transparent"
                             class="text-slate-800"
                         />
                         <circle
-                            cx="56"
-                            cy="56"
-                            r="${radius}"
+                            cx="40"
+                            cy="40"
+                            r="36"
                             stroke="currentColor"
-                            stroke-width="6"
+                            stroke-width="5"
                             fill="transparent"
-                            stroke-dasharray="${circumference}"
-                            stroke-dashoffset="${offset}"
+                            stroke-dasharray="${2 * Math.PI * 36}"
+                            stroke-dashoffset="${2 * Math.PI * 36 -
+                            (totalScore / 100) * (2 * Math.PI * 36)}"
                             stroke-linecap="round"
                             class="${ringColorClass} transition-all duration-1000 ease-out"
                         />
@@ -70,20 +68,25 @@ export const complianceWidgetTemplate = (stream) => {
                     <div
                         class="absolute inset-0 flex flex-col items-center justify-center"
                     >
-                        <span class="text-3xl font-bold ${scoreColor}"
+                        <span class="text-xl font-bold ${scoreColor}"
                             >${totalScore}</span
                         >
                     </div>
                 </div>
+            </div>
 
-                <h3 class="text-lg font-bold text-white mb-1">Compliance</h3>
-                <span
-                    class="text-xs font-bold uppercase tracking-widest ${labelColor} mb-3"
-                    >${label}</span
-                >
+            <!-- Info Section (Right) -->
+            <div class="relative z-10 flex flex-col grow min-w-0">
+                <div class="flex items-center justify-between mb-1">
+                    <h3 class="text-base font-bold text-white">Compliance</h3>
+                    <span
+                        class="text-[10px] font-bold uppercase tracking-widest ${labelColor}"
+                        >${label}</span
+                    >
+                </div>
 
                 <div
-                    class="flex gap-4 text-xs text-slate-400 bg-slate-900/50 px-3 py-1.5 rounded-full border border-slate-700/50"
+                    class="flex gap-3 text-xs text-slate-400 bg-slate-900/50 px-3 py-1.5 rounded-lg border border-slate-700/50 w-fit"
                 >
                     <span
                         class="flex items-center gap-1 font-medium ${errors > 0
@@ -104,9 +107,9 @@ export const complianceWidgetTemplate = (stream) => {
                 </div>
 
                 <div
-                    class="mt-4 text-blue-400 text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 transform translate-y-2 group-hover:translate-y-0 duration-200"
+                    class="mt-2 text-blue-400 text-[10px] font-bold opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 transform translate-x-[-10px] group-hover:translate-x-0 duration-200"
                 >
-                    View Full Report ${icons.arrowRight}
+                    View Report ${icons.arrowRight}
                 </div>
             </div>
         </div>

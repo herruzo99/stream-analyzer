@@ -1,5 +1,8 @@
 import { analyzeSemantics } from '../../features/compliance/domain/semantic-analyzer.js';
-import { analyzeGopStructure } from '../../features/segmentAnalysis/domain/gop-analyzer.js';
+import {
+    analyzeGopStructure,
+    calculateGopStatistics,
+} from '../../features/segmentAnalysis/domain/gop-analyzer.js';
 import { appLog } from '../../shared/utils/debug.js';
 import { boxParsers } from '../parsing/isobmff/index.js';
 import { parseISOBMFF } from '../parsing/isobmff/parser.js';
@@ -47,7 +50,6 @@ BOX_TYPE_COLOR_INDICES['skip'] = 0;
 BOX_TYPE_COLOR_INDICES['emsg'] = 14; // Purple
 BOX_TYPE_COLOR_INDICES['sidx'] = 9; // Cyan
 BOX_TYPE_COLOR_INDICES['CMAF Chunk'] = 0; // Transparent container
-
 BOX_TYPE_COLOR_INDICES['ID32'] = 7;
 BOX_TYPE_COLOR_INDICES['stpp'] = 7;
 BOX_TYPE_COLOR_INDICES['wvtt'] = 7;
@@ -130,7 +132,6 @@ function generateTsPacketMap(parsedData) {
 
     for (let i = 0; i < packetCount; i++) {
         const p = packets[i];
-        // Fallback to 'Data' color (6) if unknown, or specific stream type color
         const color =
             TS_PACKET_COLOR_INDICES[p.payloadType] !== undefined
                 ? TS_PACKET_COLOR_INDICES[p.payloadType]
@@ -235,9 +236,11 @@ export async function handleParseSegmentStructure({
 }) {
     const parsedData = await parseSegment({ data, formatHint, url, context });
     parsedData.mediaInfo = null;
+    if (parsedData.data) {
+        parsedData.data.size = data.byteLength;
+    }
 
     if (parsedData.format === 'isobmff' && parsedData.data.boxes) {
-        parsedData.data.size = data.byteLength;
         if (parsedData.data.events && parsedData.data.events.length > 0) {
             const canonicalEvents = parsedData.data.events
                 .map((emsgBox) => {
@@ -262,6 +265,10 @@ export async function handleParseSegmentStructure({
         }
     } else if (parsedData.format === 'ts' && parsedData.data.packets) {
         parsedData.mediaInfo = generateMediaInfoSummary(parsedData.data);
+        const layout = generateTsPacketMap(parsedData);
+        parsedData.byteMap = layout;
+        parsedData.bitstreamAnalysisAttempted = true;
+        parsedData.bitstreamAnalysis = null;
     }
     return parsedData;
 }
@@ -277,7 +284,23 @@ const findBox = (boxes, type) => {
     return null;
 };
 
-export async function handleFullSegmentAnalysis({ parsedData, rawData }) {
+/**
+ * Performs deep bitstream analysis (e.g. GOP structure) if possible.
+ * Uses 'context' to find Init Segment boxes if provided.
+ */
+export async function handleFullSegmentAnalysis({
+    parsedData,
+    rawData,
+    context,
+}) {
+    if (parsedData.format === 'ts' && parsedData.byteMap) {
+        return {
+            byteMap: parsedData.byteMap,
+            bitstreamAnalysis: null,
+            transferables: [parsedData.byteMap.packetMap.buffer],
+        };
+    }
+
     appLog('parsingService', 'info', 'Generating optimized bitstream maps.');
 
     let byteMap = {};
@@ -296,9 +319,35 @@ export async function handleFullSegmentAnalysis({ parsedData, rawData }) {
     let bitstreamAnalysis = null;
     if (parsedData.format === 'isobmff' && rawData) {
         const boxes = parsedData.data.boxes;
-        const avcC = findBox(boxes, 'avcC');
-        const hvcC = findBox(boxes, 'hvcC');
+        let avcC = findBox(boxes, 'avcC');
+        let hvcC = findBox(boxes, 'hvcC');
         const mdat = findBox(boxes, 'mdat');
+
+        // Extract Resolution
+        let width = 0;
+        let height = 0;
+        const extractRes = (box) => {
+            if (box && box.details && box.details.width && box.details.height) {
+                width = parseFloat(box.details.width.value);
+                height = parseFloat(box.details.height.value);
+            }
+        };
+
+        // Check local first
+        if (parsedData.data.boxes) {
+            const avc1 = findBox(parsedData.data.boxes, 'avc1');
+            const hvc1 = findBox(parsedData.data.boxes, 'hvc1');
+            extractRes(avc1 || hvc1);
+        }
+
+        // Check context (Init Segment)
+        if (!avcC && !hvcC && context?.initSegmentBoxes) {
+            avcC = findBox(context.initSegmentBoxes, 'avcC');
+            hvcC = findBox(context.initSegmentBoxes, 'hvcC');
+            const avc1Init = findBox(context.initSegmentBoxes, 'avc1');
+            const hvc1Init = findBox(context.initSegmentBoxes, 'hvc1');
+            if (!width) extractRes(avc1Init || hvc1Init);
+        }
 
         let codec = null;
         let lengthSizeMinusOne = 3;
@@ -311,25 +360,80 @@ export async function handleFullSegmentAnalysis({ parsedData, rawData }) {
             lengthSizeMinusOne = hvcC.details.lengthSizeMinusOne.value;
         }
 
+        if (!codec && mdat) {
+            codec = 'avc'; // Fallback
+        }
+
         if (codec && mdat) {
             try {
-                const mdatStart = mdat.contentOffset;
-                const mdatEnd = mdat.offset + mdat.size;
                 const rawUint8 = new Uint8Array(rawData);
-                const mdatBody = rawUint8.subarray(mdatStart, mdatEnd);
-                const nalUnits = parseNalUnits(
-                    mdatBody,
-                    lengthSizeMinusOne,
-                    /** @type {'avc' | 'hevc'} */ (codec),
-                    mdatStart
-                );
-                const duration = parsedData.samples
-                    ? parsedData.samples.reduce(
-                          (acc, s) => acc + s.duration,
-                          0
-                      ) / (parsedData.samples[0]?.timescale || 90000)
-                    : 0;
-                bitstreamAnalysis = analyzeGopStructure(nalUnits, duration);
+
+                // ARCHITECTURAL FIX: Prioritize Container Sample Table
+                // Use the samples array (populated by buildCanonicalSampleList in parser.js)
+                // to accurately identify frame boundaries and types via NAL parsing.
+                if (parsedData.samples && parsedData.samples.length > 0) {
+                    const videoFrames = parsedData.samples.map(
+                        (sample, index) => {
+                            let isKeyFrame = false;
+                            let frameType = 'Unknown';
+                            const nalTypes = [];
+
+                            if (sample.size > 0) {
+                                const sampleData = rawUint8.subarray(
+                                    sample.offset,
+                                    sample.offset + sample.size
+                                );
+                                const nals = parseNalUnits(
+                                    sampleData,
+                                    lengthSizeMinusOne,
+                                    /** @type {'avc'|'hevc'} */ (codec),
+                                    sample.offset
+                                );
+                                nalTypes.push(...nals.map((n) => n.type));
+
+                                if (nals.some((n) => n.isIdr)) {
+                                    isKeyFrame = true;
+                                    frameType = 'I';
+                                } else if (nals.some((n) => n.isVcl)) {
+                                    frameType = 'P/B';
+                                }
+                            }
+
+                            return {
+                                index,
+                                type: frameType,
+                                size: sample.size,
+                                isKeyFrame,
+                                nalTypes,
+                            };
+                        }
+                    );
+
+                    const duration =
+                        parsedData.samples.reduce(
+                            (acc, s) => acc + s.duration,
+                            0
+                        ) / (parsedData.samples[0]?.timescale || 90000);
+
+                    bitstreamAnalysis = calculateGopStatistics(
+                        videoFrames,
+                        duration,
+                        width,
+                        height
+                    );
+                } else {
+                    // Fallback to raw scanning of mdat if no sample table exists (e.g. raw stream/init only)
+                    const mdatStart = mdat.contentOffset;
+                    const mdatEnd = mdat.offset + mdat.size;
+                    const mdatBody = rawUint8.subarray(mdatStart, mdatEnd);
+                    const nalUnits = parseNalUnits(
+                        mdatBody,
+                        lengthSizeMinusOne,
+                        /** @type {'avc'|'hevc'} */ (codec),
+                        mdatStart
+                    );
+                    bitstreamAnalysis = analyzeGopStructure(nalUnits, 0);
+                }
             } catch (e) {
                 console.warn('Bitstream analysis warning:', e.message);
             }

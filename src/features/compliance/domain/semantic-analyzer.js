@@ -5,11 +5,15 @@ const TS_PACKET_SIZE = 188;
 /**
  * Analyzes a collection of TS packets for stream-wide semantic compliance.
  * @param {object} parsedTsData - The full parsed segment data from the engine.
- * @returns {Array<object>} An array of compliance check result objects.
+ * @returns {{results: Array<object>, bufferHistory: Record<number, Array<{offset: number, fullness: number}>>}}
  */
 export function analyzeSemantics(parsedTsData) {
     if (!parsedTsData?.packets || !parsedTsData.summary) {
-        return [];
+        return {
+            results: [],
+            bufferHistory:
+                /** @type {Record<number, Array<{offset: number, fullness: number}>>} */ ({}),
+        };
     }
     const { packets, summary } = parsedTsData;
     const results = [];
@@ -17,20 +21,30 @@ export function analyzeSemantics(parsedTsData) {
     results.push(...checkPtsAfterDiscontinuity(packets));
     results.push(...checkPcrFrequency(summary.pcrList, summary.pcrPid));
     results.push(...checkContinuityCounter(summary.continuityCounters));
-    results.push(...validateTstdBuffers(packets, summary));
-    return results;
+
+    const { results: tstdResults, bufferHistory } = validateTstdBuffers(
+        packets,
+        summary
+    );
+    results.push(...tstdResults);
+
+    return { results, bufferHistory };
 }
 
 /**
- * Validates T-STD buffer models for the segment.
+ * Validates T-STD buffer models and records fullness history.
  * @param {object[]} packets
  * @param {object} summary
- * @returns {Array<object>}
+ * @returns {{results: Array<object>, bufferHistory: Record<number, Array<{offset: number, fullness: number}>>}}
  */
 function validateTstdBuffers(packets, summary) {
     const pmtPid = [...summary.pmtPids][0];
     if (!pmtPid || !summary.programMap[pmtPid]) {
-        return []; // Cannot perform analysis without a program map
+        return {
+            results: [],
+            bufferHistory:
+                /** @type {Record<number, Array<{offset: number, fullness: number}>>} */ ({}),
+        };
     }
 
     const program = summary.programMap[pmtPid];
@@ -38,6 +52,14 @@ function validateTstdBuffers(packets, summary) {
     const tstd = createTstdModel(program);
 
     const results = [];
+    /** @type {Record<number, Array<{offset: number, fullness: number}>>} */
+    const bufferHistory = {};
+
+    // Initialize history arrays
+    Object.keys(tstd.buffers).forEach((pid) => {
+        bufferHistory[pid] = [];
+    });
+
     let lastPcrValue = null;
     let lastPcrOffset = null;
 
@@ -68,8 +90,6 @@ function validateTstdBuffers(packets, summary) {
         if (!bufferModel) return; // Not part of the program we're analyzing
 
         // --- 1. Calculate Time Delta ---
-        // For all packets (PCR and non-PCR), the time delta for draining is based on the
-        // current transport_rate, which is piecewise constant.
         const timeDelta = (TS_PACKET_SIZE * 8) / tstd.transport_rate;
 
         if (timeDelta > 0) {
@@ -84,7 +104,13 @@ function validateTstdBuffers(packets, summary) {
         // --- 3. Fill Buffer ---
         bufferModel.TBn.fullness += TS_PACKET_SIZE;
 
-        // --- 4. Check for Overflow ---
+        // --- 4. Record History (Sampled to save memory if needed, but every packet is fine for short segments) ---
+        bufferHistory[pid].push({
+            offset: packet.offset,
+            fullness: parseFloat(bufferModel.TBn.fullness.toFixed(2)),
+        });
+
+        // --- 5. Check for Overflow ---
         if (bufferModel.TBn.fullness > bufferModel.TBn.size) {
             results.push({
                 id: 'SEMANTIC-TB-OVERFLOW',
@@ -99,14 +125,10 @@ function validateTstdBuffers(packets, summary) {
         }
     });
 
-    return results;
+    return { results, bufferHistory };
 }
 
-/**
- * Checks for compliance with PTS frequency rules (Clause 2.7.4).
- * @param {object[]} packets
- * @returns {Array<object>}
- */
+// ... (Other check functions remain unchanged from previous iteration) ...
 function checkPtsFrequency(packets) {
     const pesPacketsWithPtsByPid = {};
     packets.forEach((packet) => {
@@ -142,11 +164,6 @@ function checkPtsFrequency(packets) {
     return results;
 }
 
-/**
- * Checks for the required presence of a PTS after a discontinuity (Clause 2.7.5).
- * @param {object[]} packets
- * @returns {Array<object>}
- */
 function checkPtsAfterDiscontinuity(packets) {
     const packetsByPid = {};
     packets.forEach((p) => {
@@ -160,7 +177,6 @@ function checkPtsAfterDiscontinuity(packets) {
         for (let i = 0; i < streamPackets.length; i++) {
             const packet = streamPackets[i];
             if (packet.adaptationField?.discontinuity_indicator?.value === 1) {
-                // Search for the next PES packet start in this PID
                 let nextPesPacketFound = false;
                 let ptsFound = false;
                 for (let j = i; j < streamPackets.length; j++) {
@@ -193,12 +209,6 @@ function checkPtsAfterDiscontinuity(packets) {
     return results;
 }
 
-/**
- * Checks PCR frequency (Clause 2.7.2).
- * @param {{pcr: BigInt, offset: number}[]} pcrList
- * @param {number} pcrPid
- * @returns {Array<object>}
- */
 function checkPcrFrequency(pcrList, pcrPid) {
     if (pcrList.length < 2) return [];
     const results = [];
@@ -219,11 +229,6 @@ function checkPcrFrequency(pcrList, pcrPid) {
     return results;
 }
 
-/**
- * Checks continuity counter integrity for all PIDs (Clause 2.4.3.3).
- * @param {Record<string, {cc: number, offset: number, hasPayload: boolean}[]>} ccMap
- * @returns {Array<object>}
- */
 function checkContinuityCounter(ccMap) {
     const results = [];
     for (const pid in ccMap) {
@@ -232,7 +237,7 @@ function checkContinuityCounter(ccMap) {
             const prev = counters[i - 1];
             const curr = counters[i];
 
-            if (!prev.hasPayload) continue; // If previous packet had no payload, CC does not increment.
+            if (!prev.hasPayload) continue;
 
             const expected_cc = (prev.cc + 1) % 16;
             if (curr.cc !== expected_cc) {

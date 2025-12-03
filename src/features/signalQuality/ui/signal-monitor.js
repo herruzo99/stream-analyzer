@@ -15,38 +15,56 @@ class SignalMonitorAudio extends HTMLElement {
             lPeak: -100,
             rPeak: -100,
             phase: 0,
+            spectrum: null,
         };
+        this.canvas = null;
+        this.ctx = null;
+        this.attachRaf = null;
     }
 
     connectedCallback() {
         this.style.display = 'block';
         this.style.height = '100%';
         this.render();
-        requestAnimationFrame(() => this.init());
+        this.attemptAttach();
     }
 
     disconnectedCallback() {
+        if (this.attachRaf) cancelAnimationFrame(this.attachRaf);
         this.analyzer.detach();
     }
 
-    init() {
-        const videoEl = playerService.getPlayer()?.getMediaElement();
-        if (!videoEl) return;
+    attemptAttach() {
+        const player = playerService.getPlayer();
+        const videoEl = player?.getMediaElement();
 
-        // Simple check, though audio analyzer handles CORS internally with silence fallback
-        if (videoEl.crossOrigin !== 'anonymous') {
-            /* Handle restriction if needed */
+        // Retry if player or video element isn't ready yet
+        if (!player || !videoEl) {
+            this.attachRaf = requestAnimationFrame(() => this.attemptAttach());
+            return;
+        }
+
+        this.init(videoEl);
+    }
+
+    init(videoEl) {
+        this.canvas = /** @type {HTMLCanvasElement} */ (
+            this.querySelector('#audio-spectrum-canvas')
+        );
+        if (this.canvas) {
+            this.ctx = this.canvas.getContext('2d');
         }
 
         this.analyzer.attach(videoEl, (data) => {
             this._state = data;
             this.updateMeters();
+            this.drawSpectrum();
         });
     }
 
     updateMeters() {
-        const lBar = /** @type {HTMLElement} */ (this.querySelector('#bar-l'));
-        const rBar = /** @type {HTMLElement} */ (this.querySelector('#bar-r'));
+        const lBar = this.querySelector('#bar-l');
+        const rBar = this.querySelector('#bar-r');
         const phaseNeedle = /** @type {HTMLElement} */ (
             this.querySelector('#phase-needle')
         );
@@ -65,25 +83,48 @@ class SignalMonitorAudio extends HTMLElement {
         }
     }
 
+    drawSpectrum() {
+        if (!this.ctx || !this.canvas || !this._state.spectrum) return;
+
+        const width = this.canvas.width;
+        const height = this.canvas.height;
+        const buffer = this._state.spectrum;
+        const bufferLength = buffer.length;
+
+        this.ctx.clearRect(0, 0, width, height);
+
+        // Draw simplified spectrum bars (vertical, since canvas is tall/thin)
+        // We rotate logic: frequency goes bottom-to-top.
+        const barHeight = height / 32; // Reduced resolution for aesthetic
+        const step = Math.floor(bufferLength / 32);
+
+        for (let i = 0; i < 32; i++) {
+            const val = buffer[i * step];
+            const percent = val / 255;
+            const barWidth = percent * width;
+
+            const y = height - i * barHeight;
+
+            this.ctx.fillStyle = `rgba(52, 211, 153, ${0.2 + percent * 0.8})`; // Emerald
+            this.ctx.fillRect(
+                (width - barWidth) / 2,
+                y,
+                barWidth,
+                barHeight - 1
+            );
+        }
+    }
+
     render() {
-        // Slim bars for sidebar
         const meterBar = (id) => html`
             <div
-                class="relative w-3 bg-slate-900 rounded-full overflow-hidden border border-slate-800 h-full group"
+                class="relative w-2 bg-slate-900 rounded-full overflow-hidden border border-slate-800 h-full group"
             >
                 <div
                     id="${id}"
                     class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-emerald-500 via-yellow-400 to-red-500 opacity-90 transition-[height] duration-75 ease-linear"
                     style="height: 0%"
                 ></div>
-                <!-- Tick Marks Overlay -->
-                <div
-                    class="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-20"
-                >
-                    ${[...Array(12)].map(
-                        () => html`<div class="w-full h-px bg-slate-950"></div>`
-                    )}
-                </div>
             </div>
         `;
 
@@ -97,13 +138,29 @@ class SignalMonitorAudio extends HTMLElement {
                     ${icons.volumeUp}
                 </div>
 
+                <!-- Split: Meters and Spectrum -->
                 <div
-                    class="grow flex justify-center gap-1.5 h-full w-full px-1"
+                    class="grow flex flex-col items-center w-full min-h-0 gap-2"
                 >
-                    ${meterBar('bar-l')} ${meterBar('bar-r')}
+                    <!-- Level Meters -->
+                    <div class="h-1/2 flex justify-center gap-1 w-full px-1">
+                        ${meterBar('bar-l')} ${meterBar('bar-r')}
+                    </div>
+
+                    <!-- Spectrum Analyzer (Canvas) -->
+                    <div class="h-1/2 w-full px-1 relative opacity-60">
+                        <canvas
+                            id="audio-spectrum-canvas"
+                            width="40"
+                            height="150"
+                            class="w-full h-full block"
+                        ></canvas>
+                    </div>
                 </div>
 
-                <div class="w-8 h-8 relative border-t border-slate-800 mt-2">
+                <div
+                    class="w-8 h-8 relative border-t border-slate-800 mt-2 shrink-0"
+                >
                     <div
                         class="absolute bottom-0 left-1/2 w-px h-full bg-slate-800"
                     ></div>
@@ -136,6 +193,7 @@ class SignalMonitorVideo extends HTMLElement {
             showParade: true,
             showHistogram: true,
         };
+        this.attachRaf = null;
         this.toggleScope = this.toggleScope.bind(this);
     }
 
@@ -144,18 +202,36 @@ class SignalMonitorVideo extends HTMLElement {
         this.style.height = '100%';
         this.style.width = '100%';
         this.render();
-        requestAnimationFrame(() => this.init());
+        this.attemptAttach();
     }
 
     disconnectedCallback() {
+        if (this.attachRaf) cancelAnimationFrame(this.attachRaf);
         this.renderer.detach();
     }
 
-    init() {
-        const videoEl = playerService.getPlayer()?.getMediaElement();
-        if (!videoEl) return;
+    attemptAttach() {
+        const player = playerService.getPlayer();
+        const videoEl = player?.getMediaElement();
 
+        // Retry if player or video element isn't ready yet
+        if (!player || !videoEl) {
+            this.attachRaf = requestAnimationFrame(() => this.attemptAttach());
+            return;
+        }
+
+        this.init(videoEl);
+    }
+
+    init(videoEl) {
+        console.log('[SignalMonitorVideo] init', {
+            videoEl,
+            crossOrigin: videoEl.crossOrigin,
+        });
         if (videoEl.crossOrigin !== 'anonymous') {
+            console.warn(
+                '[SignalMonitorVideo] Video missing crossOrigin="anonymous"'
+            );
             this._state.isRestricted = true;
             this.render();
             return;
@@ -168,6 +244,8 @@ class SignalMonitorVideo extends HTMLElement {
             this.observeCanvas(canvas);
             this.renderer.attach(videoEl, canvas);
             this.renderer.setMode(this._state);
+        } else {
+            console.error('[SignalMonitorVideo] Canvas not found');
         }
     }
 

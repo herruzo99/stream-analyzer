@@ -5,6 +5,7 @@ import {
     findChildrenRecursive,
     getAttr,
 } from '@/infrastructure/parsing/utils/recursive-parser.js';
+import { gapOverlapRule } from './rules/gap-overlap.js';
 
 /**
  * Runs a set of predefined compliance checks against a manifest.
@@ -30,9 +31,10 @@ export function runChecks(manifest, protocol, context = {}) {
         }
 
         const standardVersion = context.standardVersion || 13; // Default to latest
-        const applicableRules = hlsRules.filter(
-            (rule) => rule.version <= standardVersion
-        );
+        const applicableRules = [
+            ...hlsRules.filter((rule) => rule.version <= standardVersion),
+            gapOverlapRule,
+        ];
         const results = [];
         const isLive = manifestIR.type === 'dynamic';
         const isMaster = manifestIR.isMaster;
@@ -242,7 +244,11 @@ export function runChecks(manifest, protocol, context = {}) {
 
     const results = [];
     const isDynamic = getAttr(mpd, 'type') === 'dynamic';
-    const dashContext = { isDynamic, profiles: Array.from(manifestProfiles) };
+    const dashContext = {
+        isDynamic,
+        profiles: Array.from(manifestProfiles),
+        ...context,
+    };
 
     const getDetails = (detail, element, detailContext) => {
         return typeof detail === 'function'
@@ -250,7 +256,9 @@ export function runChecks(manifest, protocol, context = {}) {
             : detail;
     };
 
-    dashRules
+    const allDashRules = [...dashRules, gapOverlapRule];
+
+    allDashRules
         .filter((rule) => {
             if (rule.profiles.includes('common')) return true;
             return rule.profiles.some((p) =>
@@ -299,7 +307,7 @@ export function runChecks(manifest, protocol, context = {}) {
         );
         const periodContext = { ...dashContext, allRepIdsInPeriod, period };
 
-        dashRules
+        allDashRules
             .filter((rule) => {
                 if (rule.profiles.includes('common')) return true;
                 return rule.profiles.some((p) =>
@@ -344,7 +352,7 @@ export function runChecks(manifest, protocol, context = {}) {
         findChildren(period, 'AdaptationSet').forEach((as, asIndex) => {
             const asPath = `${periodPath}.AdaptationSet[${asIndex}]`;
             const asContext = { ...periodContext, adaptationSet: as };
-            dashRules
+            allDashRules
                 .filter((rule) => {
                     if (rule.profiles.includes('common')) return true;
                     return rule.profiles.some((p) =>
@@ -391,7 +399,7 @@ export function runChecks(manifest, protocol, context = {}) {
             findChildren(as, 'Representation').forEach((rep, repIndex) => {
                 const repPath = `${asPath}.Representation[${repIndex}]`;
                 const repContext = { ...asContext, representation: rep };
-                dashRules
+                allDashRules
                     .filter((rule) => {
                         if (rule.profiles.includes('common')) return true;
                         return rule.profiles.some((p) =>

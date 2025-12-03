@@ -1,3 +1,4 @@
+import { decodeSampleFlags } from '../sample-flags.js';
 import { BoxParser } from '../utils.js';
 
 const TFHD_FLAGS_SCHEMA = {
@@ -41,12 +42,16 @@ export function parseTfhd(box, view) {
     if (flags.default_sample_flags_present) {
         const defaultSampleFlagsInt = p.readUint32('default_sample_flags_raw');
         if (defaultSampleFlagsInt !== null) {
-            // Sample flags have a different structure, so we don't decode them with this schema.
+            // --- ARCHITECTURAL FIX: Decode flags for UI visibility ---
+            const decoded = decodeSampleFlags(defaultSampleFlagsInt);
+
             box.details['default_sample_flags'] = {
-                value: `0x${defaultSampleFlagsInt.toString(16).padStart(8, '0')}`,
+                value: decoded, // UI renderer handles object display
                 offset: box.details['default_sample_flags_raw'].offset,
                 length: 4,
             };
+            // Keep raw for debugging if needed, but mark internal to hide from default view if desired.
+            // Actually, usually we delete raw if we replace it.
             delete box.details['default_sample_flags_raw'];
         }
     }
@@ -84,7 +89,7 @@ export const tfhdTooltip = {
         ref: 'ISO/IEC 14496-12, 8.8.7.2',
     },
     'tfhd@default_sample_flags': {
-        text: 'Default flags for samples in this track fragment.',
+        text: 'Default flags for samples in this track fragment (is_leading, depends_on, etc.).',
         ref: 'ISO/IEC 14496-12, 8.8.7.2',
     },
 };

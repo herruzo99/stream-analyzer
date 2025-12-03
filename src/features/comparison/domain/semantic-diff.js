@@ -17,21 +17,27 @@ const safeDiv = (n, d) => {
 /**
  * Extracts a flattened list of media segments from the stream's internal state.
  * @param {import('@/types').Stream} stream
+ * @param {string | null} [variantId=null] - Optional specific variant ID for HLS.
  * @returns {TimelineItem[]}
  */
-function extractSegments(stream) {
+function extractSegments(stream, variantId = null) {
     let rawSegments = [];
 
     if (stream.protocol === 'hls') {
         const stateMap = stream.hlsVariantState;
-        // 1. Try Active Variant
-        if (
+
+        // 1. Try specific variant ID if provided
+        if (variantId && stateMap.has(variantId)) {
+            rawSegments = stateMap.get(variantId).segments;
+        }
+        // 2. Try Active Variant
+        else if (
             stream.activeMediaPlaylistId &&
             stateMap.has(stream.activeMediaPlaylistId)
         ) {
             rawSegments = stateMap.get(stream.activeMediaPlaylistId).segments;
         }
-        // 2. Best Effort Fallback
+        // 3. Best Effort Fallback
         if ((!rawSegments || rawSegments.length === 0) && stateMap.size > 0) {
             for (const variant of stateMap.values()) {
                 if (variant.segments && variant.segments.length > 0) {
@@ -52,7 +58,6 @@ function extractSegments(stream) {
 
     if (!rawSegments || rawSegments.length === 0) return [];
 
-    // TS Fix: Explicitly cast the mapped array to TimelineItem[]
     return rawSegments
         .filter((s) => s.type !== 'Init')
         .map((s) => {
@@ -132,24 +137,66 @@ function extractStructure(stream) {
 }
 
 /**
+ * Normalizes items for live streams by shifting the timeline so the live edge is at 0.
+ * @param {TimelineItem[]} items
+ * @param {boolean} isLive
+ * @returns {TimelineItem[]}
+ */
+function normalizeTimeline(items, isLive) {
+    if (!isLive || items.length === 0) return items;
+
+    // Find the absolute end time (Live Edge)
+    const maxEnd = items.reduce((max, item) => Math.max(max, item.end), 0);
+
+    // Shift everything so maxEnd becomes 0
+    return items.map((item) => ({
+        ...item,
+        start: item.start - maxEnd,
+        end: item.end - maxEnd,
+    }));
+}
+
+/**
  * Calculates the semantic difference model between two streams.
  * @param {import('@/types').Stream} streamA Reference Stream
  * @param {import('@/types').Stream} streamB Candidate Stream
+ * @param {string | null} [variantIdA=null] Specific variant for A
+ * @param {string | null} [variantIdB=null] Specific variant for B
  */
-export function calculateSemanticDiff(streamA, streamB) {
-    let itemsA = extractSegments(streamA);
+export function calculateSemanticDiff(
+    streamA,
+    streamB,
+    variantIdA = null,
+    variantIdB = null
+) {
+    let itemsA = extractSegments(streamA, variantIdA);
     if (!itemsA || itemsA.length === 0) itemsA = extractStructure(streamA);
 
-    let itemsB = extractSegments(streamB);
+    let itemsB = extractSegments(streamB, variantIdB);
     if (!itemsB || itemsB.length === 0) itemsB = extractStructure(streamB);
 
-    const maxDurA = itemsA.length > 0 ? itemsA[itemsA.length - 1].end : 0;
-    const maxDurB = itemsB.length > 0 ? itemsB[itemsB.length - 1].end : 0;
-    const duration = Math.max(maxDurA, maxDurB, 60);
+    const isLiveA = streamA.manifest.type === 'dynamic';
+    const isLiveB = streamB.manifest.type === 'dynamic';
+
+    // Normalize timelines (Live edge -> 0)
+    itemsA = normalizeTimeline(itemsA, isLiveA);
+    itemsB = normalizeTimeline(itemsB, isLiveB);
+
+    // Calculate bounds after normalization
+    const allItems = [...itemsA, ...itemsB];
+    let minTime = 0;
+    let maxTime = 60;
+
+    if (allItems.length > 0) {
+        minTime = Math.min(...allItems.map((i) => i.start));
+        maxTime = Math.max(...allItems.map((i) => i.end));
+    }
 
     const deltaItems = [];
 
     // Diffing Logic
+    // We use a simple proximity check. Since we normalized to the live edge (or 0 for VOD),
+    // segments at the same relative position should align.
     const hasSegmentsA = itemsA.some((i) => i.type === 'segment');
     const hasSegmentsB = itemsB.some((i) => i.type === 'segment');
 
@@ -157,6 +204,7 @@ export function calculateSemanticDiff(streamA, streamB) {
         itemsA.forEach((segA) => {
             if (segA.type !== 'segment') return;
 
+            // Find matching segment in B that overlaps significantly or starts near
             const match = itemsB.find(
                 (segB) => Math.abs(segB.start - segA.start) < 0.1
             );
@@ -185,6 +233,7 @@ export function calculateSemanticDiff(streamA, streamB) {
         trackA: { name: streamA.name, items: itemsA },
         trackB: { name: streamB.name, items: itemsB },
         diffTrack: { name: 'Delta', items: deltaItems },
-        duration,
+        minTime,
+        maxTime,
     };
 }

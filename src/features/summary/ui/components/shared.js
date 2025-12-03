@@ -17,7 +17,7 @@ const isVideoCodec = (codecString) => {
         'dvhe',
         'av01',
         'vp09',
-        'mjpg', // Motion JPEG
+        'mjpg',
     ];
     return videoPrefixes.some((prefix) => lowerCodec.startsWith(prefix));
 };
@@ -224,6 +224,26 @@ const trackCardTemplate = (track, type, gridColumns) => {
         } else if (track.width?.value && track.height?.value) {
             resolution = `${track.width.value}x${track.height.value}`;
         }
+
+        // --- NEW: Extra Props Column (ScanType, HDCP) ---
+        let extraProps = [];
+        if (track.scanType) {
+            extraProps.push(
+                html`<span
+                    class="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-600 text-[10px]"
+                    >${track.scanType}</span
+                >`
+            );
+        }
+        if (track.hdcpLevel) {
+            extraProps.push(
+                html`<span
+                    class="px-1.5 py-0.5 bg-amber-900/20 text-amber-400 border border-amber-500/30 text-[10px] flex items-center gap-1"
+                    >${icons.hdcp} ${track.hdcpLevel}</span
+                >`
+            );
+        }
+
         contentTemplate = html`
             <div
                 class="h-full p-2 border-r border-slate-700 font-mono text-slate-200 truncate flex items-center gap-2"
@@ -253,6 +273,8 @@ const trackCardTemplate = (track, type, gridColumns) => {
                     .filter((c) => isVideoCodec(c.value))
                     .map((c) => html`<div>${renderCodecInfo(c)}</div>`)}
             </div>
+
+            <!-- Audio Mux -->
             <div
                 class="h-full p-2 border-r border-slate-700 font-mono text-slate-200 space-y-1"
             >
@@ -262,13 +284,18 @@ const trackCardTemplate = (track, type, gridColumns) => {
                       )
                     : html`<span class="text-slate-500">N/A</span>`}
             </div>
+
+            <!-- Extra (Merged Roles + Props) -->
             <div
-                class="h-full p-2 border-r border-slate-700 font-mono text-slate-200"
+                class="h-full p-2 font-mono text-slate-400 flex flex-col gap-1"
             >
-                ${track.muxedAudio?.lang ||
-                html`<span class="text-slate-500">N/A</span>`}
+                <div>${roles}</div>
+                ${extraProps.length > 0
+                    ? html`<div class="flex flex-wrap gap-1 mt-1">
+                          ${extraProps}
+                      </div>`
+                    : ''}
             </div>
-            <div class="h-full p-2 font-mono text-slate-400">${roles}</div>
         `;
     } else if (type === 'audio') {
         contentTemplate = html`
@@ -351,21 +378,21 @@ export const trackTableTemplate = (tracks, type) => {
     let headerTemplate;
 
     if (type === 'video') {
+        // Adjusted columns to fit merged Roles/Props
         gridColumns =
-            'grid-cols-[minmax(150px,1fr)_125px_125px_125px_1fr_1fr_80px_125px]';
+            'grid-cols-[minmax(150px,1fr)_125px_125px_100px_1fr_1fr_180px]';
         headerTemplate = html`
             <div class="p-2 border-r border-slate-700">Representation ID</div>
             <div class="p-2 border-r border-slate-700">Bitrate</div>
             <div class="p-2 border-r border-slate-700">Resolution</div>
             <div class="p-2 border-r border-slate-700">Frame Rate</div>
             <div class="p-2 border-r border-slate-700">Video Codec(s)</div>
-            <div class="p-2 border-r border-slate-700">Muxed Audio Codec</div>
-            <div class="p-2 border-r border-slate-700">Muxed Lang</div>
-            <div class="p-2">Roles</div>
+            <div class="p-2 border-r border-slate-700">Muxed Audio</div>
+            <div class="p-2">Roles / Info</div>
         `;
     } else if (type === 'audio') {
         gridColumns =
-            'grid-cols-[minmax(200px,1fr)_125px_125px_125px_1fr_125px]';
+            'grid-cols-[minmax(200px,1fr)_100px_100px_125px_1fr_125px]';
         headerTemplate = html`
             <div class="p-2 border-r border-slate-700">Rendition ID</div>
             <div class="p-2 border-r border-slate-700">Language</div>

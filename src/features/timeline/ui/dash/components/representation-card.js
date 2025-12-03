@@ -1,5 +1,6 @@
 import {
     findChildren,
+    getAttr,
     getInheritedElement,
 } from '@/infrastructure/parsing/utils/recursive-parser.js';
 import * as icons from '@/ui/icons';
@@ -52,6 +53,22 @@ export const representationCardTemplate = (rep, as, stream, period) => {
                   element: findChildren(rep.serializedManifest, 'BaseURL')[0],
               };
 
+    // Check for ProducerReferenceTime
+    const prtEl = getInheritedElement('ProducerReferenceTime', hierarchy);
+    const prtInfo = prtEl
+        ? {
+              id: getAttr(prtEl, 'id'),
+              type: getAttr(prtEl, 'type'),
+              wallClock: getAttr(prtEl, 'wallClockTime'),
+              presentationTime: getAttr(prtEl, 'presentationTime'),
+          }
+        : null;
+
+    // --- ARCHITECTURAL FIX: Extract previously hidden attributes ---
+    const scanType = rep.scanType;
+    const codingDependency = rep.codingDependency;
+    const maxPlayoutRate = rep.maxPlayoutRate;
+
     return html`
         <details
             class="group bg-slate-900 border border-slate-700/50 rounded hover:border-blue-500/30 transition-colors"
@@ -93,8 +110,20 @@ export const representationCardTemplate = (rep, as, stream, period) => {
                     </div>
                 </div>
 
-                <!-- Codec Pill -->
-                <div class="hidden xs:block shrink-0">
+                <!-- Codec & Flag Pills -->
+                <div class="hidden xs:flex items-center gap-1 shrink-0">
+                    ${scanType === 'interlaced'
+                        ? html`<span
+                              class="text-[9px] bg-orange-900/30 text-orange-300 px-1.5 py-0.5 rounded border border-orange-500/30"
+                              >INTERLACED</span
+                          >`
+                        : ''}
+                    ${codingDependency
+                        ? html`<span
+                              class="text-[9px] bg-purple-900/30 text-purple-300 px-1.5 py-0.5 rounded border border-purple-500/30"
+                              >DEPENDENT</span
+                          >`
+                        : ''}
                     ${rep.codecs.map(
                         (c) => html`
                             <span
@@ -109,6 +138,69 @@ export const representationCardTemplate = (rep, as, stream, period) => {
 
             <div class="border-t border-slate-700/50 p-2 bg-slate-950/30">
                 ${timingInfoTemplate(segmentData, stream)}
+                ${maxPlayoutRate || codingDependency !== null
+                    ? html`
+                          <div
+                              class="mt-3 pt-2 border-t border-slate-800 flex gap-4"
+                          >
+                              ${maxPlayoutRate
+                                  ? html`
+                                        <div class="text-[9px] flex gap-1">
+                                            <span
+                                                class="text-slate-500 font-bold"
+                                                >Max Playout Rate:</span
+                                            >
+                                            <span
+                                                class="text-slate-300 font-mono"
+                                                >${maxPlayoutRate}x</span
+                                            >
+                                        </div>
+                                    `
+                                  : ''}
+                              ${codingDependency !== null
+                                  ? html`
+                                        <div class="text-[9px] flex gap-1">
+                                            <span
+                                                class="text-slate-500 font-bold"
+                                                >Coding Dependency:</span
+                                            >
+                                            <span
+                                                class="text-slate-300 font-mono"
+                                                >${codingDependency
+                                                    ? 'Yes'
+                                                    : 'No'}</span
+                                            >
+                                        </div>
+                                    `
+                                  : ''}
+                          </div>
+                      `
+                    : ''}
+                ${prtInfo
+                    ? html`
+                          <div class="mt-3 pt-2 border-t border-slate-800">
+                              <h5
+                                  class="text-[9px] font-bold text-slate-500 uppercase mb-1"
+                              >
+                                  Producer Ref Time (ID: ${prtInfo.id})
+                              </h5>
+                              <div
+                                  class="text-[9px] font-mono text-slate-300 grid grid-cols-[auto_1fr] gap-x-2"
+                              >
+                                  <span class="text-slate-500">Type:</span>
+                                  <span>${prtInfo.type}</span>
+                                  <span class="text-slate-500">Wall:</span>
+                                  <span
+                                      class="truncate"
+                                      title="${prtInfo.wallClock}"
+                                      >${prtInfo.wallClock}</span
+                                  >
+                                  <span class="text-slate-500">Pres:</span>
+                                  <span>${prtInfo.presentationTime}</span>
+                              </div>
+                          </div>
+                      `
+                    : ''}
             </div>
         </details>
     `;
