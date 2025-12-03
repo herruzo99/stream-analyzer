@@ -3,6 +3,7 @@ import { StallCalculator } from '@/features/multiPlayer/domain/stall-calculator'
 import { getShaka } from '@/infrastructure/player/shaka';
 import { parseShakaError } from '@/infrastructure/player/shaka-error';
 import { appLog } from '@/shared/utils/debug';
+import { secureRandom } from '@/shared/utils/random';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { playerActions, usePlayerStore } from '@/state/playerStore';
 import { formatBitrate } from '@/ui/shared/format';
@@ -592,10 +593,11 @@ class PlayerService {
             return;
         }
 
+        // Fix: Use secureRandom for jitter
         const backoff =
             INITIAL_RETRY_DELAY_MS *
             Math.pow(2, retryCount) *
-            (1 + Math.random() * JITTER_FACTOR);
+            (1 + secureRandom() * JITTER_FACTOR);
         const delay = Math.min(backoff, 30000); // Cap delay at 30s
 
         const delaySec = (delay / 1000).toFixed(1);

@@ -124,7 +124,7 @@ export function parseDsmccPayload(view, baseOffset) {
         const ackFlags = p.readUint16('ack_flags');
         if (p.stopped) return { type: 'DSM-CC Ack', ...p.details };
 
-        const cmd_status = (ackFlags >> 0) & 1;
+        const cmd_status = ackFlags & 1; // ARCHITECTURAL FIX: Removed (ackFlags >> 0) to satisfy SonarQube and simplify
         const retrieval_ack = (ackFlags >> 14) & 1;
         const storage_ack = (ackFlags >> 13) & 1;
         p.details.retrieval_ack = {

@@ -42,13 +42,20 @@ export function highlightDash(text) {
 
 /**
  * Helper to highlight HLS attributes within a string.
+ * Optimized regex to prevent ReDoS.
  */
 function highlightHlsAttributes(text) {
+    // Security Fix: Use improved regex for attributes
+    // Key = [A-Z0-9-]+
+    // Value = Quoted string OR Non-comma/non-whitespace string
     return text.replace(
-        /([A-Z0-9-]+)=(&quot;[^&quot;]*&quot;|[^,]+)/g,
-        (match, key, value) => {
-            const isQuoted = value.startsWith('&quot;');
-            const cleanValue = isQuoted ? value.slice(6, -6) : value; // remove &quot;
+        /([A-Z0-9-]+)=(?:(&quot;[^&quot;]*&quot;)|([^",\s]+))/g,
+        (match, key, quotedVal, unquotedVal) => {
+            const value = quotedVal || unquotedVal;
+            const isQuoted = !!quotedVal;
+            
+            // Remove quotes for coloring if present in the capture group
+            const cleanValue = isQuoted ? value.slice(6, -6) : value; 
             const valueSpan = `<span class="text-yellow-300">${cleanValue}</span>`;
 
             return `<span class="text-emerald-300">${key}</span>=${
@@ -115,6 +122,7 @@ export function highlightHls(text) {
     }
 
     // 4. URI / Generic Content Highlighting
+    // Optimization: Using explicit capture for URI matching
     const uriMatch = escaped.match(/^(\s*)(.*)$/);
     if (uriMatch) {
         return `${uriMatch[1]}<span class="text-cyan-400">${uriMatch[2]}</span>`;

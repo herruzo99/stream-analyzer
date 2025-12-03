@@ -4,7 +4,7 @@ import { handleGetStreamDrmInfo } from './handlers/drmDetectionHandler.js';
 import { handleGetManifestMetadata } from './handlers/metadataHandler.js';
 import { handleShakaManifestFetch } from './handlers/shakaManifestHandler.js';
 import { handleShakaResourceFetch } from './handlers/shakaResourceHandler.js';
-import { handleTier0Analysis } from './handlers/tier0Handler.js'; // Import new handler
+import { handleTier0Analysis } from './handlers/tier0Handler.js';
 import {
     handleDecryptAndParseSegment,
     handleFetchAndParseSegment,
@@ -32,10 +32,21 @@ const handlers = {
     'shaka-fetch-manifest': handleShakaManifestFetch,
     'shaka-fetch-resource': handleShakaResourceFetch,
     'run-ts-semantic-analysis': handleRunTsSemanticAnalysis,
-    'tier0-analysis': handleTier0Analysis, // Register new handler
+    'tier0-analysis': handleTier0Analysis,
 };
 
 self.addEventListener('message', async (event) => {
+    // --- SECURITY CHECK (SonarQube S2819) ---
+    // Verify the origin of the received message.
+    // In Dedicated Workers, event.origin is often an empty string "" (indicating same-origin/internal).
+    // We accept matches to self.location.origin OR empty string.
+    if (event.origin !== '' && event.origin !== self.location.origin) {
+        console.warn(
+            `[Worker] Security Block: Received message from untrusted origin: "${event.origin}"`
+        );
+        return;
+    }
+
     const { id, type, payload } = event.data;
 
     if (type === 'cancel-task') {

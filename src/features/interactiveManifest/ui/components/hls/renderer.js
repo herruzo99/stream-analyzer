@@ -16,11 +16,15 @@ const parseHlsLine = (line) => {
 
             if (valueStr.includes('=')) {
                 const attributes = [];
-                const regex = /([A-Z0-9-]+)=("[^"]*"|[^,]+)/g;
+                // Security Fix: Hardened Regex for HLS Attributes
+                // Original: /([A-Z0-9-]+)=("[^"]*"|[^,]+)/g
+                // Fixed: Separates quoted strings from unquoted values strictly. 
+                // Unquoted values now explicitly stop at comma or quote.
+                const regex = /([A-Z0-9-]+)=(?:"([^"]*)"|([^",\s]+))/g;
                 let match;
                 while ((match = regex.exec(valueStr)) !== null) {
-                    let val = match[2];
-                    if (val.startsWith('"')) val = val.slice(1, -1);
+                    // match[2] is quoted content, match[3] is unquoted content
+                    const val = match[2] !== undefined ? match[2] : match[3];
                     attributes.push({ key: match[1], value: val });
                 }
                 return { type: 'tag-attrs', name, attributes };

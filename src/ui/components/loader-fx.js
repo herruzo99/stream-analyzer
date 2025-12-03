@@ -1,3 +1,5 @@
+import { secureRandom } from '@/shared/utils/random';
+
 /**
  * "Data Bus" Visualizer (High Performance)
  *
@@ -81,26 +83,26 @@ export class LoaderFX {
 
     spawn(p, forceX = null) {
         p.active = true;
-        p.lane = Math.floor(Math.random() * this.laneCount);
-        p.length = 20 + Math.random() * 80;
+        p.lane = Math.floor(secureRandom() * this.laneCount);
+        p.length = 20 + secureRandom() * 80;
         // Speed variance
-        p.speed = this.baseSpeed * (0.8 + Math.random() * 0.6);
+        p.speed = this.baseSpeed * (0.8 + secureRandom() * 0.6);
 
-        p.color = this.palette[Math.floor(Math.random() * this.palette.length)];
-        p.width = Math.random() > 0.8 ? 3 : 2; // Occasional thicker packet
+        p.color = this.palette[Math.floor(secureRandom() * this.palette.length)];
+        p.width = secureRandom() > 0.8 ? 3 : 2; // Occasional thicker packet
 
         // Start off-screen left, or at specific X if forced
         if (forceX !== null) {
             p.x = forceX;
         } else {
-            p.x = -p.length - Math.random() * 100;
+            p.x = -p.length - secureRandom() * 100;
         }
     }
 
     initWorld() {
         // Pre-populate the screen so it doesn't look empty on start
         for (const p of this.pool) {
-            this.spawn(p, Math.random() * this.width);
+            this.spawn(p, secureRandom() * this.width);
         }
     }
 
@@ -158,7 +160,7 @@ export class LoaderFX {
         for (const p of this.pool) {
             if (!p.active) {
                 // Simple probability to respawn if inactive
-                if (Math.random() < 0.05) this.spawn(p);
+                if (secureRandom() < 0.05) this.spawn(p);
                 continue;
             }
 
