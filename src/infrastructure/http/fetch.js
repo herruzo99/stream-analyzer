@@ -1,3 +1,5 @@
+import { secureRandom } from '@/shared/utils/random';
+
 const MAX_RETRIES = 3;
 const INITIAL_DELAY_MS = 250;
 
@@ -28,7 +30,7 @@ export async function fetchWithRetry(url, options, attempt = 1) {
             attempt <= MAX_RETRIES
         ) {
             const delay = INITIAL_DELAY_MS * Math.pow(2, attempt - 1);
-            const jitter = delay * 0.2 * Math.random();
+            const jitter = delay * 0.2 * secureRandom();
             await sleep(delay + jitter);
             return fetchWithRetry(url, options, attempt + 1);
         }
@@ -37,7 +39,7 @@ export async function fetchWithRetry(url, options, attempt = 1) {
     } catch (error) {
         if (attempt <= MAX_RETRIES) {
             const delay = INITIAL_DELAY_MS * Math.pow(2, attempt - 1);
-            const jitter = delay * 0.2 * Math.random();
+            const jitter = delay * 0.2 * secureRandom();
             await sleep(delay + jitter);
             return fetchWithRetry(url, options, attempt + 1);
         }

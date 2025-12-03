@@ -26,7 +26,7 @@ class ControlsViewComponent extends HTMLElement {
         for (const player of players.values()) {
             player.audioTracks.forEach((track) => allLangs.add(track.language));
         }
-        return Array.from(allLangs).sort();
+        return Array.from(allLangs).sort((a, b) => a.localeCompare(b));
     }
 
     render() {

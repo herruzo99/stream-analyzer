@@ -2,6 +2,7 @@ import { eventBus } from '@/application/event-bus';
 import { getShaka } from '@/infrastructure/player/shaka';
 import { parseShakaError } from '@/infrastructure/player/shaka-error';
 import { appLog } from '@/shared/utils/debug';
+import { secureRandom } from '@/shared/utils/random';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { useMultiPlayerStore } from '@/state/multiPlayerStore';
 import { showToast } from '@/ui/components/toast';
@@ -187,10 +188,11 @@ class MultiPlayerService {
             const currentRetries = playerState?.retryCount || 0;
             if (currentRetries < MAX_RETRIES) {
                 const nextRetryCount = currentRetries + 1;
+                // Fix: Use secureRandom for jitter
                 const backoff =
                     INITIAL_RETRY_DELAY_MS *
                     Math.pow(2, currentRetries) *
-                    (1 + Math.random() * JITTER_FACTOR);
+                    (1 + secureRandom() * JITTER_FACTOR);
                 const delay = Math.min(backoff, 30000);
 
                 store.updatePlayerState(streamId, {
@@ -219,6 +221,7 @@ class MultiPlayerService {
         }
     }
 
+    // ... (rest of the file matches previous output)
     startStatsCollection() {
         this.stopStatsCollection();
         this.tickerSubscription = eventBus.subscribe(

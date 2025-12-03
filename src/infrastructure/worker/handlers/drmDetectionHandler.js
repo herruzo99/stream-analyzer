@@ -10,16 +10,14 @@ import { fetchWithAuth } from '../http.js';
 function parseHlsAttributes(line) {
     /** @type {Record<string, string>} */
     const attributes = {};
-    const regex = /([A-Z0-9-]+)=("[^"]*"|[^,]+)/g;
+    // Security Fix: Hardened Regex for HLS Attributes (DoS protection)
+    const regex = /([A-Z0-9-]+)=(?:"([^"]*)"|([^",\s]+))/g;
     let match;
 
     while ((match = regex.exec(line)) !== null) {
         const key = match[1];
-        let value = match[2];
-
-        if (value.startsWith('"') && value.endsWith('"')) {
-            value = value.substring(1, value.length - 1);
-        }
+        // match[2] is quoted, match[3] is unquoted
+        const value = match[2] !== undefined ? match[2] : match[3];
         attributes[key] = value;
     }
     return attributes;

@@ -60,10 +60,16 @@ class SessionService {
         try {
             const jsonString = JSON.stringify(sessionState);
             // Use base64url encoding (RFC 4648) to be safe for URLs
-            return btoa(jsonString)
-                .replace(/\+/g, '-')
-                .replace(/\//g, '_')
-                .replace(/=+$/, '');
+            let base64 = btoa(jsonString);
+            base64 = base64.replace(/\+/g, '-').replace(/\//g, '_');
+            
+            // Strip padding using substring instead of regex to avoid ReDoS warning
+            const paddingIndex = base64.indexOf('=');
+            if (paddingIndex !== -1) {
+                base64 = base64.substring(0, paddingIndex);
+            }
+            
+            return base64;
         } catch (e) {
             console.error('Failed to serialize session state:', e);
             return null;

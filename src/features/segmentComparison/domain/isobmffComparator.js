@@ -119,7 +119,7 @@ const createGenericComparator = (boxType) => {
         });
 
         const rows = Array.from(allFields)
-            .sort()
+            .sort((a, b) => a.localeCompare(b))
             .map((field) => {
                 const values = segments.map((seg) => {
                     const box = seg ? findBox(seg.data.boxes, boxType) : null;
@@ -1061,7 +1061,9 @@ export function compareIsobmffSegments(segments) {
     });
 
     const sections = [];
-    for (const boxType of Array.from(allBoxTypes).sort()) {
+    for (const boxType of Array.from(allBoxTypes).sort((a, b) =>
+        a.localeCompare(b)
+    )) {
         const comparator =
             boxComparators[boxType] || createGenericComparator(boxType);
         const section = comparator(segments);

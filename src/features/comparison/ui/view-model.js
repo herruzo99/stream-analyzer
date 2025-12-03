@@ -290,7 +290,7 @@ export function createComparisonViewModel(targets, referenceCompositeId) {
                         t.codecs.map((c) => c.value.split('.')[0])
                     )
                 );
-                return Array.from(codecs).sort();
+                return Array.from(codecs).sort((a, b) => a.localeCompare(b));
             }),
             referenceCompositeId,
             renderList
@@ -362,7 +362,7 @@ export function createComparisonViewModel(targets, referenceCompositeId) {
                         t.codecs.map((c) => c.value.split('.')[0])
                     )
                 );
-                return Array.from(codecs).sort();
+                return Array.from(codecs).sort((a, b) => a.localeCompare(b));
             }),
             referenceCompositeId,
             renderList
@@ -375,7 +375,7 @@ export function createComparisonViewModel(targets, referenceCompositeId) {
                 const tracks = s?.audioTracks || [];
                 return Array.from(
                     new Set(tracks.map((t) => t.lang).filter(Boolean))
-                ).sort();
+                ).sort((a, b) => a.localeCompare(b));
             }),
             referenceCompositeId,
             renderList
