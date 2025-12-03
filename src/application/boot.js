@@ -13,8 +13,7 @@ import { initializeConsentManager } from './consent-manager.js';
 import { container } from './container.js';
 import { sessionService } from './services/sessionService.js';
 
-// Relocated Service Initializers
-import { emeInterceptor } from '@/features/drm/domain/eme-interceptor.js'; // Import EME Interceptor
+import { emeInterceptor } from '@/features/drm/domain/eme-interceptor.js';
 import { keyManagerService } from '@/infrastructure/decryption/keyManagerService';
 import { initializeGlobalRequestInterceptor } from '@/infrastructure/http/globalRequestInterceptor.js';
 import { initializeNetworkEnrichmentService } from '@/infrastructure/http/networkEnrichmentService';
@@ -23,7 +22,6 @@ import { initializeUiOrchestration } from '@/ui/services/uiOrchestrationService'
 import { playerEventOrchestratorService } from './services/playerEventOrchestratorService.js';
 import { tickerService } from './services/tickerService.js';
 
-// Feature Initializers
 import { initializeAdvertisingFeature } from '@/features/advertising/index';
 import { initializeComplianceFeature } from '@/features/compliance/index';
 import { initializeFeatureAnalysisFeature } from '@/features/featureAnalysis/index';
@@ -33,6 +31,7 @@ import { initializeMultiPlayerFeature } from '@/features/multiPlayer/index';
 import { initializeNotificationFeature } from '@/features/notifications/index.js';
 import { initializePlayerSimulationFeature } from '@/features/playerSimulation/index';
 import { initializeSegmentExplorerFeature } from '@/features/segmentExplorer/index';
+import { initializeSettingsFeature } from '@/features/settings/index.js'; // NEW
 import { initializeStreamInputFeature } from '@/features/streamInput/index';
 
 import '@/application/services/streamService';
@@ -60,13 +59,9 @@ export async function startApp() {
 
     await getShaka();
 
-    // --- Layer 1: Core Worker, Consent & Session Handling ---
     workerService.initialize();
     initializeConsentManager();
-
-    // Initialize EME Interceptor EARLY to catch all player events
     emeInterceptor.initialize();
-
     initializeRenderer(dom);
     tickerService.start();
     await initializeGlobalRequestInterceptor();
@@ -78,7 +73,6 @@ export async function startApp() {
         uiActions.setIsRestoringSession(true);
     }
 
-    // --- Layer 2: Low-Level UI Components & Global Services ---
     initializeToastManager(dom);
     initializeLoader(dom);
     initializeViewManager();
@@ -86,7 +80,6 @@ export async function startApp() {
     setupGlobalTooltipListener(dom);
     initializeDropdownService(dom);
 
-    // --- Layer 3: Core Application & Infrastructure Services ---
     initializeLiveUpdateProcessor();
     initializeLiveStreamMonitor();
     initializeSegmentService();
@@ -94,7 +87,6 @@ export async function startApp() {
     initializeNetworkEnrichmentService();
     playerEventOrchestratorService.initialize();
 
-    // --- Layer 4: Feature Initialization & UI Orchestration ---
     initializeUiOrchestration();
     initializeAdvertisingFeature();
     initializeComplianceFeature();
@@ -106,7 +98,7 @@ export async function startApp() {
     initializePlayerSimulationFeature();
     initializeMultiPlayerFeature();
     initializeNotificationFeature();
+    initializeSettingsFeature(); // NEW
 
-    // --- Layer 5: Start Application Core ---
     app.start();
 }

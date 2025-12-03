@@ -15,9 +15,9 @@ export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
     let streamId = null;
     let auth = null;
     let segmentUniqueId = null;
+    let segmentDuration = undefined; // Added variable
 
     try {
-        // --- Context Lookup ---
         const requester = /** @type {any} */ (request['requester']);
         if (requester?.streamAnalyzerStreamId !== undefined) {
             streamId = requester.streamAnalyzerStreamId;
@@ -31,7 +31,6 @@ export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
             }
         }
 
-        // License Request Fallback (Origin Matching)
         if (streamId === null && requestType === LICENSE_REQUEST_TYPE) {
             const requestOrigin = new URL(uri).origin;
             for (const stream of streams) {
@@ -44,7 +43,7 @@ export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
                 for (const licenseUrl of urlsToCheck) {
                     if (new URL(licenseUrl).origin === requestOrigin) {
                         streamId = stream.id;
-                        auth = stream.drmAuth; // Explicitly use drmAuth
+                        auth = stream.drmAuth;
                         break;
                     }
                 }
@@ -52,7 +51,6 @@ export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
             }
         }
 
-        // Segment Lookup
         if (requestType === SEGMENT_REQUEST_TYPE) {
             const rangeHeader =
                 request.headers &&
@@ -85,6 +83,11 @@ export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
                     streamId = stream.id;
                     auth = stream.auth;
                     segmentUniqueId = foundSegment.uniqueId;
+                    // Capture duration if available
+                    if (foundSegment.duration && foundSegment.timescale) {
+                        segmentDuration =
+                            foundSegment.duration / foundSegment.timescale;
+                    }
                     break;
                 }
             }
@@ -94,11 +97,9 @@ export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
             }
         }
 
-        // --- FIX: Context-Aware Auth Selection ---
         if (streamId !== null && auth === null) {
             const streamForAuth = streams.find((s) => s.id === streamId);
             if (streamForAuth) {
-                // If it's a license request, prioritize drmAuth
                 if (requestType === LICENSE_REQUEST_TYPE) {
                     auth = streamForAuth.drmAuth;
                 } else {
@@ -108,8 +109,6 @@ export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
         }
 
         if (streamId !== null && auth !== null) {
-            // Note: We don't cache license auth in the general urlAuthMap to avoid
-            // polluting segment requests with license headers.
             if (requestType !== LICENSE_REQUEST_TYPE) {
                 urlAuthMap.set(uri, { streamId, auth, isShaka: true });
             }
@@ -118,7 +117,6 @@ export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
         console.warn('Shaka context lookup failed non-critically:', e);
     }
 
-    // --- Body & Header Sanitization ---
     const safeHeaders = {};
     if (request.headers) {
         for (const key of Object.keys(request.headers)) {
@@ -161,6 +159,7 @@ export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
         auth: auth ? JSON.parse(JSON.stringify(auth)) : null,
         streamId,
         segmentUniqueId: segmentUniqueId || uri,
+        segmentDuration, // Passed to worker for logging context
     };
 
     if (requestType === MANIFEST_REQUEST_TYPE) {

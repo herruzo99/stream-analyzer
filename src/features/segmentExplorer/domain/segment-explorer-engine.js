@@ -1,10 +1,7 @@
 import { inferMediaInfoFromExtension } from '@/infrastructure/parsing/utils/media-types';
-import { appLog } from '@/shared/utils/debug';
 
-/**
- * Core engine for transforming raw stream state into a grid-aligned,
- * virtualizable structure for the Segment Explorer.
- */
+const MAX_HISTORY_PER_TRACK = 2000;
+
 export class SegmentExplorerEngine {
     constructor() {
         this._cache = {
@@ -13,26 +10,32 @@ export class SegmentExplorerEngine {
             lastUpdateSignature: null,
             result: null,
         };
+        this._streamHistory = new Map();
     }
 
-    /**
-     * Creates a signature to detect if expensive reprocessing is needed.
-     */
     _createSignature(stream, activeTab) {
         if (!stream) return null;
         let sig = `${stream.id}-${activeTab}-${stream.protocol}`;
-
-        if (stream.protocol === 'dash') {
-            sig += `-${stream.dashRepresentationState.size}`;
-            const first = stream.dashRepresentationState.values().next().value;
-            if (first && first.segments.length)
-                sig += `-${first.segments.length}`;
-        } else if (stream.protocol === 'hls') {
-            sig += `-${stream.hlsVariantState.size}`;
-            const first = stream.hlsVariantState.values().next().value;
-            if (first && first.segments.length)
-                sig += `-${first.segments.length}`;
+        const latestUpdate = stream.manifestUpdates?.[0];
+        if (latestUpdate) {
+            const seq =
+                latestUpdate.endSequenceNumber || latestUpdate.sequenceNumber;
+            const ts = latestUpdate.endTimestamp || latestUpdate.timestamp;
+            sig += `-${latestUpdate.id}-${seq}-${ts}`;
         }
+
+        let totalSegments = 0;
+        if (stream.protocol === 'dash') {
+            for (const state of stream.dashRepresentationState.values()) {
+                totalSegments += state.segments.length;
+            }
+        } else if (stream.protocol === 'hls') {
+            for (const state of stream.hlsVariantState.values()) {
+                totalSegments += state.segments.length;
+            }
+        }
+
+        sig += `-${totalSegments}`;
         return sig;
     }
 
@@ -63,23 +66,58 @@ export class SegmentExplorerEngine {
                                 .join(', '),
                             lang: as.lang,
                             bandwidth: rep.bandwidth,
+                            repId: repId,
+                            contentType: as.contentType,
                         };
                     }
                 }
             }
         }
-        return { bandwidth: 0 };
+        return { bandwidth: 0, repId: 'unknown', contentType: 'unknown' };
+    }
+
+    _updateHistory(streamId, compositeKey, allSegments, staleThresholdSeq) {
+        if (!this._streamHistory.has(streamId)) {
+            this._streamHistory.set(streamId, new Map());
+        }
+        const streamHistory = this._streamHistory.get(streamId);
+
+        if (!streamHistory.has(compositeKey)) {
+            streamHistory.set(compositeKey, new Map());
+        }
+        const segmentHistory = streamHistory.get(compositeKey);
+
+        allSegments.forEach((seg) => {
+            if (seg.type === 'Media') {
+                const isStale =
+                    staleThresholdSeq !== -1 &&
+                    typeof seg.number === 'number' &&
+                    seg.number < staleThresholdSeq;
+                // Store enriched segment.
+                // NOTE: We must ensure we don't overwrite existing history if it's the same segment
+                // but we do want to update 'isStale' status.
+                segmentHistory.set(seg.uniqueId, { ...seg, _isStale: isStale });
+            }
+        });
+
+        // Prune history
+        if (segmentHistory.size > MAX_HISTORY_PER_TRACK) {
+            const keys = segmentHistory.keys();
+            let removed = 0;
+            while (
+                removed < 100 &&
+                segmentHistory.size > MAX_HISTORY_PER_TRACK
+            ) {
+                segmentHistory.delete(keys.next().value);
+                removed++;
+            }
+        }
+
+        return segmentHistory;
     }
 
     process(stream, activeTab) {
-        if (!stream) {
-            appLog(
-                'SegmentExplorerEngine',
-                'warn',
-                'Process called with null stream.'
-            );
-            return null;
-        }
+        if (!stream) return null;
 
         const signature = this._createSignature(stream, activeTab);
         if (
@@ -89,12 +127,10 @@ export class SegmentExplorerEngine {
             return this._cache.result;
         }
 
-        appLog(
-            'SegmentExplorerEngine',
-            'info',
-            `Processing stream ${stream.id} (${stream.protocol}) for tab '${activeTab}'. State size: HLS=${stream.hlsVariantState.size}, DASH=${stream.dashRepresentationState.size}`
-        );
+        let staleThresholdSeq = -1;
+        const isDynamic = stream.manifest.type === 'dynamic';
 
+        // Gather Tracks
         const allowedTypes = new Set();
         if (activeTab === 'video') allowedTypes.add('video');
         if (activeTab === 'audio') allowedTypes.add('audio');
@@ -104,50 +140,60 @@ export class SegmentExplorerEngine {
             allowedTypes.add('subtitles');
         }
 
-        const rawTracks = [];
-        let minSeq = Infinity;
-        let maxSeq = -Infinity;
+        const groupedTracks = new Map();
 
-        // --- Extraction Phase ---
         if (stream.protocol === 'dash') {
             for (const [
                 key,
                 repState,
             ] of stream.dashRepresentationState.entries()) {
-                if (!repState.segments || repState.segments.length === 0)
-                    continue;
-
+                let repId = 'unknown';
                 const sampleSeg = repState.segments.find(
                     (s) => s.type === 'Media'
                 );
-                if (!sampleSeg) continue;
+                if (sampleSeg) {
+                    repId = sampleSeg.repId;
+                } else {
+                    const parts = key.split('-');
+                    if (parts.length > 1) repId = parts.slice(1).join('-');
+                }
 
-                const contentType = this._getContentType(
-                    stream,
-                    sampleSeg.repId
-                );
-
+                const contentType = this._getContentType(stream, repId);
                 if (allowedTypes.has(contentType)) {
-                    const meta = this._getTrackMeta(stream, sampleSeg.repId);
+                    const fragmentHistory = this._updateHistory(
+                        stream.id,
+                        key,
+                        repState.segments,
+                        staleThresholdSeq
+                    );
 
-                    repState.segments.forEach((s) => {
-                        if (s.type === 'Media') {
-                            if (s.number < minSeq) minSeq = s.number;
-                            if (s.number > maxSeq) maxSeq = s.number;
-                        }
-                    });
+                    if (!groupedTracks.has(repId)) {
+                        groupedTracks.set(repId, {
+                            id: repId,
+                            label: repId,
+                            meta: this._getTrackMeta(stream, repId),
+                            historyMap: new Map(),
+                            newlyAdded: new Set(),
+                            bandwidth: 0,
+                            initSegment: null,
+                        });
+                    }
+                    const group = groupedTracks.get(repId);
 
-                    rawTracks.push({
-                        id: key,
-                        label: sampleSeg.repId,
-                        meta,
-                        rawSegments: repState.segments,
-                        newlyAdded: repState.newlyAddedSegmentUrls || new Set(),
-                        bandwidth: meta.bandwidth,
-                        initSegment: repState.segments.find(
-                            (s) => s.type === 'Init'
-                        ),
-                    });
+                    for (const seg of fragmentHistory.values()) {
+                        group.historyMap.set(seg.uniqueId, seg);
+                    }
+
+                    if (repState.newlyAddedSegmentUrls) {
+                        for (const url of repState.newlyAddedSegmentUrls)
+                            group.newlyAdded.add(url);
+                    }
+                    if (group.meta.bandwidth > group.bandwidth)
+                        group.bandwidth = group.meta.bandwidth;
+                    const init = repState.segments.find(
+                        (s) => s.type === 'Init'
+                    );
+                    if (init) group.initSegment = init;
                 }
             }
         } else if (stream.protocol === 'hls') {
@@ -155,37 +201,28 @@ export class SegmentExplorerEngine {
                 variantId,
                 variantState,
             ] of stream.hlsVariantState.entries()) {
-                if (
-                    !variantState.segments ||
-                    variantState.segments.length === 0
-                ) {
-                    appLog(
-                        'SegmentExplorerEngine',
-                        'info',
-                        `Skipping variant ${variantId}: No segments loaded.`
-                    );
-                    continue;
-                }
-
+                let effectiveType = 'video';
                 const sampleSeg =
                     variantState.segments.find((s) => s.type === 'Media') ||
                     variantState.segments[0];
-                const sampleUrl = sampleSeg.resolvedUrl;
-                const { contentType } = inferMediaInfoFromExtension(sampleUrl);
 
-                // FIX: Robust fallback. If unknown/init, assume video to ensure it appears in default view.
-                const effectiveType =
-                    contentType === 'unknown' || contentType === 'init'
-                        ? 'video'
-                        : contentType;
+                if (sampleSeg) {
+                    const { contentType } = inferMediaInfoFromExtension(
+                        sampleSeg.resolvedUrl
+                    );
+                    effectiveType =
+                        contentType === 'unknown' || contentType === 'init'
+                            ? 'video'
+                            : contentType;
+                }
 
                 if (allowedTypes.has(effectiveType)) {
-                    variantState.segments.forEach((s) => {
-                        if (s.type === 'Media') {
-                            if (s.number < minSeq) minSeq = s.number;
-                            if (s.number > maxSeq) maxSeq = s.number;
-                        }
-                    });
+                    const trackHistory = this._updateHistory(
+                        stream.id,
+                        variantId,
+                        variantState.segments,
+                        staleThresholdSeq
+                    );
 
                     let bandwidth = 0;
                     let codecs = 'HLS';
@@ -200,11 +237,11 @@ export class SegmentExplorerEngine {
                         }
                     }
 
-                    rawTracks.push({
+                    groupedTracks.set(variantId, {
                         id: variantId,
                         label: variantId.split('/').pop().split('?')[0],
                         meta: { codecs, bandwidth, width: 0, height: 0 },
-                        rawSegments: variantState.segments,
+                        historyMap: trackHistory,
                         newlyAdded:
                             variantState.newlyAddedSegmentUrls || new Set(),
                         bandwidth: bandwidth,
@@ -213,45 +250,67 @@ export class SegmentExplorerEngine {
                                 (s) => s.type === 'Init'
                             ) || null,
                     });
-                } else {
-                    appLog(
-                        'SegmentExplorerEngine',
-                        'info',
-                        `Skipping variant ${variantId}: Type '${effectiveType}' not allowed in '${activeTab}' view.`
-                    );
                 }
-            }
-        } else if (stream.protocol === 'local') {
-            const repState = stream.dashRepresentationState.get('0-local-rep');
-            if (repState && allowedTypes.has('video')) {
-                repState.segments.forEach((s) => {
-                    if (s.number < minSeq) minSeq = s.number;
-                    if (s.number > maxSeq) maxSeq = s.number;
-                });
-                rawTracks.push({
-                    id: 'local',
-                    label: 'Local Files',
-                    meta: { count: repState.segments.length },
-                    rawSegments: repState.segments,
-                    newlyAdded: new Set(),
-                    bandwidth: 0,
-                    initSegment: null,
-                });
             }
         }
 
-        appLog(
-            'SegmentExplorerEngine',
-            'info',
-            `Generated ${rawTracks.length} tracks. MinSeq: ${minSeq}, MaxSeq: ${maxSeq}`
-        );
+        const rawTracks = Array.from(groupedTracks.values());
 
-        if (minSeq === Infinity) {
-            // Empty result
+        // 1. Find global min start time across all tracks to normalize X=0
+        let globalMinTime = Infinity;
+        let globalMaxTime = -Infinity;
+
+        const getAbsTime = (seg) => {
+            // DASH: periodStart is absolute time offset for period
+            if (
+                seg.periodStart !== undefined &&
+                seg.time !== undefined &&
+                seg.timescale
+            ) {
+                return seg.periodStart + seg.time / seg.timescale;
+            }
+            // HLS: time is usually accumulated duration
+            return seg.time || 0;
+        };
+
+        const getDurationSec = (seg) => {
+            if (seg.duration && seg.timescale)
+                return seg.duration / seg.timescale;
+            return 0;
+        };
+
+        // Prepare flat lists for rendering
+        const processedTracks = rawTracks.map((track) => {
+            const segments = Array.from(track.historyMap.values())
+                .map((seg) => {
+                    const start = getAbsTime(seg);
+                    const duration = getDurationSec(seg);
+                    return {
+                        ...seg,
+                        start,
+                        end: start + duration,
+                        durationSec: duration,
+                    };
+                })
+                .sort((a, b) => a.start - b.start);
+
+            if (segments.length > 0) {
+                if (segments[0].start < globalMinTime)
+                    globalMinTime = segments[0].start;
+                const last = segments[segments.length - 1];
+                if (last.end > globalMaxTime) globalMaxTime = last.end;
+            }
+
+            return {
+                ...track,
+                segments,
+            };
+        });
+
+        if (globalMinTime === Infinity) {
             const emptyResult = {
                 tracks: [],
-                gridBounds: { minSeq: 0, maxSeq: 0, totalColumns: 0 },
-                baselineDuration: 0,
+                timeBounds: { start: 0, end: 0 },
             };
             this._cache = {
                 streamId: stream.id,
@@ -262,43 +321,28 @@ export class SegmentExplorerEngine {
             return emptyResult;
         }
 
-        // --- Normalization Phase ---
-        rawTracks.sort((a, b) => b.bandwidth - a.bandwidth);
+        // Sort tracks by bandwidth
+        processedTracks.sort((a, b) => b.bandwidth - a.bandwidth);
 
-        const totalColumns = maxSeq - minSeq + 1;
-
-        let baselineDuration = 2;
-        if (rawTracks.length > 0 && rawTracks[0].rawSegments.length > 0) {
-            const samples = rawTracks[0].rawSegments
-                .filter((s) => s.type === 'Media')
-                .slice(0, 20);
-            if (samples.length) {
-                const durs = samples
-                    .map((s) => s.duration / s.timescale)
-                    .sort((a, b) => a - b);
-                baselineDuration = durs[Math.floor(durs.length / 2)];
-            }
-        }
-
-        const tracks = rawTracks.map((track) => {
-            const segmentMap = new Map();
-            track.rawSegments.forEach((s) => {
-                if (s.type === 'Media') {
-                    segmentMap.set(s.number - minSeq, s);
-                }
+        // Normalize times to 0
+        processedTracks.forEach((track) => {
+            track.segments.forEach((seg) => {
+                seg.relStart = seg.start - globalMinTime;
+                seg.relEnd = seg.end - globalMinTime;
             });
-
-            return {
-                ...track,
-                segmentMap,
-            };
         });
 
+        const totalDuration = Math.max(0, globalMaxTime - globalMinTime);
+
         const result = {
-            tracks,
-            gridBounds: { minSeq, maxSeq, totalColumns },
-            baselineDuration,
+            tracks: processedTracks,
+            timeBounds: {
+                start: globalMinTime,
+                end: globalMaxTime,
+                duration: totalDuration,
+            },
             activeStreamId: stream.id,
+            isLive: isDynamic,
         };
 
         this._cache = {

@@ -66,6 +66,7 @@ async function buildDrmConfig(streamDef) {
                     serverCertificate: certBuffer
                         ? new Uint8Array(certBuffer)
                         : undefined,
+                    headers: licenseRequestHeaders,
                 };
             }
         }
@@ -109,7 +110,6 @@ function setLatencyConfiguration(player, config) {
         rebufferingGoal,
     } = config;
 
-    // We adjust bufferBehind to ensure we don't aggressively evict data we might need if latency drifts
     const bufferBehind = targetLatency + 10;
 
     const newConfig = {
@@ -124,7 +124,6 @@ function setLatencyConfiguration(player, config) {
                 maxPlaybackRate,
                 panicMode,
                 panicThreshold,
-                // Removed maxLatency as it is not a valid Shaka 4.x configuration key for liveSync
             },
         },
     };
@@ -183,10 +182,17 @@ function applyStreamConfig(player, playerState) {
         playerState.abrOverride !== null
             ? playerState.abrOverride
             : globalAbrEnabled;
+
     const maxHeight =
         playerState.maxHeightOverride !== null
             ? playerState.maxHeightOverride
             : globalMaxHeight;
+
+    const maxBandwidth =
+        playerState.maxBandwidthOverride !== null
+            ? playerState.maxBandwidthOverride
+            : globalBandwidthCap;
+
     const bufferingGoal =
         playerState.bufferingGoalOverride !== null
             ? playerState.bufferingGoalOverride
@@ -196,7 +202,7 @@ function applyStreamConfig(player, playerState) {
         abr: { enabled: abrEnabled },
         restrictions: {
             maxHeight: maxHeight,
-            maxBandwidth: globalBandwidthCap,
+            maxBandwidth: maxBandwidth,
         },
         streaming: { bufferingGoal },
     });

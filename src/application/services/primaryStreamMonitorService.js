@@ -12,6 +12,16 @@ const oneTimePollers = new Map();
 let inactivityTimer = null;
 const INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
+// Track consecutive unchanged updates per stream for adaptive polling
+const backoffState = new Map(); // { [streamId]: { unchangedCount: 0 } }
+
+function getBackoffState(streamId) {
+    if (!backoffState.has(streamId)) {
+        backoffState.set(streamId, { unchangedCount: 0 });
+    }
+    return backoffState.get(streamId);
+}
+
 async function monitorStream(streamId) {
     const stream = useAnalysisStore
         .getState()
@@ -32,7 +42,7 @@ async function monitorStream(streamId) {
         appLog(
             'PrimaryMonitor',
             'info',
-            `Polling stream ${streamId} at ${urlToPoll}. Using manifest from timestamp ${latestUpdate?.timestamp} for comparison.`
+            `Polling stream ${streamId} at ${urlToPoll}.`
         );
 
         // --- UNIFICATION: Use the same worker task as the Shaka plugin ---
@@ -41,13 +51,12 @@ async function monitorStream(streamId) {
             streamId: stream.id,
             url: urlToPoll,
             auth: stream.auth,
-            isLive: true, // <-- ARCHITECTURAL FIX: Explicitly flag as a live poll.
+            isLive: true,
             oldRawManifest: oldRawManifestForDiff,
             protocol: stream.protocol,
             baseUrl: stream.baseUrl,
             hlsDefinedVariables: stream.hlsDefinedVariables,
             oldManifestObjectForDelta: stream.manifest?.serializedManifest,
-            // Pass current segment and ad state to the worker for diffing
             oldDashRepresentationState: Array.from(
                 stream.dashRepresentationState.entries()
             ),
@@ -56,8 +65,7 @@ async function monitorStream(streamId) {
             segmentPollingReps: Array.from(stream.segmentPollingReps || []),
         };
 
-        // This task now triggers a 'livestream:manifest-updated' message on the main thread,
-        // which is handled by the LiveUpdateProcessor service.
+        // Triggers 'livestream:manifest-updated' which we listen to for adaptive logic
         await workerService.postTask(workerTask, payload).promise;
     } catch (e) {
         console.error(
@@ -73,26 +81,50 @@ async function monitorStream(streamId) {
 }
 
 function calculatePollInterval(stream) {
-    const { globalPollingIntervalOverride } = useUiStore.getState();
+    const { globalPollingIntervalOverride, pollingMode } =
+        useUiStore.getState();
 
     // Precedence: Per-stream -> Global -> Auto-calculated
+    let baseInterval = 2000; // Default floor
+
     if (
         stream.pollingIntervalOverride !== undefined &&
         stream.pollingIntervalOverride !== null
     ) {
-        return Math.max(stream.pollingIntervalOverride * 1000, 2000);
+        baseInterval = Math.max(stream.pollingIntervalOverride * 1000, 1000);
+    } else if (globalPollingIntervalOverride !== null) {
+        baseInterval = Math.max(globalPollingIntervalOverride * 1000, 1000);
+    } else {
+        const updatePeriodSeconds =
+            stream.manifest.minimumUpdatePeriod ||
+            stream.manifest.targetDuration || // HLS
+            stream.manifest.minBufferTime || // DASH fallback
+            2;
+        baseInterval = Math.max(updatePeriodSeconds * 1000, 2000);
     }
 
-    if (globalPollingIntervalOverride !== null) {
-        return Math.max(globalPollingIntervalOverride * 1000, 2000);
+    // --- Adaptive Logic ---
+    if (pollingMode === 'smart') {
+        const state = getBackoffState(stream.id);
+        if (state.unchangedCount > 0) {
+            // Backoff: 10% increase per miss, capped at 2.5x base or 10s max extra
+            const multiplier = 1 + Math.min(state.unchangedCount * 0.1, 1.5);
+            const adaptiveInterval = baseInterval * multiplier;
+
+            // If backoff is significant, log it occasionally
+            if (state.unchangedCount % 5 === 0) {
+                appLog(
+                    'PrimaryMonitor',
+                    'info',
+                    `Smart Polling: Backing off stream ${stream.id} to ${adaptiveInterval.toFixed(0)}ms (Misses: ${state.unchangedCount})`
+                );
+            }
+
+            return adaptiveInterval;
+        }
     }
 
-    const updatePeriodSeconds =
-        stream.manifest.minimumUpdatePeriod ||
-        stream.manifest.targetDuration || // HLS
-        stream.manifest.minBufferTime || // DASH fallback
-        2;
-    return Math.max(updatePeriodSeconds * 1000, 2000);
+    return baseInterval;
 }
 
 function startMonitoring(stream) {
@@ -150,6 +182,10 @@ function stopMonitoring(streamId) {
         clearTimeout(oneTimePollers.get(streamId));
         oneTimePollers.delete(streamId);
     }
+    // Reset backoff state
+    if (backoffState.has(streamId)) {
+        backoffState.set(streamId, { unchangedCount: 0 });
+    }
 }
 
 export function managePollers() {
@@ -188,11 +224,12 @@ export function managePollers() {
         if (stream.isPolling) {
             if (!isCurrentlyPolling) {
                 startMonitoring(stream);
-            } else if (poller.pollInterval !== newPollInterval) {
+            } else if (Math.abs(poller.pollInterval - newPollInterval) > 100) {
+                // Only restart if difference is significant (>100ms) to avoid jitter
                 appLog(
                     'PrimaryMonitor',
                     'info',
-                    `Restarting poller for stream ${stream.id} due to interval change.`
+                    `Adjusting poller for stream ${stream.id} to ${newPollInterval.toFixed(0)}ms (Smart Mode)`
                 );
                 stopMonitoring(stream.id);
                 startMonitoring(stream);
@@ -238,11 +275,6 @@ function handleVisibilityChange() {
         const { inactivityTimeoutOverride } = useUiStore.getState();
 
         if (inactivityTimeoutOverride === Infinity) {
-            appLog(
-                'PrimaryMonitor',
-                'info',
-                'Inactivity timeout disabled by user override. Polling will continue in background.'
-            );
             return;
         }
 
@@ -250,12 +282,6 @@ function handleVisibilityChange() {
             inactivityTimeoutOverride === null
                 ? INACTIVITY_TIMEOUT_MS
                 : inactivityTimeoutOverride;
-
-        appLog(
-            'PrimaryMonitor',
-            'info',
-            `Tab is hidden. Setting inactivity timer for ${timeoutMs / 1000} seconds.`
-        );
 
         inactivityTimer = setTimeout(() => {
             const isAnyPolling = useAnalysisStore
@@ -279,13 +305,43 @@ function handleVisibilityChange() {
     }
 }
 
+// --- Update Listener for Adaptive Logic ---
+function onManifestUpdated(payload) {
+    const { streamId, changes } = payload;
+    const state = getBackoffState(streamId);
+
+    const isUnchanged =
+        changes.additions === 0 &&
+        changes.removals === 0 &&
+        changes.modifications === 0;
+
+    if (isUnchanged) {
+        state.unchangedCount++;
+    } else {
+        // Reset immediately on new content so we catch the next segment quickly
+        state.unchangedCount = 0;
+
+        // Force poller check immediately to reset interval
+        managePollers();
+    }
+    // Note: If unchanged, we wait for managePollers tick (1s) to adjust interval.
+}
+
 let tickerSubscription = null;
+let manifestUpdateSubscription = null;
 
 export function initializeLiveStreamMonitor() {
     if (tickerSubscription) tickerSubscription();
+    if (manifestUpdateSubscription) manifestUpdateSubscription();
+
     tickerSubscription = eventBus.subscribe(
         EVENTS.TICKER.ONE_SECOND,
         managePollers
+    );
+
+    manifestUpdateSubscription = eventBus.subscribe(
+        EVENTS.LIVESTREAM.MANIFEST_UPDATED,
+        onManifestUpdated
     );
 
     eventBus.subscribe(EVENTS.STATE.STREAM_UPDATED, managePollers);
@@ -307,6 +363,10 @@ export function stopAllMonitoring() {
         tickerSubscription();
         tickerSubscription = null;
     }
+    if (manifestUpdateSubscription) {
+        manifestUpdateSubscription();
+        manifestUpdateSubscription = null;
+    }
     for (const poller of pollers.values()) {
         if (poller.tickSubscription) poller.tickSubscription();
     }
@@ -315,6 +375,7 @@ export function stopAllMonitoring() {
         clearTimeout(timerId);
     }
     oneTimePollers.clear();
+    backoffState.clear();
     if (inactivityTimer) {
         clearTimeout(inactivityTimer);
         inactivityTimer = null;

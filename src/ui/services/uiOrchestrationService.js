@@ -5,6 +5,7 @@ import {
     getInheritedElement,
 } from '@/infrastructure/parsing/utils/recursive-parser';
 import { getParsedSegment } from '@/infrastructure/segments/segmentService';
+import { parseDuration } from '@/shared/utils/time';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { useSegmentCacheStore } from '@/state/segmentCacheStore';
 import { EVENTS } from '@/types/events';
@@ -13,6 +14,16 @@ import { showToast } from '@/ui/components/toast';
 import { openModalWithContent } from '@/ui/services/modalService';
 
 export function initializeUiOrchestration() {
+    // --- Memory Management Modal (NEW) ---
+    eventBus.subscribe('ui:memory-modal:open', () => {
+        openModalWithContent({
+            title: '',
+            url: '',
+            content: { type: 'memoryManagement', data: {} },
+            isFullWidth: true,
+        });
+    });
+
     // --- Segment Analysis Modal ---
     eventBus.subscribe(
         EVENTS.UI.SHOW_SEGMENT_ANALYSIS_MODAL,
@@ -29,7 +40,7 @@ export function initializeUiOrchestration() {
                         data: {
                             parsedData: cachedEntry.parsedData,
                             isIFrame: isIFrame,
-                            uniqueId: uniqueId, // Pass uniqueId for raw data retrieval
+                            uniqueId: uniqueId,
                         },
                     },
                 });
@@ -50,7 +61,7 @@ export function initializeUiOrchestration() {
                             data: {
                                 parsedData: parsedData,
                                 isIFrame,
-                                uniqueId: uniqueId, // Pass uniqueId here too
+                                uniqueId: uniqueId,
                             },
                         },
                     });
@@ -174,13 +185,30 @@ export function initializeUiOrchestration() {
                 return;
             }
 
+            let duration = parseFloat(getAttr(template, 'duration'));
+            if (isNaN(duration)) {
+                const timeline = findChildrenRecursive(
+                    template,
+                    'SegmentTimeline'
+                )[0];
+                if (timeline) {
+                    const sElements = findChildrenRecursive(timeline, 'S');
+                    let maxDuration = 0;
+                    for (const s of sElements) {
+                        const d = parseFloat(getAttr(s, 'd') || '0');
+                        if (d > maxDuration) maxDuration = d;
+                    }
+                    if (maxDuration > 0) duration = maxDuration;
+                }
+            }
+
             const data = {
                 ast: new Date(
                     getAttr(manifest, 'availabilityStartTime') || 0
                 ).getTime(),
-                periodStart: parseFloat(getAttr(period, 'start') || 0),
+                periodStart: parseDuration(getAttr(period, 'start')) || 0,
                 timescale: parseFloat(getAttr(template, 'timescale')),
-                duration: parseFloat(getAttr(template, 'duration')),
+                duration: duration,
                 startNumber: parseInt(getAttr(template, 'startNumber') || 1),
                 pto: parseFloat(
                     getAttr(template, 'presentationTimeOffset') || 0

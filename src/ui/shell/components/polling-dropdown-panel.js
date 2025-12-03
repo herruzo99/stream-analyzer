@@ -37,8 +37,7 @@ const INACTIVITY_TIMEOUT_OPTIONS = [
     },
 ];
 
-const POLLING_INTERVAL_OPTIONS = [
-    { id: null, label: 'Auto (Manifest)' },
+const BASE_INTERVAL_OPTIONS = [
     { id: 2, label: '2 seconds' },
     { id: 5, label: '5 seconds' },
     { id: 10, label: '10 seconds' },
@@ -46,25 +45,33 @@ const POLLING_INTERVAL_OPTIONS = [
     { id: 60, label: '60 seconds' },
 ];
 
-const GLOBAL_INTERVAL_OPTIONS = [
-    {
-        id: null,
-        label: 'Use Per-Stream Setting',
-        description: 'Respect individual stream configs.',
-    },
-    ...POLLING_INTERVAL_OPTIONS.slice(1).map((o) => ({
-        ...o,
-        description: 'Force all streams to this interval.',
-    })),
-];
-
 /**
  * Renders the interval selection dropdown (for both Global and Per-Stream contexts).
  */
-const intervalSelectorTemplate = (currentValue, isGlobal, streamId = null) => {
-    const options = isGlobal
-        ? GLOBAL_INTERVAL_OPTIONS
-        : POLLING_INTERVAL_OPTIONS;
+const intervalSelectorTemplate = (
+    currentValue,
+    isGlobal,
+    streamId = null,
+    autoLabel = 'Auto (Manifest)'
+) => {
+    const perStreamOptions = [
+        { id: null, label: autoLabel },
+        ...BASE_INTERVAL_OPTIONS,
+    ];
+
+    const globalOptions = [
+        {
+            id: null,
+            label: 'Use Per-Stream Setting',
+            description: 'Respect individual stream configs.',
+        },
+        ...BASE_INTERVAL_OPTIONS.map((o) => ({
+            ...o,
+            description: 'Force all streams to this interval.',
+        })),
+    ];
+
+    const options = isGlobal ? globalOptions : perStreamOptions;
 
     const handleSelect = (option, event) => {
         event.stopPropagation();
@@ -289,15 +296,28 @@ const conditionalPollingUI = (liveStreams) => {
 // --- Main Panel ---
 export const pollingDropdownPanelTemplate = () => {
     const { streams } = useAnalysisStore.getState();
-    const { inactivityTimeoutOverride, globalPollingIntervalOverride } =
-        useUiStore.getState();
+    const {
+        inactivityTimeoutOverride,
+        globalPollingIntervalOverride,
+        pollingMode,
+    } = useUiStore.getState();
     const liveStreams = streams.filter((s) => s.manifest?.type === 'dynamic');
     const isAnyPolling = liveStreams.some((s) => s.isPolling);
+
+    const isSmart = pollingMode === 'smart';
+
+    // Dynamic Labels based on Polling Strategy
+    const autoLabelShort = isSmart ? 'Auto (Smart)' : 'Auto';
+    const autoLabelLong = isSmart
+        ? 'Auto (Smart / Adaptive)'
+        : 'Auto (Manifest)';
+    const globalLabelSuffix = isSmart ? 'Smart' : 'Fixed';
 
     const isGlobalOverride = globalPollingIntervalOverride !== null;
     const globalIntervalLabel = isGlobalOverride
         ? `${globalPollingIntervalOverride}s`
-        : 'Mixed';
+        : `Mixed (${globalLabelSuffix})`;
+
     const timeoutLabel =
         INACTIVITY_TIMEOUT_OPTIONS.find(
             (o) => o.id === inactivityTimeoutOverride
@@ -374,7 +394,7 @@ export const pollingDropdownPanelTemplate = () => {
                                       const interval =
                                           stream.pollingIntervalOverride
                                               ? `${stream.pollingIntervalOverride}s`
-                                              : 'Auto';
+                                              : autoLabelShort;
 
                                       return html`
                                           <div
@@ -421,7 +441,8 @@ export const pollingDropdownPanelTemplate = () => {
                                                               intervalSelectorTemplate(
                                                                   stream.pollingIntervalOverride,
                                                                   false,
-                                                                  stream.id
+                                                                  stream.id,
+                                                                  autoLabelLong
                                                               ),
                                                           e
                                                       )}
@@ -447,6 +468,48 @@ export const pollingDropdownPanelTemplate = () => {
 
                 <!-- Quick Settings -->
                 <div class="p-2 space-y-1 border-b border-white/5">
+                    <!-- Polling Mode Toggle -->
+                    <button
+                        @click=${(e) => {
+                            e.stopPropagation();
+                            uiActions.setPollingMode(
+                                isSmart ? 'fixed' : 'smart'
+                            );
+                        }}
+                        class="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-white/5 border border-transparent hover:border-white/10 transition-all group text-left"
+                    >
+                        <div
+                            class="p-2 rounded-md bg-slate-800 text-slate-400 group-hover:text-white group-hover:bg-slate-700 transition-colors"
+                        >
+                            ${isSmart ? icons.activity : icons.clock}
+                        </div>
+                        <div class="grow">
+                            <div
+                                class="font-bold text-xs text-slate-200 group-hover:text-white"
+                            >
+                                Polling Strategy
+                            </div>
+                            <div
+                                class="text-[10px] text-slate-500 group-hover:text-slate-400"
+                            >
+                                ${isSmart
+                                    ? 'Smart (Adaptive Backoff)'
+                                    : 'Fixed Interval (Exact)'}
+                            </div>
+                        </div>
+                        <div
+                            class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${isSmart
+                                ? 'bg-blue-600'
+                                : 'bg-slate-700'}"
+                        >
+                            <span
+                                class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform shadow-sm ${isSmart
+                                    ? 'translate-x-4.5'
+                                    : 'translate-x-0.5'}"
+                            ></span>
+                        </div>
+                    </button>
+
                     <button
                         @click=${(e) =>
                             toggleDropdown(

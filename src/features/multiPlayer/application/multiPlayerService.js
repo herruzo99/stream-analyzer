@@ -16,85 +16,71 @@ class MultiPlayerService {
     #loadQueue = Promise.resolve();
 
     constructor() {
+        /** @type {Map<number, any>} */
         this.players = new Map();
+        /** @type {Map<number, HTMLVideoElement>} */
         this.videoElements = new Map();
         this.stallCalculators = new Map();
         this.tickerSubscription = null;
-        this.retryTimers = new Map(); // Track active timeouts to clear them on destroy
+        this.retryTimers = new Map();
     }
-    // ... (methods initialize, bindMediaElement, unbindMediaElement, createAndLoadPlayer, loadStreamIntoPlayer, addVideoElementListeners, _handlePlayerError, startStatsCollection, stopStatsCollection, destroyAll remain unchanged) ...
+
     initialize() {
         appLog('MultiPlayerService.initialize', 'info', 'Service initialized.');
     }
 
-    async bindMediaElement(streamId, element) {
-        if (!element) return;
-        this.videoElements.set(streamId, element);
-        element.disablePictureInPicture = true;
-        element.muted = useMultiPlayerStore.getState().isMutedAll;
-        this.addVideoElementListeners(element, streamId);
+    getVideoElement(streamId) {
+        if (!this.videoElements.has(streamId)) {
+            const video = document.createElement('video');
+            video.className = 'w-full h-full object-contain';
+            video.autoplay = false; // Changed to false to prevent auto-start
+            video.playsInline = true;
+            video.muted = useMultiPlayerStore.getState().isMutedAll;
 
-        const player = this.players.get(streamId);
-        if (player) {
-            try {
-                await player.attach(element);
-                if (!player.getAssetUri()) {
-                    const { players } = useMultiPlayerStore.getState();
-                    const playerState = players.get(streamId);
-                    if (playerState) {
-                        const { streams } = useAnalysisStore.getState();
-                        const streamDef = streams.find(
-                            (s) => s.id === playerState.sourceStreamId
-                        );
-                        if (streamDef) {
-                            await this.loadStreamIntoPlayer(
-                                streamDef,
-                                player,
-                                streamId,
-                                playerState.initialState
-                            );
-                        }
-                    }
-                }
-            } catch (e) {
-                console.error(`Attach failed for ${streamId}`, e);
-            }
+            this.videoElements.set(streamId, video);
+            this.addVideoElementListeners(video, streamId);
         }
-    }
-
-    async unbindMediaElement(streamId) {
-        const player = this.players.get(streamId);
-        if (player) await player.detach().catch(() => {});
-        this.videoElements.delete(streamId);
+        return this.videoElements.get(streamId);
     }
 
     async createAndLoadPlayer(playerState) {
+        if (!playerState) {
+            console.warn(
+                '[MultiPlayerService] createAndLoadPlayer called with null state'
+            );
+            return;
+        }
+
         const serializedOperation = async () => {
+            if (!playerState) return;
             const { streamId } = playerState;
-            if (!playerState || this.players.has(streamId)) return;
+            const videoElement = this.getVideoElement(streamId);
 
-            const shaka = await getShaka();
-            const player = new shaka.Player();
-            this.players.set(streamId, player);
-            this.stallCalculators.set(streamId, new StallCalculator());
+            if (!this.players.has(streamId)) {
+                const shaka = await getShaka();
+                const player = new shaka.Player();
+                await player.attach(videoElement);
 
-            player.addEventListener('error', (e) =>
-                this._handlePlayerError(streamId, /** @type {any} */ (e).detail)
-            );
+                this.players.set(streamId, player);
+                this.stallCalculators.set(streamId, new StallCalculator());
 
-            const { streams } = useAnalysisStore.getState();
-            const streamDef = streams.find(
-                (s) => s.id === playerState.sourceStreamId
-            );
+                player.addEventListener('error', (e) =>
+                    this._handlePlayerError(
+                        streamId,
+                        /** @type {any} */ (e).detail
+                    )
+                );
 
-            if (streamDef) {
-                player.streamAnalyzerStreamId = streamDef.id;
-                player.getNetworkingEngine().streamAnalyzerStreamId =
-                    streamDef.id;
+                const { streams } = useAnalysisStore.getState();
+                const streamDef = streams.find(
+                    (s) => s.id === playerState.sourceStreamId
+                );
 
-                const videoElement = this.videoElements.get(streamId);
-                if (videoElement) {
-                    await player.attach(videoElement);
+                if (streamDef) {
+                    player.streamAnalyzerStreamId = streamDef.id;
+                    player.getNetworkingEngine().streamAnalyzerStreamId =
+                        streamDef.id;
+
                     await this.loadStreamIntoPlayer(
                         streamDef,
                         player,
@@ -104,6 +90,7 @@ class MultiPlayerService {
                 }
             }
         };
+
         this.#loadQueue = this.#loadQueue.then(() => serializedOperation());
         return this.#loadQueue;
     }
@@ -115,7 +102,6 @@ class MultiPlayerService {
         initialState
     ) {
         try {
-            // Clear any pending retry timers if manual load is triggered
             if (this.retryTimers.has(uniqueStreamId)) {
                 clearTimeout(this.retryTimers.get(uniqueStreamId));
                 this.retryTimers.delete(uniqueStreamId);
@@ -125,23 +111,23 @@ class MultiPlayerService {
                 state: 'loading',
                 error: null,
             });
+
             const drmConfig =
                 await playerConfigService.buildDrmConfig(streamDef);
             player.configure({ drm: drmConfig });
             this.applyStreamConfig(uniqueStreamId);
 
             let startTime = initialState?.currentTime;
-
             await player.load(streamDef.originalUrl, startTime);
 
             const videoTracks = player.getVariantTracks();
             const activeVideoTrack = videoTracks.find((t) => t.active) || null;
-            const videoEl = this.videoElements.get(uniqueStreamId);
+            const videoEl = this.getVideoElement(uniqueStreamId);
 
+            // Default to paused unless explicitly carrying over a playing state (e.g. duplication)
             let finalState = 'paused';
-            if (initialState && videoEl) {
-                videoEl.currentTime = initialState.currentTime;
-                if (!initialState.paused) finalState = 'playing';
+            if (initialState && !initialState.paused) {
+                finalState = 'playing';
             }
 
             useMultiPlayerStore.getState().updatePlayerState(uniqueStreamId, {
@@ -151,12 +137,12 @@ class MultiPlayerService {
                 activeVideoTrack: activeVideoTrack,
                 audioTracks: player.getAudioLanguagesAndRoles(),
                 textTracks: player.getTextTracks(),
-                retryCount: 0, // Reset retry count on successful load
+                retryCount: 0,
             });
 
-            if (finalState === 'playing' && videoEl) {
+            if (finalState === 'playing') {
                 await videoEl.play().catch((e) => {
-                    console.warn(`Autoplay blocked for ${uniqueStreamId}`);
+                    console.warn(`Autoplay blocked for ${uniqueStreamId}`, e);
                     useMultiPlayerStore
                         .getState()
                         .updatePlayerState(uniqueStreamId, { state: 'paused' });
@@ -182,16 +168,13 @@ class MultiPlayerService {
     }
 
     _handlePlayerError(streamId, error) {
-        if (error.code === 7000) return; // Ignore LOAD_INTERRUPTED
+        if (error.code === 7000) return;
         const message = parseShakaError(error);
         const store = useMultiPlayerStore.getState();
         const playerState = store.players.get(streamId);
         const streamName = playerState?.streamName || `Stream ${streamId}`;
 
-        // 1. Update State to Error
         store.updatePlayerState(streamId, { state: 'error', error: message });
-
-        // 2. Log the initial error
         store.logEvent({
             streamId,
             streamName,
@@ -200,58 +183,36 @@ class MultiPlayerService {
             severity: 'critical',
         });
 
-        // 3. Auto-Reset Logic
         if (store.isAutoResetEnabled) {
             const currentRetries = playerState?.retryCount || 0;
-
             if (currentRetries < MAX_RETRIES) {
                 const nextRetryCount = currentRetries + 1;
-
-                // Exponential Backoff with Jitter
                 const backoff =
                     INITIAL_RETRY_DELAY_MS *
                     Math.pow(2, currentRetries) *
                     (1 + Math.random() * JITTER_FACTOR);
-                const delay = Math.min(backoff, 30000); // Cap at 30s
+                const delay = Math.min(backoff, 30000);
 
-                const delaySec = (delay / 1000).toFixed(1);
-
-                // Log the restart attempt
-                store.logEvent({
-                    streamId,
-                    streamName,
-                    type: 'lifecycle',
-                    details: `Auto-reset enabled. Retrying attempt ${nextRetryCount}/${MAX_RETRIES} in ${delaySec}s...`,
-                    severity: 'warning',
-                });
-
-                // Increment retry count in state immediately
                 store.updatePlayerState(streamId, {
                     retryCount: nextRetryCount,
                 });
 
-                // Clear existing timer if any
                 if (this.retryTimers.has(streamId)) {
                     clearTimeout(this.retryTimers.get(streamId));
                 }
-
-                // Schedule Reset
                 const timerId = setTimeout(() => {
-                    // Check if player still exists before resetting
                     if (this.players.has(streamId)) {
                         this.resetSinglePlayer(streamId);
                     }
                     this.retryTimers.delete(streamId);
                 }, delay);
-
                 this.retryTimers.set(streamId, timerId);
             } else {
-                // Max retries exhausted
                 store.logEvent({
                     streamId,
                     streamName,
                     type: 'error',
-                    details: `Auto-reset failed after ${MAX_RETRIES} attempts. Manual intervention required.`,
+                    details: `Auto-reset failed after ${MAX_RETRIES} attempts.`,
                     severity: 'critical',
                 });
             }
@@ -296,7 +257,6 @@ class MultiPlayerService {
                     const { totalStalls, totalStallDuration } =
                         stallCalculator.update(shakaStats.stateHistory);
 
-                    // Detect NEW stalls by comparing against previous state
                     const prevStalls =
                         currentPlayerState.stats?.playbackQuality
                             ?.totalStalls || 0;
@@ -305,7 +265,7 @@ class MultiPlayerService {
                             streamId,
                             streamName: currentPlayerState.streamName,
                             type: 'stall',
-                            details: `Stall detected. Buffer dropped to 0.`,
+                            details: `Stall detected.`,
                             severity: 'warning',
                         });
                     }
@@ -315,7 +275,8 @@ class MultiPlayerService {
                     if (buffered) {
                         for (let i = 0; i < buffered.length; i++) {
                             if (
-                                buffered.start(i) <= videoEl.currentTime &&
+                                buffered.start(i) <=
+                                    videoEl.currentTime + 0.1 &&
                                 buffered.end(i) >= videoEl.currentTime
                             ) {
                                 bufferEnd = buffered.end(i);
@@ -327,6 +288,23 @@ class MultiPlayerService {
                     const activeTrack = shakaPlayer
                         .getVariantTracks()
                         .find((t) => t.active);
+
+                    const currentHistory =
+                        currentPlayerState.playbackHistory || [];
+                    const newEntry = {
+                        time: videoEl.currentTime,
+                        buffer: Math.max(0, bufferEnd - videoEl.currentTime),
+                        loadLatency: shakaStats.loadLatency || 0,
+                        bitrate: activeTrack?.videoBandwidth || 0,
+                        bandwidth: shakaStats.estimatedBandwidth,
+                        bufferHealth: Math.max(
+                            0,
+                            bufferEnd - videoEl.currentTime
+                        ),
+                    };
+                    const updatedHistory = [...currentHistory, newEntry].slice(
+                        -150
+                    );
 
                     updates.push({
                         streamId,
@@ -341,6 +319,8 @@ class MultiPlayerService {
                                     totalStalls,
                                     totalStallDuration,
                                     timeToFirstFrame: 0,
+                                    decodedFrames:
+                                        shakaStats.decodedFrames || 0,
                                 },
                                 abr: {
                                     currentVideoBitrate:
@@ -349,13 +329,11 @@ class MultiPlayerService {
                                         shakaStats.estimatedBandwidth,
                                     switchesUp: 0,
                                     switchesDown: 0,
+                                    loadLatency: shakaStats.loadLatency,
                                 },
                                 buffer: {
                                     label: 'Buffer',
-                                    seconds: Math.max(
-                                        0,
-                                        bufferEnd - videoEl.currentTime
-                                    ),
+                                    seconds: newEntry.buffer,
                                     totalGaps: 0,
                                 },
                                 session: {
@@ -367,6 +345,7 @@ class MultiPlayerService {
                             activeVideoTrack: activeTrack,
                             seekableRange,
                             normalizedPlayheadTime,
+                            playbackHistory: updatedHistory,
                         },
                     });
                 }
@@ -437,6 +416,12 @@ class MultiPlayerService {
                     if (player && player.isLive()) player.goToLive();
                     break;
                 }
+                case 'seek-frame-forward':
+                    videoEl.currentTime += 0.04;
+                    break;
+                case 'seek-frame-backward':
+                    videoEl.currentTime -= 0.04;
+                    break;
             }
         }
     }
@@ -447,33 +432,69 @@ class MultiPlayerService {
             (p) => p.selectedForAction
         );
 
+        if (selectedPlayers.length === 0) {
+            showToast({ message: 'No players selected.', type: 'warn' });
+            return;
+        }
+
         for (const playerState of selectedPlayers) {
             const shakaPlayer = this.players.get(playerState.streamId);
             if (!shakaPlayer) continue;
 
+            const overrides = {};
+
+            // 1. ABR
             if (config.abrEnabled !== undefined) {
-                setStreamOverride(playerState.streamId, {
-                    abr: config.abrEnabled,
-                });
+                overrides.abr = config.abrEnabled;
                 playerConfigService.setAbrEnabled(
                     shakaPlayer,
                     config.abrEnabled
                 );
             }
 
+            // 2. Max Height (Resolution Cap)
+            if (config.maxHeight !== undefined) {
+                overrides.maxHeight = config.maxHeight;
+                // Apply directly to restrictions as well
+                const currentConfig = shakaPlayer.getConfiguration();
+                const restrictions = currentConfig.restrictions || {};
+                restrictions.maxHeight = config.maxHeight;
+                shakaPlayer.configure({ restrictions });
+            }
+
+            // 3. Bandwidth Cap
+            if (config.maxBandwidth !== undefined) {
+                overrides.maxBandwidth = config.maxBandwidth;
+                const currentConfig = shakaPlayer.getConfiguration();
+                const restrictions = currentConfig.restrictions || {};
+                restrictions.maxBandwidth = config.maxBandwidth;
+                shakaPlayer.configure({ restrictions });
+            }
+
+            // 4. Manual Track Selection
             if (config.trackByHeight !== undefined) {
-                if (
-                    playerConfigService.setGlobalTrackByHeight(
-                        shakaPlayer,
-                        config.trackByHeight
-                    )
-                ) {
-                    setStreamOverride(playerState.streamId, { abr: false });
+                const found = playerConfigService.setGlobalTrackByHeight(
+                    shakaPlayer,
+                    config.trackByHeight
+                );
+                if (found) {
+                    overrides.abr = false;
                 }
             }
+
+            // 5. Audio Language
+            if (config.audioLanguage !== undefined) {
+                playerConfigService.selectAudioLanguage(
+                    shakaPlayer,
+                    config.audioLanguage
+                );
+            }
+
+            setStreamOverride(playerState.streamId, overrides);
         }
+
         showToast({
-            message: `Updated configuration for ${selectedPlayers.length} players.`,
+            message: `Updated settings for ${selectedPlayers.length} player(s).`,
             type: 'info',
         });
     }
@@ -494,7 +515,6 @@ class MultiPlayerService {
     }
 
     async destroyPlayer(streamId) {
-        // Clear any pending retry timers
         if (this.retryTimers.has(streamId)) {
             clearTimeout(this.retryTimers.get(streamId));
             this.retryTimers.delete(streamId);
@@ -513,39 +533,53 @@ class MultiPlayerService {
         const playerState = useMultiPlayerStore
             .getState()
             .players.get(streamId);
-        if (playerState) {
-            // Explicitly clear retry timer on manual reset to avoid double reset
-            if (this.retryTimers.has(streamId)) {
-                clearTimeout(this.retryTimers.get(streamId));
-                this.retryTimers.delete(streamId);
-            }
+        if (!playerState) return;
 
-            useMultiPlayerStore
-                .getState()
-                .updatePlayerState(streamId, { state: 'loading', error: null });
-            const player = this.players.get(streamId);
-            const videoEl = this.videoElements.get(streamId);
-            const { streams } = useAnalysisStore.getState();
-            const streamDef = streams.find(
-                (s) => s.id === playerState.sourceStreamId
-            );
-            if (player && videoEl && streamDef) {
-                await this.loadStreamIntoPlayer(streamDef, player, streamId);
-            }
+        if (this.retryTimers.has(streamId)) {
+            clearTimeout(this.retryTimers.get(streamId));
+            this.retryTimers.delete(streamId);
         }
+
+        if (this.players.has(streamId)) {
+            await this.players.get(streamId).destroy();
+            this.players.delete(streamId);
+        }
+
+        await this.createAndLoadPlayer(playerState);
+    }
+
+    async resetSelectedPlayers() {
+        const { players } = useMultiPlayerStore.getState();
+        const selectedIds = Array.from(players.values())
+            .filter((p) => p.selectedForAction)
+            .map((p) => p.streamId);
+
+        if (selectedIds.length === 0) {
+            showToast({
+                message: 'No players selected for reset.',
+                type: 'warn',
+            });
+            return;
+        }
+
+        for (const id of selectedIds) {
+            await this.resetSinglePlayer(id);
+        }
+
+        showToast({
+            message: `Resetting ${selectedIds.length} players...`,
+            type: 'info',
+        });
     }
 
     applyStreamConfig(streamId) {
-        const { players, globalAbrEnabled } = useMultiPlayerStore.getState();
+        const { players } = useMultiPlayerStore.getState();
         const playerState = players.get(streamId);
         const shakaPlayer = this.players.get(streamId);
         if (playerState && shakaPlayer) {
-            const abr = playerState.abrOverride ?? globalAbrEnabled;
-            playerConfigService.setAbrEnabled(shakaPlayer, abr);
+            playerConfigService.applyStreamConfig(shakaPlayer, playerState);
         }
     }
-
-    // --- Global Operations ---
 
     playAll() {
         this.videoElements.forEach((video) => video.play().catch(() => {}));
@@ -563,55 +597,50 @@ class MultiPlayerService {
         this.videoElements.forEach((video) => (video.muted = false));
     }
 
-    /**
-     * Synchronizes all players to the timeline of the master stream.
-     * Handles both VOD (absolute time) and Live (offset from live edge).
-     */
     syncAllTo(masterStreamId) {
         const masterVideo = this.videoElements.get(masterStreamId);
         const masterPlayer = this.players.get(masterStreamId);
 
-        if (!masterVideo || !masterPlayer) return;
+        if (!masterVideo || !masterPlayer) {
+            showToast({ message: 'Master player not ready.', type: 'warn' });
+            return;
+        }
 
         const isMasterLive = masterPlayer.isLive();
-
-        // Calculate sync targets
-        let targetTime = masterVideo.currentTime;
         let offsetFromLive = 0;
-
         if (isMasterLive) {
-            const seekable = masterPlayer.seekRange();
-            // Calculate how far behind the live edge the master is
-            offsetFromLive = seekable.end - masterVideo.currentTime;
+            const range = masterPlayer.seekRange();
+            if (range.end > range.start) {
+                offsetFromLive = range.end - masterVideo.currentTime;
+            }
         }
 
         const masterState = !masterVideo.paused ? 'playing' : 'paused';
 
         this.videoElements.forEach((video, id) => {
             if (id === masterStreamId) return;
-
             const player = this.players.get(id);
             if (!player) return;
 
-            if (isMasterLive && player.isLive()) {
-                // Syncing Live to Live: Use offset from edge
+            const isPlayerLive = player.isLive();
+            if (isMasterLive && isPlayerLive) {
                 const seekable = player.seekRange();
-                const target = Math.max(
-                    seekable.start,
-                    seekable.end - offsetFromLive
-                );
-                video.currentTime = target;
-            } else {
-                // Syncing VOD to VOD (or mixed): Use absolute time
-                // Clamp to duration to avoid errors
-                const safeTime = Math.min(
-                    targetTime,
+                if (seekable.end > seekable.start) {
+                    const target = Math.max(
+                        seekable.start,
+                        seekable.end - offsetFromLive
+                    );
+                    video.currentTime = Math.min(target, seekable.end);
+                } else {
+                    player.goToLive();
+                }
+            } else if (!isMasterLive && !isPlayerLive) {
+                video.currentTime = Math.min(
+                    masterVideo.currentTime,
                     video.duration || Infinity
                 );
-                video.currentTime = safeTime;
             }
 
-            // Sync playback state
             if (masterState === 'playing') {
                 video.play().catch(() => {});
             } else {
@@ -638,9 +667,6 @@ class MultiPlayerService {
         useMultiPlayerStore.getState().initializePlayers(streams);
     }
 
-    /**
-     * Iterates through all players and resets only those currently in an error state.
-     */
     async resetFailedPlayers() {
         const { players } = useMultiPlayerStore.getState();
         let resetCount = 0;
@@ -658,34 +684,18 @@ class MultiPlayerService {
         }
     }
 
-    setGlobalAbr(enabled) {
-        this.players.forEach((player) =>
-            playerConfigService.setAbrEnabled(player, enabled)
-        );
-    }
+    duplicateStream(sourceStreamId) {
+        const store = useMultiPlayerStore.getState();
+        const newId = store.duplicateStream(sourceStreamId);
 
-    setGlobalBandwidthCap(bps) {
-        this.players.forEach((player) => {
-            const config = player.getConfiguration();
-            const restrictions = config.restrictions || {};
-            restrictions.maxBandwidth = bps;
-            player.configure({ restrictions });
-        });
-    }
+        if (newId !== -1) {
+            const freshStore = useMultiPlayerStore.getState();
+            const newPlayerState = freshStore.players.get(newId);
 
-    setGlobalMaxHeight(height) {
-        this.players.forEach((player) => {
-            const config = player.getConfiguration();
-            const restrictions = config.restrictions || {};
-            restrictions.maxHeight = height;
-            player.configure({ restrictions });
-        });
-    }
-
-    setGlobalTrackByHeight(height) {
-        this.players.forEach((player) => {
-            playerConfigService.setGlobalTrackByHeight(player, height);
-        });
+            if (newPlayerState) {
+                this.createAndLoadPlayer(newPlayerState);
+            }
+        }
     }
 
     selectTrack(streamId, type, value) {
@@ -693,10 +703,8 @@ class MultiPlayerService {
         if (!player) return;
 
         if (type === 'variant') {
-            // value is the track object
             playerConfigService.selectVariantTrack(player, value);
         } else if (type === 'audio') {
-            // value is language string
             playerConfigService.selectAudioLanguage(player, value);
         }
     }
@@ -705,19 +713,6 @@ class MultiPlayerService {
         const player = this.players.get(streamId);
         if (player) {
             playerConfigService.setAbrEnabled(player, enabled);
-        }
-    }
-
-    duplicateStream(sourceStreamId) {
-        const state = useMultiPlayerStore.getState();
-        const playerState = state.players.get(sourceStreamId);
-        if (!playerState) return;
-
-        const newId = state.duplicateStream(sourceStreamId);
-        if (newId !== -1) {
-            const newPlayerState = state.players.get(newId);
-            // Schedule creation
-            this.createAndLoadPlayer(newPlayerState);
         }
     }
 }

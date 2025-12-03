@@ -12,7 +12,6 @@ export class PlayerCardComponent extends HTMLElement {
         super();
         this.streamId = -1;
         this.unsubscribe = null;
-        this.videoEl = null;
         this._handleMouseEnter = this._handleMouseEnter.bind(this);
         this._handleMouseLeave = this._handleMouseLeave.bind(this);
         this._toggleSelection = this._toggleSelection.bind(this);
@@ -37,9 +36,9 @@ export class PlayerCardComponent extends HTMLElement {
 
     disconnectedCallback() {
         if (this.unsubscribe) this.unsubscribe();
-        // Only unbind if we are truly being removed, not just moved.
-        // However, since custom elements don't have a "moved" callback, we rely on the service re-binding if re-mounted.
-        multiPlayerService.unbindMediaElement(this.streamId);
+        // NOTE: We do NOT destroy the player or video element here.
+        // This allows the video element to be reparented if the layout changes.
+        // Cleanup happens via explicit 'Remove' action or global destroy.
     }
 
     reconnectStore() {
@@ -91,6 +90,16 @@ export class PlayerCardComponent extends HTMLElement {
         });
     }
 
+    injectVideoElement(container) {
+        // Retrieve the persistent video element from the service
+        const videoElement = multiPlayerService.getVideoElement(this.streamId);
+
+        // Only append if it's not already there to avoid unnecessary DOM ops
+        if (container.firstElementChild !== videoElement) {
+            container.prepend(videoElement);
+        }
+    }
+
     render() {
         const { players, focusedStreamId, layoutMode, showGlobalHud } =
             useMultiPlayerStore.getState();
@@ -111,8 +120,6 @@ export class PlayerCardComponent extends HTMLElement {
         const isRemovable = !player.isBasePlayer;
 
         let borderClasses = 'border-slate-700 hover:border-slate-500';
-
-        // Updated visual logic: Purple only if actually in focus layout
         if (isFocused && layoutMode === 'focus') {
             borderClasses =
                 'border-purple-500 ring-1 ring-purple-500/50 shadow-lg shadow-purple-900/20';
@@ -120,15 +127,23 @@ export class PlayerCardComponent extends HTMLElement {
             borderClasses = 'border-blue-500 shadow-lg shadow-blue-900/20';
         }
 
-        const containerClass = `group relative flex flex-col overflow-hidden rounded-xl bg-slate-950 border-2 transition-all duration-150 h-full w-full ${borderClasses}`;
+        // ARCHITECTURAL FIX: Use aspect-video (16:9) instead of h-full.
+        // This prevents the card from stretching vertically to fill the grid row in '1fr' scenarios.
+        const containerClass = `group relative flex flex-col overflow-hidden rounded-xl bg-slate-950 border-2 transition-all duration-150 w-full aspect-video ${borderClasses}`;
 
         const progressPercent = (player.normalizedPlayheadTime || 0) * 100;
-        let bufferPercent = 0;
 
-        const videoElement = /** @type {HTMLVideoElement} */ (this.videoEl);
-        if (videoElement && videoElement.duration > 0) {
-            const end = videoElement.buffered.length
-                ? videoElement.buffered.end(videoElement.buffered.length - 1)
+        // Buffer visualization logic using the persistent video element
+        let bufferPercent = 0;
+        const persistentVideoEl = multiPlayerService.videoElements.get(
+            this.streamId
+        );
+
+        if (persistentVideoEl && persistentVideoEl.duration > 0) {
+            const end = persistentVideoEl.buffered.length
+                ? persistentVideoEl.buffered.end(
+                      persistentVideoEl.buffered.length - 1
+                  )
                 : 0;
             const start = player.seekableRange.start;
             const duration = player.seekableRange.end - start;
@@ -141,7 +156,6 @@ export class PlayerCardComponent extends HTMLElement {
         }
 
         const currentTimeLabel = formatPlayerTime(player.stats.playheadTime);
-        const videoId = `video-${this.streamId}`;
 
         const handleMaximize = (e) => {
             e.stopPropagation();
@@ -201,22 +215,24 @@ export class PlayerCardComponent extends HTMLElement {
                             ? icons.minimize
                             : icons.maximize}
                     </button>
-                    ${isRemovable
-                        ? html`
-                              <button
-                                  @click=${(e) => {
-                                      e.stopPropagation();
-                                      multiPlayerService.removePlayer(
-                                          this.streamId
-                                      );
-                                  }}
-                                  class="p-1.5 bg-black/60 hover:bg-red-900/80 text-white rounded backdrop-blur border border-white/10 transition-colors"
-                                  title="Close"
-                              >
-                                  ${icons.xCircle}
-                              </button>
-                          `
-                        : ''}
+
+                    <button
+                        @click=${(e) => {
+                            e.stopPropagation();
+                            if (isRemovable) {
+                                multiPlayerService.removePlayer(this.streamId);
+                            }
+                        }}
+                        ?disabled=${!isRemovable}
+                        class="p-1.5 bg-black/60 text-white rounded backdrop-blur border border-white/10 transition-colors ${isRemovable
+                            ? 'hover:bg-red-900/80 cursor-pointer'
+                            : 'opacity-30 cursor-not-allowed'}"
+                        title="${isRemovable
+                            ? 'Close'
+                            : 'Base player cannot be removed'}"
+                    >
+                        ${icons.xCircle}
+                    </button>
                 </div>
 
                 <!-- Stream Name -->
@@ -228,14 +244,12 @@ export class PlayerCardComponent extends HTMLElement {
                     </span>
                 </div>
 
-                <!-- Video Area -->
+                <!-- Video Portal Area -->
                 <div
                     class="relative grow min-h-0 bg-black flex items-center justify-center group/video cursor-pointer"
+                    id="video-portal-${this.streamId}"
                 >
-                    <video
-                        id="${videoId}"
-                        class="w-full h-full object-contain"
-                    ></video>
+                    <!-- Video Element Injected Here by JS -->
 
                     ${showGlobalHud && player.isHudVisible
                         ? html`<metrics-hud .data=${player}></metrics-hud>`
@@ -306,16 +320,18 @@ export class PlayerCardComponent extends HTMLElement {
 
                         <button
                             @click=${() => {
-                                if (videoElement) {
-                                    videoElement.muted = !videoElement.muted;
+                                if (persistentVideoEl) {
+                                    persistentVideoEl.muted =
+                                        !persistentVideoEl.muted;
+                                    // Force update to reflect mute state icon
                                     this.render();
                                 }
                             }}
-                            class="${videoElement?.muted
+                            class="${persistentVideoEl?.muted
                                 ? 'text-red-400'
                                 : 'text-slate-400 hover:text-white'} transition-colors p-1 rounded hover:bg-white/5"
                         >
-                            ${videoElement?.muted
+                            ${persistentVideoEl?.muted
                                 ? icons.volumeOff
                                 : icons.volumeUp}
                         </button>
@@ -326,17 +342,12 @@ export class PlayerCardComponent extends HTMLElement {
 
         render(template, this);
 
-        if (!this.videoEl) {
-            this.videoEl = this.querySelector(`#${videoId}`);
-            if (this.videoEl) {
-                multiPlayerService.bindMediaElement(
-                    this.streamId,
-                    this.videoEl
-                );
-                this.videoEl.addEventListener('volumechange', () =>
-                    this.render()
-                );
-            }
+        // Post-render: Inject the video element into the correct slot
+        const videoContainer = this.querySelector(
+            `#video-portal-${this.streamId}`
+        );
+        if (videoContainer) {
+            this.injectVideoElement(videoContainer);
         }
     }
 }

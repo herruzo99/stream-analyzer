@@ -1,4 +1,4 @@
-import { BoxParser } from '../utils.js';
+import { BoxParser, interpretMatrix } from '../utils.js';
 
 const TKHD_FLAGS_SCHEMA = {
     0x000001: 'track_enabled',
@@ -57,11 +57,16 @@ export function parseTkhd(box, view) {
     for (let i = 0; i < 9; i++) {
         matrixValues.push(p.readInt32(`matrix_val_${i}`));
     }
+
     // Consolidate matrix values into a single detail for cleaner display
     const matrixOffset = box.details['matrix_val_0']?.offset;
     if (matrixOffset !== undefined) {
+        // --- ARCHITECTURAL UPDATE: Use interpretMatrix helper ---
+        const semantic = interpretMatrix(matrixValues);
+        const rawValues = `[${matrixValues.join(', ')}]`;
+
         box.details['matrix'] = {
-            value: `[${matrixValues.join(', ')}]`,
+            value: `${semantic} \n${rawValues}`,
             offset: matrixOffset,
             length: 36,
         };

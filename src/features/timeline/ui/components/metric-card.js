@@ -1,9 +1,22 @@
 import * as icons from '@/ui/icons';
+import { tooltipTriggerClasses } from '@/ui/shared/constants';
 import { html } from 'lit-html';
 import { classMap } from 'lit-html/directives/class-map.js';
 
 /**
- * Renders a single, compact metric for the timeline.
+ * Safely encodes a UTF-8 string to Base64.
+ * Standard btoa() throws on Unicode characters.
+ */
+const safeBtoa = (str) => {
+    return btoa(
+        encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (match, p1) =>
+            String.fromCharCode(parseInt(p1, 16))
+        )
+    );
+};
+
+/**
+ * Renders a single, compact metric for the timeline with rich tooltips.
  * @param {object} metric
  * @param {import('@/types').TimedEntity | null} hoveredItem
  * @param {import('@/types').TimedEntity | null} selectedItem
@@ -14,6 +27,7 @@ export const metricCardTemplate = (metric, hoveredItem, selectedItem) => {
     const isValueNA =
         typeof metric.value !== 'number' &&
         (metric.value === 'N/A' ||
+            !metric.value ||
             valueStr.startsWith('N/A') ||
             valueStr.endsWith('only') ||
             valueStr.startsWith('See '));
@@ -26,22 +40,43 @@ export const metricCardTemplate = (metric, hoveredItem, selectedItem) => {
 
     const activeItem = selectedItem || hoveredItem;
     const isHighlighted =
-        activeItem && metric.relatesTo.includes(activeItem.type);
+        activeItem &&
+        metric.relatesTo &&
+        metric.relatesTo.includes(activeItem.type);
 
+    // --- Rich Tooltip Construction ---
     const tooltipHtml = `
-        <div class="text-left max-w-xs">
-            <p class="font-bold text-slate-100">${metric.name}</p>
-            <p class="text-xs text-slate-400 mt-1">${metric.purpose}</p>
-            ${metric.warning ? `<div class="mt-2 p-2 bg-yellow-900/30 rounded-md border border-yellow-700/50"><p class="text-xs text-yellow-300">${metric.warning.text}</p></div>` : ''}
-            <hr class="border-slate-600 my-2">
-            <p class="text-xs text-slate-500 font-mono">${metric.tech}: ${metric.tag}</p>
+        <div class="text-left min-w-[220px]">
+            <div class="font-bold text-white text-sm mb-1 border-b border-slate-600 pb-1 flex items-center gap-2">
+                ${metric.name}
+            </div>
+            <div class="text-xs text-slate-300 leading-relaxed mb-2">
+                ${metric.description || metric.purpose || 'No description available.'}
+            </div>
+            ${
+                metric.warning
+                    ? `<div class="mb-2 p-2 bg-yellow-900/30 rounded border border-yellow-700/50 flex gap-2 items-start">
+                        <span class="text-yellow-400 text-[10px]">⚠️</span>
+                        <p class="text-xs text-yellow-200">${metric.warning.text}</p>
+                       </div>`
+                    : ''
+            }
+            ${
+                metric.technical
+                    ? `<div class="text-[10px] font-mono text-blue-200 bg-blue-900/20 p-1.5 rounded border border-blue-500/20 break-all">
+                       ${metric.technical}
+                   </div>`
+                    : `<div class="text-[10px] font-mono text-slate-500 mt-1">
+                       ${metric.tech || 'Standard'}: ${metric.tag || 'N/A'}
+                   </div>`
+            }
         </div>
     `;
-    const b64Tooltip = btoa(tooltipHtml);
+    const b64Tooltip = safeBtoa(tooltipHtml);
 
     const cardClasses = {
         'bg-slate-800/50': true,
-        'p-2': true, // Reduced padding for compactness
+        'p-3': true,
         'rounded-lg': true,
         border: true,
         'transition-all': true,
@@ -50,31 +85,41 @@ export const metricCardTemplate = (metric, hoveredItem, selectedItem) => {
         'border-amber-500': isHighlighted && !selectedItem, // Hover highlight
         'ring-2': isHighlighted && !!selectedItem, // Select highlight
         'ring-amber-400': isHighlighted && !!selectedItem,
-        'cursor-help': true,
+        [tooltipTriggerClasses]: true,
+        'hover:bg-slate-800': true,
     };
 
     const warningIcon = metric.warning
-        ? html`<span class="text-yellow-400 ml-1 shrink-0"
+        ? html`<span class="text-yellow-400 ml-1 shrink-0 scale-75"
               >${icons.alertTriangle}</span
           >`
         : '';
 
     return html`
         <div class=${classMap(cardClasses)} data-tooltip-html-b64=${b64Tooltip}>
-            <div class="flex justify-between items-center gap-4 min-w-0">
-                <h5
-                    class="font-semibold text-slate-200 flex items-center min-w-0"
-                >
-                    <span class="truncate" title=${metric.name}
-                        >${metric.name}</span
+            <div class="flex justify-between items-start gap-3 min-w-0">
+                <div class="flex flex-col min-w-0">
+                    <h5
+                        class="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1 mb-0.5"
                     >
-                    ${warningIcon}
-                </h5>
-                <span
-                    class="${classMap(valueClasses)} truncate"
-                    title=${metric.value}
-                    >${metric.value}</span
-                >
+                        <span class="truncate" title=${metric.name}
+                            >${metric.name}</span
+                        >
+                        ${warningIcon}
+                    </h5>
+                    <span
+                        class="${classMap(valueClasses)} truncate"
+                        title=${metric.value}
+                    >
+                        ${metric.value}<span
+                            class="text-xs text-slate-600 ml-0.5 font-sans font-normal"
+                            >${metric.unit}</span
+                        >
+                    </span>
+                </div>
+                <div class="text-slate-600 opacity-50 scale-90">
+                    ${icons[metric.icon] || icons.activity}
+                </div>
             </div>
         </div>
     `;

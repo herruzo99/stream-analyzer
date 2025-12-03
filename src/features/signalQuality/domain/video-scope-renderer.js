@@ -57,6 +57,7 @@ export class VideoScopeRenderer {
             this.videoEl.ended ||
             this.videoEl.readyState < 2
         ) {
+            // console.log('[VideoScopeRenderer] Waiting...', { paused: this.videoEl.paused, readyState: this.videoEl.readyState });
             this.rafId = requestAnimationFrame(this._loop.bind(this));
             return;
         }

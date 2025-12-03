@@ -852,7 +852,7 @@ function areDetailsEqual(detailsA, detailsB) {
     if (keysA.length !== keysB.length) return false;
 
     for (const key of keysA) {
-        if (!detailsB[key]) return false;
+        if (!Object.prototype.hasOwnProperty.call(detailsB, key)) return false;
 
         const valA = detailsA[key].value;
         const valB = detailsB[key].value;
@@ -881,6 +881,46 @@ export function diffBoxTrees(boxesA = [], boxesB = []) {
     const aLen = boxesA.length;
     const bLen = boxesB.length;
     const maxLen = aLen + bLen;
+
+    // --- ARCHITECTURAL FIX: Handle identical structural case (d=0) explicitly ---
+    // If both arrays have the same length and every box type matches in order,
+    // we treat this as a structural match and proceed to deep comparison immediately.
+    // This avoids the Myers algorithm skipping the backtrack when edit distance is 0.
+    let isStructurallyIdentical = aLen === bLen;
+    if (isStructurallyIdentical) {
+        for (let i = 0; i < aLen; i++) {
+            if (boxesA[i].type !== boxesB[i].type) {
+                isStructurallyIdentical = false;
+                break;
+            }
+        }
+    }
+
+    if (isStructurallyIdentical) {
+        const diff = [];
+        for (let i = 0; i < aLen; i++) {
+            const children = diffBoxTrees(
+                boxesA[i].children,
+                boxesB[i].children
+            );
+            const detailsEqual = areDetailsEqual(
+                boxesA[i].details,
+                boxesB[i].details
+            );
+            const isModified =
+                !detailsEqual || children.some((c) => c.status !== 'same');
+
+            diff.push({
+                status: isModified ? 'modified' : 'same',
+                type: boxesA[i].type,
+                values: [boxesA[i], boxesB[i]],
+                children,
+            });
+        }
+        return diff;
+    }
+
+    // --- Myers Diff Algorithm (for structural changes) ---
     const v = { 1: 0 };
     const trace = [];
 
@@ -963,6 +1003,33 @@ export function diffBoxTrees(boxesA = [], boxesB = []) {
                     x = prev_x;
                     y = prev_y;
                 }
+
+                // Handle remaining diagonal (initial snake)
+                while (x > 0 && y > 0) {
+                    const before_x = x - 1;
+                    const before_y = y - 1;
+                    const children = diffBoxTrees(
+                        boxesA[before_x].children,
+                        boxesB[before_y].children
+                    );
+                    const detailsEqual = areDetailsEqual(
+                        boxesA[before_x].details,
+                        boxesB[before_y].details
+                    );
+                    const isModified =
+                        !detailsEqual ||
+                        children.some((c) => c.status !== 'same');
+
+                    diff.unshift({
+                        status: isModified ? 'modified' : 'same',
+                        type: boxesA[before_x].type,
+                        values: [boxesA[before_x], boxesB[before_y]],
+                        children,
+                    });
+                    x--;
+                    y--;
+                }
+
                 return diff;
             }
         }

@@ -2,12 +2,50 @@ import { useAnalysisStore } from '@/state/analysisStore';
 import * as icons from '@/ui/icons';
 import { html, render } from 'lit-html';
 import { compatibilityMatrixTemplate } from './components/compatibility-matrix.js';
-import { configGeneratorTemplate } from './components/config-generator.js';
-import { requirementsCardTemplate } from './components/requirements-card.js';
+import { integrationGuideTemplate } from './components/integration-guide.js';
+import { technicalSpecsTemplate } from './components/technical-specs.js';
 import { createIntegratorsReportViewModel } from './view-model.js';
 
 let container = null;
 let analysisUnsubscribe = null;
+
+const whitelistPanel = (domains) => html`
+    <div
+        class="bg-slate-900 rounded-xl border border-slate-800 shadow-lg flex flex-col h-full"
+    >
+        <div class="p-4 border-b border-slate-800 bg-slate-950/50">
+            <h3
+                class="font-bold text-white text-sm flex items-center gap-2 uppercase tracking-wider"
+            >
+                ${icons.network} Network Whitelist
+            </h3>
+        </div>
+        <div class="p-4 grow overflow-y-auto custom-scrollbar">
+            ${domains.length === 0
+                ? html`<div
+                      class="text-slate-500 text-xs italic text-center mt-4"
+                  >
+                      No external domains detected.
+                  </div>`
+                : html`
+                      <ul class="space-y-2">
+                          ${domains.map(
+                              (d) => html`
+                                  <li
+                                      class="flex items-center gap-3 text-xs font-mono text-cyan-300 bg-slate-950/50 px-3 py-2 rounded border border-slate-800 hover:border-cyan-500/30 transition-colors"
+                                  >
+                                      <span class="text-slate-600"
+                                          >${icons.server}</span
+                                      >
+                                      ${d}
+                                  </li>
+                              `
+                          )}
+                      </ul>
+                  `}
+        </div>
+    </div>
+`;
 
 function renderIntegratorsReport() {
     if (!container) return;
@@ -40,71 +78,49 @@ function renderIntegratorsReport() {
     }
 
     const vm = createIntegratorsReportViewModel(stream);
+    if (!vm) return;
 
-    // Fixed: Added custom-scrollbar
     const template = html`
         <div
-            class="h-full flex flex-col gap-6 overflow-y-auto p-4 sm:p-6 pb-20 animate-fadeIn custom-scrollbar"
+            class="h-full flex flex-col gap-6 overflow-y-auto p-6 pb-20 animate-fadeIn custom-scrollbar bg-slate-950"
         >
             <!-- Header -->
-            <div class="shrink-0">
+            <div class="shrink-0 flex flex-col gap-1">
                 <h2
                     class="text-2xl font-bold text-white flex items-center gap-3"
                 >
                     ${icons.integrators} Integrator's Dashboard
                 </h2>
-                <p class="text-slate-400 text-sm mt-1">
-                    Technical specifications and configuration guide for
-                    implementation.
+                <p class="text-slate-400 text-sm">
+                    Technical specifications, code snippets, and environment
+                    compatibility for
+                    <span class="text-white font-semibold"
+                        >${vm.overview.streamName}</span
+                    >.
                 </p>
             </div>
 
-            <!-- Top Grid: Specs & Compatibility -->
-            <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 shrink-0">
-                <!-- Left: Detailed Specs -->
-                <div class="xl:col-span-1">${requirementsCardTemplate(vm)}</div>
+            <!-- Top Row: Specs & Code -->
+            <div
+                class="grid grid-cols-1 xl:grid-cols-2 gap-6 min-h-[450px] shrink-0"
+            >
+                <!-- Left: Specs -->
+                <div class="h-full min-h-0">${technicalSpecsTemplate(vm)}</div>
 
-                <!-- Right: Compatibility Matrix -->
-                <div class="xl:col-span-2 h-full min-h-[300px]">
-                    ${compatibilityMatrixTemplate(vm.compatibility)}
+                <!-- Right: Code Guide -->
+                <div class="h-full min-h-0">
+                    ${integrationGuideTemplate(vm)}
                 </div>
             </div>
 
-            <!-- Bottom Grid: Config & Network -->
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 grow min-h-0">
-                <!-- Left: Player Config (Wider) -->
-                <div class="lg:col-span-2 flex flex-col min-h-[400px]">
-                    ${configGeneratorTemplate(vm.configObject)}
+            <!-- Bottom Row: Compatibility & Network -->
+            <div
+                class="grid grid-cols-1 xl:grid-cols-3 gap-6 grow min-h-[300px]"
+            >
+                <div class="xl:col-span-2 h-full min-h-0">
+                    ${compatibilityMatrixTemplate(vm.compatibility)}
                 </div>
-
-                <!-- Right: Network Domains -->
-                <div
-                    class="bg-slate-800 rounded-xl border border-slate-700 flex flex-col overflow-hidden"
-                >
-                    <div class="p-4 border-b border-slate-700 bg-slate-900/50">
-                        <h3
-                            class="font-bold text-slate-200 flex items-center gap-2"
-                        >
-                            ${icons.network} Network Whitelist
-                        </h3>
-                        <p class="text-xs text-slate-400 mt-1">
-                            Domains required for CSP/CORS.
-                        </p>
-                    </div>
-                    <div class="p-4 overflow-y-auto grow custom-scrollbar">
-                        <ul class="space-y-2">
-                            ${vm.domains.map(
-                                (d) => html`
-                                    <li
-                                        class="flex items-center gap-2 text-sm font-mono text-cyan-400 bg-slate-900/50 px-3 py-2 rounded border border-slate-700/50"
-                                    >
-                                        ${icons.server} ${d}
-                                    </li>
-                                `
-                            )}
-                        </ul>
-                    </div>
-                </div>
+                <div class="h-full min-h-0">${whitelistPanel(vm.domains)}</div>
             </div>
         </div>
     `;

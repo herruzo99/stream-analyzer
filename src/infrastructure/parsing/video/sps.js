@@ -19,11 +19,12 @@ class BitReader {
                     'warn',
                     'Attempted to read beyond buffer length.'
                 );
-                return null;
+                return 0;
             }
             const byte = this.buffer[this.bytePosition];
             const bit = (byte >> (7 - this.bitPosition)) & 1;
-            result = (result << 1) | bit;
+            // Use arithmetic multiplication to avoid 32-bit signed integer overflow
+            result = result * 2 + bit;
             this.bitPosition++;
             if (this.bitPosition === 8) {
                 this.bitPosition = 0;
@@ -231,6 +232,15 @@ export function parseSPS(spsNalUnit) {
 
             if (num_units_in_tick > 0 && time_scale > 0) {
                 frame_rate = time_scale / (2 * num_units_in_tick);
+                // Sanity check for unrealistic frame rates (e.g. due to field/frame mismatch or bad VUI)
+                if (frame_rate > 240) {
+                    appLog(
+                        'sps.js',
+                        'warn',
+                        `Calculated frame rate ${frame_rate} exceeds 240fps. Ignoring.`
+                    );
+                    frame_rate = null;
+                }
             }
             fixed_frame_rate = fixed_frame_rate_flag === 1;
         }

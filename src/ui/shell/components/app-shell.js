@@ -1,3 +1,4 @@
+import '@/features/streamInput/ui/components/library-modal.js';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { usePlayerStore } from '@/state/playerStore';
 import { uiActions, useUiStore } from '@/state/uiStore';
@@ -7,8 +8,6 @@ import { renderContextSwitcher } from './context-switcher.js';
 import { globalControlsTemplate } from './global-controls.js';
 import { mainContentControlsTemplate } from './main-content-controls.js';
 import { sidebarNavTemplate } from './sidebar-nav.js';
-// Ensure the component is registered
-import '@/features/streamInput/ui/components/library-modal.js';
 
 class AppShellComponent extends HTMLElement {
     connectedCallback() {
@@ -33,12 +32,10 @@ class AppShellComponent extends HTMLElement {
         const isPrimaryOpen = activeSidebar === 'primary';
         const isContextualOpen = activeSidebar === 'contextual';
 
-        // --- 1. Handle Primary Sidebar (Mobile) ---
         const sidebarContainer = this.querySelector('#sidebar-container');
         const sidebarOverlay = this.querySelector('#sidebar-overlay');
 
         if (sidebarContainer) {
-            // Toggle transform classes directly based on state
             if (isPrimaryOpen) {
                 sidebarContainer.classList.remove('-translate-x-full');
                 sidebarContainer.classList.add('translate-x-0');
@@ -58,7 +55,6 @@ class AppShellComponent extends HTMLElement {
             }
         }
 
-        // --- 2. Handle Contextual Sidebar (Desktop/Mobile) ---
         const contextSidebar = this.querySelector('#contextual-sidebar');
         if (contextSidebar) {
             if (isContextualOpen) {
@@ -72,7 +68,6 @@ class AppShellComponent extends HTMLElement {
             }
         }
 
-        // --- 3. Render Inner Content ---
         if (sidebarContainer) {
             const headerContainer = sidebarContainer.querySelector(
                 '#stream-identity-header'
@@ -112,8 +107,6 @@ class AppShellComponent extends HTMLElement {
     }
 
     render() {
-        // Changed: h-screen -> h-[100dvh] to handle mobile address bars correctly
-        // Added: w-full max-w-[100vw] to prevent horizontal overflows
         const template = html`
             <div
                 id="app-root-inner"
@@ -122,21 +115,32 @@ class AppShellComponent extends HTMLElement {
                 <!-- Mobile Overlay -->
                 <div
                     id="sidebar-overlay"
-                    class="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 hidden xl:hidden"
+                    class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] hidden xl:hidden"
                     @click=${() => uiActions.setActiveSidebar(null)}
                 ></div>
 
                 <!-- Sidebar -->
+                <!-- Added overflow-hidden to enforce flex boundaries and prevent footer push-out -->
                 <aside
                     id="sidebar-container"
-                    class="glass-panel flex flex-col fixed xl:relative top-0 left-0 bottom-0 z-40 w-[var(--sidebar-width)] -translate-x-full xl:translate-x-0 transition-transform duration-300 ease-out shadow-2xl xl:shadow-none"
+                    class="glass-panel flex flex-col fixed xl:relative top-0 left-0 bottom-0 z-[70] w-[var(--sidebar-width)] -translate-x-full xl:translate-x-0 transition-transform duration-300 ease-out shadow-2xl xl:shadow-none h-full max-h-full overflow-hidden"
                 >
-                    <div id="stream-identity-header" class="shrink-0"></div>
+                    <div
+                        id="stream-identity-header"
+                        class="shrink-0 z-10 relative"
+                    ></div>
+
+                    <!-- Nav area: grow to fill space, min-h-0 to allow shrinking/scrolling -->
                     <nav
                         id="sidebar-nav"
-                        class="flex-col grow overflow-y-auto scrollbar-hide pt-2"
+                        class="flex flex-col grow min-h-0 overflow-y-auto scrollbar-hide pt-2 relative z-0"
                     ></nav>
-                    <footer id="sidebar-footer" class="shrink-0"></footer>
+
+                    <!-- Footer: shrink-0 to prevent compression, z-10 to sit above if needed -->
+                    <footer
+                        id="sidebar-footer"
+                        class="shrink-0 z-10 relative"
+                    ></footer>
                 </aside>
 
                 <!-- Main Content Area -->
@@ -158,7 +162,6 @@ class AppShellComponent extends HTMLElement {
                             >Stream Analyzer</span
                         >
                         <div class="w-8"></div>
-                        <!-- Spacer for balance -->
                     </header>
 
                     <!-- Desktop Header -->
@@ -172,12 +175,6 @@ class AppShellComponent extends HTMLElement {
                     </header>
 
                     <!-- View Container -->
-                    <!-- 
-                        CRITICAL FIX: 
-                        - grow: Fills available space
-                        - min-h-0: Allows flex child to shrink below content size (enabling scroll)
-                        - h-full: Ensures explicit height context for children
-                    -->
                     <main
                         id="tab-view-container"
                         class="grow flex flex-col min-h-0 relative w-full max-w-full overflow-hidden h-full"
@@ -195,7 +192,7 @@ class AppShellComponent extends HTMLElement {
                     class="bg-slate-900 border-l border-slate-800 fixed xl:relative top-0 right-0 bottom-0 z-40 w-96 translate-x-full xl:translate-x-0 transition-transform duration-300 ease-in-out flex flex-col min-h-0 shadow-2xl xl:shadow-none"
                 ></aside>
 
-                <!-- Library Modal (Always available for interaction) -->
+                <!-- Library Modal -->
                 <library-modal-component></library-modal-component>
             </div>
         `;

@@ -18,11 +18,6 @@
     --color-warning: #f59e0b;
     --color-danger: #ef4444;
     --color-info: #3b82f6;
-
-    /* --- Custom Animations --- */
-    --animation-fadeIn: fadeIn 0.3s ease-out forwards;
-    --animation-fadeOut: fadeOut 0.3s ease-in forwards;
-    --animation-scaleIn: scaleIn 0.2s ease-out forwards;
 }
 
 /* --- CSS Custom Properties for Theming --- */
@@ -54,8 +49,8 @@ body {
     width: 100%;
     margin: 0;
     padding: 0;
-    overflow: hidden; /* Prevent scroll on body, let AppShell handle it */
-    overscroll-behavior: none; /* Disable pull-to-refresh/bounce */
+    overflow: hidden;
+    overscroll-behavior: none;
 }
 
 body {
@@ -64,7 +59,6 @@ body {
     -webkit-font-smoothing: antialiased;
 }
 
-/* Ensure all code blocks inherit this color unless overridden */
 pre,
 code {
     color: inherit;
@@ -98,9 +92,8 @@ code {
     scrollbar-width: none;
 }
 
-/* --- Mobile Scrolling Helper --- */
 .custom-scrollbar {
-    -webkit-overflow-scrolling: touch; /* Enable momentum scrolling on iOS */
+    -webkit-overflow-scrolling: touch;
 }
 
 /* --- Tailwind CSS Safelist --- */
@@ -136,66 +129,78 @@ code {
     color: #e2e8f0;
 }
 
-/* ... Animation Keyframes unchanged ... */
 @keyframes fadeIn {
     from {
         opacity: 0;
     }
+
     to {
         opacity: 1;
     }
 }
+
 @keyframes fadeOut {
     from {
         opacity: 1;
     }
+
     to {
         opacity: 0;
     }
 }
+
 @keyframes scaleIn {
     from {
         transform: scale(0.95);
         opacity: 0;
     }
+
     to {
         transform: scale(1);
         opacity: 1;
     }
 }
+
 @keyframes scaleOut {
     from {
         transform: scale(1);
         opacity: 1;
     }
+
     to {
         transform: scale(0.95);
         opacity: 0;
     }
 }
+
 @keyframes slideInUp {
     from {
         transform: translateY(20px);
         opacity: 0;
     }
+
     to {
         transform: translateY(0);
         opacity: 1;
     }
 }
+
 @keyframes pulse-glow {
     0%,
     100% {
         box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4);
     }
+
     50% {
         box-shadow: 0 0 0 4px rgba(34, 197, 94, 0);
     }
 }
+
 @keyframes flash-overlay-fade {
     0% {
         opacity: 1;
     }
+
     100% {
         opacity: 0;
     }
@@ -204,9 +209,11 @@ code {
 .animate-fadeIn {
     animation: fadeIn 0.3s ease-out forwards;
 }
+
 .animate-slideInUp {
     animation: slideInUp 0.3s ease-out forwards;
 }
+
 .animate-pulse-glow {
     animation: pulse-glow 2s infinite;
 }
@@ -219,13 +226,16 @@ code {
 .modal-enter {
     animation: fadeIn 0.2s ease-out forwards;
 }
+
 .modal-enter > div {
     animation: scaleIn 0.2s ease-out forwards;
 }
+
 .modal-leave {
     animation: fadeOut 0.2s ease-in forwards;
     pointer-events: none;
 }
+
 .modal-leave > div {
     animation: scaleOut 0.2s ease-in forwards;
 }
@@ -234,6 +244,7 @@ code {
     transform-origin: top right;
     animation: scaleIn 0.15s ease-out forwards;
 }
+
 details.details-animated[open] > *:not(summary) {
     animation: fadeIn 0.3s ease-out;
 }
@@ -242,6 +253,7 @@ details.details-animated[open] > *:not(summary) {
     position: relative;
     overflow: hidden;
 }
+
 .flash-new-segment::after {
     content: '';
     position: absolute;
@@ -255,9 +267,11 @@ details.details-animated[open] > *:not(summary) {
 .highlight-select-box {
     box-shadow: inset 0 0 0 99px rgb(59 130 246 / 0.6);
 }
+
 .highlight-hover-box {
     box-shadow: inset 0 0 0 99px rgb(100 116 139 / 0.5);
 }
+
 .highlight-hover-field {
     box-shadow: inset 0 0 0 99px rgb(168 85 247 / 0.55);
 }
@@ -275,9 +289,11 @@ body.primary-sidebar-open #sidebar-overlay {
     display: block;
     animation: fadeIn 0.3s ease;
 }
+
 body.primary-sidebar-open #sidebar-container {
     transform: translateX(0);
 }
+
 body.contextual-sidebar-open #contextual-sidebar {
     transform: translateX(0);
 }
@@ -290,40 +306,13 @@ body.contextual-sidebar-open #contextual-sidebar {
     background-color: rgba(22, 101, 52, 0.4);
     outline: 1px solid rgba(74, 222, 128, 0.4);
 }
+
 .bg-diff-remove {
     background-color: rgba(127, 29, 29, 0.4);
     outline: 1px solid rgba(248, 113, 113, 0.4);
 }
+
 .bg-diff-mod {
     background-color: rgba(113, 63, 18, 0.6);
     outline: 1px solid rgba(251, 191, 36, 0.5);
-}
-
-.loader-animation span {
-    animation: streaming-bars 1.2s ease-in-out infinite;
-}
-.loader-animation span:nth-child(1) {
-    animation-delay: 0s;
-}
-.loader-animation span:nth-child(2) {
-    animation-delay: 0.1s;
-}
-.loader-animation span:nth-child(3) {
-    animation-delay: 0.2s;
-}
-.loader-animation span:nth-child(4) {
-    animation-delay: 0.3s;
-}
-.loader-animation span:nth-child(5) {
-    animation-delay: 0.4s;
-}
-
-@keyframes streaming-bars {
-    0%,
-    100% {
-        transform: scaleY(0.2);
-    }
-    50% {
-        transform: scaleY(1);
-    }
 }

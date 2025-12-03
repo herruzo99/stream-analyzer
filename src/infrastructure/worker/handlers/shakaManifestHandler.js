@@ -10,6 +10,11 @@ import { parseManifest as parseHlsManifest } from '../../parsing/hls/index.js';
 import { generateHlsSummary } from '../../parsing/hls/summary-generator.js';
 import { fetchWithAuth } from '../http.js';
 
+// --- MEMORY PROTECTION SETTINGS ---
+// Cap segment history to ~20-40 minutes depending on segment duration.
+// This prevents unbounded array growth.
+const MAX_SEGMENT_HISTORY = 300;
+
 function detectProtocol(manifestString, hint) {
     if (hint) return hint;
     if (typeof manifestString !== 'string') return 'dash';
@@ -36,8 +41,39 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
         payload.protocol
     );
 
+    // --- Aggressive Normalization for Comparison ---
+    const normalizeText = (str, protocol) => {
+        if (!str) return '';
+        let lines = str.replace(/\r\n/g, '\n').split('\n');
+
+        if (protocol === 'hls') {
+            lines = lines.map((line) => {
+                const trimmed = line.trim();
+                if (!trimmed) return '';
+                // If it's not a tag/comment, it's a URI. Strip query string.
+                if (!trimmed.startsWith('#')) {
+                    try {
+                        const idx = trimmed.indexOf('?');
+                        return idx > -1 ? trimmed.substring(0, idx) : trimmed;
+                    } catch (_e) {
+                        return trimmed;
+                    }
+                }
+                return trimmed;
+            });
+        } else {
+            lines = lines.map((l) => l.trim());
+        }
+
+        return lines.filter((l) => l.length > 0).join('\n');
+    };
+
+    const normalizedOld = normalizeText(oldRawManifest, detectedProtocol);
+    const normalizedNew = normalizeText(newManifestString, detectedProtocol);
+
     let newManifestObject, newSerializedObject, newMediaPlaylists;
     let opportunisticallyCachedSegments = [];
+
     if (detectedProtocol === 'hls') {
         const { manifest: masterIR, definedVariables } = await parseHlsManifest(
             newManifestString,
@@ -123,8 +159,9 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
         }
     }
 
-    let formattedOld = oldRawManifest;
-    let formattedNew = newManifestString;
+    let formattedOld = normalizedOld;
+    let formattedNew = normalizedNew;
+
     if (detectedProtocol === 'dash') {
         const formatOptions = { indentation: '  ', lineSeparator: '\n' };
         formattedOld = xmlFormatter(oldRawManifest || '', formatOptions);
@@ -149,8 +186,10 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
             baseUrl,
             { now }
         );
-        const newDashRepState = new Map();
+
+        // Initialize new state with OLD state to preserve history of periods
         const oldDashRepState = new Map(oldDashRepStateArray);
+        const newDashRepState = new Map(oldDashRepState);
 
         for (const [key, data] of Object.entries(segmentsByCompositeKey)) {
             const oldRepState = oldDashRepState.get(key);
@@ -162,26 +201,65 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
                 existingSegments.map((s) => [s.uniqueId, s])
             );
 
+            // Robust "New" Detection
+            const oldSegmentNumbers = new Set();
+            const oldSegmentTimes = new Set();
+            const oldSegmentUniqueIds = new Set();
+
+            existingSegments.forEach((s) => {
+                if (typeof s.number === 'number')
+                    oldSegmentNumbers.add(s.number);
+                if (typeof s.time === 'number') oldSegmentTimes.add(s.time);
+                oldSegmentUniqueIds.add(s.uniqueId);
+            });
+
+            const isSegmentNew = (seg) => {
+                // For DASH, Time is the most reliable absolute identifier if SegmentTimeline is used
+                if (typeof seg.time === 'number' && oldSegmentTimes.size > 0) {
+                    return !oldSegmentTimes.has(seg.time);
+                }
+                // Fallback to Number (Sequence)
+                if (
+                    typeof seg.number === 'number' &&
+                    oldSegmentNumbers.size > 0
+                ) {
+                    return !oldSegmentNumbers.has(seg.number);
+                }
+                // Fallback to URL
+                return !oldSegmentUniqueIds.has(seg.uniqueId);
+            };
+
             if (initSegment && !existingSegmentIds.has(initSegment.uniqueId)) {
                 existingSegmentIds.set(initSegment.uniqueId, initSegment);
             }
 
+            // Merge new segments
             for (const newSeg of newWindowSegments) {
                 if (!existingSegmentIds.has(newSeg.uniqueId)) {
                     existingSegmentIds.set(newSeg.uniqueId, newSeg);
                 }
             }
-            const finalSegments = Array.from(existingSegmentIds.values());
 
-            const oldSegmentIds = new Set(
-                (oldRepState?.segments || []).map((s) => s.uniqueId)
-            );
+            // --- MEMORY FIX: Prune History ---
+            let finalSegments = Array.from(existingSegmentIds.values());
+            if (finalSegments.length > MAX_SEGMENT_HISTORY) {
+                // Always keep Init segment if it exists
+                const init = finalSegments.filter((s) => s.type === 'Init');
+                const media = finalSegments.filter((s) => s.type === 'Media');
+
+                // Keep the newest N segments
+                const keptMedia = media.slice(-MAX_SEGMENT_HISTORY);
+                finalSegments = [...init, ...keptMedia];
+            }
+
             const currentSegmentUrlsInWindow = newWindowSegments.map(
                 (s) => s.uniqueId
             );
-            const newlyAddedSegmentUrls = currentSegmentUrlsInWindow.filter(
-                (id) => !oldSegmentIds.has(id)
-            );
+
+            // Determine truly new segments this cycle
+            const newlyAddedSegmentUrls = newWindowSegments
+                .filter(isSegmentNew)
+                .map((s) => s.uniqueId);
 
             newDashRepState.set(key, {
                 segments: finalSegments,
@@ -192,7 +270,7 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
         }
         dashRepStateForUpdate = Array.from(newDashRepState.entries());
     } else {
-        // HLS
+        // HLS State Update
         const newVariantsById = new Map();
         for (const as of newManifestObject.periods[0].adaptationSets) {
             for (const rep of as.representations) {
@@ -201,7 +279,7 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
         }
 
         const oldHlsVariantState = new Map(payload.oldHlsVariantState || []);
-        const newHlsVariantState = new Map();
+        const newHlsVariantState = new Map(oldHlsVariantState);
 
         for (const [stableId, newRep] of newVariantsById.entries()) {
             const currentUri = newRep.serializedManifest.resolvedUri;
@@ -211,11 +289,44 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
             const allSegmentsMap = new Map(
                 (oldState?.segments || []).map((seg) => [seg.uniqueId, seg])
             );
-            (mediaPlaylistData?.manifest?.segments || []).forEach((newSeg) => {
-                const oldSeg = allSegmentsMap.get(newSeg.uniqueId);
-                allSegmentsMap.set(newSeg.uniqueId, { ...oldSeg, ...newSeg });
+            const newSegmentsList = mediaPlaylistData?.manifest?.segments || [];
+
+            newSegmentsList.forEach((newSeg) => {
+                allSegmentsMap.set(newSeg.uniqueId, newSeg);
             });
-            const finalSegments = Array.from(allSegmentsMap.values());
+
+            // --- MEMORY FIX: Prune History ---
+            let finalSegments = Array.from(allSegmentsMap.values());
+            if (finalSegments.length > MAX_SEGMENT_HISTORY) {
+                finalSegments = finalSegments.slice(-MAX_SEGMENT_HISTORY);
+            }
+
+            // HLS New Detection: Rely on Media Sequence Number if available
+            const oldSegmentNumbers = new Set(
+                (oldState?.segments || [])
+                    .filter((s) => typeof s.number === 'number')
+                    .map((s) => s.number)
+            );
+            const oldSegmentIds = new Set(
+                (oldState?.segments || []).map((s) => s.uniqueId)
+            );
+
+            const isSegmentNew = (seg) => {
+                if (
+                    typeof seg.number === 'number' &&
+                    oldSegmentNumbers.size > 0
+                ) {
+                    return !oldSegmentNumbers.has(seg.number);
+                }
+                return !oldSegmentIds.has(seg.uniqueId);
+            };
+
+            const currentSegmentUrls = new Set(
+                newSegmentsList.map((s) => s.uniqueId)
+            );
+            const newlyAddedSegmentUrls = newSegmentsList
+                .filter(isSegmentNew)
+                .map((s) => s.uniqueId);
 
             const mergedState = {
                 ...(oldState || {}),
@@ -227,23 +338,11 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
                     ]),
                 ],
                 segments: finalSegments,
+                currentSegmentUrls,
+                newlyAddedSegmentUrls: new Set(newlyAddedSegmentUrls),
                 isLoading: false,
                 error: null,
             };
-
-            const oldSegmentIds = new Set(
-                (oldState?.segments || []).map((s) => s.uniqueId)
-            );
-            mergedState.currentSegmentUrls = new Set(
-                (mediaPlaylistData?.manifest.segments || []).map(
-                    (s) => s.uniqueId
-                )
-            );
-            mergedState.newlyAddedSegmentUrls = new Set(
-                [...mergedState.currentSegmentUrls].filter(
-                    (id) => !oldSegmentIds.has(id)
-                )
-            );
 
             newHlsVariantState.set(stableId, mergedState);
         }
@@ -326,8 +425,6 @@ export async function handleShakaManifestFetch(payload, signal) {
     const startTime = performance.now();
     appLog('shakaManifestHandler', 'info', `Fetching manifest for ${url}`);
 
-    // Pass empty object for loggingContext to disable fetchWithAuth's automatic logging,
-    // because we log it manually below.
     const response = await fetchWithAuth(
         url,
         auth,
@@ -379,22 +476,9 @@ export async function handleShakaManifestFetch(payload, signal) {
 
     let newManifestString = await response.text();
 
-    // --- ARCHITECTURAL FIX: Determine correct Base URI for Shaka ---
-    // If the manifest was loaded from a Blob URL (patched), we must return
-    // the original stream's base URL as the `uri` so that relative paths resolve correctly.
     let responseUri = response.url;
     if (response.url.startsWith('blob:') && baseUrl) {
-        appLog(
-            'shakaManifestHandler',
-            'info',
-            `Detected Blob URL manifest. Overriding response URI to: ${baseUrl}`
-        );
         responseUri = baseUrl;
-
-        // --- ADDITIONAL FIX: Inject BaseURL into DASH manifest ---
-        // Shaka's internal DASH parser sometimes relies on the manifest content
-        // itself to resolve relative paths if the MPD BaseURL handling logic kicks in.
-        // Injecting the absolute BaseURL ensures no ambiguity.
         const detectedProtocol = detectProtocol(newManifestString);
         if (detectedProtocol === 'dash') {
             const mpdRegex = /<MPD[^>]*>/;
@@ -406,34 +490,17 @@ export async function handleShakaManifestFetch(payload, signal) {
                     newManifestString.slice(0, insertIndex) +
                     baseTag +
                     newManifestString.slice(insertIndex);
-                appLog(
-                    'shakaManifestHandler',
-                    'info',
-                    `Injected <BaseURL> for DASH path resolution.`
-                );
             }
         }
     }
 
     if (isLive) {
         await analyzeUpdateAndNotify(payload, newManifestString, responseUri);
-    } else {
-        appLog(
-            'shakaManifestHandler',
-            'info',
-            'VOD stream detected. Skipping analysis and returning manifest to Shaka.'
-        );
     }
-
-    appLog(
-        'shakaManifestHandler',
-        'info',
-        'Returning raw manifest to Shaka player immediately.'
-    );
 
     return {
         uri: responseUri,
-        originalUri: responseUri, // Override this too to prevent fallback logic in Shaka
+        originalUri: responseUri,
         data: new TextEncoder().encode(newManifestString).buffer,
         headers: response.headers,
         status: response.status,

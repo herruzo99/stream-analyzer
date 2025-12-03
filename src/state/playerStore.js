@@ -12,6 +12,7 @@ import { createStore } from 'zustand/vanilla';
  * @property {number} bufferHealth
  * @property {number} bandwidth
  * @property {number} bitrate
+ * @property {number} loadLatency
  */
 
 /**
@@ -36,6 +37,7 @@ import { createStore } from 'zustand/vanilla';
  * @property {PlaybackHistoryEntry[]} playbackHistory
  * @property {'controls' | 'stats' | 'log' | 'graphs' | 'telemetry'} activeTab
  * @property {number} retryCount
+ * @property {{start: number, end: number}} seekableRange
  */
 
 /**
@@ -46,7 +48,7 @@ import { createStore } from 'zustand/vanilla';
  * @property {(isInPiP: boolean) => void} setPictureInPicture
  * @property {(isPipUnmount: boolean) => void} setPipUnmountState
  * @property {(isMuted: boolean) => void} setMutedState
- * @property {(info: Partial<Pick<PlayerState, 'playbackState' | 'activeVideoTrack' | 'activeAudioTrack' | 'activeTextTrack' | 'videoTracks' | 'audioTracks' | 'textTracks'>>) => void} updatePlaybackInfo
+ * @property {(info: Partial<PlayerState>) => void} updatePlaybackInfo
  * @property {(stats: PlayerStats) => void} updateStats
  * @property {(event: PlayerEvent) => void} logEvent
  * @property {(entry: AbrHistoryEntry) => void} logAbrSwitch
@@ -79,6 +81,7 @@ const createInitialPlayerState = () => ({
     playbackHistory: [],
     activeTab: 'stats',
     retryCount: 0,
+    seekableRange: { start: 0, end: 0 }, // ARCHITECTURAL FIX: Initialize to prevent UI crash
 });
 
 /**
@@ -110,6 +113,7 @@ export const usePlayerStore = createStore((set, get) => ({
             bufferHealth: stats.buffer.seconds,
             bandwidth: stats.abr.estimatedBandwidth,
             bitrate: stats.abr.currentVideoBitrate,
+            loadLatency: stats.abr.loadLatency,
         };
 
         set({
@@ -157,6 +161,7 @@ export const usePlayerStore = createStore((set, get) => ({
             activeAudioTrack: audioTracks.find((t) => t.active),
             activeTextTrack: textTracks.find((t) => t.active),
             retryCount: 0, // Reset retry count on successful load
+            seekableRange: { start: 0, end: 0 },
         });
     },
 
@@ -197,21 +202,17 @@ export const usePlayerStore = createStore((set, get) => ({
                 }))
             );
 
-        // --- ARCHITECTURAL FIX: Implement default audio track selection ---
         let activeAudioTrack = null;
         if (audioTracks.length > 0) {
-            // Prefer the first track with the 'main' role.
             const mainTrack = audioTracks.find((t) => t.roles.includes('main'));
             if (mainTrack) {
                 mainTrack.active = true;
                 activeAudioTrack = mainTrack;
             } else {
-                // Otherwise, fall back to the very first audio track.
                 audioTracks[0].active = true;
                 activeAudioTrack = audioTracks[0];
             }
         }
-        // --- END FIX ---
 
         const textTracks = allAdaptationSets
             .filter(

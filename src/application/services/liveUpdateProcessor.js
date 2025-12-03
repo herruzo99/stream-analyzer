@@ -12,7 +12,44 @@ import { uiActions, useUiStore } from '@/state/uiStore';
 import { EVENTS } from '@/types/events';
 import { diffManifest } from '@/ui/shared/diff';
 
-const MAX_MANIFEST_UPDATES_HISTORY = 1000;
+// --- MEMORY BUDGET SETTINGS ---
+// Total number of update entries to keep in the list (metadata).
+const MAX_TOTAL_HISTORY = 100;
+
+// The "Window": Number of recent updates to keep fully hydrated with Raw Text & AST.
+// Allows deep inspection/diffing of recent events without OOMing on long sessions.
+const FULL_FIDELITY_WINDOW = 10;
+
+/**
+ * Prunes heavy objects from updates that have fallen out of the fidelity window.
+ * @param {Array} updates The current list of updates (newest first).
+ * @returns {Array} The optimized list of updates.
+ */
+function optimizeUpdateHistory(updates) {
+    return updates.slice(0, MAX_TOTAL_HISTORY).map((update, index) => {
+        // IF inside the window, keep everything.
+        if (index < FULL_FIDELITY_WINDOW) {
+            return update;
+        }
+
+        // IF outside the window, check if we need to strip data to save RAM.
+        if (update.serializedManifest || update.rawManifest) {
+            return {
+                ...update,
+                // Strip the heavy Abstract Syntax Tree
+                serializedManifest: null,
+                // Strip the large string, but leave a marker.
+                // Note: We intentionally set this to a small string rather than null
+                // to prevent UI components expecting a string from crashing,
+                // while reclaiming 99% of the memory.
+                rawManifest: `[Memory Optimization] Content purged for update #${update.sequenceNumber}.`,
+                // We keep complianceResults, changes, and timestamp as they are lightweight.
+            };
+        }
+
+        return update;
+    });
+}
 
 /**
  * After a live update, this function checks for any representations being
@@ -26,12 +63,6 @@ function queueNewSegmentsForPolledReps(stream) {
 
     const { get, set } = useSegmentCacheStore.getState();
     const repsToPoll = Array.from(stream.segmentPollingReps);
-
-    appLog(
-        'LiveUpdateProcessor',
-        'info',
-        `Checking for new segments in ${repsToPoll.length} actively polled representations for stream ${stream.id}.`
-    );
 
     for (const repId of repsToPoll) {
         const repState =
@@ -58,12 +89,6 @@ function queueNewSegmentsForPolledReps(stream) {
             });
 
         if (unloadedSegments.length > 0) {
-            appLog(
-                'LiveUpdateProcessor',
-                'info',
-                `Queueing ${unloadedSegments.length} new segments for polled representation: ${repId}`
-            );
-
             unloadedSegments.forEach((seg) => {
                 set(seg.uniqueId, {
                     status: -1,
@@ -102,27 +127,43 @@ function queueNewSegmentsForPolledReps(stream) {
 }
 
 /**
+ * Merges new feature analysis results into the existing state.
+ * Features that are "used" remain "used" even if transiently absent.
+ * @param {import('@/types').FeatureAnalysisState} currentState
+ * @param {Record<string, import('@/types').FeatureAnalysisResult>} newResults
+ */
+function mergeFeatureAnalysis(currentState, newResults) {
+    const mergedResults = new Map(currentState.results);
+
+    for (const [key, newResult] of Object.entries(newResults)) {
+        const existing = mergedResults.get(key);
+        if (!existing || (!existing.used && newResult.used)) {
+            // Update if new, or if it flipped from false -> true
+            mergedResults.set(key, newResult);
+        } else if (existing.used && newResult.used) {
+            // Update details if both true (keep latest details)
+            mergedResults.set(key, newResult);
+        }
+        // If existing was true and new is false, keep existing as true (feature detected in stream history)
+    }
+
+    return {
+        results: mergedResults,
+        manifestCount: (currentState.manifestCount || 0) + 1,
+    };
+}
+
+/**
  * The main handler for processing a live manifest update.
  * @param {object} updateData The event data from the worker.
  */
 async function processLiveUpdate(updateData) {
-    appLog(
-        'LiveUpdateProcessor',
-        'info',
-        'Received "livestream:manifest-updated" event from worker.',
-        updateData
-    );
     const { streamId, finalUrl } = updateData;
 
     const stream = useAnalysisStore
         .getState()
         .streams.find((s) => s.id === streamId);
     if (!stream) {
-        appLog(
-            'LiveUpdateProcessor',
-            'warn',
-            `Stream ${streamId} not found. Aborting update.`
-        );
         return;
     }
 
@@ -159,33 +200,48 @@ async function processLiveUpdate(updateData) {
         updateData.newManifestObject = parsedResult.manifest;
     }
 
-    // --- FIX: Preserve Client-Side Detected Ads ---
-    // The worker returns adAvails found via Manifest parsing (SCTE-35).
-    // We must merge these with existing adAvails found via main-thread heuristics (structural/ID based).
+    // --- FEATURE ANALYSIS UPDATE ---
+    const newFeatureResults = generateFeatureAnalysis(
+        updateData.newManifestObject,
+        stream.protocol,
+        updateData.serializedManifest
+    );
+
+    const updatedFeatureAnalysis = mergeFeatureAnalysis(
+        stream.featureAnalysis,
+        newFeatureResults
+    );
+
+    // --- AD AVAIL MERGE (FIXED) ---
     const workerAdAvails = updateData.adAvails || [];
     const existingAdAvails = stream.adAvails || [];
 
-    // Heuristic detection methods that run on the main thread
-    const MAIN_THREAD_DETECTION_METHODS = new Set([
-        'ASSET_IDENTIFIER',
-        'ENCRYPTION_TRANSITION',
-        'STRUCTURAL_DISCONTINUITY',
-    ]);
+    // 1. Use existing avails as the base to ensure history is preserved.
+    // This protects against race conditions where the worker might have processed a stale state.
+    const mergedMap = new Map();
+    existingAdAvails.forEach((a) => mergedMap.set(a.id, a));
 
-    const preservedAdAvails = existingAdAvails.filter((a) =>
-        MAIN_THREAD_DETECTION_METHODS.has(a.detectionMethod)
+    // 2. Overlay worker avails. These are either new detections or updates to existing ones.
+    workerAdAvails.forEach((a) => mergedMap.set(a.id, a));
+
+    // 3. Cleanup 'unconfirmed' placeholder if real SCTE-35 events are now present.
+    // The worker attempts this, but if we merge stale+fresh, we might re-introduce it.
+    const finalAvailsList = Array.from(mergedMap.values());
+    const hasRealScte35 = finalAvailsList.some(
+        (a) =>
+            a.id !== 'unconfirmed-inband-scte35' &&
+            a.detectionMethod === 'SCTE35_INBAND'
     );
 
-    // Combine worker avails with preserved main-thread avails, deduplicating by ID
-    const mergedAdAvails = [...workerAdAvails];
-    const workerAvailIds = new Set(workerAdAvails.map((a) => a.id));
+    let mergedAdAvails = finalAvailsList;
+    if (hasRealScte35) {
+        mergedAdAvails = finalAvailsList.filter(
+            (a) => a.id !== 'unconfirmed-inband-scte35'
+        );
+    }
 
-    preservedAdAvails.forEach((avail) => {
-        if (!workerAvailIds.has(avail.id)) {
-            mergedAdAvails.push(avail);
-        }
-    });
-    // --- END FIX ---
+    // Sort by start time for UI consistency
+    mergedAdAvails.sort((a, b) => a.startTime - b.startTime);
 
     const updatePayload = {
         dashRepresentationState: new Map(
@@ -194,12 +250,12 @@ async function processLiveUpdate(updateData) {
         hlsVariantState: new Map(updateData.hlsVariantState || []),
         adAvails: mergedAdAvails,
         inbandEventsToAdd: updateData.inbandEvents,
+        featureAnalysis: updatedFeatureAnalysis, // Apply the merged feature analysis
     };
 
     if (stream.protocol === 'hls') {
         const newMediaPlaylistsMap = new Map(stream.mediaPlaylists);
 
-        // 1. Process Master Playlist update
         const oldMasterData = newMediaPlaylistsMap.get('master');
         const newMasterRaw = updateData.newManifestString;
         const isMasterUnchanged =
@@ -241,10 +297,13 @@ async function processLiveUpdate(updateData) {
                 serializedManifest: updateData.serializedManifest,
                 changes,
             };
-            newMasterUpdates = [newUpdate, ...newMasterUpdates].slice(
-                0,
-                MAX_MANIFEST_UPDATES_HISTORY
-            );
+
+            // Apply Optimization Strategy
+            newMasterUpdates = optimizeUpdateHistory([
+                newUpdate,
+                ...newMasterUpdates,
+            ]);
+
             newMasterActiveUpdateId = newUpdate.id;
         }
 
@@ -256,11 +315,9 @@ async function processLiveUpdate(updateData) {
             activeUpdateId: newMasterActiveUpdateId,
         });
 
-        // Update top-level stream properties with latest master info
         updatePayload.manifest = updateData.newManifestObject;
         updatePayload.rawManifest = newMasterRaw;
 
-        // 2. Process Media Playlist updates
         if (updateData.newMediaPlaylists) {
             const incomingMediaPlaylists = new Map(
                 updateData.newMediaPlaylists
@@ -311,10 +368,13 @@ async function processLiveUpdate(updateData) {
                             newPlaylistData.manifest.serializedManifest,
                         changes,
                     };
-                    newMediaUpdates = [newUpdate, ...newMediaUpdates].slice(
-                        0,
-                        MAX_MANIFEST_UPDATES_HISTORY
-                    );
+
+                    // Apply Optimization Strategy
+                    newMediaUpdates = optimizeUpdateHistory([
+                        newUpdate,
+                        ...newMediaUpdates,
+                    ]);
+
                     newActiveUpdateId = newUpdate.id;
                 }
                 newMediaPlaylistsMap.set(variantId, {
@@ -326,7 +386,6 @@ async function processLiveUpdate(updateData) {
         }
         updatePayload.mediaPlaylists = newMediaPlaylistsMap;
     } else {
-        // DASH logic
         const latestUpdate = stream.manifestUpdates[0];
         const isUnchanged =
             latestUpdate &&
@@ -370,13 +429,17 @@ async function processLiveUpdate(updateData) {
                 serializedManifest: updateData.serializedManifest,
                 changes,
             };
+
+            // Apply Optimization Strategy
+            const optimizedUpdates = optimizeUpdateHistory([
+                newUpdate,
+                ...stream.manifestUpdates,
+            ]);
+
             Object.assign(updatePayload, {
                 manifest: updateData.newManifestObject,
                 rawManifest: updateData.newManifestString,
-                manifestUpdates: [newUpdate, ...stream.manifestUpdates].slice(
-                    0,
-                    MAX_MANIFEST_UPDATES_HISTORY
-                ),
+                manifestUpdates: optimizedUpdates,
             });
         }
     }
@@ -387,11 +450,6 @@ async function processLiveUpdate(updateData) {
         finalUrl !== stream.originalUrl
     ) {
         updatePayload.resolvedUrl = finalUrl;
-        appLog(
-            'LiveUpdateProcessor',
-            'info',
-            `Stream ${streamId} manifest redirected during update. New resolvedUrl: ${finalUrl}`
-        );
     }
 
     analysisActions.updateStream(streamId, updatePayload);
@@ -403,23 +461,13 @@ async function processLiveUpdate(updateData) {
         queueNewSegmentsForPolledReps(updatedStream);
     }
 
+    // --- Conditional Polling Check ---
     const { conditionalPolling } = useUiStore.getState();
     if (
         conditionalPolling.status === 'active' &&
         conditionalPolling.streamId === streamId
     ) {
-        const featureAnalysisResults = new Map(
-            Object.entries(
-                generateFeatureAnalysis(
-                    updateData.newManifestObject,
-                    stream.protocol,
-                    updateData.serializedManifest
-                )
-            )
-        );
-        const targetFeature = featureAnalysisResults.get(
-            conditionalPolling.featureName
-        );
+        const targetFeature = newFeatureResults[conditionalPolling.featureName];
 
         if (targetFeature && targetFeature.used) {
             analysisActions.setStreamPolling(streamId, false);
@@ -442,9 +490,6 @@ async function processLiveUpdate(updateData) {
     }
 }
 
-/**
- * Initializes the service by subscribing to the live manifest update event from the worker.
- */
 export function initializeLiveUpdateProcessor() {
     eventBus.subscribe(EVENTS.LIVESTREAM.MANIFEST_UPDATED, processLiveUpdate);
 }

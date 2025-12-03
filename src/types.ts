@@ -1,8 +1,7 @@
 export interface SourcedData<T> {
     value: T;
-    source: 'manifest' | 'segment';
+    source: 'manifest' | 'segment' | string;
 }
-// ... [Existing interfaces remain unchanged] ...
 
 export type ResourceType =
     | 'manifest'
@@ -58,11 +57,12 @@ export interface NetworkEvent {
     visuals?: any;
     size?: number | null;
     throughput?: number;
+    efficiency?: number | null;
 }
 
 export interface CodecInfo {
     value: string;
-    source: 'manifest' | 'segment';
+    source: 'manifest' | 'segment' | string;
     supported: boolean;
 }
 
@@ -186,6 +186,8 @@ export interface Representation {
         lang: string | null;
     };
     lang?: string | null;
+    switching?: any[];
+    randomAccess?: any[];
 }
 
 export interface PsshInfo {
@@ -259,6 +261,7 @@ export interface AdaptationSet {
     forced: boolean;
     serializedManifest: object;
     inbandEventStreams: Descriptor[];
+    switching?: any[];
 }
 
 export interface Scte35SpliceTime {
@@ -530,6 +533,7 @@ export interface MediaSegment {
     parsedData?: any;
     inbandEvents?: Event[];
     mediaInfo?: MediaInfoSummary | null;
+    periodStart?: number; // Added: offset of the period start in seconds
 }
 
 export interface HlsSegment extends MediaSegment {
@@ -544,6 +548,18 @@ export interface HlsSegment extends MediaSegment {
     uriLineNumber?: number;
     byteRange?: { length: number; offset: number | null } | null;
     cue?: { type: 'in' | 'out'; duration?: number };
+}
+
+export interface CmafValidationResult {
+    id: string;
+    text: string;
+    status: 'pass' | 'fail' | 'warn' | 'info';
+    details: string;
+}
+
+export interface CmafData {
+    status: 'idle' | 'pending' | 'complete' | 'error';
+    results: CmafValidationResult[];
 }
 
 export interface ManifestSummary {
@@ -600,6 +616,18 @@ export interface ManifestSummary {
     audioTracks: AudioTrackSummary[];
     textTracks: TextTrackSummary[];
     security: SecuritySummary | null;
+    advanced: {
+        variables: any[];
+        metrics: any[];
+        serviceDescriptions: any[];
+        popularityRates: any[];
+        viewpoints: any[];
+        ratings: any[];
+        subsets: any[];
+        extendedBandwidths: any[];
+        failoverContents: any[];
+    } | null;
+    cmafData: CmafData;
 }
 
 export interface Manifest {
@@ -640,6 +668,7 @@ export interface Manifest {
     renditionReports?: any[];
     partInf?: any;
     mediaSequence?: number;
+    contentPopularityRates?: any[];
 }
 
 export interface CoverageFinding {
@@ -738,9 +767,10 @@ export interface AdaptationEvent {
 
 export interface PlayerInstance {
     streamId: number;
+    sourceStreamId: number;
     streamName: string;
     manifestUrl: string | null;
-    streamType: 'live' | 'vod'; // Added
+    streamType: 'live' | 'vod';
     state:
         | 'idle'
         | 'loading'
@@ -756,6 +786,7 @@ export interface PlayerInstance {
     selectedForAction: boolean;
     abrOverride: boolean | null;
     maxHeightOverride: number | null;
+    maxBandwidthOverride: number | null;
     bufferingGoalOverride: number | null;
     initialState: any;
     variantTracks: any[];
@@ -780,6 +811,10 @@ export interface MultiPlayerState {
     gridColumns: number | 'auto';
     focusedStreamId: number | null;
     showGlobalHud: boolean;
+    globalAbrEnabled: boolean;
+    globalMaxHeight: number;
+    globalBandwidthCap: number;
+    globalBufferingGoal: number;
 }
 
 export interface ConditionalPollingState {
@@ -1152,6 +1187,17 @@ export interface DrmAuthInfo {
     queryParams: KeyValuePair[];
 }
 
+export interface Tier0Metadata {
+    status: number; // HTTP status code
+    protocol: 'HLS' | 'DASH' | 'Unknown';
+    type: 'LIVE' | 'VOD' | 'Unknown';
+    isEncrypted: boolean;
+    detectedDrm: string[];
+    isLowLatency: boolean;
+    server?: string;
+    duration?: number;
+}
+
 export interface StreamInput {
     id: number;
     url: string;
@@ -1161,6 +1207,8 @@ export interface StreamInput {
     drmAuth: DrmAuthInfo;
     detectedDrm: string[] | null;
     isDrmInfoLoading: boolean;
+    tier0: Tier0Metadata | null;
+    isTier0AnalysisLoading: boolean;
 }
 
 export interface Stream {
@@ -1200,4 +1248,10 @@ export interface Stream {
     licenseServerUrl: string;
     adaptationEvents: AdaptationEvent[];
     segmentPollingReps: Set<string>;
+}
+
+export interface SegmentToCompare {
+    streamId: number;
+    repId: string;
+    segmentUniqueId: string;
 }

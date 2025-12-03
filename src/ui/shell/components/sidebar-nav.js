@@ -88,8 +88,6 @@ export function getNavGroups() {
         isDebugMode && (activeStream?.coverageReport || []).length > 0;
     const hasManifestWarnings = hasMissingTooltips(activeStream);
 
-    const isEncrypted = activeStream?.manifest?.summary?.security?.isEncrypted;
-
     return [
         {
             title: 'Analysis',
@@ -167,7 +165,6 @@ export function getNavGroups() {
                     label: 'DRM Workbench',
                     icon: icons.shieldCheck,
                     visible: true, // Always visible for utility, but most useful for encrypted streams
-                    hasWarning: isEncrypted, // Highlight if stream is encrypted
                 },
                 {
                     key: 'updates',

@@ -123,19 +123,11 @@ const renderLine = (
             </div>
         `;
     } else if (type === 'comment') {
-        // FIX: Collapsed template literal to avoid extra whitespace in whitespace-pre container
-        lineContent = html`<div
-            class="${baseClass} text-slate-500 italic whitespace-pre leading-relaxed"
-        >
-            ${content}
-        </div>`;
+        // prettier-ignore
+        lineContent = html`<div class="${baseClass} text-slate-500 italic whitespace-pre leading-relaxed">${content}</div>`;
     } else if (type === 'uri') {
-        // FIX: Collapsed template literal to avoid extra whitespace in whitespace-pre container
-        lineContent = html`<div
-            class="${baseClass} text-cyan-300/90 whitespace-pre leading-relaxed"
-        >
-            ${content}
-        </div>`;
+        // prettier-ignore
+        lineContent = html`<div class="${baseClass} text-cyan-300/90 whitespace-pre leading-relaxed">${content}</div>`;
     } else {
         lineContent = html`<div class="${baseClass}"></div>`;
     }

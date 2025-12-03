@@ -40,6 +40,9 @@ const createInitialUiState = () => ({
     complianceActiveFilter: 'all',
     complianceStandardVersion: 13,
     comparisonReferenceStreamId: null,
+    comparisonReferenceVariantId: null,
+    comparisonCandidateStreamId: null,
+    comparisonCandidateVariantId: null,
     featureAnalysisStandardVersion: 13,
     segmentExplorerActiveRepId: null,
     segmentExplorerActiveTab: 'video',
@@ -79,6 +82,7 @@ const createInitialUiState = () => ({
     },
     inactivityTimeoutOverride: null,
     globalPollingIntervalOverride: null,
+    pollingMode: 'smart', // 'smart' (adaptive) | 'fixed' (exact)
     showAllDrmFields: false,
     segmentPollingSelectorState: {
         expandedStreamIds: new Set(),
@@ -197,7 +201,19 @@ export const useUiStore = createStore((set, get) => ({
     setInteractiveManifestPage: (page) =>
         set({ interactiveManifestCurrentPage: page }),
     setComparisonReferenceStreamId: (id) =>
-        set({ comparisonReferenceStreamId: id }),
+        set({
+            comparisonReferenceStreamId: id,
+            comparisonReferenceVariantId: null,
+        }),
+    setComparisonReferenceVariantId: (id) =>
+        set({ comparisonReferenceVariantId: id }),
+    setComparisonCandidateStreamId: (id) =>
+        set({
+            comparisonCandidateStreamId: id,
+            comparisonCandidateVariantId: null,
+        }),
+    setComparisonCandidateVariantId: (id) =>
+        set({ comparisonCandidateVariantId: id }),
     toggleInteractiveManifestSubstitution: () =>
         set((state) => ({
             interactiveManifestShowSubstituted:
@@ -379,6 +395,7 @@ export const useUiStore = createStore((set, get) => ({
         set({ inactivityTimeoutOverride: durationMs }),
     setGlobalPollingIntervalOverride: (interval) =>
         set({ globalPollingIntervalOverride: interval }),
+    setPollingMode: (mode) => set({ pollingMode: mode }),
     toggleShowAllDrmFields: () =>
         set((state) => ({ showAllDrmFields: !state.showAllDrmFields })),
     setDebugCopySelection: (selection, value) =>
@@ -427,4 +444,5 @@ export const useUiStore = createStore((set, get) => ({
     setTimelineActiveTab: (tab) => set({ timelineActiveTab: tab }),
     reset: () => set(createInitialUiState()),
 }));
+
 export const uiActions = useUiStore.getState();

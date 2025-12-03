@@ -283,7 +283,7 @@ function buildCanonicalSampleList(parsedData, segmentBuffer) {
                 }
 
                 const sample = {
-                    duration: sampleInfo.duration ?? defaultSampleDuration,
+                    duration: sampleInfo.duration ?? defaultSampleDuration ?? 0,
                     size: sampleInfo.size ?? defaultSampleSize,
                     sampleFlags: sampleInfo.sampleFlags ?? defaultSampleFlags,
                     compositionTimeOffset: sampleInfo.compositionTimeOffset,

@@ -196,6 +196,7 @@ export async function initializeGlobalRequestInterceptor() {
         const contentLength = contentLengthHeader
             ? parseInt(contentLengthHeader, 10)
             : 0;
+        const contentType = response.headers.get('content-type') || '';
 
         /** @type {Record<string, string>} */
         const responseHeaders = {};
@@ -214,20 +215,33 @@ export async function initializeGlobalRequestInterceptor() {
         let requestBody = null;
         let responseBody = null;
 
+        // Updated Logic: Always capture text-based manifests, keys, licenses, and small JSON
+        const isManifestLike =
+            resourceType === 'manifest' ||
+            contentType.includes('xml') ||
+            contentType.includes('mpegurl') ||
+            contentType.includes('dash+xml');
+
         const shouldCapture =
+            isManifestLike ||
             resourceType === 'license' ||
             resourceType === 'key' ||
-            resourceType === 'manifest';
+            (contentType.includes('json') && contentLength < 50000);
 
         if (shouldCapture) {
-            // We must clone before reading because the stream might be locked or consumed
-            // NOTE: response.clone() might fail if body is already used.
-            // MSW's response:bypass gives us a fresh clone usually, but safe to wrap.
             if (!request.bodyUsed) {
-                requestBody = await request.clone().arrayBuffer();
+                try {
+                    requestBody = await request.clone().arrayBuffer();
+                } catch (_e) {
+                    // Ignore body errors
+                }
             }
-            // Responses in bypass event are usually fresh clones
-            responseBody = await response.clone().arrayBuffer();
+            try {
+                // Ensure we clone before reading
+                responseBody = await response.clone().arrayBuffer();
+            } catch (e) {
+                console.warn('Failed to capture body', e);
+            }
         }
 
         const eventPayload = {
@@ -245,7 +259,7 @@ export async function initializeGlobalRequestInterceptor() {
                 statusText: response.statusText,
                 headers: responseHeaders,
                 contentLength: contentLength,
-                contentType: response.headers.get('content-type') || '',
+                contentType: contentType,
                 body: responseBody,
             },
             timing: {

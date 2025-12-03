@@ -1,3 +1,4 @@
+import { initializeCmafService } from '@/features/compliance/application/cmafService';
 import { saveToHistory } from '@/infrastructure/persistence/streamStorage';
 import { uiActions, useUiStore } from '@/state/uiStore';
 import { EVENTS } from '@/types/events';
@@ -30,6 +31,16 @@ export class Application {
                         uiActions.setActiveTab(defaultTab);
                     }
                     uiActions.setViewState('results');
+
+                    // Trigger CMAF validation for DASH streams
+                    streams.forEach((stream) => {
+                        if (stream.protocol === 'dash') {
+                            this.eventBus.dispatch(
+                                'ui:cmaf-validation-requested',
+                                { stream }
+                            );
+                        }
+                    });
                 }
             }
         );
@@ -61,6 +72,18 @@ export class Application {
             return; // Session restoration is in progress, do nothing.
         }
 
+        // Check for shared state in URL hash first
+        const sharedInputs = this.services.urlStateManager.getStateFromUrl();
+        if (sharedInputs) {
+            this.analysisActions.setStreamInputs(sharedInputs);
+            this.eventBus.dispatch(EVENTS.UI.STREAM_ANALYSIS_REQUESTED, {
+                inputs: sharedInputs,
+            });
+            // Clear the hash after consuming it to clean up the URL?
+            // Maybe keep it so the user can refresh? Let's keep it for now.
+            return;
+        }
+
         const urlParams = new URLSearchParams(window.location.search);
         const streamUrls = urlParams.getAll('url');
 
@@ -87,6 +110,7 @@ export class Application {
      * Starts the application by attaching event listeners and populating initial data.
      */
     start() {
+        initializeCmafService();
         this.initializeAppEventListeners();
         this._populateInputs();
     }

@@ -4,6 +4,7 @@ import { handleGetStreamDrmInfo } from './handlers/drmDetectionHandler.js';
 import { handleGetManifestMetadata } from './handlers/metadataHandler.js';
 import { handleShakaManifestFetch } from './handlers/shakaManifestHandler.js';
 import { handleShakaResourceFetch } from './handlers/shakaResourceHandler.js';
+import { handleTier0Analysis } from './handlers/tier0Handler.js'; // Import new handler
 import {
     handleDecryptAndParseSegment,
     handleFetchAndParseSegment,
@@ -31,6 +32,7 @@ const handlers = {
     'shaka-fetch-manifest': handleShakaManifestFetch,
     'shaka-fetch-resource': handleShakaResourceFetch,
     'run-ts-semantic-analysis': handleRunTsSemanticAnalysis,
+    'tier0-analysis': handleTier0Analysis, // Register new handler
 };
 
 self.addEventListener('message', async (event) => {

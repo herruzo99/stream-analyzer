@@ -25,6 +25,7 @@ export function createSegmentFromTemplateUrl(url, context) {
         segmentDuration,
         encryptionInfo,
         flags,
+        periodStart,
     } = context;
 
     const numberMatch =
@@ -49,6 +50,7 @@ export function createSegmentFromTemplateUrl(url, context) {
         uniqueId: url,
         template: mediaTemplate,
         time: time,
+        periodStart: periodStart,
         duration: segmentDuration,
         timescale,
         encryptionInfo,
@@ -59,7 +61,6 @@ export function createSegmentFromTemplateUrl(url, context) {
 
 /**
  * Generates a list of Media Segment objects based on a starting number and count.
- * @returns {object[]} An array of segment objects.
  */
 function generateSegments(
     repId,
@@ -103,9 +104,10 @@ function generateSegments(
             type: 'Media',
             number: segmentNumber,
             resolvedUrl: resolvedUrl,
-            uniqueId: resolvedUrl, // Use resolvedUrl as it's guaranteed to be unique for Number-based templates
-            template: mediaTemplate, // Store the original template
+            uniqueId: resolvedUrl,
+            template: mediaTemplate,
             time: time,
+            periodStart: periodStart,
             duration: segmentDuration,
             timescale,
             startTimeUTC: segAvailabilityStartTime,
@@ -121,8 +123,6 @@ function generateSegments(
 
 /**
  * Fetches the server time from the UTCTiming element, if available.
- * @param {object} manifestElement The root MPD element.
- * @returns {Promise<number | null>} A promise that resolves to the server time in milliseconds, or null.
  */
 async function getUtcTime(manifestElement) {
     const utcTiming = findChildren(manifestElement, 'UTCTiming')[0];
@@ -146,11 +146,6 @@ async function getUtcTime(manifestElement) {
 
 /**
  * Parses all segment URLs from a serialized DASH manifest object.
- * This is now an async function to handle fetching server time for live streams and `sidx` boxes.
- * @param {object} manifestElement The serialized <MPD> element.
- * @param {string} manifestUrl The URL from which the MPD was fetched (the initial base URL).
- * @param {object} [context] Context object containing the current wall-clock time.
- * @returns {Promise<Record<string, object>>} A map of composite keys (periodId-repId) to their segment lists.
  */
 export async function parseAllSegmentUrls(
     manifestElement,
@@ -166,9 +161,20 @@ export async function parseAllSegmentUrls(
     const now = context.now || serverTime || Date.now();
 
     const periods = findChildren(manifestElement, 'Period');
+    let cumulativePeriodStart = 0;
 
     for (const [periodIndex, period] of periods.entries()) {
         const periodId = getAttr(period, 'id');
+        let periodStart = parseDuration(getAttr(period, 'start'));
+        const periodDuration = parseDuration(getAttr(period, 'duration'));
+
+        if (periodStart === null) {
+            periodStart = cumulativePeriodStart;
+        }
+        if (periodDuration !== null) {
+            cumulativePeriodStart = periodStart + periodDuration;
+        }
+
         const adaptationSets = findChildren(period, 'AdaptationSet');
 
         for (const adaptationSet of adaptationSets) {
@@ -229,17 +235,12 @@ export async function parseAllSegmentUrls(
                     'SegmentTemplate',
                     hierarchy
                 );
-                const _segmentList = getInheritedElement(
-                    'SegmentList',
-                    hierarchy
-                );
                 const segmentBase = getInheritedElement(
                     'SegmentBase',
                     hierarchy
                 );
                 const baseURLOnly = findChildren(rep, 'BaseURL')[0];
 
-                // --- INIT SEGMENT ---
                 const initInfo = findInitSegmentUrl(
                     { id: repId, serializedManifest: rep },
                     { serializedManifest: adaptationSet },
@@ -265,7 +266,6 @@ export async function parseAllSegmentUrls(
                     };
                 }
 
-                // --- MEDIA SEGMENTS ---
                 if (template) {
                     const timescale = Number(
                         getAttr(template, 'timescale') || '1'
@@ -281,34 +281,30 @@ export async function parseAllSegmentUrls(
                     const startNumber = Number(
                         getAttr(template, 'startNumber') || '1'
                     );
-                    const periodStart =
-                        parseDuration(getAttr(period, 'start')) || 0;
                     const availabilityTimeOffset =
                         parseFloat(
                             getAttr(template, 'availabilityTimeOffset')
                         ) || 0;
 
                     if (mediaTemplate && timeline) {
-                        // Logic for SegmentTimeline (VOD and Live) remains the same
                         const allTimelineSegments = [];
                         let mediaTime = -1;
                         let currentNumber = startNumber;
 
                         findChildren(timeline, 'S').forEach((s) => {
-                            const t =
-                                getAttr(s, 't') !== undefined
-                                    ? Number(getAttr(s, 't'))
-                                    : -1;
-                            const d = Number(getAttr(s, 'd'));
-                            const r = Number(getAttr(s, 'r') || '0');
-
-                            if (t >= 0) {
-                                mediaTime = t;
+                            const tAttr = getAttr(s, 't');
+                            if (tAttr !== undefined) {
+                                mediaTime = Number(tAttr);
                             } else if (mediaTime === -1) {
                                 mediaTime = 0;
                             }
 
-                            for (let i = 0; i <= r; i++) {
+                            const d = Number(getAttr(s, 'd'));
+                            const r = Number(getAttr(s, 'r') || '0');
+
+                            const repeatCount = r < 0 ? 0 : r;
+
+                            for (let i = 0; i <= repeatCount; i++) {
                                 const url = mediaTemplate
                                     .replace(/\$RepresentationID\$/g, repId)
                                     .replace(/\$Time\$/g, String(mediaTime))
@@ -337,7 +333,6 @@ export async function parseAllSegmentUrls(
                                     periodStart +
                                     mpdStartTimeInTimescale / timescale;
                                 const segmentDurationSeconds = d / timescale;
-
                                 const segAvailabilityStartTime =
                                     availabilityStartTime +
                                     (absoluteTime +
@@ -353,6 +348,7 @@ export async function parseAllSegmentUrls(
                                     uniqueId: resolvedUrl,
                                     template: mediaTemplate,
                                     time: mpdStartTimeInTimescale,
+                                    periodStart: periodStart,
                                     duration: d,
                                     timescale,
                                     startTimeUTC: segAvailabilityStartTime,
@@ -385,9 +381,11 @@ export async function parseAllSegmentUrls(
                                 allTimelineSegments.filter((seg) => {
                                     const segAbsoluteTime =
                                         periodStart + seg.time / seg.timescale;
+                                    // Allow segments slightly into the "future" to handle clock drift and rounding errors
+                                    // Allow 30 seconds drift allowance
                                     return (
                                         segAbsoluteTime >= windowStart &&
-                                        segAbsoluteTime <= liveEdge
+                                        segAbsoluteTime <= liveEdge + 30
                                     );
                                 });
                         } else {
@@ -497,7 +495,6 @@ export async function parseAllSegmentUrls(
                     }
                 } else if (segmentBase) {
                     const indexRange = getAttr(segmentBase, 'indexRange');
-
                     if (indexRange) {
                         try {
                             const [indexRangeStartStr] = indexRange.split('-');
@@ -505,7 +502,6 @@ export async function parseAllSegmentUrls(
                                 indexRangeStartStr,
                                 10
                             );
-
                             const sidxResponse = await fetchWithAuth(
                                 baseUrl,
                                 context.auth,
@@ -513,7 +509,7 @@ export async function parseAllSegmentUrls(
                             );
                             if (!sidxResponse.ok) {
                                 throw new Error(
-                                    `HTTP ${sidxResponse.status} fetching sidx box`
+                                    `HTTP ${sidxResponse.status} fetching sidx`
                                 );
                             }
                             const sidxBuffer = await sidxResponse.arrayBuffer();
@@ -554,6 +550,7 @@ export async function parseAllSegmentUrls(
                                         uniqueId: uniqueId,
                                         range: range,
                                         time: currentTime,
+                                        periodStart: periodStart,
                                         duration: entry.duration,
                                         timescale: sidxTimescale,
                                         encryptionInfo,
@@ -570,9 +567,7 @@ export async function parseAllSegmentUrls(
                                     currentOffset += entry.size;
                                 }
                             } else {
-                                throw new Error(
-                                    'sidx box not found within the specified indexRange.'
-                                );
+                                throw new Error('sidx box not found.');
                             }
                         } catch (e) {
                             console.error(
@@ -582,11 +577,10 @@ export async function parseAllSegmentUrls(
                             segmentsByRep[compositeKey].diagnostics[
                                 'SIDX Parsing'
                             ] = {
-                                error: `Failed to fetch or parse sidx box: ${e.message}`,
+                                error: `Failed to fetch sidx: ${e.message}`,
                             };
                         }
                     } else {
-                        // Fallback for SegmentBase without indexRange (single segment)
                         const timescale = Number(
                             getAttr(segmentBase, 'timescale') || '1'
                         );
@@ -608,6 +602,7 @@ export async function parseAllSegmentUrls(
                                 .split('/')
                                 .pop(),
                             time: 0,
+                            periodStart: periodStart,
                             duration: mpdDurationSeconds * timescale,
                             timescale,
                             encryptionInfo,
@@ -620,7 +615,6 @@ export async function parseAllSegmentUrls(
                 } else if (baseURLOnly) {
                     const urlContent = baseURLOnly['#text'] || '';
                     const resolvedUrl = new URL(urlContent, baseUrl).href;
-                    // For single-file reps, timescale is 1 and duration is the period/MPD duration.
                     const timescale = 1;
                     const periodDurationSeconds = parseDuration(
                         getAttr(period, 'duration')
@@ -639,6 +633,7 @@ export async function parseAllSegmentUrls(
                         uniqueId: resolvedUrl,
                         template: urlContent,
                         time: 0,
+                        periodStart: periodStart,
                         duration: durationSeconds * timescale,
                         timescale,
                         encryptionInfo,
@@ -684,7 +679,6 @@ export function findInitSegmentUrl(
 
     const list = getInheritedElement('SegmentList', hierarchy);
     const base = getInheritedElement('SegmentBase', hierarchy);
-
     const initContainer = list || base;
     const initialization = initContainer
         ? findChildren(initContainer, 'Initialization')[0]
@@ -695,21 +689,19 @@ export function findInitSegmentUrl(
         const urlWithSub = urlTemplate
             .replace(/\$RepresentationID\$/g, representation.id)
             .replace(/\$Bandwidth\$/g, getAttr(repElement, 'bandwidth'));
-        const result = {
+        return {
             url: new URL(urlWithSub, baseUrl).href,
             range: null,
             template: urlTemplate,
         };
-        return result;
     }
 
     if (initialization && getAttr(initialization, 'range')) {
-        const result = {
-            url: baseUrl, // Range applies to the base URL of the representation context
+        return {
+            url: baseUrl,
             range: getAttr(initialization, 'range'),
             template: new URL(baseUrl).pathname.split('/').pop(),
         };
-        return result;
     }
 
     return null;

@@ -35,6 +35,7 @@ const dashXmlSchema = {
             'ServiceDescription',
             'InitializationSet',
             'Metrics',
+            'ContentPopularityRate', // Added
         ],
     },
     Period: {
@@ -47,6 +48,7 @@ const dashXmlSchema = {
             'ServiceDescription',
             'Preselection',
             'BaseURL',
+            'SupplementalProperty', // Added to fix UNPARSED warning
         ],
     },
     AdaptationSet: {
@@ -55,7 +57,7 @@ const dashXmlSchema = {
             'group',
             'contentType',
             'lang',
-            'label', // ARCHITECTURAL FIX: Added 'label' to known attributes
+            'label',
             'mimeType',
             'codecs',
             'frameRate',
@@ -77,7 +79,7 @@ const dashXmlSchema = {
             'subsegmentStartsWithSAP',
             'bitstreamSwitching',
             'initializationPrincipal',
-            'profiles', // Common attribute
+            'profiles',
             'containerProfiles',
         ],
         children: [
@@ -96,6 +98,7 @@ const dashXmlSchema = {
             'Label',
             'ProducerReferenceTime',
             'InbandEventStream',
+            'Switching', // Added
         ],
     },
     Representation: {
@@ -116,6 +119,11 @@ const dashXmlSchema = {
             'audioSamplingRate',
             'scanType',
             'startWithSAP',
+            'codingDependency',
+            'maxPlayoutRate',
+            'maximumSAPPeriod',
+            'tag',
+            'segmentProfiles',
         ],
         children: [
             'BaseURL',
@@ -129,11 +137,21 @@ const dashXmlSchema = {
             'InbandEventStream',
             'AudioChannelConfiguration',
             'ProducerReferenceTime',
+            'FramePacking',
+            'Switching', // Added
+            'RandomAccess', // Added
+            'Resync',
         ],
     },
     ServiceDescription: {
         attrs: ['id'],
-        children: ['Latency', 'PlaybackRate'],
+        children: [
+            'Latency',
+            'PlaybackRate',
+            'Scope',
+            'OperatingQuality',
+            'OperatingBandwidth',
+        ],
     },
     Latency: {
         attrs: ['min', 'max', 'target', 'referenceId'],
@@ -168,7 +186,6 @@ const dashXmlSchema = {
         attrs: ['t', 'n', 'd', 'r', 'k'],
         children: [],
     },
-    // Add other elements as needed...
 };
 
 /**
@@ -294,7 +311,9 @@ const irSchema = {
         '__variantUri',
         'muxedAudio',
         'lang',
-        'roles', // FIX: Added missing property
+        'roles',
+        'switching', // Added to fix DRIFT
+        'randomAccess', // Added to fix DRIFT
     ],
     AdaptationSet: [
         'id',
@@ -337,6 +356,7 @@ const irSchema = {
         'maximumSAPPeriod',
         'audioSamplingRate',
         'audioChannelConfigurations',
+        'switching', // Added to fix DRIFT
     ],
     Period: [
         'id',
@@ -390,7 +410,8 @@ const irSchema = {
         'mediaSequence',
         'contentProtections',
         'adAvails',
-        'suggestedPresentationDelay', // FIX: Added missing property
+        'suggestedPresentationDelay',
+        'contentPopularityRates', // Added to fix DRIFT
     ],
 };
 

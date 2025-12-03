@@ -324,3 +324,56 @@ export function findBoxRecursive(boxes, predicate) {
     }
     return null;
 }
+
+/**
+ * Interprets a 3x3 ISOBMFF transformation matrix into human-readable operations.
+ * The matrix is stored as [a, b, u, c, d, v, x, y, w] fixed-point values.
+ * @param {number[]} matrix - Array of 9 integers from the box parser.
+ * @returns {string} A descriptive string (e.g., "Identity", "Rotate 90", "Scale 2x").
+ */
+export function interpretMatrix(matrix) {
+    if (!matrix || matrix.length !== 9) return 'Invalid Matrix';
+
+    // Fixed-point 16.16 for a, b, c, d
+    // Fixed-point 2.30 for u, v, w (but we simplified parsing to 32-bit ints)
+    // For high-level logic we mostly care about the upper bits.
+
+    // Normalize to integer approx for pattern matching
+    const a = matrix[0] >> 16;
+    const b = matrix[1] >> 16;
+    // u = matrix[2]
+    const c = matrix[3] >> 16;
+    const d = matrix[4] >> 16;
+    // v = matrix[5]
+    const x = matrix[6] >> 16; // Translation X
+    const y = matrix[7] >> 16; // Translation Y
+    // w = matrix[8]
+
+    const parts = [];
+
+    // Check Rotation/Flip
+    if (a === 1 && b === 0 && c === 0 && d === 1) {
+        // Identity rotation/scale
+    } else if (a === 0 && b === 1 && c === -1 && d === 0) {
+        parts.push('Rotate 90° CW');
+    } else if (a === -1 && b === 0 && c === 0 && d === -1) {
+        parts.push('Rotate 180°');
+    } else if (a === 0 && b === -1 && c === 1 && d === 0) {
+        parts.push('Rotate 90° CCW');
+    } else {
+        // Scaling
+        if (a !== 1 || d !== 1) {
+            parts.push(`Scale(${a}x, ${d}x)`);
+        }
+        // Skew
+        if (b !== 0 || c !== 0) {
+            parts.push(`Skew(${b}, ${c})`);
+        }
+    }
+
+    if (x !== 0 || y !== 0) {
+        parts.push(`Translate(${x}px, ${y}px)`);
+    }
+
+    return parts.length > 0 ? parts.join(', ') : 'Identity';
+}

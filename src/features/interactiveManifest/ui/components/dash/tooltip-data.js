@@ -264,7 +264,7 @@ export const dashTooltipData = {
         isoRef: 'Clause 5.3.7.2, Table 14',
     },
     'AdaptationSet@segmentAlignment': {
-        text: 'A boolean flag. If "true", it guarantees that segment start times are identical across all Representations. This allows the ABR logic to switch tracks seamlessly at any segment boundary without overlap or gaps.',
+        text: 'A boolean flag. If "true", it guarantees that segment start times are identical across all Representations. This allows the ABR algorithm to switch tracks seamlessly at any segment boundary without overlap or gaps.',
         isoRef: 'Clause 5.3.3.2, Table 5',
     },
     'AdaptationSet@subsegmentAlignment': {
@@ -519,6 +519,22 @@ export const dashTooltipData = {
         text: 'An offset to align the event timestamps with the Period timeline, similar to the segment presentation time offset.',
         isoRef: 'Clause 5.10.2.2, Table 38',
     },
+    'EventStream@timescale': {
+        text: 'The time scale (ticks per second) for the Event Stream. Used to calculate the duration and presentation time of contained Events.',
+        isoRef: 'Clause 5.10.2.2, Table 38',
+    },
+    'EventStream@schemeIdUri': {
+        text: 'A URI identifying the scheme of the events contained in this stream (e.g., "urn:scte:scte35:2013:xml" for ad markers).',
+        isoRef: 'Clause 5.10.2.2, Table 38',
+    },
+    Event: {
+        text: 'A wrapper for the specific event message. Contains the payload (like SCTE-35 XML) or message data.',
+        isoRef: 'Clause 5.10.2.2, Table 39',
+    },
+    'Event@duration': {
+        text: 'Specifies the presentation duration of the event. If not present, the duration is unknown or implicit.',
+        isoRef: 'Clause 5.10.2.2, Table 39',
+    },
     InbandEventStream: {
         text: 'Signals that events are embedded inside the media segments (e.g., `emsg` boxes in MP4). This ensures frame-accurate synchronization of metadata (like ID3 tags or ad markers) with the video.',
         isoRef: 'Clause 5.10.3',
@@ -546,6 +562,82 @@ export const dashTooltipData = {
     LeapSecondInformation: {
         text: "Allows the client to account for Leap Seconds when converting between UTC (Wall Clock) and TAI (International Atomic Time), ensuring long-running live streams don't drift by seconds over time.",
         isoRef: 'Clause 5.13',
+    },
+
+    // ==========================================================================================
+    // SCTE 35 (Digital Program Insertion)
+    // ==========================================================================================
+    SpliceInfoSection: {
+        text: 'The root element for SCTE 35 Digital Program Insertion cueing messages in XML format. Signals ad breaks and program boundaries.',
+        isoRef: 'SCTE 35 Standard',
+    },
+    'SpliceInfoSection@protocolVersion': {
+        text: 'The version of the SCTE 35 protocol used.',
+        isoRef: 'SCTE 35 Standard',
+    },
+    'SpliceInfoSection@ptsAdjustment': {
+        text: 'An offset applied to PTS values within the command to align with the MPEG transport stream timeline.',
+        isoRef: 'SCTE 35 Standard',
+    },
+    'SpliceInfoSection@tier': {
+        text: 'Authorization tier for the message.',
+        isoRef: 'SCTE 35 Standard',
+    },
+    SpliceInsert: {
+        text: 'A command sent to signal a splice point (e.g., start or end of an ad break) or an insertion opportunity.',
+        isoRef: 'SCTE 35 Standard',
+    },
+    'SpliceInsert@spliceEventId': {
+        text: 'A unique identifier for this specific splice event. Used to identify the event for cancellation or updates.',
+        isoRef: 'SCTE 35 Standard',
+    },
+    'SpliceInsert@spliceEventCancelIndicator': {
+        text: 'If "true", indicates that a previously sent splice event with the same ID should be cancelled.',
+        isoRef: 'SCTE 35 Standard',
+    },
+    'SpliceInsert@outOfNetworkIndicator': {
+        text: 'Direction of the splice. "true" = Leave Network (Start Ad Break). "false" = Return to Network (End Ad Break).',
+        isoRef: 'SCTE 35 Standard',
+    },
+    'SpliceInsert@spliceImmediateFlag': {
+        text: 'If "true", the splice should occur at the nearest opportunity. If "false", a specific time is provided.',
+        isoRef: 'SCTE 35 Standard',
+    },
+    'SpliceInsert@uniqueProgramId': {
+        text: 'Unique ID for the viewing event (service) associated with this message.',
+        isoRef: 'SCTE 35 Standard',
+    },
+    'SpliceInsert@availNum': {
+        text: 'The specific number of this avail (ad slot) within the program.',
+        isoRef: 'SCTE 35 Standard',
+    },
+    'SpliceInsert@availsExpected': {
+        text: 'The expected total number of avails in the program.',
+        isoRef: 'SCTE 35 Standard',
+    },
+    BreakDuration: {
+        text: 'Optional structure within a SpliceInsert command that specifies the duration of the commercial break.',
+        isoRef: 'SCTE 35 Standard',
+    },
+    'BreakDuration@autoReturn': {
+        text: 'If "true", the splicing device is instructed to return to the network feed automatically after the break duration expires.',
+        isoRef: 'SCTE 35 Standard',
+    },
+    'BreakDuration@duration': {
+        text: 'The duration of the break expressed in 90kHz clock ticks.',
+        isoRef: 'SCTE 35 Standard',
+    },
+    Program: {
+        text: 'Container for splice time details specific to a program element.',
+        isoRef: 'SCTE 35 Standard',
+    },
+    SpliceTime: {
+        text: 'Specifies the precise time for the splice event.',
+        isoRef: 'SCTE 35 Standard',
+    },
+    'SpliceTime@ptsTime': {
+        text: 'The Presentation Time Stamp (PTS) indicating the exact moment of the splice.',
+        isoRef: 'SCTE 35 Standard',
     },
 
     // ==========================================================================================

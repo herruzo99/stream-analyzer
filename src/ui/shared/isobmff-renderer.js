@@ -1,15 +1,14 @@
 import { getTooltipData as getAllIsoTooltipData } from '@/infrastructure/parsing/isobmff/index';
 import { isDebugMode } from '@/shared/utils/env';
-import { uiActions } from '@/state/uiStore'; // Needed for field highlighting
+import { uiActions } from '@/state/uiStore';
 import '@/ui/components/virtualized-list';
 import * as icons from '@/ui/icons';
 import { copyTextToClipboard } from '@/ui/shared/clipboard';
 import { tooltipTriggerClasses } from '@/ui/shared/constants';
 import { html } from 'lit-html';
+import { scte35DetailsTemplate } from './scte35-details.js';
 
 const allIsoTooltipData = getAllIsoTooltipData();
-
-// --- Utilities ---
 
 export const findBoxRecursive = (boxes, predicateOrType) => {
     const predicate =
@@ -30,8 +29,7 @@ export const findBoxRecursive = (boxes, predicateOrType) => {
 const getTimescaleForBox = (box, rootData) => {
     if (!rootData || !rootData.boxes) return null;
     const mdhd = findBoxRecursive(rootData.boxes, (b) => b.type === 'mdhd');
-    if (mdhd) return mdhd.details?.timescale?.value;
-    return null;
+    return mdhd?.details?.timescale?.value || null;
 };
 
 const formatDuration = (value, timescale) => {
@@ -41,8 +39,6 @@ const formatDuration = (value, timescale) => {
     if (seconds < 1) return `${(seconds * 1000).toFixed(2)}ms`;
     return `${seconds.toFixed(3)}s`;
 };
-
-// --- Renderers ---
 
 const renderHexPreview = (data) => {
     const maxBytes = 16;
@@ -54,7 +50,6 @@ const renderHexPreview = (data) => {
         .map((b) => (b >= 32 && b <= 126 ? String.fromCharCode(b) : '.'))
         .join('');
     const remaining = data.length - maxBytes;
-
     return html`
         <div
             class="font-mono text-[10px] bg-black/40 rounded border border-slate-700/50 p-2 flex items-center gap-3 select-all group cursor-text"
@@ -71,9 +66,133 @@ const renderHexPreview = (data) => {
     `;
 };
 
+const renderEmsgPayload = (box) => {
+    if (!box.messagePayloadType) return html``;
+
+    const sectionTitle = html`
+        <div
+            class="px-4 py-2 bg-slate-800/80 border-b border-slate-700/50 text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-4"
+        >
+            Event Payload (${box.messagePayloadType.toUpperCase()})
+        </div>
+    `;
+
+    let content;
+
+    if (box.messagePayloadType === 'scte35') {
+        const hasRawXml = !!box.messagePayload.rawXml;
+        content = html` <div class="p-4">
+            ${scte35DetailsTemplate(box.messagePayload)}
+            ${hasRawXml
+                ? html`
+                      <details class="mt-4">
+                          <summary
+                              class="text-[10px] font-bold text-slate-500 uppercase tracking-wider cursor-pointer mb-2 hover:text-slate-300"
+                          >
+                              View Raw XML
+                          </summary>
+                          <div
+                              class="bg-slate-950 p-2 rounded border border-slate-800 overflow-x-auto"
+                          >
+                              <pre
+                                  class="text-[10px] font-mono text-slate-400 whitespace-pre-wrap"
+                              >
+${box.messagePayload.rawXml}</pre
+                              >
+                          </div>
+                      </details>
+                  `
+                : ''}
+        </div>`;
+    } else if (box.messagePayloadType === 'xml') {
+        content = html`
+            <div class="p-4 bg-slate-900 overflow-x-auto custom-scrollbar">
+                <pre
+                    class="text-xs font-mono text-blue-300 whitespace-pre-wrap break-all"
+                >
+${box.messagePayload}</pre
+                >
+            </div>
+        `;
+    } else {
+        content = html`<div class="p-4">
+            ${renderHexPreview(box.messagePayload)}
+        </div>`;
+    }
+
+    return html`
+        <div
+            class="mt-4 bg-slate-800/30 rounded-xl border border-slate-700/50 overflow-hidden"
+        >
+            ${sectionTitle}${content}
+        </div>
+    `;
+};
+
 const renderValue = (key, value, timescale = null) => {
-    if (value instanceof Uint8Array) {
-        return renderHexPreview(value);
+    if (value instanceof Uint8Array) return renderHexPreview(value);
+
+    if (
+        typeof value === 'object' &&
+        value !== null &&
+        !Array.isArray(value) &&
+        !value.value
+    ) {
+        // It's a flag object { flagName: boolean }
+        return html`
+            <div class="flex flex-wrap gap-1.5 mt-1">
+                ${Object.entries(value).map(([flagName, isSet]) => {
+                    return html`
+                        <span
+                            class="px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wide flex items-center gap-1.5 ${isSet
+                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                : 'bg-slate-800/50 text-slate-500 border-slate-700/50 opacity-60'}"
+                        >
+                            ${isSet
+                                ? html`<span class="scale-75"
+                                      >${icons.checkCircle}</span
+                                  >`
+                                : html`<span class="scale-75"
+                                      >${icons.circle}</span
+                                  >`}
+                            ${flagName.replace(/_/g, ' ')}
+                        </span>
+                    `;
+                })}
+            </div>
+        `;
+    }
+
+    if (key === 'ttmlPayload' && value && typeof value === 'object') {
+        const cueCount = value.cues?.length || 0;
+        const errorCount = value.errors?.length || 0;
+        return html`
+            <div class="text-[10px]">
+                <span class="text-emerald-400 font-bold">${cueCount} Cues</span>
+                ${errorCount > 0
+                    ? html`<span class="text-red-400 ml-2"
+                          >${errorCount} Errors</span
+                      >`
+                    : ''}
+                <div
+                    class="mt-1 max-h-24 overflow-y-auto bg-slate-950/50 p-1 rounded custom-scrollbar"
+                >
+                    ${value.cues
+                        .slice(0, 3)
+                        .map(
+                            (c) =>
+                                html`<div class="truncate text-slate-400">
+                                    ${c.payload}
+                                </div>`
+                        )}
+                    ${cueCount > 3
+                        ? html`<div class="text-slate-600 italic">
+                              +${cueCount - 3} more
+                          </div>`
+                        : ''}
+                </div>
+            </div>
+        `;
     }
 
     if (Array.isArray(value)) {
@@ -89,56 +208,31 @@ const renderValue = (key, value, timescale = null) => {
     }
 
     if (typeof value === 'object' && value !== null) {
-        if (
-            !value.value &&
-            Object.keys(value).length > 0 &&
-            Object.values(value).every((v) => typeof v === 'boolean')
-        ) {
-            return html`
-                <div class="flex flex-wrap gap-1 mt-1">
-                    ${Object.entries(value).map(
-                        ([k, v]) => html`
-                            <span
-                                class="px-1.5 py-0.5 rounded text-[9px] uppercase font-bold border ${v
-                                    ? 'bg-green-900/30 text-green-400 border-green-800'
-                                    : 'bg-slate-800 text-slate-500 border-slate-700 opacity-60'}"
-                            >
-                                ${k}
-                            </span>
-                        `
-                    )}
-                </div>
-            `;
-        }
         return html`
             <div class="pl-2 border-l-2 border-slate-700 mt-1 space-y-1">
                 ${Object.entries(value).map(
-                    ([k, v]) => html`
-                        <div class="flex flex-col">
+                    ([k, v]) =>
+                        html`<div class="flex flex-col">
                             <span
                                 class="text-[10px] text-slate-500 font-bold uppercase"
                                 >${k}</span
-                            >
-                            <span class="text-xs text-slate-300"
+                            ><span class="text-xs text-slate-300"
                                 >${renderValue(k, v)}</span
                             >
-                        </div>
-                    `
+                        </div>`
                 )}
             </div>
         `;
     }
 
     let content = String(value);
-    /** @type {import('lit-html').TemplateResult | string} */
-    let suffix = '';
+    let suffix = html``;
 
     if (
         timescale &&
-        (key.includes('duration') ||
-            key.includes('time') ||
-            key.includes('Time') ||
-            key.includes('offset'))
+        (key.toLowerCase().includes('duration') ||
+            key.toLowerCase().includes('time') ||
+            key.toLowerCase().includes('offset'))
     ) {
         const timeStr = formatDuration(Number(value), timescale);
         if (timeStr)
@@ -147,38 +241,26 @@ const renderValue = (key, value, timescale = null) => {
                 >${timeStr}</span
             >`;
     }
-
     const isFourCC =
         typeof value === 'string' &&
         value.length === 4 &&
         /^[a-zA-Z0-9]{4}$/.test(value);
-
-    return html`
-        <span
+    return html`<span
             class="${isFourCC
                 ? 'font-mono font-bold text-yellow-300 bg-yellow-900/20 px-1 rounded'
                 : 'text-slate-200 font-mono'} break-all"
-        >
-            ${content}
-        </span>
-        ${suffix}
-    `;
+            >${content}</span
+        >${suffix}`;
 };
 
 const propertyRow = (key, field, box, timescale, fieldForDisplay) => {
     const fieldInfo = allIsoTooltipData[`${box.type}@${key}`];
     const labelClass = fieldInfo?.text ? tooltipTriggerClasses : '';
     const isHighlighted = fieldForDisplay === key;
-
-    const handleMouseEnter = () => {
-        // Dispatch the specific field to highlight corresponding bytes in hex view
+    const handleMouseEnter = () =>
         uiActions.setInteractiveSegmentHighlightedItem(box, key);
-    };
-
-    const handleMouseLeave = () => {
+    const handleMouseLeave = () =>
         uiActions.setInteractiveSegmentHighlightedItem(null, null);
-    };
-
     const bgClass = isHighlighted
         ? 'bg-blue-900/30 ring-1 ring-blue-500/50'
         : 'hover:bg-white/[0.02]';
@@ -196,9 +278,8 @@ const propertyRow = (key, field, box, timescale, fieldForDisplay) => {
                     class="${labelClass}"
                     data-tooltip="${fieldInfo?.text || ''}"
                     data-iso="${fieldInfo?.ref || ''}"
+                    >${key}</span
                 >
-                    ${key}
-                </span>
                 ${fieldInfo?.ref
                     ? html`<span
                           class="text-[9px] text-slate-600 font-mono opacity-0 group-hover:opacity-100 transition-opacity"
@@ -213,10 +294,14 @@ const propertyRow = (key, field, box, timescale, fieldForDisplay) => {
     `;
 };
 
-// --- Table Renderer (Virtual List) ---
-
 const SAMPLE_FIELD_WHITELIST = {
-    trun: ['duration', 'size', 'sampleFlags', 'compositionTimeOffset'],
+    trun: [
+        'duration',
+        'size',
+        'sampleFlags',
+        'compositionTimeOffset',
+        'ttmlPayload',
+    ],
     senc: ['iv', 'subsamples'],
     ctts: ['sample_count', 'sample_offset'],
     stts: ['sample_count', 'sample_delta'],
@@ -257,13 +342,14 @@ export const entriesTableTemplate = (box) => {
                 k !== 'color' &&
                 k !== 'trunOffset'
         );
-    const headers = validHeaders.filter((h) => h in firstEntry);
+    const headers = validHeaders.filter(
+        (h) =>
+            h in firstEntry ||
+            (h === 'ttmlPayload' && entries.some((e) => e.ttmlPayload))
+    );
 
     if (headers.length === 0) return '';
-
     const rowHeight = 32;
-
-    // Define fixed column width logic
     const colClass =
         'w-36 shrink-0 px-3 py-2 border-r border-slate-800 last:border-0 truncate';
     const idxClass =
@@ -272,7 +358,6 @@ export const entriesTableTemplate = (box) => {
     const rowRenderer = (entry, index) => {
         const actualIndex = entry.isSample ? entry.index : index;
         const isEven = index % 2 === 0;
-        // We use 'bg-slate-900' as base to ensure sticky index column covers content behind it
         const bgClass = isEven ? 'bg-slate-900/50' : 'bg-slate-900';
 
         return html`
@@ -281,11 +366,13 @@ export const entriesTableTemplate = (box) => {
             >
                 <div class="${idxClass}">${actualIndex + 1}</div>
                 ${headers.map(
-                    (h) => html`
-                        <div class="${colClass}" title="${String(entry[h])}">
+                    (h) =>
+                        html`<div
+                            class="${colClass}"
+                            title="${String(entry[h])}"
+                        >
                             ${renderValue(h, entry[h])}
-                        </div>
-                    `
+                        </div>`
                 )}
             </div>
         `;
@@ -308,11 +395,8 @@ export const entriesTableTemplate = (box) => {
                     >
                 </h4>
             </div>
-
-            <!-- Horizontal Scroll Wrapper -->
             <div class="overflow-x-auto custom-scrollbar">
                 <div class="min-w-max">
-                    <!-- Sticky Header -->
                     <div
                         class="flex bg-slate-900/80 border-b border-slate-800 text-[10px] font-bold text-slate-500 uppercase tracking-wider select-none sticky top-0 z-20"
                     >
@@ -325,7 +409,6 @@ export const entriesTableTemplate = (box) => {
                             (h) => html`<div class="${colClass}">${h}</div>`
                         )}
                     </div>
-
                     <div
                         class="relative w-full bg-slate-950"
                         style="height: 300px; contain: strict;"
@@ -343,8 +426,6 @@ export const entriesTableTemplate = (box) => {
     `;
 };
 
-// --- Main Inspector Template ---
-
 export const inspectorDetailsTemplate = (
     box,
     rootData,
@@ -352,14 +433,12 @@ export const inspectorDetailsTemplate = (
 ) => {
     const boxInfo = allIsoTooltipData[box.type] || {};
     const timescale = getTimescaleForBox(box, rootData);
-
     const fields = Object.entries(box.details).filter(([key, field]) => {
         if (field.internal) return false;
         if (key.endsWith('_raw') && box.details[key.replace('_raw', '')])
             return false;
         return true;
     });
-
     const handleCopyJson = () => {
         const cleanObj = { ...box.details };
         const json = JSON.stringify(
@@ -375,8 +454,7 @@ export const inspectorDetailsTemplate = (
     };
 
     return html`
-        <div class="h-full flex flex-col bg-slate-900">
-            <!-- Hero Header -->
+        <div class="h-full flex flex-col bg-slate-900 min-h-0">
             <div
                 class="shrink-0 p-5 border-b border-slate-800 bg-gradient-to-b from-slate-800/50 to-slate-900/50"
             >
@@ -390,9 +468,8 @@ export const inspectorDetailsTemplate = (
                             </h2>
                             <span
                                 class="px-2 py-0.5 rounded-md bg-slate-800 border border-slate-600 text-slate-400 text-xs font-mono"
+                                >${box.size.toLocaleString()} bytes</span
                             >
-                                ${box.size.toLocaleString()} bytes
-                            </span>
                         </div>
                         <h3 class="text-sm font-medium text-white mt-1">
                             ${boxInfo.name || 'Unknown Box'}
@@ -406,55 +483,49 @@ export const inspectorDetailsTemplate = (
                         ${icons.clipboardCopy}
                     </button>
                 </div>
-
                 ${boxInfo.text
-                    ? html`
+                    ? html`<div
+                          class="text-xs text-slate-400 leading-relaxed bg-black/20 p-3 rounded border border-white/5 relative"
+                      >
                           <div
-                              class="text-xs text-slate-400 leading-relaxed bg-black/20 p-3 rounded border border-white/5 relative"
-                          >
-                              <div
-                                  class="absolute left-0 top-0 bottom-0 w-1 bg-blue-500 rounded-l"
-                              ></div>
-                              ${boxInfo.text}
-                          </div>
-                      `
+                              class="absolute left-0 top-0 bottom-0 w-1 bg-blue-500 rounded-l"
+                          ></div>
+                          ${boxInfo.text}
+                      </div>`
                     : ''}
             </div>
-
-            <!-- Properties Grid -->
-            <div class="grow overflow-y-auto custom-scrollbar p-5">
+            <div class="grow overflow-y-auto custom-scrollbar p-5 min-h-0">
                 ${fields.length > 0
-                    ? html`
+                    ? html`<div
+                          class="bg-slate-800/40 rounded-xl border border-slate-700/50 overflow-hidden"
+                      >
                           <div
-                              class="bg-slate-800/40 rounded-xl border border-slate-700/50 overflow-hidden"
+                              class="px-4 py-2 bg-slate-800/80 border-b border-slate-700/50 text-[10px] font-bold text-slate-400 uppercase tracking-widest"
                           >
-                              <div
-                                  class="px-4 py-2 bg-slate-800/80 border-b border-slate-700/50 text-[10px] font-bold text-slate-400 uppercase tracking-widest"
-                              >
-                                  Properties
-                              </div>
-                              <div class="p-2">
-                                  ${fields.map(([key, field]) =>
-                                      propertyRow(
-                                          key,
-                                          field,
-                                          box,
-                                          timescale,
-                                          fieldForDisplay
-                                      )
-                                  )}
-                              </div>
+                              Properties
                           </div>
-                      `
-                    : html`
-                          <div
-                              class="text-center p-8 text-slate-600 italic border-2 border-dashed border-slate-800 rounded-xl"
-                          >
-                              No properties parsed for this box.
+                          <div class="p-2">
+                              ${fields.map(([key, field]) =>
+                                  propertyRow(
+                                      key,
+                                      field,
+                                      box,
+                                      timescale,
+                                      fieldForDisplay
+                                  )
+                              )}
                           </div>
-                      `}
+                      </div>`
+                    : html`<div
+                          class="text-center p-8 text-slate-600 italic border-2 border-dashed border-slate-800 rounded-xl"
+                      >
+                          No properties parsed for this box.
+                      </div>`}
 
-                <!-- Entries / Samples Table -->
+                <!-- Specialized Payload Views -->
+                ${box.type === 'emsg' ? renderEmsgPayload(box) : ''}
+
+                <!-- Standard Entries Table -->
                 ${entriesTableTemplate(box)}
             </div>
         </div>
@@ -465,83 +536,149 @@ export const isoBoxTreeTemplate = (box, context = {}) => {
     const { isIFrame = false } = context;
     const boxInfo = allIsoTooltipData[box.type] || {};
     let issues = box.issues || [];
-
-    if (isIFrame && box.type === 'mdat') {
+    if (isIFrame && box.type === 'mdat')
         issues = issues.filter((issue) => !issue.message.includes('truncated'));
-    }
-
     const hasError = isDebugMode && issues.length > 0;
-    const typeColor = hasError ? 'text-yellow-400' : 'text-blue-400';
-    const containerClass =
-        'relative pl-4 border-l border-slate-800 hover:border-slate-600 transition-colors group';
 
-    const connector = html`
-        <div
-            class="absolute top-3 left-0 w-3 h-px bg-slate-800 group-hover:bg-slate-600 transition-colors"
-        ></div>
-    `;
-    const fieldsToRender = Object.entries(box.details).filter(
-        ([key, field]) => {
-            if (field.internal) return false;
-            if (key.endsWith('_raw')) return false;
-            // Exclude redundant fields already shown in header
-            if (key === 'size' || key === 'type') return false;
-            return true;
+    // Enhanced box type styling
+    const boxTypeColors = {
+        moov: 'text-indigo-400',
+        trak: 'text-violet-400',
+        mdia: 'text-blue-400',
+        minf: 'text-cyan-400',
+        stbl: 'text-emerald-400',
+        moof: 'text-blue-400',
+        traf: 'text-sky-400',
+        tfhd: 'text-teal-300',
+        trun: 'text-cyan-300',
+        mdat: 'text-slate-400',
+        ftyp: 'text-rose-400',
+        emsg: 'text-fuchsia-400',
+        sidx: 'text-amber-400',
+    };
+
+    const typeColor =
+        boxTypeColors[box.type] ||
+        (hasError ? 'text-yellow-400' : 'text-blue-300');
+    const borderColor = hasError ? 'border-yellow-600' : 'border-slate-800';
+
+    // --- STRUCTURAL SPLIT: Separate simple fields from complex (object/flag) fields ---
+    const allFields = Object.entries(box.details).filter(([key, field]) => {
+        if (field.internal) return false;
+        if (key.endsWith('_raw')) return false;
+        if (key === 'size' || key === 'type') return false;
+        return true;
+    });
+
+    const scalarFields = [];
+    const complexFields = [];
+
+    allFields.forEach(([key, field]) => {
+        const val = field.value;
+        const isComplex =
+            typeof val === 'object' &&
+            val !== null &&
+            !Array.isArray(val) &&
+            !val.value; // This signature implies a flag object in our parser structure
+
+        if (isComplex) {
+            complexFields.push([key, field]);
+        } else {
+            scalarFields.push([key, field]);
         }
-    );
+    });
 
+    // Card-based layout with connection lines
     return html`
-        <div class="${containerClass} my-1">
-            ${connector}
+        <div class="relative pl-6 my-2 group">
+            <!-- Connector Line -->
+            <div
+                class="absolute top-0 bottom-0 left-2.5 w-px bg-gradient-to-b from-slate-800 to-slate-900 group-last:h-6"
+            ></div>
+            <div class="absolute top-6 left-2.5 w-4 h-px bg-slate-800"></div>
 
             <div
-                class="flex items-start gap-3 p-1 rounded hover:bg-white/[0.03] transition-colors"
+                class="bg-slate-950 rounded-lg border ${borderColor} overflow-hidden shadow-sm transition-all hover:border-slate-700"
             >
+                <!-- Header Bar -->
                 <div
-                    class="bg-slate-900 border border-slate-700 rounded px-2 py-1 min-w-[60px] text-center shadow-sm z-10"
+                    class="flex items-center justify-between px-4 py-2 bg-slate-900/80 border-b border-slate-800"
                 >
-                    <span
-                        class="font-mono font-bold text-xs ${typeColor} ${boxInfo.text
-                            ? tooltipTriggerClasses
-                            : ''}"
-                        data-tooltip="${boxInfo.text || ''}"
-                        data-iso="${boxInfo.ref || ''}"
-                    >
-                        ${box.type}
-                    </span>
-                </div>
-
-                <div class="min-w-0 pt-0.5">
-                    <div class="flex items-baseline gap-2">
-                        <span class="text-xs font-semibold text-slate-200"
+                    <div class="flex items-center gap-3">
+                        <span
+                            class="font-mono font-bold text-xs ${typeColor} px-2 py-0.5 bg-slate-950 rounded border border-slate-800 shadow-inner ${boxInfo.text
+                                ? tooltipTriggerClasses
+                                : ''}"
+                            data-tooltip="${boxInfo.text || ''}"
+                            data-iso="${boxInfo.ref || ''}"
+                            >${box.type}</span
+                        >
+                        <span class="text-xs font-semibold text-slate-300"
                             >${boxInfo.name || ''}</span
                         >
-                        <span class="text-[10px] font-mono text-slate-500"
-                            >${box.size.toLocaleString()} B</span
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span
+                            class="text-[10px] font-mono text-slate-500 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800"
                         >
+                            ${box.size.toLocaleString()} B
+                        </span>
                         ${hasError
                             ? html`<span
-                                  class="text-yellow-400 text-[10px] animate-pulse"
-                                  >⚠ Issues Found</span
-                              >`
+                                  class="text-yellow-400 text-[10px] font-bold flex items-center gap-1 bg-yellow-900/20 px-1.5 py-0.5 rounded border border-yellow-900/50"
+                              >
+                                  ${icons.alertTriangle} Issue
+                              </span>`
                             : ''}
                     </div>
+                </div>
 
-                    ${fieldsToRender.length > 0
+                <!-- Content Area -->
+                <div class="p-3 space-y-3">
+                    <!-- Scalars Grid -->
+                    ${scalarFields.length > 0
                         ? html`
                               <div
-                                  class="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5 opacity-80 text-[10px] font-mono text-slate-400"
+                                  class="grid grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-2"
                               >
-                                  ${fieldsToRender.map(
+                                  ${scalarFields.map(
                                       ([key, field]) => html`
-                                          <span class="break-all">
-                                              <span class="text-slate-500"
-                                                  >${key}:</span
+                                          <div
+                                              class="flex flex-col text-xs group/field"
+                                          >
+                                              <span
+                                                  class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5 truncate"
+                                                  title="${key}"
+                                                  >${key}</span
                                               >
-                                              <span class="text-slate-300"
-                                                  >${String(field.value)}</span
+                                              <div class="font-mono truncate">
+                                                  ${renderValue(
+                                                      key,
+                                                      field.value
+                                                  )}
+                                              </div>
+                                          </div>
+                                      `
+                                  )}
+                              </div>
+                          `
+                        : ''}
+
+                    <!-- Complex Fields (Stacked) -->
+                    ${complexFields.length > 0
+                        ? html`
+                              <div
+                                  class="space-y-2 pt-2 border-t border-slate-800/50"
+                              >
+                                  ${complexFields.map(
+                                      ([key, field]) => html`
+                                          <div>
+                                              <span
+                                                  class="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1"
+                                                  >${key}</span
                                               >
-                                          </span>
+                                              ${renderValue(key, field.value)}
+                                          </div>
                                       `
                                   )}
                               </div>

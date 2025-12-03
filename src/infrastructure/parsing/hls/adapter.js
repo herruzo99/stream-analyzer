@@ -94,12 +94,6 @@ function sortAdaptationSets(a, b) {
 // --- End Sorter Functions ---
 
 /**
- * Parses a generic DescriptorType element into a consistent IR object.
- * @param {object} el The raw parsed element.
- * @returns {Descriptor}
- */
-
-/**
  * Transforms a parsed HLS manifest object into a protocol-agnostic Intermediate Representation (IR).
  * This version correctly models discontinuities as distinct Periods.
  * @param {object} hlsParsed - The parsed HLS manifest data from the parser.
@@ -108,16 +102,17 @@ function sortAdaptationSets(a, b) {
  */
 export async function adaptHlsToIr(hlsParsed, context) {
     const segmentFormat = determineSegmentFormat(hlsParsed);
-    const timescale =
-        (hlsParsed.segments &&
-            hlsParsed.segments.length > 0 &&
-            hlsParsed.segments[0]?.timescale) ||
-        90000;
-    const totalDurationInTsUnits = (hlsParsed.segments || []).reduce(
+
+    // FIX: HLS manifest durations (EXTINF) are always in seconds.
+    // While internal TS packets might use 90kHz, the manifest layer operates on seconds.
+    // We force timescale to 1 to avoid confusion and massive integer inflation in the UI.
+    const timescale = 1;
+
+    // Total duration is simple sum of EXTINF (which are already seconds)
+    const totalDuration = (hlsParsed.segments || []).reduce(
         (sum, seg) => sum + seg.duration,
         0
     );
-    const totalDuration = totalDurationInTsUnits / timescale;
 
     const manifestIR = /** @type {Manifest} */ ({
         id: null,

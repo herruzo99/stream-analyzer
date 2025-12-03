@@ -1,6 +1,6 @@
 import { useAnalysisStore } from '@/state/analysisStore';
 import { networkActions, useNetworkStore } from '@/state/networkStore';
-import { usePlayerStore } from '@/state/playerStore'; // Listen to player
+import { usePlayerStore } from '@/state/playerStore';
 import { playerActiveWarningTemplate } from '@/ui/components/player-active-warning.js';
 import { disposeChart, renderChart } from '@/ui/shared/charts/chart-renderer';
 import { throughputChartOptions } from '@/ui/shared/charts/throughput-chart';
@@ -18,12 +18,6 @@ let playerUnsubscribe = null;
 
 function renderNetworkView() {
     if (!container) return;
-
-    const { streams } = useAnalysisStore.getState();
-    // Handle empty state if needed, though the view is usually robust
-    if (streams.length === 0) {
-        // Optional: render empty state
-    }
 
     const { events, selectedEventId, filters, visibleStreamIds } =
         useNetworkStore.getState();
@@ -56,8 +50,6 @@ function renderNetworkView() {
         allVisibleStreamEvents
     );
 
-    // Render Chart Logic
-    // We use RAF to ensure the DOM element exists after Lit renders the template below.
     requestAnimationFrame(() => {
         const chartContainer = container?.querySelector(
             '#throughput-chart-container'
@@ -69,8 +61,6 @@ function renderNetworkView() {
                     throughputChartOptions(viewModel.throughputData)
                 );
             } else {
-                // If no data, we might want to clear the chart or show "No Data"
-                // Re-rendering with empty options handles clearing/updating title
                 renderChart(chartContainer, throughputChartOptions([]));
             }
         }
@@ -78,37 +68,46 @@ function renderNetworkView() {
 
     const template = html`
         <div class="flex flex-col h-full bg-slate-950 overflow-hidden">
+            <!-- 
+                FIX: Ensure warning is shrinkable but visible
+                We put the warning in a shrink-0 container if needed, but usually flex-col handles it.
+            -->
             ${playerActiveWarningTemplate('Network Inspector')}
 
-            <div class="flex flex-col h-full p-4 sm:p-6 overflow-hidden">
-                <!-- Top Section -->
-                <div class="shrink-0 space-y-4">
+            <!-- Main Content Container with scrolling for overflow -->
+            <div
+                class="flex flex-col h-full min-h-0 p-4 sm:p-6 overflow-hidden"
+            >
+                <!-- Top Section (Toolbar + Stats + Chart) -->
+                <div class="shrink-0 space-y-4 mb-4">
                     <h3 class="text-xl font-bold text-white">
                         Network Inspector
                     </h3>
                     ${networkToolbarTemplate()}
                     ${summaryCardsTemplate(viewModel.summary)}
-                </div>
 
-                <!-- Throughput Chart -->
-                <div
-                    class="mt-4 h-32 shrink-0 bg-slate-900 rounded-lg border border-slate-800 p-2 relative"
-                >
-                    <h4
-                        class="absolute top-2 left-3 text-[10px] font-bold text-slate-500 uppercase z-10"
-                    >
-                        Throughput
-                    </h4>
+                    <!-- Throughput Chart -->
                     <div
-                        id="throughput-chart-container"
-                        class="w-full h-full"
-                    ></div>
+                        class="h-32 bg-slate-900 rounded-lg border border-slate-800 p-2 relative"
+                    >
+                        <h4
+                            class="absolute top-2 left-3 text-[10px] font-bold text-slate-500 uppercase z-10"
+                        >
+                            Throughput
+                        </h4>
+                        <div
+                            id="throughput-chart-container"
+                            class="w-full h-full"
+                        ></div>
+                    </div>
                 </div>
 
                 <!-- Split View: Waterfall + Details -->
-                <div
-                    class="flex gap-4 mt-4 grow min-h-0 h-full overflow-hidden"
-                >
+                <!-- 
+                     FIX: 'min-h-0' is critical here to force the flex item to shrink 
+                     instead of overflowing its container.
+                -->
+                <div class="flex gap-4 grow min-h-0 overflow-hidden">
                     <!-- Waterfall Area -->
                     <div
                         class="grow min-w-0 flex flex-col h-full overflow-hidden rounded-lg border border-slate-700 bg-slate-900"
@@ -145,12 +144,11 @@ export const networkAnalysisView = {
 
         networkUnsubscribe = useNetworkStore.subscribe(renderNetworkView);
         analysisUnsubscribe = useAnalysisStore.subscribe(renderNetworkView);
-        playerUnsubscribe = usePlayerStore.subscribe(renderNetworkView); // Subscribe to player state
+        playerUnsubscribe = usePlayerStore.subscribe(renderNetworkView);
         renderNetworkView();
     },
 
     unmount() {
-        // Explicitly dispose of the chart before clearing the DOM to prevent leaks/orphans
         const chartContainer = container?.querySelector(
             '#throughput-chart-container'
         );

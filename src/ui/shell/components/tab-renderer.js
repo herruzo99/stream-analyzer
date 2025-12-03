@@ -8,7 +8,8 @@ export const renderTabButtons = () => {
     const { activeTab, activeSegmentUrl } = useUiStore.getState();
 
     const tabs = [
-        { key: 'comparison', label: 'Comparison', visible: streams.length > 1 },
+        // ARCHITECTURAL CHANGE: Comparison available for 1+ streams (allows variant comparison)
+        { key: 'comparison', label: 'Comparison', visible: streams.length > 0 },
         { key: 'summary', label: 'Global Summary', visible: true },
         {
             key: 'integrators-report',

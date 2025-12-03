@@ -59,9 +59,10 @@ async function postBuild(meta, cspNonce) {
         }
 
         const htmlTemplate = await fs.readFile('index.html', 'utf-8');
+        // FIX: Removed leading slash to allow relative path resolution for subdirectory deployment
         const finalHtml = htmlTemplate
-            .replace('__APP_SCRIPT_PATH__', `/${mainJsPath}`)
-            .replace('__WORKER_PATH__', `/${workerJsPath}`)
+            .replace('__APP_SCRIPT_PATH__', `${mainJsPath}`)
+            .replace('__WORKER_PATH__', `${workerJsPath}`)
             .replace(/__CSP_NONCE__/g, cspNonce);
 
         await fs.writeFile(path.join('dist', 'index.html'), finalHtml);
@@ -93,9 +94,10 @@ async function prepareDevHtml(cspNonce) {
     try {
         await fs.mkdir('dist', { recursive: true });
         const htmlTemplate = await fs.readFile('index.html', 'utf-8');
+        // Fix dev mode paths as well
         const devHtml = htmlTemplate
-            .replace('__APP_SCRIPT_PATH__', '/assets/app.js')
-            .replace('__WORKER_PATH__', '/assets/worker.js')
+            .replace('__APP_SCRIPT_PATH__', 'assets/app.js')
+            .replace('__WORKER_PATH__', 'assets/worker.js')
             .replace(/__CSP_NONCE__/g, cspNonce);
         await fs.writeFile('dist/index.html', devHtml, 'utf-8');
 

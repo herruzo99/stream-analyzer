@@ -16,6 +16,7 @@ export function parseSidx(box, view) {
     p.readUint32('reference_ID');
     p.readUint32('timescale');
 
+    // --- ARCHITECTURAL FIX: Expose calculated EPT and Offset to UI ---
     if (version === 1) {
         p.readBigUint64('earliest_presentation_time');
         p.readBigUint64('first_offset');
@@ -39,8 +40,15 @@ export function parseSidx(box, view) {
         const refTypeAndSize = p.readUint32(`refTypeAndSize_${i}`);
         const duration = p.readUint32(`duration_${i}`);
         const sapInfo = p.readUint32(`sapInfo_${i}`);
+
         if (refTypeAndSize === null || duration === null || sapInfo === null)
             break;
+
+        // Hide raw entry fields from the main property grid to reduce clutter,
+        // as they are visualized in the "Entries" table.
+        box.details[`refTypeAndSize_${i}`].internal = true;
+        box.details[`duration_${i}`].internal = true;
+        box.details[`sapInfo_${i}`].internal = true;
 
         box.entries.push({
             type: (refTypeAndSize >> 31) & 1 ? 'sidx' : 'media',
@@ -82,30 +90,6 @@ export const sidxTooltip = {
     },
     'sidx@reference_count': {
         text: 'The number of subsegment references that follow in the table.',
-        ref: 'ISO/IEC 14496-12, 8.16.3.3',
-    },
-    'sidx@type': {
-        text: 'Indicates the type of item being referenced. "media" means it references media data (e.g., a `moof` box), and "sidx" means it references another `sidx` box (for hierarchical indexing).',
-        ref: 'ISO/IEC 14496-12, 8.16.3.3',
-    },
-    'sidx@size': {
-        text: 'The size in bytes of the referenced item.',
-        ref: 'ISO/IEC 14496-12, 8.16.3.3',
-    },
-    'sidx@duration': {
-        text: 'The duration of the referenced subsegment in `timescale` units.',
-        ref: 'ISO/IEC 14496-12, 8.16.3.3',
-    },
-    'sidx@startsWithSap': {
-        text: 'A flag indicating if the referenced subsegment starts with a Stream Access Point (SAP).',
-        ref: 'ISO/IEC 14496-12, 8.16.3.3',
-    },
-    'sidx@sapType': {
-        text: 'The type of the leading SAP, if present.',
-        ref: 'ISO/IEC 14496-12, 8.16.3.3',
-    },
-    'sidx@sapDeltaTime': {
-        text: 'The SAP decoding time minus the earliest presentation time of the subsegment.',
         ref: 'ISO/IEC 14496-12, 8.16.3.3',
     },
 };

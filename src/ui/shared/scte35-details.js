@@ -1,3 +1,4 @@
+import * as icons from '@/ui/icons';
 import { html } from 'lit-html';
 
 const labelVal = (label, value) => html`
@@ -5,7 +6,11 @@ const labelVal = (label, value) => html`
         class="flex justify-between py-1 border-b border-slate-700/50 last:border-0"
     >
         <span class="text-slate-500 font-medium">${label}</span>
-        <span class="text-slate-200 font-mono text-right">${value}</span>
+        <span
+            class="text-slate-200 font-mono text-right truncate max-w-[150px]"
+            title="${value}"
+            >${value}</span
+        >
     </div>
 `;
 
@@ -20,6 +25,9 @@ export const scte35DetailsTemplate = (scte35) => {
 
     const cmd = scte35.splice_command;
     const descriptors = scte35.descriptors || [];
+    const crcIcon = scte35.crc_valid ? icons.checkCircle : icons.xCircle;
+    const crcColor = scte35.crc_valid ? 'text-green-400' : 'text-red-400';
+    const crcValue = (scte35.crc_32 ?? 0).toString(16).padStart(8, '0');
 
     return html`
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 text-xs">
@@ -34,8 +42,39 @@ export const scte35DetailsTemplate = (scte35) => {
                 </h4>
                 ${labelVal('Command Type', scte35.splice_command_type)}
                 ${labelVal('PTS Adjustment', scte35.pts_adjustment)}
-                ${labelVal('Tier', `0x${scte35.tier.toString(16)}`)}
-                ${labelVal('CW Index', scte35.cw_index)}
+                ${labelVal('Protocol Version', scte35.protocol_version)}
+
+                <div
+                    class="flex justify-between py-1 border-b border-slate-700/50 last:border-0"
+                >
+                    <span class="text-slate-500 font-medium">CRC32</span>
+                    <span class="text-right flex items-center gap-2">
+                        <span class="text-slate-400 font-mono"
+                            >0x${crcValue}</span
+                        >
+                        <span
+                            class="${crcColor}"
+                            title="${scte35.crc_valid ? 'Valid' : 'Invalid'}"
+                            >${crcIcon}</span
+                        >
+                    </span>
+                </div>
+
+                <div class="mt-3 pt-2 border-t border-slate-700/50">
+                    <span
+                        class="text-[10px] font-bold text-slate-500 uppercase mb-2 block"
+                        >Encryption / SAP</span
+                    >
+                    ${labelVal(
+                        'Encrypted',
+                        scte35.encrypted_packet ? 'Yes' : 'No'
+                    )}
+                    ${scte35.encrypted_packet
+                        ? labelVal('Algorithm', scte35.encryption_algorithm)
+                        : ''}
+                    ${labelVal('CW Index', scte35.cw_index)}
+                    ${labelVal('Tier', `0x${(scte35.tier || 0).toString(16)}`)}
+                </div>
             </div>
 
             <!-- Command Details -->
@@ -56,17 +95,36 @@ export const scte35DetailsTemplate = (scte35) => {
                           cmd.out_of_network_indicator ? 'Yes' : 'No'
                       )
                     : ''}
+                ${cmd.splice_immediate_flag !== undefined
+                    ? labelVal(
+                          'Splice Immediate',
+                          cmd.splice_immediate_flag ? 'Yes' : 'No'
+                      )
+                    : ''}
                 ${cmd.break_duration
                     ? labelVal(
                           'Duration',
                           `${(cmd.break_duration.duration / 90000).toFixed(2)}s`
                       )
                     : ''}
+                ${cmd.break_duration
+                    ? labelVal(
+                          'Auto Return',
+                          cmd.break_duration.auto_return ? 'Yes' : 'No'
+                      )
+                    : ''}
                 ${cmd.splice_time?.pts_time
-                    ? labelVal('Splice Time', cmd.splice_time.pts_time)
+                    ? labelVal('Splice Time (PTS)', cmd.splice_time.pts_time)
                     : ''}
                 ${cmd.unique_program_id
                     ? labelVal('Program ID', cmd.unique_program_id)
+                    : ''}
+                ${cmd.avail_num !== undefined &&
+                cmd.avails_expected !== undefined
+                    ? labelVal(
+                          'Avail Index',
+                          `${cmd.avail_num} / ${cmd.avails_expected}`
+                      )
                     : ''}
             </div>
 

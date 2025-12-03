@@ -5,7 +5,7 @@ import { toggleDropdown } from '@/ui/services/dropdownService';
 import { html, render } from 'lit-html';
 import { multiPlayerService } from '../../application/multiPlayerService';
 import './event-log.js';
-import { virtualTrackDropdownTemplate } from './virtual-track-dropdown';
+import { virtualTrackDropdownTemplate } from './virtual-track-dropdown.js';
 
 class MultiPlayerBottomPanel extends HTMLElement {
     constructor() {
@@ -78,6 +78,10 @@ class MultiPlayerBottomPanel extends HTMLElement {
 
         const handleResetAll = () => {
             eventBus.dispatch('ui:multi-player:reset-all');
+        };
+
+        const handleResetSelected = () => {
+            eventBus.dispatch('ui:multi-player:reset-selected');
         };
 
         // --- Quick Settings Dropdown ---
@@ -365,6 +369,28 @@ class MultiPlayerBottomPanel extends HTMLElement {
                     </button>
                 </div>
 
+                <div class="w-px h-8 bg-slate-800 mx-1"></div>
+
+                <div class="${controlGroup}">
+                    <button
+                        @click=${handleResetAll}
+                        ?disabled=${!hasPlayers}
+                        class="${pillBtn(false)}"
+                        title="Reset All Players"
+                    >
+                        ${icons.sync} All
+                    </button>
+                    <div class="w-px h-4 bg-slate-700"></div>
+                    <button
+                        @click=${handleResetSelected}
+                        ?disabled=${!hasSelection}
+                        class="${pillBtn(false)}"
+                        title="Reset Selected Players"
+                    >
+                        Selected
+                    </button>
+                </div>
+
                 <button
                     class="${iconBtn(showGlobalHud)}"
                     @click=${() =>
@@ -372,14 +398,6 @@ class MultiPlayerBottomPanel extends HTMLElement {
                     title="Toggle HUD"
                 >
                     ${icons.activity}
-                </button>
-                <button
-                    class="${iconBtn(false)}"
-                    @click=${handleResetAll}
-                    ?disabled=${!hasPlayers}
-                    title="Reset All"
-                >
-                    ${icons.sync}
                 </button>
 
                 ${hasSelection

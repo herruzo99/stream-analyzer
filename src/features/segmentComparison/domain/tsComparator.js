@@ -25,10 +25,14 @@ const createRow = (name, values) => {
  * Generic helper to extract a field from the segment's summary object.
  * @param {object|null} segment - A parsed segment object.
  * @param {string} fieldName - The name of the summary field to extract.
+ * @param {string|null} subField - Optional nested field.
  * @returns {any} The value of the field, or '---' if not found.
  */
-const getSummaryField = (segment, fieldName) => {
-    return segment?.data?.summary?.[fieldName] ?? '---';
+const getSummaryField = (segment, fieldName, subField = null) => {
+    const val = segment?.data?.summary?.[fieldName];
+    if (!val) return '---';
+    if (subField) return val[subField] ?? '---';
+    return val;
 };
 
 /**
@@ -39,7 +43,11 @@ const getSummaryField = (segment, fieldName) => {
 const getPmtStreamInfo = (segment) => {
     const summary = segment?.data?.summary;
     if (!summary?.programMap) return '---';
-    const pmtPid = [...summary.pmtPids][0];
+
+    // Get the first program found
+    const pmtPid = Array.from(summary.pmtPids)[0];
+    if (!pmtPid) return '---';
+
     const program = summary.programMap[pmtPid];
     if (!program?.streams) return '---';
     return (
@@ -47,6 +55,12 @@ const getPmtStreamInfo = (segment) => {
             .map(([pid, type]) => `PID ${pid}: ${type}`)
             .join(', ') || 'none'
     );
+};
+
+const getPcrInfo = (segment) => {
+    const pcrList = segment?.data?.summary?.pcrList;
+    if (!pcrList) return '---';
+    return `${pcrList.count} PCRs (Avg: ${pcrList.interval.avg})`;
 };
 
 /**
@@ -67,19 +81,39 @@ export function compareTsSegments(segments) {
                     'PCR PID',
                     segments.map((seg) => getSummaryField(seg, 'pcrPid'))
                 ),
+                createRow('PCR Stats', segments.map(getPcrInfo)),
                 createRow(
                     'PMT PID(s)',
                     segments.map(
                         (seg) =>
-                            [...getSummaryField(seg, 'pmtPids')].join(', ') ||
-                            '---'
+                            [...(getSummaryField(seg, 'pmtPids') || [])].join(
+                                ', '
+                            ) || '---'
                     )
                 ),
                 createRow('Elementary Streams', segments.map(getPmtStreamInfo)),
             ],
             isGeneric: false,
         },
+        {
+            title: 'Stream Continuity',
+            rows: [
+                createRow(
+                    'Continuity Errors',
+                    segments.map((seg) => {
+                        const cc = seg?.data?.summary?.continuityCounters;
+                        if (!cc) return '---';
+                        let totalErrs = 0;
+                        Object.values(cc).forEach(
+                            (c) => (totalErrs += c.errors)
+                        );
+                        return totalErrs;
+                    })
+                ),
+            ],
+            isGeneric: false,
+        },
     ];
 
-    return { sections, structuralDiff: [] }; // Structural diff for TS is not implemented
+    return { sections, structuralDiff: [] };
 }

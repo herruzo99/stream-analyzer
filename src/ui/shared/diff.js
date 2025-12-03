@@ -1,4 +1,4 @@
-import { diffLines, diffWords } from 'diff';
+import { diffLines, diffWordsWithSpace } from 'diff';
 
 /**
  * A sophisticated diffing engine that returns a structured data model.
@@ -36,8 +36,12 @@ export function diffManifest(oldManifest, newManifest) {
                 const newLine = newLines[j];
                 const indentation = oldLine.match(/^(\s*)/)?.[1] || '';
 
-                // Perform word-level diff on the raw text.
-                const wordDiffs = diffWords(oldLine.trim(), newLine.trim());
+                // Perform word-level diff on the raw text using diffWordsWithSpace
+                // to preserve formatting and delimiters.
+                const wordDiffs = diffWordsWithSpace(
+                    oldLine.trim(),
+                    newLine.trim()
+                );
 
                 /** @type {import('@/types').DiffWordPart[]} */
                 const parts = wordDiffs.map((wordPart) => ({

@@ -46,7 +46,6 @@ export const heroHeaderTemplate = (vm) => {
                     </div>
 
                     <div class="min-w-0 flex-1">
-                        <!-- Removed 'truncate' and allowed wrapping for title on mobile -->
                         <h1
                             class="text-lg sm:text-2xl font-bold text-white leading-tight break-words"
                             title="${hero.title}"
@@ -92,6 +91,78 @@ export const heroHeaderTemplate = (vm) => {
                           >`}
                 </div>
             </div>
+
+            <!-- Extra Metadata Row (Timing/Session/Steering) -->
+            ${hero.timingSource ||
+            (hero.sessionData && hero.sessionData.length > 0) ||
+            hero.steering
+                ? html`
+                      <div
+                          class="relative z-10 mt-4 pt-4 border-t border-slate-700/50 flex flex-wrap gap-4 text-xs"
+                      >
+                          ${hero.steering
+                              ? html`
+                                    <div
+                                        class="flex items-center gap-2 bg-indigo-900/30 px-2 py-1 rounded border border-indigo-500/30"
+                                    >
+                                        <span
+                                            class="text-indigo-300 font-bold uppercase tracking-wider"
+                                            >${icons.gitMerge} Content
+                                            Steering</span
+                                        >
+                                        <span
+                                            class="w-px h-3 bg-indigo-500/30"
+                                        ></span>
+                                        <span
+                                            class="font-mono text-slate-300 truncate max-w-[200px]"
+                                            title="${hero.steering.serverUri}"
+                                            >${hero.steering.serverUri}</span
+                                        >
+                                        ${hero.steering.pathwayId
+                                            ? html`<span
+                                                  class="text-indigo-400 font-mono"
+                                                  >(${hero.steering
+                                                      .pathwayId})</span
+                                              >`
+                                            : ''}
+                                    </div>
+                                `
+                              : ''}
+                          ${hero.timingSource
+                              ? html`
+                                    <div class="flex items-center gap-2">
+                                        <span
+                                            class="text-slate-500 font-bold uppercase tracking-wider"
+                                            >UTC Timing:</span
+                                        >
+                                        <span
+                                            class="font-mono text-slate-300 bg-black/20 px-1.5 py-0.5 rounded"
+                                            title="${hero.timingSource.value}"
+                                            >${hero.timingSource.scheme
+                                                .split(':')
+                                                .pop()}</span
+                                        >
+                                    </div>
+                                `
+                              : ''}
+                          ${hero.sessionData.map(
+                              (sd) => html`
+                                  <div class="flex items-center gap-2">
+                                      <span
+                                          class="text-slate-500 font-bold uppercase tracking-wider"
+                                          >${sd.id}:</span
+                                      >
+                                      <span
+                                          class="font-mono text-slate-300 bg-black/20 px-1.5 py-0.5 rounded truncate max-w-[200px]"
+                                          title="${sd.value}"
+                                          >${sd.value}</span
+                                      >
+                                  </div>
+                              `
+                          )}
+                      </div>
+                  `
+                : ''}
         </div>
     `;
 };

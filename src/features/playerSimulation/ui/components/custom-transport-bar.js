@@ -3,41 +3,70 @@ import { html } from 'lit-html';
 import { playerService } from '../../application/playerService';
 
 // Helper to render buffered ranges on the timeline
-const renderBufferedRanges = (videoEl, duration) => {
+const renderBufferedRanges = (videoEl, duration, seekableStart = 0) => {
     if (!videoEl || !duration) return [];
     const ranges = [];
     const buffered = videoEl.buffered;
+
     for (let i = 0; i < buffered.length; i++) {
-        const start = (buffered.start(i) / duration) * 100;
-        const end = (buffered.end(i) / duration) * 100;
-        const width = end - start;
-        ranges.push(html`
-            <div
-                class="absolute top-0 bottom-0 bg-slate-500/40 rounded-sm pointer-events-none"
-                style="left: ${start}%; width: ${width}%"
-            ></div>
-        `);
+        // Map buffer times to 0-100% relative to the seekable window/duration
+        const start =
+            Math.max(0, (buffered.start(i) - seekableStart) / duration) * 100;
+        const end =
+            Math.min(100, (buffered.end(i) - seekableStart) / duration) * 100;
+        const width = Math.max(0, end - start);
+
+        if (width > 0) {
+            ranges.push(html`
+                <div
+                    class="absolute top-0 bottom-0 bg-slate-500/40 rounded-sm pointer-events-none"
+                    style="left: ${start}%; width: ${width}%"
+                ></div>
+            `);
+        }
     }
     return ranges;
 };
 
 export const customTransportBarTemplate = (playerState) => {
-    const { currentStats } = playerState;
+    const { currentStats, seekableRange } = playerState;
     const videoEl = playerService.player?.getMediaElement();
 
     if (!videoEl || !currentStats) return html``;
 
     const currentTime = videoEl.currentTime;
-    const duration = videoEl.duration;
-    const isLive = !isFinite(duration);
-    const progress = isLive ? 100 : (currentTime / duration) * 100;
+    const isLive = playerService.player.isLive();
+
+    // For live streams, we use the seekable window as the timeline basis
+    const seekableStart = isLive ? seekableRange.start : 0;
+    const seekableEnd = isLive ? seekableRange.end : videoEl.duration;
+    const timelineDuration = Math.max(1, seekableEnd - seekableStart);
+
+    // Calculate progress percentage within the seekable window
+    const progress = Math.max(
+        0,
+        Math.min(100, ((currentTime - seekableStart) / timelineDuration) * 100)
+    );
 
     const handleSeek = (e) => {
-        if (isLive) return; // Todo: Live seeking logic
         const rect = e.currentTarget.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const percent = Math.max(0, Math.min(1, x / rect.width));
-        videoEl.currentTime = percent * duration;
+
+        // Calculate target time based on the window
+        const targetTime = seekableStart + percent * timelineDuration;
+        videoEl.currentTime = targetTime;
+    };
+
+    const formatLiveLabel = () => {
+        if (!isLive)
+            return (
+                formatPlayerTime(currentTime) +
+                ' / ' +
+                formatPlayerTime(timelineDuration)
+            );
+        const behindLive = Math.max(0, seekableEnd - currentTime);
+        return `-${formatPlayerTime(behindLive)}`;
     };
 
     return html`
@@ -50,7 +79,11 @@ export const customTransportBarTemplate = (playerState) => {
                 @click=${handleSeek}
             >
                 <!-- Buffer Regions -->
-                ${!isLive ? renderBufferedRanges(videoEl, duration) : ''}
+                ${renderBufferedRanges(
+                    videoEl,
+                    timelineDuration,
+                    seekableStart
+                )}
 
                 <!-- Playhead Progress -->
                 <div
@@ -66,10 +99,9 @@ export const customTransportBarTemplate = (playerState) => {
             <!-- Controls Row -->
             <div class="flex justify-between items-center text-white">
                 <div class="flex items-center gap-4">
-                    <span class="font-mono text-xs font-medium"
-                        >${formatPlayerTime(currentTime)} /
-                        ${formatPlayerTime(duration)}</span
-                    >
+                    <span class="font-mono text-xs font-medium">
+                        ${formatLiveLabel()}
+                    </span>
                     ${isLive
                         ? html`<span
                               class="text-[10px] font-bold bg-red-600 px-1.5 py-0.5 rounded animate-pulse"

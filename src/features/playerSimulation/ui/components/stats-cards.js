@@ -5,7 +5,6 @@ import { html } from 'lit-html';
 
 const formatTooltip = (tooltip) => {
     if (!tooltip || !tooltip.text) return '';
-    // This function returns a raw HTML string.
     return `
         <div class="text-left">
             <p class="font-bold text-slate-100">${tooltip.text}</p>
@@ -125,6 +124,15 @@ export const statsCardsTemplate = (stats) => {
             },
         })}
         ${statCard({
+            title: 'Decoded Frames',
+            value: playbackQuality.decodedFrames,
+            tooltip: {
+                text: 'Total Decoded Frames',
+                details:
+                    'The total number of video frames decoded by the browser. Use this to monitor decoding performance.',
+            },
+        })}
+        ${statCard({
             title: 'Corrupted Frames',
             value: playbackQuality.corruptedFrames,
             colorClass:
@@ -194,28 +202,26 @@ export const statsCardsTemplate = (stats) => {
             },
         })}
         ${statCard({
-            title: 'Switches (Up)',
-            value: abr.switchesUp,
-            colorClass: 'text-green-400',
+            title: 'Load Latency',
+            value: (abr.loadLatency * 1000).toFixed(0),
+            unit: 'ms',
             tooltip: {
-                text: 'Adaptive Bitrate Switches Up',
+                text: 'Segment Load Latency',
                 details:
-                    'The number of times the ABR algorithm has switched to a higher-quality video representation.',
+                    'The time taken to download the most recent segment. High load latency compared to segment duration can lead to buffering.',
             },
         })}
         ${statCard({
-            title: 'Switches (Down)',
-            value: abr.switchesDown,
-            colorClass: 'text-yellow-400',
+            title: 'Switches (Up/Down)',
+            value: `${abr.switchesUp} / ${abr.switchesDown}`,
             tooltip: {
-                text: 'Adaptive Bitrate Switches Down',
+                text: 'Adaptive Bitrate Switches',
                 details:
-                    'The number of times the ABR algorithm has switched to a lower-quality video representation to avoid stalling.',
+                    'The count of quality upgrades (Up) and downgrades (Down) performed by the ABR algorithm.',
             },
         })}
     `;
 
-    // --- ARCHITECTURAL FIX: Always show forward buffer, conditionally show latency ---
     const isLive = buffer.label === 'Live Latency';
     const forwardBufferColorClass =
         buffer.forwardBuffer < 5
@@ -266,7 +272,6 @@ export const statsCardsTemplate = (stats) => {
             },
         })}
     `;
-    // --- END FIX ---
 
     return html`
         <div class="space-y-6">
