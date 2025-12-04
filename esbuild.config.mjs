@@ -68,7 +68,7 @@ async function postBuild(meta, cspNonce) {
         await fs.writeFile(path.join('dist', 'index.html'), finalHtml);
 
         // Copy Static Assets (Icon only)
-        await safeCopyFile('icon.png', 'dist/icon.png');
+        await safeCopyFile('static/icon.png', 'dist/icon.png');
 
         // ARCHITECTURAL FIX: Copy MSW for production
         await safeCopyFile(
@@ -102,7 +102,7 @@ async function prepareDevHtml(cspNonce) {
         await fs.writeFile('dist/index.html', devHtml, 'utf-8');
 
         // Copy Static Assets (Icon only)
-        await safeCopyFile('icon.png', 'dist/icon.png');
+        await safeCopyFile('static/icon.png', 'dist/icon.png');
 
         // ARCHITECTURAL FIX: Copy MSW for development
         await safeCopyFile(
