@@ -20,8 +20,9 @@ declare interface Window {
         ) => void;
     };
 
-    // Google Analytics dataLayer
+    // Google Analytics dataLayer and helper
     dataLayer: any[];
+    gtag: (...args: any[]) => void;
 
     // Injected by post-build script
     ASSET_PATHS: {

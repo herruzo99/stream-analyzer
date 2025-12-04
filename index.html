@@ -1,11 +1,21 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" dir="ltr">
     <head>
+        <!-- 
+            -----------------------------------------------------------------------
+            SECURITY & CORE CONFIGURATION
+            -----------------------------------------------------------------------
+        -->
+        <meta charset="UTF-8" />
+        <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover"
+        />
         <meta
             http-equiv="Content-Security-Policy"
             content="
                 default-src 'self';
-                script-src 'self' 'nonce-__CSP_NONCE__' http://localhost:8000 https://www.googletagmanager.com https://js-de.sentry-cdn.com https://www.clarity.ms https://cdn.jsdelivr.net;
+                script-src 'self' 'nonce-__CSP_NONCE__' http://localhost:8000 https://www.googletagmanager.com https://*.google-analytics.com https://*.analytics.google.com https://js-de.sentry-cdn.com https://www.clarity.ms https://cdn.jsdelivr.net;
                 style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com;
                 font-src 'self' https://fonts.gstatic.com;
                 connect-src * blob:;
@@ -16,41 +26,166 @@
                 form-action 'self';
             "
         />
-        <!-- Modern Favicon Setup -->
-        <link rel="icon" type="image/png" href="/icon.png" />
+
+        <!-- 
+            -----------------------------------------------------------------------
+            PRIMARY METADATA & SEO
+            -----------------------------------------------------------------------
+        -->
+        <title>Stream Analyzer - Professional HLS & DASH Debugger</title>
+        <meta name="application-name" content="Stream Analyzer" />
+        <meta name="author" content="Juan Herruzo Herrero" />
+        <meta
+            name="description"
+            content="Advanced browser-based workbench for analyzing, debugging, and validating MPEG-DASH & HLS streaming manifests. Inspect bitstreams, check compliance, and visualize ABR ladders."
+        />
+        <meta
+            name="keywords"
+            content="HLS, DASH, MPEG-DASH, Manifest, Debugger, Validator, Stream Analyzer, DRM, Widevine, PlayReady, FairPlay, Low Latency, LL-HLS, CMAF, ISOBMFF, TS, Bitstream"
+        />
+        <meta name="robots" content="index, follow" />
+        <link rel="canonical" href="https://stream-analyzer.herruzo.dev/" />
+
+        <!-- 
+            -----------------------------------------------------------------------
+            PWA & MOBILE INTEGRATION (Android / Chrome)
+            -----------------------------------------------------------------------
+        -->
+        <link rel="manifest" href="/site.webmanifest" />
+        <meta name="theme-color" content="#0f172a" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="format-detection" content="telephone=no" />
+
+        <!-- 
+            -----------------------------------------------------------------------
+            APPLE / iOS INTEGRATION
+            -----------------------------------------------------------------------
+        -->
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta
+            name="apple-mobile-web-app-status-bar-style"
+            content="black-translucent"
+        />
+        <meta name="apple-mobile-web-app-title" content="Stream Analyzer" />
         <link rel="apple-touch-icon" href="/icon.png" />
 
+        <!-- 
+            -----------------------------------------------------------------------
+            MICROSOFT / WINDOWS INTEGRATION
+            -----------------------------------------------------------------------
+        -->
+        <meta name="msapplication-TileColor" content="#0f172a" />
+        <meta name="msapplication-TileImage" content="/icon.png" />
+        <meta name="msapplication-tap-highlight" content="no" />
+
+        <!-- 
+            -----------------------------------------------------------------------
+            OPEN GRAPH (Facebook, LinkedIn, WhatsApp, Teams, Discord, Telegram)
+            -----------------------------------------------------------------------
+        -->
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="Stream Analyzer" />
+        <meta property="og:locale" content="en_US" />
+        <meta
+            property="og:url"
+            content="https://stream-analyzer.herruzo.dev/"
+        />
+        <meta
+            property="og:title"
+            content="Stream Analyzer - Professional HLS & DASH Debugger"
+        />
+        <meta
+            property="og:description"
+            content="The professional workbench for streaming engineers. Parse, inspect, and debug manifests and segments directly in your browser."
+        />
+        <meta
+            property="og:image"
+            content="https://stream-analyzer.herruzo.dev/icon.png"
+        />
+        <meta property="og:image:type" content="image/png" />
+        <meta property="og:image:width" content="512" />
+        <meta property="og:image:height" content="512" />
+        <meta property="og:image:alt" content="Stream Analyzer Logo" />
+
+        <!-- 
+            -----------------------------------------------------------------------
+            TWITTER / X CARDS
+            -----------------------------------------------------------------------
+        -->
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta
+            name="twitter:url"
+            content="https://stream-analyzer.herruzo.dev/"
+        />
+        <meta
+            name="twitter:title"
+            content="Stream Analyzer - HLS & DASH Debugger"
+        />
+        <meta
+            name="twitter:description"
+            content="Validate and debug HLS and DASH streams with bitstream-level inspection."
+        />
+        <meta
+            name="twitter:image"
+            content="https://stream-analyzer.herruzo.dev/icon.png"
+        />
+        <meta name="twitter:image:alt" content="Stream Analyzer Interface" />
+        <meta name="twitter:creator" content="@herruzo_dev" />
+
+        <!-- 
+            -----------------------------------------------------------------------
+            ICONS
+            -----------------------------------------------------------------------
+        -->
+        <link rel="icon" type="image/png" sizes="32x32" href="/icon.png" />
+        <link rel="icon" type="image/png" sizes="16x16" href="/icon.png" />
+        <link rel="icon" href="/icon.png" />
+
+        <!-- 
+            -----------------------------------------------------------------------
+            ANALYTICS & CONSENT
+            -----------------------------------------------------------------------
+        -->
         <link
             rel="stylesheet"
             href="https://cdn.jsdelivr.net/gh/orestbida/cookieconsent@v3.0.0/dist/cookieconsent.css"
         />
         <script nonce="__CSP_NONCE__">
-            // This global config will be populated by the build script
+            /* Global Configuration Injected by Build */
             window.ASSET_PATHS = { worker: '__WORKER_PATH__' };
             window.PROD_HOSTNAME = '__PROD_HOSTNAME__';
 
-            // Define functions to load your trackers. These will be called by the consent manager.
-            // They are attached to the window object to make them globally accessible.
-            window.loadGoogleAnalytics = function () {
-                if (window.gaLoaded) return;
+            /* Google Consent Mode v2 Initialization */
+            window.dataLayer = window.dataLayer || [];
+            function gtag() {
+                dataLayer.push(arguments);
+            }
+
+            gtag('consent', 'default', {
+                ad_storage: 'denied',
+                ad_user_data: 'denied',
+                ad_personalization: 'denied',
+                analytics_storage: 'denied',
+                wait_for_update: 500,
+            });
+
+            gtag('set', 'ads_data_redaction', true);
+
+            if (window.location.hostname === '__PROD_HOSTNAME__') {
                 const gtagScript = document.createElement('script');
                 gtagScript.async = true;
                 gtagScript.src =
                     'https://www.googletagmanager.com/gtag/js?id=__GA_ID__';
                 document.head.appendChild(gtagScript);
 
-                window.dataLayer = window.dataLayer || [];
-                function gtag() {
-                    dataLayer.push(arguments);
-                }
                 gtag('js', new Date());
                 gtag('config', '__GA_ID__');
-                console.log('Consent given: Loading Google Analytics.');
-                window.gaLoaded = true;
-            };
+            }
 
             window.loadSentry = function () {
                 if (window.sentryLoaded) return;
+                if (window.location.hostname !== '__PROD_HOSTNAME__') return;
+
                 const sentryScript = document.createElement('script');
                 sentryScript.src =
                     'https://js-de.sentry-cdn.com/__SENTRY_DSN__.min.js';
@@ -62,6 +197,8 @@
 
             window.loadClarity = function () {
                 if (window.clarityLoaded) return;
+                if (window.location.hostname !== '__PROD_HOSTNAME__') return;
+
                 (function (c, l, a, r, i, t, y) {
                     c[a] =
                         c[a] ||
@@ -79,9 +216,11 @@
             };
         </script>
 
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Stream Analyzer</title>
+        <!-- 
+            -----------------------------------------------------------------------
+            STYLES
+            -----------------------------------------------------------------------
+        -->
         <link rel="stylesheet" href="/assets/main.css" />
         <link rel="stylesheet" href="/assets/controls.css" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -97,25 +236,17 @@
         <div
             id="input-section"
             class="fixed inset-0 bg-slate-950 z-50 flex items-center justify-center"
-        >
-            <!-- This container will be populated by the new three-panel input-view renderer -->
-        </div>
+        ></div>
 
         <!-- The root element for the main application results view -->
         <div id="app-root"></div>
 
-        <!-- Global UI overlays that must exist at boot -->
+        <!-- Global UI overlays -->
         <div
             id="toast-container"
             class="fixed bottom-5 right-5 z-[110] space-y-2 flex flex-col justify-end"
         ></div>
 
-        <!-- 
-             REIMAGINED GLOBAL LOADER
-             - Transparent/Blur background (frosted glass)
-             - Canvas fills screen with trails
-             - Text pushed down (mt-48)
-        -->
         <div
             id="global-loader"
             class="hidden fixed inset-0 z-[200] flex-col items-center justify-center bg-slate-950/40 backdrop-blur-md opacity-0 transition-opacity duration-300"
@@ -124,8 +255,6 @@
                 id="loader-canvas"
                 class="absolute inset-0 w-full h-full block pointer-events-none"
             ></canvas>
-
-            <!-- Content pushed down to clear the data stream -->
             <div class="relative z-10 p-4 flex flex-col items-center mt-48">
                 <p
                     id="loader-message"
@@ -136,7 +265,6 @@
             </div>
         </div>
 
-        <!-- Global Modal -->
         <div
             id="segment-modal"
             class="fixed inset-0 text-white bg-slate-950/90 hidden flex items-center justify-center z-60"
@@ -144,7 +272,6 @@
             <div
                 class="bg-slate-800 p-0 rounded-xl h-[90vh] w-11/12 max-w-6xl border border-slate-700 flex flex-col overflow-hidden shadow-2xl ring-1 ring-white/10"
             >
-                <!-- Header (Fixed) -->
                 <div
                     class="flex justify-between items-center p-5 border-b border-slate-700 shrink-0 bg-slate-800 z-10"
                 >
@@ -159,16 +286,12 @@
                         &times;
                     </button>
                 </div>
-
-                <!-- URL Bar (Fixed) -->
                 <div class="px-5 py-2 shrink-0 bg-slate-800/50">
                     <p
                         id="modal-segment-url"
                         class="font-mono text-blue-200 text-xs bg-blue-900/20 p-2.5 rounded border border-blue-500/30 break-all select-all"
                     ></p>
                 </div>
-
-                <!-- Content (Scrollable Flex Child) -->
                 <div
                     id="modal-content-area"
                     class="text-xs flex-1 min-h-0 overflow-hidden flex flex-col p-0"
@@ -176,13 +299,11 @@
             </div>
         </div>
 
-        <!-- Global Tooltip -->
         <div
             id="global-tooltip"
             class="fixed z-[120] p-2.5 rounded-md bg-slate-900 text-white text-left text-xs leading-relaxed border border-slate-700 min-w-[200px] max-w-sm pointer-events-none invisible opacity-0 transition-opacity shadow-xl"
         ></div>
 
-        <!-- Global Dropdown Container (Higher Z-Index than modal) -->
         <div
             id="dropdown-container"
             class="fixed inset-0 z-[100] pointer-events-none"
