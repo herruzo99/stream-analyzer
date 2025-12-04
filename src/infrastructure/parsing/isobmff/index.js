@@ -1,3 +1,5 @@
+// ... Existing imports
+import { av1CTooltip, parseAv1C } from './boxes/av1c.js';
 import { avc1Tooltip, parseAvc1 } from './boxes/avc1.js';
 import { avccTooltip, parseAvcc } from './boxes/avcc.js';
 import { btrtTooltip, parseBtrt } from './boxes/btrt.js';
@@ -21,11 +23,14 @@ import { cprtTooltip, parseCprt } from './boxes/cprt.js';
 import { cslgTooltip, parseCslg } from './boxes/cslg.js';
 import { cttsTooltip, parseCtts } from './boxes/ctts.js';
 import { drefTooltip, parseDref, parseUrl, parseUrn } from './boxes/dref.js';
+import { dvccTooltip, parseDvcc } from './boxes/dvcc.js';
 import { elstTooltip, parseElst } from './boxes/elst.js';
 import { emsgTooltip, parseEmsg } from './boxes/emsg.js';
 import { encaTooltip, parseEnca } from './boxes/enca.js';
 import { encvTooltip, parseEncv } from './boxes/encv.js';
 import { esdsTooltip, parseEsds } from './boxes/esds.js';
+import { evc1Tooltip, parseEvc1 } from './boxes/evc1.js'; // NEW
+import { evcCTooltip, parseEvcC } from './boxes/evcC.js'; // NEW
 import { freeTooltip, parseFree } from './boxes/free.js';
 import { frmaTooltip, parseFrma } from './boxes/frma.js';
 import { ftypStypTooltip, parseFtypStyp } from './boxes/ftyp.js';
@@ -76,6 +81,11 @@ import { parseTrex, trexTooltip } from './boxes/trex.js';
 import { parseTrun, trunTooltip } from './boxes/trun.js';
 import { parseUuid, uuidTooltip } from './boxes/uuid.js';
 import { parseVmhd, vmhdTooltip } from './boxes/vmhd.js';
+import { parseVpcC, vpcCTooltip } from './boxes/vpcc.js';
+import { parseVttC, vttCTooltip } from './boxes/vttc.js';
+import { parseVvc1, vvc1Tooltip } from './boxes/vvc1.js'; // NEW
+import { parseVvcC, vvcCTooltip } from './boxes/vvcC.js'; // NEW
+import { parseWvtt, wvttTooltip } from './boxes/wvtt.js';
 
 export const boxParsers = {
     ftyp: parseFtypStyp,
@@ -104,8 +114,17 @@ export const boxParsers = {
     avcC: parseAvcc,
     avc1: parseAvc1,
     hvc1: parseHvc1,
-    hev1: parseHvc1, // Another common fourcc for HEVC
+    hev1: parseHvc1,
     hvcC: parseHvcC,
+    dvcC: parseDvcc,
+    dvvC: parseDvcc,
+    vpcC: parseVpcC,
+    av1C: parseAv1C,
+    vvcC: parseVvcC, // NEW
+    vvc1: parseVvc1, // NEW
+    vvi1: parseVvc1, // NEW
+    evcC: parseEvcC, // NEW
+    evc1: parseEvc1, // NEW
     mp4a: parseMp4a,
     esds: parseEsds,
     btrt: parseBtrt,
@@ -147,6 +166,8 @@ export const boxParsers = {
     emsg: parseEmsg,
     ...stppParsers,
     uuid: parseUuid,
+    wvtt: parseWvtt,
+    vttC: parseVttC,
 
     // Mapped Container Boxes
     moov: parseMoov,
@@ -160,7 +181,7 @@ export const boxParsers = {
     stbl: parseStbl,
     moof: parseMoof,
     traf: parseTraf,
-    dinf: parseDinf, // dinf is a simple container for dref
+    dinf: parseDinf,
 };
 
 const tooltipData = {
@@ -194,7 +215,34 @@ const tooltipData = {
     ...avc1Tooltip,
     ...hvc1Tooltip,
     ...hvcCTooltip,
+    ...dvccTooltip,
+    ...vpcCTooltip,
+    ...av1CTooltip,
+    ...vvc1Tooltip, // NEW
+    ...vvcCTooltip, // NEW
+    ...evc1Tooltip, // NEW
+    ...evcCTooltip, // NEW
     hev1: { ...hvc1Tooltip.hvc1, name: 'HEVC Sample Entry (hev1)' },
+    dvh1: {
+        name: 'Dolby Vision Sample Entry',
+        text: 'Dolby Vision Sample Entry (`dvh1`). Contains video encoded with Dolby Vision (HEVC). Requires a `dvcC` or `dvvC` configuration box.',
+        ref: 'Dolby Vision Streams within ISO Base Media File Format',
+    },
+    dvhe: {
+        name: 'Dolby Vision Sample Entry',
+        text: 'Dolby Vision Sample Entry (`dvhe`). Contains video encoded with Dolby Vision (HEVC). Requires a `dvcC` or `dvvC` configuration box.',
+        ref: 'Dolby Vision Streams within ISO Base Media File Format',
+    },
+    vp09: {
+        name: 'VP9 Sample Entry',
+        text: 'VP9 Sample Entry (`vp09`). Contains configuration for VP9 video.',
+        ref: 'VP Codec ISO Binding',
+    },
+    av01: {
+        name: 'AV1 Sample Entry',
+        text: 'AV1 Sample Entry (`av01`). Contains configuration for AV1 video.',
+        ref: 'AV1 Codec ISO Binding',
+    },
     ...mp4aTooltip,
     ...esdsTooltip,
     ...btrtTooltip,
@@ -229,6 +277,8 @@ const tooltipData = {
     ...emsgTooltip,
     ...stppTooltip,
     ...uuidTooltip,
+    ...wvttTooltip,
+    ...vttCTooltip,
 };
 
 /**

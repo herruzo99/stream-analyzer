@@ -34,14 +34,12 @@ export function getParsedSegment(
         cachedEntry = get(uniqueId);
     }
 
-    // 1. If we have fully parsed data, return it immediately.
     if (cachedEntry?.parsedData) {
         return cachedEntry.parsedData.error
             ? Promise.reject(new Error(cachedEntry.parsedData.error))
             : Promise.resolve(cachedEntry.parsedData);
     }
 
-    // 2. If we have raw data but haven't parsed it yet, parse it now.
     if (cachedEntry?.data) {
         appLog(
             'SegmentService',
@@ -69,7 +67,6 @@ export function getParsedSegment(
         });
     }
 
-    // 3. If we have nothing, fetch and parse from scratch.
     return new Promise((resolve, reject) => {
         const onSegmentLoaded = ({ uniqueId: loadedId, entry }) => {
             if (loadedId === uniqueId) {
@@ -105,16 +102,9 @@ export function getParsedSegment(
     });
 }
 
-/**
- * Ensures the initialization segment for a given representation is loaded.
- * @param {import('@/types').Stream} stream
- * @param {import('@/types').MediaSegment} segment
- * @returns {Promise<object|null>} The parsed init segment data, or null.
- */
 async function ensureInitSegmentLoaded(stream, segment) {
     if (stream.protocol !== 'dash' || !segment.repId) return null;
 
-    // Find the state for this representation
     const repKey = [...stream.dashRepresentationState.keys()].find((key) =>
         key.endsWith(`-${segment.repId}`)
     );
@@ -126,7 +116,6 @@ async function ensureInitSegmentLoaded(stream, segment) {
     const initSegment = repState.segments.find((s) => s.type === 'Init');
     if (!initSegment) return null;
 
-    // Check cache
     try {
         const parsedInit = await getParsedSegment(
             initSegment.uniqueId,
@@ -160,7 +149,6 @@ export function initializeSegmentService() {
             const executeFetch = (decryption, initData = null) => {
                 const workerContext = { ...context };
 
-                // Inject Init Segment context if available
                 if (initData && initData.data && initData.data.boxes) {
                     workerContext.initSegmentBoxes = initData.data.boxes;
                     appLog(
@@ -170,6 +158,8 @@ export function initializeSegmentService() {
                     );
                 }
 
+                // ARCHITECTURAL FIX: Do NOT pass intervention rules for manual inspections.
+                // Manual fetches via the UI (inspector/explorer) should always bypass chaos.
                 workerService
                     .postTask('segment-fetch-and-parse', {
                         uniqueId,
@@ -255,11 +245,6 @@ export function initializeSegmentService() {
                 return null;
             };
 
-            // --- Orchestration Flow ---
-            // 1. Resolve Dependencies (Init Segment)
-            // 2. Resolve Decryption
-            // 3. Execute Fetch
-
             const dependencyPromise =
                 stream && segmentMeta && segmentMeta.type === 'Media'
                     ? ensureInitSegmentLoaded(stream, segmentMeta)
@@ -273,7 +258,7 @@ export function initializeSegmentService() {
                             '[SegmentService] Decryption setup failed:',
                             err
                         );
-                        executeFetch(null, initData); // Try fetching anyway to report error
+                        executeFetch(null, initData);
                     });
             });
         }
@@ -315,7 +300,6 @@ function findSegmentMetadata(uniqueId, streamId) {
 
     if (!stream) return { playlist: null, segment: null, segmentIndex: -1 };
 
-    // HLS Lookup
     if (stream.protocol === 'hls') {
         for (const playlist of stream.mediaPlaylists.values()) {
             const segmentIndex = (playlist.manifest.segments || []).findIndex(
@@ -329,9 +313,7 @@ function findSegmentMetadata(uniqueId, streamId) {
                 };
             }
         }
-    }
-    // DASH Lookup
-    else if (stream.protocol === 'dash') {
+    } else if (stream.protocol === 'dash') {
         for (const repState of stream.dashRepresentationState.values()) {
             const segment = repState.segments.find(
                 (s) => s.uniqueId === uniqueId

@@ -1,3 +1,4 @@
+import { parseId3Tag } from '../../metadata/id3-parser.js';
 import { BoxParser } from '../utils.js';
 
 /**
@@ -7,15 +8,11 @@ import { BoxParser } from '../utils.js';
  */
 export function parseId32(box, view) {
     const p = new BoxParser(box, view);
-    p.readVersionAndFlags(); // Reads version and raw flags
+    p.readVersionAndFlags();
 
-    // Manually decode the 15-bit language code from the raw flags.
-    // The language code is packed into the 24-bit flags field.
+    // Decode language code
     const flagsInt = parseInt(box.details.flags.value, 16);
-    const langBits = flagsInt & 0x7fff; // Mask the lower 15 bits for the language code
-
-    // The language code is a packed 15-bit value, with each 5 bits representing a character code
-    // offset from 0x60, as per ISO-639-2/T.
+    const langBits = flagsInt & 0x7fff;
     const char1 = ((langBits >> 10) & 0x1f) + 0x60;
     const char2 = ((langBits >> 5) & 0x1f) + 0x60;
     const char3 = (langBits & 0x1f) + 0x60;
@@ -24,26 +21,70 @@ export function parseId32(box, view) {
     box.details['language'] = {
         value: langValue,
         offset: box.details.flags.offset,
-        length: 2, // The language code is packed within the 24-bit flags field
+        length: 2,
     };
 
-    // The rest of the box is an opaque payload containing the ID3v2 tag data.
-    p.readRemainingBytes('id3v2_data');
+    // Extract raw ID3 payload
+    const remainingBytes = box.size - p.offset;
+    if (remainingBytes > 0) {
+        const id3Data = new Uint8Array(
+            p.view.buffer,
+            p.view.byteOffset + p.offset,
+            remainingBytes
+        );
+
+        // Perform deep parsing
+        const parsedId3 = parseId3Tag(id3Data);
+
+        if (!parsedId3.error) {
+            // Add structured details to the box for the inspector
+            box.details['ID3 Version'] = {
+                value: parsedId3.version,
+                offset: p.offset,
+                length: 0,
+            };
+
+            // Inject frames as individual details for the UI
+            parsedId3.frames.forEach((frame, idx) => {
+                const val = frame.value || frame.data || frame.owner;
+                box.details[`Frame ${idx + 1} (${frame.id})`] = {
+                    value: val,
+                    offset: p.offset, // Approximate mapping
+                    length: frame.size,
+                    internal: false, // Show in UI
+                };
+
+                // Special handling for PRIV owner
+                if (frame.owner) {
+                    box.details[`Frame ${idx + 1} Owner`] = {
+                        value: frame.owner,
+                        offset: p.offset,
+                        length: 0,
+                        internal: true, // Hide if redundant
+                    };
+                }
+            });
+        } else {
+            box.details['Parse Error'] = {
+                value: parsedId3.error,
+                offset: p.offset,
+                length: 0,
+            };
+        }
+    }
+
+    p.readRemainingBytes('raw_id3_data');
     p.finalize();
 }
 
 export const id32Tooltip = {
     ID32: {
         name: 'ID3v2 Metadata Box',
-        text: 'ID3v2 Box (`ID32` or `id32`). A box containing ID3 version 2 metadata tags, commonly used for carrying timed metadata in MP4 files, especially for HLS streams. This is a common but non-standard box often found within a `meta` box inside a sample entry.',
+        text: 'ID3v2 Box (`ID32`). Carries timed metadata. Now fully parsed to show frames like TIT2 (Title), PRIV (Private Data/SCTE-35), and TXXX (User Text).',
         ref: 'ID3v2 Specification',
     },
     'ID32@language': {
-        text: 'The language of the ID3 tag content, packed into the flags field as a 15-bit ISO-639-2/T code.',
+        text: 'The language of the ID3 tag content, packed into the flags field.',
         ref: 'User-defined',
-    },
-    'ID32@id3v2_data': {
-        text: 'The raw binary payload of the ID3v2 tag, which contains one or more ID3 frames (e.g., TIT2 for title, TXXX for custom text).',
-        ref: 'ID3v2 Specification',
     },
 };

@@ -10,10 +10,9 @@ import { EVENTS } from '@/types/events';
 const pollers = new Map();
 const oneTimePollers = new Map();
 let inactivityTimer = null;
-const INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+const INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000;
 
-// Track consecutive unchanged updates per stream for adaptive polling
-const backoffState = new Map(); // { [streamId]: { unchangedCount: 0 } }
+const backoffState = new Map();
 
 function getBackoffState(streamId) {
     if (!backoffState.has(streamId)) {
@@ -45,7 +44,8 @@ async function monitorStream(streamId) {
             `Polling stream ${streamId} at ${urlToPoll}.`
         );
 
-        // --- UNIFICATION: Use the same worker task as the Shaka plugin ---
+        // ARCHITECTURAL FIX: Do NOT pass intervention rules here.
+        // Chaos tools should only affect the Player Simulation, not the analyzer's monitoring.
         const workerTask = 'shaka-fetch-manifest';
         const payload = {
             streamId: stream.id,
@@ -65,7 +65,6 @@ async function monitorStream(streamId) {
             segmentPollingReps: Array.from(stream.segmentPollingReps || []),
         };
 
-        // Triggers 'livestream:manifest-updated' which we listen to for adaptive logic
         await workerService.postTask(workerTask, payload).promise;
     } catch (e) {
         console.error(
@@ -84,8 +83,7 @@ function calculatePollInterval(stream) {
     const { globalPollingIntervalOverride, pollingMode } =
         useUiStore.getState();
 
-    // Precedence: Per-stream -> Global -> Auto-calculated
-    let baseInterval = 2000; // Default floor
+    let baseInterval = 2000;
 
     if (
         stream.pollingIntervalOverride !== undefined &&
@@ -97,21 +95,18 @@ function calculatePollInterval(stream) {
     } else {
         const updatePeriodSeconds =
             stream.manifest.minimumUpdatePeriod ||
-            stream.manifest.targetDuration || // HLS
-            stream.manifest.minBufferTime || // DASH fallback
+            stream.manifest.targetDuration ||
+            stream.manifest.minBufferTime ||
             2;
         baseInterval = Math.max(updatePeriodSeconds * 1000, 2000);
     }
 
-    // --- Adaptive Logic ---
     if (pollingMode === 'smart') {
         const state = getBackoffState(stream.id);
         if (state.unchangedCount > 0) {
-            // Backoff: 10% increase per miss, capped at 2.5x base or 10s max extra
             const multiplier = 1 + Math.min(state.unchangedCount * 0.1, 1.5);
             const adaptiveInterval = baseInterval * multiplier;
 
-            // If backoff is significant, log it occasionally
             if (state.unchangedCount % 5 === 0) {
                 appLog(
                     'PrimaryMonitor',
@@ -182,7 +177,6 @@ function stopMonitoring(streamId) {
         clearTimeout(oneTimePollers.get(streamId));
         oneTimePollers.delete(streamId);
     }
-    // Reset backoff state
     if (backoffState.has(streamId)) {
         backoffState.set(streamId, { unchangedCount: 0 });
     }
@@ -225,7 +219,6 @@ export function managePollers() {
             if (!isCurrentlyPolling) {
                 startMonitoring(stream);
             } else if (Math.abs(poller.pollInterval - newPollInterval) > 100) {
-                // Only restart if difference is significant (>100ms) to avoid jitter
                 appLog(
                     'PrimaryMonitor',
                     'info',
@@ -305,7 +298,6 @@ function handleVisibilityChange() {
     }
 }
 
-// --- Update Listener for Adaptive Logic ---
 function onManifestUpdated(payload) {
     const { streamId, changes } = payload;
     const state = getBackoffState(streamId);
@@ -318,13 +310,9 @@ function onManifestUpdated(payload) {
     if (isUnchanged) {
         state.unchangedCount++;
     } else {
-        // Reset immediately on new content so we catch the next segment quickly
         state.unchangedCount = 0;
-
-        // Force poller check immediately to reset interval
         managePollers();
     }
-    // Note: If unchanged, we wait for managePollers tick (1s) to adjust interval.
 }
 
 let tickerSubscription = null;

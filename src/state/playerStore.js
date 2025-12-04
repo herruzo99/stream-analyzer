@@ -1,65 +1,6 @@
 import { createStore } from 'zustand/vanilla';
 
-/**
- * @typedef {import('@/types').PlayerStats} PlayerStats
- * @typedef {import('@/types').PlayerEvent} PlayerEvent
- * @typedef {import('@/types').AbrHistoryEntry} AbrHistoryEntry
- */
-
-/**
- * @typedef {object} PlaybackHistoryEntry
- * @property {number} time
- * @property {number} bufferHealth
- * @property {number} bandwidth
- * @property {number} bitrate
- * @property {number} loadLatency
- */
-
-/**
- * @typedef {object} PlayerState
- * @property {boolean} isLoaded
- * @property {boolean} isAbrEnabled
- * @property {boolean} isAutoResetEnabled
- * @property {boolean} isPictureInPicture
- * @property {boolean} isPipUnmount - True when the view is unmounted but player persists in PiP.
- * @property {boolean} isMuted
- * @property {'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ENDED' | 'IDLE'} playbackState
- * @property {object[]} videoTracks
- * @property {object[]} audioTracks
- * @property {object[]} textTracks
- * @property {object | null} activeVideoTrack
- * @property {object | null} activeAudioTrack
- * @property {object | null} activeTextTrack
- * @property {PlayerStats | null} currentStats
- * @property {PlayerEvent[]} eventLog
- * @property {boolean} hasUnreadLogs
- * @property {AbrHistoryEntry[]} abrHistory
- * @property {PlaybackHistoryEntry[]} playbackHistory
- * @property {'controls' | 'stats' | 'log' | 'graphs' | 'telemetry'} activeTab
- * @property {number} retryCount
- * @property {{start: number, end: number}} seekableRange
- */
-
-/**
- * @typedef {object} PlayerActions
- * @property {(isLoaded: boolean) => void} setLoadedState
- * @property {(isEnabled: boolean) => void} setAbrEnabled
- * @property {() => void} toggleAutoReset
- * @property {(isInPiP: boolean) => void} setPictureInPicture
- * @property {(isPipUnmount: boolean) => void} setPipUnmountState
- * @property {(isMuted: boolean) => void} setMutedState
- * @property {(info: Partial<PlayerState>) => void} updatePlaybackInfo
- * @property {(stats: PlayerStats) => void} updateStats
- * @property {(event: PlayerEvent) => void} logEvent
- * @property {(entry: AbrHistoryEntry) => void} logAbrSwitch
- * @property {(tab: 'controls' | 'stats' | 'log' | 'graphs' | 'telemetry') => void} setActiveTab
- * @property {() => void} reset
- * @property {(tracks: {videoTracks: object[], audioTracks: object[], textTracks: object[], isAbrEnabled: boolean}) => void} setPlayerLoadedWithTracks
- * @property {(manifest: import('@/types').Manifest) => void} setInitialTracksFromManifest
- * @property {(count: number) => void} setRetryCount
- */
-
-/** @returns {PlayerState} */
+/** @returns {import('@/types').PlayerState} */
 const createInitialPlayerState = () => ({
     isLoaded: false,
     isAbrEnabled: true,
@@ -81,13 +22,9 @@ const createInitialPlayerState = () => ({
     playbackHistory: [],
     activeTab: 'stats',
     retryCount: 0,
-    seekableRange: { start: 0, end: 0 }, // ARCHITECTURAL FIX: Initialize to prevent UI crash
+    seekableRange: { start: 0, end: 0 },
 });
 
-/**
- * A store for the player simulation's real-time state.
- * @type {import('zustand/vanilla').StoreApi<PlayerState & PlayerActions>}
- */
 export const usePlayerStore = createStore((set, get) => ({
     ...createInitialPlayerState(),
 

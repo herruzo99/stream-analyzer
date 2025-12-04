@@ -30,7 +30,14 @@ function mapShakaRequestType(request, requestType) {
 }
 
 export async function handleShakaResourceFetch(
-    { request, requestType, auth, streamId, segmentUniqueId },
+    {
+        request,
+        requestType,
+        auth,
+        streamId,
+        segmentUniqueId,
+        interventionRules,
+    }, // Rules
     signal
 ) {
     const url = request.uris[0];
@@ -42,7 +49,6 @@ export async function handleShakaResourceFetch(
         const resourceType = mapShakaRequestType(request, requestType);
         const loggingContext = { streamId, resourceType };
 
-        // Force POST if Shaka requested it, even if body is empty (though unusual)
         const response = await fetchWithAuth(
             url,
             auth,
@@ -51,11 +57,11 @@ export async function handleShakaResourceFetch(
             body,
             signal,
             loggingContext,
-            method
+            method,
+            interventionRules // Pass rules
         );
 
         if (!response.ok) {
-            // Return the error response to Shaka so it can retry or fail gracefully
             return {
                 uri: response.url,
                 originalUri: url,
@@ -68,7 +74,6 @@ export async function handleShakaResourceFetch(
 
         const data = await response.arrayBuffer();
 
-        // Background parsing for media segments
         const isMediaSegment = ['video', 'audio', 'text', 'init'].includes(
             resourceType
         );
@@ -116,7 +121,6 @@ export async function handleShakaResourceFetch(
         }
         appLog('shakaResourceHandler', 'error', `Fetch failed: ${url}`, error);
 
-        // Propagate error info back to Shaka
         throw {
             code: 6001, // REQUEST_FAILED
             severity: 2, // CRITICAL

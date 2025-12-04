@@ -53,9 +53,9 @@ function highlightHlsAttributes(text) {
         (match, key, quotedVal, unquotedVal) => {
             const value = quotedVal || unquotedVal;
             const isQuoted = !!quotedVal;
-            
+
             // Remove quotes for coloring if present in the capture group
-            const cleanValue = isQuoted ? value.slice(6, -6) : value; 
+            const cleanValue = isQuoted ? value.slice(6, -6) : value;
             const valueSpan = `<span class="text-yellow-300">${cleanValue}</span>`;
 
             return `<span class="text-emerald-300">${key}</span>=${

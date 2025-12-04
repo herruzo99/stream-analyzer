@@ -1,3 +1,4 @@
+import { analyzeShakaError } from '@/infrastructure/player/shaka-error';
 import * as icons from '@/ui/icons';
 import { formatBitrate } from '@/ui/shared/format';
 import { html } from 'lit-html';
@@ -12,37 +13,77 @@ export const hudOverlayTemplate = (
 ) => {
     if (!isVisible) return html``;
 
-    // Error Overlay takes precedence
+    // Error Overlay
     if (error) {
+        const errInfo = analyzeShakaError(error);
         const retryMessage =
             isAutoResetEnabled && retryCount > 0
                 ? html`<div
-                      class="mt-2 text-xs text-yellow-400 font-mono animate-pulse"
+                      class="mt-4 text-xs text-yellow-400 font-mono animate-pulse flex items-center justify-center gap-2"
                   >
-                      Retrying (${retryCount}/5)...
+                      ${icons.refresh} Auto-Retrying (${retryCount}/5)...
                   </div>`
                 : html``;
 
         return html`
             <div
-                class="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/90 backdrop-blur-sm text-center p-6 z-40"
+                class="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/90 backdrop-blur-md p-6 z-40 animate-fadeIn"
             >
                 <div
-                    class="bg-red-500/20 p-4 rounded-full mb-3 text-red-500 animate-pulse shadow-[0_0_20px_rgba(239,68,68,0.4)]"
+                    class="bg-slate-900/80 border border-red-500/30 rounded-2xl p-6 max-w-md w-full shadow-2xl shadow-red-900/20 relative overflow-hidden"
                 >
-                    ${icons.alertTriangle}
+                    <div
+                        class="absolute top-0 left-0 right-0 h-1 bg-red-500"
+                    ></div>
+                    <div class="flex items-center gap-3 mb-4">
+                        <div
+                            class="p-2 bg-red-500/20 rounded-lg text-red-500 border border-red-500/20"
+                        >
+                            ${icons.alertTriangle}
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <h3
+                                class="text-white font-bold text-lg truncate leading-tight"
+                            >
+                                ${errInfo.title}
+                            </h3>
+                            <div class="flex gap-2 mt-1">
+                                <span
+                                    class="text-[10px] font-mono bg-black/40 text-slate-400 px-1.5 py-0.5 rounded border border-white/10"
+                                >
+                                    ${errInfo.category}
+                                </span>
+                                <span
+                                    class="text-[10px] font-mono bg-red-900/30 text-red-300 px-1.5 py-0.5 rounded border border-red-500/30"
+                                >
+                                    CODE: ${errInfo.code}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="text-slate-300 text-sm leading-relaxed mb-4">
+                        ${errInfo.description}
+                    </p>
+                    ${errInfo.details
+                        ? html`
+                              <div
+                                  class="bg-black/30 rounded-lg p-3 border border-white/5 mb-2"
+                              >
+                                  <div
+                                      class="text-[10px] font-bold text-slate-500 uppercase mb-1"
+                                  >
+                                      Technical Details
+                                  </div>
+                                  <p
+                                      class="text-xs font-mono text-red-200 break-all leading-relaxed"
+                                  >
+                                      ${errInfo.details}
+                                  </p>
+                              </div>
+                          `
+                        : ''}
+                    ${retryMessage}
                 </div>
-                <h3
-                    class="text-red-400 font-bold uppercase tracking-wider text-sm mb-2"
-                >
-                    Playback Error
-                </h3>
-                <p
-                    class="text-white text-xs leading-relaxed max-w-[350px] font-mono bg-black/30 p-2 rounded border border-red-900/50"
-                >
-                    ${error}
-                </p>
-                ${retryMessage}
             </div>
         `;
     }
@@ -63,18 +104,29 @@ export const hudOverlayTemplate = (
             ? (abr.currentVideoBitrate / abr.estimatedBandwidth) * 100
             : 0;
 
-    const bufferHealthPercent = Math.min(buffer.seconds * 5, 100);
+    // SAFEGUARD: Use null coalescing to prevent undefined.toFixed() crash
+    const bufferValue = buffer.forwardBuffer ?? 0;
+    const bufferHealthPercent = Math.min(bufferValue * 5, 100); // 20s = 100%
 
     // Dynamic Buffer Color Logic
     let bufferColorClass = '';
-    if (bufferHealthPercent < 25) {
+    let bufferTextColor = 'text-emerald-400';
+
+    if (bufferValue < 2) {
+        // Critical (< 2s)
         bufferColorClass =
             'bg-gradient-to-r from-red-600 to-red-500 shadow-[0_0_10px_rgba(239,68,68,0.4)]';
-    } else if (bufferHealthPercent < 50) {
+        bufferTextColor = 'text-red-400';
+    } else if (bufferValue < 5) {
+        // Warning (< 5s)
         bufferColorClass = 'bg-gradient-to-r from-orange-600 to-orange-500';
-    } else if (bufferHealthPercent < 75) {
+        bufferTextColor = 'text-orange-400';
+    } else if (bufferValue < 10) {
+        // Low (< 10s)
         bufferColorClass = 'bg-gradient-to-r from-yellow-500 to-yellow-400';
+        bufferTextColor = 'text-yellow-400';
     } else {
+        // Healthy
         bufferColorClass =
             'bg-gradient-to-r from-emerald-600 to-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.3)]';
     }
@@ -175,15 +227,11 @@ export const hudOverlayTemplate = (
                     <!-- Buffer Stats -->
                     <div class="space-y-1.5">
                         <div
-                            class="flex justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider"
+                            class="flex justify-between text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider"
                         >
-                            <span>Buffer Health</span>
-                            <span
-                                class="${buffer.seconds < 5
-                                    ? 'text-red-400'
-                                    : 'text-emerald-400'}"
-                            >
-                                ${buffer.seconds.toFixed(2)}s
+                            <span>Buffer</span>
+                            <span class="${bufferTextColor}">
+                                ${bufferValue.toFixed(2)}s
                             </span>
                         </div>
                         <div

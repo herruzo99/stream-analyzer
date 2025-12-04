@@ -17,13 +17,9 @@ const parseHlsLine = (line) => {
             if (valueStr.includes('=')) {
                 const attributes = [];
                 // Security Fix: Hardened Regex for HLS Attributes
-                // Original: /([A-Z0-9-]+)=("[^"]*"|[^,]+)/g
-                // Fixed: Separates quoted strings from unquoted values strictly. 
-                // Unquoted values now explicitly stop at comma or quote.
                 const regex = /([A-Z0-9-]+)=(?:"([^"]*)"|([^",\s]+))/g;
                 let match;
                 while ((match = regex.exec(valueStr)) !== null) {
-                    // match[2] is quoted content, match[3] is unquoted content
                     const val = match[2] !== undefined ? match[2] : match[3];
                     attributes.push({ key: match[1], value: val });
                 }
@@ -53,7 +49,7 @@ const renderLine = (
 
     let lineContent;
 
-    // Removed flex-wrap to enforce single line height for virtual scrolling
+    // Fixed: Reverted to whitespace-nowrap for correct virtual list alignment
     const baseClass = `flex grow items-center pl-4 whitespace-nowrap ${isModified ? 'bg-orange-500/10' : ''}`;
     const selectClass = isSelected
         ? 'bg-blue-900/50 ring-1 ring-blue-500 rounded px-1'
@@ -127,11 +123,17 @@ const renderLine = (
             </div>
         `;
     } else if (type === 'comment') {
-        // prettier-ignore
-        lineContent = html`<div class="${baseClass} text-slate-500 italic whitespace-pre leading-relaxed">${content}</div>`;
+        lineContent = html`<div
+            class="${baseClass} text-slate-500 italic whitespace-pre leading-relaxed"
+        >
+            ${content}
+        </div>`;
     } else if (type === 'uri') {
-        // prettier-ignore
-        lineContent = html`<div class="${baseClass} text-cyan-300/90 whitespace-pre leading-relaxed">${content}</div>`;
+        lineContent = html`<div
+            class="${baseClass} text-cyan-300/90 whitespace-pre leading-relaxed"
+        >
+            ${content}
+        </div>`;
     } else {
         lineContent = html`<div class="${baseClass}"></div>`;
     }
@@ -141,7 +143,7 @@ const renderLine = (
             class="flex w-full items-stretch hover:bg-slate-800/30 transition-colors font-mono text-sm"
         >
             <div
-                class="w-12 shrink-0 text-right pr-2 text-slate-600 select-none text-xs border-r border-slate-800/50 bg-slate-900 py-1 leading-relaxed sticky left-0 z-10"
+                class="w-12 shrink-0 text-right pr-2 text-slate-600 select-none text-xs border-r border-slate-800/50 bg-slate-900 py-1 leading-relaxed sticky left-0 z-10 h-full"
             >
                 ${item.lineNumber}
             </div>
@@ -191,7 +193,7 @@ export const hlsManifestTemplate = (
                 .rowTemplate=${renderer}
                 .rowHeight=${28}
                 .itemId=${(item) => item.id}
-                class="grow scrollbar-hide"
+                class="grow custom-scrollbar"
             ></virtualized-list>
         </div>
     `;

@@ -66,6 +66,7 @@ export function parseAvcc(box, view) {
                 const spsEntry = {
                     length: spsLength,
                     nal_unit_bytes: spsNalUnit,
+                    parsed: parsedSPS, // Store full parsed object including HRD
                 };
 
                 if (parsedSPS) {

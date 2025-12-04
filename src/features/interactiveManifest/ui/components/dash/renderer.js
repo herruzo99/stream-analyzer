@@ -115,7 +115,7 @@ const renderAttribute = (
     const isMissing = isDebugMode && missingTooltips.has(attrKey);
 
     let containerClass =
-        'inline-block mb-px group relative cursor-pointer rounded px-0.5 transition-colors whitespace-pre align-baseline';
+        'inline-block mb-px group relative cursor-pointer rounded px-0.5 transition-colors whitespace-nowrap align-baseline';
 
     if (isSelected) containerClass += ' bg-blue-500/30 ring-1 ring-blue-400/50';
     else if (isHovered) containerClass += ' bg-slate-700';
@@ -123,7 +123,6 @@ const renderAttribute = (
     else if (isMissing) containerClass += ' bg-red-500/20';
     else containerClass += ' hover:bg-slate-800';
 
-    // softer colors for readability
     const nameClass = 'text-emerald-300/90 font-semibold';
     const valueClass = 'text-amber-200/90';
 
@@ -182,10 +181,11 @@ const rowRenderer = (
     if (line.type === 'open') {
         const tagWrapperClass = getTagClasses(line.path);
         const bracketClass = 'text-slate-500 font-normal';
-        const tagNameClass = 'text-blue-300 font-bold'; // Less saturated blue
+        const tagNameClass = 'text-blue-300 font-bold';
 
         const hasAttributes = Object.keys(line.attributes).length > 0;
 
+        // Fixed: Reverted to whitespace-nowrap to fix virtual list alignment
         contentHtml = html`
             <div class="leading-relaxed whitespace-nowrap">
                 <span
@@ -250,15 +250,15 @@ const rowRenderer = (
             class="flex w-full items-stretch hover:bg-slate-800/20 transition-colors font-mono text-sm group relative"
         >
             <div
-                class="w-12 shrink-0 text-right pr-3 text-slate-600 select-none text-xs border-r border-slate-800/50 bg-slate-900 py-1 sticky left-0 z-10"
+                class="w-12 shrink-0 text-right pr-3 text-slate-600 select-none text-xs border-r border-slate-800/50 bg-slate-900 py-1 sticky left-0 z-10 h-full"
             >
                 ${line.lineNumber}
             </div>
             <div class="flex grow pl-2 min-w-0 pr-6">
-                <div class="flex shrink-0 select-none mr-1">
+                <div class="flex shrink-0 select-none mr-1 h-full">
                     ${indentGuides}
                 </div>
-                <div class="grow min-w-0">${contentHtml}</div>
+                <div class="grow min-w-0 py-1">${contentHtml}</div>
             </div>
         </div>
     `;
@@ -302,7 +302,7 @@ export const dashManifestTemplate = (
                 .rowTemplate=${renderer}
                 .rowHeight=${28}
                 .itemId=${(item) => item.id}
-                class="grow scrollbar-hide"
+                class="grow custom-scrollbar"
             ></virtualized-list>
         </div>
     `;

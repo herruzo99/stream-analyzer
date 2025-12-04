@@ -253,7 +253,7 @@ function renderComparison() {
                     class="flex flex-col items-center justify-center h-full text-slate-400 gap-4 animate-fadeIn"
                 >
                     <div
-                        class="p-6 bg-slate-800 rounded-full border border-slate-700 shadow-lg"
+                        class="p-6 bg-slate-900 rounded-full border border-slate-700 shadow-lg"
                     >
                         ${icons.comparison}
                     </div>
@@ -268,47 +268,79 @@ function renderComparison() {
         return;
     }
 
-    // Resolve IDs with safe fallbacks
-    let refId = comparisonReferenceStreamId;
-    if (!refId || !streams.some((s) => s.id === refId)) {
-        refId = streams[0].id;
-    }
-
-    let candId = comparisonCandidateStreamId;
-    if (!candId || !streams.some((s) => s.id === candId)) {
-        // Prefer a different stream if available, else fallback to same stream (for variant comparison)
-        candId = streams.find((s) => s.id !== refId)?.id || refId;
-    }
-
-    const refStream = streams.find((s) => s.id === refId);
-    const candStream = streams.find((s) => s.id === candId);
-
-    // Build Targets for View Model
+    // --- RESOLVE TARGETS ---
     const targets = [];
-    if (refStream) {
-        targets.push({
-            stream: refStream,
-            variantId: comparisonReferenceVariantId,
+    let refCompositeId = null;
+
+    if (manifestComparisonViewMode === 'table') {
+        // Table Mode: Add ALL streams
+        streams.forEach((s) => {
+            // Use active playlist ID if HLS, else master/default
+            const variantId = s.activeMediaPlaylistId || 'master';
+            targets.push({ stream: s, variantId });
         });
-    }
-    if (candStream) {
-        targets.push({
-            stream: candStream,
-            variantId: comparisonCandidateVariantId,
-        });
+
+        // Resolve Reference Composite ID for Table
+        // Use the stored reference ID if it exists, otherwise default to the first stream
+        const refId =
+            comparisonReferenceStreamId &&
+            streams.some((s) => s.id === comparisonReferenceStreamId)
+                ? comparisonReferenceStreamId
+                : streams[0].id;
+
+        const refTarget = targets.find((t) => t.stream.id === refId);
+        // Reconstruct composite ID manually to match view-model logic
+        if (refTarget) {
+            refCompositeId = `${refTarget.stream.id}::${refTarget.variantId || 'master'}`;
+        } else {
+            refCompositeId = `${targets[0].stream.id}::${targets[0].variantId || 'master'}`;
+        }
+    } else {
+        // Timeline/Manifest Mode: A vs B
+        let refId = comparisonReferenceStreamId;
+        if (!refId || !streams.some((s) => s.id === refId)) {
+            refId = streams[0].id;
+        }
+
+        let candId = comparisonCandidateStreamId;
+        if (!candId || !streams.some((s) => s.id === candId)) {
+            candId = streams.find((s) => s.id !== refId)?.id || refId;
+        }
+
+        const refStream = streams.find((s) => s.id === refId);
+        const candStream = streams.find((s) => s.id === candId);
+
+        if (refStream) {
+            targets.push({
+                stream: refStream,
+                variantId: comparisonReferenceVariantId,
+            });
+        }
+        if (candStream) {
+            targets.push({
+                stream: candStream,
+                variantId: comparisonCandidateVariantId,
+            });
+        }
+
+        refCompositeId = `${refId}::${comparisonReferenceVariantId || 'master'}`;
     }
 
-    // Construct Composite ID for Reference (matches view-model logic)
-    const refCompositeId = `${refId}::${
-        comparisonReferenceVariantId || 'master'
-    }`;
-
+    // --- VIEW MODEL ---
     const viewModel = createComparisonViewModel(targets, refCompositeId);
 
-    // Content Rendering Logic
+    // --- RENDER LOGIC ---
     let mainContent = html``;
 
     if (manifestComparisonViewMode === 'timeline') {
+        // Re-resolve ref/cand streams for diff calc
+        const refId = comparisonReferenceStreamId || streams[0].id;
+        const candId =
+            comparisonCandidateStreamId ||
+            (streams.find((s) => s.id !== refId)?.id ?? refId);
+        const refStream = streams.find((s) => s.id === refId);
+        const candStream = streams.find((s) => s.id === candId);
+
         if (refStream && candStream) {
             const diffData = calculateSemanticDiff(
                 refStream,
@@ -335,6 +367,13 @@ function renderComparison() {
             `;
         }
     } else if (manifestComparisonViewMode === 'manifest') {
+        const refId = comparisonReferenceStreamId || streams[0].id;
+        const candId =
+            comparisonCandidateStreamId ||
+            (streams.find((s) => s.id !== refId)?.id ?? refId);
+        const refStream = streams.find((s) => s.id === refId);
+        const candStream = streams.find((s) => s.id === candId);
+
         if (refStream && candStream) {
             mainContent = html`
                 <div class="h-full w-full p-4 sm:p-6 flex flex-col">
@@ -348,7 +387,7 @@ function renderComparison() {
             `;
         }
     } else {
-        // Table Mode
+        // Table Mode (Multi-column)
         mainContent = html`
             <div class="p-4 sm:p-6 space-y-6">
                 <div
@@ -478,17 +517,16 @@ function renderComparison() {
                     </div>
                 </div>
 
-                <!-- Render Stream Selectors -->
+                <!-- Render Stream Selectors (Only for Timeline/Diff Mode) -->
                 ${manifestComparisonViewMode === 'timeline' ||
-                manifestComparisonViewMode === 'manifest' ||
-                manifestComparisonViewMode === 'table'
+                manifestComparisonViewMode === 'manifest'
                     ? html`
                           <div
                               class="flex items-center justify-center gap-4 pt-4 border-t border-slate-800/50 animate-fadeIn"
                           >
                               ${streamSelector(
                                   streams,
-                                  refId,
+                                  comparisonReferenceStreamId || streams[0].id,
                                   comparisonReferenceVariantId,
                                   (id) =>
                                       uiActions.setComparisonReferenceStreamId(
@@ -519,7 +557,13 @@ function renderComparison() {
 
                               ${streamSelector(
                                   streams,
-                                  candId,
+                                  comparisonCandidateStreamId ||
+                                      streams.find(
+                                          (s) =>
+                                              s.id !==
+                                              comparisonReferenceStreamId
+                                      )?.id ||
+                                      streams[0].id,
                                   comparisonCandidateVariantId,
                                   (id) =>
                                       uiActions.setComparisonCandidateStreamId(

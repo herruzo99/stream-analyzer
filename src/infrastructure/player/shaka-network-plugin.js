@@ -1,11 +1,8 @@
 import { workerService } from '@/infrastructure/worker/workerService';
 import { useAnalysisStore } from '@/state/analysisStore';
+import { useNetworkStore } from '@/state/networkStore'; // New Import
 import shaka from 'shaka-player/dist/shaka-player.ui.js';
 
-/**
- * A network plugin for Shaka Player.
- * Intercepts requests and offloads them to a Web Worker.
- */
 export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
     const MANIFEST_REQUEST_TYPE = 0;
     const SEGMENT_REQUEST_TYPE = 1;
@@ -15,7 +12,7 @@ export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
     let streamId = null;
     let auth = null;
     let segmentUniqueId = null;
-    let segmentDuration = undefined; // Added variable
+    let segmentDuration = undefined;
 
     try {
         const requester = /** @type {any} */ (request['requester']);
@@ -83,7 +80,6 @@ export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
                     streamId = stream.id;
                     auth = stream.auth;
                     segmentUniqueId = foundSegment.uniqueId;
-                    // Capture duration if available
                     if (foundSegment.duration && foundSegment.timescale) {
                         segmentDuration =
                             foundSegment.duration / foundSegment.timescale;
@@ -152,6 +148,10 @@ export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
 
     let taskType = 'shaka-fetch-resource';
 
+    // --- Capture Active Intervention Rules ---
+    const { interventionRules } = useNetworkStore.getState();
+    const activeRules = interventionRules.filter((r) => r.enabled);
+
     /** @type {any} */
     let payload = {
         request: serializableRequest,
@@ -159,7 +159,8 @@ export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
         auth: auth ? JSON.parse(JSON.stringify(auth)) : null,
         streamId,
         segmentUniqueId: segmentUniqueId || uri,
-        segmentDuration, // Passed to worker for logging context
+        segmentDuration,
+        interventionRules: activeRules, // Pass rules to worker
     };
 
     if (requestType === MANIFEST_REQUEST_TYPE) {
@@ -181,6 +182,7 @@ export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
             oldHlsVariantState: [],
             oldAdAvails: [],
             segmentPollingReps: [],
+            interventionRules: activeRules, // Pass rules here too
         };
     }
 

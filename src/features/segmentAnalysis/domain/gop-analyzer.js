@@ -22,6 +22,7 @@
  * @property {number} summary.bpp - Bits Per Pixel (Quality heuristic)
  * @property {number} summary.iFrameRatio - Ratio of avg I-frame size to avg P-frame size
  * @property {number} summary.variability - Coefficient of variation in frame size
+ * @property {any[]} [seiMessages] - Parsed SEI messages found in the bitstream (NEW).
  */
 
 /**

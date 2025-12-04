@@ -34,6 +34,7 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
         oldDashRepresentationState: oldDashRepStateArray,
         oldAdAvails,
         isLive,
+        interventionRules, // Extract rules
     } = payload;
     const now = Date.now();
     const detectedProtocol = detectProtocol(
@@ -92,7 +93,17 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
         const mediaPlaylistUris = [...uriToVariantIdMap.keys()].filter(Boolean);
 
         const mediaPlaylistPromises = mediaPlaylistUris.map((uri) =>
-            fetchWithAuth(uri, auth)
+            fetchWithAuth(
+                uri,
+                auth,
+                null,
+                {},
+                null,
+                null,
+                { streamId, resourceType: 'manifest' }, // Add context for logging blocked requests
+                'GET',
+                interventionRules // Pass rules
+            )
                 .then((res) => {
                     if (!res.ok) throw new Error(`HTTP ${res.status}`);
                     return res.text();
@@ -421,7 +432,7 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
 }
 
 export async function handleShakaManifestFetch(payload, signal) {
-    const { streamId, url, auth, isLive, baseUrl } = payload;
+    const { streamId, url, auth, isLive, baseUrl, interventionRules } = payload; // Extract rules
     const startTime = performance.now();
     appLog('shakaManifestHandler', 'info', `Fetching manifest for ${url}`);
 
@@ -432,8 +443,9 @@ export async function handleShakaManifestFetch(payload, signal) {
         {},
         null,
         signal,
-        {}, // Disable auto logging
-        'GET'
+        {}, // Logging Context
+        'GET',
+        interventionRules // Pass rules (9th arg)
     );
 
     const requestHeadersForLogging = {};
@@ -443,6 +455,7 @@ export async function handleShakaManifestFetch(payload, signal) {
         }
     }
 
+    // Log network event (Manual logic preserved)
     self.postMessage({
         type: 'worker:network-event',
         payload: {

@@ -8,13 +8,58 @@ import { BoxParser } from '../utils.js';
  */
 function getWidevineLicenseUrl(data) {
     try {
-        // The Widevine PSSH payload is a protobuf. We can do a simple text search for 'https://'.
         const text = new TextDecoder('utf-8', { fatal: false }).decode(data);
         const match = text.match(/https?:\/\/[^\s'"]+/);
         return match ? match[0] : null;
     } catch (_e) {
         return null;
     }
+}
+
+/**
+ * Parses the PlayReady Header Object (PRO) to find the XML data.
+ * @param {Uint8Array} data - The PSSH data payload.
+ * @returns {string | null} The PlayReady XML or null.
+ */
+function getPlayReadyXml(data) {
+    try {
+        // PlayReady Object (PRO) Header
+        // 4 bytes: Length
+        // 2 bytes: Record Count
+        // Loop Records: 2 bytes Type, 2 bytes Length, Data...
+        const view = new DataView(
+            data.buffer,
+            data.byteOffset,
+            data.byteLength
+        );
+        if (view.byteLength < 6) return null;
+
+        // Verify length matches (little-endian)
+        const length = view.getUint32(0, true);
+        if (length > view.byteLength) return null;
+
+        const recordCount = view.getUint16(4, true);
+        let offset = 6;
+
+        for (let i = 0; i < recordCount; i++) {
+            if (offset + 4 > view.byteLength) break;
+            const type = view.getUint16(offset, true);
+            const len = view.getUint16(offset + 2, true);
+            offset += 4;
+
+            // Record Type 1 is the PlayReady Header (XML)
+            if (type === 1) {
+                if (offset + len > view.byteLength) break;
+                const xmlBytes = data.subarray(offset, offset + len);
+                // PlayReady XML is UTF-16LE
+                return new TextDecoder('utf-16le').decode(xmlBytes);
+            }
+            offset += len;
+        }
+    } catch (e) {
+        console.warn('Failed to parse PlayReady PSSH data:', e);
+    }
+    return null;
 }
 
 /**
@@ -42,7 +87,7 @@ export function parsePssh(box, view) {
         length: 16,
     };
     p.offset += 16;
-    box.systemId = systemId; // Store for adapter
+    box.systemId = systemId;
 
     const kids = [];
     if (version > 0) {
@@ -60,7 +105,7 @@ export function parsePssh(box, view) {
             }
         }
     }
-    box.kids = kids; // Store for adapter
+    box.kids = kids;
 
     const dataSize = p.readUint32('Data Size');
     if (dataSize !== null && p.checkBounds(dataSize)) {
@@ -71,12 +116,29 @@ export function parsePssh(box, view) {
         );
         box.data = btoa(String.fromCharCode.apply(null, dataBytes));
 
-        // Attempt to find license URL for Widevine
+        // --- Heuristics for System-Specific Data ---
+
+        // Widevine
         if (systemId === 'edef8ba9-79d6-4ace-a3c8-27dcd51d21ed') {
             const licenseUrl = getWidevineLicenseUrl(dataBytes);
             if (licenseUrl) {
                 box.details['license_url'] = {
                     value: licenseUrl,
+                    offset: 0, // Derived
+                    length: 0,
+                };
+            }
+        }
+
+        // PlayReady
+        if (systemId === '9a04f079-9840-4286-ab92-e65be0885f95') {
+            const prXml = getPlayReadyXml(dataBytes);
+            if (prXml) {
+                // Store as a custom payload object for the UI to render nicely
+                box.messagePayloadType = 'xml';
+                box.messagePayload = prXml;
+                box.details['PlayReady Header'] = {
+                    value: 'XML Data Extracted',
                     offset: 0,
                     length: 0,
                 };
@@ -118,5 +180,9 @@ export const psshTooltip = {
     'pssh@license_url': {
         text: 'The license server URL extracted from the PSSH data (Widevine-specific).',
         ref: 'Widevine Specification',
+    },
+    'pssh@PlayReady Header': {
+        text: 'The decoded XML header object found within the PlayReady PSSH payload.',
+        ref: 'PlayReady Header Specification',
     },
 };

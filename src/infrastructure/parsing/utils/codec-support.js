@@ -14,6 +14,9 @@ const SUPPORTED_CODECS = new Set([
     'av01', // AV1
     'vp09', // VP9
     'mjpg', // Motion JPEG
+    'vvc1', // H.266 / VVC (NEW)
+    'vvi1', // H.266 / VVC (NEW)
+    'evc1', // MPEG-5 EVC (NEW)
 
     // Audio
     'mp4a', // MPEG-4 Audio (includes AAC variants like .40.2, .40.5, .40.29)

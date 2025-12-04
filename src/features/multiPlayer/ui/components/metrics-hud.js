@@ -1,3 +1,4 @@
+import { analyzeShakaError } from '@/infrastructure/player/shaka-error';
 import { useMultiPlayerStore } from '@/state/multiPlayerStore';
 import * as icons from '@/ui/icons';
 import { formatBitrate } from '@/ui/shared/format';
@@ -15,37 +16,55 @@ export class MetricsHudComponent extends HTMLElement {
             this._player;
         const { isAutoResetEnabled } = useMultiPlayerStore.getState();
 
-        // Error State Visual
+        // --- Rich Error State Visual ---
         if (state === 'error') {
             this.innerHTML = '';
+            const errInfo = analyzeShakaError(error);
 
             const retryMessage =
                 isAutoResetEnabled && retryCount > 0
                     ? html`<div
-                          class="mt-2 text-xs text-yellow-400 font-mono animate-pulse"
+                          class="mt-3 pt-3 border-t border-white/10 text-[10px] text-yellow-400 font-mono animate-pulse flex items-center justify-center gap-1"
                       >
-                          Retrying (${retryCount}/5)...
+                          ${icons.refresh} Retrying (${retryCount}/5)
                       </div>`
                     : html``;
 
             const errorTemplate = html`
                 <div
-                    class="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/90 backdrop-blur-sm text-center p-6 animate-fadeIn z-50"
+                    class="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/90 backdrop-blur-sm p-4 animate-fadeIn z-50"
                 >
                     <div
-                        class="bg-red-500/20 p-4 rounded-full mb-3 text-red-500 animate-pulse shadow-[0_0_20px_rgba(239,68,68,0.4)]"
+                        class="bg-slate-900 border border-red-500/30 rounded-xl p-4 w-full max-w-[280px] shadow-xl"
                     >
-                        ${icons.alertTriangle}
+                        <div class="flex items-start gap-3 mb-3">
+                            <div class="text-red-500 shrink-0 scale-110">
+                                ${icons.alertTriangle}
+                            </div>
+                            <div class="min-w-0">
+                                <h3
+                                    class="text-white font-bold text-sm leading-tight truncate"
+                                    title="${errInfo.title}"
+                                >
+                                    ${errInfo.title}
+                                </h3>
+                                <div class="flex gap-1 mt-1">
+                                    <span
+                                        class="text-[9px] font-mono bg-red-900/40 text-red-300 px-1.5 rounded border border-red-500/20"
+                                    >
+                                        ${errInfo.code}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        <p
+                            class="text-slate-400 text-xs leading-relaxed line-clamp-3"
+                            title="${errInfo.description}"
+                        >
+                            ${errInfo.description}
+                        </p>
+                        ${retryMessage}
                     </div>
-                    <h3
-                        class="text-red-400 font-bold uppercase tracking-wider text-sm mb-2"
-                    >
-                        Playback Error
-                    </h3>
-                    <p class="text-white text-xs leading-relaxed max-w-[250px]">
-                        ${error || 'Unknown Error'}
-                    </p>
-                    ${retryMessage}
                 </div>
             `;
             render(errorTemplate, this);
@@ -63,17 +82,27 @@ export class MetricsHudComponent extends HTMLElement {
             abr.estimatedBandwidth > 0
                 ? (abr.currentVideoBitrate / abr.estimatedBandwidth) * 100
                 : 0;
-        const bufferHealth = Math.min(buffer.seconds * 5, 100); // Cap at 20s visual
+
+        // SAFEGUARD: Use null coalescing to prevent undefined.toFixed() crash
+        const bufferValue = buffer.forwardBuffer ?? 0;
+        const bufferSeconds = buffer.seconds ?? 0;
+
+        const bufferHealthPercent = Math.min(bufferValue * 5, 100);
 
         // Dynamic Buffer Color Logic
         let bufferColorClass = '';
-        if (bufferHealth < 25) {
+        let bufferTextColor = 'text-emerald-400';
+
+        if (bufferValue < 2) {
             bufferColorClass =
                 'bg-gradient-to-r from-red-600 to-red-500 shadow-[0_0_10px_rgba(239,68,68,0.4)]';
-        } else if (bufferHealth < 50) {
+            bufferTextColor = 'text-red-400';
+        } else if (bufferValue < 5) {
             bufferColorClass = 'bg-gradient-to-r from-orange-600 to-orange-500';
-        } else if (bufferHealth < 75) {
+            bufferTextColor = 'text-orange-400';
+        } else if (bufferValue < 10) {
             bufferColorClass = 'bg-gradient-to-r from-yellow-500 to-yellow-400';
+            bufferTextColor = 'text-yellow-400';
         } else {
             bufferColorClass =
                 'bg-gradient-to-r from-emerald-600 to-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.3)]';
@@ -179,12 +208,8 @@ export class MetricsHudComponent extends HTMLElement {
                                 class="flex justify-between text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider"
                             >
                                 <span>Buffer</span>
-                                <span
-                                    class="${buffer.seconds < 5
-                                        ? 'text-red-400'
-                                        : 'text-emerald-400'}"
-                                >
-                                    ${buffer.seconds.toFixed(1)}s
+                                <span class="${bufferTextColor}">
+                                    ${bufferValue.toFixed(1)}s
                                 </span>
                             </div>
                             <div
@@ -192,7 +217,7 @@ export class MetricsHudComponent extends HTMLElement {
                             >
                                 <div
                                     class="h-full rounded-full transition-all duration-300 ${bufferColorClass}"
-                                    style="width: ${bufferHealth}%"
+                                    style="width: ${bufferHealthPercent}%"
                                 ></div>
                             </div>
                         </div>
@@ -230,7 +255,7 @@ export class MetricsHudComponent extends HTMLElement {
                                     class="text-sm font-mono font-bold text-slate-300"
                                 >
                                     ${buffer.label === 'Live Latency'
-                                        ? buffer.seconds.toFixed(1) + 's'
+                                        ? bufferSeconds.toFixed(1) + 's'
                                         : 'N/A'}
                                 </div>
                             </div>

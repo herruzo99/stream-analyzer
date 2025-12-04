@@ -1,30 +1,27 @@
-import { eventBus } from '@/application/event-bus'; // Correct import
-import { analysisActions } from '@/state/analysisStore';
-import { uiActions } from '@/state/uiStore';
+import { eventBus } from '@/application/event-bus';
+import { analysisActions, useAnalysisStore } from '@/state/analysisStore';
+import { EVENTS } from '@/types/events';
 import { showToast } from '@/ui/components/toast';
 import * as icons from '@/ui/icons';
 import { html, render } from 'lit-html';
+import { classMap } from 'lit-html/directives/class-map.js';
 
 /**
- * Pure domain logic for input validation and parsing.
- * Separated from the UI component for stability and testability.
+ * Pure domain logic for input parsing.
  */
-class InputValidator {
+class InputLogic {
     static detectProtocol(value) {
         if (!value || typeof value !== 'string') return null;
         const v = value.trim();
-        // Check for specific file extensions or manifest markers
         if (v.includes('.m3u8') || v.includes('#EXTM3U')) return 'HLS';
         if (v.includes('.mpd') || v.includes('<MPD')) return 'DASH';
         if (v.includes('.ism')) return 'MSS';
-        // Generic fallback for HTTP urls that might be manifests
         if (v.startsWith('http://') || v.startsWith('https://')) return 'HTTP';
         return null;
     }
 
-    static parseBatchInput(text) {
+    static parseBatch(text) {
         if (!text) return [];
-        // Split by newlines, commas, or spaces, and filter for valid URLs
         return text
             .split(/[\n,\s]+/)
             .map((s) => s.trim())
@@ -44,113 +41,99 @@ class InputValidator {
 export class SmartInputComponent extends HTMLElement {
     constructor() {
         super();
-        this.attachShadow({ mode: 'open' });
-
-        // --- Reactive State ---
         this.state = {
-            inputValue: '',
-            batchUrls: [],
-            detectedProtocol: null,
+            value: '',
+            protocol: null,
+            isDragActive: false,
             isFocused: false,
-            isDragOver: false,
-            viewMode: 'default', // 'default' | 'batch'
+            viewMode: 'single', // 'single' | 'batch'
+            batchList: [],
         };
 
-        // --- Props ---
-        this.mode = 'analyze'; // 'analyze' (resets session) | 'add' (appends)
-        this.variant = 'hero'; // 'hero' | 'widget'
-
-        // --- Bindings ---
+        // Bindings
         this.handleInput = this.handleInput.bind(this);
-        this.handleKeyDown = this.handleKeyDown.bind(this);
         this.handlePaste = this.handlePaste.bind(this);
-        this.handleDrop = this.handleDrop.bind(this);
-        this.handleDragOver = this.handleDragOver.bind(this);
+        this.handleKeyDown = this.handleKeyDown.bind(this);
+        this.handleDragEnter = this.handleDragEnter.bind(this);
         this.handleDragLeave = this.handleDragLeave.bind(this);
-        this.triggerFileInput = this.triggerFileInput.bind(this);
-        this.triggerBatchPaste = this.triggerBatchPaste.bind(this);
-    }
-
-    static get observedAttributes() {
-        return ['mode', 'variant'];
-    }
-
-    attributeChangedCallback(name, oldValue, newValue) {
-        if (oldValue !== newValue) {
-            if (name === 'mode') this.mode = newValue;
-            if (name === 'variant') this.variant = newValue;
-            this.render();
-        }
+        this.handleDragOver = this.handleDragOver.bind(this);
+        this.handleDrop = this.handleDrop.bind(this);
+        this.openFileDialog = this.openFileDialog.bind(this);
     }
 
     connectedCallback() {
-        this.mode = this.getAttribute('mode') || 'analyze';
-        this.variant = this.getAttribute('variant') || 'hero';
+        this.mode = this.getAttribute('mode') || 'analyze'; // 'analyze' | 'add'
+        this.variant = this.getAttribute('variant') || 'hero'; // 'hero' | 'compact'
         this.render();
     }
 
-    /**
-     * Centralized state updater. Merges updates and triggers a render.
-     * @param {Partial<typeof this.state>} updates
-     */
-    setState(updates) {
-        this.state = { ...this.state, ...updates };
+    setState(newState) {
+        this.state = { ...this.state, ...newState };
         this.render();
     }
 
     // --- Event Handlers ---
 
     handleInput(e) {
-        const value = e.target.value;
-        this.setState({
-            inputValue: value,
-            detectedProtocol: InputValidator.detectProtocol(value),
-        });
+        const val = e.target.value;
+        const proto = InputLogic.detectProtocol(val);
+        this.setState({ value: val, protocol: proto });
     }
 
     handlePaste(e) {
-        // Use standard Clipboard API
-        const pasteData = e.clipboardData?.getData('text');
-        if (!pasteData) return;
+        const paste = e.clipboardData?.getData('text');
+        if (!paste) return;
 
-        const urls = InputValidator.parseBatchInput(pasteData);
-
+        const urls = InputLogic.parseBatch(paste);
         if (urls.length > 1) {
             e.preventDefault();
             this.setState({
-                batchUrls: urls,
                 viewMode: 'batch',
-                inputValue: '', // Clear single input
+                batchList: urls,
+                value: '',
+                protocol: null,
             });
             showToast({
-                message: `Detected ${urls.length} streams from clipboard!`,
+                message: `Batch mode active: ${urls.length} URLs detected.`,
                 type: 'info',
             });
         }
     }
 
     handleKeyDown(e) {
-        if (e.key === 'Enter') {
-            this.submitSingleUrl();
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            this.submit();
         }
+    }
+
+    // --- Drag & Drop (Strict containment) ---
+
+    handleDragEnter(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        this.setState({ isDragActive: true });
     }
 
     handleDragOver(e) {
         e.preventDefault();
         e.stopPropagation();
-        if (!this.state.isDragOver) this.setState({ isDragOver: true });
+        // Essential to allow drop
     }
 
     handleDragLeave(e) {
         e.preventDefault();
         e.stopPropagation();
-        this.setState({ isDragOver: false });
+        // Only disable if leaving the component boundary
+        if (!this.contains(e.relatedTarget)) {
+            this.setState({ isDragActive: false });
+        }
     }
 
     handleDrop(e) {
         e.preventDefault();
         e.stopPropagation();
-        this.setState({ isDragOver: false });
+        this.setState({ isDragActive: false });
 
         const files = e.dataTransfer?.files;
         if (files && files.length > 0) {
@@ -158,345 +141,321 @@ export class SmartInputComponent extends HTMLElement {
         } else {
             const text = e.dataTransfer?.getData('text');
             if (text) {
-                const urls = InputValidator.parseBatchInput(text);
+                const urls = InputLogic.parseBatch(text);
                 if (urls.length > 1) {
-                    this.setState({
-                        batchUrls: urls,
-                        viewMode: 'batch',
-                        inputValue: '',
-                    });
+                    this.setState({ viewMode: 'batch', batchList: urls });
                 } else if (urls.length === 1) {
                     this.setState({
-                        inputValue: urls[0],
-                        detectedProtocol: InputValidator.detectProtocol(
-                            urls[0]
-                        ),
+                        value: urls[0],
+                        protocol: InputLogic.detectProtocol(urls[0]),
                     });
                 }
             }
         }
     }
 
-    // --- Actions ---
+    // --- Logic ---
 
-    triggerFileInput() {
-        const fileInput = this.shadowRoot.getElementById('hidden-file-input');
-        if (fileInput) fileInput.click();
-    }
-
-    triggerBatchPaste() {
-        const input = this.shadowRoot.getElementById('main-input');
-        if (input) {
-            input.focus();
-            showToast({
-                message: 'Paste your list of URLs now (Ctrl+V)',
-                type: 'info',
-            });
-        }
+    openFileDialog() {
+        // Fix TS2339: Explicitly cast to HTMLElement to access .click()
+        const input = /** @type {HTMLElement} */ (
+            this.querySelector('#hidden-file')
+        );
+        if (input) input.click();
     }
 
     processFile(file) {
         const isManifest =
             file.name.endsWith('.mpd') || file.name.endsWith('.m3u8');
         if (isManifest) {
-            const url = URL.createObjectURL(file);
-            analysisActions.addStreamInputFromPreset({ url, name: file.name });
-            showToast({ message: `Loaded ${file.name}`, type: 'pass' });
+            const blobUrl = URL.createObjectURL(file);
+            if (this.mode === 'add') {
+                analysisActions.addStreamInputFromPreset({
+                    url: blobUrl,
+                    name: file.name,
+                });
+            } else {
+                // Replace session
+                analysisActions.setStreamInputs([
+                    { url: blobUrl, name: file.name },
+                ]);
+                const { streamInputs } = useAnalysisStore.getState();
+                eventBus.dispatch(EVENTS.UI.STREAM_ANALYSIS_REQUESTED, {
+                    inputs: streamInputs,
+                });
+            }
+            showToast({
+                message: `Loaded local file: ${file.name}`,
+                type: 'pass',
+            });
         } else {
-            // Delegate segment analysis
-            eventBus.dispatch('ui:segment-analysis-requested', {
+            // Segment analysis
+            eventBus.dispatch(EVENTS.UI.SEGMENT_ANALYSIS_REQUESTED, {
                 files: [file],
             });
         }
     }
 
-    submitSingleUrl() {
-        const url = this.state.inputValue.trim();
+    submit() {
+        if (this.state.viewMode === 'batch') {
+            this.state.batchList.forEach((url) => {
+                analysisActions.addStreamInputFromPreset({ url });
+            });
+            showToast({
+                message: `Queued ${this.state.batchList.length} streams.`,
+                type: 'pass',
+            });
+            this.setState({ viewMode: 'single', batchList: [] });
+            return;
+        }
+
+        const url = this.state.value.trim();
         if (!url) return;
 
-        if (InputValidator.isValidUrl(url)) {
-            analysisActions.addStreamInputFromPreset({ url });
-            uiActions.setLoadedWorkspaceName(null);
-            this.setState({ inputValue: '', detectedProtocol: null });
-            showToast({ message: 'Stream added to session', type: 'pass' });
+        if (InputLogic.isValidUrl(url)) {
+            if (this.mode === 'add') {
+                analysisActions.addStreamInputFromPreset({ url });
+                showToast({ message: 'Stream added to queue.', type: 'pass' });
+            } else {
+                // Direct Analyze
+                analysisActions.addStreamInputFromPreset({ url });
+                // We just added it, so let's run it.
+                if (this.variant === 'hero') {
+                    // If on landing page, we assume this is the FIRST stream.
+                    analysisActions.setStreamInputs([{ url }]);
+                    // Re-fetch from store to be safe
+                    const freshInputs =
+                        useAnalysisStore.getState().streamInputs;
+                    eventBus.dispatch(EVENTS.UI.STREAM_ANALYSIS_REQUESTED, {
+                        inputs: freshInputs,
+                    });
+                } else {
+                    // In modal/add mode
+                    showToast({ message: 'Stream added.', type: 'pass' });
+                }
+            }
+            this.setState({ value: '', protocol: null });
         } else {
-            showToast({ message: 'Invalid URL format', type: 'fail' });
+            showToast({ message: 'Invalid URL format.', type: 'fail' });
         }
     }
 
-    submitBatch() {
-        this.state.batchUrls.forEach((url) =>
-            analysisActions.addStreamInputFromPreset({ url })
-        );
-        this.setState({ batchUrls: [], viewMode: 'default' });
-        showToast({
-            message: `${this.state.batchUrls.length} streams added`,
-            type: 'pass',
-        });
-    }
+    // --- Rendering ---
 
-    resetBatch() {
-        this.setState({ batchUrls: [], viewMode: 'default' });
-    }
-
-    // --- Renderers ---
-
-    renderStyles() {
-        return html`
-            <link rel="stylesheet" href="/assets/main.css" />
-            <style>
-                :host {
-                    display: block;
-                    width: 100%;
-                    font-family: var(--font-sans);
-                }
-
-                /* Local utility classes for shadow DOM */
-                .animate-fade-in {
-                    animation: fadeIn 0.2s ease-out forwards;
-                }
-                .animate-scale-in {
-                    animation: scaleIn 0.2s ease-out forwards;
-                }
-
-                @keyframes fadeIn {
-                    from {
-                        opacity: 0;
-                    }
-                    to {
-                        opacity: 1;
-                    }
-                }
-                @keyframes scaleIn {
-                    from {
-                        transform: scale(0.95);
-                        opacity: 0;
-                    }
-                    to {
-                        transform: scale(1);
-                        opacity: 1;
-                    }
-                }
-
-                /* Custom Scrollbar for the batch list */
-                .custom-scrollbar::-webkit-scrollbar {
-                    width: 6px;
-                }
-                .custom-scrollbar::-webkit-scrollbar-track {
-                    background: rgba(30, 41, 59, 0.5);
-                }
-                .custom-scrollbar::-webkit-scrollbar-thumb {
-                    background: #475569;
-                    border-radius: 3px;
-                }
-
-                .interactive-footer-btn {
-                    cursor: pointer;
-                    transition: all 0.2s;
-                    display: flex;
-                    align-items: center;
-                    gap: 0.375rem;
-                }
-                .interactive-footer-btn:hover {
-                    color: #60a5fa;
-                }
-                .interactive-footer-btn:active {
-                    transform: scale(0.98);
-                }
-            </style>
-        `;
-    }
-
-    renderBatchMode() {
+    renderBatchEditor() {
         return html`
             <div
-                class="bg-slate-900 border border-slate-700 rounded-2xl p-4 shadow-2xl animate-scale-in w-full"
+                class="w-full bg-slate-900 rounded-xl border border-slate-700 shadow-2xl overflow-hidden animate-scaleIn"
             >
                 <div
-                    class="flex justify-between items-center mb-3 border-b border-slate-800 pb-2"
+                    class="p-3 border-b border-slate-800 flex justify-between items-center bg-slate-800/50"
                 >
-                    <h3
-                        class="text-sm font-bold text-blue-400 flex items-center gap-2 uppercase tracking-wider"
+                    <div
+                        class="flex items-center gap-2 text-blue-400 font-bold text-xs uppercase tracking-wider"
                     >
                         ${icons.layers} Batch Import
-                        <span
-                            class="bg-blue-900/30 text-blue-200 px-2 py-0.5 rounded text-xs border border-blue-500/30"
-                            >${this.state.batchUrls.length}</span
-                        >
-                    </h3>
+                        (${this.state.batchList.length})
+                    </div>
                     <button
-                        @click=${() => this.resetBatch()}
-                        class="text-slate-400 hover:text-white transition-colors"
+                        @click=${() =>
+                            this.setState({
+                                viewMode: 'single',
+                                batchList: [],
+                            })}
+                        class="text-slate-500 hover:text-white transition-colors"
                     >
                         ${icons.xCircle}
                     </button>
                 </div>
-
                 <div
-                    class="max-h-48 overflow-y-auto custom-scrollbar bg-black/20 rounded-lg p-2 mb-4 space-y-1 border border-white/5"
+                    class="max-h-48 overflow-y-auto custom-scrollbar p-2 space-y-1 bg-slate-950/50"
                 >
-                    ${this.state.batchUrls.map(
+                    ${this.state.batchList.map(
                         (url, i) => html`
                             <div
-                                class="flex items-center gap-3 px-2 py-1.5 rounded hover:bg-white/5 text-xs font-mono text-slate-300 transition-colors group"
+                                class="flex items-center gap-3 px-3 py-2 rounded bg-slate-900/50 border border-slate-800/50 text-xs text-slate-300 font-mono truncate"
                             >
                                 <span
-                                    class="opacity-40 w-4 text-right select-none"
+                                    class="text-slate-600 w-4 text-right select-none"
                                     >${i + 1}.</span
                                 >
-                                <span class="truncate select-all text-slate-200"
-                                    >${url}</span
-                                >
+                                <span class="truncate">${url}</span>
                             </div>
                         `
                     )}
                 </div>
-
-                <div class="flex gap-3">
+                <div
+                    class="p-3 bg-slate-800/50 border-t border-slate-800 flex gap-3"
+                >
                     <button
-                        @click=${() => this.resetBatch()}
-                        class="flex-1 py-2.5 rounded-xl font-bold text-xs bg-slate-800 text-slate-400 hover:bg-slate-700 transition-colors border border-slate-700"
+                        @click=${() =>
+                            this.setState({
+                                viewMode: 'single',
+                                batchList: [],
+                            })}
+                        class="flex-1 py-2 rounded-lg text-xs font-bold text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
                     >
-                        Discard
+                        Cancel
                     </button>
                     <button
-                        @click=${() => this.submitBatch()}
-                        class="flex-[2] py-2.5 rounded-xl font-bold text-xs bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-blue-900/20 transition-all flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98]"
+                        @click=${() => this.submit()}
+                        class="flex-[2] py-2 rounded-lg text-xs font-bold bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-blue-900/20 transition-all"
                     >
-                        ${icons.plusCircle} Import All
+                        Import All
                     </button>
                 </div>
             </div>
         `;
     }
 
-    renderInput() {
-        const { inputValue, detectedProtocol, isFocused, isDragOver } =
-            this.state;
+    renderSingleInput() {
+        const { value, protocol, isDragActive, isFocused } = this.state;
 
-        const containerClass = `relative transition-transform duration-200 ${isDragOver ? 'scale-[1.02]' : ''}`;
-        const wrapperClass = `
-            flex items-center gap-3 bg-slate-800/80 backdrop-blur-xl border rounded-2xl p-2 shadow-2xl 
-            transition-all duration-300
-            ${isFocused || isDragOver ? 'border-blue-500/50 ring-4 ring-blue-500/10' : 'border-slate-700 hover:border-slate-600'}
-        `;
+        // Dynamic Classes
+        const containerClass = classMap({
+            'relative w-full transition-all duration-300': true,
+            'scale-[1.02]': isDragActive || isFocused,
+        });
+
+        const wrapperClass = classMap({
+            'flex items-center gap-0 bg-slate-900/90 backdrop-blur-xl border rounded-2xl overflow-hidden shadow-2xl transition-all duration-300': true,
+            'border-blue-500 shadow-blue-900/20 ring-2 ring-blue-500/20':
+                isFocused || isDragActive,
+            'border-slate-700 hover:border-slate-600':
+                !isFocused && !isDragActive,
+            'h-14': this.variant === 'hero',
+            'h-11': this.variant !== 'hero',
+        });
 
         const badgeColor =
-            detectedProtocol === 'HLS'
-                ? 'text-purple-400 bg-purple-400/10 border-purple-400/20'
-                : detectedProtocol === 'DASH'
-                  ? 'text-blue-400 bg-blue-400/10 border-blue-400/20'
-                  : 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20';
+            protocol === 'HLS'
+                ? 'text-purple-400 bg-purple-500/10 border-purple-500/20'
+                : protocol === 'DASH'
+                  ? 'text-blue-400 bg-blue-500/10 border-blue-500/20'
+                  : 'text-slate-500';
 
         return html`
             <div
                 class="${containerClass}"
+                @dragenter=${this.handleDragEnter}
                 @dragover=${this.handleDragOver}
                 @dragleave=${this.handleDragLeave}
                 @drop=${this.handleDrop}
             >
                 <!-- Drop Overlay -->
-                ${isDragOver
-                    ? html`
-                          <div
-                              class="absolute inset-0 z-50 bg-blue-600/90 backdrop-blur-md rounded-2xl flex flex-col items-center justify-center text-white font-bold animate-fade-in pointer-events-none border-2 border-white/20"
-                          >
-                              <div class="scale-150 mb-2 animate-bounce">
-                                  ${icons.upload}
-                              </div>
-                              <span>Drop to Analyze</span>
-                          </div>
-                      `
-                    : ''}
+                <div
+                    class="absolute inset-0 z-50 rounded-2xl border-2 border-dashed border-blue-500 bg-slate-900/95 flex flex-col items-center justify-center text-blue-400 font-bold transition-opacity duration-200 ${isDragActive
+                        ? 'opacity-100 pointer-events-auto'
+                        : 'opacity-0 pointer-events-none'}"
+                >
+                    <div class="scale-150 mb-2 animate-bounce">
+                        ${icons.upload}
+                    </div>
+                    <span>Drop Manifest or Segment</span>
+                </div>
 
                 <div class="${wrapperClass}">
-                    <!-- Protocol Indicator -->
+                    <!-- Icon / Protocol Badge -->
                     <div
-                        class="pl-2 shrink-0 w-16 flex justify-center transition-all duration-300"
+                        class="pl-3 pr-2 shrink-0 flex justify-center min-w-[3rem]"
                     >
-                        ${detectedProtocol
+                        ${protocol
                             ? html`<span
-                                  class="text-[10px] font-black px-2 py-1 rounded border uppercase tracking-wider ${badgeColor} animate-scale-in"
-                                  >${detectedProtocol}</span
+                                  class="text-[10px] font-black px-1.5 py-0.5 rounded border uppercase tracking-wider animate-scaleIn ${badgeColor}"
+                                  >${protocol}</span
                               >`
-                            : html`<span class="text-slate-500 scale-110"
+                            : html`<span
+                                  class="text-slate-600 transition-colors group-hover:text-slate-500"
                                   >${icons.link}</span
                               >`}
                     </div>
 
-                    <!-- Main Input -->
+                    <!-- Input Field -->
                     <input
-                        id="main-input"
                         type="text"
-                        class="flex-1 bg-transparent border-none text-lg text-white placeholder-slate-500 focus:ring-0 h-12 font-medium w-full min-w-0 outline-none"
-                        placeholder="Paste URL, Drop File, or Paste List..."
-                        .value=${inputValue}
+                        class="flex-1 bg-transparent border-none text-white placeholder-slate-600 focus:ring-0 h-full w-full min-w-0 px-0 text-sm font-medium font-mono"
+                        placeholder="Paste URL, drop file, or paste list..."
+                        .value=${value}
                         @input=${this.handleInput}
-                        @paste=${this.handlePaste}
-                        @keydown=${this.handleKeyDown}
                         @focus=${() => this.setState({ isFocused: true })}
                         @blur=${() => this.setState({ isFocused: false })}
+                        @paste=${this.handlePaste}
+                        @keydown=${this.handleKeyDown}
                         autocomplete="off"
+                        spellcheck="false"
                     />
 
-                    <!-- Hidden File Input -->
-                    <input
-                        id="hidden-file-input"
-                        type="file"
-                        class="hidden"
-                        @change=${(e) => this.processFile(e.target.files[0])}
-                    />
-
-                    <!-- Visual File Trigger -->
-                    <button
-                        @click=${this.triggerFileInput}
-                        class="p-2 text-slate-500 hover:text-white hover:bg-white/10 rounded-lg cursor-pointer transition-colors"
-                        title="Upload File"
+                    <!-- Actions Group -->
+                    <div
+                        class="flex items-center h-full border-l border-slate-800 bg-slate-900/50 pr-1 pl-1"
                     >
-                        ${icons.folder}
-                    </button>
+                        <!-- File Upload -->
+                        <button
+                            @click=${this.openFileDialog}
+                            class="p-2 text-slate-500 hover:text-slate-300 hover:bg-white/5 rounded-lg transition-colors"
+                            title="Upload Local File"
+                        >
+                            ${icons.folder}
+                        </button>
 
-                    <!-- Analyze Button -->
-                    <button
-                        @click=${() => this.submitSingleUrl()}
-                        class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-lg shadow-blue-900/20 transition-all hover:scale-105 active:scale-95 flex items-center gap-2 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100"
-                        ?disabled=${!inputValue.trim()}
-                    >
-                        ${icons.searchCode}
-                        <span class="hidden sm:inline">Analyze</span>
-                    </button>
+                        <!-- Submit Button -->
+                        <button
+                            @click=${() => this.submit()}
+                            class="ml-1 px-4 h-8 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-lg shadow-blue-900/20 transition-all flex items-center gap-2 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100"
+                            ?disabled=${!value.trim()}
+                        >
+                            ${this.mode === 'add'
+                                ? icons.plusCircle
+                                : icons.searchCode}
+                            <span class="hidden sm:inline"
+                                >${this.mode === 'add'
+                                    ? 'Add'
+                                    : 'Analyze'}</span
+                            >
+                        </button>
+                    </div>
                 </div>
 
-                <!-- Interactive Footer Actions -->
-                <div
-                    class="mt-4 flex justify-center gap-8 text-[10px] font-bold uppercase tracking-widest text-slate-500 select-none"
-                >
-                    <button
-                        @click=${this.triggerBatchPaste}
-                        class="interactive-footer-btn"
-                        title="Paste a list of URLs to import multiple streams at once"
-                    >
-                        ${icons.copy} Batch Paste
-                    </button>
-                    <button
-                        @click=${this.triggerFileInput}
-                        class="interactive-footer-btn"
-                        title="Browse for manifest files"
-                    >
-                        ${icons.upload} Drag & Drop
-                    </button>
-                </div>
+                <!-- Hidden File Input -->
+                <input
+                    type="file"
+                    id="hidden-file"
+                    class="hidden"
+                    @change=${(e) => this.processFile(e.target.files[0])}
+                />
             </div>
+
+            <!-- Footer Hints (Hero Mode Only) -->
+            ${this.variant === 'hero'
+                ? html`
+                      <div
+                          class="mt-4 flex justify-center gap-6 text-[10px] font-bold uppercase tracking-widest text-slate-600 select-none animate-fadeIn delay-100"
+                      >
+                          <span
+                              class="flex items-center gap-1.5 cursor-help hover:text-slate-400 transition-colors"
+                              title="Paste multiple URLs separated by newlines"
+                          >
+                              ${icons.layers} Batch Paste
+                          </span>
+                          <span
+                              class="flex items-center gap-1.5 cursor-help hover:text-slate-400 transition-colors"
+                              title="Drop .mpd, .m3u8, .ts, .mp4 files"
+                          >
+                              ${icons.fileScan} Drag & Drop
+                          </span>
+                      </div>
+                  `
+                : ''}
         `;
     }
 
     render() {
         const content =
             this.state.viewMode === 'batch'
-                ? this.renderBatchMode()
-                : this.renderInput();
+                ? this.renderBatchEditor()
+                : this.renderSingleInput();
 
-        render(html`${this.renderStyles()} ${content}`, this.shadowRoot);
+        render(content, this);
     }
 }
 

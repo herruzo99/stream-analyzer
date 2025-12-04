@@ -88,7 +88,8 @@ export class LoaderFX {
         // Speed variance
         p.speed = this.baseSpeed * (0.8 + secureRandom() * 0.6);
 
-        p.color = this.palette[Math.floor(secureRandom() * this.palette.length)];
+        p.color =
+            this.palette[Math.floor(secureRandom() * this.palette.length)];
         p.width = secureRandom() > 0.8 ? 3 : 2; // Occasional thicker packet
 
         // Start off-screen left, or at specific X if forced

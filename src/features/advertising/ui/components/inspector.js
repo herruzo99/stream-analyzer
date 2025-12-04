@@ -13,13 +13,11 @@ const creativeItem = (creative, idx) => html`
                 >${creative.duration}s</span
             >
         </div>
-
         <div
             class="text-xs text-slate-300 break-all font-mono bg-slate-900 p-2 rounded mb-2 border border-slate-800/50"
         >
             ${creative.mediaFileUrl || 'No Media File URL'}
         </div>
-
         <div class="flex gap-2">
             ${creative.mediaFileUrl
                 ? html`
@@ -32,12 +30,73 @@ const creativeItem = (creative, idx) => html`
                       </a>
                   `
                 : ''}
-            <button
-                class="text-[10px] flex items-center gap-1 bg-slate-800 text-slate-400 px-2 py-1 rounded hover:text-white transition-colors"
+            <div
+                class="text-[10px] bg-slate-800 text-slate-400 px-2 py-1 rounded"
             >
                 ${icons.activity} ${creative.trackingUrls.size} Trackers
-            </button>
+            </div>
         </div>
+    </div>
+`;
+
+const scte224Template = (signal) => html`
+    <div class="p-3 bg-slate-950 rounded-lg border border-slate-800">
+        <div class="flex justify-between items-center mb-2">
+            <span class="text-xs font-bold text-purple-400"
+                >SCTE-224 (ESNI)</span
+            >
+            <span class="text-[10px] font-mono text-slate-500"
+                >ID: ${signal.id}</span
+            >
+        </div>
+        <div class="text-xs text-slate-300 mb-2">
+            ${signal.description || 'No description'}
+        </div>
+
+        ${signal.mediaPoints.length > 0
+            ? html`
+                  <div
+                      class="text-[10px] font-bold text-slate-500 uppercase mb-1"
+                  >
+                      Media Points
+                  </div>
+                  <div class="space-y-1">
+                      ${signal.mediaPoints.map(
+                          (mp) => html`
+                              <div
+                                  class="flex justify-between bg-slate-900 p-1.5 rounded"
+                              >
+                                  <span class="font-mono text-slate-300"
+                                      >${mp.matchTime}</span
+                                  >
+                                  <span class="text-slate-500"
+                                      >${mp.source || 'No Source'}</span
+                                  >
+                              </div>
+                          `
+                      )}
+                  </div>
+              `
+            : ''}
+        ${signal.audiences.length > 0
+            ? html`
+                  <div
+                      class="text-[10px] font-bold text-slate-500 uppercase mt-3 mb-1"
+                  >
+                      Audiences
+                  </div>
+                  <div class="flex flex-wrap gap-1">
+                      ${signal.audiences.map(
+                          (a) => html`
+                              <span
+                                  class="px-2 py-0.5 bg-purple-900/20 border border-purple-500/30 text-purple-300 rounded text-[10px]"
+                                  >${a.id}</span
+                              >
+                          `
+                      )}
+                  </div>
+              `
+            : ''}
     </div>
 `;
 
@@ -54,8 +113,8 @@ export const inspectorTemplate = (avail) => {
                 </div>
                 <h3 class="text-lg font-bold text-slate-300">Ad Inspector</h3>
                 <p class="text-sm mt-2">
-                    Select an ad break from the timeline or list to view signal
-                    details and creatives.
+                    Select an ad break to view signals, VMAP structure, and
+                    creatives.
                 </p>
             </div>
         `;
@@ -95,7 +154,32 @@ export const inspectorTemplate = (avail) => {
 
             <!-- Scrollable Body -->
             <div class="grow overflow-y-auto p-5 space-y-6 custom-scrollbar">
-                <!-- VAST / Creatives Section -->
+                <!-- VMAP Info -->
+                ${avail.vmapInfo
+                    ? html`
+                          <section>
+                              <h3
+                                  class="text-sm font-bold text-white flex items-center gap-2 mb-3"
+                              >
+                                  ${icons.layers} VMAP Schedule
+                              </h3>
+                              <div
+                                  class="bg-blue-900/10 border border-blue-500/20 rounded-lg p-3 flex justify-between items-center"
+                              >
+                                  <span class="text-xs text-blue-200"
+                                      >Version ${avail.vmapInfo.version}</span
+                                  >
+                                  <span class="text-xs font-bold text-white"
+                                      >${avail.vmapInfo.breakCount} Breaks
+                                      Found</span
+                                  >
+                              </div>
+                          </section>
+                          <hr class="border-slate-800" />
+                      `
+                    : ''}
+
+                <!-- Creatives -->
                 <section>
                     <h3
                         class="text-sm font-bold text-white flex items-center gap-2 mb-3"
@@ -124,7 +208,7 @@ export const inspectorTemplate = (avail) => {
                                       @click=${() =>
                                           copyTextToClipboard(
                                               avail.adManifestUrl,
-                                              'VAST URL Copied'
+                                              'URL Copied'
                                           )}
                                       class="text-blue-400 hover:text-white p-1"
                                   >
@@ -132,11 +216,7 @@ export const inspectorTemplate = (avail) => {
                                   </button>
                               </div>
                           `
-                        : html`
-                              <div class="text-xs text-slate-500 italic mb-3">
-                                  No VAST URL associated with this break.
-                              </div>
-                          `}
+                        : ''}
                     ${avail.creatives && avail.creatives.length > 0
                         ? avail.creatives.map((c, i) => creativeItem(c, i))
                         : html`<div
@@ -148,19 +228,33 @@ export const inspectorTemplate = (avail) => {
 
                 <hr class="border-slate-800" />
 
-                <!-- SCTE-35 Section -->
+                <!-- Signals -->
                 <section>
                     <h3
                         class="text-sm font-bold text-white flex items-center gap-2 mb-3"
                     >
-                        ${icons.binary} SCTE-35 Signal
+                        ${icons.binary} Signals
                     </h3>
+                    ${avail.scte224Signal
+                        ? scte224Template(avail.scte224Signal)
+                        : ''}
                     ${avail.scte35Signal
-                        ? scte35DetailsTemplate(avail.scte35Signal)
-                        : html`<div class="text-xs text-slate-500 italic">
-                              No SCTE-35 signal data available (Heuristic
-                              detection).
-                          </div>`}
+                        ? html`
+                              <div class="mt-4">
+                                  <div
+                                      class="text-xs font-bold text-slate-500 uppercase mb-2"
+                                  >
+                                      SCTE-35
+                                  </div>
+                                  ${scte35DetailsTemplate(avail.scte35Signal)}
+                              </div>
+                          `
+                        : ''}
+                    ${!avail.scte35Signal && !avail.scte224Signal
+                        ? html`<div class="text-xs text-slate-500 italic">
+                              No in-band signals detected (Heuristic).
+                          </div>`
+                        : ''}
                 </section>
             </div>
         </div>

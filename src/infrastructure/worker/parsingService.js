@@ -13,28 +13,28 @@ import { fetchWithAuth } from './http.js';
 
 // --- Color Palette Definition ---
 const PALETTE = [
-    'slate', // 0: Null / Default
-    'red', // 1: PAT
-    'orange', // 2: TS Error / Discontinuity
-    'amber', // 3:
-    'yellow', // 4: PMT
-    'lime', // 5: NIT/SDT
-    'green', // 6: Data
-    'emerald', // 7: ID3 / SCTE
-    'teal', // 8: TSDT
-    'cyan', // 9:
-    'sky', // 10: Video (H.264/HEVC)
-    'blue', // 11: PES Header
-    'indigo', // 12: DSM-CC
-    'violet', // 13: Audio
-    'purple', // 14: Private Section
-    'fuchsia', // 15: CAT
-    'pink', // 16:
-    'rose', // 17
+    'slate',
+    'red',
+    'orange',
+    'amber',
+    'yellow',
+    'lime',
+    'green',
+    'emerald',
+    'teal',
+    'cyan',
+    'sky',
+    'blue',
+    'indigo',
+    'violet',
+    'purple',
+    'fuchsia',
+    'pink',
+    'rose',
 ];
 
 const BOX_TYPE_COLOR_INDICES = {};
-// Assign stable colors to box types
+// Assign stable colors to box types automatically
 Object.keys(boxParsers).forEach((type, index) => {
     BOX_TYPE_COLOR_INDICES[type] = (index % (PALETTE.length - 1)) + 1;
 });
@@ -81,6 +81,17 @@ const TS_PACKET_COLOR_INDICES = {
     'HEVC Video': 10,
     'AAC Audio': 13, // Violet
     'ID3 Metadata': 7, // Emerald
+};
+
+const findBox = (boxes, type) => {
+    for (const box of boxes) {
+        if (box.type === type) return box;
+        if (box.children) {
+            const found = findBox(box.children, type);
+            if (found) return found;
+        }
+    }
+    return null;
 };
 
 function generateIsoBoxLayout(parsedData, rawDataSize) {
@@ -142,6 +153,127 @@ function generateTsPacketMap(parsedData) {
     return { packetMap, palette: PALETTE };
 }
 
+function generateMediaInfoSummary(tsData) {
+    if (!tsData?.summary?.programMap) return null;
+
+    const summary = tsData.summary;
+    // Use the first PMT found if multiple exist
+    const pmtPid = [...summary.pmtPids][0];
+    if (!pmtPid) return null;
+
+    const program = summary.programMap[pmtPid];
+    if (!program?.streams) return null;
+
+    const mediaInfo = { data: [] };
+    const pmtPacket = tsData.packets.find(
+        (p) => p.pid === pmtPid && p.psi?.streams
+    );
+
+    for (const [pid, streamType] of Object.entries(program.streams)) {
+        const typeNum = parseInt(streamType, 16);
+        const pidNum = parseInt(pid, 10);
+
+        // Common video stream types
+        const videoTypes = [0x01, 0x02, 0x1b, 0x24, 0x80];
+        // Common audio stream types
+        const audioTypes = [0x03, 0x04, 0x0f, 0x11, 0x1c, 0x81];
+
+        if (videoTypes.includes(typeNum)) {
+            // Try to find SPS in PES packets for this PID
+            const videoPESWithSPS = tsData.packets.find(
+                (p) => p.pid === pidNum && p.pes?.spsInfo
+            );
+            if (
+                videoPESWithSPS &&
+                videoPESWithSPS.pes.spsInfo &&
+                !videoPESWithSPS.pes.spsInfo.error
+            ) {
+                mediaInfo.video = {
+                    resolution: videoPESWithSPS.pes.spsInfo.resolution,
+                    frameRate: videoPESWithSPS.pes.spsInfo.frame_rate,
+                    codec: typeNum === 0x24 ? 'H.265' : 'H.264',
+                };
+            } else {
+                // Fallback if SPS not found but type is known
+                mediaInfo.video = {
+                    resolution: 'Unknown',
+                    frameRate: null,
+                    codec: typeNum === 0x24 ? 'H.265' : 'H.264 (inferred)',
+                };
+            }
+        } else if (audioTypes.includes(typeNum)) {
+            let audioInfo = {
+                codec: 'Audio',
+                channels: null,
+                sampleRate: null,
+                language: null,
+            };
+            if (pmtPacket) {
+                const streamInfo = pmtPacket.psi.streams.find(
+                    (s) => s.elementary_PID.value === pidNum
+                );
+                if (streamInfo) {
+                    const aacDescriptor = streamInfo.es_descriptors.find(
+                        (d) => d.name === 'MPEG-2 AAC Audio Descriptor'
+                    );
+                    if (aacDescriptor) {
+                        audioInfo.codec = 'AAC';
+                        const channelConfigString =
+                            aacDescriptor.details
+                                .MPEG_2_AAC_channel_configuration?.value;
+                        if (channelConfigString) {
+                            audioInfo.channels = parseInt(
+                                channelConfigString.match(/\d+/)?.[0] || '0',
+                                10
+                            );
+                        }
+                    }
+
+                    const mpeg4ExtDescriptor = streamInfo.es_descriptors.find(
+                        (d) => d.name === 'MPEG-4 Audio Extension Descriptor'
+                    );
+                    if (mpeg4ExtDescriptor) {
+                        const { details } = mpeg4ExtDescriptor;
+                        if (details.decoded_audio_object_type?.value) {
+                            audioInfo.codec =
+                                details.decoded_audio_object_type.value.split(
+                                    ' '
+                                )[0];
+                        }
+                        if (details.channels) {
+                            audioInfo.channels = details.channels;
+                        }
+                        if (details.samplerate) {
+                            audioInfo.sampleRate = details.samplerate;
+                        }
+                    }
+
+                    const langDescriptor = streamInfo.es_descriptors.find(
+                        (d) => d.name === 'ISO 639 Language Descriptor'
+                    );
+                    if (
+                        langDescriptor &&
+                        langDescriptor.details.languages &&
+                        langDescriptor.details.languages.length > 0
+                    ) {
+                        audioInfo.language =
+                            langDescriptor.details.languages[0].language.value;
+                    }
+                }
+            }
+            mediaInfo.audio = audioInfo;
+        } else {
+            mediaInfo.data.push({ pid: pidNum, streamType });
+        }
+    }
+
+    if (Object.keys(mediaInfo).length === 1 && mediaInfo.data.length === 0) {
+        return null;
+    }
+
+    return mediaInfo;
+}
+
 function isValidIsobmff(parsedData) {
     if (
         !parsedData ||
@@ -157,6 +289,7 @@ function isValidIsobmff(parsedData) {
         )
     )
         return false;
+    // Valid box types are usually 4 alphanumeric chars
     if (!/^[a-zA-Z0-9 ]{4}$/.test(firstBox.type)) return false;
     if (firstBox.size > parsedData.data.size && parsedData.data.size > 0)
         return false;
@@ -187,7 +320,11 @@ async function parseSegment({ data, formatHint, url, context }) {
 
     if (url) {
         let path = url.toLowerCase();
-        path = new URL(url).pathname.toLowerCase();
+        try {
+            path = new URL(url).pathname.toLowerCase();
+        } catch (_e) {
+            // Use relative path if URL construction fails
+        }
 
         if (path.endsWith('.vtt') || path.endsWith('.webvtt')) {
             return { format: 'vtt', data: parseVTT(decoder.decode(data)) };
@@ -213,6 +350,7 @@ async function parseSegment({ data, formatHint, url, context }) {
         }
     }
 
+    // Content Sniffing
     const startText = decoder.decode(data.slice(0, 10));
     if (startText.startsWith('WEBVTT')) {
         return { format: 'vtt', data: parseVTT(decoder.decode(data)) };
@@ -225,6 +363,7 @@ async function parseSegment({ data, formatHint, url, context }) {
         }
     }
 
+    // Default fallback
     return parseISOBMFF(data, 0, context);
 }
 
@@ -273,19 +412,8 @@ export async function handleParseSegmentStructure({
     return parsedData;
 }
 
-const findBox = (boxes, type) => {
-    for (const box of boxes) {
-        if (box.type === type) return box;
-        if (box.children) {
-            const found = findBox(box.children, type);
-            if (found) return found;
-        }
-    }
-    return null;
-};
-
 /**
- * Performs deep bitstream analysis (e.g. GOP structure) if possible.
+ * Performs deep bitstream analysis (e.g. GOP structure, SEI extraction) if possible.
  * Uses 'context' to find Init Segment boxes if provided.
  */
 export async function handleFullSegmentAnalysis({
@@ -317,6 +445,8 @@ export async function handleFullSegmentAnalysis({
     }
 
     let bitstreamAnalysis = null;
+    const collectedSeiMessages = []; // Collection for SEI messages found in the bitstream
+
     if (parsedData.format === 'isobmff' && rawData) {
         const boxes = parsedData.data.boxes;
         let avcC = findBox(boxes, 'avcC');
@@ -351,17 +481,23 @@ export async function handleFullSegmentAnalysis({
 
         let codec = null;
         let lengthSizeMinusOne = 3;
+        let activeSps = null;
 
-        if (avcC && avcC.details.lengthSizeMinusOne) {
+        if (avcC) {
             codec = 'avc';
-            lengthSizeMinusOne = avcC.details.lengthSizeMinusOne.value;
-        } else if (hvcC && hvcC.details.lengthSizeMinusOne) {
+            if (avcC.details.lengthSizeMinusOne)
+                lengthSizeMinusOne = avcC.details.lengthSizeMinusOne.value;
+            if (avcC.spsList && avcC.spsList.length > 0) {
+                activeSps = avcC.spsList[0].parsed;
+            }
+        } else if (hvcC) {
             codec = 'hevc';
-            lengthSizeMinusOne = hvcC.details.lengthSizeMinusOne.value;
+            if (hvcC.details.lengthSizeMinusOne)
+                lengthSizeMinusOne = hvcC.details.lengthSizeMinusOne.value;
         }
 
         if (!codec && mdat) {
-            codec = 'avc'; // Fallback
+            codec = 'avc'; // Fallback assumption
         }
 
         if (codec && mdat) {
@@ -369,8 +505,6 @@ export async function handleFullSegmentAnalysis({
                 const rawUint8 = new Uint8Array(rawData);
 
                 // ARCHITECTURAL FIX: Prioritize Container Sample Table
-                // Use the samples array (populated by buildCanonicalSampleList in parser.js)
-                // to accurately identify frame boundaries and types via NAL parsing.
                 if (parsedData.samples && parsedData.samples.length > 0) {
                     const videoFrames = parsedData.samples.map(
                         (sample, index) => {
@@ -386,8 +520,9 @@ export async function handleFullSegmentAnalysis({
                                 const nals = parseNalUnits(
                                     sampleData,
                                     lengthSizeMinusOne,
-                                    /** @type {'avc'|'hevc'} */ (codec),
-                                    sample.offset
+                                    /** @type {'avc'|'hevc'|'vvc'} */ (codec),
+                                    sample.offset,
+                                    activeSps
                                 );
                                 nalTypes.push(...nals.map((n) => n.type));
 
@@ -397,6 +532,24 @@ export async function handleFullSegmentAnalysis({
                                 } else if (nals.some((n) => n.isVcl)) {
                                     frameType = 'P/B';
                                 }
+
+                                // --- Collect SEI Messages ---
+                                nals.forEach((n) => {
+                                    if (
+                                        n.seiMessage &&
+                                        n.seiMessage.length > 0
+                                    ) {
+                                        n.seiMessage.forEach((msg) => {
+                                            collectedSeiMessages.push({
+                                                ...msg,
+                                                sampleIndex: index,
+                                                // Approximate presentation timestamp from container
+                                                timestamp:
+                                                    sample.compositionTimeOffset,
+                                            });
+                                        });
+                                    }
+                                });
                             }
 
                             return {
@@ -421,18 +574,30 @@ export async function handleFullSegmentAnalysis({
                         width,
                         height
                     );
+
+                    // Attach extracted SEI data to the analysis result
+                    bitstreamAnalysis.seiMessages = collectedSeiMessages;
                 } else {
-                    // Fallback to raw scanning of mdat if no sample table exists (e.g. raw stream/init only)
+                    // Fallback to raw scanning of mdat if no sample table exists
                     const mdatStart = mdat.contentOffset;
                     const mdatEnd = mdat.offset + mdat.size;
                     const mdatBody = rawUint8.subarray(mdatStart, mdatEnd);
                     const nalUnits = parseNalUnits(
                         mdatBody,
                         lengthSizeMinusOne,
-                        /** @type {'avc'|'hevc'} */ (codec),
-                        mdatStart
+                        /** @type {'avc'|'hevc'|'vvc'} */ (codec),
+                        mdatStart,
+                        activeSps
                     );
                     bitstreamAnalysis = analyzeGopStructure(nalUnits, 0);
+
+                    // Collect SEI from raw scan results
+                    nalUnits.forEach((n) => {
+                        if (n.seiMessage && n.seiMessage.length > 0) {
+                            collectedSeiMessages.push(...n.seiMessage);
+                        }
+                    });
+                    bitstreamAnalysis.seiMessages = collectedSeiMessages;
                 }
             } catch (e) {
                 console.warn('Bitstream analysis warning:', e.message);
@@ -447,44 +612,48 @@ export async function handleFullSegmentAnalysis({
     };
 }
 
-export async function handleFetchAndParseSegment(
-    { uniqueId, streamId, formatHint, auth, decryption, context },
-    signal
-) {
-    const [url, , range] = uniqueId.split('@');
-    const response = await fetchWithAuth(url, auth, range, {}, null, signal);
+export async function handleFetchAndParseSegment(payload, signal) {
+    const { uniqueId, auth, range, interventionRules } = payload; // Extract rules
+    const [url] = uniqueId.split('@');
+    // Use rules
+    const response = await fetchWithAuth(
+        url,
+        auth,
+        range,
+        {},
+        null,
+        signal,
+        { streamId: payload.streamId, resourceType: 'video' }, // Context for logging
+        'GET',
+        interventionRules // Pass rules
+    );
     if (!response.ok) throw new Error(`HTTP error ${response.status}`);
     const data = await response.arrayBuffer();
-    let finalData = data;
-    if (decryption) {
-        const { key, iv } = decryption;
-        const cryptoKey = await self.crypto.subtle.importKey(
-            'raw',
-            key,
-            { name: 'AES-CBC' },
-            false,
-            ['decrypt']
-        );
-        finalData = await self.crypto.subtle.decrypt(
-            { name: 'AES-CBC', iv: iv },
-            cryptoKey,
-            data
-        );
-    }
     const parsedData = await handleParseSegmentStructure({
-        data: finalData,
-        formatHint,
+        data,
+        formatHint: payload.formatHint,
         url,
-        context,
+        context: payload.context,
     });
-    return { data: finalData, parsedData };
+    return { data, parsedData };
 }
 
 export async function handleDecryptAndParseSegment(
-    { url, key, iv, formatHint },
+    { url, key, iv, formatHint, interventionRules },
     signal
 ) {
-    const response = await fetchWithAuth(url, null, null, {}, null, signal);
+    // Use rules
+    const response = await fetchWithAuth(
+        url,
+        null,
+        null,
+        {},
+        null,
+        signal,
+        { resourceType: 'video' },
+        'GET',
+        interventionRules
+    );
     if (!response.ok) throw new Error(`HTTP error ${response.status}`);
     const encryptedData = await response.arrayBuffer();
     const cryptoKey = await self.crypto.subtle.importKey(
@@ -508,7 +677,7 @@ export async function handleDecryptAndParseSegment(
     return { parsedData, decryptedData };
 }
 
-export async function handleFetchKey({ uri, auth }, signal) {
+export async function handleFetchKey({ uri, auth, interventionRules }, signal) {
     if (uri.startsWith('data:')) {
         const base64Data = uri.split(',')[1];
         const binaryString = atob(base64Data);
@@ -517,7 +686,18 @@ export async function handleFetchKey({ uri, auth }, signal) {
         for (let i = 0; i < len; i++) bytes[i] = binaryString.charCodeAt(i);
         return bytes.buffer;
     }
-    const response = await fetchWithAuth(uri, auth, null, {}, null, signal);
+    // Use rules
+    const response = await fetchWithAuth(
+        uri,
+        auth,
+        null,
+        {},
+        null,
+        signal,
+        { resourceType: 'key' },
+        'GET',
+        interventionRules
+    );
     if (!response.ok)
         throw new Error(`HTTP error ${response.status} fetching key`);
     return response.arrayBuffer();
@@ -525,110 +705,4 @@ export async function handleFetchKey({ uri, auth }, signal) {
 
 export async function handleRunTsSemanticAnalysis({ packets, summary }) {
     return analyzeSemantics({ packets, summary });
-}
-
-function generateMediaInfoSummary(tsData) {
-    if (!tsData?.summary?.programMap) return null;
-
-    const summary = tsData.summary;
-    const pmtPid = [...summary.pmtPids][0];
-    const program = summary.programMap[pmtPid];
-    if (!program?.streams) return null;
-
-    const mediaInfo = { data: [] };
-
-    const pmtPacket = tsData.packets.find(
-        (p) => p.pid === pmtPid && p.psi?.streams
-    );
-
-    for (const [pid, streamType] of Object.entries(program.streams)) {
-        const typeNum = parseInt(streamType, 16);
-        const pidNum = parseInt(pid, 10);
-        const videoTypes = [0x01, 0x02, 0x1b, 0x24, 0x80];
-        const audioTypes = [0x03, 0x04, 0x0f, 0x11, 0x1c, 0x81];
-
-        if (videoTypes.includes(typeNum)) {
-            const videoPESWithSPS = tsData.packets.find(
-                (p) => p.pid === pidNum && p.pes?.spsInfo
-            );
-            if (
-                videoPESWithSPS &&
-                videoPESWithSPS.pes.spsInfo &&
-                !videoPESWithSPS.pes.spsInfo.error
-            ) {
-                mediaInfo.video = {
-                    resolution: videoPESWithSPS.pes.spsInfo.resolution,
-                    frameRate: videoPESWithSPS.pes.spsInfo.frame_rate,
-                    codec: 'H.264',
-                };
-            }
-        } else if (audioTypes.includes(typeNum)) {
-            let audioInfo = {
-                codec: 'Audio',
-                channels: null,
-                sampleRate: null,
-                language: null,
-            };
-            if (pmtPacket) {
-                const streamInfo = pmtPacket.psi.streams.find(
-                    (s) => s.elementary_PID.value === pidNum
-                );
-                if (streamInfo) {
-                    const aacDescriptor = streamInfo.es_descriptors.find(
-                        (d) => d.name === 'MPEG-2 AAC Audio Descriptor'
-                    );
-                    if (aacDescriptor) {
-                        audioInfo.codec = 'AAC';
-                        const channelConfigString =
-                            aacDescriptor.details
-                                .MPEG_2_AAC_channel_configuration?.value;
-                        if (channelConfigString) {
-                            audioInfo.channels = parseInt(
-                                channelConfigString.match(/\d+/)?.[0] || '0',
-                                10
-                            );
-                        }
-                    }
-
-                    const mpeg4ExtDescriptor = streamInfo.es_descriptors.find(
-                        (d) => d.name === 'MPEG-4 Audio Extension Descriptor'
-                    );
-                    if (mpeg4ExtDescriptor) {
-                        const { details } = mpeg4ExtDescriptor;
-                        audioInfo.codec =
-                            details.decoded_audio_object_type?.value.split(
-                                ' '
-                            )[0] || 'AAC';
-                        if (details.channels) {
-                            audioInfo.channels = details.channels;
-                        }
-                        if (details.samplerate) {
-                            audioInfo.sampleRate = details.samplerate;
-                        }
-                    }
-
-                    const langDescriptor = streamInfo.es_descriptors.find(
-                        (d) => d.name === 'ISO 639 Language Descriptor'
-                    );
-                    if (
-                        langDescriptor &&
-                        langDescriptor.details.languages &&
-                        langDescriptor.details.languages.length > 0
-                    ) {
-                        audioInfo.language =
-                            langDescriptor.details.languages[0].language.value;
-                    }
-                }
-            }
-            mediaInfo.audio = audioInfo;
-        } else {
-            mediaInfo.data.push({ pid: pidNum, streamType });
-        }
-    }
-
-    if (Object.keys(mediaInfo).length === 1 && mediaInfo.data.length === 0) {
-        return null;
-    }
-
-    return mediaInfo;
 }

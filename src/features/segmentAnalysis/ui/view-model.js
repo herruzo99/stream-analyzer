@@ -39,7 +39,8 @@ function getIsobmffSummary(data) {
 function analyzeBitstream(parsedData) {
     if (!parsedData.bitstreamAnalysis) return null;
 
-    const { frames, summary } = parsedData.bitstreamAnalysis;
+    // FIX: Extract seiMessages from the worker result
+    const { frames, summary, seiMessages } = parsedData.bitstreamAnalysis;
 
     const distribution = { I: 0, P: 0, B: 0, Other: 0 };
     frames.forEach((f) => {
@@ -53,6 +54,7 @@ function analyzeBitstream(parsedData) {
         ...summary,
         distribution,
         frames,
+        seiMessages, // Pass through to UI
     };
 }
 
