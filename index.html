@@ -186,7 +186,6 @@
             // Loader Shims - Called by consent-manager.js
             window.loadSentry = function () {
                 if (window.sentryLoaded) return;
-                console.debug('[Analytics] Initializing Sentry...');
 
                 const sentryScript = document.createElement('script');
                 // __SENTRY_DSN__ will be replaced by build process
@@ -200,7 +199,6 @@
 
             window.loadClarity = function () {
                 if (window.clarityLoaded) return;
-                console.debug('[Analytics] Initializing Clarity...');
 
                 (function (c, l, a, r, i, t, y) {
                     c[a] =

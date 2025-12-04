@@ -4,7 +4,6 @@ import { EVENTS } from '@/types/events';
 import { showToast } from '@/ui/components/toast';
 import * as icons from '@/ui/icons';
 import { html, render } from 'lit-html';
-import { classMap } from 'lit-html/directives/class-map.js';
 
 /**
  * Pure domain logic for input parsing.
@@ -311,21 +310,23 @@ export class SmartInputComponent extends HTMLElement {
     renderSingleInput() {
         const { value, protocol, isDragActive, isFocused } = this.state;
 
-        // Dynamic Classes
-        const containerClass = classMap({
-            'relative w-full transition-all duration-300': true,
-            'scale-[1.02]': isDragActive || isFocused,
-        });
+        // Construct container classes
+        const containerBase = 'relative w-full transition-all duration-300';
+        const containerState = isDragActive || isFocused ? 'scale-[1.02]' : '';
+        const containerClass = `${containerBase} ${containerState}`;
 
-        const wrapperClass = classMap({
-            'flex items-center gap-0 bg-slate-900/90 backdrop-blur-xl border rounded-2xl overflow-hidden shadow-2xl transition-all duration-300': true,
-            'border-blue-500 shadow-blue-900/20 ring-2 ring-blue-500/20':
-                isFocused || isDragActive,
-            'border-slate-700 hover:border-slate-600':
-                !isFocused && !isDragActive,
-            'h-14': this.variant === 'hero',
-            'h-11': this.variant !== 'hero',
-        });
+        // Construct wrapper classes
+        const wrapperBase =
+            'flex items-center gap-0 bg-slate-900/90 backdrop-blur-xl border rounded-2xl overflow-hidden shadow-2xl transition-all duration-300';
+        let wrapperState = '';
+        if (isFocused || isDragActive) {
+            wrapperState =
+                'border-blue-500 shadow-blue-900/20 ring-2 ring-blue-500/20';
+        } else {
+            wrapperState = 'border-slate-700 hover:border-slate-600';
+        }
+        const heightClass = this.variant === 'hero' ? 'h-14' : 'h-11';
+        const wrapperClass = `${wrapperBase} ${wrapperState} ${heightClass}`;
 
         const badgeColor =
             protocol === 'HLS'
