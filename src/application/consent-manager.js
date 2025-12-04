@@ -6,11 +6,8 @@
  */
 
 /**
- * Initializes the CookieConsent.js library with categories for analytics and error reporting.
- * It handles the conditional loading of tracking scripts based on user consent and the application's hostname.
- *
- * This function relies on loader functions (`loadGoogleAnalytics`, `loadSentry`, `loadClarity`)
- * being globally available, as defined in `index.html`.
+ * Initializes the CookieConsent.js library with categories for analytics, marketing, and error reporting.
+ * Implements Google Consent Mode v2 "Advanced Mode" logic.
  */
 export function initializeConsentManager() {
     /** @type {any} */
@@ -21,48 +18,100 @@ export function initializeConsentManager() {
         return;
     }
 
+    /**
+     * Updates Google Consent Mode state based on selected categories.
+     * @param {string[]} categories
+     */
+    const updateGtagConsent = (categories) => {
+        const cats = categories || [];
+        // Only run logic if we are in a live environment (optional check, but good practice)
+        // The gtag function itself is shimmed in index.html so this won't crash in dev.
+        if (typeof window.gtag === 'function') {
+            const consentUpdate = {
+                analytics_storage: cats.includes('analytics')
+                    ? 'granted'
+                    : 'denied',
+                ad_storage: cats.includes('marketing') ? 'granted' : 'denied',
+                ad_user_data: cats.includes('marketing') ? 'granted' : 'denied',
+                ad_personalization: cats.includes('marketing')
+                    ? 'granted'
+                    : 'denied',
+            };
+            window.gtag('consent', 'update', consentUpdate);
+            console.debug(
+                '[Consent] Updated Google Consent Mode:',
+                consentUpdate
+            );
+        }
+    };
+
+    /**
+     * Loads non-Google scripts that require explicit blocking (Basic Mode).
+     * @param {string[]} acceptedCategories
+     */
+    const loadBlockingTrackers = (acceptedCategories) => {
+        const cats = acceptedCategories || [];
+        // Only run tracking scripts on the production domain
+        if (window.location.hostname !== window.PROD_HOSTNAME) {
+            return;
+        }
+
+        if (cats.includes('analytics')) {
+            window.loadClarity();
+        }
+
+        if (cats.includes('error_reporting')) {
+            window.loadSentry();
+        }
+    };
+
     CookieConsent.run({
-        // The language configuration is mandatory.
         language: {
             default: 'en',
             translations: {
                 en: {
                     consentModal: {
-                        title: 'This website uses cookies',
+                        title: 'Privacy & Cookies',
                         description:
-                            'We use cookies and similar tracking technologies to understand how you use our tool and to improve your experience. This includes analytics to measure usage and error reporting to help us find and fix bugs.',
-                        acceptAllBtn: 'Accept all',
-                        acceptNecessaryBtn: 'Reject all',
-                        showPreferencesBtn: 'Manage preferences',
+                            'We use cookies to improve your experience. Some are necessary for the site to work, while others help us understand how you use it and serve relevant content.',
+                        acceptAllBtn: 'Accept All',
+                        acceptNecessaryBtn: 'Reject Non-Essential',
+                        showPreferencesBtn: 'Manage Preferences',
                     },
                     preferencesModal: {
-                        title: 'Manage consent preferences',
-                        acceptAllBtn: 'Accept all',
-                        acceptNecessaryBtn: 'Reject all',
-                        savePreferencesBtn: 'Save preferences',
+                        title: 'Consent Preferences',
+                        acceptAllBtn: 'Accept All',
+                        acceptNecessaryBtn: 'Reject All',
+                        savePreferencesBtn: 'Save Choices',
                         sections: [
                             {
-                                title: 'Cookie Usage',
+                                title: 'Usage',
                                 description:
-                                    'This tool uses cookies to enhance functionality and to analyze site performance. You can choose whether to allow non-essential cookies below.',
+                                    'Configure which cookies and trackers you allow.',
                             },
                             {
-                                title: 'Strictly Necessary Cookies',
+                                title: 'Strictly Necessary',
                                 description:
-                                    'These cookies are essential for the website to function and cannot be switched off in our systems. They do not store any personally identifiable information.',
+                                    'Essential for the website to function. These cannot be disabled.',
                                 linkedCategory: 'necessary',
                                 readOnly: true,
                             },
                             {
-                                title: 'Performance & Analytics Cookies',
+                                title: 'Performance & Analytics',
                                 description:
-                                    'These cookies allow us to count visits and traffic sources so we can measure and improve the performance of our site. This helps us understand which features are most popular and how users move around the site.',
+                                    'Helps us understand how visitors interact with the website.',
                                 linkedCategory: 'analytics',
                             },
                             {
-                                title: 'Error Reporting Cookies',
+                                title: 'Marketing & Advertisement',
                                 description:
-                                    'These cookies help us detect and fix bugs by reporting errors that occur during your session. This data is used to improve the stability and reliability of the application.',
+                                    'Used to deliver relevant ads and track ad performance.',
+                                linkedCategory: 'marketing',
+                            },
+                            {
+                                title: 'Error Reporting',
+                                description:
+                                    'Helps us identify and fix bugs in real-time.',
                                 linkedCategory: 'error_reporting',
                             },
                         ],
@@ -79,7 +128,13 @@ export function initializeConsentManager() {
             analytics: {
                 enabled: false,
                 autoClear: {
-                    cookies: [{ name: /^_ga/ }],
+                    cookies: [{ name: /^_ga/ }, { name: /^_gid/ }],
+                },
+            },
+            marketing: {
+                enabled: false,
+                autoClear: {
+                    cookies: [{ name: /^_gcl/ }],
                 },
             },
             error_reporting: {
@@ -87,25 +142,18 @@ export function initializeConsentManager() {
             },
         },
 
-        /**
-         * This callback function is executed whenever the user's consent choices change.
-         * @param {OnChangePayload} payload
-         */
-        onChange: ({ acceptedCategories }) => {
-            // Only run tracking scripts on the production domain
-            if (window.location.hostname !== window.PROD_HOSTNAME) {
-                return;
-            }
+        // Updated to use getUserPreferences() to ensure we always get the valid array
+        onConsent: () => {
+            const prefs = CookieConsent.getUserPreferences();
+            const categories = prefs.accepted_categories || [];
+            updateGtagConsent(categories);
+            loadBlockingTrackers(categories);
+        },
 
-            if (acceptedCategories.includes('analytics')) {
-                // These functions are defined globally in index.html
-                window.loadGoogleAnalytics();
-                window.loadClarity();
-            }
-
-            if (acceptedCategories.includes('error_reporting')) {
-                window.loadSentry();
-            }
+        onChange: () => {
+            const prefs = CookieConsent.getUserPreferences();
+            const categories = prefs.accepted_categories || [];
+            updateGtagConsent(categories);
         },
     });
 }

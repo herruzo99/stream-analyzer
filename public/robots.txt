@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://stream-analyzer.herruzo.dev/sitemap.xml

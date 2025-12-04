@@ -25,8 +25,7 @@ const esbuildOptions = {
     alias: {
         '@': './src',
     },
-    // External libraries that should be loaded as UMD modules and attached to window
-    external: [], // We want shaka-player to be bundled, not external
+    external: [],
 };
 
 async function safeCopyFile(src, dest) {
@@ -35,6 +34,28 @@ async function safeCopyFile(src, dest) {
     } catch (e) {
         console.warn(`Warning: Could not copy ${src} to ${dest}.`, e.message);
     }
+}
+
+/**
+ * Robust recursive copy using Node's native fs.cp (Node 16.7+).
+ */
+async function copyRecursive(src, dest) {
+    try {
+        await fs.cp(src, dest, { recursive: true });
+    } catch (e) {
+        console.warn(`Warning: Could not copy ${src} to ${dest}.`, e);
+    }
+}
+
+/**
+ * Safe HTML minifier.
+ * Only removes HTML comments. Collapsing whitespace is dangerous for inline JS/CSS
+ * unless we use a parser. We rely on GZIP for whitespace compression.
+ */
+function minifyHtml(html) {
+    return html
+        .replace(/<!--[\s\S]*?-->/g, '') // Remove HTML comments
+        .trim();
 }
 
 async function postBuild(meta, cspNonce) {
@@ -59,24 +80,27 @@ async function postBuild(meta, cspNonce) {
         }
 
         const htmlTemplate = await fs.readFile('index.html', 'utf-8');
-        // FIX: Removed leading slash to allow relative path resolution for subdirectory deployment
-        const finalHtml = htmlTemplate
+        let finalHtml = htmlTemplate
             .replace('__APP_SCRIPT_PATH__', `${mainJsPath}`)
             .replace('__WORKER_PATH__', `${workerJsPath}`)
             .replace(/__CSP_NONCE__/g, cspNonce);
 
+        if (!isDev) {
+            finalHtml = minifyHtml(finalHtml);
+            console.log('HTML Minified (Safe Mode).');
+        }
+
         await fs.writeFile(path.join('dist', 'index.html'), finalHtml);
 
-        // Copy Static Assets (Icon only)
+        // Copy Static Assets
         await safeCopyFile('static/icon.png', 'dist/icon.png');
 
-        // ARCHITECTURAL FIX: Copy MSW for production
-        await safeCopyFile(
-            'public/mockServiceWorker.js',
-            'dist/mockServiceWorker.js'
-        );
+        // Copy Public Assets (Recursive)
+        // This ensures public/assets/grid.svg -> dist/assets/grid.svg
+        // Note: We copy 'public/' content INTO 'dist/'
+        await copyRecursive('public', 'dist');
 
-        // Copy Shaka Player CSS to dist
+        // Copy Shaka Player CSS
         await safeCopyFile(
             'node_modules/shaka-player/dist/controls.css',
             'dist/assets/controls.css'
@@ -89,28 +113,19 @@ async function postBuild(meta, cspNonce) {
     }
 }
 
-// --- ARCHITECTURAL FIX: Reusable HTML generation for dev mode ---
 async function prepareDevHtml(cspNonce) {
     try {
         await fs.mkdir('dist', { recursive: true });
         const htmlTemplate = await fs.readFile('index.html', 'utf-8');
-        // Fix dev mode paths as well
         const devHtml = htmlTemplate
             .replace('__APP_SCRIPT_PATH__', 'assets/app.js')
             .replace('__WORKER_PATH__', 'assets/worker.js')
             .replace(/__CSP_NONCE__/g, cspNonce);
         await fs.writeFile('dist/index.html', devHtml, 'utf-8');
 
-        // Copy Static Assets (Icon only)
         await safeCopyFile('static/icon.png', 'dist/icon.png');
+        await copyRecursive('public', 'dist');
 
-        // ARCHITECTURAL FIX: Copy MSW for development
-        await safeCopyFile(
-            'public/mockServiceWorker.js',
-            'dist/mockServiceWorker.js'
-        );
-
-        // Copy Shaka Player CSS for development
         await safeCopyFile(
             'node_modules/shaka-player/dist/controls.css',
             'dist/assets/controls.css'
@@ -128,12 +143,16 @@ async function main() {
     if (isDev) {
         await prepareDevHtml(cspNonce);
 
-        // --- ARCHITECTURAL FIX: Watch index.html for changes ---
         watch('index.html', (eventType, filename) => {
             if (eventType === 'change') {
                 console.log(`Source ${filename} changed. Regenerating...`);
                 prepareDevHtml(cspNonce);
             }
+        });
+
+        watch('public', (eventType, filename) => {
+            console.log(`Public asset ${filename} changed. Syncing...`);
+            copyRecursive('public', 'dist');
         });
 
         const ctx = await esbuild.context(esbuildOptions);
