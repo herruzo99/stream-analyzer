@@ -110,7 +110,7 @@ class AppShellComponent extends HTMLElement {
         const template = html`
             <div
                 id="app-root-inner"
-                class="h-[100dvh] w-full max-w-[100vw] xl:grid xl:grid-cols-[var(--sidebar-width)_minmax(0,1fr)_auto] overflow-hidden bg-slate-950 fixed inset-0"
+                class="h-[100dvh] w-full max-w-[100vw] xl:grid xl:grid-cols-[var(--sidebar-width)_minmax(0,1fr)_auto] xl:grid-rows-[1fr] overflow-hidden bg-slate-950 fixed inset-0"
             >
                 <!-- Mobile Overlay -->
                 <div
@@ -189,7 +189,7 @@ class AppShellComponent extends HTMLElement {
                 <!-- Contextual Sidebar -->
                 <aside
                     id="contextual-sidebar"
-                    class="bg-slate-900 border-l border-slate-800 fixed xl:relative top-0 right-0 bottom-0 z-40 w-96 translate-x-full xl:translate-x-0 transition-transform duration-300 ease-in-out flex flex-col min-h-0 shadow-2xl xl:shadow-none"
+                    class="bg-slate-900 border-l border-slate-800 fixed xl:relative top-0 right-0 bottom-0 z-40 w-96 translate-x-full xl:translate-x-0 transition-transform duration-300 ease-in-out flex flex-col min-h-0 shadow-2xl xl:shadow-none h-full max-h-full"
                 ></aside>
 
                 <!-- Library Modal -->

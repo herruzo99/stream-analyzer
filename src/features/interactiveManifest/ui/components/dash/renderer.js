@@ -124,14 +124,14 @@ const renderAttribute = (
     );
 
     // Using tight template literal to avoid injecting whitespace into pre-wrap container
+    // prettier-ignore
     return html`<span
         class=${containerClass}
         data-type="attribute"
         data-name=${attrKey}
         data-path=${attrPath}
-        ><span class=${nameClass}>${attrName}</span
-        ><span class="text-slate-500 select-none">=</span
-        ><span class="${valueClass}">"${attrValue}"</span>${smartToken}</span
+        ><span class=${nameClass}> ${attrName}</span
+        ><span class="text-slate-500 select-none">=</span><span class="${valueClass}">"${attrValue}"</span>${smartToken}</span
     >`;
 };
 
@@ -172,6 +172,7 @@ const rowRenderer = (
 
     // ARCHITECTURAL FIX: The `contentHtml` templates below remove internal whitespace
     // because `whitespace-pre-wrap` will render newlines in the source code as visual gaps.
+    // We use `// prettier-ignore` to prevent formatters from re-introducing this whitespace.
 
     if (line.type === 'open') {
         const tagWrapperClass = getTagClasses(line.path);
@@ -180,7 +181,7 @@ const rowRenderer = (
 
         const attributesHtml = Object.entries(line.attributes).map(
             ([k, v]) =>
-                html` ${renderAttribute(
+                html`${renderAttribute(
                     line.tagName,
                     k,
                     v,
@@ -194,10 +195,10 @@ const rowRenderer = (
                 )}`
         );
 
+        // prettier-ignore
         contentHtml = html`<div
             class="leading-tight whitespace-pre-wrap break-all"
-        >
-            <span
+        ><span
                 class="${tagWrapperClass}"
                 data-type="tag"
                 data-name=${line.tagName}
@@ -207,17 +208,16 @@ const rowRenderer = (
             >${attributesHtml}<span
                 class="text-slate-500 align-baseline inline-block select-none"
                 >${line.hasChildren ? '>' : ' />'}</span
-            >
-        </div>`;
+            ></div>`;
     } else if (line.type === 'close') {
         const tagWrapperClass = getTagClasses(line.path);
         const bracketClass = 'text-slate-500 font-normal select-none';
         const tagNameClass = 'text-blue-300 font-bold';
 
+        // prettier-ignore
         contentHtml = html`<div
             class="leading-tight whitespace-pre-wrap break-all"
-        >
-            <span
+        ><span
                 class="${tagWrapperClass}"
                 data-type="tag"
                 data-name=${line.tagName}
@@ -225,8 +225,7 @@ const rowRenderer = (
                 ><span class="${bracketClass}">&lt;/</span
                 ><span class="${tagNameClass}">${line.tagName}</span
                 ><span class="${bracketClass}">&gt;</span></span
-            >
-        </div>`;
+            ></div>`;
     } else if (line.type === 'text') {
         contentHtml = html`<span
             class="text-slate-300 whitespace-pre-wrap break-all leading-tight block py-0.5"
