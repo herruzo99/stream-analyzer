@@ -59,6 +59,7 @@ export const wrench = icon('wrench');
 export const power = icon('power');
 export const terminal = icon('terminal');
 export const beaker = icon('beaker');
+export const cookie = icon('cookie'); // New Icon
 
 // --- Network Intervention Icons ---
 export const ban = icon('ban');

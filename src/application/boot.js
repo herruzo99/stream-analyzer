@@ -1,6 +1,7 @@
 import { initializeLiveUpdateProcessor } from '@/application/services/liveUpdateProcessor';
 import { initializeLiveStreamMonitor } from '@/application/services/primaryStreamMonitorService';
 import { workerService } from '@/infrastructure/worker/workerService';
+import { appLog } from '@/shared/utils/debug';
 import { uiActions } from '@/state/uiStore';
 import { initializeLoader } from '@/ui/components/loader';
 import { initializeModalComponent } from '@/ui/components/modal';
@@ -31,7 +32,7 @@ import { initializeMultiPlayerFeature } from '@/features/multiPlayer/index';
 import { initializeNotificationFeature } from '@/features/notifications/index.js';
 import { initializePlayerSimulationFeature } from '@/features/playerSimulation/index';
 import { initializeSegmentExplorerFeature } from '@/features/segmentExplorer/index';
-import { initializeSettingsFeature } from '@/features/settings/index.js'; // NEW
+import { initializeSettingsFeature } from '@/features/settings/index.js';
 import { initializeStreamInputFeature } from '@/features/streamInput/index';
 
 import '@/application/services/streamService';
@@ -60,7 +61,11 @@ export async function startApp() {
     await getShaka();
 
     workerService.initialize();
+
+    // Explicitly log before initialization to trace execution flow
+    appLog('Boot', 'info', 'Initializing Consent Manager...');
     initializeConsentManager();
+
     emeInterceptor.initialize();
     initializeRenderer(dom);
     tickerService.start();
@@ -98,7 +103,7 @@ export async function startApp() {
     initializePlayerSimulationFeature();
     initializeMultiPlayerFeature();
     initializeNotificationFeature();
-    initializeSettingsFeature(); // NEW
+    initializeSettingsFeature();
 
     app.start();
 }

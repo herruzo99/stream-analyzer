@@ -13,6 +13,15 @@ export const settingsDropdownTemplate = () => {
         eventBus.dispatch('ui:memory-modal:open');
     };
 
+    const openCookiePreferences = () => {
+        closeDropdown();
+        if (window.CookieConsent) {
+            window.CookieConsent.showPreferences();
+        } else {
+            console.warn('CookieConsent not initialized');
+        }
+    };
+
     // Dynamic styling for the memory button based on health
     let btnClass =
         'bg-blue-600 hover:bg-blue-500 text-white border-transparent';
@@ -61,6 +70,32 @@ export const settingsDropdownTemplate = () => {
                               >${icons.chevronRight}</span
                           >`
                         : ''}
+                </button>
+            </div>
+
+            <!-- Cookie Settings Link -->
+            <div class="p-2 border-b border-white/5">
+                <button
+                    @click=${openCookiePreferences}
+                    class="w-full flex items-center p-3 rounded-lg transition-all shadow-sm group border bg-slate-800 border-slate-700 text-slate-300 hover:text-white hover:bg-slate-700"
+                >
+                    <div
+                        class="p-1.5 rounded-md bg-slate-900 border border-slate-600 mr-3 text-blue-400"
+                    >
+                        ${icons.cookie}
+                    </div>
+                    <div class="text-left">
+                        <div class="text-xs font-bold uppercase tracking-wider">
+                            Privacy & Cookies
+                        </div>
+                        <div class="text-[10px] opacity-60 text-slate-400">
+                            Manage consent preferences
+                        </div>
+                    </div>
+                    <span
+                        class="group-hover:translate-x-1 transition-transform ml-auto text-slate-500"
+                        >${icons.chevronRight}</span
+                    >
                 </button>
             </div>
 

@@ -28,6 +28,15 @@ const esbuildOptions = {
     external: [],
 };
 
+// Mock configuration for local development to prevent 404s and template leaks.
+// These values replace the placeholders when running 'npm run build' locally.
+const mockDevConfig = {
+    __GA_ID__: 'G-DEV-MOCK',
+    __SENTRY_DSN__: 'mock-sentry-key', // Filename safe string
+    __CLARITY_ID__: 'mock-clarity-id',
+    __PROD_HOSTNAME__: 'localhost',
+};
+
 async function safeCopyFile(src, dest) {
     try {
         await fs.copyFile(src, dest);
@@ -85,6 +94,22 @@ async function postBuild(meta, cspNonce) {
             .replace('__WORKER_PATH__', `${workerJsPath}`)
             .replace(/__CSP_NONCE__/g, cspNonce);
 
+        // Environment-aware configuration injection
+        // If running in CI (GitHub Actions), we SKIP this to let 'sed' handle secrets.
+        // If running locally (npm run build), we inject mocks so the app works.
+        if (process.env.CI) {
+            console.log(
+                'CI environment detected. Preserving configuration placeholders.'
+            );
+        } else {
+            console.log(
+                'Local environment detected. Injecting mock configuration.'
+            );
+            for (const [placeholder, value] of Object.entries(mockDevConfig)) {
+                finalHtml = finalHtml.split(placeholder).join(value);
+            }
+        }
+
         if (!isDev) {
             finalHtml = minifyHtml(finalHtml);
             console.log('HTML Minified (Safe Mode).');
@@ -96,8 +121,6 @@ async function postBuild(meta, cspNonce) {
         await safeCopyFile('static/icon.png', 'dist/icon.png');
 
         // Copy Public Assets (Recursive)
-        // This ensures public/assets/grid.svg -> dist/assets/grid.svg
-        // Note: We copy 'public/' content INTO 'dist/'
         await copyRecursive('public', 'dist');
 
         // Copy Shaka Player CSS
@@ -117,10 +140,17 @@ async function prepareDevHtml(cspNonce) {
     try {
         await fs.mkdir('dist', { recursive: true });
         const htmlTemplate = await fs.readFile('index.html', 'utf-8');
-        const devHtml = htmlTemplate
+
+        let devHtml = htmlTemplate
             .replace('__APP_SCRIPT_PATH__', 'assets/app.js')
             .replace('__WORKER_PATH__', 'assets/worker.js')
             .replace(/__CSP_NONCE__/g, cspNonce);
+
+        // Always inject mocks for 'npm run dev'
+        for (const [placeholder, value] of Object.entries(mockDevConfig)) {
+            devHtml = devHtml.split(placeholder).join(value);
+        }
+
         await fs.writeFile('dist/index.html', devHtml, 'utf-8');
 
         await safeCopyFile('static/icon.png', 'dist/icon.png');
@@ -131,7 +161,7 @@ async function prepareDevHtml(cspNonce) {
             'dist/assets/controls.css'
         );
 
-        console.log('Development index.html regenerated.');
+        console.log('Development index.html regenerated with mock config.');
     } catch (e) {
         console.error('Failed to prepare development index.html:', e);
     }
