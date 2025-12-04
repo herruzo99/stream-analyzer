@@ -81,18 +81,6 @@ export const flattenManifest = (
     }
 };
 
-export const findPathIndex = (manifestObject, targetPath) => {
-    if (!manifestObject || !targetPath) return -1;
-    const elementPath = targetPath.includes('@')
-        ? targetPath.split('@')[0]
-        : targetPath;
-    const lines = [];
-    flattenManifest(manifestObject, 'MPD', 0, lines);
-    return lines.findIndex(
-        (line) => line.path === elementPath && line.type === 'open'
-    );
-};
-
 const renderAttribute = (
     tagName,
     attrName,
@@ -114,8 +102,10 @@ const renderAttribute = (
     const isModified = diffSet && diffSet.has(diffPath);
     const isMissing = isDebugMode && missingTooltips.has(attrKey);
 
+    // ARCHITECTURAL FIX: Use 'inline' instead of 'inline-block' to allow the content (especially long URLs)
+    // to wrap naturally at the character level via 'break-all' on the parent.
     let containerClass =
-        'inline-block mb-px group relative cursor-pointer rounded px-0.5 transition-colors whitespace-nowrap align-baseline';
+        'inline mb-px group relative cursor-pointer rounded px-0.5 transition-colors align-baseline decoration-clone';
 
     if (isSelected) containerClass += ' bg-blue-500/30 ring-1 ring-blue-400/50';
     else if (isHovered) containerClass += ' bg-slate-700';
@@ -133,13 +123,14 @@ const renderAttribute = (
         allAttributes
     );
 
+    // Using tight template literal to avoid injecting whitespace into pre-wrap container
     return html`<span
         class=${containerClass}
         data-type="attribute"
         data-name=${attrKey}
         data-path=${attrPath}
         ><span class=${nameClass}>${attrName}</span
-        ><span class="text-slate-500">=</span
+        ><span class="text-slate-500 select-none">=</span
         ><span class="${valueClass}">"${attrValue}"</span>${smartToken}</span
     >`;
 };
@@ -153,10 +144,11 @@ const rowRenderer = (
     diffSet
 ) => {
     const indentGuides = [];
+    // self-stretch ensures guides span the full height of a wrapped row
     for (let i = 0; i < line.depth; i++) {
         indentGuides.push(
             html`<div
-                class="w-4 h-full border-r border-slate-800/50 inline-block shrink-0"
+                class="w-4 self-stretch border-r border-slate-800/50 inline-block shrink-0"
             ></div>`
         );
     }
@@ -170,7 +162,7 @@ const rowRenderer = (
             diffSet && (diffSet.has(path) || diffSet.has(`${path}.:@`));
 
         let cls =
-            'inline-block rounded px-0.5 align-baseline cursor-pointer transition-colors';
+            'inline rounded px-0.5 align-baseline cursor-pointer transition-colors decoration-clone';
         if (isSelected) cls += ' bg-blue-900/50 ring-1 ring-blue-500/50';
         else if (isHovered) cls += ' bg-slate-700';
         else if (isModified) cls += ' bg-orange-500/10';
@@ -178,87 +170,85 @@ const rowRenderer = (
         return cls;
     };
 
+    // ARCHITECTURAL FIX: The `contentHtml` templates below remove internal whitespace
+    // because `whitespace-pre-wrap` will render newlines in the source code as visual gaps.
+
     if (line.type === 'open') {
         const tagWrapperClass = getTagClasses(line.path);
-        const bracketClass = 'text-slate-500 font-normal';
+        const bracketClass = 'text-slate-500 font-normal select-none';
         const tagNameClass = 'text-blue-300 font-bold';
 
-        const hasAttributes = Object.keys(line.attributes).length > 0;
+        const attributesHtml = Object.entries(line.attributes).map(
+            ([k, v]) =>
+                html` ${renderAttribute(
+                    line.tagName,
+                    k,
+                    v,
+                    line.path,
+                    hoveredItem,
+                    selectedItem,
+                    missingTooltips,
+                    diffSet,
+                    line.timescale,
+                    line.attributes
+                )}`
+        );
 
-        // Fixed: Reverted to whitespace-nowrap to fix virtual list alignment
-        contentHtml = html`
-            <div class="leading-relaxed whitespace-nowrap">
-                <span
-                    class="${tagWrapperClass}"
-                    data-type="tag"
-                    data-name=${line.tagName}
-                    data-path=${line.path}
-                >
-                    <span class="${bracketClass}">&lt;</span
-                    ><span class="${tagNameClass}">${line.tagName}</span> </span
-                >${hasAttributes
-                    ? html`<span class="ml-1"
-                          >${Object.entries(line.attributes).map(([k, v]) =>
-                              renderAttribute(
-                                  line.tagName,
-                                  k,
-                                  v,
-                                  line.path,
-                                  hoveredItem,
-                                  selectedItem,
-                                  missingTooltips,
-                                  diffSet,
-                                  line.timescale,
-                                  line.attributes
-                              )
-                          )}</span
-                      >`
-                    : ''}<span
-                    class="text-slate-500 align-baseline inline-block"
-                    >${line.hasChildren ? '>' : ' />'}</span
-                >
-            </div>
-        `;
+        contentHtml = html`<div
+            class="leading-tight whitespace-pre-wrap break-all"
+        >
+            <span
+                class="${tagWrapperClass}"
+                data-type="tag"
+                data-name=${line.tagName}
+                data-path=${line.path}
+                ><span class="${bracketClass}">&lt;</span
+                ><span class="${tagNameClass}">${line.tagName}</span></span
+            >${attributesHtml}<span
+                class="text-slate-500 align-baseline inline-block select-none"
+                >${line.hasChildren ? '>' : ' />'}</span
+            >
+        </div>`;
     } else if (line.type === 'close') {
         const tagWrapperClass = getTagClasses(line.path);
-        const bracketClass = 'text-slate-500 font-normal';
+        const bracketClass = 'text-slate-500 font-normal select-none';
         const tagNameClass = 'text-blue-300 font-bold';
 
-        contentHtml = html`
-            <div class="leading-relaxed whitespace-nowrap">
-                <span
-                    class="${tagWrapperClass}"
-                    data-type="tag"
-                    data-name=${line.tagName}
-                    data-path=${line.path}
-                >
-                    <span class="${bracketClass}">&lt;/</span
-                    ><span class="${tagNameClass}">${line.tagName}</span
-                    ><span class="${bracketClass}">&gt;</span>
-                </span>
-            </div>
-        `;
+        contentHtml = html`<div
+            class="leading-tight whitespace-pre-wrap break-all"
+        >
+            <span
+                class="${tagWrapperClass}"
+                data-type="tag"
+                data-name=${line.tagName}
+                data-path=${line.path}
+                ><span class="${bracketClass}">&lt;/</span
+                ><span class="${tagNameClass}">${line.tagName}</span
+                ><span class="${bracketClass}">&gt;</span></span
+            >
+        </div>`;
     } else if (line.type === 'text') {
         contentHtml = html`<span
-            class="text-slate-300 whitespace-pre leading-6 block py-0.5"
+            class="text-slate-300 whitespace-pre-wrap break-all leading-tight block py-0.5"
             >${line.content}</span
         >`;
     }
 
+    // Use items-start to align line number to top. Added py-0.5 for minimal vertical breathing room.
     return html`
         <div
-            class="flex w-full items-stretch hover:bg-slate-800/20 transition-colors font-mono text-sm group relative"
+            class="flex w-full items-start hover:bg-slate-800/20 transition-colors font-mono text-sm group relative py-0.5"
         >
             <div
-                class="w-12 shrink-0 text-right pr-3 text-slate-600 select-none text-xs border-r border-slate-800/50 bg-slate-900 py-1 sticky left-0 z-10 h-full"
+                class="w-12 shrink-0 text-right pr-3 text-slate-600 select-none text-xs border-r border-slate-800/50 bg-slate-900 sticky left-0 z-10 min-h-full pt-0.5"
             >
                 ${line.lineNumber}
             </div>
             <div class="flex grow pl-2 min-w-0 pr-6">
-                <div class="flex shrink-0 select-none mr-1 h-full">
+                <div class="flex shrink-0 select-none mr-1 self-stretch">
                     ${indentGuides}
                 </div>
-                <div class="grow min-w-0 py-1">${contentHtml}</div>
+                <div class="grow min-w-0">${contentHtml}</div>
             </div>
         </div>
     `;
@@ -294,15 +284,17 @@ export const dashManifestTemplate = (
             diffSet
         );
 
+    // Forced overflow-x: hidden to ensure wrapping works and scrollbar never appears
     return html`
-        <div class="bg-slate-900 h-full flex flex-col">
+        <div class="bg-slate-900 h-full flex flex-col w-full">
             <virtualized-list
                 id="manifest-virtual-list"
                 .items=${linesWithNumbers}
                 .rowTemplate=${renderer}
-                .rowHeight=${28}
+                .rowHeight=${24}
                 .itemId=${(item) => item.id}
-                class="grow custom-scrollbar"
+                class="grow custom-scrollbar w-full"
+                style="overflow-x: hidden"
             ></virtualized-list>
         </div>
     `;

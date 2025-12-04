@@ -328,8 +328,16 @@ class ManifestPatcher extends HTMLElement {
                 this.protocol === 'dash' ? highlightDash : highlightHls;
             const highlightedHTML = highlightFn(contentToRender);
 
-            // prettier-ignore
-            contentArea = html`<div class="absolute inset-0 bg-slate-950 overflow-auto custom-scrollbar"><pre class="p-6 text-xs font-mono text-slate-400 whitespace-pre leading-tight w-full min-w-max">${unsafeHTML(highlightedHTML)}</pre></div>`;
+            // Added whitespace-pre-wrap to handle long lines in raw view
+            contentArea = html`<div
+                class="absolute inset-0 bg-slate-950 overflow-auto custom-scrollbar"
+            >
+                <pre
+                    class="p-6 text-xs font-mono text-slate-400 whitespace-pre-wrap break-all leading-tight w-full"
+                >
+${unsafeHTML(highlightedHTML)}</pre
+                >
+            </div>`;
         }
 
         const rightPane = html`

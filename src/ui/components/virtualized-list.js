@@ -97,19 +97,27 @@ class VirtualizedList extends HTMLElement {
 
     connectedCallback() {
         // strict = size + layout + paint + style containment
-        // We MUST set an explicit height (e.g., 100%) for strict containment to work,
-        // otherwise the browser calculates height as 0 because it ignores children for sizing.
         this.style.contain = 'strict';
         this.style.display = 'block';
         this.style.height = '100%';
         this.style.overflowY = 'auto';
-        this.style.overflowX = 'auto'; // Enable horizontal scroll for long lines
+
+        // ARCHITECTURAL FIX: Constraints to force wrapping
+        // Ensure the host element cannot exceed its parent's width
+        this.style.width = '100%';
+        this.style.maxWidth = '100%';
+
+        // Allow horizontal scroll control via CSS classes on the instance (e.g. style="overflow-x: hidden")
+        // But default to relative positioning
         this.style.position = 'relative';
 
         if (!this.container) {
             this.container = document.createElement('div');
-            // Removed content-visibility: auto as it interferes with scrollHeight calculation for virtualization
-            this.container.className = 'list-container relative w-full';
+            // CRITICAL FIX: max-w-full on the inner container ensures that
+            // long text lines inside rows will respect the host width boundary
+            // and trigger the break-word/break-all behavior.
+            this.container.className =
+                'list-container relative w-full max-w-full';
             this.appendChild(this.container);
         }
 

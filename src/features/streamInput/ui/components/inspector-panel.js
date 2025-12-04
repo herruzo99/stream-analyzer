@@ -181,16 +181,28 @@ export const inspectorPanelTemplate = () => {
                     placeholder="e.g. Production Stream A"
                 />
             </div>
-            <div class="relative opacity-60">
+            <div class="relative">
                 <label
-                    class="text-[10px] font-bold text-slate-500 uppercase mb-1 block"
-                    >Source URL</label
+                    class="text-[10px] font-bold text-slate-500 uppercase mb-1 block flex justify-between"
                 >
+                    Source URL
+                    ${activeInput.isTier0AnalysisLoading
+                        ? html`<span
+                              class="text-blue-400 animate-pulse flex items-center gap-1"
+                              >${icons.spinner} Analyzing...</span
+                          >`
+                        : ''}
+                </label>
                 <input
                     type="text"
-                    readonly
-                    class="w-full bg-slate-900 text-slate-400 text-xs font-mono border border-slate-800 rounded-lg px-4 py-3 select-all"
+                    class="w-full bg-slate-900 text-yellow-100 text-xs font-mono border border-slate-700 focus:border-yellow-500/50 focus:ring-1 focus:ring-yellow-500/50 rounded-lg px-4 py-3 shadow-inner transition-all"
                     .value=${activeInput.url}
+                    @input=${(e) =>
+                        analysisActions.updateStreamInput(
+                            activeInput.id,
+                            'url',
+                            e.target.value
+                        )}
                 />
             </div>
         </div>

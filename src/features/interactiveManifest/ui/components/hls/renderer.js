@@ -49,107 +49,95 @@ const renderLine = (
 
     let lineContent;
 
-    // Fixed: Reverted to whitespace-nowrap for correct virtual list alignment
-    const baseClass = `flex grow items-center pl-4 whitespace-nowrap ${isModified ? 'bg-orange-500/10' : ''}`;
+    // Use whitespace-pre-wrap to allow wrapping but break-all to force it inside narrow containers
+    const baseClass = `block pl-4 whitespace-pre-wrap break-all leading-tight w-full max-w-full ${isModified ? 'bg-orange-500/10' : ''}`;
+
     const selectClass = isSelected
-        ? 'bg-blue-900/50 ring-1 ring-blue-500 rounded px-1'
-        : 'hover:bg-slate-800 rounded px-1 transition-colors cursor-pointer';
+        ? 'bg-blue-900/50 ring-1 ring-blue-500 rounded px-1 inline decoration-clone'
+        : 'hover:bg-slate-800 rounded px-1 transition-colors cursor-pointer inline decoration-clone';
 
     if (type === 'tag' || type === 'tag-value') {
-        lineContent = html`
-            <div class="${baseClass}">
-                <span
-                    class="${selectClass}"
-                    data-type="tag"
-                    data-name=${name}
-                    data-path=${path}
-                >
-                    <span class="text-slate-500">#</span
-                    ><span class="text-purple-300 font-bold">${name}</span>
-                    ${value
-                        ? html`<span class="text-slate-400">:</span
-                              ><span class="text-yellow-200/90 whitespace-pre"
-                                  >${value}</span
-                              >`
-                        : ''}
-                </span>
-            </div>
-        `;
+        // Minified HTML string to prevent whitespace injection
+        lineContent = html`<div class="${baseClass}">
+            <span
+                class="${selectClass}"
+                data-type="tag"
+                data-name=${name}
+                data-path=${path}
+                ><span class="text-slate-500 select-none">#</span
+                ><span class="text-purple-300 font-bold">${name}</span>${value
+                    ? html`<span class="text-slate-400 select-none">:</span
+                          ><span class="text-yellow-200/90">${value}</span>`
+                    : ''}</span
+            >
+        </div>`;
     } else if (type === 'tag-attrs') {
         const attributesMap = attributes.reduce((acc, curr) => {
             acc[curr.key] = curr.value;
             return acc;
         }, {});
 
-        lineContent = html`
-            <div class="${baseClass}">
-                <span
-                    class="${selectClass} mr-1 mb-0.5"
-                    data-type="tag"
-                    data-name=${name}
-                    data-path=${path}
-                >
-                    <span class="text-slate-500">#</span
-                    ><span class="text-purple-300 font-bold">${name}</span
-                    ><span class="text-slate-400">:</span>
-                </span>
-                <div class="inline-flex gap-x-1 gap-y-0.5 ml-2 align-baseline">
-                    ${attributes.map((attr, i) => {
-                        const attrKey = `${name}@${attr.key}`;
-                        const attrPath = `${path}@${attr.key}`;
-                        const smartToken = renderSmartToken(
-                            attr.key,
-                            attr.value,
-                            null,
-                            attributesMap
-                        );
+        const attrsHtml = attributes.map((attr, i) => {
+            const attrKey = `${name}@${attr.key}`;
+            const attrPath = `${path}@${attr.key}`;
+            const smartToken = renderSmartToken(
+                attr.key,
+                attr.value,
+                null,
+                attributesMap
+            );
 
-                        return html`<span
-                            class="group relative cursor-pointer align-baseline hover:bg-slate-800 rounded pl-1 transition-colors"
-                            data-type="attribute"
-                            data-name=${attrKey}
-                            data-path=${attrPath}
-                            ><span class="text-emerald-300/90 font-semibold"
-                                >${attr.key}</span
-                            ><span class="text-slate-400">=</span
-                            ><span class="text-amber-200/90"
-                                >"${attr.value}"</span
-                            >${smartToken}${i < attributes.length - 1
-                                ? html`<span class="text-slate-600">,</span>`
-                                : ''}</span
-                        >`;
-                    })}
-                </div>
-            </div>
-        `;
+            return html`<span
+                class="group relative cursor-pointer hover:bg-slate-800 rounded pl-1 transition-colors inline decoration-clone"
+                data-type="attribute"
+                data-name=${attrKey}
+                data-path=${attrPath}
+                ><span class="text-emerald-300/90 font-semibold"
+                    >${attr.key}</span
+                ><span class="text-slate-400 select-none">=</span
+                ><span class="text-amber-200/90">"${attr.value}"</span
+                >${smartToken}${i < attributes.length - 1
+                    ? html`<span class="text-slate-600 select-none mr-1"
+                          >,</span
+                      >`
+                    : ''}</span
+            >`;
+        });
+
+        // Removed wrapper divs around attributes. Attributes flow naturally after the tag.
+        lineContent = html`<div class="${baseClass}">
+            <span
+                class="${selectClass} mr-1 inline"
+                data-type="tag"
+                data-name=${name}
+                data-path=${path}
+                ><span class="text-slate-500 select-none">#</span
+                ><span class="text-purple-300 font-bold">${name}</span
+                ><span class="text-slate-400 select-none">:</span></span
+            >${attrsHtml}
+        </div>`;
     } else if (type === 'comment') {
-        lineContent = html`<div
-            class="${baseClass} text-slate-500 italic whitespace-pre leading-relaxed"
-        >
+        lineContent = html`<div class="${baseClass} text-slate-500 italic">
             ${content}
         </div>`;
     } else if (type === 'uri') {
-        lineContent = html`<div
-            class="${baseClass} text-cyan-300/90 whitespace-pre leading-relaxed"
-        >
+        lineContent = html`<div class="${baseClass} text-cyan-300/90">
             ${content}
         </div>`;
     } else {
-        lineContent = html`<div class="${baseClass}"></div>`;
+        lineContent = html`<div class="${baseClass}">&nbsp;</div>`;
     }
 
     return html`
         <div
-            class="flex w-full items-stretch hover:bg-slate-800/30 transition-colors font-mono text-sm"
+            class="flex w-full items-start hover:bg-slate-800/30 transition-colors font-mono text-sm py-0.5 group"
         >
             <div
-                class="w-12 shrink-0 text-right pr-2 text-slate-600 select-none text-xs border-r border-slate-800/50 bg-slate-900 py-1 leading-relaxed sticky left-0 z-10 h-full"
+                class="w-12 shrink-0 text-right pr-2 text-slate-600 select-none text-xs border-r border-slate-800/50 bg-slate-900 pt-0.5 sticky left-0 z-10 h-full"
             >
                 ${item.lineNumber}
             </div>
-            <div class="grow min-w-0 py-0.5 pr-6 leading-relaxed">
-                ${lineContent}
-            </div>
+            <div class="grow min-w-0 pl-1">${lineContent}</div>
         </div>
     `;
 };
@@ -185,15 +173,17 @@ export const hlsManifestTemplate = (
         );
     };
 
+    // Force overflow-x hidden to mandate wrapping at container level
     return html`
-        <div class="bg-slate-900 h-full flex flex-col">
+        <div class="bg-slate-900 h-full flex flex-col w-full">
             <virtualized-list
                 id="manifest-virtual-list"
                 .items=${allLines}
                 .rowTemplate=${renderer}
-                .rowHeight=${28}
+                .rowHeight=${24}
                 .itemId=${(item) => item.id}
-                class="grow custom-scrollbar"
+                class="grow custom-scrollbar w-full"
+                style="overflow-x: hidden"
             ></virtualized-list>
         </div>
     `;

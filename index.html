@@ -182,22 +182,24 @@
                 gtag('config', '__GA_ID__');
             }
 
+            // Loader Shims - Called by consent-manager.js
             window.loadSentry = function () {
                 if (window.sentryLoaded) return;
-                if (window.location.hostname !== '__PROD_HOSTNAME__') return;
+                console.log('[Analytics] Initializing Sentry...');
 
                 const sentryScript = document.createElement('script');
+                // __SENTRY_DSN__ will be replaced by build process
                 sentryScript.src =
                     'https://js-de.sentry-cdn.com/__SENTRY_DSN__.min.js';
                 sentryScript.crossOrigin = 'anonymous';
                 document.head.appendChild(sentryScript);
-                console.log('Consent given: Loading Sentry.');
+
                 window.sentryLoaded = true;
             };
 
             window.loadClarity = function () {
                 if (window.clarityLoaded) return;
-                if (window.location.hostname !== '__PROD_HOSTNAME__') return;
+                console.log('[Analytics] Initializing Clarity...');
 
                 (function (c, l, a, r, i, t, y) {
                     c[a] =
@@ -207,11 +209,12 @@
                         };
                     t = l.createElement(r);
                     t.async = 1;
+                    // __CLARITY_ID__ will be replaced by build process
                     t.src = 'https://www.clarity.ms/tag/' + i;
                     y = l.getElementsByTagName(r)[0];
                     y.parentNode.insertBefore(t, y);
                 })(window, document, 'clarity', 'script', '__CLARITY_ID__');
-                console.log('Consent given: Loading Clarity.');
+
                 window.clarityLoaded = true;
             };
         </script>

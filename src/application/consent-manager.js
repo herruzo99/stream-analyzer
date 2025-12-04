@@ -1,3 +1,5 @@
+import { appLog } from '@/shared/utils/debug';
+
 /**
  * @typedef {object} OnChangePayload
  * @property {string[]} acceptedCategories
@@ -14,9 +16,25 @@ export function initializeConsentManager() {
     const CookieConsent = window.CookieConsent;
 
     if (!CookieConsent) {
-        console.error('CookieConsent library not found.');
+        appLog(
+            'ConsentManager',
+            'error',
+            'CookieConsent library not found in window scope.'
+        );
         return;
     }
+
+    // Expose a debug helper to clear consent for testing
+    window.resetConsent = () => {
+        CookieConsent.reset(true);
+        appLog('ConsentManager', 'warn', 'Consent reset. Reloading page...');
+        window.location.reload();
+    };
+    appLog(
+        'ConsentManager',
+        'info',
+        'Library found. Use window.resetConsent() to clear preferences.'
+    );
 
     /**
      * Updates Google Consent Mode state based on selected categories.
@@ -24,8 +42,6 @@ export function initializeConsentManager() {
      */
     const updateGtagConsent = (categories) => {
         const cats = categories || [];
-        // Only run logic if we are in a live environment (optional check, but good practice)
-        // The gtag function itself is shimmed in index.html so this won't crash in dev.
         if (typeof window.gtag === 'function') {
             const consentUpdate = {
                 analytics_storage: cats.includes('analytics')
@@ -38,8 +54,10 @@ export function initializeConsentManager() {
                     : 'denied',
             };
             window.gtag('consent', 'update', consentUpdate);
-            console.debug(
-                '[Consent] Updated Google Consent Mode:',
+            appLog(
+                'ConsentManager',
+                'info',
+                'Updated Google Consent Mode',
                 consentUpdate
             );
         }
@@ -51,17 +69,70 @@ export function initializeConsentManager() {
      */
     const loadBlockingTrackers = (acceptedCategories) => {
         const cats = acceptedCategories || [];
-        // Only run tracking scripts on the production domain
+
+        // Only run tracking scripts if the hostname matches the build configuration.
         if (window.location.hostname !== window.PROD_HOSTNAME) {
+            appLog(
+                'ConsentManager',
+                'warn',
+                `Hostname mismatch (${window.location.hostname} vs ${window.PROD_HOSTNAME}). Tracking disabled.`
+            );
             return;
         }
 
+        appLog(
+            'ConsentManager',
+            'info',
+            'Evaluating trackers for categories:',
+            cats
+        );
+
+        // --- Clarity (Analytics) ---
         if (cats.includes('analytics')) {
-            window.loadClarity();
+            if (typeof window.loadClarity === 'function') {
+                appLog(
+                    'ConsentManager',
+                    'info',
+                    'Permission granted: Loading Clarity.'
+                );
+                window.loadClarity();
+            } else {
+                appLog(
+                    'ConsentManager',
+                    'error',
+                    'window.loadClarity is missing from index.html.'
+                );
+            }
+        } else {
+            appLog(
+                'ConsentManager',
+                'log',
+                'Skipping Clarity (Category "analytics" not accepted).'
+            );
         }
 
+        // --- Sentry (Error Reporting) ---
         if (cats.includes('error_reporting')) {
-            window.loadSentry();
+            if (typeof window.loadSentry === 'function') {
+                appLog(
+                    'ConsentManager',
+                    'info',
+                    'Permission granted: Loading Sentry.'
+                );
+                window.loadSentry();
+            } else {
+                appLog(
+                    'ConsentManager',
+                    'error',
+                    'window.loadSentry is missing from index.html.'
+                );
+            }
+        } else {
+            appLog(
+                'ConsentManager',
+                'log',
+                'Skipping Sentry (Category "error_reporting" not accepted).'
+            );
         }
     };
 
@@ -142,18 +213,32 @@ export function initializeConsentManager() {
             },
         },
 
-        // Updated to use getUserPreferences() to ensure we always get the valid array
         onConsent: () => {
             const prefs = CookieConsent.getUserPreferences();
-            const categories = prefs.accepted_categories || [];
+            // Fix: Use camelCase 'acceptedCategories' for CookieConsent v3
+            const categories = prefs.acceptedCategories || [];
+            appLog(
+                'ConsentManager',
+                'info',
+                'onConsent fired. Categories:',
+                categories
+            );
             updateGtagConsent(categories);
             loadBlockingTrackers(categories);
         },
 
         onChange: () => {
             const prefs = CookieConsent.getUserPreferences();
-            const categories = prefs.accepted_categories || [];
+            // Fix: Use camelCase 'acceptedCategories' for CookieConsent v3
+            const categories = prefs.acceptedCategories || [];
+            appLog(
+                'ConsentManager',
+                'info',
+                'onChange fired. New Categories:',
+                categories
+            );
             updateGtagConsent(categories);
+            loadBlockingTrackers(categories);
         },
     });
 }

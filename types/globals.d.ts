@@ -9,6 +9,9 @@ declare interface Window {
     sentryLoaded?: boolean;
     clarityLoaded?: boolean;
 
+    // Debug helper added in consent-manager.js
+    resetConsent?: () => void;
+
     // The CookieConsent library object
     CookieConsent: any;
 

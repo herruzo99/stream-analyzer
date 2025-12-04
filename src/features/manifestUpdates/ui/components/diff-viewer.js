@@ -58,20 +58,37 @@ const renderDiffRow = (line, protocol, hideDeleted) => {
             ? line.parts.filter((p) => p.type !== 'removed')
             : line.parts;
 
-        // prettier-ignore
-        contentHtml = html`<div class="whitespace-pre-wrap break-all font-mono text-slate-300">${line.indentation}${partsToRender.map(p => renderDiffWord(p, highlightFn))}</div>`;
+        // Added min-w-0 to ensure flex/grid child constraints apply
+        contentHtml = html`<div
+            class="whitespace-pre-wrap break-all font-mono text-slate-300 min-w-0"
+        >
+            ${line.indentation}${partsToRender.map((p) =>
+                renderDiffWord(p, highlightFn)
+            )}
+        </div>`;
     } else if (line.type === 'removed') {
         if (hideDeleted) return html``;
-        // prettier-ignore
-        contentHtml = html`<span class="text-red-200/40 line-through decoration-red-500/30 select-none">${unsafeHTML(highlightFn(line.indentation + line.content))}</span>`;
+        contentHtml = html`<span
+            class="text-red-200/40 line-through decoration-red-500/30 select-none whitespace-pre-wrap break-all block min-w-0"
+            >${unsafeHTML(highlightFn(line.indentation + line.content))}</span
+        >`;
     } else {
         // Common or Added
-        // prettier-ignore
-        contentHtml = html`${unsafeHTML(highlightFn(line.indentation + line.content))}`;
+        contentHtml = html`<div class="whitespace-pre-wrap break-all min-w-0">
+            ${unsafeHTML(highlightFn(line.indentation + line.content))}
+        </div>`;
     }
 
-    // prettier-ignore
-    return html`<tr class="${rowClass} font-mono text-xs leading-6 group"><td class="w-8 text-right pr-3 select-none opacity-50 border-r border-slate-800/50 ${markerColor} align-top py-0.5 font-bold">${marker}</td><td class="pl-4 w-full py-0.5 align-top whitespace-pre-wrap break-all">${contentHtml}</td></tr>`;
+    // Table layout fixed requires width on cells to wrap correctly.
+    // The second cell is given w-full to take available space, and min-w-0 to allow shrinking.
+    return html`<tr class="${rowClass} font-mono text-xs leading-6 group">
+        <td
+            class="w-8 text-right pr-3 select-none opacity-50 border-r border-slate-800/50 ${markerColor} align-top py-0.5 font-bold shrink-0"
+        >
+            ${marker}
+        </td>
+        <td class="pl-4 py-0.5 align-top w-full min-w-0">${contentHtml}</td>
+    </tr>`;
 };
 
 export const diffViewerTemplate = (
@@ -102,7 +119,6 @@ export const diffViewerTemplate = (
 
     const { additions, removals, modifications } = update.changes;
 
-    // Toggle Button Logic
     const toggleBtnClass = manifestUpdatesHideDeleted
         ? 'bg-slate-800 text-slate-200 border-slate-600 shadow-inner shadow-black/20'
         : 'bg-slate-900 text-slate-400 border-slate-700 hover:border-slate-600 hover:text-slate-200';
@@ -112,36 +128,36 @@ export const diffViewerTemplate = (
 
     return html`
         <div
-            class="flex flex-col h-full w-full bg-slate-950 border-l border-slate-800/50"
+            class="flex flex-col h-full w-full bg-slate-950 border-l border-slate-800/50 min-w-0"
         >
             <!-- Control Bar -->
             ${showControls
                 ? html`
                       <div
-                          class="flex items-center justify-between px-4 py-3 bg-slate-900 border-b border-slate-800 shrink-0 z-10 shadow-sm"
+                          class="flex items-center justify-between px-4 py-3 bg-slate-900 border-b border-slate-800 shrink-0 z-10 shadow-sm min-w-0"
                       >
                           <div
-                              class="flex items-center gap-4 text-xs font-medium"
+                              class="flex items-center gap-4 text-xs font-medium overflow-x-auto scrollbar-hide"
                           >
                               <div
-                                  class="flex items-center gap-1.5 text-emerald-400 bg-emerald-900/10 px-2 py-1 rounded border border-emerald-900/20"
+                                  class="flex items-center gap-1.5 text-emerald-400 bg-emerald-900/10 px-2 py-1 rounded border border-emerald-900/20 shrink-0"
                               >
                                   ${icons.plusCircle} ${additions} Added
                               </div>
                               <div
-                                  class="flex items-center gap-1.5 text-red-400 bg-red-900/10 px-2 py-1 rounded border border-red-900/20"
+                                  class="flex items-center gap-1.5 text-red-400 bg-red-900/10 px-2 py-1 rounded border border-red-900/20 shrink-0"
                               >
                                   ${icons.minusCircle} ${removals} Removed
                               </div>
                               <div
-                                  class="flex items-center gap-1.5 text-amber-400 bg-amber-900/10 px-2 py-1 rounded border border-amber-900/20"
+                                  class="flex items-center gap-1.5 text-amber-400 bg-amber-900/10 px-2 py-1 rounded border border-amber-900/20 shrink-0"
                               >
                                   ${icons.alertTriangle} ${modifications}
                                   Modified
                               </div>
                           </div>
 
-                          <div class="flex items-center gap-3">
+                          <div class="flex items-center gap-3 shrink-0">
                               <button
                                   @click=${() =>
                                       uiActions.toggleManifestUpdatesHideDeleted()}
@@ -149,7 +165,9 @@ export const diffViewerTemplate = (
                                   title="Toggle visibility of removed lines"
                               >
                                   ${toggleIcon}
-                                  <span>${toggleText}</span>
+                                  <span class="hidden sm:inline"
+                                      >${toggleText}</span
+                                  >
                               </button>
 
                               <div class="w-px h-4 bg-slate-800 mx-1"></div>
@@ -171,15 +189,16 @@ export const diffViewerTemplate = (
                 : ''}
 
             <!-- Code Surface -->
+            <!-- table-fixed + w-full ensures wrapping works for long lines -->
             <div
-                class="grow overflow-auto custom-scrollbar bg-slate-950 relative"
+                class="grow overflow-auto custom-scrollbar bg-slate-950 relative min-w-0"
             >
-                <table class="w-full border-collapse relative">
+                <table class="w-full border-collapse relative table-fixed">
                     <colgroup>
                         <col class="w-10" />
                         <!-- Gutter -->
                         <col />
-                        <!-- Code -->
+                        <!-- Code (Auto width) -->
                     </colgroup>
                     <tbody class="font-mono text-xs">
                         ${lines.map((l) =>
