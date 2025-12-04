@@ -90,9 +90,8 @@ export function parseId3Tag(buffer) {
 
         // Flags (bytes 8-10)
         const frameFlagsRaw = buffer.subarray(offset + 8, offset + 10);
-        // Convert flags to hex string for inspection
-        const frameFlags =
-            (frameFlagsRaw[0] << 8) | frameFlagsRaw[1].toString(16);
+        // Fix: Correctly combine bytes into a 16-bit integer
+        const frameFlags = (frameFlagsRaw[0] << 8) | frameFlagsRaw[1];
 
         const frameEnd = offset + 10 + frameSize;
 
@@ -148,8 +147,6 @@ export function parseId3Tag(buffer) {
             let nullIndex = -1;
 
             // Search for null terminator starting after encoding byte
-            // Note: UTF-16 needs 2 bytes null, ISO/UTF-8 needs 1.
-            // Simplified check: look for single 0 byte for now (robustness trade-off)
             for (let i = 1; i < content.length; i++) {
                 if (content[i] === 0) {
                     nullIndex = i;
