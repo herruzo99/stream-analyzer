@@ -40,10 +40,16 @@ const cockpitLayoutTemplate = (stream, playerState) => {
     const { isSignalMonitorOpen, playerTelemetrySidebarOpen } =
         useUiStore.getState();
 
+    // --- Error Detection Logic ---
     let activeError = null;
-    if (retryCount > 0 && eventLog.length > 0) {
-        const lastError = eventLog.find((e) => e.type === 'error');
-        if (lastError) activeError = lastError.details;
+    if (eventLog.length > 0) {
+        const lastEvent = eventLog[0];
+        if (lastEvent.type === 'error') {
+            activeError = lastEvent.details;
+        } else if (retryCount > 0) {
+            const lastError = eventLog.find((e) => e.type === 'error');
+            if (lastError) activeError = lastError.details;
+        }
     }
 
     const handleToggleHud = () => {
@@ -141,7 +147,14 @@ const cockpitLayoutTemplate = (stream, playerState) => {
         'w-[350px]': playerTelemetrySidebarOpen,
         'w-[0px]': !playerTelemetrySidebarOpen,
         'overflow-hidden': true,
+        'h-full': true, // Enforce full height for flex container
     });
+
+    // ARCHITECTURAL FIX: Removed conditional scrolling here.
+    // The container is now purely structural (flex-grow, min-h-0).
+    // Scrolling is handled by the specific tab content wrapper.
+    const contentContainerClass =
+        'grow min-h-0 relative bg-slate-900/30 flex flex-col';
 
     return html`
         <div
@@ -159,7 +172,6 @@ const cockpitLayoutTemplate = (stream, playerState) => {
                 <!-- 2. CENTER: Player & Video QC -->
                 <div class="flex-grow flex flex-col min-w-0 relative bg-black">
                     <!-- Player Area (Flex Grow) -->
-                    <!-- FIX: Enforce minimum height to prevent squat layout -->
                     <div
                         class="flex-grow relative overflow-hidden group bg-black min-h-[480px] flex flex-col justify-center"
                     >
@@ -230,12 +242,20 @@ const cockpitLayoutTemplate = (stream, playerState) => {
                             playerActions.setActiveTab(t)
                         )}
                     </div>
-                    <div
-                        class="grow overflow-y-auto p-4 custom-scrollbar bg-slate-900/30"
-                    >
+
+                    <!-- Content Area -->
+                    <div class="${contentContainerClass}">
                         ${activeTab === 'telemetry'
-                            ? telemetryPanelTemplate(currentStats)
-                            : eventLogTemplate(eventLog)}
+                            ? html` <div
+                                  class="absolute inset-0 overflow-y-auto p-4 custom-scrollbar"
+                              >
+                                  ${telemetryPanelTemplate(currentStats)}
+                              </div>`
+                            : html` <div
+                                  class="absolute inset-0 p-4 overflow-hidden flex flex-col"
+                              >
+                                  ${eventLogTemplate(eventLog)}
+                              </div>`}
                     </div>
                 </div>
             </div>

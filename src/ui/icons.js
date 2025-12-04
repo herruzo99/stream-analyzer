@@ -57,7 +57,13 @@ export const timerReset = icon('timer-reset');
 export const alertTriangle = icon('alert-triangle');
 export const wrench = icon('wrench');
 export const power = icon('power');
-export const terminal = icon('terminal'); // Added for Event Log
+export const terminal = icon('terminal');
+export const beaker = icon('beaker');
+
+// --- Network Intervention Icons ---
+export const ban = icon('ban');
+export const timerOff = icon('timer-off');
+export const zapOff = icon('zap-off');
 
 // --- Misc UI Icons ---
 export const plusCircle = icon('plus-circle');
@@ -88,7 +94,7 @@ export const arrowRight = icon('chevron-right');
 export const viewfinder = icon('scan-line');
 export const inbox = icon('inbox', 'h-12 w-12 text-neutral-600');
 export const eyeOff = icon('eye-off');
-export const eye = icon('eye'); // Added
+export const eye = icon('eye');
 export const box = icon('box');
 export const key = icon('key');
 export const history = icon('history');
@@ -107,6 +113,8 @@ export const link = icon('link');
 export const grid = icon('grid-3x3');
 export const gitMerge = icon('git-merge');
 export const barChart = icon('bar-chart-2');
+export const trendingUp = icon('trending-up');
+export const trendingDown = icon('trending-down');
 
 // --- Property Icons ---
 export const aligned = icon('align-vertical-space-around', 'h-4 w-4');
@@ -137,8 +145,6 @@ export const list = icon('list');
 export const template = icon('layout-template');
 export const database = icon('database');
 export const star = icon('star');
-export const trendingUp = icon('trending-up');
-export const trendingDown = icon('trending-down');
 export const columns = icon('columns-3');
 export const radar = icon('radar');
 export const layout = icon('panel-left-dashed');
@@ -162,4 +168,4 @@ export const image = icon('image');
 export const copy = icon('copy');
 export const trash = icon('trash');
 export const save = icon('save');
-export const broadcast = icon('broadcast');
+export const broadcast = icon('radio');

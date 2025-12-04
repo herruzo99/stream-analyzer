@@ -1,3 +1,31 @@
+// ... (Previous interfaces like SourcedData, NetworkEvent remain unchanged until PlayerState)
+
+export interface PlayerState {
+    isLoaded: boolean;
+    isAbrEnabled: boolean;
+    isAutoResetEnabled: boolean; // Added
+    isPictureInPicture: boolean;
+    isPipUnmount: boolean;
+    isMuted: boolean;
+    playbackState: 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ENDED' | 'IDLE';
+    videoTracks: object[];
+    audioTracks: object[];
+    textTracks: object[];
+    activeVideoTrack: object | null;
+    activeAudioTrack: object | null;
+    activeTextTrack: object | null;
+    currentStats: PlayerStats | null;
+    eventLog: PlayerEvent[];
+    hasUnreadLogs: boolean;
+    abrHistory: AbrHistoryEntry[];
+    playbackHistory: PlaybackHistoryEntry[];
+    activeTab: 'controls' | 'stats' | 'log' | 'graphs';
+    retryCount: number; // Added
+    seekableRange: { start: number; end: number }; // Added
+}
+
+// ... (Rest of the file remains unchanged)
+
 export interface SourcedData<T> {
     value: T;
     source: 'manifest' | 'segment' | string;
@@ -765,6 +793,34 @@ export interface AdaptationEvent {
     newBandwidth: number | undefined;
 }
 
+export interface PlayerActions {
+    setLoadedState: (isLoaded: boolean) => void;
+    setAbrEnabled: (isAbrEnabled: boolean) => void;
+    setPictureInPicture: (isInPiP: boolean) => void;
+    setPipUnmountState: (isPipUnmount: boolean) => void;
+    setMutedState: (isMuted: boolean) => void;
+    updatePlaybackInfo: (
+        info: Partial<
+            Pick<
+                PlayerState,
+                | 'playbackState'
+                | 'activeVideoTrack'
+                | 'activeAudioTrack'
+                | 'activeTextTrack'
+                | 'videoTracks'
+                | 'audioTracks'
+                | 'textTracks'
+            >
+        >
+    ) => void;
+    updateStats: (stats: PlayerStats) => void;
+    logEvent: (event: PlayerEvent) => void;
+    logAbrSwitch: (entry: AbrHistoryEntry) => void;
+    setActiveTab: (tab: 'controls' | 'stats' | 'log' | 'graphs') => void;
+    reset: () => void;
+    setInitialTracksFromManifest: (manifest: Manifest) => void;
+}
+
 export interface PlayerInstance {
     streamId: number;
     sourceStreamId: number;
@@ -1041,6 +1097,7 @@ export interface Box {
     spsList?: any[];
     ppsList?: any[];
     nal_unit_arrays?: any[];
+    nal_arrays?: any[]; // Fixed: Added for VVC/EVC parsers
     messagePayloadType?: 'xml' | 'scte35' | 'id3' | 'binary';
     messagePayload?: any;
     dataView?: DataView;

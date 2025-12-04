@@ -1,4 +1,4 @@
-import { appLog } from '@/shared/utils/debug';
+import { parseSei } from './sei-parser.js';
 
 /**
  * @typedef {object} NalUnit
@@ -7,17 +7,59 @@ import { appLog } from '@/shared/utils/debug';
  * @property {number} type - NAL unit type.
  * @property {boolean} isIdr - True if this is an IDR/Keyframe NAL.
  * @property {boolean} isVcl - True if this is a Video Coding Layer NAL (slice data).
+ * @property {any} [seiMessage] - Parsed SEI data if applicable.
  */
 
 /**
- * Parses NAL units from a buffer based on the lengthSizeMinusOne from avcC/hvcC.
- * @param {Uint8Array} buffer - The raw data of the mdat box.
- * @param {number} lengthSizeMinusOne - (header_length - 1). Typically 3 (4 bytes).
- * @param {'avc' | 'hevc'} codec - The codec type.
- * @param {number} baseOffset - The absolute offset of the mdat box start.
+ * Unescapes Emulation Prevention Bytes.
+ * @param {Uint8Array} data
+ * @returns {Uint8Array}
+ */
+function unescapeRBSP(data) {
+    const length = data.length;
+    let emulationCount = 0;
+    for (let i = 0; i < length - 2; i++) {
+        if (data[i] === 0 && data[i + 1] === 0 && data[i + 2] === 3) {
+            emulationCount++;
+            i += 2;
+        }
+    }
+    if (emulationCount === 0) return data;
+    const output = new Uint8Array(length - emulationCount);
+    let outIdx = 0;
+    for (let i = 0; i < length; i++) {
+        if (
+            i < length - 2 &&
+            data[i] === 0 &&
+            data[i + 1] === 0 &&
+            data[i + 2] === 3
+        ) {
+            output[outIdx++] = 0;
+            output[outIdx++] = 0;
+            i += 2;
+        } else {
+            output[outIdx++] = data[i];
+        }
+    }
+    return output;
+}
+
+/**
+ * Parses NAL units from a buffer.
+ * @param {Uint8Array} buffer
+ * @param {number} lengthSizeMinusOne
+ * @param {'avc' | 'hevc' | 'vvc'} codec
+ * @param {number} baseOffset
+ * @param {object} [sps] Optional SPS context for SEI parsing
  * @returns {NalUnit[]}
  */
-export function parseNalUnits(buffer, lengthSizeMinusOne, codec, baseOffset) {
+export function parseNalUnits(
+    buffer,
+    lengthSizeMinusOne,
+    codec,
+    baseOffset,
+    sps = null
+) {
     const nalList = [];
     const lengthFieldSize = lengthSizeMinusOne + 1;
     let offset = 0;
@@ -40,11 +82,6 @@ export function parseNalUnits(buffer, lengthSizeMinusOne, codec, baseOffset) {
         const currentNalOffset = offset + lengthFieldSize;
 
         if (currentNalOffset + nalLength > buffer.byteLength) {
-            appLog(
-                'NalParser',
-                'warn',
-                `NAL unit length ${nalLength} exceeds buffer bounds at offset ${offset}.`
-            );
             break;
         }
 
@@ -52,30 +89,54 @@ export function parseNalUnits(buffer, lengthSizeMinusOne, codec, baseOffset) {
         let nalType = 0;
         let isIdr = false;
         let isVcl = false;
+        let isSei = false;
+        let headerSize = 1;
 
         if (codec === 'avc') {
-            // AVC: Type is lower 5 bits
             nalType = headerByte & 0x1f;
-            // Types 1-5 are VCL. 5 is IDR.
             isVcl = nalType >= 1 && nalType <= 5;
             isIdr = nalType === 5;
+            isSei = nalType === 6;
+            headerSize = 1;
         } else if (codec === 'hevc') {
-            // HEVC: Type is bits 1-6 (shifted right by 1)
             nalType = (headerByte >> 1) & 0x3f;
-            // Types 0-31 are VCL.
             isVcl = nalType >= 0 && nalType <= 31;
-            // IDR_W_RADL(19), IDR_N_LP(20), CRA_NUT(21)
             isIdr = nalType >= 19 && nalType <= 21;
+            isSei = nalType === 39 || nalType === 40;
+            headerSize = 2;
+        } else if (codec === 'vvc') {
+            if (currentNalOffset + 1 < buffer.byteLength) {
+                const byte1 = view.getUint8(currentNalOffset + 1);
+                nalType = (byte1 >> 3) & 0x1f;
+                isVcl = nalType >= 0 && nalType <= 11;
+                isIdr = nalType >= 7 && nalType <= 10;
+                isSei = nalType === 23 || nalType === 24;
+                headerSize = 2;
+            }
         }
 
-        nalList.push({
+        const unit = {
             offset: baseOffset + currentNalOffset,
             length: nalLength,
             type: nalType,
             isIdr,
             isVcl,
-        });
+        };
 
+        if (isSei && nalLength > headerSize) {
+            try {
+                const rawPayload = buffer.subarray(
+                    currentNalOffset + headerSize,
+                    currentNalOffset + nalLength
+                );
+                const rbsp = unescapeRBSP(rawPayload);
+                unit.seiMessage = parseSei(rbsp, sps); // Pass SPS
+            } catch (e) {
+                console.warn('Failed to parse SEI payload', e);
+            }
+        }
+
+        nalList.push(unit);
         offset += lengthFieldSize + nalLength;
     }
 

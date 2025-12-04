@@ -1,3 +1,4 @@
+import { secureRandom } from '@/shared/utils/random.js';
 import { fetchWithRetry } from '../http/fetch.js';
 
 /**
@@ -25,6 +26,85 @@ async function captureBody(source) {
     }
 }
 
+function classifyResource(url, resourceType) {
+    // Use explicit type if provided, otherwise infer
+    if (resourceType) return resourceType;
+    const lower = url.toLowerCase();
+    if (lower.includes('.mpd') || lower.includes('.m3u8')) return 'manifest';
+    if (lower.includes('license') || lower.includes('key')) return 'license';
+    return 'video'; // Default assumption for high-traffic worker requests
+}
+
+/**
+ * Applies Chaos Tools interventions.
+ * @returns {Promise<{action: 'block'|'delay'|'none', response?: object, delayMs?: number}>}
+ */
+async function applyInterventions(
+    url,
+    method,
+    interventionRules,
+    resourceType
+) {
+    if (!interventionRules || interventionRules.length === 0)
+        return { action: 'none' };
+
+    const classification = classifyResource(url, resourceType);
+
+    for (const rule of interventionRules) {
+        if (!rule.enabled) continue;
+        if (rule.resourceType !== 'all' && rule.resourceType !== classification)
+            continue;
+
+        let match = false;
+        try {
+            const regex = new RegExp(rule.urlPattern, 'i');
+            match = regex.test(url);
+        } catch (_e) {
+            match = url.includes(rule.urlPattern);
+        }
+
+        // Empty pattern matches everything
+        if (!rule.urlPattern) match = true;
+
+        if (!match) continue;
+
+        const probability =
+            rule.params.probability !== undefined
+                ? rule.params.probability
+                : 100;
+        const roll = secureRandom() * 100;
+        if (roll > probability) continue;
+
+        // Rule Matched
+        if (rule.action === 'block') {
+            return {
+                action: 'block',
+                response: {
+                    ok: false,
+                    status: rule.params.statusCode || 404,
+                    statusText: `Blocked by Rule: ${rule.label}`,
+                    // ARCHITECTURAL FIX: Must use plain object for headers to be Transferable via postMessage
+                    headers: { 'x-intervention': rule.label },
+                    url: url,
+                    arrayBuffer: async () => new ArrayBuffer(0),
+                    text: async () => '',
+                },
+            };
+        }
+
+        if (rule.action === 'delay') {
+            return {
+                action: 'delay',
+                delayMs: rule.params.delayMs || 2000,
+            };
+        }
+    }
+
+    return { action: 'none' };
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export async function fetchWithAuth(
     url,
     auth,
@@ -33,10 +113,67 @@ export async function fetchWithAuth(
     body = null,
     signal = null,
     loggingContext = {},
-    method = null
+    method = null,
+    interventionRules = []
 ) {
     const initialUrl = new URL(url);
     const safeLoggingContext = loggingContext || {};
+
+    // --- 1. Apply Interventions ---
+    const intervention = await applyInterventions(
+        url,
+        method || 'GET',
+        interventionRules,
+        safeLoggingContext.resourceType
+    );
+
+    if (intervention.action === 'block' && intervention.response) {
+        // Log blocked request immediately if context is provided
+        if (safeLoggingContext.streamId !== undefined) {
+            self.postMessage({
+                type: 'worker:network-event',
+                payload: {
+                    id: crypto.randomUUID(),
+                    url: url,
+                    resourceType: safeLoggingContext.resourceType,
+                    streamId: safeLoggingContext.streamId,
+                    request: {
+                        method: method || 'GET',
+                        headers: extraHeaders,
+                        body: null,
+                    },
+                    response: {
+                        status: intervention.response.status,
+                        statusText: intervention.response.statusText,
+                        headers: intervention.response.headers,
+                        contentLength: 0,
+                        contentType: '',
+                        body: null,
+                    },
+                    timing: {
+                        startTime: performance.now(),
+                        endTime: performance.now(),
+                        duration: 0,
+                        breakdown: null,
+                    },
+                    auditStatus: 'error',
+                    auditIssues: [
+                        {
+                            id: 'intervention',
+                            level: 'error',
+                            message: `Blocked by rule`,
+                        },
+                    ],
+                },
+            });
+        }
+        return intervention.response;
+    }
+
+    if (intervention.action === 'delay' && intervention.delayMs) {
+        await sleep(intervention.delayMs);
+    }
+    // --- End Interventions ---
 
     const headers = new Headers();
 
@@ -145,6 +282,19 @@ export async function fetchWithAuth(
                     duration: endTime - startTime,
                     breakdown: null,
                 },
+                // Mark delayed requests in the audit
+                auditStatus:
+                    intervention.action === 'delay' ? 'warn' : undefined,
+                auditIssues:
+                    intervention.action === 'delay'
+                        ? [
+                              {
+                                  id: 'intervention',
+                                  level: 'warn',
+                                  message: `Delayed by ${intervention.delayMs}ms`,
+                              },
+                          ]
+                        : [],
             },
         });
     }

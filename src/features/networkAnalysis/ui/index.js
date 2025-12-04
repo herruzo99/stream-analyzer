@@ -2,10 +2,12 @@ import { useAnalysisStore } from '@/state/analysisStore';
 import { networkActions, useNetworkStore } from '@/state/networkStore';
 import { usePlayerStore } from '@/state/playerStore';
 import { playerActiveWarningTemplate } from '@/ui/components/player-active-warning.js';
+import * as icons from '@/ui/icons';
 import { disposeChart, renderChart } from '@/ui/shared/charts/chart-renderer';
 import { throughputChartOptions } from '@/ui/shared/charts/throughput-chart';
 import { html, render } from 'lit-html';
 import { networkDetailsPanelTemplate } from './components/network-details-panel.js';
+import { networkInterventionPanelTemplate } from './components/network-intervention-panel.js';
 import { networkToolbarTemplate } from './components/network-toolbar.js';
 import { summaryCardsTemplate } from './components/summary-cards.js';
 import { waterfallChartTemplate } from './components/waterfall-chart.js';
@@ -19,8 +21,14 @@ let playerUnsubscribe = null;
 function renderNetworkView() {
     if (!container) return;
 
-    const { events, selectedEventId, filters, visibleStreamIds } =
-        useNetworkStore.getState();
+    const {
+        events,
+        selectedEventId,
+        filters,
+        visibleStreamIds,
+        isInterventionPanelOpen,
+        interventionRules,
+    } = useNetworkStore.getState();
 
     const allVisibleStreamEvents = events.filter(
         (event) =>
@@ -50,6 +58,7 @@ function renderNetworkView() {
         allVisibleStreamEvents
     );
 
+    // Chart Rendering (Deferred)
     requestAnimationFrame(() => {
         const chartContainer = container?.querySelector(
             '#throughput-chart-container'
@@ -66,62 +75,80 @@ function renderNetworkView() {
         }
     });
 
+    // Active Rules Count for Badge
+    const activeRulesCount = interventionRules.filter((r) => r.enabled).length;
+
     const template = html`
         <div class="flex flex-col h-full bg-slate-950 overflow-hidden">
-            <!-- 
-                FIX: Ensure warning is shrinkable but visible
-                We put the warning in a shrink-0 container if needed, but usually flex-col handles it.
-            -->
             ${playerActiveWarningTemplate('Network Inspector')}
 
-            <!-- Main Content Container with scrolling for overflow -->
-            <div
-                class="flex flex-col h-full min-h-0 p-4 sm:p-6 overflow-hidden"
-            >
-                <!-- Top Section (Toolbar + Stats + Chart) -->
-                <div class="shrink-0 space-y-4 mb-4">
-                    <h3 class="text-xl font-bold text-white">
-                        Network Inspector
-                    </h3>
-                    ${networkToolbarTemplate()}
-                    ${summaryCardsTemplate(viewModel.summary)}
+            <div class="flex h-full min-h-0 overflow-hidden">
+                <!-- Main Content Container -->
+                <div
+                    class="flex flex-col grow min-w-0 h-full p-4 sm:p-6 overflow-hidden"
+                >
+                    <!-- Top Section (Toolbar + Stats + Chart) -->
+                    <div class="shrink-0 space-y-4 mb-4">
+                        <div class="flex justify-between items-start">
+                            <h3 class="text-xl font-bold text-white">
+                                Network Inspector
+                            </h3>
+                            <button
+                                @click=${() =>
+                                    networkActions.toggleInterventionPanel()}
+                                class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${isInterventionPanelOpen
+                                    ? 'bg-slate-800 text-white'
+                                    : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-700'}"
+                            >
+                                ${icons.zapOff} Chaos Tools
+                                ${activeRulesCount > 0
+                                    ? html`<span
+                                          class="bg-red-500 text-white px-1.5 rounded-full text-[9px]"
+                                          >${activeRulesCount}</span
+                                      >`
+                                    : ''}
+                            </button>
+                        </div>
 
-                    <!-- Throughput Chart -->
-                    <div
-                        class="h-32 bg-slate-900 rounded-lg border border-slate-800 p-2 relative"
-                    >
-                        <h4
-                            class="absolute top-2 left-3 text-[10px] font-bold text-slate-500 uppercase z-10"
-                        >
-                            Throughput
-                        </h4>
+                        ${networkToolbarTemplate()}
+                        ${summaryCardsTemplate(viewModel.summary)}
+
+                        <!-- Throughput Chart -->
                         <div
-                            id="throughput-chart-container"
-                            class="w-full h-full"
-                        ></div>
+                            class="h-32 bg-slate-900 rounded-lg border border-slate-800 p-2 relative"
+                        >
+                            <h4
+                                class="absolute top-2 left-3 text-[10px] font-bold text-slate-500 uppercase z-10"
+                            >
+                                Throughput
+                            </h4>
+                            <div
+                                id="throughput-chart-container"
+                                class="w-full h-full"
+                            ></div>
+                        </div>
+                    </div>
+
+                    <!-- Split View: Waterfall + Details -->
+                    <div class="flex gap-4 grow min-h-0 overflow-hidden">
+                        <!-- Waterfall Area -->
+                        <div
+                            class="grow min-w-0 flex flex-col h-full overflow-hidden rounded-lg border border-slate-700 bg-slate-900"
+                        >
+                            ${waterfallChartTemplate(viewModel.waterfallData)}
+                        </div>
+
+                        <!-- Details Panel -->
+                        <div
+                            class="w-[350px] shrink-0 h-full overflow-hidden rounded-lg border border-slate-700 bg-slate-900"
+                        >
+                            ${networkDetailsPanelTemplate(selectedEvent)}
+                        </div>
                     </div>
                 </div>
 
-                <!-- Split View: Waterfall + Details -->
-                <!-- 
-                     FIX: 'min-h-0' is critical here to force the flex item to shrink 
-                     instead of overflowing its container.
-                -->
-                <div class="flex gap-4 grow min-h-0 overflow-hidden">
-                    <!-- Waterfall Area -->
-                    <div
-                        class="grow min-w-0 flex flex-col h-full overflow-hidden rounded-lg border border-slate-700 bg-slate-900"
-                    >
-                        ${waterfallChartTemplate(viewModel.waterfallData)}
-                    </div>
-
-                    <!-- Details Panel -->
-                    <div
-                        class="w-[350px] shrink-0 h-full overflow-hidden rounded-lg border border-slate-700 bg-slate-900"
-                    >
-                        ${networkDetailsPanelTemplate(selectedEvent)}
-                    </div>
-                </div>
+                <!-- Intervention Panel (Slide-in) -->
+                ${networkInterventionPanelTemplate()}
             </div>
         </div>
     `;

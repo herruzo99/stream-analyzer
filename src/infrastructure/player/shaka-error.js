@@ -693,40 +693,104 @@ const Code = {
 };
 
 /**
+ * Analyzes a Shaka Player error (object or string) and returns structured data for the UI.
+ * @param {any} shakaError The error object/string.
+ * @returns {{
+ *   title: string,
+ *   code: number | string,
+ *   category: string,
+ *   description: string,
+ *   details: string
+ * }}
+ */
+export function analyzeShakaError(shakaError) {
+    /** @type {number | string} */
+    let code = 'UNKNOWN';
+    let categoryName = 'ERROR';
+    let name = 'Error';
+    let description = 'An unexpected error occurred.';
+    let details = '';
+
+    // Case 1: Input is already a string (from previous storage)
+    if (typeof shakaError === 'string') {
+        // Try to regex parse the old format: "NAME (Code X, CAT): Desc | Details"
+        const match = shakaError.match(
+            /^(.+?) \(Code (\d+), (\w+)\): (.+?)(?: \| Details: (.+))?$/
+        );
+        if (match) {
+            name = match[1];
+            code = match[2];
+            categoryName = match[3];
+            description = match[4];
+            details = match[5] || '';
+        } else {
+            description = shakaError; // Fallback to raw string
+        }
+    }
+    // Case 2: Input is a Shaka Error Object
+    else if (shakaError && typeof shakaError === 'object') {
+        const rawCode = shakaError.code;
+        if (typeof rawCode === 'number') {
+            code = rawCode;
+            categoryName = Category[shakaError.category] || 'UNKNOWN';
+            const errorInfo = Code[rawCode];
+            name = errorInfo?.name || 'UNKNOWN_CODE';
+            description =
+                errorInfo?.description ||
+                shakaError.message ||
+                'No description available.';
+        } else {
+            description = shakaError.message || 'Unknown Error Object';
+        }
+
+        if (
+            shakaError.data &&
+            Array.isArray(shakaError.data) &&
+            shakaError.data.length > 0
+        ) {
+            const dataDetails = shakaError.data
+                .map((d) => {
+                    if (d instanceof Error) return d.message;
+                    if (d === null || d === undefined) return '';
+                    if (typeof d === 'object') {
+                        if (d.uri && d.status)
+                            return `[HTTP ${d.status} on ${d.uri}]`;
+                        // Avoid [object Object]
+                        try {
+                            return JSON.stringify(d);
+                        } catch {
+                            return '[Complex Object]';
+                        }
+                    }
+                    return String(d);
+                })
+                .filter(Boolean) // Remove empty strings from nulls
+                .join(', ');
+
+            if (dataDetails) details = dataDetails;
+        }
+    }
+
+    return {
+        title: name.replace(/_/g, ' '),
+        code,
+        category: categoryName,
+        description,
+        details,
+    };
+}
+
+/**
  * Parses a Shaka Player error object into a human-readable string.
+ * Kept for backward compatibility with logs.
  * @param {any} shakaError The error object from Shaka Player.
  * @returns {string} A formatted error message.
  */
 export function parseShakaError(shakaError) {
-    if (!shakaError || typeof shakaError.code !== 'number') {
-        return shakaError.message || 'An unknown player error occurred.';
+    const info = analyzeShakaError(shakaError);
+    let message = `${info.title} (Code ${info.code}, ${info.category}): ${info.description}`;
+    if (info.details) {
+        message += ` | Details: ${info.details}`;
     }
-
-    const categoryName = Category[shakaError.category] || 'UNKNOWN';
-    const errorInfo = Code[shakaError.code];
-    const codeName = errorInfo?.name || 'UNKNOWN_CODE';
-    const description = errorInfo?.description || 'No description available.';
-
-    let message = `${codeName} (Code ${shakaError.code}, ${categoryName}): ${description}`;
-
-    if (
-        shakaError.data &&
-        Array.isArray(shakaError.data) &&
-        shakaError.data.length > 0
-    ) {
-        const dataDetails = shakaError.data
-            .map((d) => {
-                if (d instanceof Error) return d.message;
-                if (typeof d === 'object' && d !== null) {
-                    if (d.uri && d.status)
-                        return `[HTTP ${d.status} on ${d.uri}]`;
-                    return '[Object]';
-                }
-                return String(d);
-            })
-            .join(', ');
-        message += ` | Details: ${dataDetails}`;
-    }
-
     return message;
 }

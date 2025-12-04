@@ -4,7 +4,9 @@ import { playerService } from '@/features/playerSimulation/application/playerSer
 import { getLastUsedStreams } from '@/infrastructure/persistence/streamStorage';
 import { isDebugMode } from '@/shared/utils/env';
 import { analysisActions, useAnalysisStore } from '@/state/analysisStore';
+import { networkActions, useNetworkStore } from '@/state/networkStore'; // New Import
 import { usePlayerStore } from '@/state/playerStore';
+import { uiActions } from '@/state/uiStore'; // New Import
 import { EVENTS } from '@/types/events';
 import * as icons from '@/ui/icons';
 import { closeDropdown, toggleDropdown } from '@/ui/services/dropdownService';
@@ -13,7 +15,7 @@ import { toggleAllPolling } from '@/ui/services/streamActionsService';
 import { html } from 'lit-html';
 import { debugDropdownPanelTemplate } from './debug-dropdown-panel.js';
 import { pollingDropdownPanelTemplate } from './polling-dropdown-panel.js';
-import { settingsDropdownTemplate } from './settings-dropdown.js'; // New Import
+import { settingsDropdownTemplate } from './settings-dropdown.js';
 
 function handleRestart() {
     if (
@@ -134,6 +136,19 @@ const utilitiesMenuTemplate = (activeStream) => html`
                   'DASH'
               )
             : ''}
+        ${toolMenuItem(
+            icons.zapOff,
+            'Chaos Tools',
+            'Simulate network failures',
+            () => {
+                closeDropdown();
+                uiActions.setActiveTab('network');
+                const { isInterventionPanelOpen } = useNetworkStore.getState();
+                if (!isInterventionPanelOpen) {
+                    networkActions.toggleInterventionPanel();
+                }
+            }
+        )}
         ${toolMenuItem(
             icons.fileScan,
             'Segment Inspector',

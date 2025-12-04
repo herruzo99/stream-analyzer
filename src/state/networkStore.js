@@ -3,6 +3,17 @@ import { useSettingsStore } from './settingsStore.js';
 
 /** @typedef {import('@/types').NetworkEvent} NetworkEvent */
 
+/**
+ * @typedef {Object} InterventionRule
+ * @property {string} id - UUID
+ * @property {string} label - User defined name
+ * @property {boolean} enabled - Is rule active
+ * @property {string} urlPattern - Regex string or simple string
+ * @property {'all' | 'manifest' | 'video' | 'audio' | 'license'} resourceType
+ * @property {'block' | 'delay'} action
+ * @property {{statusCode?: number, delayMs?: number, probability?: number}} params
+ */
+
 const createInitialNetworkState = () => ({
     events: [],
     selectedEventId: null,
@@ -11,6 +22,8 @@ const createInitialNetworkState = () => ({
         search: '',
     },
     visibleStreamIds: new Set(),
+    interventionRules: [], // List of active/inactive rules
+    isInterventionPanelOpen: false,
 });
 
 export const useNetworkStore = createStore((set, get) => ({
@@ -23,7 +36,6 @@ export const useNetworkStore = createStore((set, get) => ({
         }
 
         set((state) => {
-            // DYNAMIC LIMIT: Fetch from settings store
             const limit = useSettingsStore.getState().networkLogLimit || 500;
             const currentLength = state.events.length;
             let newEvents;
@@ -31,7 +43,6 @@ export const useNetworkStore = createStore((set, get) => ({
             if (currentLength < limit) {
                 newEvents = [...state.events, event];
             } else {
-                // FIFO: Keep limit-1, add new
                 newEvents = [...state.events.slice(-(limit - 1)), event];
             }
 
@@ -75,6 +86,43 @@ export const useNetworkStore = createStore((set, get) => ({
             }
             return { visibleStreamIds: newSet };
         });
+    },
+
+    // --- Intervention Actions ---
+
+    toggleInterventionPanel: () =>
+        set((state) => ({
+            isInterventionPanelOpen: !state.isInterventionPanelOpen,
+        })),
+
+    addInterventionRule: (rule) => {
+        set((state) => ({
+            interventionRules: [...state.interventionRules, rule],
+        }));
+    },
+
+    updateInterventionRule: (id, updates) => {
+        set((state) => ({
+            interventionRules: state.interventionRules.map((r) =>
+                r.id === id ? { ...r, ...updates } : r
+            ),
+        }));
+    },
+
+    removeInterventionRule: (id) => {
+        set((state) => ({
+            interventionRules: state.interventionRules.filter(
+                (r) => r.id !== id
+            ),
+        }));
+    },
+
+    toggleInterventionRule: (id) => {
+        set((state) => ({
+            interventionRules: state.interventionRules.map((r) =>
+                r.id === id ? { ...r, enabled: !r.enabled } : r
+            ),
+        }));
     },
 
     reset: () => set(createInitialNetworkState()),

@@ -25,10 +25,10 @@ class SidebarShellComponent extends HTMLElement {
         const tabButton = (label, key) => html`
             <button
                 @click=${() => uiActions.setMultiPlayerActiveTab(key)}
-                class="px-4 py-2 text-sm font-semibold rounded-t-lg transition-colors ${multiPlayerActiveTab ===
+                class="px-4 py-2 text-xs font-bold uppercase tracking-wide rounded-t-lg transition-all duration-200 border-t border-x ${multiPlayerActiveTab ===
                 key
-                    ? 'bg-slate-800 text-white'
-                    : 'bg-slate-900/50 text-slate-400 hover:bg-slate-700/50'}"
+                    ? 'bg-slate-900 border-slate-700 text-white -mb-px'
+                    : 'bg-slate-950 border-transparent text-slate-500 hover:text-slate-300 hover:bg-slate-900/50'}"
             >
                 ${label}
             </button>
@@ -45,15 +45,21 @@ class SidebarShellComponent extends HTMLElement {
                 break;
         }
 
+        // Changed: Container now uses 'overflow-hidden' instead of 'overflow-y-auto' to allow
+        // child components to fully control their scrolling behavior.
         const template = html`
-            <div class="flex flex-col h-full">
+            <div
+                class="flex flex-col h-full bg-slate-950 border-l border-slate-800"
+            >
                 <div
-                    class="shrink-0 border-b border-slate-700 flex space-x-2 px-2 pt-2 sticky top-0 bg-slate-800/80 backdrop-blur-sm z-10"
+                    class="shrink-0 border-b border-slate-700 flex space-x-1 px-3 pt-3 bg-slate-950 z-10"
                 >
                     ${tabButton('Event Log', 'event-log')}
                     ${tabButton('Graphs', 'graphs')}
                 </div>
-                <div class="grow p-4 overflow-y-auto min-h-0">
+                <div
+                    class="grow min-h-0 overflow-hidden relative p-0 bg-slate-900"
+                >
                     ${viewContent}
                 </div>
             </div>

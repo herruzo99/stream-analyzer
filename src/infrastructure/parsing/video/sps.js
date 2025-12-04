@@ -65,8 +65,7 @@ class BitReader {
 
 /**
  * Parses HRD (Hypothetical Reference Decoder) parameters from the bitstream.
- * This function is implemented to correctly advance the reader's position
- * as per the H.264 standard, but the values are not used in the final output.
+ * Returns the parameters needed for SEI parsing.
  * @param {BitReader} reader - The bit reader instance.
  */
 function parseHRDParameters(reader) {
@@ -78,16 +77,23 @@ function parseHRDParameters(reader) {
         reader.readUE(); // cpb_size_value_minus1[i]
         reader.readBits(1); // cbr_flag[i]
     }
-    reader.readBits(5); // initial_cpb_removal_delay_length_minus1
-    reader.readBits(5); // cpb_removal_delay_length_minus1
-    reader.readBits(5); // dpb_output_delay_length_minus1
-    reader.readBits(5); // time_offset_length
+    const initial_cpb_removal_delay_length_minus1 = reader.readBits(5);
+    const cpb_removal_delay_length_minus1 = reader.readBits(5);
+    const dpb_output_delay_length_minus1 = reader.readBits(5);
+    const time_offset_length = reader.readBits(5);
+
+    return {
+        initial_cpb_removal_delay_length_minus1,
+        cpb_removal_delay_length_minus1,
+        dpb_output_delay_length_minus1,
+        time_offset_length,
+    };
 }
 
 /**
  * Parses a raw H.264 Sequence Parameter Set (SPS) NAL unit.
  * Skips over many fields to extract the most critical information for analysis:
- * profile, level, resolution, and frame rate.
+ * profile, level, resolution, frame rate, and HRD params.
  * @param {Uint8Array} spsNalUnit - The raw bytes of the SPS NAL unit.
  * @returns {object | null} An object with parsed SPS info, or null on error.
  */
@@ -105,7 +111,7 @@ export function parseSPS(spsNalUnit) {
     reader.readBits(8); // profile_compatibility (constraint_set flags, etc.)
     const level_idc = reader.readBits(8);
 
-    reader.readUE(); // seq_parameter_set_id
+    const seq_parameter_set_id = reader.readUE();
 
     let chroma_format_idc = 1; // Default to 4:2:0 for non-high profiles
 
@@ -193,6 +199,7 @@ export function parseSPS(spsNalUnit) {
     const vui_parameters_present_flag = reader.readBits(1);
     let frame_rate = null;
     let fixed_frame_rate = null;
+    let hrdParams = null;
 
     if (vui_parameters_present_flag) {
         const aspect_ratio_info_present_flag = reader.readBits(1);
@@ -232,7 +239,7 @@ export function parseSPS(spsNalUnit) {
 
             if (num_units_in_tick > 0 && time_scale > 0) {
                 frame_rate = time_scale / (2 * num_units_in_tick);
-                // Sanity check for unrealistic frame rates (e.g. due to field/frame mismatch or bad VUI)
+                // Sanity check for unrealistic frame rates
                 if (frame_rate > 240) {
                     appLog(
                         'sps.js',
@@ -246,11 +253,12 @@ export function parseSPS(spsNalUnit) {
         }
         const nal_hrd_parameters_present_flag = reader.readBits(1);
         if (nal_hrd_parameters_present_flag) {
-            parseHRDParameters(reader);
+            hrdParams = parseHRDParameters(reader);
         }
         const vcl_hrd_parameters_present_flag = reader.readBits(1);
         if (vcl_hrd_parameters_present_flag) {
-            parseHRDParameters(reader);
+            const vclHrdParams = parseHRDParameters(reader);
+            if (!hrdParams) hrdParams = vclHrdParams; // Prefer NAL, fallback VCL
         }
         if (
             nal_hrd_parameters_present_flag ||
@@ -272,11 +280,13 @@ export function parseSPS(spsNalUnit) {
     }
 
     const result = {
+        seq_parameter_set_id, // Added
         profile_idc,
         level_idc,
         resolution: `${width}x${height}`,
         frame_rate,
         fixed_frame_rate,
+        hrdParams,
     };
 
     appLog('sps.js', 'info', 'Successfully parsed SPS.', result);

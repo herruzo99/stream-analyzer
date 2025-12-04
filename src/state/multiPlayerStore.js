@@ -1,5 +1,7 @@
 import { createStore } from 'zustand/vanilla';
 
+// ARCHITECTURAL FIX: Added 'forwardBuffer' to default stats to match the PlayerStats interface
+// and prevent UI crashes in MetricsHudComponent during initialization.
 const defaultStats = {
     playheadTime: 0,
     manifestTime: 0,
@@ -17,7 +19,12 @@ const defaultStats = {
         switchesUp: 0,
         switchesDown: 0,
     },
-    buffer: { label: 'Buffer Health', seconds: 0, totalGaps: 0 },
+    buffer: {
+        label: 'Buffer Health',
+        seconds: 0,
+        totalGaps: 0,
+        forwardBuffer: 0,
+    },
     session: { totalPlayTime: 0, totalBufferingTime: 0 },
 };
 

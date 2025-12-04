@@ -1,11 +1,10 @@
-import { http, passthrough } from 'msw';
+import { delay, http, HttpResponse, passthrough } from 'msw';
 import { setupWorker } from 'msw/browser';
 
 import { appLog } from '@/shared/utils/debug';
+import { secureRandom } from '@/shared/utils/random';
 import { useAnalysisStore } from '@/state/analysisStore';
-import { networkActions } from '@/state/networkStore';
-
-// --- Configuration ---
+import { networkActions, useNetworkStore } from '@/state/networkStore';
 
 const IGNORED_HOSTS = new Set([
     'fonts.gstatic.com',
@@ -15,7 +14,6 @@ const IGNORED_HOSTS = new Set([
     'www.googletagmanager.com',
     'clarity.ms',
 ]);
-
 const IGNORED_EXTENSIONS = new Set([
     '.js',
     '.css',
@@ -25,160 +23,217 @@ const IGNORED_EXTENSIONS = new Set([
     '.woff',
     '.woff2',
     '.ttf',
-    '.json', // Internal app assets
+    '.json',
 ]);
 
-/**
- * Determines if a URL should be completely ignored by MSW (Native Bypass).
- * @param {URL} url
- * @returns {boolean}
- */
 function shouldBypass(url) {
-    // 1. Ignore App Internals (Same Origin Assets)
-    if (url.origin === self.location.origin) {
-        // Exception: We might want to log local streams if user loaded a file via blob
-        if (url.protocol === 'blob:') return false;
+    if (url.origin === self.location.origin && url.protocol !== 'blob:')
         return true;
-    }
-
-    // 2. Ignore Known External Hosts
     if (IGNORED_HOSTS.has(url.hostname)) return true;
-
-    // 3. Ignore Static Assets via Extension
     const pathname = url.pathname.toLowerCase();
-    for (const ext of IGNORED_EXTENSIONS) {
+    for (const ext of IGNORED_EXTENSIONS)
         if (pathname.endsWith(ext)) return true;
-    }
-
     return false;
 }
 
-/**
- * Optimized classification. Avoids iterating all segments for every request.
- * @param {string} urlString
- * @param {import('@/types').Stream[]} streams
- * @returns {{ streamId: number | null, resourceType: import('@/types').ResourceType }}
- */
 function classifyRequest(urlString, streams) {
-    // 1. Fast Lookup: Check if we have explicitly mapped this URL (e.g. from Shaka plugin)
+    // 1. Exact Match via Auth Map (High Confidence)
     const { urlAuthMap } = useAnalysisStore.getState();
     if (urlAuthMap.has(urlString)) {
         const ctx = urlAuthMap.get(urlString);
-        return {
-            streamId: ctx.streamId,
-            resourceType: 'video', // Default assumption for cached segments, refined if needed
-        };
+        return { streamId: ctx.streamId, resourceType: 'video' };
     }
 
-    // 2. Heuristic: Match against Stream Base URLs (Fast)
     for (const stream of streams) {
-        if (stream.originalUrl === urlString || stream.baseUrl === urlString) {
+        if (stream.originalUrl === urlString || stream.baseUrl === urlString)
             return { streamId: stream.id, resourceType: 'manifest' };
-        }
 
-        // License Server Check
         const licenseUrl = stream.drmAuth?.licenseServerUrl;
         if (licenseUrl) {
             const target =
                 typeof licenseUrl === 'string'
                     ? licenseUrl
                     : Object.values(licenseUrl)[0];
-            if (target && urlString.startsWith(target)) {
+            if (target && urlString.startsWith(target))
                 return { streamId: stream.id, resourceType: 'license' };
-            }
         }
 
-        // Base Path Matching
         const basePath = stream.baseUrl
             ? stream.baseUrl.substring(0, stream.baseUrl.lastIndexOf('/'))
             : '';
         if (basePath && urlString.startsWith(basePath)) {
             let type = 'video';
-            if (urlString.includes('.m4a') || urlString.includes('audio'))
+            // FIX: Prioritize manifest extensions inside the base path match to prevent misclassification as 'video'
+            if (urlString.includes('.mpd') || urlString.includes('.m3u8'))
+                type = 'manifest';
+            else if (urlString.includes('.m4a') || urlString.includes('audio'))
                 type = 'audio';
             else if (urlString.includes('.vtt') || urlString.includes('subs'))
                 type = 'text';
             else if (urlString.includes('init')) type = 'init';
-            else if (urlString.includes('.key')) type = 'key'; // HLS Key
+            else if (urlString.includes('.key')) type = 'key';
 
-            return {
-                streamId: stream.id,
-                resourceType: /** @type {import('@/types').ResourceType} */ (
-                    type
-                ),
-            };
+            return { streamId: stream.id, resourceType: type };
         }
     }
 
-    // 3. Fallback: Deep Scan (Slow)
-    for (const stream of streams) {
-        // Check DASH State
-        for (const repState of stream.dashRepresentationState.values()) {
-            const found = repState.segments.find(
-                (s) => s.resolvedUrl === urlString
-            );
-            if (found) return { streamId: stream.id, resourceType: 'video' };
-        }
-        // Check HLS State
-        for (const varState of stream.hlsVariantState.values()) {
-            const found = varState.segments.find(
-                (s) => s.resolvedUrl === urlString
-            );
-            if (found) return { streamId: stream.id, resourceType: 'video' };
-        }
-    }
+    // 3. Fallback (Pure URL Analysis)
+    const lowerUrl = urlString.toLowerCase();
+    if (
+        lowerUrl.includes('.mpd') ||
+        lowerUrl.includes('.m3u8') ||
+        lowerUrl.includes('manifest')
+    )
+        return { streamId: null, resourceType: 'manifest' };
+    if (
+        lowerUrl.includes('license') ||
+        lowerUrl.includes('widevine') ||
+        lowerUrl.includes('playready')
+    )
+        return { streamId: null, resourceType: 'license' };
+    if (
+        lowerUrl.endsWith('.ts') ||
+        lowerUrl.endsWith('.m4s') ||
+        lowerUrl.includes('segment')
+    )
+        return { streamId: null, resourceType: 'video' };
 
     return { streamId: null, resourceType: 'other' };
 }
 
-/**
- * Initializes a robust, low-overhead global request interceptor.
- */
+function logIntervention(urlString, method, rule, headers, duration = 0) {
+    const { streams } = useAnalysisStore.getState();
+    const { streamId, resourceType } = classifyRequest(urlString, streams);
+    const responseStatus =
+        rule.action === 'block' ? rule.params.statusCode || 404 : 200;
+    const statusText = rule.action === 'block' ? 'Blocked by Rule' : 'Delayed';
+
+    networkActions.logEvent({
+        id: crypto.randomUUID(),
+        url: urlString,
+        resourceType,
+        streamId,
+        request: { method, headers: headers || {}, body: null },
+        response: {
+            status: responseStatus,
+            statusText,
+            headers: { 'x-intervention-rule': rule.label },
+            contentLength: 0,
+            contentType: 'application/json',
+            body: null,
+        },
+        timing: {
+            startTime: performance.now(),
+            endTime: performance.now() + duration,
+            duration,
+            breakdown: null,
+        },
+        auditStatus: 'warn',
+        auditIssues: [
+            {
+                id: 'intervention',
+                level: 'warn',
+                message: `Request ${rule.action}ed by rule: "${rule.label}"`,
+            },
+        ],
+    });
+}
+
 export async function initializeGlobalRequestInterceptor() {
-    appLog('GlobalRequestInterceptor', 'info', 'Initializing optimized MSW...');
+    appLog(
+        'GlobalRequestInterceptor',
+        'info',
+        'Initializing Intervention Engine...'
+    );
 
     const handlers = [
         http.all('*', async ({ request }) => {
             const url = new URL(request.url);
-
-            if (shouldBypass(url)) {
-                return undefined;
-            }
-
-            // ARCHITECTURAL FIX: For external assets that cause CORS/SW issues, we bypass manually
+            if (shouldBypass(url)) return undefined;
             if (
-                url.hostname.endsWith('fonts.gstatic.com') ||
-                url.hostname.endsWith('fonts.googleapis.com') ||
-                url.hostname === 'cdn.jsdelivr.net' ||
-                url.hostname === 'js-de.sentry-cdn.com' ||
-                url.hostname === 'www.googletagmanager.com' ||
-                request.destination === 'font'
-            ) {
-                try {
-                    const response = await fetch(request.url, {
-                        method: 'GET',
-                        mode: 'cors',
-                        credentials: 'omit',
-                        cache: 'default',
-                    });
-                    return response;
-                } catch (_e) {
-                    return new Response(null, {
-                        status: 404,
-                        statusText: 'Not Found (Interceptor Fallback)',
-                    });
+                url.hostname.includes('google') ||
+                url.hostname.includes('jsdelivr')
+            )
+                return passthrough();
+
+            const { interventionRules } = useNetworkStore.getState();
+            const activeRules = interventionRules.filter((r) => r.enabled);
+
+            if (activeRules.length > 0) {
+                const { streams } = useAnalysisStore.getState();
+                const { resourceType } = classifyRequest(request.url, streams);
+
+                for (const rule of activeRules) {
+                    if (
+                        rule.resourceType !== 'all' &&
+                        rule.resourceType !== resourceType
+                    )
+                        continue;
+
+                    let match = false;
+                    try {
+                        const regex = new RegExp(rule.urlPattern, 'i');
+                        match = regex.test(request.url);
+                    } catch (_e) {
+                        match = request.url.includes(rule.urlPattern);
+                    }
+
+                    if (!rule.urlPattern) match = true;
+
+                    if (!match) continue;
+
+                    const probability =
+                        rule.params.probability !== undefined
+                            ? rule.params.probability
+                            : 100;
+                    const roll = secureRandom() * 100;
+                    if (roll > probability) continue;
+
+                    appLog(
+                        'Intervention',
+                        'warn',
+                        `Applying Rule: ${rule.label} to ${request.url}`
+                    );
+
+                    if (rule.action === 'block') {
+                        const status = rule.params.statusCode || 404;
+                        const headers = {};
+                        request.headers.forEach((v, k) => (headers[k] = v));
+                        logIntervention(
+                            request.url,
+                            request.method,
+                            rule,
+                            headers
+                        );
+                        return new HttpResponse(null, {
+                            status,
+                            statusText: `Blocked: ${rule.label}`,
+                        });
+                    }
+
+                    if (rule.action === 'delay') {
+                        const ms = rule.params.delayMs || 2000;
+                        const headers = {};
+                        request.headers.forEach((v, k) => (headers[k] = v));
+                        logIntervention(
+                            request.url,
+                            request.method,
+                            rule,
+                            headers,
+                            ms
+                        );
+                        await delay(ms);
+                        break;
+                    }
                 }
             }
-
             return passthrough();
         }),
     ];
 
     const worker = setupWorker(...handlers);
-
     worker.events.on('response:bypass', async ({ response, request }) => {
         const urlString = request.url;
-
         try {
             if (shouldBypass(new URL(urlString))) return;
         } catch {
@@ -187,80 +242,27 @@ export async function initializeGlobalRequestInterceptor() {
 
         const { streams } = useAnalysisStore.getState();
         const { streamId, resourceType } = classifyRequest(urlString, streams);
+        if (streamId === null && resourceType === 'other') return;
 
-        if (streamId === null && resourceType === 'other') {
-            return;
-        }
-
-        const contentLengthHeader = response.headers.get('content-length');
-        const contentLength = contentLengthHeader
-            ? parseInt(contentLengthHeader, 10)
-            : 0;
-        const contentType = response.headers.get('content-type') || '';
-
-        /** @type {Record<string, string>} */
         const responseHeaders = {};
         response.headers.forEach((val, key) => {
             responseHeaders[key] = val;
         });
 
-        /** @type {Record<string, string>} */
-        const requestHeaders = {};
-        request.headers.forEach((val, key) => {
-            requestHeaders[key] = val;
-        });
-
-        // --- BODY CAPTURE LOGIC ---
-        // Only capture bodies for specific types to avoid performance hit
-        let requestBody = null;
-        let responseBody = null;
-
-        // Updated Logic: Always capture text-based manifests, keys, licenses, and small JSON
-        const isManifestLike =
-            resourceType === 'manifest' ||
-            contentType.includes('xml') ||
-            contentType.includes('mpegurl') ||
-            contentType.includes('dash+xml');
-
-        const shouldCapture =
-            isManifestLike ||
-            resourceType === 'license' ||
-            resourceType === 'key' ||
-            (contentType.includes('json') && contentLength < 50000);
-
-        if (shouldCapture) {
-            if (!request.bodyUsed) {
-                try {
-                    requestBody = await request.clone().arrayBuffer();
-                } catch (_e) {
-                    // Ignore body errors
-                }
-            }
-            try {
-                // Ensure we clone before reading
-                responseBody = await response.clone().arrayBuffer();
-            } catch (e) {
-                console.warn('Failed to capture body', e);
-            }
-        }
-
-        const eventPayload = {
+        networkActions.logEvent({
             id: crypto.randomUUID(),
             url: urlString,
-            resourceType: resourceType,
-            streamId: streamId,
-            request: {
-                method: request.method,
-                headers: requestHeaders,
-                body: requestBody,
-            },
+            resourceType,
+            streamId,
+            request: { method: request.method, headers: {}, body: null },
             response: {
                 status: response.status,
                 statusText: response.statusText,
                 headers: responseHeaders,
-                contentLength: contentLength,
-                contentType: contentType,
-                body: responseBody,
+                contentLength:
+                    Number(response.headers.get('content-length')) || 0,
+                contentType: response.headers.get('content-type') || '',
+                body: null,
             },
             timing: {
                 startTime: performance.now(),
@@ -268,22 +270,12 @@ export async function initializeGlobalRequestInterceptor() {
                 duration: 0,
                 breakdown: null,
             },
-        };
-
-        networkActions.logEvent(eventPayload);
+        });
     });
 
     try {
-        await worker.start({
-            onUnhandledRequest: 'bypass',
-            quiet: true,
-        });
-        appLog(
-            'GlobalRequestInterceptor',
-            'info',
-            'MSW active (Low-Overhead Mode).'
-        );
-    } catch (error) {
-        console.error('Failed to start MSW:', error);
+        await worker.start({ onUnhandledRequest: 'bypass', quiet: true });
+    } catch (e) {
+        console.error('MSW Start Failed', e);
     }
 }

@@ -1,5 +1,6 @@
 import { eventBus } from '@/application/event-bus';
 import { useAnalysisStore } from '@/state/analysisStore';
+import { useTestSuiteStore } from '@/state/testSuiteStore'; // NEW
 import { useUiStore } from '@/state/uiStore';
 import * as icons from '@/ui/icons';
 import { html, render } from 'lit-html';
@@ -9,11 +10,19 @@ import './components/issue-list.js';
 import { navigationTemplate } from './components/navigation.js';
 import { manifestViewTemplate } from './components/renderer.js';
 import { standardSelectorTemplate } from './components/standard-selector.js';
+import { testRunnerTemplate } from './components/test-runner.js'; // NEW
+
+// Need to register the manager component for the dynamic import in test-runner to work seamlessly
+// although lit-html handles it, ensuring the file is bundled:
+import './components/test-suite-manager.js';
 
 let container = null;
 let currentStreamId = null;
 let uiUnsubscribe = null;
 let analysisUnsubscribe = null;
+let testSuiteUnsubscribe = null; // NEW
+
+// 'dashboard' | 'source' | 'regression'
 let viewMode = 'dashboard';
 
 function renderComplianceView() {
@@ -79,6 +88,12 @@ function renderComplianceView() {
         </div>
     `;
 
+    const regressionContent = html`
+        <div class="h-full flex flex-col animate-fadeIn">
+            ${testRunnerTemplate(stream)}
+        </div>
+    `;
+
     const header = html`
         <header
             class="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 mb-6 shrink-0"
@@ -87,7 +102,7 @@ function renderComplianceView() {
                 <h2
                     class="text-2xl font-bold text-white flex items-center gap-2"
                 >
-                    ${icons.shieldCheck} Compliance Report
+                    ${icons.shieldCheck} Compliance & Testing
                 </h2>
                 <p class="text-slate-400 text-sm mt-1">
                     Analyzed against
@@ -109,7 +124,16 @@ function renderComplianceView() {
                             ? 'bg-blue-600 text-white shadow-md'
                             : 'text-slate-400 hover:text-slate-200'}"
                     >
-                        ${icons.layout} Dashboard
+                        ${icons.layout} Standards
+                    </button>
+                    <button
+                        @click=${() => toggleView('regression')}
+                        class="px-3 py-1.5 text-xs font-bold rounded transition-colors flex items-center gap-2 ${viewMode ===
+                        'regression'
+                            ? 'bg-blue-600 text-white shadow-md'
+                            : 'text-slate-400 hover:text-slate-200'}"
+                    >
+                        ${icons.beaker} Regression
                     </button>
                     <button
                         @click=${() => toggleView('source')}
@@ -118,7 +142,7 @@ function renderComplianceView() {
                             ? 'bg-blue-600 text-white shadow-md'
                             : 'text-slate-400 hover:text-slate-200'}"
                     >
-                        ${icons.code} Source View
+                        ${icons.code} Source
                     </button>
                 </div>
                 <div class="w-px h-6 bg-slate-700 mx-1"></div>
@@ -140,16 +164,15 @@ function renderComplianceView() {
         </header>
     `;
 
-    // FIX: Added padding and scroll wrapper
+    let activeContent = dashboardContent;
+    if (viewMode === 'source') activeContent = sourceContent;
+    if (viewMode === 'regression') activeContent = regressionContent;
+
     render(
         html`
             <div class="flex flex-col h-full overflow-y-auto p-4 sm:p-6">
                 ${header}
-                <div class="grow min-h-0 relative">
-                    ${viewMode === 'dashboard'
-                        ? dashboardContent
-                        : sourceContent}
-                </div>
+                <div class="grow min-h-0 relative">${activeContent}</div>
             </div>
         `,
         container
@@ -162,15 +185,24 @@ export const complianceView = {
         currentStreamId = stream.id;
         if (uiUnsubscribe) uiUnsubscribe();
         if (analysisUnsubscribe) analysisUnsubscribe();
+        if (testSuiteUnsubscribe) testSuiteUnsubscribe();
+
         uiUnsubscribe = useUiStore.subscribe(renderComplianceView);
         analysisUnsubscribe = useAnalysisStore.subscribe(renderComplianceView);
+        // Subscribe to test suite changes to trigger re-renders in regression mode
+        testSuiteUnsubscribe =
+            useTestSuiteStore.subscribe(renderComplianceView);
+
         renderComplianceView();
     },
     unmount() {
         if (uiUnsubscribe) uiUnsubscribe();
         if (analysisUnsubscribe) analysisUnsubscribe();
+        if (testSuiteUnsubscribe) testSuiteUnsubscribe();
+
         uiUnsubscribe = null;
         analysisUnsubscribe = null;
+        testSuiteUnsubscribe = null;
         container = null;
         currentStreamId = null;
     },

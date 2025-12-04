@@ -1,10 +1,11 @@
 import * as icons from '@/ui/icons';
 import { formatBitrate } from '@/ui/shared/format';
-import { html } from 'lit-html'; // Ensure render is imported if used, though usually just html
+import { html } from 'lit-html';
+import { extractCmcdData } from '../../domain/cmcd-validator.js'; // Import the validator
+import { cmcdPanelTemplate } from './cmcd-panel.js'; // Import the UI
 import { headerDetailsTemplate } from './header-details.js';
 import { responseViewerTemplate } from './response-viewer.js';
 
-// ... (detailItem, breakdownBar, auditFindingsTemplate helpers remain unchanged) ...
 const detailItem = (label, value, isMono = false) => html`
     <div
         class="flex justify-between py-2 border-b border-slate-800 last:border-0 hover:bg-slate-800/30 px-2 transition-colors rounded"
@@ -110,6 +111,9 @@ export const networkDetailsPanelTemplate = (event) => {
     );
     const hasDetailedTiming = Object.values(breakdown).some((v) => v > 0);
 
+    // --- Extract CMCD ---
+    const cmcdData = extractCmcdData(event);
+
     return html`
         <div
             class="flex flex-col h-full bg-slate-900 border border-slate-700 rounded-lg overflow-hidden shadow-xl"
@@ -133,8 +137,6 @@ export const networkDetailsPanelTemplate = (event) => {
             </div>
 
             <div class="grow overflow-y-auto custom-scrollbar">
-                <!-- We use specific IDs for anchors if needed, but simple stacking is fine here -->
-
                 <div class="p-4 space-y-6">
                     ${auditFindingsTemplate(issues)}
 
@@ -170,7 +172,10 @@ export const networkDetailsPanelTemplate = (event) => {
                         </div>
                     </section>
 
-                    <!-- Response Body (New) -->
+                    <!-- CMCD Panel (New) -->
+                    ${cmcdPanelTemplate(cmcdData)}
+
+                    <!-- Response Body -->
                     <section>
                         <h5
                             class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2"
