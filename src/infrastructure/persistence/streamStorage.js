@@ -34,10 +34,11 @@ export function prepareForStorage(input) {
     // Use structuredClone if available, else JSON fallback
     let storableInput;
     try {
-        storableInput = typeof structuredClone === 'function' 
-            ? structuredClone(input) 
-            : JSON.parse(JSON.stringify(input));
-    } catch(_e) {
+        storableInput =
+            typeof structuredClone === 'function'
+                ? structuredClone(input)
+                : JSON.parse(JSON.stringify(input));
+    } catch (_e) {
         // Fallback for non-cloneable objects
         storableInput = JSON.parse(JSON.stringify(input));
     }
@@ -45,7 +46,7 @@ export function prepareForStorage(input) {
     delete storableInput.id;
     delete storableInput.detectedDrm;
     delete storableInput.isDrmInfoLoading;
-    delete storableInput.file; 
+    delete storableInput.file;
 
     if (storableInput.drmAuth?.serverCertificate instanceof File) {
         const file = /** @type {File} */ (
@@ -104,22 +105,30 @@ function getItems(key) {
     try {
         const raw = localStorage.getItem(key);
         if (!raw) return [];
-        
+
         const stored = JSON.parse(raw);
         if (!Array.isArray(stored)) {
-            console.warn(`[Storage] Data for key "${key}" is not an array. Resetting.`);
+            console.warn(
+                `[Storage] Data for key "${key}" is not an array. Resetting.`
+            );
             localStorage.removeItem(key);
             return [];
         }
-        
+
         return stored.map(restoreFromStorage);
     } catch (e) {
-        console.error(`[Storage] Critical error reading key "${key}". Clearing corrupt data to allow boot.`, e);
+        console.error(
+            `[Storage] Critical error reading key "${key}". Clearing corrupt data to allow boot.`,
+            e
+        );
         // Self-healing: Remove corrupt data so the app can start next time
         try {
             localStorage.removeItem(key);
-        } catch(removeErr) {
-             console.error(`[Storage] Failed to clear corrupt key "${key}"`, removeErr);
+        } catch (removeErr) {
+            console.error(
+                `[Storage] Failed to clear corrupt key "${key}"`,
+                removeErr
+            );
         }
         return [];
     }
@@ -128,13 +137,18 @@ function getItems(key) {
 function setItems(key, items) {
     try {
         const storableItems = items.map(prepareForStorage);
-        // Safety check: Don't store massive blobs. 
+        // Safety check: Don't store massive blobs.
         // 5MB is roughly the limit, check if we're pushing dangerous sizes
         const str = JSON.stringify(storableItems);
         if (str.length > 4 * 1024 * 1024) {
-             console.warn(`[Storage] Data for "${key}" exceeds 4MB. Aborting save to prevent quota errors.`);
-             showToast({ message: 'Data too large to save history.', type: 'warn' });
-             return;
+            console.warn(
+                `[Storage] Data for "${key}" exceeds 4MB. Aborting save to prevent quota errors.`
+            );
+            showToast({
+                message: 'Data too large to save history.',
+                type: 'warn',
+            });
+            return;
         }
         localStorage.setItem(key, str);
     } catch (e) {
@@ -200,7 +214,7 @@ export function saveWorkspace(workspace) {
     const newWorkspaces = workspaces.filter((w) => w.name !== workspace.name);
     newWorkspaces.unshift(workspace);
     setItems(WORKSPACES_KEY, newWorkspaces);
-    uiActions.loadWorkspaces(); 
+    uiActions.loadWorkspaces();
     showToast({
         message: `Workspace "${workspace.name}" saved!`,
         type: 'pass',

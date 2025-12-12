@@ -72,7 +72,9 @@ export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
             let requestUrlObj = null;
             try {
                 requestUrlObj = new URL(uri);
-            } catch (_e) { /* ignore */ }
+            } catch (_e) {
+                /* ignore */
+            }
 
             for (const stream of streams) {
                 if (streamId !== null && stream.id !== streamId) continue;
@@ -85,11 +87,16 @@ export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
                         if (requestUrlObj) {
                             try {
                                 const segUrl = new URL(segUrlString);
-                                if (segUrl.pathname === requestUrlObj.pathname) return true;
-                            } catch { /* ignore */ }
+                                if (segUrl.pathname === requestUrlObj.pathname)
+                                    return true;
+                            } catch {
+                                /* ignore */
+                            }
                         }
                         if (cleanRange && requestUrlObj) {
-                            const reqFilename = requestUrlObj.pathname.split('/').pop();
+                            const reqFilename = requestUrlObj.pathname
+                                .split('/')
+                                .pop();
                             if (segUrlString.endsWith(reqFilename)) return true;
                         }
                         return false;
@@ -100,19 +107,27 @@ export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
 
                         // 1. Direct Range Match (Start Byte)
                         // This handles both Init segments (type='Init') and Media segments
-                        const match = segments.find(s => {
+                        const match = segments.find((s) => {
                             if (!s.range) return false;
                             const [segStart] = s.range.split('-').map(Number);
-                            return reqStart === segStart && matchesUrl(s.resolvedUrl);
+                            return (
+                                reqStart === segStart &&
+                                matchesUrl(s.resolvedUrl)
+                            );
                         });
 
                         if (match) return match;
 
                         // 2. Contiguous Init/Index Match (Heuristic)
                         // If the request starts immediately after an Init segment, treat it as part of Init (e.g. SIDX).
-                        const initSegment = segments.find(s => s.type === 'Init' && matchesUrl(s.resolvedUrl));
+                        const initSegment = segments.find(
+                            (s) =>
+                                s.type === 'Init' && matchesUrl(s.resolvedUrl)
+                        );
                         if (initSegment && initSegment.range) {
-                            const [_, initEnd] = initSegment.range.split('-').map(Number);
+                            const [_, initEnd] = initSegment.range
+                                .split('-')
+                                .map(Number);
                             // Allow for 1-byte contiguity (end 2952, next 2953)
                             if (reqStart === initEnd + 1) {
                                 return initSegment;
@@ -121,9 +136,9 @@ export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
                     }
 
                     // 3. Fallback: URL-only match (if no range requested, or range match failed)
-                    // We prioritize Media segments over Init if no range is specified, but 
+                    // We prioritize Media segments over Init if no range is specified, but
                     // if it's the only match, we take it.
-                    return segments.find(s => {
+                    return segments.find((s) => {
                         if (cleanRange && !s.range) return false;
                         return matchesUrl(s.resolvedUrl);
                     });
@@ -135,7 +150,9 @@ export function shakaNetworkPlugin(uri, request, requestType, progressUpdated) {
                     // Check Init Segment specifically first if it exists in state root
                     if (state.initSegment) {
                         // Temporary wrap in array for shared logic
-                        const initMatch = findInState({ segments: [state.initSegment] });
+                        const initMatch = findInState({
+                            segments: [state.initSegment],
+                        });
                         if (initMatch) {
                             foundSegment = initMatch;
                             break;

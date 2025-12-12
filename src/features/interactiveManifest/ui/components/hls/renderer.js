@@ -185,28 +185,32 @@ export const hlsManifestTemplate = (
         (stream.manifest.variants || []).forEach((v, i) => {
             if (v.uri) {
                 // Determine label: StableID > ID > Generic Index
-                const label = v.stableId || v.id || `Variant ${i+1}`;
+                const label = v.stableId || v.id || `Variant ${i + 1}`;
                 uriBadgeMap.set(v.uri.trim(), { label, type: 'variant' });
             }
         });
 
         // 2. Media Renditions (EXT-X-MEDIA URI=...)
-        (stream.manifest.media || []).forEach(m => {
+        (stream.manifest.media || []).forEach((m) => {
             const uri = m.value.URI;
             if (uri) {
-                 // Use NAME or Group ID for identification
-                 const label = m.value.NAME || m.value['GROUP-ID'] || 'Rendition';
-                 uriBadgeMap.set(uri.trim(), { label, type: 'rendition' });
+                // Use NAME or Group ID for identification
+                const label =
+                    m.value.NAME || m.value['GROUP-ID'] || 'Rendition';
+                uriBadgeMap.set(uri.trim(), { label, type: 'rendition' });
             }
         });
-        
+
         // 3. I-Frame Streams (EXT-X-I-FRAME-STREAM-INF URI=...)
-        (stream.manifest.iframeStreams || []).forEach(ifs => {
-             // Handle parser variance (sometimes nested in value object)
-             const uri = ifs.value?.URI || ifs.uri;
-             if (uri) {
-                 uriBadgeMap.set(uri.trim(), { label: 'I-Frame', type: 'iframe' });
-             }
+        (stream.manifest.iframeStreams || []).forEach((ifs) => {
+            // Handle parser variance (sometimes nested in value object)
+            const uri = ifs.value?.URI || ifs.uri;
+            if (uri) {
+                uriBadgeMap.set(uri.trim(), {
+                    label: 'I-Frame',
+                    type: 'iframe',
+                });
+            }
         });
     }
 

@@ -46,9 +46,9 @@ function renderSummary() {
     // --- FAULT TOLERANCE: Handle broken stream state ---
     if (!vm) {
         const handleRemove = () => {
-             if (confirm(`Remove broken stream "${stream.name}"?`)) {
-                 analysisActions.removeStreamInput(stream.id);
-             }
+            if (confirm(`Remove broken stream "${stream.name}"?`)) {
+                analysisActions.removeStreamInput(stream.id);
+            }
         };
 
         render(
@@ -56,22 +56,36 @@ function renderSummary() {
                 <div
                     class="flex flex-col items-center justify-center h-full text-slate-500 animate-fadeIn p-8 text-center"
                 >
-                    <div class="bg-red-900/20 p-6 rounded-full mb-4 shadow-lg border border-red-500/30 text-red-500">
+                    <div
+                        class="bg-red-900/20 p-6 rounded-full mb-4 shadow-lg border border-red-500/30 text-red-500"
+                    >
                         ${icons.alertTriangle}
                     </div>
-                    <h3 class="text-xl font-bold text-red-400 mb-2">Analysis Incomplete</h3>
+                    <h3 class="text-xl font-bold text-red-400 mb-2">
+                        Analysis Incomplete
+                    </h3>
                     <p class="text-sm text-slate-400 max-w-md mb-6">
-                        The manifest summary could not be generated. This usually indicates a parsing failure or an unsupported format.
+                        The manifest summary could not be generated. This
+                        usually indicates a parsing failure or an unsupported
+                        format.
                     </p>
-                    
-                    <div class="bg-slate-900/50 p-4 rounded-lg border border-slate-800 mb-6 w-full max-w-md text-left text-xs font-mono">
-                         <div class="text-slate-500 mb-1">Raw Manifest Preview:</div>
-                         <div class="text-slate-300 break-all whitespace-pre-wrap line-clamp-6">
-                             ${stream.rawManifest ? stream.rawManifest.slice(0, 500) : 'No content'}
-                         </div>
+
+                    <div
+                        class="bg-slate-900/50 p-4 rounded-lg border border-slate-800 mb-6 w-full max-w-md text-left text-xs font-mono"
+                    >
+                        <div class="text-slate-500 mb-1">
+                            Raw Manifest Preview:
+                        </div>
+                        <div
+                            class="text-slate-300 break-all whitespace-pre-wrap line-clamp-6"
+                        >
+                            ${stream.rawManifest
+                                ? stream.rawManifest.slice(0, 500)
+                                : 'No content'}
+                        </div>
                     </div>
 
-                    <button 
+                    <button
                         @click=${handleRemove}
                         class="px-5 py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg shadow-lg transition-all flex items-center gap-2"
                     >

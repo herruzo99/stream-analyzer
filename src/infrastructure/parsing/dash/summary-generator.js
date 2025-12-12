@@ -182,7 +182,6 @@ export async function generateDashSummary(
                         repBaseUrl
                     );
                     if (initInfo?.url) {
-
                         const parsedSegment =
                             await context.fetchAndParseSegment(
                                 initInfo.url,
@@ -199,7 +198,7 @@ export async function generateDashSummary(
                                 uniqueId,
                                 data: parsedSegment.rawBuffer,
                                 parsedData: parsedSegment.parsedData,
-                                template: initInfo.template
+                                template: initInfo.template,
                             });
                         }
 
@@ -316,7 +315,8 @@ export async function generateDashSummary(
             });
 
             // Fallback for sampling rate: Rep -> AS
-            const sampleRate = rep.audioSamplingRate || as.audioSamplingRate || null;
+            const sampleRate =
+                rep.audioSamplingRate || as.audioSamplingRate || null;
 
             return {
                 id: rep.id || as.id || 'N/A',
@@ -341,12 +341,14 @@ export async function generateDashSummary(
             if (!codecString) return false;
             const lowerCodec = codecString.toLowerCase();
             const audioPrefixes = ['mp4a', 'ac-3', 'ec-3', 'opus', 'flac'];
-            return audioPrefixes.some((prefix) => lowerCodec.startsWith(prefix));
+            return audioPrefixes.some((prefix) =>
+                lowerCodec.startsWith(prefix)
+            );
         };
 
-        allVideoTracks.forEach(vt => {
+        allVideoTracks.forEach((vt) => {
             // Check explicit codecs
-            (vt.codecs || []).forEach(c => {
+            (vt.codecs || []).forEach((c) => {
                 if (isAudioCodec(c.value)) {
                     muxedCodecs.add(c.value);
                 }
@@ -354,7 +356,7 @@ export async function generateDashSummary(
 
             // Check pre-parsed muxedAudio from adapter
             if (vt.muxedAudio && vt.muxedAudio.codecs) {
-                vt.muxedAudio.codecs.forEach(c => {
+                vt.muxedAudio.codecs.forEach((c) => {
                     if (isAudioCodec(c.value)) {
                         muxedCodecs.add(c.value);
                     }
@@ -369,18 +371,22 @@ export async function generateDashSummary(
                 id: 'muxed-audio',
                 label: 'Muxed',
                 lang: 'und',
-                codecs: Array.from(muxedCodecs).map(c => ({ value: c, source: 'variant', supported: isCodecSupported(c.value) })),
+                codecs: Array.from(muxedCodecs).map((c) => ({
+                    value: c,
+                    source: 'variant',
+                    supported: isCodecSupported(c.value),
+                })),
                 channels: null, // Assume stereo, or derive if possible
                 sampleRate: null, // Unknown
                 isDefault: allAudioTracks.length === 0, // Only default if no other tracks
                 isForced: false,
                 roles: ['main'],
                 bandwidth: 0, // Unknown
-                isMuxed: true
+                isMuxed: true,
             };
 
             // Add to audio tracks if not already present
-            if (!allAudioTracks.some(t => t.id === 'muxed-audio')) {
+            if (!allAudioTracks.some((t) => t.id === 'muxed-audio')) {
                 allAudioTracks.push(muxedTrack);
             }
         }

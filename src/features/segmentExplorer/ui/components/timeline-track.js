@@ -259,7 +259,9 @@ export class TimelineTrack extends HTMLElement {
                     : ''}
                 <span
                     class="uppercase font-semibold tracking-wider text-slate-400"
-                    >${primaryCodec ? primaryCodec.split('.')[0] : 'Video'}</span
+                    >${primaryCodec
+                        ? primaryCodec.split('.')[0]
+                        : 'Video'}</span
                 >
                 ${secondaryCodec
                     ? html`
@@ -396,11 +398,11 @@ export class TimelineTrack extends HTMLElement {
                 class="shrink-0 h-full flex flex-col items-center justify-center px-1 border-l border-slate-800 bg-slate-900/50 w-[50px] gap-1 py-1"
             >
                 ${sidxInfo && initSegment
-                ? html`
+                    ? html`
                           <div class="w-8 h-6">${initNode}</div>
                           <div class="w-8 h-6">${sidxNode}</div>
                       `
-                : html`
+                    : html`
                           <div class="w-10 h-10">
                               ${initSegment ? initNode : sidxNode || initNode}
                           </div>
@@ -409,28 +411,28 @@ export class TimelineTrack extends HTMLElement {
         `;
 
         const headerTemplate = html`
-    <div
-        class="sticky left-0 z-30 flex bg-slate-900 border-r border-slate-800 shadow-[4px_0_15px_rgba(0,0,0,0.5)] group select-none h-14 w-[${TRACK_HEADER_WIDTH}px] shrink-0"
-    >
-        <div
-            class="flex-1 flex flex-col justify-center px-3 py-1 min-w-0 w-[180px]"
-        >
-            <div class="flex items-baseline justify-between gap-2 mb-1">
-                <span
-                    class="font-bold text-sm text-slate-100 truncate"
-                    title="${label}"
-                    >${label}</span
+            <div
+                class="sticky left-0 z-30 flex bg-slate-900 border-r border-slate-800 shadow-[4px_0_15px_rgba(0,0,0,0.5)] group select-none h-14 w-[${TRACK_HEADER_WIDTH}px] shrink-0"
+            >
+                <div
+                    class="flex-1 flex flex-col justify-center px-3 py-1 min-w-0 w-[180px]"
                 >
-                <span
-                    class="text-[10px] font-mono text-cyan-400 bg-cyan-900/20 px-1.5 rounded border border-cyan-900/30"
-                    title="${isEstimatedBitrate
-                ? 'Estimated from segments'
-                : 'From manifest'}"
-                    >${isEstimatedBitrate && bandwidth > 0 ? '~' : ''}${formatBitrate(
-                    bandwidth
-                )}</span
-                >
-            </div>
+                    <div class="flex items-baseline justify-between gap-2 mb-1">
+                        <span
+                            class="font-bold text-sm text-slate-100 truncate"
+                            title="${label}"
+                            >${label}</span
+                        >
+                        <span
+                            class="text-[10px] font-mono text-cyan-400 bg-cyan-900/20 px-1.5 rounded border border-cyan-900/30"
+                            title="${isEstimatedBitrate
+                                ? 'Estimated from segments'
+                                : 'From manifest'}"
+                            >${isEstimatedBitrate && bandwidth > 0
+                                ? '~'
+                                : ''}${formatBitrate(bandwidth)}</span
+                        >
+                    </div>
                     <div
                         class="flex items-center gap-2 text-[10px] text-slate-500 truncate"
                     >
@@ -487,33 +489,33 @@ export class TimelineTrack extends HTMLElement {
                         style="position: absolute; left: ${leftPx}px; width: ${widthPx}px; height: 100%; padding: 2px;"
                     >
                         ${renderSegmentNode({
-                    segment,
-                    baselineDuration: 0,
-                    isSelected: ctx.compareSet
-                        ? ctx.compareSet.has(uniqueId)
-                        : false,
-                    isInspected,
-                    cacheStatus,
-                    hasParsedData,
-                    isStale,
-                    isNew,
-                    onClick: (e) =>
-                        handleSegmentClick(
-                            e,
                             segment,
-                            track.id, // Inject Track ID scope
-                            ctx.streamId,
-                            ctx.segmentFormat,
-                            ctx.clickMode,
-                            ctx.compareSet,
-                            useSegmentCacheStore.getState().set
-                        ),
-                })}
+                            baselineDuration: 0,
+                            isSelected: ctx.compareSet
+                                ? ctx.compareSet.has(uniqueId)
+                                : false,
+                            isInspected,
+                            cacheStatus,
+                            hasParsedData,
+                            isStale,
+                            isNew,
+                            onClick: (e) =>
+                                handleSegmentClick(
+                                    e,
+                                    segment,
+                                    track.id, // Inject Track ID scope
+                                    ctx.streamId,
+                                    ctx.segmentFormat,
+                                    ctx.clickMode,
+                                    ctx.compareSet,
+                                    useSegmentCacheStore.getState().set
+                                ),
+                        })}
                         ${hasSidx
-                        ? html`<div
+                            ? html`<div
                                   class="absolute bottom-1 left-1/2 -translate-x-1/2 w-3 h-0.5 bg-cyan-400/50 rounded-full pointer-events-none"
                               ></div>`
-                        : ''}
+                            : ''}
                     </div>
                 `;
             }

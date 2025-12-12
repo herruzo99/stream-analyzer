@@ -67,7 +67,7 @@ export class SegmentExplorerEngine {
                 if (as.id === trackId) return as.contentType;
 
                 // Check if any Representation ID matches (e.g. "English")
-                if (as.representations.some(r => r.id === trackId)) {
+                if (as.representations.some((r) => r.id === trackId)) {
                     return as.contentType;
                 }
             }
@@ -90,14 +90,7 @@ export class SegmentExplorerEngine {
             'av01',
             'mp4v',
         ];
-        const audioPrefixes = [
-            'mp4a',
-            'ac-3',
-            'ec-3',
-            'opus',
-            'flac',
-            'alac',
-        ];
+        const audioPrefixes = ['mp4a', 'ac-3', 'ec-3', 'opus', 'flac', 'alac'];
 
         let video = null;
         let audio = null;
@@ -198,7 +191,9 @@ export class SegmentExplorerEngine {
                             secondaryCodec = null,
                             resolution = null;
 
-                        const summaryTrack = stream.manifest?.summary?.[`${contentType}Tracks`]?.find(t => t.id === rep.id);
+                        const summaryTrack = stream.manifest?.summary?.[
+                            `${contentType}Tracks`
+                        ]?.find((t) => t.id === rep.id);
 
                         if (contentType === 'video') {
                             primaryCodec = summaryTrack?.format || video;
@@ -249,7 +244,9 @@ export class SegmentExplorerEngine {
                     const label = mediaTagValue.NAME || rep.lang || rep.id;
                     const contentType = as.contentType || 'unknown';
                     const allCodecs = (rep.codecs || []).map((c) => c.value);
-                    const summaryTrack = stream.manifest?.summary?.[`${contentType}Tracks`]?.find(t => t.id === rep.id);
+                    const summaryTrack = stream.manifest?.summary?.[
+                        `${contentType}Tracks`
+                    ]?.find((t) => t.id === rep.id);
 
                     let primaryCodec = null,
                         secondaryCodec = null,
@@ -270,7 +267,11 @@ export class SegmentExplorerEngine {
                         contentType === 'subtitles' ||
                         contentType === 'application'
                     ) {
-                        primaryCodec = summaryTrack?.format || rep.format || allCodecs[0] || 'Text';
+                        primaryCodec =
+                            summaryTrack?.format ||
+                            rep.format ||
+                            allCodecs[0] ||
+                            'Text';
                     }
 
                     return {
@@ -351,7 +352,10 @@ export class SegmentExplorerEngine {
             const entries = Array.from(segmentHistory.entries());
             // Sort by number if available, or time
             entries.sort((a, b) => {
-                if (typeof a[1].number === 'number' && typeof b[1].number === 'number') {
+                if (
+                    typeof a[1].number === 'number' &&
+                    typeof b[1].number === 'number'
+                ) {
                     return a[1].number - b[1].number;
                 }
                 return a[1].time - b[1].time;
@@ -433,10 +437,7 @@ export class SegmentExplorerEngine {
                     }
                     const group = groupedTracks.get(repId);
 
-                    for (const [
-                        timelineId,
-                        seg,
-                    ] of fragmentHistory.entries()) {
+                    for (const [timelineId, seg] of fragmentHistory.entries()) {
                         group.historyMap.set(timelineId, seg);
                     }
 
@@ -517,7 +518,7 @@ export class SegmentExplorerEngine {
         const rawTracks = Array.from(groupedTracks.values());
 
         // Calculate fallback bandwidth if missing (common for HLS Audio/Text)
-        rawTracks.forEach(track => {
+        rawTracks.forEach((track) => {
             if (!track.bandwidth || track.bandwidth === 0) {
                 track.isEstimatedBitrate = true;
                 let totalBytes = 0;

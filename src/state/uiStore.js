@@ -208,8 +208,7 @@ export const useUiStore = createStore((set, get) => ({
             manifestSearch: {
                 ...state.manifestSearch,
                 matchIndices: indices,
-                currentResultIndex:
-                    indices.length > 0 ? 0 : -1,
+                currentResultIndex: indices.length > 0 ? 0 : -1,
             },
         })),
     nextManifestSearchResult: () =>
@@ -245,7 +244,7 @@ export const useUiStore = createStore((set, get) => ({
     // ---------------------------------
 
     setActiveSidebar: (sidebar) => set({ activeSidebar: sidebar }),
-    
+
     // ... rest of actions unchanged
     setMultiPlayerActiveTab: (tab) => set({ multiPlayerActiveTab: tab }),
     toggleMultiPlayerViewMode: () =>
@@ -338,12 +337,9 @@ export const useUiStore = createStore((set, get) => ({
         set({ highlightedCompliancePathId: pathId }),
     setHighlightedComplianceCategory: (category) =>
         set({ highlightedComplianceCategory: category }),
-    setHighlightedQcMetric: (metric) => 
-        set({ highlightedQcMetric: metric }),
-    setHighlightedTimeRange: (range) =>
-        set({ highlightedTimeRange: range }),
-    setHighlightedIssueId: (id) =>
-        set({ highlightedIssueId: id }),
+    setHighlightedQcMetric: (metric) => set({ highlightedQcMetric: metric }),
+    setHighlightedTimeRange: (range) => set({ highlightedTimeRange: range }),
+    setHighlightedIssueId: (id) => set({ highlightedIssueId: id }),
     toggleComparisonTable: (tableId) =>
         set((state) => {
             const newSet = new Set(state.expandedComparisonTables);
@@ -514,11 +510,11 @@ export const useUiStore = createStore((set, get) => ({
     setTimelineHoveredItem: (item) => set({ timelineHoveredItem: item }),
     setTimelineSelectedItem: (item) => set({ timelineSelectedItem: item }),
     setTimelineActiveTab: (tab) => set({ timelineActiveTab: tab }),
-    
+
     requestPlayerPlayback: ({ startTime, autoPlay }) => {
-        set({ 
+        set({
             pendingPlayerRequest: { startTime, autoPlay },
-            activeTab: 'player-simulation' 
+            activeTab: 'player-simulation',
         });
     },
     clearPendingPlayerRequest: () => {

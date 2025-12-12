@@ -1,7 +1,13 @@
 import { tooltipTriggerClasses } from '@/ui/shared/constants';
 import { html } from 'lit-html';
 
-export const adTimelineTemplate = (avails, duration, onSelect, selectedId, labels = { start: '0s', end: 'End' }) => {
+export const adTimelineTemplate = (
+    avails,
+    duration,
+    onSelect,
+    selectedId,
+    labels = { start: '0s', end: 'End' }
+) => {
     // If duration is 0, render placeholder
     if (!duration) {
         return html`
@@ -44,15 +50,22 @@ export const adTimelineTemplate = (avails, duration, onSelect, selectedId, label
                         <div
                             @click=${() => onSelect(avail)}
                             class="absolute top-1/2 -translate-y-1/2 h-6 min-w-[4px] rounded-sm cursor-pointer transition-all duration-200 z-10 ${bgClass} ${shadowClass} ${tooltipTriggerClasses}"
-                            style="left: ${avail.timelineStyles.left}; width: ${avail.timelineStyles.width}; display: ${avail.timelineStyles.display};"
-                            data-tooltip="Start: ${avail.startTime.toFixed(2)}s | Dur: ${avail.duration.toFixed(2)}s"
+                            style="left: ${avail.timelineStyles
+                                .left}; width: ${avail.timelineStyles
+                                .width}; display: ${avail.timelineStyles
+                                .display};"
+                            data-tooltip="Start: ${avail.startTime.toFixed(
+                                2
+                            )}s | Dur: ${avail.duration.toFixed(2)}s"
                         ></div>
                     `;
                 })}
             </div>
-            
+
             <!-- Axis Labels -->
-            <div class="flex justify-between px-1 text-[10px] font-mono text-slate-500 uppercase tracking-wider">
+            <div
+                class="flex justify-between px-1 text-[10px] font-mono text-slate-500 uppercase tracking-wider"
+            >
                 <span>${labels.start}</span>
                 <span>${labels.end}</span>
             </div>

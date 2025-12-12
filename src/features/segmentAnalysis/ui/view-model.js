@@ -163,12 +163,15 @@ export function createSegmentAnalysisViewModel(
                 codecInfo.details.push(`${mediaInfo.audio.channels} Ch`);
             }
             if (mediaInfo.audio.language) {
-                 codecInfo.details.push(`Lang: ${mediaInfo.audio.language}`);
+                codecInfo.details.push(`Lang: ${mediaInfo.audio.language}`);
             }
         }
 
         // If Deep Analysis populated codec info (e.g. from bitstream scan), use it to refine
-        if (parsedData.detectedCodec && (codecInfo.name === 'Unknown' || codecInfo.name === undefined)) {
+        if (
+            parsedData.detectedCodec &&
+            (codecInfo.name === 'Unknown' || codecInfo.name === undefined)
+        ) {
             codecInfo.name = parsedData.detectedCodec;
             codecInfo.details.push('Detected via Bitstream Scan');
         }
@@ -176,16 +179,15 @@ export function createSegmentAnalysisViewModel(
         // TS Duration Fallback (PCR)
         // If we have bitstream analysis, prefer that duration
         if (parsedData.bitstreamAnalysis?.summary?.duration) {
-             stats.duration = parsedData.bitstreamAnalysis.summary.duration;
+            stats.duration = parsedData.bitstreamAnalysis.summary.duration;
         } else {
-             const pcrList = parsedData.data?.summary?.pcrList;
-             if (pcrList && pcrList.count > 1) {
-                 const first = Number(pcrList.firstPcr);
-                 const last = Number(pcrList.lastPcr);
-                 stats.duration = (last - first) / 27000000;
-             }
+            const pcrList = parsedData.data?.summary?.pcrList;
+            if (pcrList && pcrList.count > 1) {
+                const first = Number(pcrList.firstPcr);
+                const last = Number(pcrList.lastPcr);
+                stats.duration = (last - first) / 27000000;
+            }
         }
-
     } else if (format === 'vtt') {
         stats.formatLabel = 'WebVTT';
         stats.type = 'Subtitle';
@@ -235,7 +237,7 @@ export function createSegmentAnalysisViewModel(
             template: segmentMeta.template,
             presentationTime: segmentMeta.time,
             timescale: segmentMeta.timescale,
-            repId: segmentMeta.repId
+            repId: segmentMeta.repId,
         };
     }
 
@@ -248,6 +250,6 @@ export function createSegmentAnalysisViewModel(
         format,
         origin,
         // CRITICAL: Pass mediaInfo to UI for Descriptor display
-        mediaInfo: parsedData.mediaInfo
+        mediaInfo: parsedData.mediaInfo,
     };
 }

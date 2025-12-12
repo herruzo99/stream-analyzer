@@ -62,7 +62,8 @@ function decodeCcPair(flags, d1, d2) {
         // Check for Control Codes (Mid-Row, Misc Control, PAC)
         // Basic logic: if data1 is control code range
         const isControl =
-            (data1 >= 0x10 && data1 <= 0x1f) || (data1 >= 0x10 && data1 <= 0x17);
+            (data1 >= 0x10 && data1 <= 0x1f) ||
+            (data1 >= 0x10 && data1 <= 0x17);
 
         if (!isControl) {
             // Text characters

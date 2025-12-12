@@ -108,7 +108,7 @@ function createSyntheticManifest(url, name) {
                                 height: { value: 0, source: 'synthetic' },
                                 codecs: [],
                                 serializedManifest: {
-                                    BaseURL: [{ '#text': url }]
+                                    BaseURL: [{ '#text': url }],
                                 },
                                 mimeType: 'video/mp4',
                                 profiles: null,
@@ -148,7 +148,7 @@ function createSyntheticManifest(url, name) {
                                 supplementalCodecs: null,
                                 reqVideoLayout: null,
                                 tag: null,
-                                segmentProfiles: null
+                                segmentProfiles: null,
                             },
                         ],
                     },
@@ -171,7 +171,7 @@ function createSyntheticManifest(url, name) {
             ],
         },
         summary: null,
-        serverControl: null
+        serverControl: null,
     };
     return {
         manifest,
@@ -444,7 +444,9 @@ async function buildStreamObject(
     };
 
     if (input.protocol === 'hls' && streamObject.mediaPlaylists.size > 0) {
-        const uniqueAvails = new Map(streamObject.adAvails.map(a => [a.id, a]));
+        const uniqueAvails = new Map(
+            streamObject.adAvails.map((a) => [a.id, a])
+        );
 
         for (const playlistData of streamObject.mediaPlaylists.values()) {
             if (playlistData.manifest?.adAvails) {
@@ -455,7 +457,9 @@ async function buildStreamObject(
                 }
             }
         }
-        streamObject.adAvails = Array.from(uniqueAvails.values()).sort((a, b) => a.startTime - b.startTime);
+        streamObject.adAvails = Array.from(uniqueAvails.values()).sort(
+            (a, b) => a.startTime - b.startTime
+        );
     }
 
     if (streamObject.manifest?.type === 'dynamic') {
@@ -561,8 +565,8 @@ async function buildStreamObject(
                 id:
                     String(
                         event.scte35?.splice_command?.splice_event_id ||
-                        event.scte35?.descriptors?.[0]
-                            ?.segmentation_event_id
+                            event.scte35?.descriptors?.[0]
+                                ?.segmentation_event_id
                     ) || String(event.startTime),
                 startTime: event.startTime,
                 duration:
@@ -572,7 +576,7 @@ async function buildStreamObject(
                 scte35Signal: event.scte35,
                 adManifestUrl:
                     event.scte35?.descriptors?.[0]?.segmentation_upid_type ===
-                        0x0c
+                    0x0c
                         ? event.scte35.descriptors[0].segmentation_upid
                         : null,
                 creatives: [],
@@ -661,7 +665,10 @@ async function buildStreamObject(
             // Find the representation in the parsed manifest to get metadata
             let repMetadata = null;
             if (manifestIR && manifestIR.periods) {
-                for (const [periodIndex, period] of manifestIR.periods.entries()) {
+                for (const [
+                    periodIndex,
+                    period,
+                ] of manifestIR.periods.entries()) {
                     for (const as of period.adaptationSets) {
                         for (const rep of as.representations) {
                             // MATCHING LOGIC: Must match parseDashSegments composite key
@@ -671,7 +678,7 @@ async function buildStreamObject(
                                 repMetadata = {
                                     mediaType: as.contentType,
                                     mimeType: rep.mimeType || as.mimeType,
-                                    codecs: rep.codecs?.[0]?.value || null
+                                    codecs: rep.codecs?.[0]?.value || null,
                                 };
                                 break;
                             }
@@ -689,7 +696,7 @@ async function buildStreamObject(
                 diagnostics: data.diagnostics,
                 mediaType: repMetadata?.mediaType,
                 mimeType: repMetadata?.mimeType,
-                codecs: repMetadata?.codecs
+                codecs: repMetadata?.codecs,
             });
         }
     }
@@ -754,7 +761,8 @@ async function buildStreamObject(
     // Fix active ID logic to point to the created update
     streamObject.activeManifestUpdateId = streamObject.manifestUpdates[0].id;
     if (streamObject.mediaPlaylists.has('master')) {
-        streamObject.mediaPlaylists.get('master').activeUpdateId = streamObject.manifestUpdates[0].id;
+        streamObject.mediaPlaylists.get('master').activeUpdateId =
+            streamObject.manifestUpdates[0].id;
     }
 
     return streamObject;
@@ -1002,12 +1010,12 @@ export async function handleStartAnalysis({ inputs, postProgress }, signal) {
 
             const coverageReport = input.isDebug
                 ? [
-                    ...(preProcessed.protocol === 'dash'
-                        ? analyzeDashCoverage(serializedManifestObject)
-                        : []),
-                    // @ts-ignore
-                    ...analyzeParserDrift(manifestIR),
-                ]
+                      ...(preProcessed.protocol === 'dash'
+                          ? analyzeDashCoverage(serializedManifestObject)
+                          : []),
+                      // @ts-ignore
+                      ...analyzeParserDrift(manifestIR),
+                  ]
                 : [];
 
             const semanticData = new Map();

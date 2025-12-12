@@ -2,14 +2,17 @@ import { isDebugMode } from '@/shared/utils/env';
 import { uiActions, useUiStore } from '@/state/uiStore';
 import '@/ui/components/virtualized-list';
 import * as icons from '@/ui/icons';
-import { disposeChart, renderChart } from '@/ui/shared/charts/chart-renderer.js';
+import {
+    disposeChart,
+    renderChart,
+} from '@/ui/shared/charts/chart-renderer.js';
 import { tsInspectorDetailsTemplate } from '@/ui/shared/ts-renderer.js';
 import { html, render } from 'lit-html';
 
 // --- SYNTHETIC DATA GENERATOR FOR DEBUGGING ---
 function generateSyntheticDescriptorPacket() {
     const mockBaseOffset = 18800;
-    
+
     // Helper to create a mock descriptor object structure matching the parser output
     const mkDesc = (tag, name, details) => ({
         tag,
@@ -18,40 +21,40 @@ function generateSyntheticDescriptorPacket() {
         details: Object.entries(details).reduce((acc, [k, v]) => {
             acc[k] = { value: v, offset: mockBaseOffset, length: 1 };
             return acc;
-        }, {})
+        }, {}),
     });
 
     const descriptors = [
         mkDesc(0x23, 'MultiplexBuffer Descriptor', {
             MB_buffer_size: '2048 bytes',
-            TB_leak_rate: '4000 units (400 bits/s)'
+            TB_leak_rate: '4000 units (400 bits/s)',
         }),
-        mkDesc(0x0A, 'ISO 639 Language Descriptor', {
+        mkDesc(0x0a, 'ISO 639 Language Descriptor', {
             language: 'eng',
-            audio_type: 'Clean effects'
+            audio_type: 'Clean effects',
         }),
         mkDesc(0x28, 'AVC Video Descriptor', {
             profile_idc: 100,
             constraint_set0_flag: 0,
             constraint_set1_flag: 1,
-            AVC_compatible_flags: 0
+            AVC_compatible_flags: 0,
         }),
         mkDesc(0x05, 'Registration Descriptor', {
             format_identifier: '0x43554549 (CUEI)',
-            additional_identification_info: 'none'
+            additional_identification_info: 'none',
         }),
         mkDesc(0x38, 'HEVC Video Descriptor', {
             profile_space: 0,
             tier_flag: 0,
             profile_idc: 1,
-            level_idc: 120
+            level_idc: 120,
         }),
-        mkDesc(0x2A, 'AVC Timing and HRD Descriptor', {
+        mkDesc(0x2a, 'AVC Timing and HRD Descriptor', {
             hrd_management_valid_flag: 1,
             picture_and_timing_info_present: 1,
             '90kHz_flag': 1,
-            fixed_frame_rate_flag: 0
-        })
+            fixed_frame_rate_flag: 0,
+        }),
     ];
 
     return {
@@ -66,7 +69,7 @@ function generateSyntheticDescriptorPacket() {
             pid: { value: 0x100 },
             transport_scrambling_control: { value: 0 },
             adaptation_field_control: { value: 1 },
-            continuity_counter: { value: 0 }
+            continuity_counter: { value: 0 },
         },
         psi: {
             type: 'PMT',
@@ -78,16 +81,16 @@ function generateSyntheticDescriptorPacket() {
                     elementary_PID: { value: 0x101 },
                     es_info_length: { value: 0 },
                     es_descriptors: [
-                         mkDesc(0x02, 'Video Stream Descriptor', {
-                             multiple_frame_rate_flag: 0,
-                             frame_rate_code: 4,
-                             MPEG_1_only_flag: 0,
-                             profile_and_level_indication: 77
-                         })
-                    ]
-                }
-            ]
-        }
+                        mkDesc(0x02, 'Video Stream Descriptor', {
+                            multiple_frame_rate_flag: 0,
+                            frame_rate_code: 4,
+                            MPEG_1_only_flag: 0,
+                            profile_and_level_indication: 77,
+                        }),
+                    ],
+                },
+            ],
+        },
     };
 }
 
@@ -282,18 +285,18 @@ class TsStructureViewer extends HTMLElement {
         const { interactiveSegmentSelectedItem } = useUiStore.getState();
         const isSelected =
             interactiveSegmentSelectedItem?.item?.offset === p.offset;
-        
+
         const handleSelect = (e) => {
             e.stopPropagation();
             uiActions.setInteractiveSegmentSelectedItem(p);
         };
 
         const handleHover = (isEnter) => {
-             if (isEnter) {
-                 uiActions.setInteractiveSegmentHighlightedItem(p, 'Packet');
-             } else {
-                 uiActions.setInteractiveSegmentHighlightedItem(null, null);
-             }
+            if (isEnter) {
+                uiActions.setInteractiveSegmentHighlightedItem(p, 'Packet');
+            } else {
+                uiActions.setInteractiveSegmentHighlightedItem(null, null);
+            }
         };
 
         const pType = p.payloadType || 'Unknown';
@@ -335,19 +338,29 @@ class TsStructureViewer extends HTMLElement {
         let hasDesc = false;
         if (p.psi) {
             // Check Program Descriptors
-            if (p.psi.program_descriptors && p.psi.program_descriptors.length > 0) hasDesc = true;
-            
+            if (
+                p.psi.program_descriptors &&
+                p.psi.program_descriptors.length > 0
+            )
+                hasDesc = true;
+
             // Check Elementary Stream Descriptors
             if (!hasDesc && p.psi.streams) {
-                hasDesc = p.psi.streams.some(s => s.es_descriptors && s.es_descriptors.length > 0);
+                hasDesc = p.psi.streams.some(
+                    (s) => s.es_descriptors && s.es_descriptors.length > 0
+                );
             }
-            
+
             // Check CAT/TSDT descriptors
-            if (!hasDesc && p.psi.descriptors && p.psi.descriptors.length > 0) hasDesc = true;
+            if (!hasDesc && p.psi.descriptors && p.psi.descriptors.length > 0)
+                hasDesc = true;
         }
-        
+
         // Check Adaptation Field Descriptors
-        if (!hasDesc && p.adaptationField?.extension?.af_descriptors?.length > 0) {
+        if (
+            !hasDesc &&
+            p.adaptationField?.extension?.af_descriptors?.length > 0
+        ) {
             hasDesc = true;
         }
 
@@ -414,17 +427,17 @@ class TsStructureViewer extends HTMLElement {
         const pcrStats = pcrList || {
             interval: { min: 'N/A', max: 'N/A', avg: 'N/A' },
         };
-        
+
         const debugButton = isDebugMode
             ? html`
-                <button
-                    @click=${() => this._simulateDescriptors()}
-                    class="px-2 py-1 bg-fuchsia-900/30 text-fuchsia-400 border border-fuchsia-500/30 rounded text-[10px] font-bold uppercase hover:bg-fuchsia-900/50 transition-colors ml-auto"
-                    title="Simulate PSI Packet"
-                >
-                    ${icons.debug} Sim Tags
-                </button>
-            `
+                  <button
+                      @click=${() => this._simulateDescriptors()}
+                      class="px-2 py-1 bg-fuchsia-900/30 text-fuchsia-400 border border-fuchsia-500/30 rounded text-[10px] font-bold uppercase hover:bg-fuchsia-900/50 transition-colors ml-auto"
+                      title="Simulate PSI Packet"
+                  >
+                      ${icons.debug} Sim Tags
+                  </button>
+              `
             : '';
 
         const template = html`
@@ -450,8 +463,8 @@ class TsStructureViewer extends HTMLElement {
                             </span>
                         </div>
                         <div class="flex gap-2">
-                             ${debugButton}
-                             <div
+                            ${debugButton}
+                            <div
                                 class="flex gap-4 text-[10px] text-slate-400 bg-slate-800/50 px-3 py-1 rounded border border-slate-700/50"
                             >
                                 <div>

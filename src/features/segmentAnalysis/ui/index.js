@@ -33,16 +33,29 @@ class SegmentAnalysisComponent extends HTMLElement {
             let isStable = this._data.parsedData === val.parsedData;
 
             // 2. Cheap Deep Check for Stability
-            if (!isStable && sameId && this._data.parsedData && val.parsedData) {
+            if (
+                !isStable &&
+                sameId &&
+                this._data.parsedData &&
+                val.parsedData
+            ) {
                 const prev = this._data.parsedData;
                 const next = val.parsedData;
 
                 const formatMatch = prev.format === next.format;
-                const analysisAttemptedMatch = prev.bitstreamAnalysisAttempted === next.bitstreamAnalysisAttempted;
+                const analysisAttemptedMatch =
+                    prev.bitstreamAnalysisAttempted ===
+                    next.bitstreamAnalysisAttempted;
                 const sizeMatch = prev.data?.size === next.data?.size;
-                const analysisPresenceMatch = !!prev.bitstreamAnalysis === !!next.bitstreamAnalysis;
+                const analysisPresenceMatch =
+                    !!prev.bitstreamAnalysis === !!next.bitstreamAnalysis;
 
-                if (formatMatch && analysisAttemptedMatch && sizeMatch && analysisPresenceMatch) {
+                if (
+                    formatMatch &&
+                    analysisAttemptedMatch &&
+                    sizeMatch &&
+                    analysisPresenceMatch
+                ) {
                     isStable = true;
                 }
             }
@@ -60,7 +73,7 @@ class SegmentAnalysisComponent extends HTMLElement {
 
     checkBitstreamAnalysis() {
         // ARCHITECTURAL FIX: Do not return early just because byteMap exists.
-        // MPEG-TS parsing generates a byteMap (packet map) immediately, but 
+        // MPEG-TS parsing generates a byteMap (packet map) immediately, but
         // Deep Analysis (GOP structure) is a separate, heavier step.
         // We rely solely on 'bitstreamAnalysisAttempted' to prevent loops.
 
@@ -72,7 +85,9 @@ class SegmentAnalysisComponent extends HTMLElement {
             this._data.uniqueId &&
             ['isobmff', 'ts'].includes(this._data.parsedData.format)
         ) {
-            console.log('[SegmentAnalysis] Triggering missing bitstream analysis...');
+            console.log(
+                '[SegmentAnalysis] Triggering missing bitstream analysis...'
+            );
             this.triggerFullAnalysis(
                 this._data.uniqueId,
                 this._data.parsedData
@@ -210,9 +225,10 @@ class SegmentAnalysisComponent extends HTMLElement {
                 if (found) {
                     segmentMeta = found.segment;
                     const repId = found.segment.repId;
-                    const track = found.stream.manifest.summary?.videoTracks.find(
-                        (t) => t.id === repId
-                    );
+                    const track =
+                        found.stream.manifest.summary?.videoTracks.find(
+                            (t) => t.id === repId
+                        );
                     if (track && track.codecs && track.codecs.length > 0) {
                         manifestCodec = track.codecs[0].value;
                     }
@@ -278,25 +294,27 @@ class SegmentAnalysisComponent extends HTMLElement {
             >
                 <segment-general-summary .vm=${vm}></segment-general-summary>
                 ${vm.format === 'scte35'
-                ? html`<div class="mt-6">
+                    ? html`<div class="mt-6">
                           ${scte35DetailsTemplate(parsedData.data)}
                       </div>`
-                : ''}
+                    : ''}
                 ${vm.format === 'vtt'
-                ? html`<div class="mt-6">
+                    ? html`<div class="mt-6">
                           ${vttAnalysisTemplate(parsedData.data)}
                       </div>`
-                : ''}
+                    : ''}
                 ${vm.format === 'ttml'
-                ? html`<div class="mt-6">
+                    ? html`<div class="mt-6">
                           ${ttmlAnalysisTemplate(parsedData.data)}
                       </div>`
-                : ''}
+                    : ''}
                 ${this._isAnalyzing
-                ? html`<div class="p-4 text-center text-blue-400 font-bold text-sm animate-pulse">
+                    ? html`<div
+                          class="p-4 text-center text-blue-400 font-bold text-sm animate-pulse"
+                      >
                           Running Deep Bitstream Analysis...
                       </div>`
-                : ''}
+                    : ''}
             </div>
         `;
 
@@ -315,14 +333,14 @@ class SegmentAnalysisComponent extends HTMLElement {
                 class="absolute inset-0 flex flex-col animate-fadeIn h-full w-full bg-slate-950"
             >
                 ${vm.format === 'isobmff'
-                ? html`<div
+                    ? html`<div
                           class="grow overflow-y-auto p-4 custom-scrollbar space-y-2"
                       >
                           ${parsedData.data.boxes.map((box) =>
-                    isoBoxTreeTemplate(box, { isIFrame })
-                )}
+                              isoBoxTreeTemplate(box, { isIFrame })
+                          )}
                       </div>`
-                : html`<div
+                    : html`<div
                           class="h-full w-full border border-slate-800 overflow-hidden"
                       >
                           ${structureContentTemplate({ data: parsedData.data })}
@@ -337,7 +355,9 @@ class SegmentAnalysisComponent extends HTMLElement {
             const maps = parsedData.byteMap || null;
 
             if (!buffer) {
-                return html`<div class="p-8 text-center text-slate-500">Data not available for raw view.</div>`;
+                return html`<div class="p-8 text-center text-slate-500">
+                    Data not available for raw view.
+                </div>`;
             }
 
             return html`
@@ -354,18 +374,18 @@ class SegmentAnalysisComponent extends HTMLElement {
                 >
                     <div class="w-full max-w-xl">
                         ${connectedTabBar(tabs, this._activeTab, (tab) =>
-            this.setActiveTab(tab)
-        )}
+                            this.setActiveTab(tab)
+                        )}
                     </div>
                 </div>
                 <div class="grow relative w-full min-h-0 bg-slate-900">
                     ${this._activeTab === 'overview' ? renderOverview() : ''}
                     ${this._activeTab === 'deep-analysis' && vm.bitstream
-                ? renderDeepAnalysis()
-                : ''}
+                        ? renderDeepAnalysis()
+                        : ''}
                     ${this._activeTab === 'sei' && vm.bitstream
-                ? seiInspectorTemplate(vm.bitstream.seiMessages)
-                : ''}
+                        ? seiInspectorTemplate(vm.bitstream.seiMessages)
+                        : ''}
                     ${this._activeTab === 'structure' ? renderStructure() : ''}
                     ${this._activeTab === 'raw' ? renderRawView() : ''}
                 </div>

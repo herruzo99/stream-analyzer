@@ -96,9 +96,7 @@ function getVisualStyle(state) {
         }
 
         if (hasParsedData) {
-            style.border = isStale
-                ? 'border-amber-700'
-                : 'border-emerald-700';
+            style.border = isStale ? 'border-amber-700' : 'border-emerald-700';
             style.indicator = PROCESSED_ICON;
         }
     } else {

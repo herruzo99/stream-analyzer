@@ -19,7 +19,7 @@ export class AudioAnalyzer {
         // Config
         this.fftSize = 2048;
         this.smoothingConstant = 0.8;
-        
+
         // High-pass filter state for simple weighting
         this.filterState = { x1L: 0, x1R: 0, y1L: 0, y1R: 0 };
     }
@@ -31,12 +31,12 @@ export class AudioAnalyzer {
             const AudioContext =
                 window.AudioContext ||
                 /** @type {any} */ (window).webkitAudioContext;
-            
+
             // ARCHITECTURAL FIX: Check if AudioContext is allowed before creating
             // Actually, we must create it to check state, but we can handle the warning
             // by not logging it ourselves, though browser logs are inevitable.
             // We optimize by only creating it if mediaElement is playing or about to.
-            
+
             this.audioCtx = new AudioContext();
 
             // Handle Autoplay Policy
@@ -51,11 +51,13 @@ export class AudioAnalyzer {
                 };
                 window.addEventListener('click', resumeContext);
                 window.addEventListener('keydown', resumeContext);
-                
+
                 // Also try immediately (e.g. if already inside a click handler)
                 this.audioCtx.resume().catch(() => {
                     // Expected if no user interaction yet
-                    console.debug('[AudioAnalyzer] Context suspended. Waiting for interaction.');
+                    console.debug(
+                        '[AudioAnalyzer] Context suspended. Waiting for interaction.'
+                    );
                 });
             }
 
@@ -123,8 +125,8 @@ export class AudioAnalyzer {
 
         // Safety check if context became invalid or closed
         if (!this.audioCtx || this.audioCtx.state === 'closed') {
-             this.detach();
-             return;
+            this.detach();
+            return;
         }
 
         this.analyserL.getFloatTimeDomainData(this.dataArrayL);
@@ -166,11 +168,13 @@ export class AudioAnalyzer {
      * for better level metering.
      */
     _applyWeighting(buffer, channel) {
-        const alpha = 0.9; 
-        let prevX = channel === 'L' ? this.filterState.x1L : this.filterState.x1R;
-        let prevY = channel === 'L' ? this.filterState.y1L : this.filterState.y1R;
+        const alpha = 0.9;
+        let prevX =
+            channel === 'L' ? this.filterState.x1L : this.filterState.x1R;
+        let prevY =
+            channel === 'L' ? this.filterState.y1L : this.filterState.y1R;
 
-        for(let i=0; i<buffer.length; i++) {
+        for (let i = 0; i < buffer.length; i++) {
             const x = buffer[i];
             const y = alpha * (prevY + x - prevX);
             buffer[i] = y;

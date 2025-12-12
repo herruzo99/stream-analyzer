@@ -54,14 +54,19 @@ export class PlayerCardComponent extends HTMLElement {
 
     _toggleSelection(e) {
         // Ignore clicks on interactive elements
-        if (e.target.closest('button') || e.target.closest('.interactive-slider'))
+        if (
+            e.target.closest('button') ||
+            e.target.closest('.interactive-slider')
+        )
             return;
         useMultiPlayerStore.getState().toggleStreamSelection(this.streamId);
     }
 
     _handleSeek(e) {
         e.stopPropagation();
-        const player = useMultiPlayerStore.getState().players.get(this.streamId);
+        const player = useMultiPlayerStore
+            .getState()
+            .players.get(this.streamId);
         if (!player) return;
 
         const rect = e.currentTarget.getBoundingClientRect();
@@ -111,7 +116,8 @@ export class PlayerCardComponent extends HTMLElement {
         // Container styling - using aspect-video to maintain shape without fixed height
         let borderClasses = 'border-slate-800 hover:border-slate-600';
         if (isFocused && layoutMode === 'focus') {
-            borderClasses = 'border-purple-500 ring-1 ring-purple-500/50 shadow-2xl';
+            borderClasses =
+                'border-purple-500 ring-1 ring-purple-500/50 shadow-2xl';
         } else if (isSelected) {
             borderClasses = 'border-blue-500 shadow-xl shadow-blue-900/20';
         }
@@ -123,26 +129,37 @@ export class PlayerCardComponent extends HTMLElement {
 
         // Get persistent video element for buffer/mute state
         let bufferPercent = 0;
-        const persistentVideoEl = multiPlayerService.videoElements.get(this.streamId);
+        const persistentVideoEl = multiPlayerService.videoElements.get(
+            this.streamId
+        );
         const isMuted = persistentVideoEl?.muted ?? true;
 
         if (persistentVideoEl && persistentVideoEl.duration > 0) {
             const end = persistentVideoEl.buffered.length
-                ? persistentVideoEl.buffered.end(persistentVideoEl.buffered.length - 1)
+                ? persistentVideoEl.buffered.end(
+                      persistentVideoEl.buffered.length - 1
+                  )
                 : 0;
             const start = player.seekableRange.start;
             const duration = player.seekableRange.end - start;
             if (duration > 0) {
-                bufferPercent = Math.min(100, Math.max(0, ((end - start) / duration) * 100));
+                bufferPercent = Math.min(
+                    100,
+                    Math.max(0, ((end - start) / duration) * 100)
+                );
             }
         }
 
         const handleMaximize = (e) => {
             e.stopPropagation();
             if (layoutMode === 'focus' && isFocused) {
-                eventBus.dispatch('ui:multi-player:set-layout', { mode: 'grid' });
+                eventBus.dispatch('ui:multi-player:set-layout', {
+                    mode: 'grid',
+                });
             } else {
-                eventBus.dispatch('ui:multi-player:set-focus', { streamId: this.streamId });
+                eventBus.dispatch('ui:multi-player:set-focus', {
+                    streamId: this.streamId,
+                });
             }
         };
 
@@ -154,27 +171,35 @@ export class PlayerCardComponent extends HTMLElement {
                 @click=${this._toggleSelection}
             >
                 <!-- TOP CONTROLS (Always visible on selection, or hover) -->
-                <div class="absolute top-0 left-0 right-0 p-2 flex justify-between items-start z-30 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-b from-black/60 to-transparent pointer-events-none">
-                    
+                <div
+                    class="absolute top-0 left-0 right-0 p-2 flex justify-between items-start z-30 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-b from-black/60 to-transparent pointer-events-none"
+                >
                     <!-- Left: Identity & Selection -->
                     <div class="flex items-center gap-2 pointer-events-auto">
-                         <div
+                        <div
                             @click=${this._toggleSelection}
-                            class="w-5 h-5 rounded cursor-pointer border transition-colors flex items-center justify-center ${isSelected ? 'bg-blue-600 border-blue-500 text-white' : 'bg-black/50 border-white/30 hover:border-white'}"
+                            class="w-5 h-5 rounded cursor-pointer border transition-colors flex items-center justify-center ${isSelected
+                                ? 'bg-blue-600 border-blue-500 text-white'
+                                : 'bg-black/50 border-white/30 hover:border-white'}"
                         >
                             ${isSelected ? icons.checkCircle : ''}
                         </div>
-                        <span class="text-[10px] font-bold text-white bg-black/50 backdrop-blur px-2 py-0.5 rounded border border-white/10 shadow-sm truncate max-w-[150px]">
+                        <span
+                            class="text-[10px] font-bold text-white bg-black/50 backdrop-blur px-2 py-0.5 rounded border border-white/10 shadow-sm truncate max-w-[150px]"
+                        >
                             ${player.streamName}
                         </span>
                     </div>
 
                     <!-- Right: Window Actions -->
                     <div class="flex items-center gap-1 pointer-events-auto">
-                         <button
+                        <button
                             @click=${(e) => {
                                 e.stopPropagation();
-                                eventBus.dispatch(EVENTS.UI.MP_DUPLICATE_STREAM, { streamId: this.streamId });
+                                eventBus.dispatch(
+                                    EVENTS.UI.MP_DUPLICATE_STREAM,
+                                    { streamId: this.streamId }
+                                );
                             }}
                             class="p-1.5 bg-black/50 hover:bg-slate-700 text-slate-300 hover:text-white rounded backdrop-blur border border-white/10 transition-colors"
                             title="Clone"
@@ -184,16 +209,25 @@ export class PlayerCardComponent extends HTMLElement {
                         <button
                             @click=${handleMaximize}
                             class="p-1.5 bg-black/50 hover:bg-slate-700 text-slate-300 hover:text-white rounded backdrop-blur border border-white/10 transition-colors"
-                            title="${isFocused && layoutMode === 'focus' ? 'Grid View' : 'Focus View'}"
+                            title="${isFocused && layoutMode === 'focus'
+                                ? 'Grid View'
+                                : 'Focus View'}"
                         >
-                            ${isFocused && layoutMode === 'focus' ? icons.minimize : icons.maximize}
+                            ${isFocused && layoutMode === 'focus'
+                                ? icons.minimize
+                                : icons.maximize}
                         </button>
-                         <button
+                        <button
                             @click=${(e) => {
                                 e.stopPropagation();
-                                if (isRemovable) multiPlayerService.removePlayer(this.streamId);
+                                if (isRemovable)
+                                    multiPlayerService.removePlayer(
+                                        this.streamId
+                                    );
                             }}
-                            class="p-1.5 bg-black/50 rounded backdrop-blur border border-white/10 transition-colors ${isRemovable ? 'text-slate-300 hover:text-red-400 hover:bg-red-900/30' : 'text-slate-600 cursor-not-allowed'}"
+                            class="p-1.5 bg-black/50 rounded backdrop-blur border border-white/10 transition-colors ${isRemovable
+                                ? 'text-slate-300 hover:text-red-400 hover:bg-red-900/30'
+                                : 'text-slate-600 cursor-not-allowed'}"
                             ?disabled=${!isRemovable}
                             title="Close"
                         >
@@ -203,15 +237,23 @@ export class PlayerCardComponent extends HTMLElement {
                 </div>
 
                 <!-- VIDEO PORTAL AREA -->
-                <div class="relative grow min-h-0 bg-black flex items-center justify-center w-full" id="video-portal-${this.streamId}">
+                <div
+                    class="relative grow min-h-0 bg-black flex items-center justify-center w-full"
+                    id="video-portal-${this.streamId}"
+                >
                     <!-- Video injected here by JS -->
-                    
-                    ${showGlobalHud && player.isHudVisible ? html`<metrics-hud .data=${player}></metrics-hud>` : ''}
-                    
+
+                    ${showGlobalHud && player.isHudVisible
+                        ? html`<metrics-hud .data=${player}></metrics-hud>`
+                        : ''}
                     ${player.state === 'paused' || player.state === 'idle'
                         ? html`
-                              <div class="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none z-10">
-                                  <div class="p-3 bg-black/40 rounded-full backdrop-blur-sm border border-white/10 shadow-xl scale-75 group-hover:scale-100 transition-transform">
+                              <div
+                                  class="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none z-10"
+                              >
+                                  <div
+                                      class="p-3 bg-black/40 rounded-full backdrop-blur-sm border border-white/10 shadow-xl scale-75 group-hover:scale-100 transition-transform"
+                                  >
                                       ${icons.play}
                                   </div>
                               </div>
@@ -219,30 +261,48 @@ export class PlayerCardComponent extends HTMLElement {
                         : ''}
 
                     <!-- FLOATING COMPACT HUD (Bottom Overlay) -->
-                    <div class="absolute bottom-2 left-2 right-2 z-30 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                        <div class="bg-slate-900/80 backdrop-blur-md border border-white/10 rounded-lg p-2 shadow-xl ring-1 ring-black/20 flex flex-col gap-1">
-                            
+                    <div
+                        class="absolute bottom-2 left-2 right-2 z-30 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                    >
+                        <div
+                            class="bg-slate-900/80 backdrop-blur-md border border-white/10 rounded-lg p-2 shadow-xl ring-1 ring-black/20 flex flex-col gap-1"
+                        >
                             <!-- Progress Rail -->
-                            <div 
+                            <div
                                 class="relative h-1.5 w-full bg-slate-700/50 rounded-full cursor-pointer group/slider overflow-hidden interactive-slider"
                                 @click=${this._handleSeek}
                             >
-                                <div class="absolute top-0 left-0 bottom-0 bg-white/10" style="width: ${bufferPercent}%"></div>
-                                <div class="absolute top-0 left-0 bottom-0 bg-blue-500 transition-all duration-100" style="width: ${progressPercent}%"></div>
+                                <div
+                                    class="absolute top-0 left-0 bottom-0 bg-white/10"
+                                    style="width: ${bufferPercent}%"
+                                ></div>
+                                <div
+                                    class="absolute top-0 left-0 bottom-0 bg-blue-500 transition-all duration-100"
+                                    style="width: ${progressPercent}%"
+                                ></div>
                             </div>
 
                             <!-- Controls Row -->
                             <div class="flex items-center justify-between mt-1">
                                 <div class="flex items-center gap-2">
-                                     <button
-                                        @click=${() => multiPlayerService.togglePlay(this.streamId)}
+                                    <button
+                                        @click=${() =>
+                                            multiPlayerService.togglePlay(
+                                                this.streamId
+                                            )}
                                         class="text-slate-200 hover:text-white transition-colors p-1 hover:bg-white/10 rounded"
                                     >
                                         <div class="scale-75">
-                                            ${player.state === 'playing' || player.state === 'buffering' ? icons.pause : icons.play}
+                                            ${player.state === 'playing' ||
+                                            player.state === 'buffering'
+                                                ? icons.pause
+                                                : icons.play}
                                         </div>
                                     </button>
-                                    <span class="text-[9px] font-mono text-slate-400 select-none">${currentTimeLabel}</span>
+                                    <span
+                                        class="text-[9px] font-mono text-slate-400 select-none"
+                                        >${currentTimeLabel}</span
+                                    >
                                 </div>
 
                                 <div class="flex items-center gap-1">
@@ -251,20 +311,27 @@ export class PlayerCardComponent extends HTMLElement {
                                         class="text-slate-400 hover:text-blue-400 transition-colors p-1 rounded hover:bg-white/5"
                                         title="Sync others to this"
                                     >
-                                        <div class="scale-75">${icons.syncMaster}</div>
+                                        <div class="scale-75">
+                                            ${icons.syncMaster}
+                                        </div>
                                     </button>
                                     <button
                                         @click=${(e) => {
                                             e.stopPropagation();
                                             if (persistentVideoEl) {
-                                                persistentVideoEl.muted = !persistentVideoEl.muted;
+                                                persistentVideoEl.muted =
+                                                    !persistentVideoEl.muted;
                                                 this.render();
                                             }
                                         }}
-                                        class="p-1 rounded hover:bg-white/5 transition-colors ${isMuted ? 'text-red-400' : 'text-slate-400 hover:text-white'}"
+                                        class="p-1 rounded hover:bg-white/5 transition-colors ${isMuted
+                                            ? 'text-red-400'
+                                            : 'text-slate-400 hover:text-white'}"
                                     >
                                         <div class="scale-75">
-                                            ${isMuted ? icons.volumeOff : icons.volumeUp}
+                                            ${isMuted
+                                                ? icons.volumeOff
+                                                : icons.volumeUp}
                                         </div>
                                     </button>
                                 </div>
@@ -277,7 +344,9 @@ export class PlayerCardComponent extends HTMLElement {
 
         render(template, this);
 
-        const videoContainer = this.querySelector(`#video-portal-${this.streamId}`);
+        const videoContainer = this.querySelector(
+            `#video-portal-${this.streamId}`
+        );
         if (videoContainer) {
             this.injectVideoElement(videoContainer);
         }

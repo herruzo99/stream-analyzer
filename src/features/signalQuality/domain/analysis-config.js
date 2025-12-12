@@ -7,7 +7,7 @@ export const ANALYSIS_LAYERS = {
         default: true,
         cost: 'Low',
         speed: 'Fast',
-        category: 'Metrics'
+        category: 'Metrics',
     },
     METRIC_SHARPNESS: {
         id: 'metric_sharpness',
@@ -16,7 +16,7 @@ export const ANALYSIS_LAYERS = {
         default: false,
         cost: 'Medium',
         speed: 'Fast',
-        category: 'Metrics'
+        category: 'Metrics',
     },
     METRIC_MOTION: {
         id: 'metric_motion',
@@ -25,7 +25,7 @@ export const ANALYSIS_LAYERS = {
         default: true,
         cost: 'Low',
         speed: 'Fast',
-        category: 'Metrics'
+        category: 'Metrics',
     },
     METRIC_AUDIO_LEVEL: {
         id: 'metric_audio_level',
@@ -34,7 +34,7 @@ export const ANALYSIS_LAYERS = {
         default: true,
         cost: 'High',
         speed: 'Slow', // Marked as Slow
-        category: 'Metrics'
+        category: 'Metrics',
     },
 
     // --- Anomaly Detection (Threshold Based) ---
@@ -45,7 +45,7 @@ export const ANALYSIS_LAYERS = {
         default: false,
         cost: 'Low',
         speed: 'Fast',
-        category: 'Anomalies'
+        category: 'Anomalies',
     },
     FREEZE: {
         id: 'freeze',
@@ -55,7 +55,7 @@ export const ANALYSIS_LAYERS = {
         cost: 'Low',
         speed: 'Fast',
         requiresSequential: true,
-        category: 'Anomalies'
+        category: 'Anomalies',
     },
     SILENCE: {
         id: 'silence',
@@ -64,7 +64,7 @@ export const ANALYSIS_LAYERS = {
         default: false,
         cost: 'High',
         speed: 'Slow', // Marked as Slow
-        category: 'Anomalies'
+        category: 'Anomalies',
     },
     AUDIO_CLIPPING: {
         id: 'audio_clipping',
@@ -73,7 +73,7 @@ export const ANALYSIS_LAYERS = {
         default: false,
         cost: 'High',
         speed: 'Slow', // Marked as Slow
-        category: 'Anomalies'
+        category: 'Anomalies',
     },
     AUDIO_PHASE: {
         id: 'phase_check',
@@ -82,7 +82,7 @@ export const ANALYSIS_LAYERS = {
         default: false,
         cost: 'High',
         speed: 'Slow', // Marked as Slow
-        category: 'Anomalies'
+        category: 'Anomalies',
     },
     BROADCAST_SAFE: {
         id: 'broadcast_safe',
@@ -91,7 +91,7 @@ export const ANALYSIS_LAYERS = {
         default: false,
         cost: 'Medium',
         speed: 'Moderate',
-        category: 'Anomalies'
+        category: 'Anomalies',
     },
     CONTRAST: {
         id: 'contrast_monitor',
@@ -100,7 +100,7 @@ export const ANALYSIS_LAYERS = {
         default: false,
         cost: 'Medium',
         speed: 'Moderate',
-        category: 'Anomalies'
+        category: 'Anomalies',
     },
     LETTERBOX: {
         id: 'letterbox',
@@ -109,7 +109,7 @@ export const ANALYSIS_LAYERS = {
         default: false,
         cost: 'High',
         speed: 'Moderate',
-        category: 'Anomalies'
+        category: 'Anomalies',
     },
     ARTIFACTS: {
         id: 'artifacts',
@@ -118,7 +118,7 @@ export const ANALYSIS_LAYERS = {
         default: false,
         cost: 'High',
         speed: 'Moderate',
-        category: 'Anomalies'
+        category: 'Anomalies',
     },
     BANDING: {
         id: 'banding',
@@ -127,7 +127,7 @@ export const ANALYSIS_LAYERS = {
         default: false,
         cost: 'High',
         speed: 'Moderate',
-        category: 'Anomalies'
+        category: 'Anomalies',
     },
     METRIC_PREDICTED_QUALITY: {
         id: 'metric_predicted_quality',
@@ -136,8 +136,8 @@ export const ANALYSIS_LAYERS = {
         default: true,
         cost: 'Low', // It's just a calculation from other metrics
         speed: 'Fast',
-        category: 'Metrics'
-    }
+        category: 'Metrics',
+    },
 };
 
 export const LAYER_PRESETS = [
@@ -145,32 +145,56 @@ export const LAYER_PRESETS = [
         id: 'standard',
         label: 'Standard Audit',
         description: 'Basic video health and audio levels.',
-        layers: ['metric_luma', 'metric_motion', 'metric_audio_level', 'black_frame', 'silence']
+        layers: [
+            'metric_luma',
+            'metric_motion',
+            'metric_audio_level',
+            'black_frame',
+            'silence',
+        ],
     },
     {
         id: 'broadcast',
         label: 'Broadcast Safe',
         description: 'Strict legality, blanking, and loudness.',
-        layers: ['metric_luma', 'metric_audio_level', 'broadcast_safe', 'letterbox', 'audio_clipping']
+        layers: [
+            'metric_luma',
+            'metric_audio_level',
+            'broadcast_safe',
+            'letterbox',
+            'audio_clipping',
+        ],
     },
     {
         id: 'visual_qa',
         label: 'Visual Quality',
         description: 'Detect artifacts, freeze frames, and softness.',
-        layers: ['metric_luma', 'metric_sharpness', 'metric_motion', 'freeze', 'artifacts', 'contrast_monitor']
+        layers: [
+            'metric_luma',
+            'metric_sharpness',
+            'metric_motion',
+            'freeze',
+            'artifacts',
+            'contrast_monitor',
+        ],
     },
     {
         id: 'audio_eng',
         label: 'Audio Engineer',
         description: 'Focus on audio dynamics, phase, and dropouts.',
-        layers: ['metric_audio_level', 'silence', 'audio_clipping', 'phase_check']
+        layers: [
+            'metric_audio_level',
+            'silence',
+            'audio_clipping',
+            'phase_check',
+        ],
     },
     {
         id: 'full_diagnostic',
         label: 'Full Diagnostic',
         description: 'Enable all analyzers (CPU Intensive).',
-        layers: Object.keys(ANALYSIS_LAYERS).map(k => ANALYSIS_LAYERS[k].id)
-    }
+        layers: Object.keys(ANALYSIS_LAYERS).map((k) => ANALYSIS_LAYERS[k].id),
+    },
 ];
 
 export const SCAN_SPEEDS = {
@@ -178,20 +202,20 @@ export const SCAN_SPEEDS = {
         id: 'deep',
         label: 'Deep Scan',
         interval: 1,
-        description: 'Analyze every frame. Required for freeze detection.'
+        description: 'Analyze every frame. Required for freeze detection.',
     },
     BALANCED: {
         id: 'balanced',
         label: 'Balanced',
         interval: 5,
-        description: 'Skips frames to save CPU. Disables temporal checks.'
+        description: 'Skips frames to save CPU. Disables temporal checks.',
     },
     FAST: {
         id: 'fast',
         label: 'Fast Survey',
         interval: 15,
-        description: 'Sparse sampling for quick spot-checks.'
-    }
+        description: 'Sparse sampling for quick spot-checks.',
+    },
 };
 
 export const DEFAULT_THRESHOLDS = {
@@ -200,5 +224,5 @@ export const DEFAULT_THRESHOLDS = {
     silenceDb: -60,
     clippingDb: -0.1,
     blockinessScore: 40,
-    illegalPct: 2.0
+    illegalPct: 2.0,
 };

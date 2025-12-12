@@ -259,7 +259,7 @@ class PlayerService {
                 this.player.addEventListener('texttrackvisibility', (e) =>
                     eventBus.dispatch(
                         'player:texttrackvisibility',
-                        /** @type {any} */(e).detail
+                        /** @type {any} */ (e).detail
                     )
                 );
 
@@ -449,9 +449,12 @@ class PlayerService {
             eventBus.dispatch('player:manifest-loaded');
 
             if (autoPlay && this.player.getMediaElement()) {
-                this.player.getMediaElement().play().catch(e => {
-                    console.warn("AutoPlay failed/blocked:", e);
-                });
+                this.player
+                    .getMediaElement()
+                    .play()
+                    .catch((e) => {
+                        console.warn('AutoPlay failed/blocked:', e);
+                    });
             }
         } catch (e) {
             playerActions.setLoadedState(false);
@@ -510,8 +513,9 @@ class PlayerService {
         playerActions.logEvent({
             timestamp: new Date().toLocaleTimeString(),
             type: 'interaction',
-            details: `ABR strategy set to: ${enabled ? 'Auto (enabled)' : 'Manual (disabled)'
-                }.`,
+            details: `ABR strategy set to: ${
+                enabled ? 'Auto (enabled)' : 'Manual (disabled)'
+            }.`,
         });
     }
 
@@ -536,8 +540,9 @@ class PlayerService {
         playerActions.logEvent({
             timestamp: new Date().toLocaleTimeString(),
             type: 'interaction',
-            details: `Manual track selection: Locked to ${track.height
-                }p @ ${formatBitrate(track.bandwidth)}.`,
+            details: `Manual track selection: Locked to ${
+                track.height
+            }p @ ${formatBitrate(track.bandwidth)}.`,
         });
     }
 
@@ -550,7 +555,7 @@ class PlayerService {
     }
 
     onErrorEvent(event) {
-        this.onError(/** @type {any} */(event).detail);
+        this.onError(/** @type {any} */ (event).detail);
     }
 
     onError(error) {
@@ -633,20 +638,20 @@ class PlayerService {
 
         const newTrack = event.newVariant
             ? {
-                ...event.newVariant,
-                playheadTime: currentTime,
-                streamId: activeStreamId,
-                stream,
-            }
+                  ...event.newVariant,
+                  playheadTime: currentTime,
+                  streamId: activeStreamId,
+                  stream,
+              }
             : null;
 
         const oldTrack = event.oldVariant
             ? {
-                ...event.oldVariant,
-                playheadTime: currentTime,
-                streamId: activeStreamId,
-                stream,
-            }
+                  ...event.oldVariant,
+                  playheadTime: currentTime,
+                  streamId: activeStreamId,
+                  stream,
+              }
             : null;
 
         eventBus.dispatch('player:adaptation-internal', { oldTrack, newTrack });

@@ -26,8 +26,10 @@ const cueRowTemplate = (cue, index) => html`
                   )
                 : ''}
         </td>
-        <td class="p-3 border-b border-slate-700/50 font-mono text-xs text-slate-400">
-             ${cue.id ? `ID: ${cue.id}` : '-'}
+        <td
+            class="p-3 border-b border-slate-700/50 font-mono text-xs text-slate-400"
+        >
+            ${cue.id ? `ID: ${cue.id}` : '-'}
         </td>
     </tr>
 `;
@@ -37,25 +39,20 @@ export const ttmlAnalysisTemplate = (ttmlData) => {
 
     return html`
         <div class="space-y-6">
-            
-            ${
-                hasErrors
-                    ? html`
-                          <div
-                              class="bg-red-900/10 border border-red-500/30 rounded-lg p-4"
-                          >
-                              <h4 class="text-xs font-bold text-red-400 mb-2">
-                                  Parsing Errors
-                              </h4>
-                              <ul class="list-disc pl-4 text-xs text-red-200">
-                                  ${ttmlData.errors.map(
-                                      (e) => html`<li>${e}</li>`
-                                  )}
-                              </ul>
-                          </div>
-                      `
-                    : ''
-            }
+            ${hasErrors
+                ? html`
+                      <div
+                          class="bg-red-900/10 border border-red-500/30 rounded-lg p-4"
+                      >
+                          <h4 class="text-xs font-bold text-red-400 mb-2">
+                              Parsing Errors
+                          </h4>
+                          <ul class="list-disc pl-4 text-xs text-red-200">
+                              ${ttmlData.errors.map((e) => html`<li>${e}</li>`)}
+                          </ul>
+                      </div>
+                  `
+                : ''}
 
             <!-- Cues Section -->
             <div
@@ -87,15 +84,13 @@ export const ttmlAnalysisTemplate = (ttmlData) => {
                             ${ttmlData.cues.map(cueRowTemplate)}
                         </tbody>
                     </table>
-                    ${
-                        ttmlData.cues.length === 0
-                            ? html`<div
-                                  class="p-8 text-center text-slate-500 italic"
-                              >
-                                  No cues found.
-                              </div>`
-                            : ''
-                    }
+                    ${ttmlData.cues.length === 0
+                        ? html`<div
+                              class="p-8 text-center text-slate-500 italic"
+                          >
+                              No cues found.
+                          </div>`
+                        : ''}
                 </div>
             </div>
         </div>

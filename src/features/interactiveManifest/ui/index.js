@@ -11,7 +11,10 @@ import { openModalWithContent } from '@/ui/services/modalService';
 import { copyTextToClipboard } from '@/ui/shared/clipboard';
 import { html, render } from 'lit-html';
 import xmlFormatter from 'xml-formatter';
-import { dashManifestTemplate, flattenManifest } from './components/dash/renderer.js';
+import {
+    dashManifestTemplate,
+    flattenManifest,
+} from './components/dash/renderer.js';
 import { dashTooltipData } from './components/dash/tooltip-data.js';
 import { hlsManifestTemplate } from './components/hls/renderer.js';
 import { hlsTooltipData } from './components/hls/tooltip-data.js';
@@ -28,15 +31,16 @@ let hoverDebounceTimeout = null;
 // Helper to scroll virtual list
 function scrollListToIndex(index) {
     const virtualList = document.getElementById('manifest-virtual-list');
-    
+
     // Cast to any to access custom element properties
     const listComponent = /** @type {any} */ (virtualList);
-    
+
     // Check if the container property exists on the component instance
     if (listComponent && listComponent.container) {
         // Row height is fixed at 24px in the renderers
         const rowHeight = 24;
-        listComponent.scrollTop = index * rowHeight - listComponent.clientHeight / 2;
+        listComponent.scrollTop =
+            index * rowHeight - listComponent.clientHeight / 2;
     }
 }
 
@@ -85,7 +89,12 @@ function handleInteraction(e) {
     }
 }
 
-function calculateMatches(manifestObject, manifestString, protocol, searchTerm) {
+function calculateMatches(
+    manifestObject,
+    manifestString,
+    protocol,
+    searchTerm
+) {
     if (!searchTerm || searchTerm.length < 2) return [];
 
     const lowerTerm = searchTerm.toLowerCase();
@@ -94,14 +103,16 @@ function calculateMatches(manifestObject, manifestString, protocol, searchTerm) 
     if (protocol === 'dash' && manifestObject) {
         const lines = [];
         flattenManifest(manifestObject, 'MPD', 0, lines);
-        
+
         lines.forEach((line, index) => {
             const content = [
-                line.tagName, 
-                line.content, 
-                ...Object.keys(line.attributes || {}), 
-                ...Object.values(line.attributes || {})
-            ].join(' ').toLowerCase();
+                line.tagName,
+                line.content,
+                ...Object.keys(line.attributes || {}),
+                ...Object.values(line.attributes || {}),
+            ]
+                .join(' ')
+                .toLowerCase();
 
             if (content.includes(lowerTerm)) {
                 indices.push(index);
@@ -193,20 +204,31 @@ function renderInteractiveManifest() {
 
     // --- Search Logic ---
     if (manifestSearch.term && manifestSearch.term.length >= 2) {
-        const matches = calculateMatches(manifestToRender, stringToRender, stream.protocol, manifestSearch.term);
-        
-        if (matches.length !== manifestSearch.matchIndices.length || matches[0] !== manifestSearch.matchIndices[0]) {
-             setTimeout(() => uiActions.setManifestSearchMatches(matches), 0);
+        const matches = calculateMatches(
+            manifestToRender,
+            stringToRender,
+            stream.protocol,
+            manifestSearch.term
+        );
+
+        if (
+            matches.length !== manifestSearch.matchIndices.length ||
+            matches[0] !== manifestSearch.matchIndices[0]
+        ) {
+            setTimeout(() => uiActions.setManifestSearchMatches(matches), 0);
         }
     } else if (manifestSearch.matchIndices.length > 0) {
-         setTimeout(() => uiActions.setManifestSearchMatches([]), 0);
+        setTimeout(() => uiActions.setManifestSearchMatches([]), 0);
     }
 
-    if (manifestSearch.currentResultIndex !== -1 && manifestSearch.matchIndices.length > 0) {
-        const lineIndex = manifestSearch.matchIndices[manifestSearch.currentResultIndex];
+    if (
+        manifestSearch.currentResultIndex !== -1 &&
+        manifestSearch.matchIndices.length > 0
+    ) {
+        const lineIndex =
+            manifestSearch.matchIndices[manifestSearch.currentResultIndex];
         requestAnimationFrame(() => scrollListToIndex(lineIndex));
     }
-
 
     const handlePatcher = () => {
         openModalWithContent({
@@ -247,10 +269,12 @@ function renderInteractiveManifest() {
     };
 
     const searchBar = html`
-        <div class="flex items-center bg-slate-800 rounded-md border border-slate-700 p-0.5 mx-2 min-w-[240px]">
+        <div
+            class="flex items-center bg-slate-800 rounded-md border border-slate-700 p-0.5 mx-2 min-w-[240px]"
+        >
             <div class="pl-2 text-slate-500">${icons.search}</div>
-            <input 
-                type="text" 
+            <input
+                type="text"
                 class="bg-transparent border-none text-xs text-white focus:ring-0 h-7 w-24 sm:w-32 placeholder-slate-500"
                 placeholder="Find..."
                 .value=${manifestSearch.term}
@@ -262,18 +286,42 @@ function renderInteractiveManifest() {
                     }
                 }}
             />
-            ${manifestSearch.matchIndices.length > 0 ? html`
-                <span class="text-[10px] text-slate-500 font-mono whitespace-nowrap px-1">
-                    ${manifestSearch.currentResultIndex + 1}/${manifestSearch.matchIndices.length}
-                </span>
-                <div class="flex border-l border-slate-700 ml-1 pl-1">
-                    <button @click=${() => uiActions.prevManifestSearchResult()} class="p-1 hover:text-white text-slate-400 hover:bg-slate-700 rounded">${icons.chevronUp}</button>
-                    <button @click=${() => uiActions.nextManifestSearchResult()} class="p-1 hover:text-white text-slate-400 hover:bg-slate-700 rounded">${icons.chevronDown}</button>
-                </div>
-            ` : ''}
-             ${manifestSearch.term ? html`
-                <button @click=${() => uiActions.setManifestSearchTerm('')} class="p-1 text-slate-500 hover:text-red-400 hover:bg-slate-700 rounded ml-1">${icons.xCircle}</button>
-            ` : ''}
+            ${manifestSearch.matchIndices.length > 0
+                ? html`
+                      <span
+                          class="text-[10px] text-slate-500 font-mono whitespace-nowrap px-1"
+                      >
+                          ${manifestSearch.currentResultIndex +
+                          1}/${manifestSearch.matchIndices.length}
+                      </span>
+                      <div class="flex border-l border-slate-700 ml-1 pl-1">
+                          <button
+                              @click=${() =>
+                                  uiActions.prevManifestSearchResult()}
+                              class="p-1 hover:text-white text-slate-400 hover:bg-slate-700 rounded"
+                          >
+                              ${icons.chevronUp}
+                          </button>
+                          <button
+                              @click=${() =>
+                                  uiActions.nextManifestSearchResult()}
+                              class="p-1 hover:text-white text-slate-400 hover:bg-slate-700 rounded"
+                          >
+                              ${icons.chevronDown}
+                          </button>
+                      </div>
+                  `
+                : ''}
+            ${manifestSearch.term
+                ? html`
+                      <button
+                          @click=${() => uiActions.setManifestSearchTerm('')}
+                          class="p-1 text-slate-500 hover:text-red-400 hover:bg-slate-700 rounded ml-1"
+                      >
+                          ${icons.xCircle}
+                      </button>
+                  `
+                : ''}
         </div>
     `;
 
@@ -334,9 +382,11 @@ function renderInteractiveManifest() {
     `;
 
     // Prepare Highlight Props
-    const searchMatchLineIndex = (manifestSearch.matchIndices.length > 0 && manifestSearch.currentResultIndex !== -1)
-        ? manifestSearch.matchIndices[manifestSearch.currentResultIndex] 
-        : -1;
+    const searchMatchLineIndex =
+        manifestSearch.matchIndices.length > 0 &&
+        manifestSearch.currentResultIndex !== -1
+            ? manifestSearch.matchIndices[manifestSearch.currentResultIndex]
+            : -1;
     const allMatchIndices = new Set(manifestSearch.matchIndices);
 
     let codeView;

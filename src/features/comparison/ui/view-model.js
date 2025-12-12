@@ -98,7 +98,8 @@ function resolveHlsVariantSummary(stream, variantId) {
     // Calculate last segment duration for HLS specific checks
     let lastSegmentDuration = 0;
     if (mediaManifest.segments && mediaManifest.segments.length > 0) {
-        lastSegmentDuration = mediaManifest.segments[mediaManifest.segments.length - 1].duration;
+        lastSegmentDuration =
+            mediaManifest.segments[mediaManifest.segments.length - 1].duration;
     }
 
     // Construct a complete video track object that mimics what the parser produces

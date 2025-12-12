@@ -97,8 +97,12 @@ const backToolbar = (segmentUrl) => {
 function renderView() {
     if (!container) return;
 
-    const { activeSegmentUrl, isByteMapLoading, activeSegmentIsIFrame, interactiveSegmentSelectedItem } =
-        useUiStore.getState();
+    const {
+        activeSegmentUrl,
+        isByteMapLoading,
+        activeSegmentIsIFrame,
+        interactiveSegmentSelectedItem,
+    } = useUiStore.getState();
     const { get } = useSegmentCacheStore.getState();
 
     // 1. Reset local state if URL changes (cleanup previous view artifacts)
@@ -142,7 +146,7 @@ function renderView() {
     ) {
         return;
     }
-    
+
     // Update trackers
     lastRenderedEntryReference = cachedEntry;
     lastRenderedSelectedItem = interactiveSegmentSelectedItem;
@@ -184,8 +188,8 @@ function renderView() {
                     fullByteMap = byteMap;
                     uiActions.setIsByteMapLoading(false);
                     // Force a re-render now that we have the map
-                    lastRenderedEntryReference = null; 
-                    renderView(); 
+                    lastRenderedEntryReference = null;
+                    renderView();
                 })
                 .catch((e) => {
                     console.error('Optimization failed:', e);
@@ -229,7 +233,9 @@ function renderView() {
             <div class="p-6 text-center text-slate-500 text-xs italic">
                 <div class="mb-2 scale-150 opacity-50">${icons.fileText}</div>
                 <p>Text-based format (${format.toUpperCase()})</p>
-                <p class="mt-1">Structure tree not available for this format.</p>
+                <p class="mt-1">
+                    Structure tree not available for this format.
+                </p>
             </div>
         `;
         inspectorHTML = inspectorPanelTemplate(parsedData);
@@ -266,7 +272,7 @@ export const interactiveSegmentView = {
 
         if (uiUnsubscribe) uiUnsubscribe();
         if (cacheUnsubscribe) cacheUnsubscribe();
-        
+
         uiUnsubscribe = useUiStore.subscribe(renderView);
         cacheUnsubscribe = useSegmentCacheStore.subscribe(renderView);
         renderView();

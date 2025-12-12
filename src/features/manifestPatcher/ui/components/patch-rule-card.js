@@ -55,8 +55,7 @@ export const patchRuleCardTemplate = ({
                             e.stopPropagation();
                             onUpdate(rule.id, 'active', !rule.active);
                         }}
-                        class="relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${rule
-                            .active
+                        class="relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${rule.active
                             ? 'bg-blue-600'
                             : 'bg-slate-700'}"
                         title="${rule.active ? 'Disable Rule' : 'Enable Rule'}"

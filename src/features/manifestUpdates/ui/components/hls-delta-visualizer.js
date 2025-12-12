@@ -94,7 +94,7 @@ export class HlsDeltaVisualizer extends HTMLElement {
                 ],
                 axisLine: { lineStyle: { color: '#4b5563' } },
                 axisLabel: { show: false }, // Hide labels to save vertical space
-                axisTick: { show: false }
+                axisTick: { show: false },
             },
             yAxis: {
                 type: 'value',
@@ -147,7 +147,9 @@ export const hlsDeltaVisualizerTemplate = (update) => {
                 class="p-2 border-b border-slate-800 flex items-center justify-between bg-slate-950/30"
             >
                 <div class="flex items-center gap-2">
-                    <span class="text-amber-400 scale-75">${icons.history}</span>
+                    <span class="text-amber-400 scale-75"
+                        >${icons.history}</span
+                    >
                     <h4
                         class="text-[10px] font-bold text-slate-300 uppercase tracking-wider"
                     >

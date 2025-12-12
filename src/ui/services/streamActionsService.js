@@ -18,11 +18,15 @@ export function togglePlayerAndPolling() {
 
     if (activeStream.manifest?.type === 'dynamic') {
         // Toggle polling state directly
-        analysisActions.setStreamPolling(activeStream.id, !activeStream.isPolling);
+        analysisActions.setStreamPolling(
+            activeStream.id,
+            !activeStream.isPolling
+        );
     } else {
         // VOD Logic: Start/Stop player if VOD
         const playerStore = usePlayerStore.getState();
-        const isPlaying = playerStore.isLoaded && playerStore.playbackState !== 'IDLE';
+        const isPlaying =
+            playerStore.isLoaded && playerStore.playbackState !== 'IDLE';
 
         if (isPlaying) {
             playerService.unload();
@@ -41,7 +45,7 @@ export function toggleAllPolling() {
     const liveStreams = streams.filter((s) => s.manifest?.type === 'dynamic');
 
     // Check if ANY are polling
-    const isAnyPolling = liveStreams.some(s => s.isPolling);
+    const isAnyPolling = liveStreams.some((s) => s.isPolling);
 
     if (isAnyPolling) {
         // Stop all

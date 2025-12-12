@@ -1,5 +1,11 @@
 import { formatBitrate } from '@/ui/shared/format';
-import { BarChart, CustomChart, GaugeChart, LineChart, RadarChart } from 'echarts/charts';
+import {
+    BarChart,
+    CustomChart,
+    GaugeChart,
+    LineChart,
+    RadarChart,
+} from 'echarts/charts';
 import {
     DataZoomComponent,
     GridComponent,

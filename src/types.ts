@@ -1,4 +1,3 @@
-
 export interface PlayerState {
     isLoaded: boolean;
     isAbrEnabled: boolean;
@@ -304,13 +303,13 @@ export interface Scte35BreakDuration {
 
 export interface Scte35SpliceCommand {
     type:
-    | 'Splice Insert'
-    | 'Time Signal'
-    | 'Splice Null'
-    | 'Splice Schedule'
-    | 'Bandwidth Reservation'
-    | 'Private Command'
-    | 'Unsupported';
+        | 'Splice Insert'
+        | 'Time Signal'
+        | 'Splice Null'
+        | 'Splice Schedule'
+        | 'Bandwidth Reservation'
+        | 'Private Command'
+        | 'Unsupported';
     splice_event_id?: number;
     splice_event_cancel_indicator?: number;
     out_of_network_indicator?: number;
@@ -547,7 +546,6 @@ export interface MediaInfoSummary {
     }[];
 }
 
-
 export interface SidxEntry {
     referencedSize: number;
     subsegmentDuration: number;
@@ -592,7 +590,11 @@ export interface HlsSegment extends MediaSegment {
     dateTime?: string;
     uriLineNumber?: number;
     byteRange?: { length: number; offset: number | null } | null;
-    cue?: { type: 'in' | 'out' | 'cont'; duration?: number; elapsedTime?: number };
+    cue?: {
+        type: 'in' | 'out' | 'cont';
+        duration?: number;
+        elapsedTime?: number;
+    };
 }
 
 export interface CmafValidationResult {
@@ -676,7 +678,6 @@ export interface ManifestSummary {
     cmafData: CmafData;
 }
 
-
 export interface Manifest {
     id: string | null;
     type: 'static' | 'dynamic';
@@ -743,12 +744,12 @@ export interface AdAvail {
     adManifestUrl: string | null;
     creatives: AdCreative[];
     detectionMethod:
-    | 'SCTE35_INBAND'
-    | 'SCTE35_DATERANGE'
-    | 'ASSET_IDENTIFIER'
-    | 'ENCRYPTION_TRANSITION'
-    | 'STRUCTURAL_DISCONTINUITY'
-    | 'UNKNOWN';
+        | 'SCTE35_INBAND'
+        | 'SCTE35_DATERANGE'
+        | 'ASSET_IDENTIFIER'
+        | 'ENCRYPTION_TRANSITION'
+        | 'STRUCTURAL_DISCONTINUITY'
+        | 'UNKNOWN';
 }
 
 export interface PlayerStats {
@@ -785,14 +786,14 @@ export interface PlayerStats {
 export interface PlayerEvent {
     timestamp: string;
     type:
-    | 'adaptation'
-    | 'buffering'
-    | 'seek'
-    | 'error'
-    | 'stall'
-    | 'lifecycle'
-    | 'interaction'
-    | 'metadata';
+        | 'adaptation'
+        | 'buffering'
+        | 'seek'
+        | 'error'
+        | 'stall'
+        | 'lifecycle'
+        | 'interaction'
+        | 'metadata';
     details: string;
 }
 
@@ -847,13 +848,13 @@ export interface PlayerInstance {
     manifestUrl: string | null;
     streamType: 'live' | 'vod';
     state:
-    | 'idle'
-    | 'loading'
-    | 'playing'
-    | 'paused'
-    | 'buffering'
-    | 'ended'
-    | 'error';
+        | 'idle'
+        | 'loading'
+        | 'playing'
+        | 'paused'
+        | 'buffering'
+        | 'ended'
+        | 'error';
     error: string | null;
     stats: PlayerStats | null;
     playbackHistory: PlaybackHistoryEntry[];
@@ -1260,11 +1261,11 @@ export interface AuthInfo {
 export interface DrmAuthInfo {
     licenseServerUrl: string | { [key: string]: string };
     serverCertificate:
-    | string
-    | File
-    | ArrayBuffer
-    | { [keySystem: string]: string | File | ArrayBuffer }
-    | null;
+        | string
+        | File
+        | ArrayBuffer
+        | { [keySystem: string]: string | File | ArrayBuffer }
+        | null;
     headers: KeyValuePair[];
     queryParams: KeyValuePair[];
 }

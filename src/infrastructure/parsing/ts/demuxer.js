@@ -122,7 +122,8 @@ export function parsePesPackets(pesData) {
                         const p3 = pesData[headerOffset + 3];
                         const p4 = pesData[headerOffset + 4];
 
-                        pts = ((p0 & 0x0e) * 536870912) + // (p0 & 0x0e) << 29
+                        pts =
+                            (p0 & 0x0e) * 536870912 + // (p0 & 0x0e) << 29
                             ((p1 & 0xff) << 22) +
                             ((p2 & 0xfe) << 14) +
                             ((p3 & 0xff) << 7) +
@@ -139,7 +140,8 @@ export function parsePesPackets(pesData) {
                         const d3 = pesData[headerOffset + 3];
                         const d4 = pesData[headerOffset + 4];
 
-                        dts = ((d0 & 0x0e) * 536870912) +
+                        dts =
+                            (d0 & 0x0e) * 536870912 +
                             ((d1 & 0xff) << 22) +
                             ((d2 & 0xfe) << 14) +
                             ((d3 & 0xff) << 7) +

@@ -18,23 +18,29 @@ class AppShellComponent extends HTMLElement {
     connectedCallback() {
         // Initial render of the shell structure
         this.render();
-        
+
         // Subscribe to stores that affect the shell layout (sidebar toggles) AND sub-components
-        this.unsubs.push(useUiStore.subscribe(() => {
-            this.updateLayoutState();
-            this.updateSubComponents();
-        }));
-        
-        this.unsubs.push(useAnalysisStore.subscribe(() => this.updateSubComponents()));
-        this.unsubs.push(usePlayerStore.subscribe(() => this.updateSubComponents()));
-        
+        this.unsubs.push(
+            useUiStore.subscribe(() => {
+                this.updateLayoutState();
+                this.updateSubComponents();
+            })
+        );
+
+        this.unsubs.push(
+            useAnalysisStore.subscribe(() => this.updateSubComponents())
+        );
+        this.unsubs.push(
+            usePlayerStore.subscribe(() => this.updateSubComponents())
+        );
+
         // Trigger initial updates
         this.updateLayoutState();
         this.updateSubComponents();
     }
 
     disconnectedCallback() {
-        this.unsubs.forEach(u => u());
+        this.unsubs.forEach((u) => u());
         this.unsubs = [];
     }
 
@@ -84,19 +90,30 @@ class AppShellComponent extends HTMLElement {
     // Handles rendering of dynamic sub-components (Header, Footer)
     updateSubComponents() {
         // ARCHITECTURAL CHANGE: Context Switcher is now at the bottom (stream-context-container)
-        const contextContainer = this.querySelector('#stream-context-container');
+        const contextContainer = this.querySelector(
+            '#stream-context-container'
+        );
         if (contextContainer) {
-            render(renderContextSwitcher(), /** @type {HTMLElement} */ (contextContainer));
+            render(
+                renderContextSwitcher(),
+                /** @type {HTMLElement} */ (contextContainer)
+            );
         }
 
         const footerContainer = this.querySelector('#sidebar-footer');
         if (footerContainer) {
-            render(globalControlsTemplate(), /** @type {HTMLElement} */ (footerContainer));
+            render(
+                globalControlsTemplate(),
+                /** @type {HTMLElement} */ (footerContainer)
+            );
         }
 
         const contextHeader = this.querySelector('#context-header');
         if (contextHeader) {
-            render(mainContentControlsTemplate(), /** @type {HTMLElement} */ (contextHeader));
+            render(
+                mainContentControlsTemplate(),
+                /** @type {HTMLElement} */ (contextHeader)
+            );
         }
     }
 
@@ -121,26 +138,48 @@ class AppShellComponent extends HTMLElement {
                     class="glass-panel flex flex-col fixed xl:relative top-0 left-0 bottom-0 z-[70] w-[var(--sidebar-width)] -translate-x-full xl:translate-x-0 transition-transform duration-300 ease-out shadow-2xl xl:shadow-none h-full max-h-full overflow-hidden"
                 >
                     <!-- Static Branding Header -->
-                    <div class="shrink-0 p-5 flex items-center gap-3 border-b border-white/5 bg-slate-950/50 backdrop-blur-sm z-20">
-                        <div class="w-8 h-8 rounded-lg bg-blue-600/20 border border-blue-500/30 flex items-center justify-center shrink-0">
-                            <img src="/icon.png" class="w-5 h-5 object-contain opacity-90" alt="Logo" />
+                    <div
+                        class="shrink-0 p-5 flex items-center gap-3 border-b border-white/5 bg-slate-950/50 backdrop-blur-sm z-20"
+                    >
+                        <div
+                            class="w-8 h-8 rounded-lg bg-blue-600/20 border border-blue-500/30 flex items-center justify-center shrink-0"
+                        >
+                            <img
+                                src="/icon.png"
+                                class="w-5 h-5 object-contain opacity-90"
+                                alt="Logo"
+                            />
                         </div>
                         <div class="flex flex-col">
-                            <span class="font-bold text-slate-200 text-sm leading-tight tracking-tight">Stream Analyzer</span>
-                            <span class="text-[10px] text-slate-500 font-medium">Professional Workbench</span>
+                            <span
+                                class="font-bold text-slate-200 text-sm leading-tight tracking-tight"
+                                >Stream Analyzer</span
+                            >
+                            <span class="text-[10px] text-slate-500 font-medium"
+                                >Professional Workbench</span
+                            >
                         </div>
                     </div>
 
                     <!-- Navigation (Scrollable, Stable Top) -->
-                    <div id="sidebar-nav-container" class="flex flex-col grow min-h-0 overflow-y-auto scrollbar-hide pt-4 relative z-0">
+                    <div
+                        id="sidebar-nav-container"
+                        class="flex flex-col grow min-h-0 overflow-y-auto scrollbar-hide pt-4 relative z-0"
+                    >
                         <sidebar-nav></sidebar-nav>
                     </div>
 
                     <!-- Context Switcher (Moved to Bottom to prevent Nav Jumps) -->
-                    <div id="stream-context-container" class="shrink-0 z-10 relative bg-slate-900/50 border-t border-white/5"></div>
+                    <div
+                        id="stream-context-container"
+                        class="shrink-0 z-10 relative bg-slate-900/50 border-t border-white/5"
+                    ></div>
 
                     <!-- Global Controls (Fixed Footer) -->
-                    <footer id="sidebar-footer" class="shrink-0 z-10 relative"></footer>
+                    <footer
+                        id="sidebar-footer"
+                        class="shrink-0 z-10 relative"
+                    ></footer>
                 </aside>
 
                 <!-- Main Content Area -->
@@ -159,8 +198,14 @@ class AppShellComponent extends HTMLElement {
                             ${icons.menu}
                         </button>
                         <div class="flex items-center gap-2">
-                             <img src="/icon.png" class="w-5 h-5 object-contain" alt="Logo" />
-                             <span class="font-bold text-slate-200">Stream Analyzer</span>
+                            <img
+                                src="/icon.png"
+                                class="w-5 h-5 object-contain"
+                                alt="Logo"
+                            />
+                            <span class="font-bold text-slate-200"
+                                >Stream Analyzer</span
+                            >
                         </div>
                         <div class="w-8"></div>
                     </header>

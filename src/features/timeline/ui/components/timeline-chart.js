@@ -96,7 +96,7 @@ class TimelineChart extends HTMLElement {
                     trackType: track.type,
                     itemType: item.type,
                     // Pass global offset to tooltip formatter if needed
-                    globalTimeOffset: timeOffset
+                    globalTimeOffset: timeOffset,
                 });
             });
         });
@@ -129,18 +129,18 @@ class TimelineChart extends HTMLElement {
                         },
                         width > 20
                             ? {
-                                type: 'text',
-                                style: {
-                                    text: '!',
-                                    x: x + width / 2,
-                                    y: y + height / 2,
-                                    align: 'center',
-                                    verticalAlign: 'middle',
-                                    fill: '#ef4444',
-                                    fontSize: 10,
-                                    fontWeight: 'bold',
-                                },
-                            }
+                                  type: 'text',
+                                  style: {
+                                      text: '!',
+                                      x: x + width / 2,
+                                      y: y + height / 2,
+                                      align: 'center',
+                                      verticalAlign: 'middle',
+                                      fill: '#ef4444',
+                                      fontSize: 10,
+                                      fontWeight: 'bold',
+                                  },
+                              }
                             : null,
                     ].filter(Boolean),
                 };

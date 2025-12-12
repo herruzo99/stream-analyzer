@@ -17,7 +17,7 @@
 /**
  * Performs multiple analysis checks in a single pass over the pixel buffer to maximize cache locality.
  * Calculates: Luma, Broadcast Legality, Contrast, and Chroma Activity.
- * 
+ *
  * @param {Uint8ClampedArray} data - RGBA pixel data.
  * @param {number} stride - Sampling stride (e.g., 4 to skip pixels for speed).
  * @returns {UnifiedStats}
@@ -69,14 +69,19 @@ export function performUnifiedAnalysis(data, stride = 4) {
         samples++;
     }
 
-    if (samples === 0) return {
-        avgLuma: 0, contrastStdDev: 0, contrastMean: 0,
-        illegalBlackPct: 0, illegalWhitePct: 0, illegalChromaPct: 0,
-        chromaLevel: 0
-    };
+    if (samples === 0)
+        return {
+            avgLuma: 0,
+            contrastStdDev: 0,
+            contrastMean: 0,
+            illegalBlackPct: 0,
+            illegalWhitePct: 0,
+            illegalChromaPct: 0,
+            chromaLevel: 0,
+        };
 
     const meanLuma = sumLuma / samples;
-    const variance = (sumLumaSq / samples) - (meanLuma * meanLuma);
+    const variance = sumLumaSq / samples - meanLuma * meanLuma;
     const stdDev = Math.sqrt(Math.max(0, variance));
 
     return {
@@ -86,7 +91,7 @@ export function performUnifiedAnalysis(data, stride = 4) {
         illegalBlackPct: (illegalBlacks / samples) * 100,
         illegalWhitePct: (illegalWhites / samples) * 100,
         illegalChromaPct: (illegalChroma / samples) * 100,
-        chromaLevel: (sumSaturation / samples) * 100
+        chromaLevel: (sumSaturation / samples) * 100,
     };
 }
 
@@ -104,7 +109,7 @@ export function calculateSpatialInformation(data, width, height) {
     for (let y = 1; y < height - 1; y++) {
         const rowStart = y * rowStride;
         for (let x = 1; x < width - 1; x++) {
-            const i = rowStart + (x * 4) + 1; // Green channel
+            const i = rowStart + x * 4 + 1; // Green channel
 
             const left = data[i - 4];
             const right = data[i + 4];
@@ -114,7 +119,7 @@ export function calculateSpatialInformation(data, width, height) {
             const dx = Math.abs(right - left);
             const dy = Math.abs(down - up);
 
-            sumEdges += (dx + dy);
+            sumEdges += dx + dy;
         }
     }
 
@@ -123,7 +128,7 @@ export function calculateSpatialInformation(data, width, height) {
 
     const avgEdge = sumEdges / samples;
 
-    // Normalize: 
+    // Normalize:
     // Adjusted denominator to 60 to allow for typical high-detail scenes without clipping.
     return Math.min(100, (avgEdge / 60) * 100);
 }
@@ -143,7 +148,8 @@ export function detectBlockiness(data, width, height) {
             const iPrev = i - 4;
 
             // Simple difference across boundary
-            const diff = Math.abs(data[i] - data[iPrev]) +
+            const diff =
+                Math.abs(data[i] - data[iPrev]) +
                 Math.abs(data[i + 1] - data[iPrev + 1]) +
                 Math.abs(data[i + 2] - data[iPrev + 2]);
 
@@ -188,7 +194,7 @@ export function detectActivePictureArea(data, width, height) {
 
     const checkRow = (y) => {
         const start = y * width * 4;
-        const end = start + (width * 4);
+        const end = start + width * 4;
         // Stride 16 pixels
         for (let i = start; i < end; i += 64) {
             // Quick Luma: G channel usually suffices for black detection
@@ -223,17 +229,17 @@ export function detectActivePictureArea(data, width, height) {
         topPadding: (top / height) * 100,
         bottomPadding: ((height - 1 - bottom) / height) * 100,
         leftPadding: (left / width) * 100,
-        rightPadding: ((width - 1 - right) / width) * 100
+        rightPadding: ((width - 1 - right) / width) * 100,
     };
 }
 
 /**
  * Detects banding artifacts (stepping in smooth gradients).
  * Analyzes the gradient profile to find "staircase" patterns typical of bit-depth reduction.
- * 
+ *
  * @param {Uint8ClampedArray} data - RGBA pixel data
- * @param {number} width 
- * @param {number} height 
+ * @param {number} width
+ * @param {number} height
  * @returns {number} Banding score (0-100), where higher is worse.
  */
 export function detectBanding(data, width, height) {
@@ -248,7 +254,7 @@ export function detectBanding(data, width, height) {
 
         // Analyze Green channel (Luma proxy)
         for (let x = 1; x < width; x++) {
-            const i = rowStart + (x * 4) + 1;
+            const i = rowStart + x * 4 + 1;
             const curr = data[i];
             const prev = data[i - 4];
             const diff = Math.abs(curr - prev);

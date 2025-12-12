@@ -34,7 +34,7 @@ const handlers = {
     'run-ts-semantic-analysis': handleRunTsSemanticAnalysis,
     'tier0-analysis': handleTier0Analysis,
     // NEW: QC Handler
-    'analyze-frame-sequence': handleAnalyzeFrameSequence
+    'analyze-frame-sequence': handleAnalyzeFrameSequence,
 };
 
 self.addEventListener('message', async (event) => {
@@ -72,7 +72,11 @@ self.addEventListener('message', async (event) => {
     };
 
     try {
-        const result = await handler(payload, abortController.signal, postProgress);
+        const result = await handler(
+            payload,
+            abortController.signal,
+            postProgress
+        );
         if (!abortController.signal.aborted) {
             // Check if result contains Transferables (ImageBitmap, ArrayBuffer)
             const transferables = result?.transferables || [];

@@ -108,7 +108,7 @@ export async function generateHlsSummary(manifestIR, context) {
                 });
             } else if (rep.serializedManifest?.attributes?.RESOLUTION) {
                 resolutions.push(
-                    /** @type {import('@/types.ts').SourcedData<string>} */({
+                    /** @type {import('@/types.ts').SourcedData<string>} */ ({
                         value: rep.serializedManifest.attributes.RESOLUTION,
                         source: 'manifest',
                     })
@@ -117,7 +117,10 @@ export async function generateHlsSummary(manifestIR, context) {
 
             const videoTrack = /** @type {VideoTrackSummary} */ ({
                 id: rep.id,
-                label: rep.label || rep.serializedManifest?.attributes?.NAME || null,
+                label:
+                    rep.label ||
+                    rep.serializedManifest?.attributes?.NAME ||
+                    null,
                 format: rep.format,
                 profiles: null,
                 bandwidth: rep.bandwidth,
@@ -228,18 +231,13 @@ export async function generateHlsSummary(manifestIR, context) {
         const serialized = /** @type {any} */ (as.serializedManifest);
         const rep = as.representations[0]; // Assuming one rep per text AS in HLS
         const mimeTypes =
-            rep?.codecs?.[0]?.value ||
-                rep?.mimeType
+            rep?.codecs?.[0]?.value || rep?.mimeType
                 ? [
-                    {
-                        value:
-                            rep.codecs?.[0]?.value ||
-                            rep.mimeType,
-                        source: rep.codecs?.[0]
-                            ? 'manifest'
-                            : 'mimeType',
-                    },
-                ]
+                      {
+                          value: rep.codecs?.[0]?.value || rep.mimeType,
+                          source: rep.codecs?.[0] ? 'manifest' : 'mimeType',
+                      },
+                  ]
                 : [];
         return {
             id: as.stableRenditionId || as.id,
@@ -248,21 +246,20 @@ export async function generateHlsSummary(manifestIR, context) {
             lang: as.lang,
             codecsOrMimeTypes: mimeTypes.map(
                 (v) =>
-                    /** @type {import('@/types.ts').CodecInfo} */({
-                    value: v.value,
-                    source: v.source,
-                    supported: isCodecSupported(v.value),
-                })
+                    /** @type {import('@/types.ts').CodecInfo} */ ({
+                        value: v.value,
+                        source: v.source,
+                        supported: isCodecSupported(v.value),
+                    })
             ),
-            isDefault:
-                serialized.value?.DEFAULT === 'YES',
+            isDefault: serialized.value?.DEFAULT === 'YES',
             isForced: as.forced,
             roles: as.roles,
         };
     });
 
     const parsedKeyTags = Array.from(allKeyTags).map((tagStr) =>
-        JSON.parse(/** @type {string} */(tagStr))
+        JSON.parse(/** @type {string} */ (tagStr))
     );
     const contentProtectionIRs = parsedKeyTags
         .filter((value) => value.METHOD && value.METHOD !== 'NONE')
@@ -280,10 +277,10 @@ export async function generateHlsSummary(manifestIR, context) {
         isEncrypted: contentProtectionIRs.length > 0,
         systems: contentProtectionIRs.map(
             (cp) =>
-                /** @type {import('@/types').PsshInfo} */({
-                systemId: cp.schemeIdUri,
-                kids: cp.defaultKid ? [cp.defaultKid] : [],
-            })
+                /** @type {import('@/types').PsshInfo} */ ({
+                    systemId: cp.schemeIdUri,
+                    kids: cp.defaultKid ? [cp.defaultKid] : [],
+                })
         ),
         kids: [
             ...new Set(

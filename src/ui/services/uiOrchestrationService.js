@@ -69,10 +69,10 @@ export function initializeUiOrchestration() {
         EVENTS.UI.SHOW_SEGMENT_ANALYSIS_MODAL,
         ({ uniqueId, format, isIFrame, parsedData }) => {
             const { activeStreamId } = useAnalysisStore.getState();
-            
+
             // NEW: If parsedData provided (e.g. synthetic SIDX inspector), skip cache check
             if (parsedData) {
-                 openModalWithContent({
+                openModalWithContent({
                     title: 'Structure Inspector',
                     url: uniqueId,
                     content: {
@@ -229,14 +229,19 @@ export function initializeUiOrchestration() {
                 // Scan to find which period owns this rep
                 const periods = findChildrenRecursive(manifest, 'Period');
                 for (const period of periods) {
-                    const reps = findChildrenRecursive(period, 'Representation');
-                    if (reps.some(r => getAttr(r, 'id') === representationId)) {
+                    const reps = findChildrenRecursive(
+                        period,
+                        'Representation'
+                    );
+                    if (
+                        reps.some((r) => getAttr(r, 'id') === representationId)
+                    ) {
                         targetPeriod = period;
                         break;
                     }
                 }
             }
-            
+
             if (!targetPeriod) {
                 targetPeriod = findChildrenRecursive(manifest, 'Period')[0];
             }
@@ -248,10 +253,16 @@ export function initializeUiOrchestration() {
 
             // 2. Extract All Valid Tracks in Period
             const tracks = [];
-            const adaptationSets = findChildrenRecursive(targetPeriod, 'AdaptationSet');
-            
+            const adaptationSets = findChildrenRecursive(
+                targetPeriod,
+                'AdaptationSet'
+            );
+
             for (const as of adaptationSets) {
-                const representations = findChildrenRecursive(as, 'Representation');
+                const representations = findChildrenRecursive(
+                    as,
+                    'Representation'
+                );
                 for (const rep of representations) {
                     const config = extractTimingConfig(rep, as, targetPeriod);
                     if (config) {
@@ -261,13 +272,16 @@ export function initializeUiOrchestration() {
             }
 
             if (tracks.length === 0) {
-                showToast({ message: 'No valid SegmentTemplates found in Period.', type: 'warn' });
+                showToast({
+                    message: 'No valid SegmentTemplates found in Period.',
+                    type: 'warn',
+                });
                 return;
             }
 
             // 3. Determine Initial Selection
             let initialRepId = representationId;
-            if (!initialRepId || !tracks.some(t => t.id === initialRepId)) {
+            if (!initialRepId || !tracks.some((t) => t.id === initialRepId)) {
                 initialRepId = tracks[0].id;
             }
 
@@ -278,7 +292,7 @@ export function initializeUiOrchestration() {
                 ).getTime(),
                 periodStart: parseDuration(getAttr(targetPeriod, 'start')) || 0,
                 tracks: tracks,
-                initialRepId: initialRepId
+                initialRepId: initialRepId,
             };
 
             openModalWithContent({

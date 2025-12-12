@@ -8,7 +8,11 @@ const getDebugStatus = () => {
     }
 
     // Auto-enable in development environments (localhost)
-    if (scope.location && (scope.location.hostname === 'localhost' || scope.location.hostname === '127.0.0.1')) {
+    if (
+        scope.location &&
+        (scope.location.hostname === 'localhost' ||
+            scope.location.hostname === '127.0.0.1')
+    ) {
         return true;
     }
 

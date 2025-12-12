@@ -1,4 +1,7 @@
-import { frameAccessService, createVideoDecoder } from '@/features/signalQuality/infrastructure/frame-access-service';
+import {
+    frameAccessService,
+    createVideoDecoder,
+} from '@/features/signalQuality/infrastructure/frame-access-service';
 // import { useAnalysisStore } from '@/state/analysisStore';
 import { appLog } from '@/shared/utils/debug';
 
@@ -19,7 +22,12 @@ export class WebCodecsVideoProvider {
     }
 
     async initialize(stream, preferredTrackId = null) {
-        appLog('WebCodecsProvider', 'info', `Initializing provider for stream ${stream.id}`, { preferredTrackId });
+        appLog(
+            'WebCodecsProvider',
+            'info',
+            `Initializing provider for stream ${stream.id}`,
+            { preferredTrackId }
+        );
         this.stream = stream;
         this._isLive = stream.isLive || stream.manifest?.type === 'dynamic';
         // Flatten segments from state
@@ -35,9 +43,17 @@ export class WebCodecsVideoProvider {
             const state = stateMap.get(preferredTrackId);
             if (state && state.segments && state.segments.length > 0) {
                 targetState = state;
-                appLog('WebCodecsProvider', 'info', `Using preferred video track: ${preferredTrackId}`);
+                appLog(
+                    'WebCodecsProvider',
+                    'info',
+                    `Using preferred video track: ${preferredTrackId}`
+                );
             } else {
-                appLog('WebCodecsProvider', 'warn', `Preferred track ${preferredTrackId} not found or has no segments. Falling back to auto-selection.`);
+                appLog(
+                    'WebCodecsProvider',
+                    'warn',
+                    `Preferred track ${preferredTrackId} not found or has no segments. Falling back to auto-selection.`
+                );
             }
         }
 
@@ -91,7 +107,8 @@ export class WebCodecsVideoProvider {
         this.segments = targetState.segments
             .filter((s) => s.type === 'Media')
             .sort(
-                (a, b) => this._getSegmentStartTime(a) - this._getSegmentStartTime(b)
+                (a, b) =>
+                    this._getSegmentStartTime(a) - this._getSegmentStartTime(b)
             );
 
         let initSegment = targetState.initSegment;
@@ -111,7 +128,11 @@ export class WebCodecsVideoProvider {
             );
         }
 
-        appLog('WebCodecsProvider', 'info', `Target State Codecs: ${targetState.codecs}`);
+        appLog(
+            'WebCodecsProvider',
+            'info',
+            `Target State Codecs: ${targetState.codecs}`
+        );
 
         // Load Init segment to configure decoder
         if (initSegment) {
@@ -125,7 +146,11 @@ export class WebCodecsVideoProvider {
         const url = segment.resolvedUrl || segment.url;
         if (!url) return;
         const initUniqueId = segment.uniqueId || url;
-        appLog('WebCodecsProvider', 'info', `Loading Init segment (${url}) with codec override: ${codecOverride}`);
+        appLog(
+            'WebCodecsProvider',
+            'info',
+            `Loading Init segment (${url}) with codec override: ${codecOverride}`
+        );
         try {
             const buffer = await frameAccessService.fetchSegment(
                 url,
@@ -137,15 +162,29 @@ export class WebCodecsVideoProvider {
             const timescale = segment.timescale || 1;
             const result = frameAccessService.demux(buffer, mime, timescale, {
                 extractAudio: this.enableAudioExtraction,
-                codec: codecOverride
+                codec: codecOverride,
             });
-            let { config, timescale: resultTimescale, videoTrackId, audioTrackId } = result;
+            let {
+                config,
+                timescale: resultTimescale,
+                videoTrackId,
+                audioTrackId,
+            } = result;
 
-            appLog('WebCodecsProvider', 'info', `Demux result for Init segment:`, { config, resultTimescale, videoTrackId, audioTrackId });
+            appLog(
+                'WebCodecsProvider',
+                'info',
+                `Demux result for Init segment:`,
+                { config, resultTimescale, videoTrackId, audioTrackId }
+            );
 
             // Capture timescale from Init segment if available
             if (resultTimescale && resultTimescale !== 1) {
-                appLog('WebCodecsProvider', 'info', `Updating provider timescale from Init segment to ${resultTimescale}`);
+                appLog(
+                    'WebCodecsProvider',
+                    'info',
+                    `Updating provider timescale from Init segment to ${resultTimescale}`
+                );
                 this.timescale = resultTimescale;
             }
 
@@ -159,31 +198,53 @@ export class WebCodecsVideoProvider {
                 // Check support
                 try {
                     let support = await VideoDecoder.isConfigSupported(config);
-                    appLog('WebCodecsProvider', 'info', `VideoDecoder support check (with description):`, support);
+                    appLog(
+                        'WebCodecsProvider',
+                        'info',
+                        `VideoDecoder support check (with description):`,
+                        support
+                    );
 
                     if (!support.supported) {
-                        console.warn(`[WebCodecs] Config not supported: ${config.codec}. Retrying without description...`);
+                        console.warn(
+                            `[WebCodecs] Config not supported: ${config.codec}. Retrying without description...`
+                        );
 
                         // Try without description (sometimes works if codec string is enough)
                         const configNoDesc = { ...config };
                         delete configNoDesc.description;
-                        const supportNoDesc = await VideoDecoder.isConfigSupported(configNoDesc);
+                        const supportNoDesc =
+                            await VideoDecoder.isConfigSupported(configNoDesc);
 
                         if (supportNoDesc.supported) {
-                            console.log('[WebCodecs] Supported without description!');
+                            console.log(
+                                '[WebCodecs] Supported without description!'
+                            );
                             this.decoderConfig = configNoDesc;
                             config = configNoDesc;
                         } else {
                             // If still not supported, throw a specific error
-                            throw new Error(`Browser WebCodecs API does not support codec: ${config.codec}. This is common on Linux/Windows without HEVC extensions. Try Chrome on macOS or install OS media extensions.`);
+                            throw new Error(
+                                `Browser WebCodecs API does not support codec: ${config.codec}. This is common on Linux/Windows without HEVC extensions. Try Chrome on macOS or install OS media extensions.`
+                            );
                         }
                     }
                 } catch (e) {
-                    appLog('WebCodecsProvider', 'error', `VideoDecoder support check failed`, e);
+                    appLog(
+                        'WebCodecsProvider',
+                        'error',
+                        `VideoDecoder support check failed`,
+                        e
+                    );
                     throw e;
                 }
 
-                appLog('WebCodecsProvider', 'info', `Creating VideoDecoder with config:`, config);
+                appLog(
+                    'WebCodecsProvider',
+                    'info',
+                    `Creating VideoDecoder with config:`,
+                    config
+                );
                 this.decoder = createVideoDecoder(
                     config,
                     (frame) => {
@@ -200,7 +261,11 @@ export class WebCodecsVideoProvider {
             }
 
             // Check if the codec indicates encryption (encv/enca)
-            if (config && (config.codec.startsWith('encv') || config.codec.startsWith('enca'))) {
+            if (
+                config &&
+                (config.codec.startsWith('encv') ||
+                    config.codec.startsWith('enca'))
+            ) {
                 const msg = `Encrypted stream detected (${config.codec}). WebCodecs analysis does not support DRM/Encryption. Please use a clear stream.`;
                 appLog('WebCodecsProvider', 'error', msg);
                 throw new Error(msg);
@@ -228,7 +293,11 @@ export class WebCodecsVideoProvider {
         });
 
         if (index === -1) {
-            appLog('WebCodecsProvider', 'warn', `No segment found for time ${time}`);
+            appLog(
+                'WebCodecsProvider',
+                'warn',
+                `No segment found for time ${time}`
+            );
             // If time is before first segment, start at 0
             if (
                 this.segments.length > 0 &&
@@ -309,16 +378,18 @@ export class WebCodecsVideoProvider {
             const nextUrl = nextSeg.resolvedUrl || nextSeg.url;
             if (nextUrl) {
                 // appLog('WebCodecsProvider', 'debug', `Prefetching segment ${nextSeg.number}`);
-                frameAccessService.fetchSegment(
-                    nextUrl,
-                    nextSeg.range,
-                    nextSeg.uniqueId,
-                    this.streamId,
-                    { isPrefetch: true }
-                ).catch(e => {
-                    // Ignore prefetch errors, they will be caught when actually loading
-                    // appLog('WebCodecsProvider', 'warn', `Prefetch failed for ${nextSeg.number}`, e);
-                });
+                frameAccessService
+                    .fetchSegment(
+                        nextUrl,
+                        nextSeg.range,
+                        nextSeg.uniqueId,
+                        this.streamId,
+                        { isPrefetch: true }
+                    )
+                    .catch((e) => {
+                        // Ignore prefetch errors, they will be caught when actually loading
+                        // appLog('WebCodecsProvider', 'warn', `Prefetch failed for ${nextSeg.number}`, e);
+                    });
             }
         }
         appLog(
@@ -340,14 +411,23 @@ export class WebCodecsVideoProvider {
             const timescaleToUse = this.timescale || segment.timescale || 1;
 
             // Pass extractAudio option and Track IDs
-            const result = frameAccessService.demux(buffer, mime, timescaleToUse, {
-                extractAudio: this.enableAudioExtraction,
-                videoTrackId: this.videoTrackId,
-                audioTrackId: this.audioTrackId,
-                baseTimeOffset: this._getSegmentStartTime(segment)
-            });
-            const { chunks, config, audioChunks, timescale: resultTimescale } = result;
-
+            const result = frameAccessService.demux(
+                buffer,
+                mime,
+                timescaleToUse,
+                {
+                    extractAudio: this.enableAudioExtraction,
+                    videoTrackId: this.videoTrackId,
+                    audioTrackId: this.audioTrackId,
+                    baseTimeOffset: this._getSegmentStartTime(segment),
+                }
+            );
+            const {
+                chunks,
+                config,
+                audioChunks,
+                timescale: resultTimescale,
+            } = result;
 
             // Store audio chunks if any
             if (audioChunks && audioChunks.length > 0) {
@@ -357,7 +437,11 @@ export class WebCodecsVideoProvider {
             // If we found a valid timescale in the segment (e.g. Init segment), store it
             if (resultTimescale && resultTimescale !== 1) {
                 if (this.timescale !== resultTimescale) {
-                    appLog('WebCodecsProvider', 'info', `Updating provider timescale to ${resultTimescale}`);
+                    appLog(
+                        'WebCodecsProvider',
+                        'info',
+                        `Updating provider timescale to ${resultTimescale}`
+                    );
                     this.timescale = resultTimescale;
                 }
             }
@@ -369,7 +453,7 @@ export class WebCodecsVideoProvider {
                     this.decoderConfig.codedWidth !== config.codedWidth ||
                     this.decoderConfig.codedHeight !== config.codedHeight ||
                     this.decoderConfig.description?.byteLength !==
-                    config.description?.byteLength
+                        config.description?.byteLength
                 ) {
                     // Simple check for description change
 

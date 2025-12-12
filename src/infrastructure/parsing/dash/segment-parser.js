@@ -93,7 +93,7 @@ function generateSegments(
             (startTimeSeconds +
                 segmentDurationSeconds -
                 availabilityTimeOffset) *
-            1000;
+                1000;
 
         const url = mediaTemplate
             .replace(/\$RepresentationID\$/g, repId)
@@ -136,7 +136,7 @@ async function getUtcTime(manifestElement) {
     if (
         utcTiming &&
         getAttr(utcTiming, 'schemeIdUri') ===
-        'urn:mpeg:dash:utc:http-xsdate:2014'
+            'urn:mpeg:dash:utc:http-xsdate:2014'
     ) {
         try {
             const response = await fetch(getAttr(utcTiming, 'value'));
@@ -253,17 +253,17 @@ export async function parseAllSegmentUrls(
             period.AdaptationSet && Array.isArray(period.AdaptationSet)
                 ? period.AdaptationSet
                 : period.AdaptationSet
-                    ? [period.AdaptationSet]
-                    : [];
+                  ? [period.AdaptationSet]
+                  : [];
 
         for (const adaptationSet of adaptationSets) {
             const representations =
                 adaptationSet.Representation &&
-                    Array.isArray(adaptationSet.Representation)
+                Array.isArray(adaptationSet.Representation)
                     ? adaptationSet.Representation
                     : adaptationSet.Representation
-                        ? [adaptationSet.Representation]
-                        : [];
+                      ? [adaptationSet.Representation]
+                      : [];
 
             for (const rep of representations) {
                 const repId = getAttr(rep, 'id');
@@ -315,9 +315,9 @@ export async function parseAllSegmentUrls(
                 const encryptionInfo =
                     uniqueSystems.size > 0
                         ? {
-                            method: 'CENC',
-                            systems: Array.from(uniqueSystems),
-                        }
+                              method: 'CENC',
+                              systems: Array.from(uniqueSystems),
+                          }
                         : null;
 
                 const flags = [];
@@ -421,11 +421,11 @@ export async function parseAllSegmentUrls(
                                         String(currentNumber).padStart(
                                             p
                                                 ? parseInt(
-                                                    p.substring(
-                                                        2,
-                                                        p.length - 1
-                                                    )
-                                                )
+                                                      p.substring(
+                                                          2,
+                                                          p.length - 1
+                                                      )
+                                                  )
                                                 : 1,
                                             '0'
                                         )
@@ -441,7 +441,7 @@ export async function parseAllSegmentUrls(
                                         mpdStartTimeInTimescale / timescale +
                                         segmentDurationSeconds -
                                         availabilityTimeOffset) *
-                                    1000;
+                                        1000;
 
                                 allTimelineSegments.push({
                                     repId,
@@ -472,9 +472,11 @@ export async function parseAllSegmentUrls(
 
                         // Set live edge if dynamic
                         if (isDynamic && allTimelineSegments.length > 0) {
-                            segmentsByRep[compositeKey].liveEdgeTime = allTimelineSegments[allTimelineSegments.length - 1].startTimeUTC / 1000;
+                            segmentsByRep[compositeKey].liveEdgeTime =
+                                allTimelineSegments[
+                                    allTimelineSegments.length - 1
+                                ].startTimeUTC / 1000;
                         }
-
                     } else if (mediaTemplate && getAttr(template, 'duration')) {
                         // --- ARCHITECTURAL FIX: Correct Calculation for Dynamic SegmentTemplate ---
                         const segmentDuration = Number(
@@ -487,25 +489,37 @@ export async function parseAllSegmentUrls(
                         if (isDynamic) {
                             // Calculate current Live Edge Index
                             // Time since AST (in seconds)
-                            const timeSinceAst = (now - availabilityStartTime) / 1000;
+                            const timeSinceAst =
+                                (now - availabilityStartTime) / 1000;
 
                             // Subtract period start offset
                             const timeInPeriod = timeSinceAst - periodStart;
 
                             // Calculate total segments elapsed
                             // Floor to get the index of the segment currently being played/live
-                            const liveIndex = Math.floor(timeInPeriod / durationSec) + startNumber;
+                            const liveIndex =
+                                Math.floor(timeInPeriod / durationSec) +
+                                startNumber;
 
                             // Generate a sliding window (e.g. last 20 segments)
-                            firstSegmentNumber = Math.max(startNumber, liveIndex - LIVE_WINDOW_SEGMENTS);
+                            firstSegmentNumber = Math.max(
+                                startNumber,
+                                liveIndex - LIVE_WINDOW_SEGMENTS
+                            );
                             numSegments = LIVE_WINDOW_SEGMENTS + 2; // Add buffer for edge variance
 
                             // Store live edge time for synchronization
-                            segmentsByRep[compositeKey].liveEdgeTime = timeSinceAst;
+                            segmentsByRep[compositeKey].liveEdgeTime =
+                                timeSinceAst;
                         } else if (periodDuration !== null) {
                             // VOD with known duration
-                            numSegments = Math.ceil(periodDuration / durationSec);
-                            numSegments = Math.min(numSegments, VOD_MAX_SEGMENTS);
+                            numSegments = Math.ceil(
+                                periodDuration / durationSec
+                            );
+                            numSegments = Math.min(
+                                numSegments,
+                                VOD_MAX_SEGMENTS
+                            );
                         }
 
                         segmentsByRep[compositeKey].segments = generateSegments(
@@ -551,8 +565,9 @@ export async function parseAllSegmentUrls(
                             let currentNumber = 1;
 
                             for (const entry of sidxBox.entries) {
-                                const range = `${currentOffset}-${currentOffset + entry.size - 1
-                                    }`;
+                                const range = `${currentOffset}-${
+                                    currentOffset + entry.size - 1
+                                }`;
                                 const uniqueId = `${baseUrl}@media@${range}`;
 
                                 segmentsByRep[compositeKey].segments.push({
@@ -609,7 +624,8 @@ export async function parseAllSegmentUrls(
                                 .pop(),
                             time: 0,
                             periodStart: periodStart,
-                            duration: effectiveSingleSegmentDuration * timescale,
+                            duration:
+                                effectiveSingleSegmentDuration * timescale,
                             timescale,
                             encryptionInfo,
                             flags,
@@ -620,11 +636,9 @@ export async function parseAllSegmentUrls(
                     }
                 } else if (baseURLOnly) {
                     const urlContent =
-                        (
-                            Array.isArray(baseURLOnly)
-                                ? baseURLOnly[0]
-                                : baseURLOnly
-                        )['#text'] || '';
+                        (Array.isArray(baseURLOnly)
+                            ? baseURLOnly[0]
+                            : baseURLOnly)['#text'] || '';
                     if (
                         urlContent &&
                         segmentsByRep[compositeKey].segments.length === 0
@@ -641,7 +655,8 @@ export async function parseAllSegmentUrls(
                             template: urlContent,
                             time: 0,
                             periodStart: periodStart,
-                            duration: effectiveSingleSegmentDuration * timescale,
+                            duration:
+                                effectiveSingleSegmentDuration * timescale,
                             timescale: timescale,
                             encryptionInfo,
                             flags,

@@ -12,11 +12,11 @@ function calculateTimelineBounds(stream) {
     // Helper to process a list of segments
     const processSegments = (segments, periodStartOffset = 0) => {
         if (!segments || segments.length === 0) return;
-        
+
         // Check all segments to find true min/max bounds
         // (First/Last optimization removed to handle unsorted or gap scenarios safely)
         for (const seg of segments) {
-            const start = periodStartOffset + (seg.time / (seg.timescale || 1));
+            const start = periodStartOffset + seg.time / (seg.timescale || 1);
             const duration = seg.duration / (seg.timescale || 1);
             const end = start + duration;
 
@@ -29,9 +29,9 @@ function calculateTimelineBounds(stream) {
     if (stream.protocol === 'dash') {
         for (const repState of stream.dashRepresentationState.values()) {
             if (repState.segments.length > 0) {
-                 const first = repState.segments[0];
-                 const periodOffset = first.periodStart || 0;
-                 processSegments(repState.segments, periodOffset);
+                const first = repState.segments[0];
+                const periodOffset = first.periodStart || 0;
+                processSegments(repState.segments, periodOffset);
             }
         }
     } else if (stream.protocol === 'hls') {
@@ -46,7 +46,7 @@ function calculateTimelineBounds(stream) {
         for (const avail of stream.adAvails) {
             // Ignore placeholder
             if (avail.id === 'unconfirmed-inband-scte35') continue;
-            
+
             if (avail.startTime < minTime) minTime = avail.startTime;
             const end = avail.startTime + avail.duration;
             if (end > maxTime) maxTime = end;
@@ -65,7 +65,7 @@ function calculateTimelineBounds(stream) {
 
     return {
         start: minTime,
-        duration: Math.max(1, maxTime - minTime) // Ensure non-zero
+        duration: Math.max(1, maxTime - minTime), // Ensure non-zero
     };
 }
 
@@ -81,7 +81,7 @@ export function createAdvertisingViewModel(stream) {
     const bounds = calculateTimelineBounds(stream);
     const windowStart = bounds.start;
     const windowSize = bounds.duration;
-    
+
     // Labels
     let labelStart = formatDuration(windowStart);
     let labelEnd = formatDuration(windowStart + windowSize);
@@ -109,7 +109,7 @@ export function createAdvertisingViewModel(stream) {
         let startPct = 0;
         let widthPct = 0;
         let shouldHide = false;
-        
+
         // Skip placeholder
         if (avail.id === 'unconfirmed-inband-scte35') {
             shouldHide = true;
@@ -117,7 +117,7 @@ export function createAdvertisingViewModel(stream) {
             // Calculate relative position in the window
             // Start Relative to Window Start
             const relativeStart = avail.startTime - windowStart;
-            
+
             // Percentage
             startPct = (relativeStart / windowSize) * 100;
             widthPct = (avail.duration / windowSize) * 100;
@@ -156,14 +156,14 @@ export function createAdvertisingViewModel(stream) {
         duration: windowSize,
         labels: {
             start: labelStart,
-            end: labelEnd
-        }
+            end: labelEnd,
+        },
     };
 }
 
 function getStatusColor(avail) {
     if (avail.id === 'unconfirmed-inband-scte35') {
-        return 'blue'; 
+        return 'blue';
     }
     if (avail.detectionMethod === 'STRUCTURAL_DISCONTINUITY') {
         return 'amber';

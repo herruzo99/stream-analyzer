@@ -53,7 +53,7 @@ export function reconstructFrames(nalUnits) {
             // If no current frame, start one.
             if (nal.isIdr) isFrameStart = true;
             else if (!currentFrame) isFrameStart = true;
-            
+
             // Note: Without AUD or VUI SEI, detecting P vs B start boundaries
             // in a continuous stream of VCL NALs is difficult without deep parsing.
             // This logic groups consecutive non-IDR VCLs into one frame if they follow each other,
@@ -73,7 +73,7 @@ export function reconstructFrames(nalUnits) {
                 currentFrame.isKeyFrame = true;
                 currentFrame.type = 'I';
             }
-            
+
             // Accumulate
             currentFrame.size += nal.length;
             currentFrame.nalTypes.push(nal.type);
@@ -83,10 +83,10 @@ export function reconstructFrames(nalUnits) {
     pushFrame();
 
     // Filter out frames that only contain AUDs or PPS/SPS (no VCL)
-    // A valid video frame must have at least one VCL NAL? 
-    // Or we keep them but mark them? 
+    // A valid video frame must have at least one VCL NAL?
+    // Or we keep them but mark them?
     // GopAnalyzer expects valid frames. Let's filter out "empty" meta frames.
-    
+
     // Simple filter: Ensure frame has some size.
-    return frames.filter(f => f.size > 0);
+    return frames.filter((f) => f.size > 0);
 }

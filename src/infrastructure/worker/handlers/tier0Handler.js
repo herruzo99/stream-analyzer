@@ -170,7 +170,6 @@ function getFirstVariantUri(manifestString) {
 }
 
 export async function handleTier0Analysis({ url, auth }, signal) {
-
     try {
         const startTime = performance.now();
         const response = await fetchWithAuth(

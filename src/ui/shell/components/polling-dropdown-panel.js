@@ -299,7 +299,7 @@ export const pollingDropdownPanelTemplate = () => {
         pollingMode,
     } = useUiStore.getState();
     const liveStreams = streams.filter((s) => s.manifest?.type === 'dynamic');
-    
+
     // STRICT DECOUPLING:
     // Only check if streams are flagged as polling.
     // Do not check player state, QC state, or any other inference.

@@ -218,7 +218,7 @@ class ResponseViewer extends HTMLElement {
 
         const { contentType } = inferMediaInfoFromExtension(url);
         let formatHint = null;
-        
+
         // Improved text format detection
         if (contentType === 'text') {
             const urlLower = url.toLowerCase();

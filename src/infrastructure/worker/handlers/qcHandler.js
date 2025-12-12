@@ -4,7 +4,7 @@ import {
     detectActivePictureArea,
     detectBlockiness,
     detectBanding,
-    performUnifiedAnalysis
+    performUnifiedAnalysis,
 } from '@/features/signalQuality/domain/pixel-analyzers.js';
 import { appLog } from '../../../shared/utils/debug.js';
 
@@ -18,7 +18,7 @@ const THRESHOLDS = {
     BLACK_LUMA: 16,
     ILLEGAL_PCT: 3.0,
     LETTERBOX_PCT: 5.0,
-    FLAT_STDDEV: 20.0
+    FLAT_STDDEV: 20.0,
 };
 
 // Minimum duration (in seconds) for an anomaly to be considered valid.
@@ -26,7 +26,7 @@ const MIN_DURATION = {
     freeze: 0.15,
     black: 0.1,
     silence: 0.1,
-    default: 0.0
+    default: 0.0,
 };
 
 class PerformanceTracker {
@@ -68,15 +68,19 @@ function getOrCreateContext(streamId, width, height) {
                 metricsAccumulator: {},
                 metricsCount: {},
                 activeAnomalies: new Map(),
-                issues: []
-            }
+                issues: [],
+            },
         };
         streamContexts.set(streamId, ctx);
     }
     return ctx;
 }
 
-export async function handleAnalyzeFrameSequence(payload, signal, postProgress) {
+export async function handleAnalyzeFrameSequence(
+    payload,
+    signal,
+    postProgress
+) {
     const tracker = new PerformanceTracker();
     tracker.start('total_frame_time');
 
@@ -84,7 +88,7 @@ export async function handleAnalyzeFrameSequence(payload, signal, postProgress) 
     const timestamp = payload.timestamp;
 
     if (!streamId && streamId !== 0) {
-        throw new Error("streamId is required for frame analysis.");
+        throw new Error('streamId is required for frame analysis.');
     }
 
     const width = frameBitmap.width;
@@ -120,7 +124,8 @@ export async function handleAnalyzeFrameSequence(payload, signal, postProgress) 
     // --- 3. Conditional Analysis ---
 
     // A. Unified Luma/Color Stats
-    const needsUnified = activeLayers.has('metric_luma') ||
+    const needsUnified =
+        activeLayers.has('metric_luma') ||
         activeLayers.has('black_frame') ||
         activeLayers.has('broadcast_safe') ||
         activeLayers.has('contrast_monitor');
@@ -130,7 +135,10 @@ export async function handleAnalyzeFrameSequence(payload, signal, postProgress) 
         const unifiedStats = performUnifiedAnalysis(data, 4); // Stride 4
         tracker.end('calc_unified');
 
-        if (activeLayers.has('metric_luma') || activeLayers.has('black_frame')) {
+        if (
+            activeLayers.has('metric_luma') ||
+            activeLayers.has('black_frame')
+        ) {
             metrics.luma = unifiedStats.avgLuma;
         }
 
@@ -153,7 +161,8 @@ export async function handleAnalyzeFrameSequence(payload, signal, postProgress) 
     }
 
     // C. Temporal Information (Motion/Freeze)
-    const needsTemporal = activeLayers.has('metric_motion') || activeLayers.has('freeze');
+    const needsTemporal =
+        activeLayers.has('metric_motion') || activeLayers.has('freeze');
 
     if (needsTemporal) {
         tracker.start('calc_temporal');
@@ -192,7 +201,10 @@ export async function handleAnalyzeFrameSequence(payload, signal, postProgress) 
     }
 
     // F. Banding
-    if (activeLayers.has('banding') || activeLayers.has('metric_predicted_quality')) {
+    if (
+        activeLayers.has('banding') ||
+        activeLayers.has('metric_predicted_quality')
+    ) {
         tracker.start('calc_banding');
         // Only run if explicitly requested or needed for quality score
         // (If strictly for quality score, we might want to skip if CPU is tight, but let's run it)
@@ -212,18 +224,26 @@ export async function handleAnalyzeFrameSequence(payload, signal, postProgress) 
 
         // Contrast penalty (too flat)
         let contrastPenalty = 0;
-        if (metrics.contrastStdDev !== undefined && metrics.contrastStdDev < 20) {
+        if (
+            metrics.contrastStdDev !== undefined &&
+            metrics.contrastStdDev < 20
+        ) {
             contrastPenalty = (20 - metrics.contrastStdDev) * 2; // Max 40 penalty
         }
 
         // Luma penalty (too dark/bright)
         let lumaPenalty = 0;
         if (metrics.luma !== undefined) {
-            if (metrics.luma < 30) lumaPenalty = (30 - metrics.luma);
-            if (metrics.luma > 220) lumaPenalty = (metrics.luma - 220);
+            if (metrics.luma < 30) lumaPenalty = 30 - metrics.luma;
+            if (metrics.luma > 220) lumaPenalty = metrics.luma - 220;
         }
 
-        score = score - blockPenalty - bandingPenalty - contrastPenalty - lumaPenalty;
+        score =
+            score -
+            blockPenalty -
+            bandingPenalty -
+            contrastPenalty -
+            lumaPenalty;
         metrics.predictedQuality = Math.max(0, Math.min(100, score));
     }
 
@@ -232,49 +252,87 @@ export async function handleAnalyzeFrameSequence(payload, signal, postProgress) 
 
     if (activeLayers.has('black_frame') && metrics.luma !== undefined) {
         if (metrics.luma < THRESHOLDS.BLACK_LUMA) {
-            currentFrameIssues.push({ type: 'black', value: `Luma: ${metrics.luma.toFixed(1)}` });
+            currentFrameIssues.push({
+                type: 'black',
+                value: `Luma: ${metrics.luma.toFixed(1)}`,
+            });
         }
     }
 
     if (activeLayers.has('freeze') && metrics.freezeDiff !== undefined) {
         if (frameIndex > 0 && metrics.freezeDiff < THRESHOLDS.FREEZE_MSE) {
-            currentFrameIssues.push({ type: 'freeze', value: `Diff: ${(metrics.freezeDiff * 100).toFixed(4)}%` });
+            currentFrameIssues.push({
+                type: 'freeze',
+                value: `Diff: ${(metrics.freezeDiff * 100).toFixed(4)}%`,
+            });
         }
     }
 
-    if (activeLayers.has('broadcast_safe') && metrics.illegalBlack !== undefined) {
+    if (
+        activeLayers.has('broadcast_safe') &&
+        metrics.illegalBlack !== undefined
+    ) {
         if (metrics.illegalBlack > THRESHOLDS.ILLEGAL_PCT) {
-            currentFrameIssues.push({ type: 'illegal', value: `Crushed Blacks: ${metrics.illegalBlack.toFixed(1)}%` });
+            currentFrameIssues.push({
+                type: 'illegal',
+                value: `Crushed Blacks: ${metrics.illegalBlack.toFixed(1)}%`,
+            });
         }
         if (metrics.illegalWhite > THRESHOLDS.ILLEGAL_PCT) {
-            currentFrameIssues.push({ type: 'illegal', value: `Clipped Whites: ${metrics.illegalWhite.toFixed(1)}%` });
+            currentFrameIssues.push({
+                type: 'illegal',
+                value: `Clipped Whites: ${metrics.illegalWhite.toFixed(1)}%`,
+            });
         }
         if (metrics.illegalChroma > THRESHOLDS.ILLEGAL_PCT) {
-            currentFrameIssues.push({ type: 'illegal', value: `Unsafe Chroma: ${metrics.illegalChroma.toFixed(1)}%` });
+            currentFrameIssues.push({
+                type: 'illegal',
+                value: `Unsafe Chroma: ${metrics.illegalChroma.toFixed(1)}%`,
+            });
         }
     }
 
     if (activeLayers.has('artifacts') && metrics.blockiness !== undefined) {
         if (metrics.blockiness > THRESHOLDS.BLOCKINESS) {
-            currentFrameIssues.push({ type: 'blocky', value: `Score: ${metrics.blockiness.toFixed(0)}` });
+            currentFrameIssues.push({
+                type: 'blocky',
+                value: `Score: ${metrics.blockiness.toFixed(0)}`,
+            });
         }
     }
 
     if (activeLayers.has('letterbox') && metrics.letterboxPad !== undefined) {
         if (metrics.letterboxPad > THRESHOLDS.LETTERBOX_PCT) {
-            currentFrameIssues.push({ type: 'letterbox', value: `Padding: ${metrics.letterboxPad.toFixed(0)}%` });
+            currentFrameIssues.push({
+                type: 'letterbox',
+                value: `Padding: ${metrics.letterboxPad.toFixed(0)}%`,
+            });
         }
     }
 
-    if (activeLayers.has('contrast_monitor') && metrics.contrastStdDev !== undefined) {
-        if (metrics.contrastStdDev < THRESHOLDS.FLAT_STDDEV && metrics.luma > 30 && metrics.luma < 200) {
-            currentFrameIssues.push({ type: 'flat', value: `StdDev: ${metrics.contrastStdDev.toFixed(1)} (Washed Out)` });
+    if (
+        activeLayers.has('contrast_monitor') &&
+        metrics.contrastStdDev !== undefined
+    ) {
+        if (
+            metrics.contrastStdDev < THRESHOLDS.FLAT_STDDEV &&
+            metrics.luma > 30 &&
+            metrics.luma < 200
+        ) {
+            currentFrameIssues.push({
+                type: 'flat',
+                value: `StdDev: ${metrics.contrastStdDev.toFixed(1)} (Washed Out)`,
+            });
         }
     }
 
     if (activeLayers.has('banding') && metrics.banding !== undefined) {
-        if (metrics.banding > 15) { // Threshold for visible banding
-            currentFrameIssues.push({ type: 'banding', value: `Score: ${metrics.banding.toFixed(0)}` });
+        if (metrics.banding > 15) {
+            // Threshold for visible banding
+            currentFrameIssues.push({
+                type: 'banding',
+                value: `Score: ${metrics.banding.toFixed(0)}`,
+            });
         }
     }
     tracker.end('logic_anomalies');
@@ -284,20 +342,29 @@ export async function handleAnalyzeFrameSequence(payload, signal, postProgress) 
         metricsAccumulator: ctx.jobState.metricsAccumulator,
         metricsCount: ctx.jobState.metricsCount,
         activeAnomalies: ctx.jobState.activeAnomalies,
-        issues: ctx.jobState.issues
+        issues: ctx.jobState.issues,
     };
 
     tracker.start('state_update');
     _accumulateMetrics(metrics, statefulHelper);
 
     // Process issues using the calculated stepSize and current timestamp
-    const newIssues = _processFrameIssuesStateful(currentFrameIssues, timestamp, stepSize, statefulHelper);
+    const newIssues = _processFrameIssuesStateful(
+        currentFrameIssues,
+        timestamp,
+        stepSize,
+        statefulHelper
+    );
 
     if (isLast) {
         const closed = _closeAllAnomalies(timestamp, statefulHelper);
         newIssues.push(...closed);
         streamContexts.delete(streamId);
-        appLog('QcHandler', 'info', `Batch analysis finished for stream ${streamId}. Context cleared.`);
+        appLog(
+            'QcHandler',
+            'info',
+            `Batch analysis finished for stream ${streamId}. Context cleared.`
+        );
     }
     tracker.end('state_update');
 
@@ -308,25 +375,26 @@ export async function handleAnalyzeFrameSequence(payload, signal, postProgress) 
         frameIndex,
         metrics,
         issues: newIssues,
-        profiling: tracker.metrics // Return detailed timings
+        profiling: tracker.metrics, // Return detailed timings
     };
 }
 
 function _accumulateMetrics(frameMetrics, state) {
     for (const [key, val] of Object.entries(frameMetrics)) {
         if (typeof val === 'number') {
-            state.metricsAccumulator[key] = (state.metricsAccumulator[key] || 0) + val;
+            state.metricsAccumulator[key] =
+                (state.metricsAccumulator[key] || 0) + val;
             state.metricsCount[key] = (state.metricsCount[key] || 0) + 1;
         }
     }
 }
 
 function _processFrameIssuesStateful(frameIssues, time, stepSize, state) {
-    const frameIssueTypes = new Set(frameIssues.map(i => i.type));
+    const frameIssueTypes = new Set(frameIssues.map((i) => i.type));
     const dirtyIssues = [];
 
     // 1. Update existing anomalies or create new ones
-    frameIssues.forEach(issue => {
+    frameIssues.forEach((issue) => {
         if (state.activeAnomalies.has(issue.type)) {
             const active = state.activeAnomalies.get(issue.type);
             active.duration += stepSize;
@@ -343,7 +411,7 @@ function _processFrameIssuesStateful(frameIssues, time, stepSize, state) {
                 startTime: time,
                 duration: stepSize,
                 value: issue.value,
-                severity: 'warning'
+                severity: 'warning',
             };
             state.activeAnomalies.set(issue.type, newAnomaly);
 
@@ -387,5 +455,6 @@ function _closeAllAnomalies(endTime, state) {
 
 // Bind functions for export usage (simulating class methods if needed by test suite)
 handleAnalyzeFrameSequence._accumulateMetrics = _accumulateMetrics;
-handleAnalyzeFrameSequence._processFrameIssuesStateful = _processFrameIssuesStateful;
+handleAnalyzeFrameSequence._processFrameIssuesStateful =
+    _processFrameIssuesStateful;
 handleAnalyzeFrameSequence._closeAllAnomalies = _closeAllAnomalies;

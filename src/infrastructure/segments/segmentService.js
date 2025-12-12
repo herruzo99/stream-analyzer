@@ -72,7 +72,7 @@ export function getParsedSegment(
                     reject(
                         new Error(
                             entry.parsedData?.error ||
-                            `Failed to load segment ${uniqueId} (HTTP ${entry.status})`
+                                `Failed to load segment ${uniqueId} (HTTP ${entry.status})`
                         )
                     );
                 } else {
@@ -98,7 +98,7 @@ export function getParsedSegment(
                 streamId: id,
                 format: formatHint,
                 context,
-                options: { forceReload, background }
+                options: { forceReload, background },
             });
         }
     });
@@ -154,7 +154,11 @@ export function initializeSegmentService() {
             const { get } = useSegmentCacheStore.getState();
 
             const currentEntry = get(uniqueId);
-            if (currentEntry && currentEntry.status === 200 && currentEntry.data) {
+            if (
+                currentEntry &&
+                currentEntry.status === 200 &&
+                currentEntry.data
+            ) {
                 return;
             }
 
@@ -177,9 +181,17 @@ export function initializeSegmentService() {
 
                 // Inject Resolution from Manifest for BPP calc
                 if (stream && segmentMeta && segmentMeta.repId) {
-                    const videoTrack = stream.manifest?.summary?.videoTracks?.find(t => t.id === segmentMeta.repId);
-                    if (videoTrack && videoTrack.resolutions && videoTrack.resolutions.length > 0) {
-                        const resParts = videoTrack.resolutions[0].value.split('x');
+                    const videoTrack =
+                        stream.manifest?.summary?.videoTracks?.find(
+                            (t) => t.id === segmentMeta.repId
+                        );
+                    if (
+                        videoTrack &&
+                        videoTrack.resolutions &&
+                        videoTrack.resolutions.length > 0
+                    ) {
+                        const resParts =
+                            videoTrack.resolutions[0].value.split('x');
                         if (resParts.length === 2) {
                             const w = parseInt(resParts[0], 10);
                             const h = parseInt(resParts[1], 10);
@@ -222,19 +234,28 @@ export function initializeSegmentService() {
                             parsedData: workerResult.parsedData,
                         };
 
-                        useSegmentCacheStore.getState().set(uniqueId, finalEntry);
+                        useSegmentCacheStore
+                            .getState()
+                            .set(uniqueId, finalEntry);
 
                         eventBus.dispatch(EVENTS.SEGMENT.LOADED, {
                             uniqueId,
                             entry: finalEntry,
                         });
 
-                        if (streamId !== null && finalEntry.parsedData?.data?.events?.length > 0) {
-                            const eventsWithSource = finalEntry.parsedData.data.events.map((e) => ({
-                                ...e,
-                                sourceSegmentId: uniqueId,
-                            }));
-                            analysisActions.addInbandEvents(streamId, eventsWithSource);
+                        if (
+                            streamId !== null &&
+                            finalEntry.parsedData?.data?.events?.length > 0
+                        ) {
+                            const eventsWithSource =
+                                finalEntry.parsedData.data.events.map((e) => ({
+                                    ...e,
+                                    sourceSegmentId: uniqueId,
+                                }));
+                            analysisActions.addInbandEvents(
+                                streamId,
+                                eventsWithSource
+                            );
                         }
                     })
                     .catch((error) => {
@@ -244,7 +265,9 @@ export function initializeSegmentService() {
                             data: null,
                             parsedData: { error: error.message },
                         };
-                        useSegmentCacheStore.getState().set(uniqueId, errorEntry);
+                        useSegmentCacheStore
+                            .getState()
+                            .set(uniqueId, errorEntry);
                         eventBus.dispatch(EVENTS.SEGMENT.LOADED, {
                             uniqueId,
                             entry: errorEntry,
@@ -254,16 +277,24 @@ export function initializeSegmentService() {
 
             const getDecryptionInfo = async () => {
                 if (segmentMeta?.encryptionInfo) {
-                    const { method, uri, iv: ivHex } = segmentMeta.encryptionInfo;
+                    const {
+                        method,
+                        uri,
+                        iv: ivHex,
+                    } = segmentMeta.encryptionInfo;
                     if (method === 'AES-128') {
                         const key = await keyManagerService.getKey(uri);
                         let iv;
                         if (ivHex && ivHex !== 'null') {
                             iv = new Uint8Array(
-                                ivHex.substring(2).match(/.{1,2}/g).map((byte) => parseInt(byte, 16))
+                                ivHex
+                                    .substring(2)
+                                    .match(/.{1,2}/g)
+                                    .map((byte) => parseInt(byte, 16))
                             );
                         } else {
-                            const mediaSequence = mediaPlaylist?.manifest?.mediaSequence || 0;
+                            const mediaSequence =
+                                mediaPlaylist?.manifest?.mediaSequence || 0;
                             const sequenceNumber = mediaSequence + segmentIndex;
                             iv = new Uint8Array(16);
                             const view = new DataView(iv.buffer);
@@ -294,14 +325,19 @@ export function initializeSegmentService() {
             const { get, set } = useSegmentCacheStore.getState();
             const existingEntry = get(uniqueId);
 
-            const hasExistingAnalysis = existingEntry?.parsedData?.bitstreamAnalysisAttempted;
+            const hasExistingAnalysis =
+                existingEntry?.parsedData?.bitstreamAnalysisAttempted;
             const hasNewAnalysis = parsedData?.bitstreamAnalysisAttempted;
 
             if (existingEntry && existingEntry.status === 200) {
                 if (hasExistingAnalysis && !hasNewAnalysis) {
                     return;
                 }
-                if (existingEntry.data && data && existingEntry.data.byteLength === data.byteLength) {
+                if (
+                    existingEntry.data &&
+                    data &&
+                    existingEntry.data.byteLength === data.byteLength
+                ) {
                     return;
                 }
             }
@@ -315,9 +351,10 @@ export function initializeSegmentService() {
             });
 
             if (parsedData?.data?.events?.length > 0) {
-                const eventsWithSource = parsedData.data.events.map(
-                    (e) => ({ ...e, sourceSegmentId: uniqueId })
-                );
+                const eventsWithSource = parsedData.data.events.map((e) => ({
+                    ...e,
+                    sourceSegmentId: uniqueId,
+                }));
                 analysisActions.addInbandEvents(streamId, eventsWithSource);
             }
         }
@@ -335,16 +372,31 @@ function findSegmentMetadata(uniqueId, streamId) {
                 (s) => s.uniqueId === uniqueId
             );
             if (segmentIndex !== -1) {
-                const playlist = stream.mediaPlaylists.get(key) || { manifest: { mediaSequence: 0 } };
-                return { playlist, segment: state.segments[segmentIndex], segmentIndex };
+                const playlist = stream.mediaPlaylists.get(key) || {
+                    manifest: { mediaSequence: 0 },
+                };
+                return {
+                    playlist,
+                    segment: state.segments[segmentIndex],
+                    segmentIndex,
+                };
             }
         }
     } else if (stream.protocol === 'dash') {
         for (const repState of stream.dashRepresentationState.values()) {
-            const segment = repState.segments.find(s => s.uniqueId === uniqueId);
+            const segment = repState.segments.find(
+                (s) => s.uniqueId === uniqueId
+            );
             if (segment) return { playlist: null, segment, segmentIndex: -1 };
-            if (repState.initSegment && repState.initSegment.uniqueId === uniqueId) {
-                return { playlist: null, segment: repState.initSegment, segmentIndex: -1 };
+            if (
+                repState.initSegment &&
+                repState.initSegment.uniqueId === uniqueId
+            ) {
+                return {
+                    playlist: null,
+                    segment: repState.initSegment,
+                    segmentIndex: -1,
+                };
             }
         }
     }

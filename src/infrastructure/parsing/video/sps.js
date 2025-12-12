@@ -24,7 +24,12 @@ function unescapeRBSP(data) {
     let outIdx = 0;
 
     for (let i = 0; i < length; i++) {
-        if (i < length - 2 && data[i] === 0x00 && data[i + 1] === 0x00 && data[i + 2] === 0x03) {
+        if (
+            i < length - 2 &&
+            data[i] === 0x00 &&
+            data[i + 1] === 0x00 &&
+            data[i + 2] === 0x03
+        ) {
             output[outIdx++] = 0x00;
             output[outIdx++] = 0x00;
             i += 2; // Skip the 0x03
@@ -56,7 +61,7 @@ class BitReader {
         for (let i = 0; i < n; i++) {
             if (this.bytePosition >= this.buffer.length) {
                 // Return 0 if reading past end to prevent crash, but verify logic upstream
-                return 0; 
+                return 0;
             }
             const byte = this.buffer[this.bytePosition];
             const bit = (byte >> (7 - this.bitPosition)) & 1;
@@ -78,18 +83,25 @@ class BitReader {
     readUE() {
         let leadingZeroBits = 0;
         // Find the number of leading zero bits.
-        while (this.bytePosition < this.buffer.length && this.readBits(1) === 0) {
+        while (
+            this.bytePosition < this.buffer.length &&
+            this.readBits(1) === 0
+        ) {
             leadingZeroBits++;
             // Safety break for malformed streams
             if (leadingZeroBits > 32) {
-                appLog('sps.js', 'warn', 'Exceeded max leading zero bits in UE parsing.');
+                appLog(
+                    'sps.js',
+                    'warn',
+                    'Exceeded max leading zero bits in UE parsing.'
+                );
                 return 0;
             }
         }
-        
+
         // Handle end of stream gracefully
         if (this.bytePosition >= this.buffer.length && leadingZeroBits > 0) {
-             return 0;
+            return 0;
         }
 
         if (leadingZeroBits === 0) {
@@ -187,9 +199,9 @@ export function parseSPS(spsNalUnit) {
                     return {
                         profile_idc,
                         level_idc,
-                        resolution: "Unknown (Scaling Matrix)",
+                        resolution: 'Unknown (Scaling Matrix)',
                         frame_rate: null,
-                        error: 'SPS scaling matrix present, stopping parse.'
+                        error: 'SPS scaling matrix present, stopping parse.',
                     };
                 }
             }

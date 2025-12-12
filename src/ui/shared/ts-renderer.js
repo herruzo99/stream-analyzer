@@ -230,48 +230,48 @@ const renderHeaderTab = (packet) => html`
     <div class="space-y-4 p-4 animate-fadeIn">
         ${sectionHeader('Transport Header', icons.fileText)}
         <div class="bg-slate-800/30 rounded p-2 border border-slate-800">
-             ${kv('Sync Byte', packet.header.sync_byte, null, packet)}
-             ${kv(
-                 'Transport Error',
-                 packet.header.transport_error_indicator,
-                 packet.header.transport_error_indicator.value
-                     ? 'text-red-400 font-bold'
-                     : null,
-                 packet
-             )}
-             ${kv(
-                 'Payload Start',
-                 packet.header.payload_unit_start_indicator,
-                 'text-emerald-400 font-bold',
-                 packet
-             )}
-             ${kv(
-                 'Priority',
-                 packet.header.transport_priority,
-                 packet.header.transport_priority.value
-                     ? 'text-amber-400 font-bold'
-                     : null,
-                 packet
-             )}
-             ${kv('PID', packet.header.pid, 'text-blue-300 font-bold', packet)}
-             ${kv(
-                 'Scrambling',
-                 packet.header.transport_scrambling_control,
-                 null,
-                 packet
-             )}
-             ${kv(
-                 'Adaptation Control',
-                 packet.header.adaptation_field_control,
-                 null,
-                 packet
-             )}
-             ${kv(
-                 'Continuity Counter',
-                 packet.header.continuity_counter,
-                 'text-white font-mono',
-                 packet
-             )}
+            ${kv('Sync Byte', packet.header.sync_byte, null, packet)}
+            ${kv(
+                'Transport Error',
+                packet.header.transport_error_indicator,
+                packet.header.transport_error_indicator.value
+                    ? 'text-red-400 font-bold'
+                    : null,
+                packet
+            )}
+            ${kv(
+                'Payload Start',
+                packet.header.payload_unit_start_indicator,
+                'text-emerald-400 font-bold',
+                packet
+            )}
+            ${kv(
+                'Priority',
+                packet.header.transport_priority,
+                packet.header.transport_priority.value
+                    ? 'text-amber-400 font-bold'
+                    : null,
+                packet
+            )}
+            ${kv('PID', packet.header.pid, 'text-blue-300 font-bold', packet)}
+            ${kv(
+                'Scrambling',
+                packet.header.transport_scrambling_control,
+                null,
+                packet
+            )}
+            ${kv(
+                'Adaptation Control',
+                packet.header.adaptation_field_control,
+                null,
+                packet
+            )}
+            ${kv(
+                'Continuity Counter',
+                packet.header.continuity_counter,
+                'text-white font-mono',
+                packet
+            )}
         </div>
     </div>
 `;
@@ -516,9 +516,7 @@ export const tsInspectorDetailsTemplate = (packet) => {
             class="h-full flex flex-col bg-slate-900 border-l border-slate-800"
         >
             <!-- Header -->
-            <div
-                class="shrink-0 p-5 border-b border-slate-800 bg-slate-900/50"
-            >
+            <div class="shrink-0 p-5 border-b border-slate-800 bg-slate-900/50">
                 <div class="flex justify-between items-start mb-3">
                     <div>
                         <h2 class="text-lg font-bold text-white font-mono">

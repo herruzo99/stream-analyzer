@@ -40,7 +40,9 @@ const bentoCard = (
                 >
                     ${icon}
                 </div>
-                ${action ? html`<div class="relative z-10">${action}</div>` : ''}
+                ${action
+                    ? html`<div class="relative z-10">${action}</div>`
+                    : ''}
             </div>
             <div>
                 <h3
@@ -215,7 +217,8 @@ export const landingViewTemplate = () => {
                     class="text-4xl sm:text-5xl lg:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-slate-400 mb-6 tracking-tight leading-tight"
                 >
                     Analyze Streaming Media<br />
-                    <span class="text-slate-500 text-3xl sm:text-4xl lg:text-5xl"
+                    <span
+                        class="text-slate-500 text-3xl sm:text-4xl lg:text-5xl"
                         >With Surgical Precision</span
                     >
                 </h1>

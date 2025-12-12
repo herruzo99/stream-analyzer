@@ -429,20 +429,34 @@ export const entriesTableTemplate = (box) => {
 const renderChunkInfo = (chunkInfo) => {
     if (!chunkInfo) return '';
     return html`
-        <div class="bg-blue-900/20 border border-blue-500/30 rounded-xl p-4 mb-4">
+        <div
+            class="bg-blue-900/20 border border-blue-500/30 rounded-xl p-4 mb-4"
+        >
             <div class="flex items-center gap-2 mb-3">
-                <span class="text-blue-400 font-bold text-xs uppercase tracking-wider">
+                <span
+                    class="text-blue-400 font-bold text-xs uppercase tracking-wider"
+                >
                     ${icons.layers} CMAF Chunk #${chunkInfo.index}
                 </span>
             </div>
             <div class="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                    <span class="block text-[10px] text-slate-500 font-bold uppercase mb-1">Total Size</span>
-                    <span class="font-mono text-slate-200">${chunkInfo.totalSize.toLocaleString()} bytes</span>
+                    <span
+                        class="block text-[10px] text-slate-500 font-bold uppercase mb-1"
+                        >Total Size</span
+                    >
+                    <span class="font-mono text-slate-200"
+                        >${chunkInfo.totalSize.toLocaleString()} bytes</span
+                    >
                 </div>
                 <div>
-                    <span class="block text-[10px] text-slate-500 font-bold uppercase mb-1">Decode Base</span>
-                    <span class="font-mono text-slate-200">${chunkInfo.baseTime}</span>
+                    <span
+                        class="block text-[10px] text-slate-500 font-bold uppercase mb-1"
+                        >Decode Base</span
+                    >
+                    <span class="font-mono text-slate-200"
+                        >${chunkInfo.baseTime}</span
+                    >
                 </div>
             </div>
         </div>
@@ -518,10 +532,8 @@ export const inspectorDetailsTemplate = (
                     : ''}
             </div>
             <div class="grow overflow-y-auto custom-scrollbar p-5 min-h-0">
-                
                 <!-- NEW Chunk Info Block -->
                 ${renderChunkInfo(box.chunkInfo)}
-
                 ${fields.length > 0
                     ? html`<div
                           class="bg-slate-800/40 rounded-xl border border-slate-700/50 overflow-hidden"
@@ -639,7 +651,12 @@ export const isoBoxTreeTemplate = (box, context = {}) => {
                             >${boxInfo.name || ''}</span
                         >
                         <!-- NEW: Inline Chunk Badge -->
-                        ${box.chunkInfo ? html`<span class="px-1.5 py-0.5 rounded bg-blue-900/30 border border-blue-500/30 text-[9px] font-bold text-blue-300 uppercase tracking-wider">Chunk #${box.chunkInfo.index}</span>` : ''}
+                        ${box.chunkInfo
+                            ? html`<span
+                                  class="px-1.5 py-0.5 rounded bg-blue-900/30 border border-blue-500/30 text-[9px] font-bold text-blue-300 uppercase tracking-wider"
+                                  >Chunk #${box.chunkInfo.index}</span
+                              >`
+                            : ''}
                     </div>
                     <div class="flex items-center gap-2">
                         <span
