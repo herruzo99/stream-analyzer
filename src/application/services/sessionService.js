@@ -98,7 +98,16 @@ class SessionService {
 
             // Restore any special types like File objects
             if (state.inputs) {
-                state.inputs = state.inputs.map(restoreFromStorage);
+                state.inputs = state.inputs.map((input, index) => {
+                    const restored = restoreFromStorage(input);
+                    // ARCHITECTURAL FIX: Ensure ID is present.
+                    // prepareForStorage strips the ID, so we must re-assign it here
+                    // to ensure downstream logic (like tier0 analysis) can reference the input correctly.
+                    if (restored.id === undefined) {
+                        restored.id = index;
+                    }
+                    return restored;
+                });
             }
 
             return state.v === 1 ? state : null;

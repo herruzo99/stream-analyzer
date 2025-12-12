@@ -1,3 +1,5 @@
+import xmlFormatter from 'xml-formatter';
+import { resolveAdAvailsInWorker } from '../../../features/advertising/application/resolveAdAvailWorker.js';
 import { runChecks } from '../../../features/compliance/domain/engine.js';
 import { validateSteeringManifest } from '../../../features/compliance/domain/hls/steering-validator.js';
 import { generateFeatureAnalysis } from '../../../features/featureAnalysis/domain/analyzer.js';
@@ -11,74 +13,266 @@ import { generateDashSummary } from '../../parsing/dash/summary-generator.js';
 import { parseManifest as parseHlsManifest } from '../../parsing/hls/index.js';
 import { generateHlsSummary } from '../../parsing/hls/summary-generator.js';
 
-import xmlFormatter from 'xml-formatter';
-import { resolveAdAvailsInWorker } from '../../../features/advertising/application/resolveAdAvailWorker.js';
 import { appLog } from '../../../shared/utils/debug.js';
 import { fetchWithAuth } from '../http.js';
 import { handleParseSegmentStructure } from '../parsingService.js';
 
 const SCTE35_SCHEME_ID = 'urn:scte:scte35:2013:bin';
 
+function createSyntheticManifest(url, name) {
+    const manifest = {
+        id: 'synthetic-manifest',
+        type: 'static',
+        minBufferTime: 0,
+        duration: 0,
+        profiles: 'urn:mpeg:dash:profile:isoff-on-demand:2011',
+        publishTime: null,
+        availabilityStartTime: null,
+        availabilityEndTime: null,
+        timeShiftBufferDepth: null,
+        minimumUpdatePeriod: null,
+        maxSegmentDuration: null,
+        maxSubsegmentDuration: null,
+        programInformations: [],
+        metrics: [],
+        locations: [],
+        patchLocations: [],
+        serviceDescriptions: [],
+        initializationSets: [],
+        segmentFormat: 'unknown',
+        events: [],
+        adAvails: [],
+        tags: [],
+        isMaster: false,
+        periods: [
+            {
+                id: 'p0',
+                start: 0,
+                duration: 0,
+                bitstreamSwitching: null,
+                assetIdentifier: null,
+                subsets: [],
+                preselections: [],
+                serviceDescriptions: [],
+                eventStreams: [],
+                events: [],
+                adAvails: [],
+                supplementalProperties: [],
+                serializedManifest: {},
+                adaptationSets: [
+                    {
+                        id: '0',
+                        contentType: 'video',
+                        mimeType: 'video/mp4',
+                        lang: 'und',
+                        profiles: null,
+                        group: null,
+                        bitstreamSwitching: null,
+                        segmentAlignment: true,
+                        subsegmentAlignment: true,
+                        subsegmentStartsWithSAP: null,
+                        width: null,
+                        height: null,
+                        maxWidth: null,
+                        maxHeight: null,
+                        maxFrameRate: null,
+                        sar: null,
+                        maximumSAPPeriod: null,
+                        audioSamplingRate: null,
+                        contentProtection: [],
+                        audioChannelConfigurations: [],
+                        framePackings: [],
+                        ratings: [],
+                        viewpoints: [],
+                        accessibility: [],
+                        labels: [],
+                        groupLabels: [],
+                        roles: [],
+                        contentComponents: [],
+                        resyncs: [],
+                        outputProtection: null,
+                        stableRenditionId: null,
+                        bitDepth: null,
+                        sampleRate: null,
+                        channels: null,
+                        assocLanguage: null,
+                        characteristics: null,
+                        forced: false,
+                        serializedManifest: {},
+                        inbandEventStreams: [],
+                        representations: [
+                            {
+                                id: '1',
+                                bandwidth: 0,
+                                width: { value: 0, source: 'synthetic' },
+                                height: { value: 0, source: 'synthetic' },
+                                codecs: [],
+                                serializedManifest: {
+                                    BaseURL: [{ '#text': url }]
+                                },
+                                mimeType: 'video/mp4',
+                                profiles: null,
+                                qualityRanking: null,
+                                dependencyId: null,
+                                associationId: null,
+                                associationType: null,
+                                frameRate: null,
+                                sar: null,
+                                audioSamplingRate: null,
+                                scanType: null,
+                                startWithSAP: null,
+                                selectionPriority: 1,
+                                mediaStreamStructureId: null,
+                                maximumSAPPeriod: null,
+                                maxPlayoutRate: null,
+                                codingDependency: null,
+                                eptDelta: null,
+                                pdDelta: null,
+                                representationIndex: null,
+                                failoverContent: null,
+                                contentProtection: [],
+                                audioChannelConfigurations: [],
+                                framePackings: [],
+                                ratings: [],
+                                viewpoints: [],
+                                accessibility: [],
+                                labels: [],
+                                groupLabels: [],
+                                roles: [],
+                                subRepresentations: [],
+                                resyncs: [],
+                                outputProtection: null,
+                                extendedBandwidth: null,
+                                stableVariantId: null,
+                                pathwayId: null,
+                                supplementalCodecs: null,
+                                reqVideoLayout: null,
+                                tag: null,
+                                segmentProfiles: null
+                            },
+                        ],
+                    },
+                ],
+            },
+        ],
+        serializedManifest: {
+            Period: [
+                {
+                    AdaptationSet: [
+                        {
+                            Representation: [
+                                {
+                                    BaseURL: [{ '#text': url }],
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+        summary: null,
+        serverControl: null
+    };
+    return {
+        manifest,
+        serializedManifest: manifest.serializedManifest,
+        baseUrl: url,
+    };
+}
+
 async function preProcessInput(input, signal) {
     let protocol, manifestString, finalUrl, isLive;
+    let isDirectFile = false;
+
+    const lowerName = (input.url || input.file?.name || '').toLowerCase();
+    if (
+        lowerName.endsWith('.mp4') ||
+        lowerName.endsWith('.webm') ||
+        lowerName.endsWith('.mkv') ||
+        lowerName.endsWith('.mov')
+    ) {
+        isDirectFile = true;
+    }
 
     if (input.file) {
-        manifestString = await input.file.text();
-        finalUrl = input.file.name;
-    } else {
-        const response = await fetchWithAuth(
-            input.url,
-            input.auth,
-            null,
-            {},
-            null,
-            signal,
-            { streamId: input.id, resourceType: 'manifest' },
-            'GET' // Explicitly use GET for manifest
-        );
-
-        if (!response.ok) {
-            throw new Error(
-                `HTTP error ${response.status} fetching manifest from ${input.url}`
-            );
+        if (isDirectFile) {
+            manifestString = '';
+            finalUrl = input.url;
+        } else {
+            manifestString = await input.file.text();
+            finalUrl = input.file.name;
         }
-        manifestString = await response.text();
-        finalUrl = response.url; // Capture the final URL after redirects
+    } else {
+        if (isDirectFile) {
+            finalUrl = input.url;
+            manifestString = '';
+        } else {
+            const response = await fetchWithAuth(
+                input.url,
+                input.auth,
+                null,
+                {},
+                null,
+                signal,
+                { streamId: input.id, resourceType: 'manifest' },
+                'GET'
+            );
 
-        const wasRedirected = response.url !== input.url;
-
-        if (!manifestString || manifestString.trim() === '') {
-            if (wasRedirected) {
+            if (!response.ok) {
                 throw new Error(
-                    `Manifest fetch redirected to a new location which returned an empty response. Original: ${input.url}, Final: ${response.url}`
+                    `HTTP error ${response.status} fetching manifest from ${input.url}`
                 );
+            }
+
+            const contentType = (
+                response.headers['content-type'] || ''
+            ).toLowerCase();
+
+            const isManifestMime =
+                contentType.includes('mpegurl') ||
+                contentType.includes('dash+xml') ||
+                contentType.includes('vnd.apple.mpegurl');
+
+            if (
+                !isManifestMime &&
+                (contentType.includes('video/') ||
+                    contentType.includes('audio/'))
+            ) {
+                isDirectFile = true;
+                manifestString = '';
+                finalUrl = response.url;
             } else {
-                throw new Error(
-                    'Manifest content is empty. This may be due to a network or CORS issue.'
-                );
+                manifestString = await response.text();
+                finalUrl = response.url;
             }
         }
     }
 
-    const trimmedManifest = manifestString.trim();
-    if (trimmedManifest.startsWith('#EXTM3U')) {
-        protocol = 'hls';
-    } else if (/<MPD/i.test(trimmedManifest)) {
-        protocol = 'dash';
-    } else if (/<SmoothStreamingMedia/i.test(trimmedManifest)) {
-        throw new Error(
-            'Unsupported Format: This appears to be a Microsoft Smooth Streaming manifest, which is not supported.'
-        );
+    if (isDirectFile) {
+        protocol = 'direct';
+        isLive = false;
     } else {
-        const name = (finalUrl || input.file?.name || '').toLowerCase();
-        protocol = name.includes('.m3u8') ? 'hls' : 'dash';
-    }
+        const trimmedManifest = manifestString.trim();
+        if (trimmedManifest.startsWith('#EXTM3U')) {
+            protocol = 'hls';
+        } else if (/<MPD/i.test(trimmedManifest)) {
+            protocol = 'dash';
+        } else if (/<SmoothStreamingMedia/i.test(trimmedManifest)) {
+            throw new Error(
+                'Unsupported Format: Microsoft Smooth Streaming is not supported.'
+            );
+        } else {
+            if (manifestString.length < 500 && !manifestString.includes('<')) {
+                throw new Error('Unknown manifest format.');
+            }
+            protocol = 'dash';
+        }
 
-    // Liveness for HLS will be determined after parsing all media playlists.
-    isLive =
-        protocol === 'dash'
-            ? /<MPD[^>]*type\s*=\s*["']dynamic["']/.test(trimmedManifest)
-            : false; // Default HLS to false, will be updated later.
+        isLive =
+            protocol === 'dash'
+                ? /<MPD[^>]*type\s*=\s*["']dynamic["']/i.test(trimmedManifest)
+                : false;
+    }
 
     return { ...input, protocol, manifestString, finalUrl, isLive };
 }
@@ -90,11 +284,10 @@ async function _fetchAndParseHlsPresentation(input, signal, postProgress) {
         `Starting HLS Presentation Fetch for ${input.finalUrl}`
     );
     const { manifestString, finalUrl, auth } = input;
-    const {
-        manifest: masterIR,
-        definedVariables,
-        baseUrl: _masterBaseUrl,
-    } = await parseHlsManifest(manifestString, finalUrl);
+    const { manifest: masterIR, definedVariables } = await parseHlsManifest(
+        manifestString,
+        finalUrl
+    );
 
     if (!masterIR.isMaster) {
         appLog(
@@ -120,12 +313,10 @@ async function _fetchAndParseHlsPresentation(input, signal, postProgress) {
         };
     }
 
-    // Collect all unique URIs for Variants, Audio, and Subtitles
     const allReps = masterIR.periods
         .flatMap((p) => p.adaptationSets)
         .flatMap((as) => as.representations);
 
-    // Map Resolved URI -> Variant/Rendition ID(s)
     const uriToVariantIdsMap = new Map();
     allReps.forEach((r) => {
         if (r.__variantUri) {
@@ -139,34 +330,20 @@ async function _fetchAndParseHlsPresentation(input, signal, postProgress) {
     const mediaPlaylistUris = Array.from(uriToVariantIdsMap.keys());
     const totalPlaylists = mediaPlaylistUris.length;
 
-    appLog(
-        'AnalysisHandler',
-        'info',
-        `Found ${totalPlaylists} unique media playlists to fetch.`,
-        mediaPlaylistUris
-    );
-
-    if (postProgress) {
+    if (postProgress)
         postProgress(`Fetching ${totalPlaylists} HLS Media Playlists...`);
-    }
 
-    // Fetch all media playlists in parallel
     const mediaPlaylistPromises = mediaPlaylistUris.map((uri) =>
         fetchWithAuth(uri, auth, null, {}, null, signal)
             .then((res) => {
-                if (!res.ok)
-                    throw new Error(`HTTP ${res.status} fetching ${uri}`);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 return res.text();
             })
             .then((text) => ({ uri, text }))
-            .catch((err) => {
-                console.warn(`Failed to fetch media playlist: ${uri}`, err);
-                return { uri, error: err };
-            })
+            .catch((err) => ({ uri, error: err }))
     );
 
     const mediaPlaylistResults = await Promise.all(mediaPlaylistPromises);
-
     const mediaPlaylists = new Map();
     let isStreamLive = false;
 
@@ -181,10 +358,7 @@ async function _fetchAndParseHlsPresentation(input, signal, postProgress) {
                     result.uri,
                     definedVariables
                 );
-
-                // Map this result back to ALL variant/rendition IDs that use this URI
                 const variantIds = uriToVariantIdsMap.get(result.uri) || [];
-
                 variantIds.forEach((variantId) => {
                     mediaPlaylists.set(variantId, {
                         manifest: mediaIR,
@@ -193,11 +367,6 @@ async function _fetchAndParseHlsPresentation(input, signal, postProgress) {
                         updates: [],
                         activeUpdateId: null,
                     });
-                    appLog(
-                        'AnalysisHandler',
-                        'info',
-                        `Mapped playlist ${result.uri} to variant ID ${variantId}. Segment count: ${mediaIR.segments?.length}`
-                    );
                 });
             } catch (e) {
                 appLog(
@@ -210,9 +379,7 @@ async function _fetchAndParseHlsPresentation(input, signal, postProgress) {
         }
     }
 
-    if (isStreamLive) {
-        masterIR.type = 'dynamic';
-    }
+    if (isStreamLive) masterIR.type = 'dynamic';
 
     return {
         masterIR,
@@ -252,10 +419,10 @@ async function buildStreamObject(
         originalUrl: input.url,
         resolvedUrl: input.finalUrl !== input.url ? input.finalUrl : null,
         baseUrl: finalBaseUrl,
-        protocol: input.protocol,
+        protocol: input.protocol === 'direct' ? 'dash' : input.protocol,
         isPolling: manifestIR.type === 'dynamic',
         manifest: manifestIR,
-        rawManifest: input.manifestString,
+        rawManifest: input.manifestString || 'Binary/Direct File',
         auth: input.auth,
         drmAuth: input.drmAuth,
         steeringInfo: steeringTag,
@@ -263,10 +430,7 @@ async function buildStreamObject(
         activeManifestUpdateId: null,
         mediaPlaylists: analysisResults.mediaPlaylists || new Map(),
         activeMediaPlaylistUrl: null,
-        featureAnalysis: {
-            results: featureAnalysisResults,
-            manifestCount: 1,
-        },
+        featureAnalysis: { results: featureAnalysisResults, manifestCount: 1 },
         hlsVariantState: new Map(),
         dashRepresentationState: new Map(),
         hlsDefinedVariables: manifestIR.hlsDefinedVariables,
@@ -278,6 +442,21 @@ async function buildStreamObject(
         segmentPollingReps: new Set(),
         initialTimeOffset: 0,
     };
+
+    if (input.protocol === 'hls' && streamObject.mediaPlaylists.size > 0) {
+        const uniqueAvails = new Map(streamObject.adAvails.map(a => [a.id, a]));
+
+        for (const playlistData of streamObject.mediaPlaylists.values()) {
+            if (playlistData.manifest?.adAvails) {
+                for (const avail of playlistData.manifest.adAvails) {
+                    if (!uniqueAvails.has(avail.id)) {
+                        uniqueAvails.set(avail.id, avail);
+                    }
+                }
+            }
+        }
+        streamObject.adAvails = Array.from(uniqueAvails.values()).sort((a, b) => a.startTime - b.startTime);
+    }
 
     if (streamObject.manifest?.type === 'dynamic') {
         const manifest = streamObject.manifest;
@@ -292,12 +471,10 @@ async function buildStreamObject(
             const liveEdgeTimes = Object.values(segmentsByCompositeKey)
                 .map((repState) => repState.liveEdgeTime)
                 .filter((t) => t !== null && t > 0);
-
             if (liveEdgeTimes.length > 0) {
-                const maxLiveEdge = Math.max(...liveEdgeTimes);
                 streamObject.initialTimeOffset = Math.max(
                     0,
-                    maxLiveEdge - dvrWindow
+                    Math.max(...liveEdgeTimes) - dvrWindow
                 );
             }
         } else if (manifest.publishTime && manifest.availabilityStartTime) {
@@ -312,74 +489,67 @@ async function buildStreamObject(
         }
     }
 
-    // --- Proactive In-band Event Discovery ---
-    const segmentFetchPromises = [];
-    manifestIR.periods.forEach((period, periodIndex) => {
-        for (const as of period.adaptationSets) {
-            const hasScte35 = (as.inbandEventStreams || []).some(
-                (ies) => ies.schemeIdUri === SCTE35_SCHEME_ID
-            );
-            if (hasScte35) {
-                const rep = as.representations[0];
-                if (rep) {
-                    const compositeKey = `${period.id ?? periodIndex}-${rep.id}`;
-                    const repState = segmentsByCompositeKey[compositeKey];
-                    const firstMediaSegment = (repState?.segments || []).find(
-                        (s) => s.type === 'Media'
-                    );
-
-                    if (firstMediaSegment) {
-                        segmentFetchPromises.push(
-                            fetchAndParseSegment(
-                                firstMediaSegment.resolvedUrl,
-                                'isobff',
-                                firstMediaSegment.range,
-                                input.auth,
-                                { streamId: input.id, resourceType: 'video' },
-                                signal
-                            )
-                                .then((parsedSegment) => ({
-                                    ...parsedSegment,
-                                    sourceSegmentId: firstMediaSegment.uniqueId,
-                                }))
-                                .catch((e) => {
-                                    appLog(
-                                        'analysisHandler',
-                                        'warn',
-                                        `Failed to pre-fetch/parse segment for in-band events: ${e.message}`
-                                    );
-                                    return null;
-                                })
-                        );
+    if (input.protocol !== 'direct') {
+        const segmentFetchPromises = [];
+        manifestIR.periods.forEach((period, periodIndex) => {
+            for (const as of period.adaptationSets) {
+                const hasScte35 = (as.inbandEventStreams || []).some(
+                    (ies) => ies.schemeIdUri === SCTE35_SCHEME_ID
+                );
+                if (hasScte35) {
+                    const rep = as.representations[0];
+                    if (rep) {
+                        const compositeKey = `${period.id ?? periodIndex}-${rep.id}`;
+                        const repState = segmentsByCompositeKey[compositeKey];
+                        const firstMediaSegment = (
+                            repState?.segments || []
+                        ).find((s) => s.type === 'Media');
+                        if (firstMediaSegment) {
+                            segmentFetchPromises.push(
+                                fetchAndParseSegment(
+                                    firstMediaSegment.resolvedUrl,
+                                    'isobff',
+                                    firstMediaSegment.range,
+                                    input.auth,
+                                    {
+                                        streamId: input.id,
+                                        resourceType: 'video',
+                                    },
+                                    signal
+                                )
+                                    .then((parsed) => ({
+                                        ...parsed,
+                                        sourceSegmentId:
+                                            firstMediaSegment.uniqueId,
+                                    }))
+                                    .catch(() => null)
+                            );
+                        }
                     }
                 }
             }
-        }
-    });
-
-    const parsedSegments = await Promise.all(segmentFetchPromises);
-    for (const parsedSegment of parsedSegments) {
-        if (parsedSegment) {
-            self.postMessage({
-                type: 'worker:shaka-segment-loaded',
-                payload: {
-                    uniqueId: parsedSegment.sourceSegmentId,
-                    streamId: streamObject.id,
-                    data: parsedSegment.rawBuffer,
-                    parsedData: parsedSegment.parsedData,
-                    status: 200,
-                },
-            });
-            if (
-                parsedSegment.parsedData?.data?.events &&
-                parsedSegment.parsedData.data.events.length > 0
-            ) {
-                const eventsWithSource =
-                    parsedSegment.parsedData.data.events.map((event) => ({
-                        ...event,
-                        sourceSegmentId: parsedSegment.sourceSegmentId,
-                    }));
-                streamObject.inbandEvents.push(...eventsWithSource);
+        });
+        const parsedSegments = await Promise.all(segmentFetchPromises);
+        for (const parsedSegment of parsedSegments) {
+            if (parsedSegment) {
+                self.postMessage({
+                    type: 'worker:shaka-segment-loaded',
+                    payload: {
+                        uniqueId: parsedSegment.sourceSegmentId,
+                        streamId: streamObject.id,
+                        data: parsedSegment.rawBuffer,
+                        parsedData: parsedSegment.parsedData,
+                        status: 200,
+                    },
+                });
+                if (parsedSegment.parsedData?.data?.events?.length > 0) {
+                    streamObject.inbandEvents.push(
+                        ...parsedSegment.parsedData.data.events.map((e) => ({
+                            ...e,
+                            sourceSegmentId: parsedSegment.sourceSegmentId,
+                        }))
+                    );
+                }
             }
         }
     }
@@ -391,8 +561,8 @@ async function buildStreamObject(
                 id:
                     String(
                         event.scte35?.splice_command?.splice_event_id ||
-                            event.scte35?.descriptors?.[0]
-                                ?.segmentation_event_id
+                        event.scte35?.descriptors?.[0]
+                            ?.segmentation_event_id
                     ) || String(event.startTime),
                 startTime: event.startTime,
                 duration:
@@ -402,54 +572,46 @@ async function buildStreamObject(
                 scte35Signal: event.scte35,
                 adManifestUrl:
                     event.scte35?.descriptors?.[0]?.segmentation_upid_type ===
-                    0x0c
+                        0x0c
                         ? event.scte35.descriptors[0].segmentation_upid
                         : null,
                 creatives: [],
-                detectionMethod: /** @type {const} */ ('SCTE35_INBAND'),
+                detectionMethod: 'SCTE35_INBAND',
             }));
-        const resolvedInbandAvails =
-            await resolveAdAvailsInWorker(inbandAdAvails);
-        streamObject.adAvails.push(...resolvedInbandAvails);
+        const resolved = await resolveAdAvailsInWorker(inbandAdAvails);
+        streamObject.adAvails.push(...resolved);
     }
 
     if (input.protocol === 'hls') {
-        appLog(
-            'AnalysisHandler',
-            'info',
-            `Building HLS Stream Object. Master: ${manifestIR.isMaster}`
-        );
         if (manifestIR.isMaster) {
             streamObject.mediaPlaylists.set('master', {
                 manifest: manifestIR,
                 rawManifest: streamObject.rawManifest,
                 lastFetched: new Date(),
+                // ARCHITECTURAL FIX: Link Master Playlist history to the main stream history
+                // This ensures the initial fetch is visible in the Update Feed.
                 updates: streamObject.manifestUpdates,
-                activeUpdateId: streamObject.manifestUpdates[0]?.id || null,
+                activeUpdateId: null,
             });
-
             const allAdaptationSets = manifestIR.periods.flatMap(
                 (p) => p.adaptationSets
             );
-
-            // Because we fetched everything atomically, we can fully populate hlsVariantState now
             for (const as of allAdaptationSets) {
                 for (const rep of as.representations) {
                     const variantId = rep.id;
                     const uri =
                         rep.__variantUri || rep.serializedManifest.resolvedUri;
-
                     const mediaPlaylistData =
                         analysisResults.mediaPlaylists.get(variantId);
-
                     if (variantId) {
-                        const segments =
+                        const originalSegments =
                             mediaPlaylistData?.manifest.segments || [];
-                        appLog(
-                            'AnalysisHandler',
-                            'info',
-                            `Populating variant state for ${variantId}. Segments found: ${segments.length}`
-                        );
+
+                        const segments = originalSegments.map((s) => ({
+                            ...s,
+                            repId: variantId,
+                        }));
+
                         streamObject.hlsVariantState.set(variantId, {
                             uri: uri,
                             historicalUris: [uri],
@@ -468,20 +630,17 @@ async function buildStreamObject(
                 }
             }
         } else {
-            // Media playlist directly
-            appLog(
-                'AnalysisHandler',
-                'info',
-                'Processing single media playlist directly.'
-            );
             const variantId = streamObject.originalUrl;
-            const allSegmentUrls = (manifestIR.segments || []).map(
-                (s) => s.uniqueId
-            );
+            const segments = (manifestIR.segments || []).map((s) => ({
+                ...s,
+                repId: variantId,
+            }));
+            const allSegmentUrls = segments.map((s) => s.uniqueId);
+
             streamObject.hlsVariantState.set(variantId, {
                 uri: variantId,
                 historicalUris: [variantId],
-                segments: manifestIR.segments || [],
+                segments: segments,
                 currentSegmentUrls: new Set(allSegmentUrls),
                 newlyAddedSegmentUrls: new Set(),
                 isLoading: false,
@@ -498,95 +657,87 @@ async function buildStreamObject(
                 Boolean
             );
             const allSegmentUrls = new Set(allSegments.map((s) => s.uniqueId));
+
+            // Find the representation in the parsed manifest to get metadata
+            let repMetadata = null;
+            if (manifestIR && manifestIR.periods) {
+                for (const [periodIndex, period] of manifestIR.periods.entries()) {
+                    for (const as of period.adaptationSets) {
+                        for (const rep of as.representations) {
+                            // MATCHING LOGIC: Must match parseDashSegments composite key
+                            const compositeKey = `${period.id || periodIndex}-${rep.id}`;
+
+                            if (compositeKey === key) {
+                                repMetadata = {
+                                    mediaType: as.contentType,
+                                    mimeType: rep.mimeType || as.mimeType,
+                                    codecs: rep.codecs?.[0]?.value || null
+                                };
+                                break;
+                            }
+                        }
+                        if (repMetadata) break;
+                    }
+                    if (repMetadata) break;
+                }
+            }
+
             streamObject.dashRepresentationState.set(key, {
                 segments: allSegments,
                 currentSegmentUrls: allSegmentUrls,
-                // Initialize as empty to prevent flash on load
                 newlyAddedSegmentUrls: new Set(),
                 diagnostics: data.diagnostics,
+                mediaType: repMetadata?.mediaType,
+                mimeType: repMetadata?.mimeType,
+                codecs: repMetadata?.codecs
             });
         }
     }
 
-    // ... (In-band event merge - unchanged) ...
-    if (streamObject.inbandEvents.length > 0) {
-        const eventsBySegmentId = streamObject.inbandEvents.reduce(
-            (acc, event) => {
-                if (event.sourceSegmentId) {
-                    if (!acc[event.sourceSegmentId])
-                        acc[event.sourceSegmentId] = [];
-                    acc[event.sourceSegmentId].push(event);
-                }
-                return acc;
-            },
-            {}
-        );
-
-        const attachToRepState = (currentRepStateMap) => {
-            const newRepStateMap = new Map(currentRepStateMap);
-            for (const [key, repState] of newRepStateMap.entries()) {
-                if (!repState.segments) continue;
-                let repModified = false;
-                const newSegments = repState.segments.map((segment) => {
-                    const eventsForSeg = eventsBySegmentId[segment.uniqueId];
-                    if (eventsForSeg) {
-                        repModified = true;
-                        const newFlags = new Set(segment.flags || []);
-                        if (eventsForSeg.some((e) => e.scte35)) {
-                            newFlags.add('scte35');
-                        }
-                        return {
-                            ...segment,
-                            inbandEvents: [
-                                ...(segment.inbandEvents || []),
-                                ...eventsForSeg,
-                            ],
-                            flags: Array.from(newFlags),
-                        };
-                    }
-                    return segment;
-                });
-                if (repModified) {
-                    newRepStateMap.set(key, {
-                        ...repState,
-                        segments: newSegments,
-                    });
-                }
-            }
-            return newRepStateMap;
-        };
-
-        if (streamObject.dashRepresentationState) {
-            streamObject.dashRepresentationState = attachToRepState(
-                streamObject.dashRepresentationState
-            );
-        }
-        if (streamObject.hlsVariantState) {
-            streamObject.hlsVariantState = attachToRepState(
-                streamObject.hlsVariantState
-            );
-        }
-        streamObject.inbandEvents = [];
-    }
-
     let formattedInitial = streamObject.rawManifest;
-    if (streamObject.protocol === 'dash') {
-        formattedInitial = xmlFormatter(formattedInitial, {
-            indentation: '  ',
-            lineSeparator: '\n',
-        });
+
+    if (
+        streamObject.protocol === 'dash' &&
+        streamObject.rawManifest.includes('<')
+    ) {
+        try {
+            formattedInitial = xmlFormatter(formattedInitial, {
+                indentation: '  ',
+                lineSeparator: '\n',
+                collapseContent: true,
+            });
+        } catch {
+            /* ignore if not xml */
+        }
+    } else if (streamObject.protocol === 'hls') {
+        const lines = formattedInitial.replace(/\r\n/g, '\n').split('\n');
+        formattedInitial = lines
+            .map((line) => {
+                const trimmed = line.trim();
+                if (!trimmed) return '';
+                if (!trimmed.startsWith('#')) {
+                    return '  ' + trimmed;
+                }
+                return trimmed;
+            })
+            .filter((l) => l.length > 0)
+            .join('\n');
     }
 
     const initialDiffModel = formattedInitial
         .trimEnd()
         .split('\n')
-        .map((line) => ({
-            type: 'common',
-            indentation: line.match(/^(\s*)/)?.[1] || '',
-            content: line.trim(),
-        }));
+        .map((line) => {
+            const match = line.match(/^(\s*)(.*)$/);
+            const indentation = match ? match[1] : '';
+            const content = match ? match[2] : line.trim();
 
-    const changes = { additions: 0, removals: 0, modifications: 0 };
+            return {
+                type: 'common',
+                indentation,
+                content,
+            };
+        });
 
     streamObject.manifestUpdates.push({
         id: `${streamObject.id}-${Date.now()}`,
@@ -594,19 +745,23 @@ async function buildStreamObject(
         timestamp: new Date().toLocaleTimeString(),
         diffModel: initialDiffModel,
         rawManifest: streamObject.rawManifest,
-        complianceResults,
+        complianceResults: complianceResults || [],
         hasNewIssues: false,
         serializedManifest: serializedManifestObject,
-        changes: changes,
+        changes: { additions: 0, removals: 0, modifications: 0 },
     });
+
+    // Fix active ID logic to point to the created update
+    streamObject.activeManifestUpdateId = streamObject.manifestUpdates[0].id;
+    if (streamObject.mediaPlaylists.has('master')) {
+        streamObject.mediaPlaylists.get('master').activeUpdateId = streamObject.manifestUpdates[0].id;
+    }
 
     return streamObject;
 }
 
-// ... (rest of file including serializeStreamForTransport and handleStartAnalysis) ...
 function serializeStreamForTransport(streamObject) {
     const serialized = { ...streamObject };
-
     const hlsVariantStateArray = [];
     for (const [key, value] of streamObject.hlsVariantState.entries()) {
         hlsVariantStateArray.push([
@@ -622,30 +777,29 @@ function serializeStreamForTransport(streamObject) {
 
     const dashRepStateArray = [];
     for (const [key, value] of streamObject.dashRepresentationState.entries()) {
-        const serializedValue = {
-            ...value,
-            currentSegmentUrls: Array.from(value.currentSegmentUrls),
-            newlyAddedSegmentUrls: Array.from(value.newlyAddedSegmentUrls),
-        };
-        dashRepStateArray.push([key, serializedValue]);
+        dashRepStateArray.push([
+            key,
+            {
+                ...value,
+                currentSegmentUrls: Array.from(value.currentSegmentUrls),
+                newlyAddedSegmentUrls: Array.from(value.newlyAddedSegmentUrls),
+            },
+        ]);
     }
     serialized.dashRepresentationState = dashRepStateArray;
 
-    if (serialized.featureAnalysis) {
+    if (serialized.featureAnalysis)
         serialized.featureAnalysis.results = Array.from(
             streamObject.featureAnalysis.results.entries()
         );
-    }
     serialized.semanticData = Array.from(streamObject.semanticData.entries());
     serialized.mediaPlaylists = Array.from(
         streamObject.mediaPlaylists.entries()
     );
-    if (streamObject.manifest?.hlsDefinedVariables) {
+    if (streamObject.manifest?.hlsDefinedVariables)
         serialized.manifest.hlsDefinedVariables = Array.from(
             streamObject.manifest.hlsDefinedVariables.entries()
         );
-    }
-
     serialized.segmentPollingReps = Array.from(
         streamObject.segmentPollingReps || []
     );
@@ -669,6 +823,7 @@ export async function handleStartAnalysis({ inputs, postProgress }, signal) {
         const totalCount = workerInputs.length;
 
         const processingResults = [];
+
         for (let i = 0; i < workerInputs.length; i++) {
             const input = workerInputs[i];
             const streamIdentifier =
@@ -682,7 +837,7 @@ export async function handleStartAnalysis({ inputs, postProgress }, signal) {
             let manifestIR,
                 serializedManifestObject,
                 finalBaseUrl,
-                mediaPlaylists;
+                mediaPlaylists = new Map();
             let segmentsToCache = [];
             let segmentsByCompositeKey = {};
 
@@ -704,11 +859,8 @@ export async function handleStartAnalysis({ inputs, postProgress }, signal) {
                     loggingContext,
                     'GET'
                 );
-                if (!response.ok) {
-                    throw new Error(
-                        `HTTP error ${response.status} for segment ${url}`
-                    );
-                }
+                if (!response.ok)
+                    throw new Error(`HTTP error ${response.status}`);
                 const data = await response.arrayBuffer();
                 const parsedData = await handleParseSegmentStructure({
                     data,
@@ -720,14 +872,26 @@ export async function handleStartAnalysis({ inputs, postProgress }, signal) {
             };
 
             const context = {
-                fetchAndParseSegment: fetchAndParseSegment,
+                fetchAndParseSegment,
                 manifestUrl: preProcessed.finalUrl,
                 isLive: preProcessed.isLive,
                 signal,
             };
 
-            if (preProcessed.protocol === 'hls') {
-                // Pass postProgress to allow sub-steps logging
+            if (preProcessed.protocol === 'direct') {
+                appLog(
+                    'handleStartAnalysis',
+                    'info',
+                    `Processing direct file: ${preProcessed.finalUrl}`
+                );
+                const synth = createSyntheticManifest(
+                    preProcessed.finalUrl,
+                    preProcessed.name
+                );
+                manifestIR = synth.manifest;
+                serializedManifestObject = synth.serializedManifest;
+                finalBaseUrl = synth.baseUrl;
+            } else if (preProcessed.protocol === 'hls') {
                 const hlsResult = await _fetchAndParseHlsPresentation(
                     preProcessed,
                     signal,
@@ -755,7 +919,6 @@ export async function handleStartAnalysis({ inputs, postProgress }, signal) {
                 manifestIR = manifest;
                 serializedManifestObject = serializedManifest;
                 finalBaseUrl = baseUrl;
-
                 segmentsByCompositeKey = await parseDashSegments(
                     serializedManifestObject,
                     finalBaseUrl,
@@ -768,65 +931,108 @@ export async function handleStartAnalysis({ inputs, postProgress }, signal) {
                     {
                         ...context,
                         manifestUrl: finalBaseUrl,
+                        onInitSegmentParsed: (seg) => {
+                            segmentsToCache.push({
+                                uniqueId: seg.uniqueId,
+                                data: seg.data,
+                                parsedData: seg.parsedData,
+                                status: 200,
+                            });
+                        },
+                        onSegmentFetched: (seg) => {
+                            segmentsToCache.push({
+                                uniqueId: seg.uniqueId,
+                                data: seg.data,
+                                parsedData: seg.parsedData,
+                                status: 200,
+                            });
+                        },
                     }
                 );
             }
 
+            segmentsByCompositeKey = await parseDashSegments(
+                serializedManifestObject,
+                finalBaseUrl,
+                {
+                    auth: input.auth,
+                    now: Date.now(),
+                    onSegmentFetched: (seg) => {
+                        segmentsToCache.push({
+                            uniqueId: seg.uniqueId,
+                            data: seg.data,
+                            parsedData: seg.parsedData,
+                            status: 200,
+                        });
+                    },
+                }
+            );
+
             if (manifestIR.adAvails && manifestIR.adAvails.length > 0) {
-                const enrichedAdAvails = await resolveAdAvailsInWorker(
+                manifestIR.adAvails = await resolveAdAvailsInWorker(
                     manifestIR.adAvails
                 );
-                manifestIR.adAvails = enrichedAdAvails;
             }
 
             const manifestObjectForChecks =
                 preProcessed.protocol === 'hls'
                     ? manifestIR
                     : serializedManifestObject;
+
             const complianceResults = runChecks(
+                // @ts-ignore
                 manifestObjectForChecks,
-                preProcessed.protocol,
+                preProcessed.protocol === 'direct'
+                    ? 'dash'
+                    : preProcessed.protocol,
                 { isLive: preProcessed.isLive, segmentsByCompositeKey }
             );
+
             const rawInitialAnalysis = generateFeatureAnalysis(
+                // @ts-ignore
                 manifestIR,
-                preProcessed.protocol,
+                preProcessed.protocol === 'direct'
+                    ? 'dash'
+                    : preProcessed.protocol,
                 serializedManifestObject
             );
             const featureAnalysisResults = new Map(
                 Object.entries(rawInitialAnalysis)
             );
+
             const coverageReport = input.isDebug
                 ? [
-                      ...(preProcessed.protocol === 'dash'
-                          ? analyzeDashCoverage(serializedManifestObject)
-                          : []),
-                      ...analyzeParserDrift(manifestIR),
-                  ]
+                    ...(preProcessed.protocol === 'dash'
+                        ? analyzeDashCoverage(serializedManifestObject)
+                        : []),
+                    // @ts-ignore
+                    ...analyzeParserDrift(manifestIR),
+                ]
                 : [];
-            const semanticData = new Map();
 
-            const steeringTag =
-                preProcessed.protocol === 'hls' && manifestIR.isMaster
-                    ? (manifestIR.tags || []).find(
-                          (t) => t.name === 'EXT-X-CONTENT-STEERING'
-                      )
-                    : null;
-            if (steeringTag) {
-                const steeringUri = new URL(
-                    steeringTag.value['SERVER-URI'],
-                    finalBaseUrl
-                ).href;
-                semanticData.set(
-                    'steeringValidation',
-                    await validateSteeringManifest(steeringUri)
+            const semanticData = new Map();
+            // @ts-ignore
+            if (preProcessed.protocol === 'hls' && manifestIR.isMaster) {
+                // @ts-ignore
+                const steeringTag = (manifestIR.tags || []).find(
+                    (t) => t.name === 'EXT-X-CONTENT-STEERING'
                 );
+                if (steeringTag) {
+                    const steeringUri = new URL(
+                        steeringTag.value['SERVER-URI'],
+                        finalBaseUrl
+                    ).href;
+                    semanticData.set(
+                        'steeringValidation',
+                        await validateSteeringManifest(steeringUri)
+                    );
+                }
             }
 
             const analysisResults = {
                 featureAnalysisResults,
                 semanticData,
-                steeringTag,
+                steeringTag: null,
                 complianceResults,
                 coverageReport,
                 mediaPlaylists,
@@ -859,50 +1065,18 @@ export async function handleStartAnalysis({ inputs, postProgress }, signal) {
             (r) => r.segmentsToCache
         );
         const urlAuthMap = new Map();
+
         for (const stream of streamObjects) {
             const context = { streamId: stream.id, auth: stream.auth };
             if (stream.originalUrl) urlAuthMap.set(stream.originalUrl, context);
-            if (stream.baseUrl) urlAuthMap.set(stream.baseUrl, context);
-            if (stream.hlsVariantState) {
-                for (const [uri, state] of stream.hlsVariantState.entries()) {
-                    urlAuthMap.set(uri, context);
-                    if (state.segments) {
-                        for (const seg of state.segments) {
-                            urlAuthMap.set(seg.resolvedUrl, context);
-                        }
-                    }
-                }
-            }
-            if (stream.dashRepresentationState) {
-                for (const [
-                    ,
-                    state,
-                ] of stream.dashRepresentationState.entries()) {
-                    if (state.segments) {
-                        for (const seg of state.segments) {
-                            urlAuthMap.set(seg.resolvedUrl, context);
-                        }
-                    }
-                }
-            }
         }
         const urlAuthMapArray = Array.from(urlAuthMap.entries());
-
         const workerResults = streamObjects.map(serializeStreamForTransport);
-
-        if (
-            workerResults.length > 0 &&
-            !workerResults[0]?.rawManifest?.trim()
-        ) {
-            throw new Error(
-                'Manifest content is empty after processing. This may be due to a network or CORS issue.'
-            );
-        }
 
         appLog(
             'handleStartAnalysis',
             'info',
-            `Initial Analysis Pipeline (success): ${(
+            `Analysis complete in ${(
                 performance.now() - analysisStartTime
             ).toFixed(2)}ms`
         );

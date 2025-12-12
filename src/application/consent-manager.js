@@ -70,6 +70,22 @@ export function initializeConsentManager() {
     const loadBlockingTrackers = (acceptedCategories) => {
         const cats = acceptedCategories || [];
 
+        // Check against mock/dev values to prevent network errors in development
+        // The build process injects the specific string 'mock-clarity-id' etc if in dev mode
+        const isMockEnv = 
+            window.location.hostname === 'localhost' || 
+            document.body.innerHTML.includes('mock-clarity-id') ||
+            document.body.innerHTML.includes('mock-sentry-key');
+
+        if (isMockEnv) {
+            appLog(
+                'ConsentManager',
+                'warn',
+                `Mock environment detected. Skipping tracker injection to prevent network errors.`
+            );
+            return;
+        }
+
         // Only run tracking scripts if the hostname matches the build configuration.
         if (window.location.hostname !== window.PROD_HOSTNAME) {
             appLog(

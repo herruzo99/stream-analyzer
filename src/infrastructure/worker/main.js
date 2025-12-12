@@ -1,7 +1,7 @@
-import { appLog } from '../../shared/utils/debug.js';
 import { handleStartAnalysis } from './handlers/analysisHandler.js';
 import { handleGetStreamDrmInfo } from './handlers/drmDetectionHandler.js';
 import { handleGetManifestMetadata } from './handlers/metadataHandler.js';
+import { handleAnalyzeFrameSequence } from './handlers/qcHandler.js'; // NEW
 import { handleShakaManifestFetch } from './handlers/shakaManifestHandler.js';
 import { handleShakaResourceFetch } from './handlers/shakaResourceHandler.js';
 import { handleTier0Analysis } from './handlers/tier0Handler.js';
@@ -33,17 +33,12 @@ const handlers = {
     'shaka-fetch-resource': handleShakaResourceFetch,
     'run-ts-semantic-analysis': handleRunTsSemanticAnalysis,
     'tier0-analysis': handleTier0Analysis,
+    // NEW: QC Handler
+    'analyze-frame-sequence': handleAnalyzeFrameSequence
 };
 
 self.addEventListener('message', async (event) => {
-    // --- SECURITY CHECK (SonarQube S2819) ---
-    // Verify the origin of the received message.
-    // In Dedicated Workers, event.origin is often an empty string "" (indicating same-origin/internal).
-    // We accept matches to self.location.origin OR empty string.
     if (event.origin !== '' && event.origin !== self.location.origin) {
-        console.warn(
-            `[Worker] Security Block: Received message from untrusted origin: "${event.origin}"`
-        );
         return;
     }
 
@@ -52,38 +47,20 @@ self.addEventListener('message', async (event) => {
     if (type === 'cancel-task') {
         if (inFlightTasks.has(id)) {
             const { abortController } = inFlightTasks.get(id);
-            if (abortController) {
-                abortController.abort();
-                appLog('Worker', 'info', `Task ${id} aborted by main thread.`);
-            }
+            if (abortController) abortController.abort();
             inFlightTasks.delete(id);
         }
         return;
     }
 
-    if (id === undefined) {
-        console.warn(
-            'Worker received a message without an ID, ignoring.',
-            event.data
-        );
+    if (id === undefined && type) {
+        // Allow global events
         return;
     }
 
-    appLog(
-        'Worker',
-        'info',
-        `Received task. ID: ${id}, Type: ${type}`,
-        payload
-    );
-
     const handler = handlers[type];
-
     if (!handler) {
-        appLog('Worker', 'warn', `No handler found for task type: ${type}`);
-        self.postMessage({
-            id,
-            error: { message: `Unknown task type: ${type}` },
-        });
+        self.postMessage({ id, error: { message: `Unknown task: ${type}` } });
         return;
     }
 
@@ -95,47 +72,15 @@ self.addEventListener('message', async (event) => {
     };
 
     try {
-        const result = await handler(
-            payload,
-            abortController.signal,
-            postProgress
-        );
-
-        if (abortController.signal.aborted) {
-            appLog(
-                'Worker',
-                'info',
-                `Task ${id} (${type}) completed but was already aborted.`
-            );
-        } else {
-            appLog(
-                'Worker',
-                'log',
-                `Task ${id} (${type}) completed successfully. Posting result.`,
-                result
-            );
-            self.postMessage({ id, result });
+        const result = await handler(payload, abortController.signal, postProgress);
+        if (!abortController.signal.aborted) {
+            // Check if result contains Transferables (ImageBitmap, ArrayBuffer)
+            const transferables = result?.transferables || [];
+            self.postMessage({ id, result }, transferables);
         }
     } catch (e) {
         if (e.name !== 'AbortError') {
-            appLog(
-                'Worker',
-                'error',
-                `Task ${id} (${type}) failed. Posting error.`,
-                e
-            );
-            self.postMessage({
-                id,
-                error: {
-                    message: e.message,
-                    stack: e.stack,
-                    name: e.name,
-                    code: e.code,
-                    category: e.category,
-                    severity: e.severity,
-                    data: e.data,
-                },
-            });
+            self.postMessage({ id, error: { message: e.message } });
         }
     } finally {
         inFlightTasks.delete(id);

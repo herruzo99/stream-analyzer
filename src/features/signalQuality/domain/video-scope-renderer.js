@@ -1,6 +1,5 @@
 /**
  * High-Performance Video Scope Renderer.
- * Supports: Luma Waveform, Chroma Vectorscope, RGB Parade, RGB Histogram.
  */
 export class VideoScopeRenderer {
     constructor() {
@@ -9,7 +8,8 @@ export class VideoScopeRenderer {
         this.rafId = null;
         this.videoEl = null;
 
-        // Processing Resolution (Lower = Faster, Higher = More Detail)
+        // Fixed processing resolution for scopes. 
+        // 320x180 is sufficient for waveform visualization and keeps loop < 10ms.
         this.procW = 320;
         this.procH = 180;
 
@@ -21,13 +21,12 @@ export class VideoScopeRenderer {
         });
 
         this.isActive = false;
-
-        // Configuration Flags
         this.config = {
             showWaveform: true,
             showVectorscope: true,
             showParade: false,
             showHistogram: false,
+            showBroadcastCompliance: false, 
         };
     }
 
@@ -52,58 +51,40 @@ export class VideoScopeRenderer {
     _loop() {
         if (!this.isActive || !this.videoEl || !this.ctx) return;
 
-        if (
-            this.videoEl.paused ||
-            this.videoEl.ended ||
-            this.videoEl.readyState < 2
-        ) {
-            // console.log('[VideoScopeRenderer] Waiting...', { paused: this.videoEl.paused, readyState: this.videoEl.readyState });
+        if (this.videoEl.paused || this.videoEl.ended || this.videoEl.readyState < 2) {
             this.rafId = requestAnimationFrame(this._loop.bind(this));
             return;
         }
 
         try {
+            // 1. Downscale Capture (Critical optimization for 4K sources)
             this.procCtx.drawImage(this.videoEl, 0, 0, this.procW, this.procH);
-            const frame = this.procCtx.getImageData(
-                0,
-                0,
-                this.procW,
-                this.procH
-            );
+            const frame = this.procCtx.getImageData(0, 0, this.procW, this.procH);
             const data = frame.data;
 
             const outW = this.canvas.width;
             const outH = this.canvas.height;
 
-            // Clear
-            this.ctx.fillStyle = '#020617'; // Slate-950
+            // 2. Clear
+            this.ctx.fillStyle = '#020617'; 
             this.ctx.fillRect(0, 0, outW, outH);
 
-            // --- Dynamic Grid Layout ---
-            const activeScopes = [];
-            if (this.config.showWaveform) activeScopes.push('waveform');
-            if (this.config.showParade) activeScopes.push('parade');
-            if (this.config.showVectorscope) activeScopes.push('vectorscope');
-            if (this.config.showHistogram) activeScopes.push('histogram');
+            // 3. Grid Layout Logic
+            const activeScopes = [
+                this.config.showBroadcastCompliance && 'compliance',
+                this.config.showWaveform && 'waveform',
+                this.config.showVectorscope && 'vectorscope',
+                this.config.showParade && 'parade',
+                this.config.showHistogram && 'histogram'
+            ].filter(Boolean);
 
             if (activeScopes.length === 0) {
                 this.rafId = requestAnimationFrame(this._loop.bind(this));
                 return;
             }
 
-            // Calculate Grid
-            // 1 scope: 100% width
-            // 2 scopes: 50% width each
-            // 3-4 scopes: 2x2 grid
-
-            let cols = activeScopes.length;
-            let rows = 1;
-
-            if (activeScopes.length > 2) {
-                cols = 2;
-                rows = 2;
-            }
-
+            let cols = activeScopes.length > 2 ? 2 : activeScopes.length;
+            let rows = Math.ceil(activeScopes.length / cols);
             const cellW = outW / cols;
             const cellH = outH / rows;
 
@@ -114,41 +95,37 @@ export class VideoScopeRenderer {
                 const y = row * cellH;
 
                 this.ctx.save();
-
-                // Clip area
                 this.ctx.beginPath();
                 this.ctx.rect(x, y, cellW, cellH);
                 this.ctx.clip();
-
-                // Background for scope area
+                
+                // Background
                 this.ctx.fillStyle = '#000000';
                 this.ctx.fillRect(x, y, cellW, cellH);
 
-                if (scope === 'waveform')
-                    this._renderWaveform(data, x, y, cellW, cellH);
-                else if (scope === 'parade')
-                    this._renderParade(data, x, y, cellW, cellH);
-                else if (scope === 'vectorscope')
-                    this._renderVectorscope(data, x, y, cellW, cellH);
-                else if (scope === 'histogram')
-                    this._renderHistogram(data, x, y, cellW, cellH);
+                // Renderers
+                switch (scope) {
+                    case 'compliance': this._renderBroadcastCompliance(data, x, y, cellW, cellH); break;
+                    case 'waveform': this._renderWaveform(data, x, y, cellW, cellH); break;
+                    case 'parade': this._renderParade(data, x, y, cellW, cellH); break;
+                    case 'vectorscope': this._renderVectorscope(data, x, y, cellW, cellH); break;
+                    case 'histogram': this._renderHistogram(data, x, y, cellW, cellH); break;
+                }
 
-                // Borders
+                // Chrome
                 this.ctx.strokeStyle = '#334155';
                 this.ctx.lineWidth = 1;
                 this.ctx.strokeRect(x, y, cellW, cellH);
-
-                // Label
-                this.ctx.fillStyle = '#64748b';
-                this.ctx.font = 'bold 10px sans-serif';
-                this.ctx.textBaseline = 'top';
-                this.ctx.fillText(scope.toUpperCase(), x + 6, y + 6);
-
+                
+                this.ctx.fillStyle = '#94a3b8';
+                this.ctx.font = 'bold 10px monospace';
+                this.ctx.fillText(scope.toUpperCase(), x + 6, y + 12);
                 this.ctx.restore();
             });
+
         } catch (e) {
             if (e.name === 'SecurityError') {
-                this._renderError('DRM LOCKED / CORS ERROR');
+                this._renderError('DRM / CORS RESTRICTED');
             }
         }
 
@@ -167,53 +144,86 @@ export class VideoScopeRenderer {
         this.isActive = false;
     }
 
-    _renderWaveform(data, x, y, w, h) {
-        // Graticule lines
-        this.ctx.strokeStyle = '#334155';
-        this.ctx.lineWidth = 1;
-        this.ctx.beginPath();
-        // 0, 25, 50, 75, 100 lines
-        for (let i = 0; i <= 4; i++) {
-            const ly = y + h - i * 0.25 * h;
-            this.ctx.moveTo(x, ly);
-            this.ctx.lineTo(x + w, ly);
-        }
-        this.ctx.stroke();
+    // --- Render Implementations ---
+    
+    _renderBroadcastCompliance(data, x, y, w, h) {
+        const tempCvs = document.createElement('canvas');
+        tempCvs.width = this.procW;
+        tempCvs.height = this.procH;
+        const tCtx = tempCvs.getContext('2d');
+        const imgData = tCtx.createImageData(this.procW, this.procH);
+        const d = imgData.data;
 
-        const traceCvs = document.createElement('canvas');
-        traceCvs.width = this.procW;
-        traceCvs.height = 256;
-        const traceCtx = traceCvs.getContext('2d');
-        const traceImg = traceCtx.createImageData(this.procW, 256);
-        const tData = traceImg.data;
-
-        const step = 2;
-        for (let col = 0; col < this.procW; col += 1) {
-            for (let row = 0; row < this.procH; row += step) {
-                const i = (row * this.procW + col) * 4;
-                const r = data[i];
-                const g = data[i + 1];
-                const b = data[i + 2];
-                const luma = Math.floor(0.2126 * r + 0.7152 * g + 0.0722 * b);
-                const yPos = 255 - luma;
-
-                const idx = (yPos * this.procW + col) * 4;
-
-                // Additive Green
-                const alpha = tData[idx + 3];
-                if (alpha < 255) {
-                    tData[idx] = 0;
-                    tData[idx + 1] = 255;
-                    tData[idx + 2] = 100;
-                    tData[idx + 3] = Math.min(255, alpha + 50);
-                }
+        // Legal Range: 16-235
+        for (let i = 0; i < data.length; i += 4) {
+            const r = data[i];
+            const g = data[i+1];
+            const b = data[i+2];
+            // Fast Luma Approx
+            const yVal = (r + r + b + g + g + g) / 6; 
+            
+            if (yVal < 16) {
+                 d[i] = 0; d[i+1] = 0; d[i+2] = 255; d[i+3] = 255; // Blue
+            } else if (yVal > 235) {
+                 d[i] = 255; d[i+1] = 0; d[i+2] = 0; d[i+3] = 255; // Red
+            } else {
+                 const mono = yVal * 0.5; 
+                 d[i] = mono; d[i+1] = mono; d[i+2] = mono; d[i+3] = 255;
             }
         }
-        traceCtx.putImageData(traceImg, 0, 0);
+        tCtx.putImageData(imgData, 0, 0);
+        this.ctx.drawImage(tempCvs, x, y, w, h);
+    }
+
+    _renderWaveform(data, x, y, w, h) {
+        // Draw Graticules
+        this.ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+        this.ctx.beginPath();
+        [0.25, 0.5, 0.75].forEach(p => {
+            const ly = y + h * p;
+            this.ctx.moveTo(x, ly);
+            this.ctx.lineTo(x + w, ly);
+        });
+        this.ctx.stroke();
+
+        const bins = new Uint8Array(this.procW * 256);
+        
+        // Vertical scan
+        for (let col = 0; col < this.procW; col++) {
+            for (let row = 0; row < this.procH; row += 2) { // Skip every other line
+                const i = (row * this.procW + col) * 4;
+                const luma = Math.round(0.2126 * data[i] + 0.7152 * data[i+1] + 0.0722 * data[i+2]);
+                // Accumulate intensity
+                const idx = (255 - luma) * this.procW + col;
+                if (bins[idx] < 255) bins[idx] += 16;
+            }
+        }
+
+        // Draw Bins
+        const img = this.ctx.createImageData(this.procW, 256);
+        const d = img.data;
+        for (let i = 0; i < bins.length; i++) {
+            const val = bins[i];
+            if (val > 0) {
+                const pIdx = i * 4;
+                d[pIdx] = 0; 
+                d[pIdx+1] = 255; // Green trace
+                d[pIdx+2] = 0;
+                d[pIdx+3] = val;
+            }
+        }
+        
+        // Render to temporary canvas to stretch to target size
+        const tCvs = document.createElement('canvas');
+        tCvs.width = this.procW;
+        tCvs.height = 256;
+        tCvs.getContext('2d').putImageData(img, 0, 0);
+        
         this.ctx.globalCompositeOperation = 'screen';
-        this.ctx.drawImage(traceCvs, x, y, w, h);
+        this.ctx.drawImage(tCvs, x, y, w, h);
         this.ctx.globalCompositeOperation = 'source-over';
     }
+
 
     _renderParade(data, x, y, w, h) {
         const subW = w / 3;
@@ -330,14 +340,9 @@ export class VideoScopeRenderer {
         this.ctx.stroke();
 
         // 3. Skin Tone Line
-        // In canvas coords, 0 is 3 o'clock.
         this.ctx.strokeStyle = 'rgba(255, 200, 200, 0.3)';
         this.ctx.beginPath();
         this.ctx.moveTo(cx, cy);
-        // Adjust for canvas coordinate system (Y down)
-        // Standard Vectorscope: Red is near top-left.
-        // We'll map standard angle.
-        // Let's just draw a line at -120 deg for now (upper left).
         this.ctx.lineTo(
             cx + Math.cos(-2.1) * radius,
             cy + Math.sin(-2.1) * radius

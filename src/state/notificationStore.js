@@ -5,7 +5,7 @@ import { createStore } from 'zustand/vanilla';
 const SETTINGS_KEY = 'stream-analyzer_notification_settings';
 
 /**
- * @typedef {'playerError' | 'seekPollSuccess' | 'pollingDisabled'} NotificationType
+ * @typedef {'playerError' | 'seekPollSuccess' | 'pollingDisabled' | 'qcAnalysisComplete'} NotificationType
  */
 
 /**
@@ -13,6 +13,7 @@ const SETTINGS_KEY = 'stream-analyzer_notification_settings';
  * @property {boolean} playerError
  * @property {boolean} seekPollSuccess
  * @property {boolean} pollingDisabled
+ * @property {boolean} qcAnalysisComplete
  */
 
 /**
@@ -33,6 +34,7 @@ const getDefaultSettings = () => ({
     playerError: true,
     seekPollSuccess: true,
     pollingDisabled: true,
+    qcAnalysisComplete: true, // Enabled by default
 });
 
 /**

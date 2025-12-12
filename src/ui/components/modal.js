@@ -1,6 +1,8 @@
 import { eventBus } from '@/application/event-bus';
 import { dashTimingCalculatorTemplate } from '@/features/interactiveManifest/ui/components/dash/timing-calculator-modal.js';
 import '@/features/manifestPatcher/ui/manifest-patcher.js';
+// We still import the file to register the custom element, but import the class to be sure (or just side effect)
+import '@/features/networkAnalysis/ui/components/network-intervention-panel.js';
 import '@/features/networkAnalysis/ui/components/response-viewer.js';
 import { getSegmentAnalysisTemplate } from '@/features/segmentAnalysis/ui/index';
 import { memoryViewTemplate } from '@/features/settings/ui/memory-view.js';
@@ -92,6 +94,11 @@ function getContentTemplate(modalContent) {
             ></manifest-patcher>`;
         case 'dashCalculator':
             return dashTimingCalculatorTemplate(modalContent.data);
+        case 'networkIntervention':
+            // Simple instantiation, logic is internal to component
+            return html`<div class="h-full flex flex-col w-full">
+                <network-intervention-panel></network-intervention-panel>
+            </div>`;
         case 'networkResponse':
             return html`
                 <div
@@ -234,7 +241,6 @@ function renderModal() {
 
         const modalContentContainer = dom.segmentModal.querySelector('div');
 
-        // --- ARCHITECTURAL CHANGE: Dynamic Sizing Logic ---
         if (modalContentContainer) {
             // Reset classes first
             modalContentContainer.className =
@@ -248,8 +254,6 @@ function renderModal() {
             }
 
             // Apply Height logic
-            // Default: Fixed height (90vh) for heavy tools
-            // 'memoryManagement': Auto height (fit content) for dashboard look
             if (modalState.modalContent?.type === 'memoryManagement') {
                 modalContentContainer.classList.add('h-auto', 'max-h-[90vh]');
             } else {

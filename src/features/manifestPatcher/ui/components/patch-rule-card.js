@@ -1,6 +1,5 @@
 import * as icons from '@/ui/icons';
 import { html } from 'lit-html';
-import { classMap } from 'lit-html/directives/class-map.js';
 
 export const patchRuleCardTemplate = ({
     rule,
@@ -21,12 +20,20 @@ export const patchRuleCardTemplate = ({
         }
     }
 
-    const containerClass = classMap({
-        'group relative flex flex-col gap-2 p-3 rounded-lg border transition-all duration-200 bg-slate-900/50': true,
-        'border-slate-700 hover:border-slate-600': rule.active && isValidRegex,
-        'border-slate-800 opacity-60': !rule.active,
-        'border-red-500/40 bg-red-900/10': rule.active && !isValidRegex,
-    });
+    // Resolve classes manually to avoid DOMTokenList whitespace errors in classMap
+    const baseClasses =
+        'group relative flex flex-col gap-2 p-3 rounded-lg border transition-all duration-200 bg-slate-900/50';
+    let statusClasses = '';
+
+    if (!rule.active) {
+        statusClasses = 'border-slate-800 opacity-60';
+    } else if (isValidRegex) {
+        statusClasses = 'border-slate-700 hover:border-slate-600';
+    } else {
+        statusClasses = 'border-red-500/40 bg-red-900/10';
+    }
+
+    const containerClass = `${baseClasses} ${statusClasses}`;
 
     return html`
         <div class="${containerClass}">
@@ -42,9 +49,14 @@ export const patchRuleCardTemplate = ({
 
                     <!-- Toggle Switch -->
                     <button
-                        @click=${() =>
-                            onUpdate(rule.id, 'active', !rule.active)}
-                        class="relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${rule.active
+                        type="button"
+                        @click=${(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            onUpdate(rule.id, 'active', !rule.active);
+                        }}
+                        class="relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${rule
+                            .active
                             ? 'bg-blue-600'
                             : 'bg-slate-700'}"
                         title="${rule.active ? 'Disable Rule' : 'Enable Rule'}"
@@ -79,6 +91,7 @@ export const patchRuleCardTemplate = ({
                     class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
                 >
                     <button
+                        type="button"
                         @click=${() => onMove(index, -1)}
                         ?disabled=${index === 0}
                         class="p-1 text-slate-500 hover:text-slate-200 disabled:opacity-30 rounded hover:bg-slate-800 transition-colors"
@@ -87,6 +100,7 @@ export const patchRuleCardTemplate = ({
                         <!-- Up -->
                     </button>
                     <button
+                        type="button"
                         @click=${() => onMove(index, 1)}
                         ?disabled=${index === totalCount - 1}
                         class="p-1 text-slate-500 hover:text-slate-200 disabled:opacity-30 rounded hover:bg-slate-800 transition-colors"
@@ -96,6 +110,7 @@ export const patchRuleCardTemplate = ({
                     </button>
                     <div class="w-px h-3 bg-slate-700 mx-1"></div>
                     <button
+                        type="button"
                         @click=${() => onRemove(rule.id)}
                         class="p-1 text-slate-500 hover:text-red-400 rounded hover:bg-red-900/20 transition-colors"
                     >

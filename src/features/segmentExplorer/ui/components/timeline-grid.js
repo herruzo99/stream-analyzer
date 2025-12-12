@@ -183,15 +183,18 @@ export class VirtualTimelineGrid extends HTMLElement {
             useUiStore.getState();
         const { segmentsForCompare } = useAnalysisStore.getState();
         const { cache } = useSegmentCacheStore.getState();
-        const inspectedId =
-            interactiveSegmentSelectedItem?.item?.uniqueId ||
-            interactiveSegmentSelectedItem?.uniqueId;
+        
+        // ARCHITECTURAL FIX: Extract full segment object for precise matching
+        const inspectedSegment =
+            interactiveSegmentSelectedItem?.item ||
+            interactiveSegmentSelectedItem;
+            
         const compareSet = new Set(
             segmentsForCompare.map((s) => s.segmentUniqueId)
         );
 
         const ctx = {
-            inspectedId,
+            inspectedSegment, // Pass full object, not just ID
             compareSet,
             clickMode: segmentMatrixClickMode,
             streamId: this._stream.id,

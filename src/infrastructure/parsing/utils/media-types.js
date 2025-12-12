@@ -32,6 +32,9 @@ const extensionPatterns = [
     ['.vtt', { contentType: 'text', codec: 'wvtt' }],
     ['.webvtt', { contentType: 'text', codec: 'wvtt' }],
     ['.cmft', { contentType: 'text', codec: 'wvtt' }], // CMAF Text
+    ['.ttml', { contentType: 'text', codec: 'stpp' }],
+    ['.dfxp', { contentType: 'text', codec: 'stpp' }],
+    ['.xml', { contentType: 'text', codec: 'stpp' }], // Generic XML, often TTML in streaming context
 ];
 
 /**

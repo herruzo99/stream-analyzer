@@ -29,8 +29,8 @@ import { emsgTooltip, parseEmsg } from './boxes/emsg.js';
 import { encaTooltip, parseEnca } from './boxes/enca.js';
 import { encvTooltip, parseEncv } from './boxes/encv.js';
 import { esdsTooltip, parseEsds } from './boxes/esds.js';
-import { evc1Tooltip, parseEvc1 } from './boxes/evc1.js'; // NEW
-import { evcCTooltip, parseEvcC } from './boxes/evcC.js'; // NEW
+import { evc1Tooltip, parseEvc1 } from './boxes/evc1.js';
+import { evcCTooltip, parseEvcC } from './boxes/evcC.js';
 import { freeTooltip, parseFree } from './boxes/free.js';
 import { frmaTooltip, parseFrma } from './boxes/frma.js';
 import { ftypStypTooltip, parseFtypStyp } from './boxes/ftyp.js';
@@ -39,6 +39,7 @@ import { hvc1Tooltip, parseHvc1 } from './boxes/hvc1.js';
 import { hvcCTooltip, parseHvcC } from './boxes/hvcC.js';
 import { id32Tooltip, parseId32 } from './boxes/id32.js';
 import { iodsTooltip, parseIods } from './boxes/iods.js';
+import { kindTooltip, parseKind } from './boxes/kind.js'; // NEW
 import { mdhdTooltip, parseMdhd } from './boxes/mdhd.js';
 import { mehdTooltip, parseMehd } from './boxes/mehd.js';
 import { metaTooltip, parseMeta } from './boxes/meta.js';
@@ -83,8 +84,8 @@ import { parseUuid, uuidTooltip } from './boxes/uuid.js';
 import { parseVmhd, vmhdTooltip } from './boxes/vmhd.js';
 import { parseVpcC, vpcCTooltip } from './boxes/vpcc.js';
 import { parseVttC, vttCTooltip } from './boxes/vttc.js';
-import { parseVvc1, vvc1Tooltip } from './boxes/vvc1.js'; // NEW
-import { parseVvcC, vvcCTooltip } from './boxes/vvcC.js'; // NEW
+import { parseVvc1, vvc1Tooltip } from './boxes/vvc1.js';
+import { parseVvcC, vvcCTooltip } from './boxes/vvcC.js';
 import { parseWvtt, wvttTooltip } from './boxes/wvtt.js';
 
 export const boxParsers = {
@@ -113,6 +114,7 @@ export const boxParsers = {
     pssh: parsePssh,
     avcC: parseAvcc,
     avc1: parseAvc1,
+    avc3: parseAvc1,
     hvc1: parseHvc1,
     hev1: parseHvc1,
     hvcC: parseHvcC,
@@ -120,11 +122,11 @@ export const boxParsers = {
     dvvC: parseDvcc,
     vpcC: parseVpcC,
     av1C: parseAv1C,
-    vvcC: parseVvcC, // NEW
-    vvc1: parseVvc1, // NEW
-    vvi1: parseVvc1, // NEW
-    evcC: parseEvcC, // NEW
-    evc1: parseEvc1, // NEW
+    vvcC: parseVvcC,
+    vvc1: parseVvc1,
+    vvi1: parseVvc1,
+    evcC: parseEvcC,
+    evc1: parseEvc1,
     mp4a: parseMp4a,
     esds: parseEsds,
     btrt: parseBtrt,
@@ -168,6 +170,7 @@ export const boxParsers = {
     uuid: parseUuid,
     wvtt: parseWvtt,
     vttC: parseVttC,
+    kind: parseKind, // NEW
 
     // Mapped Container Boxes
     moov: parseMoov,
@@ -218,10 +221,11 @@ const tooltipData = {
     ...dvccTooltip,
     ...vpcCTooltip,
     ...av1CTooltip,
-    ...vvc1Tooltip, // NEW
-    ...vvcCTooltip, // NEW
-    ...evc1Tooltip, // NEW
-    ...evcCTooltip, // NEW
+    ...vvc1Tooltip,
+    ...vvcCTooltip,
+    ...evc1Tooltip,
+    ...evcCTooltip,
+    ...kindTooltip, // NEW
     hev1: { ...hvc1Tooltip.hvc1, name: 'HEVC Sample Entry (hev1)' },
     dvh1: {
         name: 'Dolby Vision Sample Entry',

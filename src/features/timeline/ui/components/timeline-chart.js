@@ -20,6 +20,7 @@ class TimelineChart extends HTMLElement {
         this.style.display = 'block';
         this.style.width = '100%';
         this.style.height = '100%';
+        this.style.minHeight = '100px'; // Prevent 0-height collapse
 
         const container = document.createElement('div');
         container.style.width = '100%';
@@ -27,16 +28,24 @@ class TimelineChart extends HTMLElement {
         this.appendChild(container);
 
         this.chart = initChart(container);
-        this.resizeObserver = new ResizeObserver(() => this.chart?.resize());
+
+        // ARCHITECTURAL FIX: Use RAF for resize to debounce and sync with paint
+        this.resizeObserver = new ResizeObserver(() => {
+            requestAnimationFrame(() => this.chart?.resize());
+        });
         this.resizeObserver.observe(container);
 
         this.chart.on('click', (params) => {
-            // Use explicit type casting to access custom data properties
             const data = /** @type {any} */ (params.data);
             if (data && data.raw) {
                 uiActions.setTimelineSelectedItem(data.raw);
             }
         });
+
+        // Trigger initial update if data was set before connect
+        if (this._data) {
+            this.updateChart();
+        }
     }
 
     disconnectedCallback() {
@@ -47,7 +56,12 @@ class TimelineChart extends HTMLElement {
     updateChart() {
         if (!this._data || !this.chart) return;
 
-        const { tracks, totalDuration } = this._data;
+        // ARCHITECTURAL FIX: Removed synchronous resize() call.
+        // Calling resize() here during a high-frequency data update (like live playback)
+        // can cause a race condition in ECharts' tooltip renderer if the DOM is being thrashed.
+        // The ResizeObserver in connectedCallback handles dimension changes sufficienty.
+
+        const { tracks, chartBounds, timeOffset } = this._data;
         const categories = tracks.map((t) => t.label);
         const seriesData = [];
 
@@ -63,16 +77,15 @@ class TimelineChart extends HTMLElement {
                     opacity: 0.85,
                 };
 
-                // Differentiate Periods visually (background track)
                 if (item.type === 'period') {
                     itemStyle = {
                         color: 'rgba(71, 85, 105, 0.3)',
                         borderColor: 'rgba(148, 163, 184, 0.5)',
                         borderWidth: 1,
-                        // @ts-ignore - ECharts type definition might be incomplete for borderType string
+                        // @ts-ignore
                         borderType: 'dashed',
                         opacity: 0.5,
-                        borderRadius: 0, // Explicitly set to 0 or required value
+                        borderRadius: 0,
                     };
                 }
 
@@ -82,6 +95,8 @@ class TimelineChart extends HTMLElement {
                     raw: item,
                     trackType: track.type,
                     itemType: item.type,
+                    // Pass global offset to tooltip formatter if needed
+                    globalTimeOffset: timeOffset
                 });
             });
         });
@@ -90,7 +105,6 @@ class TimelineChart extends HTMLElement {
             const categoryIndex = api.value(0);
             const start = api.coord([api.value(1), categoryIndex]);
             const end = api.coord([api.value(2), categoryIndex]);
-            // Reduced height for tighter packing
             const height = 24;
 
             const width = Math.max(2, end[0] - start[0]);
@@ -113,21 +127,20 @@ class TimelineChart extends HTMLElement {
                                 lineDash: [2, 2],
                             },
                         },
-                        // Only show text if gap is wide enough
                         width > 20
                             ? {
-                                  type: 'text',
-                                  style: {
-                                      text: '!',
-                                      x: x + width / 2,
-                                      y: y + height / 2,
-                                      align: 'center',
-                                      verticalAlign: 'middle',
-                                      fill: '#ef4444',
-                                      fontSize: 10,
-                                      fontWeight: 'bold',
-                                  },
-                              }
+                                type: 'text',
+                                style: {
+                                    text: '!',
+                                    x: x + width / 2,
+                                    y: y + height / 2,
+                                    align: 'center',
+                                    verticalAlign: 'middle',
+                                    fill: '#ef4444',
+                                    fontSize: 10,
+                                    fontWeight: 'bold',
+                                },
+                            }
                             : null,
                     ].filter(Boolean),
                 };
@@ -161,17 +174,16 @@ class TimelineChart extends HTMLElement {
                 top: 10,
                 left: 90,
                 right: 20,
-                bottom: 80,
-                containLabel: false, // Manual control for tightness
+                bottom: 30, // Adjusted bottom for scrollbar
             },
             xAxis: {
                 type: 'value',
-                min: 0,
-                max: totalDuration,
+                min: chartBounds.min,
+                max: chartBounds.max,
                 axisLabel: {
                     color: '#64748b',
                     fontSize: 9,
-                    formatter: '{value}s',
+                    formatter: (val) => `${val.toFixed(0)}s`,
                 },
                 splitLine: {
                     show: true,
@@ -198,8 +210,8 @@ class TimelineChart extends HTMLElement {
                     type: 'slider',
                     xAxisIndex: 0,
                     filterMode: 'weakFilter',
-                    height: 36,
-                    bottom: 4,
+                    height: 20,
+                    bottom: 0,
                     start: 0,
                     end: 100,
                     borderColor: 'transparent',
@@ -221,7 +233,7 @@ class TimelineChart extends HTMLElement {
             ],
         };
 
-        this.chart.setOption(option);
+        this.chart.setOption(option, { notMerge: true });
     }
 }
 

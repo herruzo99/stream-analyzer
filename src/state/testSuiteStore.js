@@ -33,7 +33,7 @@ const DEFAULT_SUITES = [
             {
                 id: '4',
                 name: 'Not Empty',
-                path: 'manifest.duration',
+                path: 'summary.content.totalPeriods',
                 operator: 'gt',
                 value: 0,
             },
@@ -189,6 +189,10 @@ export const useTestSuiteStore = createStore((set, get) => ({
     resetDefaults: () => {
         set({ suites: [...DEFAULT_SUITES] });
         saveSuites([...DEFAULT_SUITES]);
+        showToast({
+            message: 'Test suites reset to factory defaults.',
+            type: 'info',
+        });
     },
 }));
 

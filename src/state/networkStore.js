@@ -23,7 +23,6 @@ const createInitialNetworkState = () => ({
     },
     visibleStreamIds: new Set(),
     interventionRules: [], // List of active/inactive rules
-    isInterventionPanelOpen: false,
 });
 
 export const useNetworkStore = createStore((set, get) => ({
@@ -89,11 +88,6 @@ export const useNetworkStore = createStore((set, get) => ({
     },
 
     // --- Intervention Actions ---
-
-    toggleInterventionPanel: () =>
-        set((state) => ({
-            isInterventionPanelOpen: !state.isInterventionPanelOpen,
-        })),
 
     addInterventionRule: (rule) => {
         set((state) => ({

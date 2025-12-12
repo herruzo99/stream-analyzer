@@ -170,7 +170,6 @@ function getFirstVariantUri(manifestString) {
 }
 
 export async function handleTier0Analysis({ url, auth }, signal) {
-    appLog('Tier0Handler', 'info', `Starting Tier 0 analysis for ${url}`);
 
     try {
         const startTime = performance.now();

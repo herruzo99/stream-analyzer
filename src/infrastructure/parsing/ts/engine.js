@@ -19,17 +19,14 @@ const KNOWN_PIDS = {
     0x01: 'PSI (CAT)',
     0x02: 'PSI (TSDT)',
     0x03: 'PSI (IPMP)',
-    0x10: 'PSI (NIT)', // DVB Network Information
-    0x11: 'PSI (SDT)', // DVB Service Description
-    0x12: 'PSI (EIT)', // DVB Event Information
-    0x13: 'PSI (RST)', // DVB Running Status
-    0x14: 'PSI (TDT/TOT)', // DVB Time/Date
+    0x10: 'PSI (NIT)',
+    0x11: 'PSI (SDT)',
+    0x12: 'PSI (EIT)',
+    0x13: 'PSI (RST)',
+    0x14: 'PSI (TDT/TOT)',
     0x1fff: 'Null Packet',
 };
 
-/**
- * Summarizes the PCR list into meaningful statistics.
- */
 function summarizePcrList(pcrList) {
     if (!pcrList || pcrList.length === 0)
         return { count: 0, status: 'No PCRs found' };
@@ -40,7 +37,7 @@ function summarizePcrList(pcrList) {
     let diffCount = 0;
 
     for (let i = 1; i < pcrList.length; i++) {
-        const diff = Number(pcrList[i].pcr - pcrList[i - 1].pcr) / 27000000; // seconds
+        const diff = Number(pcrList[i].pcr - pcrList[i - 1].pcr) / 27000000;
         if (diff > 0) {
             if (diff < minDiff) minDiff = diff;
             if (diff > maxDiff) maxDiff = diff;
@@ -64,9 +61,6 @@ function summarizePcrList(pcrList) {
     };
 }
 
-/**
- * Summarizes Continuity Counters to identify gaps without storing every packet's CC.
- */
 function summarizeContinuityCounters(ccMap) {
     const summary = {};
     for (const [pid, counters] of Object.entries(ccMap)) {
@@ -80,7 +74,6 @@ function summarizeContinuityCounters(ccMap) {
                 if (lastCC !== -1) {
                     const expected = (lastCC + 1) % 16;
                     if (entry.cc !== expected && entry.cc !== lastCC) {
-                        // Allow repeat CC
                         errors++;
                     }
                 }
@@ -99,7 +92,6 @@ function summarizeContinuityCounters(ccMap) {
 
 export function parseTsSegment(buffer) {
     const packets = [];
-    // We use temporary local structures for raw data collection
     const rawPcrList = [];
     const rawCcMap = {};
 
@@ -109,9 +101,8 @@ export function parseTsSegment(buffer) {
         pmtPids: new Set(),
         privateSectionPids: new Set(),
         dsmccPids: new Set(),
-        programMap: {},
+        programMap: {}, // Map<programId, { streams: { pid: typeHex }, streamDetails: { pid: { type, descriptors } } }>
         pcrPid: null,
-        // Final summaries will be assigned at the end
         pcrList: null,
         continuityCounters: null,
         tsdt: null,
@@ -174,6 +165,7 @@ export function parseTsSegment(buffer) {
                                             programNumber:
                                                 p.program_number.value,
                                             streams: {},
+                                            streamDetails: {}, // Initialize storage for rich metadata
                                         };
                                     }
                                 }
@@ -200,16 +192,16 @@ export function parseTsSegment(buffer) {
 
         const packet = {
             offset,
+            size: TS_PACKET_SIZE,
             pid,
             header,
             adaptationField: null,
-            payloadType: 'Data', // Default
+            payloadType: 'Data',
             pes: null,
             psi: null,
             fieldOffsets: { header: { offset, length: 4 } },
         };
 
-        // Identify Payload Type based on PID immediately
         if (KNOWN_PIDS[pid]) {
             packet.payloadType = KNOWN_PIDS[pid];
         } else if (summary.pmtPids.has(pid)) {
@@ -264,11 +256,8 @@ export function parseTsSegment(buffer) {
             continue;
         }
 
-        // --- Parsing Payload ---
-        // Check if it is a PSI table (Starts with pointer field)
-        // Logic: If PUSI is set AND (PID is known PSI or PMT)
         const isPsiPid =
-            pid <= 0x1f || // Reserved / DVB / PSI range
+            pid <= 0x1f ||
             summary.pmtPids.has(pid) ||
             summary.privateSectionPids.has(pid);
 
@@ -324,9 +313,18 @@ export function parseTsSegment(buffer) {
                         );
                         if (parsedPayload && summary.programMap[pid]) {
                             parsedPayload.streams.forEach((stream) => {
-                                summary.programMap[pid].streams[
-                                    stream.elementary_PID.value
-                                ] = stream.stream_type.value;
+                                const elemPid = stream.elementary_PID.value;
+                                // Legacy simplified mapping
+                                summary.programMap[pid].streams[elemPid] =
+                                    stream.stream_type.value;
+
+                                // Rich metadata storage (NEW)
+                                summary.programMap[pid].streamDetails[
+                                    elemPid
+                                ] = {
+                                    streamType: stream.stream_type.value,
+                                    descriptors: stream.es_descriptors,
+                                };
                             });
                             summary.programMap[pid].pcrPid =
                                 parsedPayload.pcr_pid.value;
@@ -341,8 +339,6 @@ export function parseTsSegment(buffer) {
                         );
                     }
                 } else {
-                    // Generic PSI fallback for SDT (0x11), EIT (0x12), etc.
-                    // We don't have a specific parser, but we can show the header info.
                     parsedPayload = {
                         type: `PSI Table (0x${parseInt(sectionHeader.table_id, 16).toString(16)})`,
                         generic_data: {
@@ -361,7 +357,6 @@ export function parseTsSegment(buffer) {
                 }
             }
         } else if (!isPsiPid) {
-            // 2. PES Packet (Starts with 0x000001 start code)
             const pesView = new DataView(
                 buffer,
                 offset + payloadStart,
@@ -418,7 +413,7 @@ export function parseTsSegment(buffer) {
         packets.push(packet);
     }
 
-    // Pass 3: Resolution of "Data" packets based on PMT discovery
+    // Pass 3: Label packets based on the populated PMT
     const pidToStreamType = {};
     Object.values(summary.programMap).forEach((program) => {
         Object.entries(program.streams).forEach(([pid, type]) => {
@@ -432,10 +427,13 @@ export function parseTsSegment(buffer) {
                 if (packet.payloadType === 'Data') {
                     const typeNum = parseInt(pidToStreamType[packet.pid], 16);
                     let label = `Stream ${pidToStreamType[packet.pid]}`;
+                    // Common mappings for quick ID
                     if (typeNum === 0x1b) label = 'H.264 Video';
                     else if (typeNum === 0x24) label = 'HEVC Video';
                     else if (typeNum === 0x0f) label = 'AAC Audio';
                     else if (typeNum === 0x15) label = 'ID3 Metadata';
+                    else if (typeNum === 0x03 || typeNum === 0x04)
+                        label = 'MPEG Audio';
 
                     packet.payloadType = label;
                 }
@@ -443,29 +441,15 @@ export function parseTsSegment(buffer) {
         }
     });
 
-    // --- Perform Semantic Analysis with Raw Data ---
-    summary.pcrList = rawPcrList;
-    summary.continuityCounters = rawCcMap;
-
-    try {
-        // Run the semantic checks using the full dataset
-        summary.semanticResults = analyzeSemantics({ packets, summary });
-    } catch (e) {
-        console.warn('Semantic analysis failed:', e);
-        summary.semanticResults = [
-            {
-                id: 'ERR',
-                text: 'Analysis Failed',
-                status: 'warn',
-                details: e.message,
-            },
-        ];
-    }
-
-    // --- Summarize Data for Output ---
-    // Replace the massive raw arrays with statistical summaries to keep JSON size manageable
     summary.pcrList = summarizePcrList(rawPcrList);
     summary.continuityCounters = summarizeContinuityCounters(rawCcMap);
+
+    // Run semantic checks only if we have sufficient data
+    try {
+        summary.semanticResults = analyzeSemantics({ packets, summary });
+    } catch (_e) {
+        summary.semanticResults = [];
+    }
 
     return { format: 'ts', data: { summary, packets } };
 }

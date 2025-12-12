@@ -22,21 +22,21 @@ const abrLadderChartOptions = (abrData) => {
             // Highlight reference stream visually
             itemStyle: isRef
                 ? {
-                      color: '#fbbf24', // Amber-400
-                      borderColor: '#fff',
-                      borderWidth: 1,
-                      shadowBlur: 5,
-                      shadowColor: 'rgba(251, 191, 36, 0.5)',
-                  }
+                    color: '#fbbf24', // Amber-400
+                    borderColor: '#fff',
+                    borderWidth: 1,
+                    shadowBlur: 5,
+                    shadowColor: 'rgba(251, 191, 36, 0.5)',
+                }
                 : undefined,
             z: isRef ? 10 : 1, // Bring reference to front
             data: allHeights.map((height) => {
                 const track = trackMap.get(height);
                 return track
                     ? {
-                          value: track.bandwidth,
-                          trackInfo: track,
-                      }
+                        value: track.bandwidth,
+                        trackInfo: track,
+                    }
                     : null;
             }),
         };
@@ -56,7 +56,6 @@ const abrLadderChartOptions = (abrData) => {
             right: '20',
             bottom: '60',
             left: '60',
-            containLabel: true,
         },
         xAxis: {
             type: 'category',

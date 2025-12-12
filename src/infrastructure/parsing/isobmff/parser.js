@@ -16,6 +16,7 @@ const knownContainerBoxes = new Set([
     'mvex',
     'edts',
     'avc1',
+    'avc3',
     'hvc1',
     'hev1',
     'mp4a',
@@ -29,7 +30,7 @@ const knownContainerBoxes = new Set([
     'meta',
     'trep',
     'enca',
-    'stpp', // Added stpp as a known container
+    'stpp',
 ]);
 
 /**
@@ -88,65 +89,41 @@ function calculateChunkTiming(moofBox) {
     const trun = findBoxRecursive(traf.children, (b) => b.type === 'trun');
 
     if (tfdt && tfdt.details.baseMediaDecodeTime) {
-        timing.baseTime = tfdt.details.baseMediaDecodeTime.value || 0;
+        timing.baseTime = Number(tfdt.details.baseMediaDecodeTime.value) || 0;
     }
 
     if (trun && trun.details.sample_count) {
-        // Since trun parser is simplified, we can't reduce over samples.
-        // This is a limitation for now, but not critical for the chunk timing display.
-        timing.sampleCount = trun.details.sample_count.value;
+        timing.sampleCount = Number(trun.details.sample_count.value) || 0;
     }
 
     return timing;
 }
 
 /**
- * Groups a flat list of boxes into logical CMAF Chunks ('moof' + 'mdat').
+ * Annotates 'moof' boxes with CMAF Chunk metadata without changing the structure.
+ * It associates the following 'mdat' (if present) with the 'moof' to calculate total chunk size.
  * @param {import('../../../types.ts').Box[]} boxes A flat list of parsed ISOBMFF boxes.
- * @returns {import('../../../types.ts').Box[]} A structured list containing Chunk objects and other top-level boxes.
  */
-function groupAndCalcTimingForChunks(boxes) {
-    if (!boxes) return [];
-    const grouped = [];
-    let i = 0;
-    while (i < boxes.length) {
-        const box = boxes[i];
-        if (box.type === 'moof' && boxes[i + 1]?.type === 'mdat') {
-            const moof = box;
-            const mdat = boxes[i + 1];
-            const timing = calculateChunkTiming(moof);
+function annotateCmafChunks(boxes) {
+    if (!boxes) return;
+    let chunkIndex = 1;
 
-            grouped.push({
-                isChunk: true,
-                type: 'CMAF Chunk',
-                offset: moof.offset,
-                size: moof.size + mdat.size,
-                headerSize: 0, // Logical chunk has no header
-                contentOffset: moof.offset,
-                children: [moof, mdat],
-                // @ts-ignore - timing is a custom property for our view model
-                timing,
-                details: {
-                    info: {
-                        value: 'A logical grouping of a moof and mdat box, representing a single CMAF chunk.',
-                        offset: moof.offset,
-                        length: 0,
-                    },
-                    size: {
-                        value: `${moof.size + mdat.size} bytes`,
-                        offset: moof.offset,
-                        length: 0,
-                    },
-                },
-                issues: [],
-            });
-            i += 2;
-        } else {
-            grouped.push(box);
-            i += 1;
+    for (let i = 0; i < boxes.length; i++) {
+        const box = boxes[i];
+        if (box.type === 'moof') {
+            const nextBox = boxes[i + 1];
+            const mdatSize =
+                nextBox && nextBox.type === 'mdat' ? nextBox.size : 0;
+            const timing = calculateChunkTiming(box);
+
+            box.chunkInfo = {
+                index: chunkIndex++,
+                totalSize: box.size + mdatSize,
+                baseTime: timing.baseTime,
+                sampleCount: timing.sampleCount,
+            };
         }
     }
-    return grouped;
 }
 
 const buildSampleDescriptionMap = (moov) => {
@@ -420,7 +397,6 @@ function correlateEmsgToSamples(samples, parsedData) {
         }
     }
 }
-
 /**
  * @param {ArrayBuffer} buffer
  * @param {number} baseOffset
@@ -556,6 +532,7 @@ export function parseISOBMFF(buffer, baseOffset = 0, context = {}) {
 
             if (
                 type === 'avc1' ||
+                type === 'avc3' || // Added avc3 check
                 type === 'hvc1' ||
                 type === 'hev1' ||
                 type === 'mp4a' ||
@@ -564,6 +541,7 @@ export function parseISOBMFF(buffer, baseOffset = 0, context = {}) {
             ) {
                 const sampleEntryHeaderSize =
                     type === 'avc1' ||
+                    type === 'avc3' ||
                     type === 'hvc1' ||
                     type === 'hev1' ||
                     type === 'encv'
@@ -605,7 +583,7 @@ export function parseISOBMFF(buffer, baseOffset = 0, context = {}) {
         offset += effectiveSize;
     }
 
-    result.boxes = groupAndCalcTimingForChunks(result.boxes);
+    annotateCmafChunks(result.boxes);
 
     const parsedResultData = { format: 'isobmff', data: result };
     const samples = buildCanonicalSampleList(parsedResultData, buffer);
@@ -614,7 +592,6 @@ export function parseISOBMFF(buffer, baseOffset = 0, context = {}) {
         correlateEmsgToSamples(samples, parsedResultData);
     }
 
-    // --- ARCHITECTURAL FIX: Inject enriched samples back into trun boxes ---
     const trunBoxes = findChildrenRecursive(result.boxes, 'trun');
     let sampleCursor = 0;
     for (const trunBox of trunBoxes) {
@@ -627,7 +604,6 @@ export function parseISOBMFF(buffer, baseOffset = 0, context = {}) {
             sampleCursor += sampleCount;
         }
     }
-    // --- END FIX ---
 
     return {
         format: 'isobmff',

@@ -2,7 +2,7 @@ import * as icons from '@/ui/icons';
 import { formatBitrate } from '@/ui/shared/format';
 import { html } from 'lit-html';
 
-const specItem = (label, value, icon = null) => html`
+const specItem = (label, value, icon = null, highlight = false) => html`
     <div
         class="flex justify-between items-start py-2 border-b border-slate-700/50 last:border-0 hover:bg-slate-800/30 px-2 rounded transition-colors"
     >
@@ -13,7 +13,7 @@ const specItem = (label, value, icon = null) => html`
             ${label}
         </div>
         <div
-            class="text-slate-200 font-mono text-xs text-right break-all max-w-[60%]"
+            class="font-mono text-xs text-right break-all max-w-[60%] ${highlight ? 'text-emerald-400 font-bold' : 'text-slate-200'}"
         >
             ${value || '-'}
         </div>
@@ -42,6 +42,7 @@ const badgeList = (items, colorClass) => {
 
 export const technicalSpecsTemplate = (vm) => {
     const { overview, specs, _securityInfo } = vm;
+    const isLive = overview.type === 'LIVE';
 
     return html`
         <div
@@ -88,6 +89,15 @@ export const technicalSpecsTemplate = (vm) => {
                             'Avg Seg Duration',
                             `${specs.avgSegmentDuration.toFixed(2)}s`
                         )}
+                        <!-- Smart Interval Display -->
+                        ${isLive && specs.smartPollingInterval
+                            ? specItem(
+                                  'Rec. Poll Interval',
+                                  `${specs.smartPollingInterval}s`,
+                                  icons.activity,
+                                  true
+                              )
+                            : ''}
                     </div>
                 </div>
 

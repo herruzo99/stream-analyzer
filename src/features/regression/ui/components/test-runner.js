@@ -1,4 +1,4 @@
-import { runTestSuite } from '@/features/compliance/domain/test-engine';
+import { runTestSuite } from '@/features/regression/domain/test-engine';
 import { testSuiteActions, useTestSuiteStore } from '@/state/testSuiteStore';
 import * as icons from '@/ui/icons';
 import { html } from 'lit-html';

@@ -1,6 +1,6 @@
 import { useAnalysisStore } from '@/state/analysisStore';
 import { playerActions, usePlayerStore } from '@/state/playerStore';
-import { useUiStore } from '@/state/uiStore';
+import { uiActions, useUiStore } from '@/state/uiStore';
 import { html, render } from 'lit-html';
 import { classMap } from 'lit-html/directives/class-map.js';
 import 'shaka-player/dist/controls.css';
@@ -150,12 +150,6 @@ const cockpitLayoutTemplate = (stream, playerState) => {
         'h-full': true, // Enforce full height for flex container
     });
 
-    // ARCHITECTURAL FIX: Removed conditional scrolling here.
-    // The container is now purely structural (flex-grow, min-h-0).
-    // Scrolling is handled by the specific tab content wrapper.
-    const contentContainerClass =
-        'grow min-h-0 relative bg-slate-900/30 flex flex-col';
-
     return html`
         <div
             class="flex flex-col h-full bg-slate-950 text-slate-200 overflow-hidden"
@@ -170,67 +164,73 @@ const cockpitLayoutTemplate = (stream, playerState) => {
                 </div>
 
                 <!-- 2. CENTER: Player & Video QC -->
-                <div class="flex-grow flex flex-col min-w-0 relative bg-black">
-                    <!-- Player Area (Flex Grow) -->
+                <!-- Relative container that fills available space -->
+                <div class="grow min-w-0 relative bg-black">
+                    <!-- Absolute Scroll Container to enforce boundaries -->
                     <div
-                        class="flex-grow relative overflow-hidden group bg-black min-h-[480px] flex flex-col justify-center"
+                        class="absolute inset-0 overflow-y-auto custom-scrollbar flex flex-col"
                     >
-                        <!-- Header Overlay -->
+                        <!-- Player Area (Flex Grow to fill space, but min-height forces scroll) -->
                         <div
-                            class="absolute top-0 left-0 right-0 p-4 z-30 opacity-0 hover:opacity-100 transition-opacity duration-300 bg-gradient-to-b from-black/80 to-transparent pointer-events-none"
+                            class="relative group bg-black min-h-[480px] flex flex-col justify-center shrink-0 grow"
                         >
-                            <h2
-                                class="text-lg font-bold text-white drop-shadow-md"
+                            <!-- Header Overlay -->
+                            <div
+                                class="absolute top-0 left-0 right-0 p-4 z-30 opacity-0 hover:opacity-100 transition-opacity duration-300 bg-gradient-to-b from-black/80 to-transparent pointer-events-none"
                             >
-                                ${stream.name}
-                            </h2>
+                                <h2
+                                    class="text-lg font-bold text-white drop-shadow-md"
+                                >
+                                    ${stream.name}
+                                </h2>
+                            </div>
+
+                            ${videoOverlayContent}
+                            ${!isSwitching
+                                ? hudOverlayTemplate(
+                                      currentStats,
+                                      viewState.isHudVisible,
+                                      stream,
+                                      activeError,
+                                      retryCount,
+                                      isAutoResetEnabled
+                                  )
+                                : ''}
+
+                            <button
+                                @click=${handleToggleHud}
+                                class="absolute top-4 right-4 z-40 p-2 rounded-full bg-black/40 hover:bg-black/80 text-slate-300 hover:text-white transition-all backdrop-blur-sm border border-white/10 shadow-lg cursor-pointer pointer-events-auto"
+                                title="Toggle HUD"
+                            >
+                                ${icons.monitor}
+                            </button>
+
+                            <div
+                                id="video-container-element"
+                                class="w-full h-full relative flex items-center justify-center bg-black"
+                            >
+                                <video
+                                    id="player-video-element"
+                                    class="w-full h-full object-contain"
+                                ></video>
+                            </div>
+
+                            ${isLoaded && !isSwitching && !activeError
+                                ? customTransportBarTemplate(playerState)
+                                : ''}
                         </div>
 
-                        ${videoOverlayContent}
-                        ${!isSwitching
-                            ? hudOverlayTemplate(
-                                  currentStats,
-                                  viewState.isHudVisible,
-                                  stream,
-                                  activeError,
-                                  retryCount,
-                                  isAutoResetEnabled
-                              )
-                            : ''}
-
-                        <button
-                            @click=${handleToggleHud}
-                            class="absolute top-4 right-4 z-40 p-2 rounded-full bg-black/40 hover:bg-black/80 text-slate-300 hover:text-white transition-all backdrop-blur-sm border border-white/10 shadow-lg cursor-pointer pointer-events-auto"
-                            title="Toggle HUD"
-                        >
-                            ${icons.monitor}
-                        </button>
-
-                        <div
-                            id="video-container-element"
-                            class="w-full h-full relative flex items-center justify-center bg-black"
-                        >
-                            <video
-                                id="player-video-element"
-                                class="w-full h-full object-contain"
-                            ></video>
-                        </div>
-
-                        ${isLoaded && !isSwitching && !activeError
-                            ? customTransportBarTemplate(playerState)
+                        <!-- Bottom: Video QC (Fixed Height, Below Player) -->
+                        ${isSignalMonitorOpen
+                            ? html`
+                                  <div
+                                      class="${videoMonitorHeight} shrink-0 border-t border-slate-800 relative z-10 bg-slate-950"
+                                  >
+                                      <signal-monitor-video></signal-monitor-video>
+                                  </div>
+                              `
                             : ''}
                     </div>
-
-                    <!-- Bottom: Video QC (Fixed Height) -->
-                    ${isSignalMonitorOpen
-                        ? html`
-                              <div
-                                  class="${videoMonitorHeight} shrink-0 border-t border-slate-800 relative z-10 bg-slate-950"
-                              >
-                                  <signal-monitor-video></signal-monitor-video>
-                              </div>
-                          `
-                        : ''}
                 </div>
 
                 <!-- 3. RIGHT: Telemetry (Sidebar) -->
@@ -244,7 +244,7 @@ const cockpitLayoutTemplate = (stream, playerState) => {
                     </div>
 
                     <!-- Content Area -->
-                    <div class="${contentContainerClass}">
+                    <div class="grow min-h-0 relative bg-slate-900/30">
                         ${activeTab === 'telemetry'
                             ? html` <div
                                   class="absolute inset-0 overflow-y-auto p-4 custom-scrollbar"
@@ -306,11 +306,54 @@ function renderPlayerView() {
 
 async function checkAndLoadStream() {
     if (viewState.isSwitching) return;
-    const { isLoaded } = usePlayerStore.getState();
-    if (!isLoaded) return;
+
     const { streams, activeStreamId } = useAnalysisStore.getState();
+    const { pendingPlayerRequest } = useUiStore.getState();
+    const { playbackState } = usePlayerStore.getState();
+
     const activeStream = streams.find((s) => s.id === activeStreamId);
     if (!activeStream) return;
+
+    // --- ARCHITECTURAL FIX: Auto-load suppression ---
+    // Only load the player automatically if:
+    // 1. The player was already active (persisting playback in background).
+    // 2. OR A specific playback request (e.g. from QC tool) is pending.
+    // NOTE: Removed activeTab === 'player-simulation' to prevent auto-start on simple view open.
+    const isPlayerActive =
+        playbackState !== 'IDLE' && playbackState !== 'ENDED';
+    const shouldLoad = isPlayerActive || !!pendingPlayerRequest;
+
+    if (!shouldLoad) {
+        return;
+    }
+
+    const startTime = pendingPlayerRequest?.startTime || null;
+    const autoPlay = pendingPlayerRequest?.autoPlay || false;
+
+    // 1. Same Stream: Just seek and/or play if requested
+    if (activeStreamId === viewState.lastLoadedStreamId) {
+        if (pendingPlayerRequest) {
+            const player = playerService.getPlayer();
+            if (player && playerService.isInitialized) {
+                const { isLoaded } = usePlayerStore.getState();
+                if (!isLoaded) {
+                    // If not loaded, we load it (respecting autoPlay from request)
+                    await playerService.load(activeStream, autoPlay, startTime);
+                } else {
+                    // If already loaded, just seek/play as requested
+                    if (startTime !== null) playerService.seek(startTime);
+                    if (autoPlay) {
+                        const video = player.getMediaElement();
+                        if (video) video.play().catch(() => {});
+                    }
+                }
+            }
+            uiActions.clearPendingPlayerRequest();
+        }
+        return;
+    }
+
+    // 2. New Stream: Full Load
     if (activeStreamId !== viewState.lastLoadedStreamId) {
         viewState.lastLoadedStreamId = activeStreamId;
         viewState.isSwitching = true;
@@ -326,7 +369,9 @@ async function checkAndLoadStream() {
             );
             if (videoEl && videoContainer) {
                 await playerService.initialize(videoEl, videoContainer);
-                await playerService.load(activeStream, true);
+                // Load new stream. Auto-play is determined by the request or defaults to false (paused).
+                await playerService.load(activeStream, autoPlay, startTime);
+                if (pendingPlayerRequest) uiActions.clearPendingPlayerRequest();
             }
         } catch (e) {
             console.error('[PlayerView] Failed to switch stream:', e);
@@ -358,14 +403,19 @@ export const playerView = {
     },
     mount(containerElement, { stream }) {
         viewState.container = containerElement;
-        viewState.lastLoadedStreamId = null;
+        // Do not reset lastLoadedStreamId here to preserve state on tab switch
         viewState.isSwitching = false;
         viewState.subscriptions.forEach((unsub) => unsub());
         viewState.subscriptions = [];
         viewState.subscriptions.push(
             usePlayerStore.subscribe(renderPlayerView)
         );
-        viewState.subscriptions.push(useUiStore.subscribe(renderPlayerView));
+        viewState.subscriptions.push(
+            useUiStore.subscribe(() => {
+                checkAndLoadStream();
+                renderPlayerView();
+            })
+        );
         viewState.subscriptions.push(
             useAnalysisStore.subscribe(() => {
                 checkAndLoadStream();
@@ -376,13 +426,11 @@ export const playerView = {
         checkAndLoadStream();
     },
     unmount() {
-        playerService.destroy();
         viewState.subscriptions.forEach((unsub) => unsub());
         viewState.subscriptions = [];
         if (viewState.container) render(html``, viewState.container);
         viewState.container = null;
         viewState.videoEl = null;
         viewState.videoContainer = null;
-        viewState.lastLoadedStreamId = null;
     },
 };

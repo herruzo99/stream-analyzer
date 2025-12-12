@@ -7,8 +7,7 @@ import { secureRandom } from '@/shared/utils/random';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { playerActions, usePlayerStore } from '@/state/playerStore';
 import { formatBitrate } from '@/ui/shared/format';
-import { playerConfigService } from './playerConfigService.js';
-
+import { playerConfigService } from '../../multiPlayer/application/playerConfigService.js';
 const MAX_RETRIES = 5;
 const INITIAL_RETRY_DELAY_MS = 2000;
 const JITTER_FACTOR = 0.3;
@@ -20,7 +19,7 @@ class PlayerService {
         this.activeStreamIds = new Set();
         this.activeManifestVariants = [];
         this.isInitialized = false;
-        this._initPromise = null; // Track pending initialization
+        this._initPromise = null;
         this.tickerSubscription = null;
         this.stallCalculator = new StallCalculator();
     }
@@ -29,6 +28,7 @@ class PlayerService {
         return this.activeStreamIds;
     }
 
+    // ... _updateStatsAndPlaybackInfo remains unchanged ...
     _updateStatsAndPlaybackInfo() {
         if (!this.player) return;
 
@@ -45,7 +45,6 @@ class PlayerService {
         const audioTracks = this.player.getAudioLanguagesAndRoles();
         const textTracks = this.player.getTextTracks();
 
-        // --- ARCHITECTURAL FIX: Get seekable range from player ---
         const seekRange = this.player.seekRange();
         const safeSeekRange = {
             start: seekRange.start || 0,
@@ -59,7 +58,7 @@ class PlayerService {
             activeVideoTrack: activeVariant,
             activeAudioTrack: audioTracks.find((t) => t.active),
             activeTextTrack: textTracks.find((t) => t.active),
-            seekableRange: safeSeekRange, // Pass to store
+            seekableRange: safeSeekRange,
         });
 
         const videoOnlyBitrate = activeVariant?.videoBandwidth || 0;
@@ -260,7 +259,7 @@ class PlayerService {
                 this.player.addEventListener('texttrackvisibility', (e) =>
                     eventBus.dispatch(
                         'player:texttrackvisibility',
-                        /** @type {any} */ (e).detail
+                        /** @type {any} */(e).detail
                     )
                 );
 
@@ -307,7 +306,7 @@ class PlayerService {
                 return this.player;
             } catch (e) {
                 console.error('Player initialization failed:', e);
-                this._initPromise = null; // Reset to allow retries
+                this._initPromise = null;
                 this.isInitialized = false;
                 throw e;
             }
@@ -381,8 +380,10 @@ class PlayerService {
         this.activeManifestVariants = [];
     }
 
-    async load(stream, autoPlay = false) {
-        // Ensure initialization is complete before proceeding
+    /**
+     * Loads a stream into the player.
+     */
+    async load(stream, autoPlay = false, startTime = null) {
         if (this._initPromise) {
             await this._initPromise;
         }
@@ -409,15 +410,16 @@ class PlayerService {
             activeStreamIds: this.activeStreamIds,
         });
 
-        const isDynamic = stream.manifest?.type === 'dynamic';
-        useAnalysisStore.getState().setStreamPolling(stream.id, isDynamic);
+        // --- ARCHITECTURAL FIX: Removed Polling State Coupling ---
+        // Player lifecycle no longer affects analyzer polling state.
 
         try {
             const drmConfig = await playerConfigService.buildDrmConfig(stream);
             this.player.configure({ drm: drmConfig });
 
             const manifestUrl = stream.patchedManifestUrl || stream.originalUrl;
-            await this.player.load(manifestUrl);
+
+            await this.player.load(manifestUrl, startTime);
 
             const rawVariantTracks = this.player.getVariantTracks();
             const uniqueVideoTracks = new Map();
@@ -447,7 +449,9 @@ class PlayerService {
             eventBus.dispatch('player:manifest-loaded');
 
             if (autoPlay && this.player.getMediaElement()) {
-                this.player.getMediaElement().play();
+                this.player.getMediaElement().play().catch(e => {
+                    console.warn("AutoPlay failed/blocked:", e);
+                });
             }
         } catch (e) {
             playerActions.setLoadedState(false);
@@ -474,6 +478,7 @@ class PlayerService {
     destroy() {
         if (!this.isInitialized) return;
         this.stopStatsCollection();
+
         if (this.player) {
             this.player.destroy();
             this.player = null;
@@ -487,6 +492,8 @@ class PlayerService {
         playerActions.reset();
         this.stallCalculator.reset();
     }
+
+    // ... Getters/Setters & Event Handlers ...
 
     getPlayer() {
         return this.player;
@@ -503,9 +510,8 @@ class PlayerService {
         playerActions.logEvent({
             timestamp: new Date().toLocaleTimeString(),
             type: 'interaction',
-            details: `ABR strategy set to: ${
-                enabled ? 'Auto (enabled)' : 'Manual (disabled)'
-            }.`,
+            details: `ABR strategy set to: ${enabled ? 'Auto (enabled)' : 'Manual (disabled)'
+                }.`,
         });
     }
 
@@ -530,9 +536,8 @@ class PlayerService {
         playerActions.logEvent({
             timestamp: new Date().toLocaleTimeString(),
             type: 'interaction',
-            details: `Manual track selection: Locked to ${
-                track.height
-            }p @ ${formatBitrate(track.bandwidth)}.`,
+            details: `Manual track selection: Locked to ${track.height
+                }p @ ${formatBitrate(track.bandwidth)}.`,
         });
     }
 
@@ -545,7 +550,7 @@ class PlayerService {
     }
 
     onErrorEvent(event) {
-        this.onError(/** @type {any} */ (event).detail);
+        this.onError(/** @type {any} */(event).detail);
     }
 
     onError(error) {
@@ -562,7 +567,6 @@ class PlayerService {
 
         const { isAutoResetEnabled, retryCount } = usePlayerStore.getState();
 
-        // Log the error regardless of auto-reset state
         eventBus.dispatch('player:error', {
             message: originalMessage,
             error,
@@ -576,14 +580,12 @@ class PlayerService {
         if (newRetryCount > MAX_RETRIES) {
             const finalMessage = `Permanent Failure: ${originalMessage}. Max retries (${MAX_RETRIES}) reached.`;
 
-            // Log detailed error to player history
             playerActions.logEvent({
                 timestamp: new Date().toLocaleTimeString(),
                 type: 'error',
                 details: finalMessage,
             });
 
-            // Dispatch global notification
             const { streams, activeStreamId } = useAnalysisStore.getState();
             const stream = streams.find((s) => s.id === activeStreamId);
             eventBus.dispatch('notify:player-error', {
@@ -593,19 +595,17 @@ class PlayerService {
             return;
         }
 
-        // Fix: Use secureRandom for jitter
         const backoff =
             INITIAL_RETRY_DELAY_MS *
             Math.pow(2, retryCount) *
             (1 + secureRandom() * JITTER_FACTOR);
-        const delay = Math.min(backoff, 30000); // Cap delay at 30s
+        const delay = Math.min(backoff, 30000);
 
         const delaySec = (delay / 1000).toFixed(1);
         const retryMessage = `Auto-reset enabled. Retrying (${newRetryCount}/${MAX_RETRIES}) in ${delaySec}s...`;
 
         playerActions.setRetryCount(newRetryCount);
 
-        // Log the retry intent clearly
         playerActions.logEvent({
             timestamp: new Date().toLocaleTimeString(),
             type: 'lifecycle',
@@ -633,20 +633,20 @@ class PlayerService {
 
         const newTrack = event.newVariant
             ? {
-                  ...event.newVariant,
-                  playheadTime: currentTime,
-                  streamId: activeStreamId,
-                  stream,
-              }
+                ...event.newVariant,
+                playheadTime: currentTime,
+                streamId: activeStreamId,
+                stream,
+            }
             : null;
 
         const oldTrack = event.oldVariant
             ? {
-                  ...event.oldVariant,
-                  playheadTime: currentTime,
-                  streamId: activeStreamId,
-                  stream,
-              }
+                ...event.oldVariant,
+                playheadTime: currentTime,
+                streamId: activeStreamId,
+                stream,
+            }
             : null;
 
         eventBus.dispatch('player:adaptation-internal', { oldTrack, newTrack });

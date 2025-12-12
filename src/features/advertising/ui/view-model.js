@@ -1,39 +1,92 @@
+import { formatDuration } from '@/ui/shared/format';
+
+/**
+ * Calculates the active timeline window from available segments and ad avails.
+ * @param {import('@/types').Stream} stream
+ */
+function calculateTimelineBounds(stream) {
+    let minTime = Infinity;
+    let maxTime = -Infinity;
+    let hasContent = false;
+
+    // Helper to process a list of segments
+    const processSegments = (segments, periodStartOffset = 0) => {
+        if (!segments || segments.length === 0) return;
+        
+        // Check all segments to find true min/max bounds
+        // (First/Last optimization removed to handle unsorted or gap scenarios safely)
+        for (const seg of segments) {
+            const start = periodStartOffset + (seg.time / (seg.timescale || 1));
+            const duration = seg.duration / (seg.timescale || 1);
+            const end = start + duration;
+
+            if (start < minTime) minTime = start;
+            if (end > maxTime) maxTime = end;
+            hasContent = true;
+        }
+    };
+
+    if (stream.protocol === 'dash') {
+        for (const repState of stream.dashRepresentationState.values()) {
+            if (repState.segments.length > 0) {
+                 const first = repState.segments[0];
+                 const periodOffset = first.periodStart || 0;
+                 processSegments(repState.segments, periodOffset);
+            }
+        }
+    } else if (stream.protocol === 'hls') {
+        for (const variantState of stream.hlsVariantState.values()) {
+            processSegments(variantState.segments);
+        }
+    }
+
+    // Also factor in Ad Avails to expand window if ads start before/after content
+    // This handles the "negative time" pre-roll visualization issue.
+    if (stream.adAvails && stream.adAvails.length > 0) {
+        for (const avail of stream.adAvails) {
+            // Ignore placeholder
+            if (avail.id === 'unconfirmed-inband-scte35') continue;
+            
+            if (avail.startTime < minTime) minTime = avail.startTime;
+            const end = avail.startTime + avail.duration;
+            if (end > maxTime) maxTime = end;
+            hasContent = true;
+        }
+    }
+
+    if (!hasContent) {
+        // Fallback to manifest hints if no segments loaded
+        return { start: 0, duration: stream.manifest?.duration || 60 };
+    }
+
+    // Safety clamps
+    if (minTime === Infinity) minTime = 0;
+    if (maxTime === -Infinity) maxTime = minTime + 60;
+
+    return {
+        start: minTime,
+        duration: Math.max(1, maxTime - minTime) // Ensure non-zero
+    };
+}
+
 /**
  * Prepares data for the Advertising UI.
  * @param {import('@/types').Stream} stream
  */
 export function createAdvertisingViewModel(stream) {
     const avails = stream.adAvails || [];
-    const manifest = stream.manifest;
-    const isLive = manifest.type === 'dynamic';
+    const isLive = stream.manifest?.type === 'dynamic';
 
-    // --- DURATION HEURISTIC ---
-    // 1. Prefer explicit total duration (VOD / Static)
-    let duration = manifest.duration;
+    // --- Dynamic Window Calculation ---
+    const bounds = calculateTimelineBounds(stream);
+    const windowStart = bounds.start;
+    const windowSize = bounds.duration;
+    
+    // Labels
+    let labelStart = formatDuration(windowStart);
+    let labelEnd = formatDuration(windowStart + windowSize);
 
-    // 2. If Live and no total duration, use DVR Window (timeShiftBufferDepth)
-    if (isLive && (!duration || duration === 0)) {
-        duration = manifest.timeShiftBufferDepth;
-    }
-
-    // 3. Fallback: Calculate from Period duration if available (e.g., simplistic live)
-    if (
-        (!duration || duration === 0) &&
-        manifest.periods &&
-        manifest.periods.length > 0
-    ) {
-        // Sum known period durations
-        const periodSum = manifest.periods.reduce(
-            (sum, p) => sum + (p.duration || 0),
-            0
-        );
-        if (periodSum > 0) duration = periodSum;
-    }
-
-    // 4. Absolute Fallback: If still 0, avoid division by zero later
-    if (!duration) duration = 0;
-
-    // Sort chronologically
+    // Sort by start time for UI consistency
     const sortedAvails = [...avails].sort((a, b) => a.startTime - b.startTime);
 
     // Calculate stats
@@ -43,52 +96,50 @@ export function createAdvertisingViewModel(stream) {
         0
     );
 
-    // Calculate Ad Load (percentage of content that is ads)
-    // Use the derived 'duration' (DVR window or total) as the denominator
-    const adLoad = duration > 0 ? (totalAdDuration / duration) * 100 : 0;
+    // Ad Load is relative to the visible window for live, or total duration for VOD
+    const adLoad = windowSize > 0 ? (totalAdDuration / windowSize) * 100 : 0;
 
-    // Categorize Detection Methods
     const detectionCounts = sortedAvails.reduce((acc, a) => {
         acc[a.detectionMethod] = (acc[a.detectionMethod] || 0) + 1;
         return acc;
     }, {});
 
-    // Normalize timeline items
+    // Normalize timeline items relative to the calculated window
     const timelineItems = sortedAvails.map((avail) => {
-        // Handle relative vs absolute time for live
-        // If start time is huge (epoch), normalizing it to the window is complex without live edge.
-        // For visualization, we check if it fits in 0-Duration range.
-
         let startPct = 0;
         let widthPct = 0;
+        let shouldHide = false;
+        
+        // Skip placeholder
+        if (avail.id === 'unconfirmed-inband-scte35') {
+            shouldHide = true;
+        } else {
+            // Calculate relative position in the window
+            // Start Relative to Window Start
+            const relativeStart = avail.startTime - windowStart;
+            
+            // Percentage
+            startPct = (relativeStart / windowSize) * 100;
+            widthPct = (avail.duration / windowSize) * 100;
 
-        if (duration > 0) {
-            // If using Epoch time (common in DASH live), we can't easily plot on a 0-100% bar
-            // without knowing the window start.
-            // Heuristic: If startTime > duration, it's likely Epoch.
-            // In that case, we can't plot it accurately on a relative bar without more context.
-            // We default to 0 or skip plotting (but keep in list).
-            if (avail.startTime <= duration) {
-                startPct = (avail.startTime / duration) * 100;
-                widthPct = (avail.duration / duration) * 100;
+            // Hide if completely out of bounds
+            // We allow partial overlaps (e.g. start < 0 but end > 0)
+            const relativeEnd = relativeStart + avail.duration;
+            if (relativeEnd < 0 || relativeStart > windowSize) {
+                shouldHide = true;
             }
         }
 
         // Cap width visually so short breaks are still visible
-        const visualWidth = Math.max(widthPct, 1);
+        const visualWidth = Math.max(widthPct, 0.5);
 
         return {
             ...avail,
             timelineStyles: {
                 left: `${startPct.toFixed(2)}%`,
                 width: `${visualWidth.toFixed(2)}%`,
-                // Hide if out of bounds (e.g. epoch time in relative view)
-                display:
-                    duration > 0 && avail.startTime > duration
-                        ? 'none'
-                        : 'block',
+                display: shouldHide ? 'none' : 'block',
             },
-            // Helper for determining status color
             statusColor: getStatusColor(avail),
         };
     });
@@ -102,18 +153,27 @@ export function createAdvertisingViewModel(stream) {
             detectionCounts,
         },
         isLive,
-        duration, // Now represents DVR Window for live
-        durationLabel: isLive ? 'DVR Window' : 'Total Duration', // New label hint
+        duration: windowSize,
+        labels: {
+            start: labelStart,
+            end: labelEnd
+        }
     };
 }
 
 function getStatusColor(avail) {
+    if (avail.id === 'unconfirmed-inband-scte35') {
+        return 'blue'; 
+    }
+    if (avail.detectionMethod === 'STRUCTURAL_DISCONTINUITY') {
+        return 'amber';
+    }
     if (
         avail.detectionMethod === 'SCTE35_INBAND' ||
         avail.detectionMethod === 'SCTE35_DATERANGE' ||
         avail.detectionMethod === 'SCTE224_ESNI'
     ) {
-        return avail.adManifestUrl ? 'emerald' : 'amber'; // Signal + VAST vs Signal Only
+        return avail.adManifestUrl ? 'emerald' : 'amber';
     }
-    return 'blue'; // Heuristic
+    return 'blue';
 }

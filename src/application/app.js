@@ -60,6 +60,16 @@ export class Application {
                 });
             }
         });
+
+        this.eventBus.subscribe(
+            'hls:media-playlist-activate',
+            ({ streamId, variantId }) => {
+                this.analysisActions.setActiveMediaPlaylist(
+                    streamId,
+                    variantId
+                );
+            }
+        );
     }
 
     /**

@@ -2,6 +2,32 @@ import * as icons from '@/ui/icons';
 import { html } from 'lit-html';
 
 export const breakCardTemplate = (avail, isSelected, onClick) => {
+    // --- Special Case for Placeholder ---
+    if (avail.id === 'unconfirmed-inband-scte35') {
+        const isActive = isSelected
+            ? 'ring-2 ring-blue-500 bg-slate-800'
+            : 'bg-blue-900/10 border-blue-500/20';
+
+        return html`
+            <div
+                @click=${() => onClick(avail)}
+                class="group relative p-4 rounded-xl border border-dashed cursor-pointer transition-all duration-200 ${isActive}"
+            >
+                <div class="flex items-center gap-3">
+                    <div class="p-2 rounded-full bg-blue-500/10 text-blue-400 animate-pulse">
+                        ${icons.activity}
+                    </div>
+                    <div>
+                        <div class="text-sm font-bold text-blue-200">Waiting for Signal</div>
+                        <div class="text-[10px] text-slate-400 mt-0.5">
+                            In-band SCTE-35 detected in manifest. Monitoring segments...
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
     const methodLabels = {
         SCTE35_INBAND: 'In-Band Signal',
         SCTE35_DATERANGE: 'Manifest Signal',

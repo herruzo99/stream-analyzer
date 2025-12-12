@@ -30,7 +30,7 @@ function renderDrmView() {
         if (!isEncrypted) {
             emptyStateTemplate = html`
                 <div
-                    class="flex flex-col items-center justify-center h-full text-slate-500 bg-slate-950/50"
+                    class="flex flex-col items-center justify-center h-full w-full text-slate-500 bg-slate-950/50"
                 >
                     <div
                         class="p-4 rounded-full bg-slate-800/50 mb-3 border border-slate-700"
@@ -49,7 +49,7 @@ function renderDrmView() {
         } else {
             emptyStateTemplate = html`
                 <div
-                    class="flex flex-col items-center justify-center h-full text-slate-500 bg-slate-950/50"
+                    class="flex flex-col items-center justify-center h-full w-full text-slate-500 bg-slate-950/50"
                 >
                     <div
                         class="p-4 rounded-full bg-slate-800/50 mb-3 border border-slate-700"

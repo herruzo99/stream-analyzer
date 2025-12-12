@@ -31,6 +31,7 @@ import { initializeInteractiveSegmentFeature } from '@/features/interactiveSegme
 import { initializeMultiPlayerFeature } from '@/features/multiPlayer/index';
 import { initializeNotificationFeature } from '@/features/notifications/index.js';
 import { initializePlayerSimulationFeature } from '@/features/playerSimulation/index';
+import { initializeRegressionFeature } from '@/features/regression/index.js'; // NEW
 import { initializeSegmentExplorerFeature } from '@/features/segmentExplorer/index';
 import { initializeSettingsFeature } from '@/features/settings/index.js';
 import { initializeStreamInputFeature } from '@/features/streamInput/index';
@@ -71,13 +72,10 @@ export async function startApp() {
     tickerService.start();
     await initializeGlobalRequestInterceptor();
 
+    // Load basic UI state (Workspaces, etc)
     uiActions.loadWorkspaces();
 
-    const isRestoringSession = sessionService.applySessionOnBoot();
-    if (isRestoringSession) {
-        uiActions.setIsRestoringSession(true);
-    }
-
+    // Initialize UI Components (Must happen before Features to ensure DOM is ready for event feedback)
     initializeToastManager(dom);
     initializeLoader(dom);
     initializeViewManager();
@@ -85,25 +83,35 @@ export async function startApp() {
     setupGlobalTooltipListener(dom);
     initializeDropdownService(dom);
 
+    // Initialize Domain Services
     initializeLiveUpdateProcessor();
     initializeLiveStreamMonitor();
     initializeSegmentService();
     keyManagerService.initialize();
     initializeNetworkEnrichmentService();
     playerEventOrchestratorService.initialize();
-
     initializeUiOrchestration();
+
+    // Initialize Features (Registers Event Listeners)
     initializeAdvertisingFeature();
     initializeComplianceFeature();
     initializeFeatureAnalysisFeature();
     initializeInteractiveManifestFeature();
     initializeInteractiveSegmentFeature();
     initializeSegmentExplorerFeature();
-    initializeStreamInputFeature();
+    initializeStreamInputFeature(); // Critical: Registers listener for 'ui:stream-analysis-requested'
     initializePlayerSimulationFeature();
     initializeMultiPlayerFeature();
     initializeNotificationFeature();
     initializeSettingsFeature();
+    initializeRegressionFeature(); // NEW
 
+    // Apply Session (Must happen AFTER listeners are registered)
+    const isRestoringSession = sessionService.applySessionOnBoot();
+    if (isRestoringSession) {
+        uiActions.setIsRestoringSession(true);
+    }
+
+    // Start the App Core
     app.start();
 }

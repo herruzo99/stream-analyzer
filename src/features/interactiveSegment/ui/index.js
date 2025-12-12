@@ -22,6 +22,11 @@ let uiUnsubscribe = null;
 let cacheUnsubscribe = null;
 let fullByteMap = null;
 
+// Local state tracking for selective rendering
+let lastRenderedSegmentUrl = null;
+let lastRenderedEntryReference = null;
+let lastRenderedSelectedItem = null; // Track selection state
+
 const loadingSkeleton = (message) => html`
     <div
         class="flex flex-col items-center justify-center h-full w-full text-slate-500 bg-slate-950 gap-4"
@@ -92,9 +97,17 @@ const backToolbar = (segmentUrl) => {
 function renderView() {
     if (!container) return;
 
-    const { activeSegmentUrl, isByteMapLoading, activeSegmentIsIFrame } =
+    const { activeSegmentUrl, isByteMapLoading, activeSegmentIsIFrame, interactiveSegmentSelectedItem } =
         useUiStore.getState();
     const { get } = useSegmentCacheStore.getState();
+
+    // 1. Reset local state if URL changes (cleanup previous view artifacts)
+    if (activeSegmentUrl !== lastRenderedSegmentUrl) {
+        fullByteMap = null;
+        lastRenderedSegmentUrl = activeSegmentUrl;
+        lastRenderedEntryReference = null; // Force re-eval
+        lastRenderedSelectedItem = null;
+    }
 
     if (!activeSegmentUrl) {
         render(
@@ -117,6 +130,22 @@ function renderView() {
     }
 
     const cachedEntry = get(activeSegmentUrl);
+
+    // 2. Selective Render Check:
+    // If the cache entry, loading state, AND selection are identical, skip render.
+    // This allows the Inspector to update when selection changes.
+    if (
+        cachedEntry === lastRenderedEntryReference &&
+        interactiveSegmentSelectedItem === lastRenderedSelectedItem &&
+        !isByteMapLoading &&
+        fullByteMap
+    ) {
+        return;
+    }
+    
+    // Update trackers
+    lastRenderedEntryReference = cachedEntry;
+    lastRenderedSelectedItem = interactiveSegmentSelectedItem;
 
     if (!cachedEntry || cachedEntry.status === -1) {
         render(loadingSkeleton('Fetching & Parsing...'), container);
@@ -154,6 +183,9 @@ function renderView() {
                 .promise.then(({ byteMap }) => {
                     fullByteMap = byteMap;
                     uiActions.setIsByteMapLoading(false);
+                    // Force a re-render now that we have the map
+                    lastRenderedEntryReference = null; 
+                    renderView(); 
                 })
                 .catch((e) => {
                     console.error('Optimization failed:', e);
@@ -192,6 +224,16 @@ function renderView() {
                 format
             );
         }, 0);
+    } else if (format === 'vtt' || format === 'ttml') {
+        structureHTML = html`
+            <div class="p-6 text-center text-slate-500 text-xs italic">
+                <div class="mb-2 scale-150 opacity-50">${icons.fileText}</div>
+                <p>Text-based format (${format.toUpperCase()})</p>
+                <p class="mt-1">Structure tree not available for this format.</p>
+            </div>
+        `;
+        inspectorHTML = inspectorPanelTemplate(parsedData);
+        hexHTML = hexViewTemplate(rawBuffer, null);
     } else {
         render(
             html`<div class="p-10 text-center text-slate-500">
@@ -216,9 +258,15 @@ function renderView() {
 export const interactiveSegmentView = {
     mount(el) {
         container = el;
+        // Reset local state on mount
         fullByteMap = null;
+        lastRenderedSegmentUrl = null;
+        lastRenderedEntryReference = null;
+        lastRenderedSelectedItem = null;
+
         if (uiUnsubscribe) uiUnsubscribe();
         if (cacheUnsubscribe) cacheUnsubscribe();
+        
         uiUnsubscribe = useUiStore.subscribe(renderView);
         cacheUnsubscribe = useSegmentCacheStore.subscribe(renderView);
         renderView();

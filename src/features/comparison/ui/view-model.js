@@ -1,3 +1,4 @@
+import { isCodecSupported } from '@/infrastructure/parsing/utils/codec-support';
 import { formatBitrate } from '@/ui/shared/format';
 
 const renderList = (items) =>
@@ -94,6 +95,12 @@ function resolveHlsVariantSummary(stream, variantId) {
     const actualDuration =
         mediaManifest.segments?.reduce((acc, s) => acc + s.duration, 0) || 0;
 
+    // Calculate last segment duration for HLS specific checks
+    let lastSegmentDuration = 0;
+    if (mediaManifest.segments && mediaManifest.segments.length > 0) {
+        lastSegmentDuration = mediaManifest.segments[mediaManifest.segments.length - 1].duration;
+    }
+
     // Construct a complete video track object that mimics what the parser produces
     const syntheticVideoTrack = variantDef
         ? {
@@ -110,7 +117,7 @@ function resolveHlsVariantSummary(stream, variantId) {
                   {
                       value: variantDef.attributes.CODECS,
                       source: 'manifest',
-                      supported: true,
+                      supported: isCodecSupported(variantDef.attributes.CODECS),
                   },
               ],
               frameRate: variantDef.attributes['FRAME-RATE'],
@@ -149,6 +156,7 @@ function resolveHlsVariantSummary(stream, variantId) {
                     (s) => s.discontinuity
                 ),
                 isIFrameOnly: false,
+                lastSegmentDuration: lastSegmentDuration,
             },
             iFramePlaylists: 0,
             dvrWindow: mediaManifest.type === 'dynamic' ? actualDuration : null,

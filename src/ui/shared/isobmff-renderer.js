@@ -138,7 +138,6 @@ const renderValue = (key, value, timescale = null) => {
         !Array.isArray(value) &&
         !value.value
     ) {
-        // It's a flag object { flagName: boolean }
         return html`
             <div class="flex flex-wrap gap-1.5 mt-1">
                 ${Object.entries(value).map(([flagName, isSet]) => {
@@ -426,6 +425,30 @@ export const entriesTableTemplate = (box) => {
     `;
 };
 
+// --- NEW Chunk Metadata Renderer ---
+const renderChunkInfo = (chunkInfo) => {
+    if (!chunkInfo) return '';
+    return html`
+        <div class="bg-blue-900/20 border border-blue-500/30 rounded-xl p-4 mb-4">
+            <div class="flex items-center gap-2 mb-3">
+                <span class="text-blue-400 font-bold text-xs uppercase tracking-wider">
+                    ${icons.layers} CMAF Chunk #${chunkInfo.index}
+                </span>
+            </div>
+            <div class="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                    <span class="block text-[10px] text-slate-500 font-bold uppercase mb-1">Total Size</span>
+                    <span class="font-mono text-slate-200">${chunkInfo.totalSize.toLocaleString()} bytes</span>
+                </div>
+                <div>
+                    <span class="block text-[10px] text-slate-500 font-bold uppercase mb-1">Decode Base</span>
+                    <span class="font-mono text-slate-200">${chunkInfo.baseTime}</span>
+                </div>
+            </div>
+        </div>
+    `;
+};
+
 export const inspectorDetailsTemplate = (
     box,
     rootData,
@@ -495,6 +518,10 @@ export const inspectorDetailsTemplate = (
                     : ''}
             </div>
             <div class="grow overflow-y-auto custom-scrollbar p-5 min-h-0">
+                
+                <!-- NEW Chunk Info Block -->
+                ${renderChunkInfo(box.chunkInfo)}
+
                 ${fields.length > 0
                     ? html`<div
                           class="bg-slate-800/40 rounded-xl border border-slate-700/50 overflow-hidden"
@@ -540,7 +567,6 @@ export const isoBoxTreeTemplate = (box, context = {}) => {
         issues = issues.filter((issue) => !issue.message.includes('truncated'));
     const hasError = isDebugMode && issues.length > 0;
 
-    // Enhanced box type styling
     const boxTypeColors = {
         moov: 'text-indigo-400',
         trak: 'text-violet-400',
@@ -562,7 +588,6 @@ export const isoBoxTreeTemplate = (box, context = {}) => {
         (hasError ? 'text-yellow-400' : 'text-blue-300');
     const borderColor = hasError ? 'border-yellow-600' : 'border-slate-800';
 
-    // --- STRUCTURAL SPLIT: Separate simple fields from complex (object/flag) fields ---
     const allFields = Object.entries(box.details).filter(([key, field]) => {
         if (field.internal) return false;
         if (key.endsWith('_raw')) return false;
@@ -579,7 +604,7 @@ export const isoBoxTreeTemplate = (box, context = {}) => {
             typeof val === 'object' &&
             val !== null &&
             !Array.isArray(val) &&
-            !val.value; // This signature implies a flag object in our parser structure
+            !val.value;
 
         if (isComplex) {
             complexFields.push([key, field]);
@@ -588,10 +613,8 @@ export const isoBoxTreeTemplate = (box, context = {}) => {
         }
     });
 
-    // Card-based layout with connection lines
     return html`
         <div class="relative pl-6 my-2 group">
-            <!-- Connector Line -->
             <div
                 class="absolute top-0 bottom-0 left-2.5 w-px bg-gradient-to-b from-slate-800 to-slate-900 group-last:h-6"
             ></div>
@@ -600,7 +623,6 @@ export const isoBoxTreeTemplate = (box, context = {}) => {
             <div
                 class="bg-slate-950 rounded-lg border ${borderColor} overflow-hidden shadow-sm transition-all hover:border-slate-700"
             >
-                <!-- Header Bar -->
                 <div
                     class="flex items-center justify-between px-4 py-2 bg-slate-900/80 border-b border-slate-800"
                 >
@@ -616,6 +638,8 @@ export const isoBoxTreeTemplate = (box, context = {}) => {
                         <span class="text-xs font-semibold text-slate-300"
                             >${boxInfo.name || ''}</span
                         >
+                        <!-- NEW: Inline Chunk Badge -->
+                        ${box.chunkInfo ? html`<span class="px-1.5 py-0.5 rounded bg-blue-900/30 border border-blue-500/30 text-[9px] font-bold text-blue-300 uppercase tracking-wider">Chunk #${box.chunkInfo.index}</span>` : ''}
                     </div>
                     <div class="flex items-center gap-2">
                         <span
@@ -633,9 +657,7 @@ export const isoBoxTreeTemplate = (box, context = {}) => {
                     </div>
                 </div>
 
-                <!-- Content Area -->
                 <div class="p-3 space-y-3">
-                    <!-- Scalars Grid -->
                     ${scalarFields.length > 0
                         ? html`
                               <div
@@ -663,8 +685,6 @@ export const isoBoxTreeTemplate = (box, context = {}) => {
                               </div>
                           `
                         : ''}
-
-                    <!-- Complex Fields (Stacked) -->
                     ${complexFields.length > 0
                         ? html`
                               <div

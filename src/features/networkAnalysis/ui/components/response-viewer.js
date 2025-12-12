@@ -217,7 +217,22 @@ class ResponseViewer extends HTMLElement {
         const { url, _streamId } = this._event;
 
         const { contentType } = inferMediaInfoFromExtension(url);
-        const formatHint = contentType === 'text' ? 'vtt' : null;
+        let formatHint = null;
+        
+        // Improved text format detection
+        if (contentType === 'text') {
+            const urlLower = url.toLowerCase();
+            if (
+                urlLower.endsWith('.ttml') ||
+                urlLower.endsWith('.dfxp') ||
+                urlLower.endsWith('.xml') ||
+                urlLower.includes('ttml+xml')
+            ) {
+                formatHint = 'ttml';
+            } else {
+                formatHint = 'vtt';
+            }
+        }
 
         const bodyToAnalyze = this.resolveBody();
         if (!bodyToAnalyze) return;
@@ -275,7 +290,29 @@ class ResponseViewer extends HTMLElement {
 
     handleDeepInspect() {
         if (!this._event) return;
-        uiActions.navigateToInteractiveSegment(this._event.url);
+        let targetId = this._event.url;
+
+        // --- FIX: Reconstruct unique ID for Range requests ---
+        // If the request had a Range header, the unique ID in the cache/store includes it.
+        // We must reconstruct it so `navigateToInteractiveSegment` opens the correct item
+        // and subsequent fetches use the correct range.
+        const rangeHeader =
+            this._event.request.headers['Range'] ||
+            this._event.request.headers['range'];
+
+        if (rangeHeader) {
+            const match = rangeHeader.match(/bytes=(\d+-\d+)/);
+            if (match) {
+                const range = match[1];
+                // Heuristic: Try to determine if it was 'media' or 'init' type.
+                // The network event has `resourceType`.
+                const typeTag =
+                    this._event.resourceType === 'init' ? 'init' : 'media';
+                targetId = `${this._event.url}@${typeTag}@${range}`;
+            }
+        }
+
+        uiActions.navigateToInteractiveSegment(targetId);
     }
 
     handleGoToExplorer() {
@@ -549,12 +586,16 @@ class ResponseViewer extends HTMLElement {
             this._viewMode === 'smart' &&
             (contentType.includes('json') || looksLikeJson)
         ) {
-            const json = JSON.parse(text);
-            return html`<div
-                class="h-full overflow-hidden flex flex-col bg-slate-950 rounded-lg border border-slate-800"
-            >
-                ${jsonViewerTemplate(json)}
-            </div>`;
+            try {
+                const json = JSON.parse(text);
+                return html`<div
+                    class="h-full overflow-hidden flex flex-col bg-slate-950 rounded-lg border border-slate-800"
+                >
+                    ${jsonViewerTemplate(json)}
+                </div>`;
+            } catch {
+                // If it looked like JSON but failed to parse, fall through to raw text
+            }
         }
 
         // --- 3. Manifest Viewer ---
@@ -570,11 +611,15 @@ class ResponseViewer extends HTMLElement {
                 let highlighted = '';
 
                 if (contentType.includes('xml') || text.includes('<MPD')) {
-                    formatted = xmlFormatter(text, {
-                        indentation: '  ',
-                        lineSeparator: '\n',
-                    });
-                    highlighted = highlightDash(formatted);
+                    try {
+                        formatted = xmlFormatter(text, {
+                            indentation: '  ',
+                            lineSeparator: '\n',
+                        });
+                        highlighted = highlightDash(formatted);
+                    } catch {
+                        highlighted = highlightDash(text);
+                    }
                 } else {
                     // HLS
                     const lines = text.split('\n');

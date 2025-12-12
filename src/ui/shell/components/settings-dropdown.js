@@ -15,11 +15,13 @@ export const settingsDropdownTemplate = () => {
 
     const openCookiePreferences = () => {
         closeDropdown();
-        if (window.CookieConsent) {
-            window.CookieConsent.showPreferences();
-        } else {
-            console.warn('CookieConsent not initialized');
-        }
+        setTimeout(() => {
+            if (window.CookieConsent) {
+                window.CookieConsent.showPreferences();
+            } else {
+                console.warn('CookieConsent library is not initialized.');
+            }
+        }, 50);
     };
 
     // Dynamic styling for the memory button based on health

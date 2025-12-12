@@ -41,6 +41,7 @@ export const flattenManifest = (
         attributes,
         hasChildren,
         timescale: currentTimescale,
+        content: '', // Raw text approximation for search matching
     });
 
     if (textContent) {
@@ -77,6 +78,7 @@ export const flattenManifest = (
             tagName,
             path,
             timescale: currentTimescale,
+            content: '',
         });
     }
 };
@@ -102,8 +104,6 @@ const renderAttribute = (
     const isModified = diffSet && diffSet.has(diffPath);
     const isMissing = isDebugMode && missingTooltips.has(attrKey);
 
-    // ARCHITECTURAL FIX: Use 'inline' instead of 'inline-block' to allow the content (especially long URLs)
-    // to wrap naturally at the character level via 'break-all' on the parent.
     let containerClass =
         'inline mb-px group relative cursor-pointer rounded px-0.5 transition-colors align-baseline decoration-clone';
 
@@ -123,7 +123,6 @@ const renderAttribute = (
         allAttributes
     );
 
-    // Using tight template literal to avoid injecting whitespace into pre-wrap container
     // prettier-ignore
     return html`<span
         class=${containerClass}
@@ -141,10 +140,11 @@ const rowRenderer = (
     hoveredItem,
     selectedItem,
     missingTooltips,
-    diffSet
+    diffSet,
+    activeMatchIndex,
+    matchIndices
 ) => {
     const indentGuides = [];
-    // self-stretch ensures guides span the full height of a wrapped row
     for (let i = 0; i < line.depth; i++) {
         indentGuides.push(
             html`<div
@@ -169,10 +169,6 @@ const rowRenderer = (
         else cls += ' hover:bg-slate-800';
         return cls;
     };
-
-    // ARCHITECTURAL FIX: The `contentHtml` templates below remove internal whitespace
-    // because `whitespace-pre-wrap` will render newlines in the source code as visual gaps.
-    // We use `// prettier-ignore` to prevent formatters from re-introducing this whitespace.
 
     if (line.type === 'open') {
         const tagWrapperClass = getTagClasses(line.path);
@@ -233,10 +229,19 @@ const rowRenderer = (
         >`;
     }
 
+    // --- Search Highlighting ---
+    // If this row is the active match, use bright highlight. If it's a secondary match, use dim.
+    let rowBgClass = 'hover:bg-slate-800/20';
+    if (index === activeMatchIndex) {
+        rowBgClass = 'bg-yellow-500/20 ring-1 ring-yellow-500/40';
+    } else if (matchIndices && matchIndices.has(index)) {
+        rowBgClass = 'bg-yellow-900/10';
+    }
+
     // Use items-start to align line number to top. Added py-0.5 for minimal vertical breathing room.
     return html`
         <div
-            class="flex w-full items-start hover:bg-slate-800/20 transition-colors font-mono text-sm group relative py-0.5"
+            class="flex w-full items-start transition-colors font-mono text-sm group relative py-0.5 ${rowBgClass}"
         >
             <div
                 class="w-12 shrink-0 text-right pr-3 text-slate-600 select-none text-xs border-r border-slate-800/50 bg-slate-900 sticky left-0 z-10 min-h-full pt-0.5"
@@ -258,7 +263,9 @@ export const dashManifestTemplate = (
     hoveredItem,
     selectedItem,
     missingTooltips,
-    diffSet
+    diffSet,
+    activeMatchIndex = -1,
+    matchIndices = new Set()
 ) => {
     if (!manifestObject) {
         return html`<div class="p-8 text-center text-red-400">
@@ -280,7 +287,9 @@ export const dashManifestTemplate = (
             hoveredItem,
             selectedItem,
             missingTooltips,
-            diffSet
+            diffSet,
+            activeMatchIndex,
+            matchIndices
         );
 
     // Forced overflow-x: hidden to ensure wrapping works and scrollbar never appears

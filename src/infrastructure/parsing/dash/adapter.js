@@ -1,4 +1,5 @@
 import { getDrmSystemName } from '@/infrastructure/parsing/utils/drm';
+import { appLog } from '@/shared/utils/debug';
 import { parseDuration } from '@/shared/utils/time';
 import { parseScte35 } from '../scte35/parser.js';
 import { isCodecSupported } from '../utils/codec-support.js';
@@ -27,6 +28,28 @@ const isVideoCodec = (codecString) => {
     ];
     return videoPrefixes.some((prefix) => lowerCodec.startsWith(prefix));
 };
+
+/**
+ * Infers a user-friendly format name for DASH text tracks.
+ * @param {string} mimeType - The mimeType from the AdaptationSet.
+ * @param {string} codecs - The codecs string from the AdaptationSet/Representation.
+ * @returns {string} The format name.
+ */
+function inferDashTextFormat(mimeType, codecs) {
+    const codecStr = (codecs || '').toLowerCase();
+    const mimeStr = (mimeType || '').toLowerCase();
+
+    if (codecStr.includes('im1t')) return 'IMSC1 Text';
+    if (codecStr.includes('im1i')) return 'IMSC1 Image';
+    if (codecStr.includes('stpp.ebutt.tt-d')) return 'EBU-TT-D';
+    if (codecStr.includes('wvtt')) return 'WebVTT';
+    if (codecStr.includes('stpp')) return 'TTML';
+
+    if (mimeStr.includes('ttml+xml')) return 'TTML';
+    if (mimeStr.includes('vtt')) return 'WebVTT';
+
+    return 'Unknown Text';
+}
 
 const isAudioCodec = (codecString) => {
     if (!codecString) return false;
@@ -187,12 +210,6 @@ function parseSubRepresentation(subRepEl, parentMergedEl) {
     return subRepIR;
 }
 
-/**
- * Parses a Representation element into an IR.
- * @param {object} repEl - The raw Representation element.
- * @param {object} parentMergedEl - The merged properties from the parent AdaptationSet.
- * @param {string} contentType - The content type of the AdaptationSet (e.g. 'audio', 'video').
- */
 function parseRepresentation(repEl, parentMergedEl, contentType) {
     const mergedRepEl = mergeElements(parentMergedEl, repEl);
     const codecString = getAttr(mergedRepEl, 'codecs') || '';
@@ -205,30 +222,27 @@ function parseRepresentation(repEl, parentMergedEl, contentType) {
     const audioCodecs = allCodecs.filter(isAudioCodec);
     const lang = getAttr(mergedRepEl, 'lang') || null;
 
-    // --- ARCHITECTURAL FIX: Select appropriate codecs list based on Content Type ---
+    const labels = findChildren(mergedRepEl, 'Label').map(parseLabel);
+    const label = labels.length > 0 ? labels[0].text : null;
+    const format = videoCodecs.length > 0 ? videoCodecs[0].split('.')[0].toUpperCase() : (audioCodecs.length > 0 ? audioCodecs[0].split('.')[0].toUpperCase() : null);
+
     let primaryCodecs = videoCodecs;
     if (contentType === 'audio') {
         primaryCodecs = audioCodecs;
     } else if (contentType === 'text' || contentType === 'application') {
-        // For text/app, we assume all parsed codecs are relevant (e.g. stpp, wvtt)
-        // or fall back to the raw string if no specific filters match.
         primaryCodecs = allCodecs;
     }
 
-    // If we failed to match any specific codecs but have strings, use all of them
-    // (e.g. unknown codec types)
     if (primaryCodecs.length === 0 && allCodecs.length > 0) {
-        // Only fallback if it aligns with the expected content type logic
-        // For example, don't put audio codecs in a video track's main list if we are strict.
-        // But here, being permissive is better for debugging.
         if (contentType !== 'video' || videoCodecs.length === 0) {
             primaryCodecs = allCodecs;
         }
     }
-    // --- END FIX ---
 
     const repIR = {
         id: getAttr(repEl, 'id'),
+        label: label,
+        format: format,
         bandwidth: parseInt(getAttr(repEl, 'bandwidth'), 10),
         qualityRanking: getAttr(repEl, 'qualityRanking')
             ? parseInt(getAttr(repEl, 'qualityRanking'), 10)
@@ -287,8 +301,8 @@ function parseRepresentation(repEl, parentMergedEl, contentType) {
             getAttr(mergedRepEl, 'codingDependency') === 'true'
                 ? true
                 : getAttr(mergedRepEl, 'codingDependency') === 'false'
-                  ? false
-                  : null,
+                    ? false
+                    : null,
         eptDelta: null,
         pdDelta: null,
         representationIndex: null,
@@ -307,12 +321,12 @@ function parseRepresentation(repEl, parentMergedEl, contentType) {
                     ref: getAttr(cpEl, 'ref'),
                     pssh: psshData
                         ? [
-                              {
-                                  systemId: schemeIdUri,
-                                  kids: [],
-                                  data: psshData,
-                              },
-                          ]
+                            {
+                                systemId: schemeIdUri,
+                                kids: [],
+                                data: psshData,
+                            },
+                        ]
                         : [],
                 };
             }
@@ -388,7 +402,6 @@ function parseAdaptationSet(asEl, parentMergedEl) {
         getAttr(asEl, 'contentType') ||
         getAttr(asEl, 'mimeType')?.split('/')[0];
 
-    // If content type isn't explicit, try to infer from first representation
     if (!contentType) {
         const firstRep = findChildren(asEl, 'Representation')[0];
         if (firstRep) {
@@ -445,8 +458,14 @@ function parseAdaptationSet(asEl, parentMergedEl) {
         representations.sort(sortAudioRepresentations);
     }
 
+    let format = null;
+    if (contentType === 'text' || contentType === 'application') {
+        format = inferDashTextFormat(getAttr(mergedAsEl, 'mimeType'), getAttr(mergedAsEl, 'codecs'));
+    }
+
     const asIR = {
         id: getAttr(asEl, 'id'),
+        format: format,
         group: getAttr(asEl, 'group')
             ? parseInt(getAttr(asEl, 'group'), 10)
             : null,
@@ -489,12 +508,12 @@ function parseAdaptationSet(asEl, parentMergedEl) {
                     ref: getAttr(cpEl, 'ref'),
                     pssh: psshData
                         ? [
-                              {
-                                  systemId: schemeIdUri,
-                                  kids: [],
-                                  data: psshData,
-                              },
-                          ]
+                            {
+                                systemId: schemeIdUri,
+                                kids: [],
+                                data: psshData,
+                            },
+                        ]
                         : [],
                 };
             }
@@ -666,15 +685,20 @@ function parsePeriod(periodEl, parentMergedEl, previousPeriod = null) {
     );
     adaptationSets.sort(sortAdaptationSets);
 
-    if (
-        adaptationSets.some((as) =>
-            (as.inbandEventStreams || []).some(
-                (ies) =>
-                    ies.schemeIdUri === 'urn:scte:scte35:2013:bin' ||
-                    ies.schemeIdUri === 'urn:scte:scte35:2014:xml+bin'
-            )
-        )
-    ) {
+    // FIX: Looser check for SCTE-35 detection
+    const hasScte35 = adaptationSets.some((as) =>
+        (as.inbandEventStreams || []).some((ies) => {
+            const uri = (ies.schemeIdUri || '').toLowerCase();
+            return uri.includes('scte35');
+        })
+    );
+
+    if (hasScte35) {
+        appLog(
+            'DashAdapter',
+            'info',
+            'SCTE-35 Inband Event Stream detected. Adding placeholder.'
+        );
         adAvails.push({
             id: 'unconfirmed-inband-scte35',
             startTime: -1,
@@ -693,9 +717,9 @@ function parsePeriod(periodEl, parentMergedEl, previousPeriod = null) {
         bitstreamSwitching: getAttr(periodEl, 'bitstreamSwitching') === 'true',
         assetIdentifier: assetIdentifierEl
             ? {
-                  schemeIdUri: getAttr(assetIdentifierEl, 'schemeIdUri'),
-                  value: getAttr(assetIdentifierEl, 'value'),
-              }
+                schemeIdUri: getAttr(assetIdentifierEl, 'schemeIdUri'),
+                value: getAttr(assetIdentifierEl, 'value'),
+            }
             : null,
         subsets: subsets.map((s) => ({
             contains: (getAttr(s, 'contains') || '').split(' '),
@@ -744,7 +768,7 @@ export async function adaptDashToIr(manifestElement, baseUrl, context) {
                 if (contentType === 'video') {
                     const extensionBasedFormat =
                         inferMediaInfoFromExtension(mediaUrl).contentType ===
-                        'video'
+                            'video'
                             ? 'isobmff'
                             : 'ts';
                     if (extensionBasedFormat === 'ts') segmentFormat = 'ts';
@@ -833,12 +857,12 @@ export async function adaptDashToIr(manifestElement, baseUrl, context) {
                     ref: getAttr(cpEl, 'ref'),
                     pssh: psshData
                         ? [
-                              {
-                                  systemId: schemeIdUri,
-                                  kids: [],
-                                  data: psshData,
-                              },
-                          ]
+                            {
+                                systemId: schemeIdUri,
+                                kids: [],
+                                data: psshData,
+                            },
+                        ]
                         : [],
                 };
             }

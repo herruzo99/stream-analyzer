@@ -70,6 +70,7 @@ export const zapOff = icon('zap-off');
 export const plusCircle = icon('plus-circle');
 export const minusCircle = icon('minus-circle');
 export const informationCircle = icon('info');
+export const chevronUp = icon('chevron-up', 'h-5 w-5');
 export const chevronDown = icon('chevron-down', 'h-5 w-5');
 export const chevronRight = icon('chevron-right', 'w-4 h-4');
 export const chevronUpDown = icon('chevrons-up-down', 'h-4 w-4');

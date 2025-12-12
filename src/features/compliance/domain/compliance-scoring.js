@@ -36,6 +36,9 @@ export function calculateComplianceScore(results) {
             name: cat,
             score: 100,
             issues: 0,
+            errors: 0,
+            warnings: 0,
+            infos: 0,
             penalty: 0,
         };
     });
@@ -51,6 +54,9 @@ export function calculateComplianceScore(results) {
                 name: cat,
                 score: 100,
                 issues: 0,
+                errors: 0,
+                warnings: 0,
+                infos: 0,
                 penalty: 0,
             };
         }
@@ -59,11 +65,14 @@ export function calculateComplianceScore(results) {
         if (r.status === 'fail') {
             penalty = 15;
             errorCount++;
+            categoryStats[cat].errors++;
         } else if (r.status === 'warn') {
             penalty = 5;
             warningCount++;
+            categoryStats[cat].warnings++;
         } else if (r.status === 'info') {
             infoCount++;
+            categoryStats[cat].infos++;
         }
 
         const weight = CATEGORY_WEIGHTS[cat] || 1.0;

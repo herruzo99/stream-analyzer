@@ -64,7 +64,7 @@ export const bestPracticeRules = [
             const referencedIds = (
                 getAttr(switchingDescriptor, 'value') || ''
             ).split(',');
-            if (referencedIds.length === 0) return true; // Empty value is valid.
+            if (referencedIds.length === 0) return true;
 
             return referencedIds.every((id) =>
                 allAdaptationSetIdsInPeriod.has(id.trim())
@@ -73,5 +73,32 @@ export const bestPracticeRules = [
         passDetails: 'OK',
         failDetails:
             'One or more AdaptationSet IDs referenced in the switching descriptor do not exist in this Period.',
+    },
+    {
+        id: 'AS-4',
+        text: 'Audio AdaptationSet should specify @audioSamplingRate',
+        isoRef: 'Clause 5.3.7.2, Table 14',
+        severity: 'warn',
+        scope: 'AdaptationSet',
+        profiles: ['common'],
+        category: 'General Best Practices',
+        check: (as) => {
+            const isAudio =
+                getAttr(as, 'contentType') === 'audio' ||
+                (getAttr(as, 'mimeType') || '').startsWith('audio/');
+            if (!isAudio) return 'skip';
+
+            // Check AS level
+            if (getAttr(as, 'audioSamplingRate')) return true;
+
+            // Check ALL representations
+            const reps = findChildren(as, 'Representation');
+            if (reps.length === 0) return true; // Empty AS
+
+            return reps.every((r) => getAttr(r, 'audioSamplingRate'));
+        },
+        passDetails: 'OK',
+        failDetails:
+            'Audio AdaptationSets should declare @audioSamplingRate either at the AdaptationSet level or on every Representation to assist with initial selection.',
     },
 ];

@@ -2,6 +2,7 @@ import { eventBus } from '@/application/event-bus';
 import { analysisActions, useAnalysisStore } from '@/state/analysisStore';
 import { playerActions } from '@/state/playerStore';
 import { useUiStore } from '@/state/uiStore';
+import { EVENTS } from '@/types/events';
 import { playerService } from './playerService.js';
 
 function onAdaptation({ oldTrack, newTrack }) {
@@ -190,6 +191,17 @@ export function initializePlayerController() {
     eventBus.subscribe('ui:player:set-latency-config', ({ config }) => {
         if (useUiStore.getState().activeTab !== 'player-simulation') return;
         playerService.setLatencyConfiguration(config);
+    });
+
+    // --- ARCHITECTURAL FIX: Listen for polling disabled (inactivity) to stop player ---
+    // This logic was moved from analysisStore.js to prevent circular dependencies.
+    eventBus.subscribe(EVENTS.NOTIFY.POLLING_DISABLED, () => {
+        playerService.destroy();
+        playerActions.logEvent({
+             timestamp: new Date().toLocaleTimeString(),
+             type: 'lifecycle',
+             details: 'Player stopped due to background inactivity.'
+        });
     });
 
     eventBus.subscribe('analysis:started', playerActions.reset);

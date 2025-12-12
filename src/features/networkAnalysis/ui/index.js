@@ -3,11 +3,11 @@ import { networkActions, useNetworkStore } from '@/state/networkStore';
 import { usePlayerStore } from '@/state/playerStore';
 import { playerActiveWarningTemplate } from '@/ui/components/player-active-warning.js';
 import * as icons from '@/ui/icons';
+import { openModalWithContent } from '@/ui/services/modalService';
 import { disposeChart, renderChart } from '@/ui/shared/charts/chart-renderer';
 import { throughputChartOptions } from '@/ui/shared/charts/throughput-chart';
 import { html, render } from 'lit-html';
 import { networkDetailsPanelTemplate } from './components/network-details-panel.js';
-import { networkInterventionPanelTemplate } from './components/network-intervention-panel.js';
 import { networkToolbarTemplate } from './components/network-toolbar.js';
 import { summaryCardsTemplate } from './components/summary-cards.js';
 import { waterfallChartTemplate } from './components/waterfall-chart.js';
@@ -26,7 +26,6 @@ function renderNetworkView() {
         selectedEventId,
         filters,
         visibleStreamIds,
-        isInterventionPanelOpen,
         interventionRules,
     } = useNetworkStore.getState();
 
@@ -58,7 +57,6 @@ function renderNetworkView() {
         allVisibleStreamEvents
     );
 
-    // Chart Rendering (Deferred)
     requestAnimationFrame(() => {
         const chartContainer = container?.querySelector(
             '#throughput-chart-container'
@@ -75,8 +73,16 @@ function renderNetworkView() {
         }
     });
 
-    // Active Rules Count for Badge
     const activeRulesCount = interventionRules.filter((r) => r.enabled).length;
+
+    const handleOpenChaosModal = () => {
+        openModalWithContent({
+            title: 'Network Interventions',
+            url: 'Chaos Tools',
+            content: { type: 'networkIntervention', data: {} },
+            isFullWidth: false,
+        });
+    };
 
     const template = html`
         <div class="flex flex-col h-full bg-slate-950 overflow-hidden">
@@ -94,11 +100,8 @@ function renderNetworkView() {
                                 Network Inspector
                             </h3>
                             <button
-                                @click=${() =>
-                                    networkActions.toggleInterventionPanel()}
-                                class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${isInterventionPanelOpen
-                                    ? 'bg-slate-800 text-white'
-                                    : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-700'}"
+                                @click=${handleOpenChaosModal}
+                                class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-slate-900 text-slate-400 hover:text-white border border-slate-700"
                             >
                                 ${icons.zapOff} Chaos Tools
                                 ${activeRulesCount > 0
@@ -146,9 +149,6 @@ function renderNetworkView() {
                         </div>
                     </div>
                 </div>
-
-                <!-- Intervention Panel (Slide-in) -->
-                ${networkInterventionPanelTemplate()}
             </div>
         </div>
     `;
