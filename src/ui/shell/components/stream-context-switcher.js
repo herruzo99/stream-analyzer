@@ -1,4 +1,4 @@
-import { analysisActions } from '@/state/analysisStore';
+import { analysisActions, useAnalysisStore } from '@/state/analysisStore';
 import * as icons from '@/ui/icons';
 import { closeDropdown, toggleDropdown } from '@/ui/services/dropdownService';
 import { openModalWithContent } from '@/ui/services/modalService';
@@ -54,19 +54,19 @@ const streamOptionTemplate = (stream, isActive) => {
                         class="text-[10px] font-bold px-2 py-0.5 rounded-full border ${statusColor} flex items-center gap-1"
                     >
                         ${isLive
-                            ? html`<span
+            ? html`<span
                                   class="w-1.5 h-1.5 rounded-full bg-current animate-pulse"
                               ></span>`
-                            : ''}
+            : ''}
                         ${isLive ? 'LIVE' : 'VOD'}
                     </span>
                 </div>
                 ${isActive
-                    ? html`<span
+            ? html`<span
                           class="text-blue-400 shadow-blue-500/50 drop-shadow-sm"
                           >${icons.checkCircle}</span
                       >`
-                    : ''}
+            : ''}
             </div>
 
             <!-- Content -->
@@ -141,8 +141,8 @@ const dropdownContentTemplate = (streams, activeStreamId) => {
             <!-- List -->
             <div class="p-2 space-y-2 overflow-y-auto custom-scrollbar grow">
                 ${streams.map((s) =>
-                    streamOptionTemplate(s, s.id === activeStreamId)
-                )}
+        streamOptionTemplate(s, s.id === activeStreamId)
+    )}
             </div>
 
             <!-- Footer -->
@@ -170,11 +170,18 @@ export const streamContextSwitcherTemplate = (streams, activeStreamId) => {
         <div class="px-3 pt-4 pb-2">
             <button
                 @click=${(e) =>
-                    toggleDropdown(
-                        e.currentTarget,
-                        () => dropdownContentTemplate(streams, activeStreamId),
-                        e
-                    )}
+            toggleDropdown(
+                e.currentTarget,
+                () => {
+                    const { streams, activeStreamId } =
+                        useAnalysisStore.getState();
+                    return dropdownContentTemplate(
+                        streams,
+                        activeStreamId
+                    );
+                },
+                e
+            )}
                 class="w-full text-left group"
             >
                 <div
@@ -193,7 +200,7 @@ export const streamContextSwitcherTemplate = (streams, activeStreamId) => {
                                 ${protocol}
                             </span>
                             ${isLive
-                                ? html`<span class="flex h-2 w-2 relative"
+            ? html`<span class="flex h-2 w-2 relative"
                                       ><span
                                           class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"
                                       ></span
@@ -201,7 +208,7 @@ export const streamContextSwitcherTemplate = (streams, activeStreamId) => {
                                           class="relative inline-flex rounded-full h-2 w-2 bg-red-500"
                                       ></span
                                   ></span>`
-                                : ''}
+            : ''}
                         </div>
                         <span
                             class="text-slate-500 group-hover:text-white transition-colors scale-90"

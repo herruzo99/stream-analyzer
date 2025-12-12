@@ -90,12 +90,12 @@ export const statCardTemplate = ({
             class="bg-slate-900 p-3 rounded-lg border border-slate-700 flex items-center gap-4 ${customClasses}"
         >
             ${icon
-                ? html`<div
+            ? html`<div
                       class="shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${iconBgClass}"
                   >
                       ${icon}
                   </div>`
-                : ''}
+            : ''}
             <div class="grow">
                 <dt
                     class="text-xs font-medium text-slate-400 ${tooltipTriggerClasses}"
@@ -134,17 +134,17 @@ export const listCardTemplate = ({
             </dt>
             <dd class="text-sm text-left font-mono text-white mt-2 space-y-1">
                 ${items.map(
-                    (item) =>
-                        html`<div
+        (item) =>
+            html`<div
                             class="bg-slate-800/50 p-2 rounded flex items-center justify-between"
                         >
                             <span
                                 >${typeof item === 'object' && item.strings
-                                    ? item
-                                    : renderSourcedValue(item)}</span
+                    ? item
+                    : renderSourcedValue(item)}</span
                             >
                         </div>`
-                )}
+    )}
             </dd>
         </div>
     `;
@@ -225,7 +225,7 @@ const trackCardTemplate = (track, type, gridColumns) => {
             resolution = `${track.width.value}x${track.height.value}`;
         }
 
-        // --- NEW: Extra Props Column (ScanType, HDCP) ---
+        // --- Extra Props Column (ScanType, HDCP, SAR, Dependency) ---
         let extraProps = [];
         if (track.scanType) {
             extraProps.push(
@@ -243,13 +243,38 @@ const trackCardTemplate = (track, type, gridColumns) => {
                 >`
             );
         }
+        if (track.sar) {
+            extraProps.push(
+                html`<span
+                    class="px-1.5 py-0.5 bg-slate-800 text-slate-300 border border-slate-600 text-[10px]"
+                    title="Sample Aspect Ratio"
+                    >SAR ${track.sar}</span
+                >`
+            );
+        }
+        if (track.codingDependency) {
+            extraProps.push(
+                html`<span
+                    class="px-1.5 py-0.5 bg-purple-900/20 text-purple-300 border border-purple-500/30 text-[10px]"
+                    >Dependent</span
+                >`
+            );
+        }
+        if (track.maxPlayoutRate) {
+            extraProps.push(
+                html`<span
+                    class="px-1.5 py-0.5 bg-blue-900/20 text-blue-300 border border-blue-500/30 text-[10px]"
+                    >${track.maxPlayoutRate}x</span
+                >`
+            );
+        }
 
         contentTemplate = html`
             <div
                 class="h-full p-2 border-r border-slate-700 font-mono text-slate-200 truncate flex items-center gap-2"
-                title=${track.id}
+                title=${track.label || track.id}
             >
-                ${icon} <span>${track.id}</span>
+                ${icon} <span>${track.label || track.id}</span>
             </div>
             <div
                 class="h-full p-2 border-r border-slate-700 font-mono text-slate-200"
@@ -270,8 +295,8 @@ const trackCardTemplate = (track, type, gridColumns) => {
                 class="h-full p-2 border-r border-slate-700 font-mono text-slate-200 space-y-1"
             >
                 ${codecsToRender
-                    .filter((c) => isVideoCodec(c.value))
-                    .map((c) => html`<div>${renderCodecInfo(c)}</div>`)}
+                .filter((c) => isVideoCodec(c.value))
+                .map((c) => html`<div>${renderCodecInfo(c)}</div>`)}
             </div>
 
             <!-- Audio Mux -->
@@ -279,10 +304,10 @@ const trackCardTemplate = (track, type, gridColumns) => {
                 class="h-full p-2 border-r border-slate-700 font-mono text-slate-200 space-y-1"
             >
                 ${track.muxedAudio?.codecs?.length > 0
-                    ? track.muxedAudio.codecs.map(
-                          (c) => html`<div>${renderCodecInfo(c)}</div>`
-                      )
-                    : html`<span class="text-slate-500">N/A</span>`}
+                ? track.muxedAudio.codecs.map(
+                    (c) => html`<div>${renderCodecInfo(c)}</div>`
+                )
+                : html`<span class="text-slate-500">N/A</span>`}
             </div>
 
             <!-- Extra (Merged Roles + Props) -->
@@ -291,19 +316,19 @@ const trackCardTemplate = (track, type, gridColumns) => {
             >
                 <div>${roles}</div>
                 ${extraProps.length > 0
-                    ? html`<div class="flex flex-wrap gap-1 mt-1">
+                ? html`<div class="flex flex-wrap gap-1 mt-1">
                           ${extraProps}
                       </div>`
-                    : ''}
+                : ''}
             </div>
         `;
     } else if (type === 'audio') {
         contentTemplate = html`
             <div
                 class="h-full p-2 border-r border-slate-700 font-mono text-slate-200 truncate flex items-center gap-2"
-                title=${track.id}
+                title=${track.label || track.id}
             >
-                ${icon} <span>${track.id}</span>
+                ${icon} <span>${track.label || track.id}</span>
             </div>
             <div
                 class="h-full p-2 border-r border-slate-700 font-mono text-slate-200"
@@ -313,7 +338,17 @@ const trackCardTemplate = (track, type, gridColumns) => {
             <div
                 class="h-full p-2 border-r border-slate-700 font-mono text-slate-200"
             >
-                ${track.channels || 'N/A'}
+                ${track.format || 'Unknown'}
+            </div>
+            <div
+                class="h-full p-2 border-r border-slate-700 font-mono text-slate-200 space-y-1"
+            >
+                <span>${track.channels || 'N/A'}</span>
+                ${track.sampleRate
+                ? html`<span class="text-[10px] text-slate-500"
+                          >${track.sampleRate} Hz</span
+                      >`
+                : ''}
             </div>
             <div
                 class="h-full p-2 border-r border-slate-700 font-mono text-slate-200"
@@ -334,9 +369,9 @@ const trackCardTemplate = (track, type, gridColumns) => {
         contentTemplate = html`
             <div
                 class="h-full p-2 border-r border-slate-700 font-mono text-slate-200 truncate flex items-center gap-2"
-                title=${track.id}
+                title=${track.label || track.id}
             >
-                ${icon} <span>${track.id}</span>
+                ${icon} <span>${track.label || track.id}</span>
             </div>
             <div
                 class="h-full p-2 border-r border-slate-700 font-mono text-slate-200"
@@ -344,11 +379,16 @@ const trackCardTemplate = (track, type, gridColumns) => {
                 ${track.lang || 'N/A'}
             </div>
             <div
+                class="h-full p-2 border-r border-slate-700 font-mono text-slate-200"
+            >
+                ${track.format || 'Unknown'}
+            </div>
+            <div
                 class="h-full p-2 border-r border-slate-700 font-mono text-slate-200 space-y-1"
             >
                 ${codecsToRender.map(
-                    (c) => html`<div>${renderCodecInfo(c)}</div>`
-                )}
+            (c) => html`<div>${renderCodecInfo(c)}</div>`
+        )}
             </div>
             <div class="h-full p-2 font-mono text-slate-400">${roles}</div>
         `;
@@ -378,11 +418,10 @@ export const trackTableTemplate = (tracks, type) => {
     let headerTemplate;
 
     if (type === 'video') {
-        // Adjusted columns to fit merged Roles/Props
         gridColumns =
             'grid-cols-[minmax(150px,1fr)_125px_125px_100px_1fr_1fr_180px]';
         headerTemplate = html`
-            <div class="p-2 border-r border-slate-700">Representation ID</div>
+            <div class="p-2 border-r border-slate-700">Label</div>
             <div class="p-2 border-r border-slate-700">Bitrate</div>
             <div class="p-2 border-r border-slate-700">Resolution</div>
             <div class="p-2 border-r border-slate-700">Frame Rate</div>
@@ -392,22 +431,24 @@ export const trackTableTemplate = (tracks, type) => {
         `;
     } else if (type === 'audio') {
         gridColumns =
-            'grid-cols-[minmax(200px,1fr)_100px_100px_125px_1fr_125px]';
+            'grid-cols-[minmax(200px,1fr)_100px_100px_100px_125px_1fr_125px]';
         headerTemplate = html`
             <div class="p-2 border-r border-slate-700">Rendition ID</div>
             <div class="p-2 border-r border-slate-700">Language</div>
-            <div class="p-2 border-r border-slate-700">Channels</div>
+            <div class="p-2 border-r border-slate-700">Format</div>
+            <div class="p-2 border-r border-slate-700">Ch / Hz</div>
             <div class="p-2 border-r border-slate-700">Bitrate</div>
             <div class="p-2 border-r border-slate-700">Codecs</div>
             <div class="p-2">Roles</div>
         `;
     } else {
         // text or application
-        gridColumns = 'grid-cols-[minmax(200px,1fr)_125px_1fr_125px]';
+        gridColumns = 'grid-cols-[minmax(200px,1fr)_125px_125px_1fr_125px]';
         headerTemplate = html`
             <div class="p-2 border-r border-slate-700">Rendition ID</div>
             <div class="p-2 border-r border-slate-700">Language</div>
-            <div class="p-2 border-r border-slate-700">Formats</div>
+            <div class="p-2 border-r border-slate-700">Format</div>
+            <div class="p-2 border-r border-slate-700">Codecs</div>
             <div class="p-2">Roles</div>
         `;
     }
@@ -423,8 +464,8 @@ export const trackTableTemplate = (tracks, type) => {
             <!-- Rows -->
             <div class="divide-y divide-slate-700">
                 ${sortedTracks.map((track) =>
-                    trackCardTemplate(track, type, gridColumns)
-                )}
+        trackCardTemplate(track, type, gridColumns)
+    )}
             </div>
         </div>
     `;
