@@ -207,7 +207,7 @@ export const landingViewTemplate = () => {
 
     return html`
         <div
-            class="flex flex-col items-center w-full min-h-full pt-20 pb-12 px-4 sm:px-6 lg:px-8 relative overflow-y-auto custom-scrollbar"
+            class="flex flex-col items-center w-full h-full pt-20 pb-12 px-4 sm:px-6 lg:px-8 relative overflow-y-auto custom-scrollbar"
         >
             <!-- Hero Section -->
             <div

@@ -56,9 +56,32 @@ const flattenObject = (obj, prefix = '') => {
 const renderFieldDiffs = (boxA, boxB) => {
     if (!boxA || !boxB) return null;
 
+    // Handle non-object values (e.g. strings)
+    if (typeof boxA !== 'object' || typeof boxB !== 'object') {
+        if (boxA !== boxB) {
+            return html`
+                <div
+                    class="bg-black/20 border-t border-slate-800/50 p-2 text-xs font-mono"
+                >
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="text-red-200 bg-red-900/10 px-2 rounded">
+                            ${String(boxA)}
+                        </div>
+                        <div
+                            class="text-emerald-200 bg-emerald-900/10 px-2 rounded"
+                        >
+                            ${String(boxB)}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        return null;
+    }
+
     // Flatten both objects to compare deeply
-    const flatA = flattenObject(boxA.details || {});
-    const flatB = flattenObject(boxB.details || {});
+    const flatA = flattenObject(boxA.details || boxA);
+    const flatB = flattenObject(boxB.details || boxB);
 
     const allKeys = new Set([...Object.keys(flatA), ...Object.keys(flatB)]);
     const differences = [];
@@ -80,8 +103,7 @@ const renderFieldDiffs = (boxA, boxB) => {
             <div
                 class="px-4 py-2 text-xs italic text-slate-500 text-center border-t border-slate-800/50"
             >
-                Structure modified but no field values changed. (Internal
-                offsets may differ)
+                Structure modified but no field values changed.
             </div>
         `;
 
@@ -144,7 +166,9 @@ const renderDiffNode = (node, depth = 0) => {
     const { expandedComparisonFlags } = useUiStore.getState();
 
     // Unique ID: Path-like ID based on depth and types/offsets to ensure stability
-    const nodeId = `${depth}-${node.type}-${node.values[0]?.offset ?? 'x'}-${node.values[1]?.offset ?? 'y'}`;
+    const offsetA = node.values[0]?.offset ?? 'x';
+    const offsetB = node.values[1]?.offset ?? 'y';
+    const nodeId = `${depth}-${node.type}-${offsetA}-${offsetB}`;
 
     const status = node.status;
     const isModified =
@@ -161,8 +185,6 @@ const renderDiffNode = (node, depth = 0) => {
 
     const toggleExpand = (e) => {
         e.stopPropagation();
-        // We use a 'closed-' prefix hack to track explicitly closed auto-expanded nodes if we wanted perfect persistence,
-        // but for now simple toggling via the store is sufficient.
         uiActions.toggleComparisonFlags(nodeId);
     };
 
@@ -190,20 +212,38 @@ const renderDiffNode = (node, depth = 0) => {
     const indent = depth * 24;
 
     const renderBoxMeta = (box) => {
-        if (!box)
+        if (box === null || box === undefined)
             return html`<span class="text-slate-600 italic text-xs select-none"
-                >-</span
+                >Missing</span
             >`;
+
+        // Handle non-object primitives (strings from TS comparator)
+        if (typeof box !== 'object') {
+            return html`<span
+                class="text-slate-400 text-xs font-mono bg-black/20 px-2 py-0.5 rounded"
+                >${String(box)}</span
+            >`;
+        }
+
+        // Handle Box-like objects
+        const sizeStr =
+            typeof box.size === 'number'
+                ? `${box.size.toLocaleString()} B`
+                : '';
+        const trackId = box.details?.track_ID?.value || box.trackId; // Support both structures
+
         return html`
             <div class="flex items-center gap-3 min-w-0">
-                <span
-                    class="font-mono text-[10px] opacity-60 shrink-0 bg-black/20 px-1.5 rounded"
-                    >${box.size.toLocaleString()} B</span
-                >
-                ${box.details?.track_ID
+                ${sizeStr
+                    ? html`<span
+                          class="font-mono text-[10px] opacity-60 shrink-0 bg-black/20 px-1.5 rounded"
+                          >${sizeStr}</span
+                      >`
+                    : ''}
+                ${trackId
                     ? html`<span
                           class="text-[10px] font-bold bg-blue-900/30 text-blue-300 px-1.5 rounded border border-blue-500/20"
-                          >ID:${box.details.track_ID.value}</span
+                          >ID:${trackId}</span
                       >`
                     : ''}
             </div>
@@ -245,7 +285,7 @@ const renderDiffNode = (node, depth = 0) => {
                                 : ''}
                         </div>
 
-                        ${valA
+                        ${valA !== null
                             ? html`
                                   <div
                                       class="min-w-0 truncate flex items-center gap-2"
@@ -309,7 +349,7 @@ const renderDiffNode = (node, depth = 0) => {
                         style="padding-left: ${indent}px"
                         class="flex items-center gap-2 grow min-w-0"
                     >
-                        ${valB
+                        ${valB !== null
                             ? html`
                                   <div class="min-w-0 truncate">
                                       <span class="font-bold text-sm mr-2"
@@ -360,7 +400,7 @@ export const diffTreeTemplate = (diffTree) => {
                 </div>
                 <p class="font-medium">No structural differences found.</p>
                 <p class="text-xs mt-1">
-                    Box hierarchy and essential fields are identical.
+                    Hierarchy and essential fields are identical.
                 </p>
             </div>
         `;
@@ -375,7 +415,7 @@ export const diffTreeTemplate = (diffTree) => {
                 <div class="px-4 flex items-center gap-2">
                     Reference Structure
                     <span class="text-slate-600 text-[9px] font-normal"
-                        >(Box Hierarchy)</span
+                        >(Hierarchy)</span
                     >
                 </div>
                 <div class="text-center opacity-50">Vs</div>
