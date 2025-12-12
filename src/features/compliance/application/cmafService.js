@@ -59,24 +59,46 @@ async function runCmafValidation(stream) {
                 // Use background: true to suppress global loader
                 // Using .catch to swallow errors like 410 or network failures for the background check
                 const [initEntry, mediaEntry] = await Promise.all([
-                    getParsedSegment(initUniqueId, stream.id, 'isobmff', {}, { background: true }).then(data => ({ data, status: 200 })).catch(() => ({ status: 0, data: null })),
-                    getParsedSegment(mediaUniqueId, stream.id, 'isobmff', {}, { background: true }).then(data => ({ data, status: 200 })).catch(() => ({ status: 0, data: null })),
+                    getParsedSegment(
+                        initUniqueId,
+                        stream.id,
+                        'isobmff',
+                        {},
+                        { background: true }
+                    )
+                        .then((data) => ({ data, status: 200 }))
+                        .catch(() => ({ status: 0, data: null })),
+                    getParsedSegment(
+                        mediaUniqueId,
+                        stream.id,
+                        'isobmff',
+                        {},
+                        { background: true }
+                    )
+                        .then((data) => ({ data, status: 200 }))
+                        .catch(() => ({ status: 0, data: null })),
                 ]);
-                
+
                 // ARCHITECTURAL FIX: Check success before validating
-                if (initEntry.status === 200 && mediaEntry.status === 200 && initEntry.data && mediaEntry.data) {
-                     const trackResults = validateCmafTrack(
+                if (
+                    initEntry.status === 200 &&
+                    mediaEntry.status === 200 &&
+                    initEntry.data &&
+                    mediaEntry.data
+                ) {
+                    const trackResults = validateCmafTrack(
                         /** @type {any} */ (initEntry.data),
                         /** @type {any} */ (mediaEntry.data)
                     );
                     allResults.push(...trackResults);
                 } else {
-                     allResults.push({
-                         id: 'CMAF-SKIP',
-                         text: 'Skipped CMAF Validation',
-                         status: 'info',
-                         details: 'Could not fetch necessary segments (Init or Media) for validation.'
-                     });
+                    allResults.push({
+                        id: 'CMAF-SKIP',
+                        text: 'Skipped CMAF Validation',
+                        status: 'info',
+                        details:
+                            'Could not fetch necessary segments (Init or Media) for validation.',
+                    });
                 }
             }
         }
@@ -84,7 +106,13 @@ async function runCmafValidation(stream) {
         const segmentFetcher = async (url, range) => {
             const uniqueId = range ? `${url}@init@${range}` : url;
             try {
-                return await getParsedSegment(uniqueId, stream.id, 'isobmff', {}, { background: true });
+                return await getParsedSegment(
+                    uniqueId,
+                    stream.id,
+                    'isobmff',
+                    {},
+                    { background: true }
+                );
             } catch (_e) {
                 return null; // Return null on error so validator skips gracefully
             }

@@ -224,7 +224,12 @@ function parseRepresentation(repEl, parentMergedEl, contentType) {
 
     const labels = findChildren(mergedRepEl, 'Label').map(parseLabel);
     const label = labels.length > 0 ? labels[0].text : null;
-    const format = videoCodecs.length > 0 ? videoCodecs[0].split('.')[0].toUpperCase() : (audioCodecs.length > 0 ? audioCodecs[0].split('.')[0].toUpperCase() : null);
+    const format =
+        videoCodecs.length > 0
+            ? videoCodecs[0].split('.')[0].toUpperCase()
+            : audioCodecs.length > 0
+              ? audioCodecs[0].split('.')[0].toUpperCase()
+              : null;
 
     let primaryCodecs = videoCodecs;
     if (contentType === 'audio') {
@@ -301,8 +306,8 @@ function parseRepresentation(repEl, parentMergedEl, contentType) {
             getAttr(mergedRepEl, 'codingDependency') === 'true'
                 ? true
                 : getAttr(mergedRepEl, 'codingDependency') === 'false'
-                    ? false
-                    : null,
+                  ? false
+                  : null,
         eptDelta: null,
         pdDelta: null,
         representationIndex: null,
@@ -321,12 +326,12 @@ function parseRepresentation(repEl, parentMergedEl, contentType) {
                     ref: getAttr(cpEl, 'ref'),
                     pssh: psshData
                         ? [
-                            {
-                                systemId: schemeIdUri,
-                                kids: [],
-                                data: psshData,
-                            },
-                        ]
+                              {
+                                  systemId: schemeIdUri,
+                                  kids: [],
+                                  data: psshData,
+                              },
+                          ]
                         : [],
                 };
             }
@@ -460,7 +465,10 @@ function parseAdaptationSet(asEl, parentMergedEl) {
 
     let format = null;
     if (contentType === 'text' || contentType === 'application') {
-        format = inferDashTextFormat(getAttr(mergedAsEl, 'mimeType'), getAttr(mergedAsEl, 'codecs'));
+        format = inferDashTextFormat(
+            getAttr(mergedAsEl, 'mimeType'),
+            getAttr(mergedAsEl, 'codecs')
+        );
     }
 
     const asIR = {
@@ -508,12 +516,12 @@ function parseAdaptationSet(asEl, parentMergedEl) {
                     ref: getAttr(cpEl, 'ref'),
                     pssh: psshData
                         ? [
-                            {
-                                systemId: schemeIdUri,
-                                kids: [],
-                                data: psshData,
-                            },
-                        ]
+                              {
+                                  systemId: schemeIdUri,
+                                  kids: [],
+                                  data: psshData,
+                              },
+                          ]
                         : [],
                 };
             }
@@ -717,9 +725,9 @@ function parsePeriod(periodEl, parentMergedEl, previousPeriod = null) {
         bitstreamSwitching: getAttr(periodEl, 'bitstreamSwitching') === 'true',
         assetIdentifier: assetIdentifierEl
             ? {
-                schemeIdUri: getAttr(assetIdentifierEl, 'schemeIdUri'),
-                value: getAttr(assetIdentifierEl, 'value'),
-            }
+                  schemeIdUri: getAttr(assetIdentifierEl, 'schemeIdUri'),
+                  value: getAttr(assetIdentifierEl, 'value'),
+              }
             : null,
         subsets: subsets.map((s) => ({
             contains: (getAttr(s, 'contains') || '').split(' '),
@@ -768,7 +776,7 @@ export async function adaptDashToIr(manifestElement, baseUrl, context) {
                 if (contentType === 'video') {
                     const extensionBasedFormat =
                         inferMediaInfoFromExtension(mediaUrl).contentType ===
-                            'video'
+                        'video'
                             ? 'isobmff'
                             : 'ts';
                     if (extensionBasedFormat === 'ts') segmentFormat = 'ts';
@@ -857,12 +865,12 @@ export async function adaptDashToIr(manifestElement, baseUrl, context) {
                     ref: getAttr(cpEl, 'ref'),
                     pssh: psshData
                         ? [
-                            {
-                                systemId: schemeIdUri,
-                                kids: [],
-                                data: psshData,
-                            },
-                        ]
+                              {
+                                  systemId: schemeIdUri,
+                                  kids: [],
+                                  data: psshData,
+                              },
+                          ]
                         : [],
                 };
             }

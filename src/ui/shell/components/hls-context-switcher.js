@@ -27,7 +27,9 @@ const renderBadge = (text, type = 'default') => {
     };
     return html`
         <span
-            class="text-[10px] font-mono px-1.5 py-0.5 rounded border ${colors[type] || colors.default}"
+            class="text-[10px] font-mono px-1.5 py-0.5 rounded border ${colors[
+                type
+            ] || colors.default}"
         >
             ${text}
         </span>
@@ -39,20 +41,20 @@ const renderItemRow = (item, isActive, onClick) => {
         <button
             @click=${onClick}
             class="w-full flex items-center justify-between p-2 rounded-lg transition-all group ${isActive
-            ? 'bg-blue-600/20 border border-blue-500/50'
-            : 'hover:bg-white/5 border border-transparent'}"
+                ? 'bg-blue-600/20 border border-blue-500/50'
+                : 'hover:bg-white/5 border border-transparent'}"
         >
             <div class="flex items-center gap-3 min-w-0">
                 <div
                     class="w-1 h-8 rounded-full ${isActive
-            ? 'bg-blue-500'
-            : 'bg-slate-700 group-hover:bg-slate-600'}"
+                        ? 'bg-blue-500'
+                        : 'bg-slate-700 group-hover:bg-slate-600'}"
                 ></div>
                 <div class="flex flex-col items-start min-w-0">
                     <div
                         class="text-sm font-medium truncate w-full text-left ${isActive
-            ? 'text-blue-100'
-            : 'text-slate-200 group-hover:text-white'}"
+                            ? 'text-blue-100'
+                            : 'text-slate-200 group-hover:text-white'}"
                     >
                         ${item.label}
                     </div>
@@ -62,8 +64,8 @@ const renderItemRow = (item, isActive, onClick) => {
                 </div>
             </div>
             ${isActive
-            ? html`<span class="text-blue-400">${icons.checkCircle}</span>`
-            : ''}
+                ? html`<span class="text-blue-400">${icons.checkCircle}</span>`
+                : ''}
         </button>
     `;
 };
@@ -77,10 +79,16 @@ const hlsDropdownContent = (stream) => {
     const allAdaptationSets = manifest.periods?.[0]?.adaptationSets || [];
 
     const variants = allAdaptationSets
-        .filter(as => as.contentType === 'video' && !(as.roles || []).some(r => r.value === 'trick'))
-        .flatMap(as => as.representations)
-        .map(rep => {
-            const resolution = rep.height?.value ? `${rep.height.value}p` : 'N/A';
+        .filter(
+            (as) =>
+                as.contentType === 'video' &&
+                !(as.roles || []).some((r) => r.value === 'trick')
+        )
+        .flatMap((as) => as.representations)
+        .map((rep) => {
+            const resolution = rep.height?.value
+                ? `${rep.height.value}p`
+                : 'N/A';
             const bitrate = formatBitrate(rep.bandwidth);
             const codecs = (rep.codecs?.[0]?.value || '').split('.')[0];
             return {
@@ -96,26 +104,30 @@ const hlsDropdownContent = (stream) => {
         });
 
     const mediaGroups = allAdaptationSets
-        .filter(as => as.contentType !== 'video')
-        .reduce((acc, as) => {
-            const type = as.contentType; // 'audio', 'subtitles'
-            if (!acc[type]) acc[type] = [];
+        .filter((as) => as.contentType !== 'video')
+        .reduce(
+            (acc, as) => {
+                const type = as.contentType; // 'audio', 'subtitles'
+                if (!acc[type]) acc[type] = [];
 
-            as.representations.forEach(rep => {
-                const group = as.id.split('-').slice(1).join('-') || 'default';
-                acc[type].push({
-                    id: rep.id,
-                    label: rep.label,
-                    badges: [
-                        { text: rep.lang || 'UND', color: 'purple' },
-                        { text: rep.format || 'FMT', color: 'yellow' },
-                        { text: group, color: 'default' },
-                    ],
-                    group: type,
+                as.representations.forEach((rep) => {
+                    const group =
+                        as.id.split('-').slice(1).join('-') || 'default';
+                    acc[type].push({
+                        id: rep.id,
+                        label: rep.label,
+                        badges: [
+                            { text: rep.lang || 'UND', color: 'purple' },
+                            { text: rep.format || 'FMT', color: 'yellow' },
+                            { text: group, color: 'default' },
+                        ],
+                        group: type,
+                    });
                 });
-            });
-            return acc;
-        }, { audio: [], subtitles: [], 'closed-captions': [], video: [] });
+                return acc;
+            },
+            { audio: [], subtitles: [], 'closed-captions': [], video: [] }
+        );
 
     // 2. Render Logic
     const tabs = [
@@ -176,16 +188,16 @@ const hlsDropdownContent = (stream) => {
                 <button
                     @click=${() => handleSelect('master')}
                     class="w-full flex items-center justify-between p-3 rounded-xl border transition-all group ${activeMediaPlaylistId ===
-            'master'
-            ? 'bg-purple-500/10 border-purple-500/50 text-purple-100'
-            : 'bg-slate-800/50 border-white/5 hover:bg-slate-800 hover:border-white/10 text-slate-300'}"
+                    'master'
+                        ? 'bg-purple-500/10 border-purple-500/50 text-purple-100'
+                        : 'bg-slate-800/50 border-white/5 hover:bg-slate-800 hover:border-white/10 text-slate-300'}"
                 >
                     <div class="flex items-center gap-3">
                         <div
                             class="p-2 rounded-lg ${activeMediaPlaylistId ===
-            'master'
-            ? 'bg-purple-500/20 text-purple-300'
-            : 'bg-slate-700/50 text-slate-400'}"
+                            'master'
+                                ? 'bg-purple-500/20 text-purple-300'
+                                : 'bg-slate-700/50 text-slate-400'}"
                         >
                             ${icons.list}
                         </div>
@@ -197,24 +209,26 @@ const hlsDropdownContent = (stream) => {
                         </div>
                     </div>
                     ${activeMediaPlaylistId === 'master'
-            ? html`<span class="text-purple-400"
+                        ? html`<span class="text-purple-400"
                               >${icons.checkCircle}</span
                           >`
-            : ''}
+                        : ''}
                 </button>
             </div>
 
             <!-- Tabs -->
             <div class="px-3 pt-3 pb-0">
-                <div class="flex gap-1 p-1 bg-black/20 rounded-lg overflow-x-auto custom-scrollbar">
+                <div
+                    class="flex gap-1 p-1 bg-black/20 rounded-lg overflow-x-auto custom-scrollbar"
+                >
                     ${tabs.map(
-                (tab) => html`
+                        (tab) => html`
                             <button
                                 @click=${() => handleTabClick(tab.key)}
                                 class="flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-all whitespace-nowrap ${state.activeCategory ===
-                        tab.key
-                        ? 'bg-slate-700 text-white shadow-sm'
-                        : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'}"
+                                tab.key
+                                    ? 'bg-slate-700 text-white shadow-sm'
+                                    : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'}"
                             >
                                 ${tab.label}
                                 <span
@@ -223,7 +237,7 @@ const hlsDropdownContent = (stream) => {
                                 >
                             </button>
                         `
-            )}
+                    )}
                 </div>
             </div>
 
@@ -231,20 +245,21 @@ const hlsDropdownContent = (stream) => {
             <div class="p-3 overflow-y-auto custom-scrollbar grow">
                 <div class="flex flex-col gap-1">
                     ${items.map((item) =>
-                renderItemRow(
-                    item,
-                    stream.activeMediaPlaylistUrl === item.id || stream.activeMediaPlaylistId === item.id, // Fallback check
-                    () => handleSelect(item.id)
-                )
-            )}
+                        renderItemRow(
+                            item,
+                            stream.activeMediaPlaylistUrl === item.id ||
+                                stream.activeMediaPlaylistId === item.id, // Fallback check
+                            () => handleSelect(item.id)
+                        )
+                    )}
                 </div>
                 ${items.length === 0
-            ? html`<div
+                    ? html`<div
                           class="text-center p-8 text-slate-500 italic text-xs"
                       >
                           No items in this category.
                       </div>`
-            : ''}
+                    : ''}
             </div>
         </div>
     `;
@@ -269,8 +284,8 @@ export const hlsContextSwitcherTemplate = (stream) => {
             mainLabel = activeVariant.stableId || activeVariant.id || 'Variant';
             subLabel = activeVariant.attributes.RESOLUTION
                 ? `${activeVariant.attributes.RESOLUTION} • ${formatBitrate(
-                    activeVariant.attributes.BANDWIDTH
-                )}`
+                      activeVariant.attributes.BANDWIDTH
+                  )}`
                 : formatBitrate(activeVariant.attributes.BANDWIDTH);
         } else {
             const media = (stream.manifest?.media || []).find(
@@ -291,16 +306,16 @@ export const hlsContextSwitcherTemplate = (stream) => {
         <div class="relative w-full px-3 pb-4">
             <button
                 @click=${(e) => {
-            const handle = toggleDropdown(
-                e.currentTarget,
-                () => hlsDropdownContent(stream),
-                e
-            );
-            // Store handle if returned (it might be undefined if closing)
-            if (handle) {
-                state.dropdownHandle = handle;
-            }
-        }}
+                    const handle = toggleDropdown(
+                        e.currentTarget,
+                        () => hlsDropdownContent(stream),
+                        e
+                    );
+                    // Store handle if returned (it might be undefined if closing)
+                    if (handle) {
+                        state.dropdownHandle = handle;
+                    }
+                }}
                 class="w-full bg-slate-800/40 hover:bg-slate-800/80 border border-slate-700/50 hover:border-slate-600 rounded-xl p-3 transition-all text-left group"
             >
                 <div class="flex items-center justify-between">

@@ -110,7 +110,8 @@ export class ComplianceIssueList extends HTMLElement {
 
         const renderIssue = (issue) => {
             const isExpanded = this._expandedId === issue.id;
-            const isHighlighted = highlightedComplianceCategory === issue.category;
+            const isHighlighted =
+                highlightedComplianceCategory === issue.category;
 
             const color =
                 issue.status === 'fail'
@@ -156,8 +157,15 @@ export class ComplianceIssueList extends HTMLElement {
                                     >${issue.id}</span
                                 >
                             </div>
-                            <p class="text-xs text-slate-400 mt-1 truncate flex items-center gap-2">
-                                <span class="${isHighlighted ? 'text-blue-300 font-bold' : ''}">${issue.category}</span>
+                            <p
+                                class="text-xs text-slate-400 mt-1 truncate flex items-center gap-2"
+                            >
+                                <span
+                                    class="${isHighlighted
+                                        ? 'text-blue-300 font-bold'
+                                        : ''}"
+                                    >${issue.category}</span
+                                >
                                 <span>&bull;</span>
                                 <span>${issue.isoRef}</span>
                             </p>

@@ -596,8 +596,9 @@ export async function parseManifest(
 
                         if (!isNaN(length) && !isNaN(offset)) {
                             const resolvedUrl = new URL(mapUri, baseUrl).href;
-                            const uniqueId = `${resolvedUrl}@init@${offset}-${offset + length - 1
-                                }`;
+                            const uniqueId = `${resolvedUrl}@init@${offset}-${
+                                offset + length - 1
+                            }`;
                             /** @type {import('@/types.js').HlsSegment} */
                             const initSegment = {
                                 repId: 'hls-media-init',

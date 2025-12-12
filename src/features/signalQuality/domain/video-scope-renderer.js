@@ -8,7 +8,7 @@ export class VideoScopeRenderer {
         this.rafId = null;
         this.videoEl = null;
 
-        // Fixed processing resolution for scopes. 
+        // Fixed processing resolution for scopes.
         // 320x180 is sufficient for waveform visualization and keeps loop < 10ms.
         this.procW = 320;
         this.procH = 180;
@@ -26,7 +26,7 @@ export class VideoScopeRenderer {
             showVectorscope: true,
             showParade: false,
             showHistogram: false,
-            showBroadcastCompliance: false, 
+            showBroadcastCompliance: false,
         };
     }
 
@@ -51,7 +51,11 @@ export class VideoScopeRenderer {
     _loop() {
         if (!this.isActive || !this.videoEl || !this.ctx) return;
 
-        if (this.videoEl.paused || this.videoEl.ended || this.videoEl.readyState < 2) {
+        if (
+            this.videoEl.paused ||
+            this.videoEl.ended ||
+            this.videoEl.readyState < 2
+        ) {
             this.rafId = requestAnimationFrame(this._loop.bind(this));
             return;
         }
@@ -59,14 +63,19 @@ export class VideoScopeRenderer {
         try {
             // 1. Downscale Capture (Critical optimization for 4K sources)
             this.procCtx.drawImage(this.videoEl, 0, 0, this.procW, this.procH);
-            const frame = this.procCtx.getImageData(0, 0, this.procW, this.procH);
+            const frame = this.procCtx.getImageData(
+                0,
+                0,
+                this.procW,
+                this.procH
+            );
             const data = frame.data;
 
             const outW = this.canvas.width;
             const outH = this.canvas.height;
 
             // 2. Clear
-            this.ctx.fillStyle = '#020617'; 
+            this.ctx.fillStyle = '#020617';
             this.ctx.fillRect(0, 0, outW, outH);
 
             // 3. Grid Layout Logic
@@ -75,7 +84,7 @@ export class VideoScopeRenderer {
                 this.config.showWaveform && 'waveform',
                 this.config.showVectorscope && 'vectorscope',
                 this.config.showParade && 'parade',
-                this.config.showHistogram && 'histogram'
+                this.config.showHistogram && 'histogram',
             ].filter(Boolean);
 
             if (activeScopes.length === 0) {
@@ -98,31 +107,46 @@ export class VideoScopeRenderer {
                 this.ctx.beginPath();
                 this.ctx.rect(x, y, cellW, cellH);
                 this.ctx.clip();
-                
+
                 // Background
                 this.ctx.fillStyle = '#000000';
                 this.ctx.fillRect(x, y, cellW, cellH);
 
                 // Renderers
                 switch (scope) {
-                    case 'compliance': this._renderBroadcastCompliance(data, x, y, cellW, cellH); break;
-                    case 'waveform': this._renderWaveform(data, x, y, cellW, cellH); break;
-                    case 'parade': this._renderParade(data, x, y, cellW, cellH); break;
-                    case 'vectorscope': this._renderVectorscope(data, x, y, cellW, cellH); break;
-                    case 'histogram': this._renderHistogram(data, x, y, cellW, cellH); break;
+                    case 'compliance':
+                        this._renderBroadcastCompliance(
+                            data,
+                            x,
+                            y,
+                            cellW,
+                            cellH
+                        );
+                        break;
+                    case 'waveform':
+                        this._renderWaveform(data, x, y, cellW, cellH);
+                        break;
+                    case 'parade':
+                        this._renderParade(data, x, y, cellW, cellH);
+                        break;
+                    case 'vectorscope':
+                        this._renderVectorscope(data, x, y, cellW, cellH);
+                        break;
+                    case 'histogram':
+                        this._renderHistogram(data, x, y, cellW, cellH);
+                        break;
                 }
 
                 // Chrome
                 this.ctx.strokeStyle = '#334155';
                 this.ctx.lineWidth = 1;
                 this.ctx.strokeRect(x, y, cellW, cellH);
-                
+
                 this.ctx.fillStyle = '#94a3b8';
                 this.ctx.font = 'bold 10px monospace';
                 this.ctx.fillText(scope.toUpperCase(), x + 6, y + 12);
                 this.ctx.restore();
             });
-
         } catch (e) {
             if (e.name === 'SecurityError') {
                 this._renderError('DRM / CORS RESTRICTED');
@@ -145,7 +169,7 @@ export class VideoScopeRenderer {
     }
 
     // --- Render Implementations ---
-    
+
     _renderBroadcastCompliance(data, x, y, w, h) {
         const tempCvs = document.createElement('canvas');
         tempCvs.width = this.procW;
@@ -157,18 +181,27 @@ export class VideoScopeRenderer {
         // Legal Range: 16-235
         for (let i = 0; i < data.length; i += 4) {
             const r = data[i];
-            const g = data[i+1];
-            const b = data[i+2];
+            const g = data[i + 1];
+            const b = data[i + 2];
             // Fast Luma Approx
-            const yVal = (r + r + b + g + g + g) / 6; 
-            
+            const yVal = (r + r + b + g + g + g) / 6;
+
             if (yVal < 16) {
-                 d[i] = 0; d[i+1] = 0; d[i+2] = 255; d[i+3] = 255; // Blue
+                d[i] = 0;
+                d[i + 1] = 0;
+                d[i + 2] = 255;
+                d[i + 3] = 255; // Blue
             } else if (yVal > 235) {
-                 d[i] = 255; d[i+1] = 0; d[i+2] = 0; d[i+3] = 255; // Red
+                d[i] = 255;
+                d[i + 1] = 0;
+                d[i + 2] = 0;
+                d[i + 3] = 255; // Red
             } else {
-                 const mono = yVal * 0.5; 
-                 d[i] = mono; d[i+1] = mono; d[i+2] = mono; d[i+3] = 255;
+                const mono = yVal * 0.5;
+                d[i] = mono;
+                d[i + 1] = mono;
+                d[i + 2] = mono;
+                d[i + 3] = 255;
             }
         }
         tCtx.putImageData(imgData, 0, 0);
@@ -179,7 +212,7 @@ export class VideoScopeRenderer {
         // Draw Graticules
         this.ctx.strokeStyle = 'rgba(255,255,255,0.2)';
         this.ctx.beginPath();
-        [0.25, 0.5, 0.75].forEach(p => {
+        [0.25, 0.5, 0.75].forEach((p) => {
             const ly = y + h * p;
             this.ctx.moveTo(x, ly);
             this.ctx.lineTo(x + w, ly);
@@ -187,12 +220,17 @@ export class VideoScopeRenderer {
         this.ctx.stroke();
 
         const bins = new Uint8Array(this.procW * 256);
-        
+
         // Vertical scan
         for (let col = 0; col < this.procW; col++) {
-            for (let row = 0; row < this.procH; row += 2) { // Skip every other line
+            for (let row = 0; row < this.procH; row += 2) {
+                // Skip every other line
                 const i = (row * this.procW + col) * 4;
-                const luma = Math.round(0.2126 * data[i] + 0.7152 * data[i+1] + 0.0722 * data[i+2]);
+                const luma = Math.round(
+                    0.2126 * data[i] +
+                        0.7152 * data[i + 1] +
+                        0.0722 * data[i + 2]
+                );
                 // Accumulate intensity
                 const idx = (255 - luma) * this.procW + col;
                 if (bins[idx] < 255) bins[idx] += 16;
@@ -206,24 +244,23 @@ export class VideoScopeRenderer {
             const val = bins[i];
             if (val > 0) {
                 const pIdx = i * 4;
-                d[pIdx] = 0; 
-                d[pIdx+1] = 255; // Green trace
-                d[pIdx+2] = 0;
-                d[pIdx+3] = val;
+                d[pIdx] = 0;
+                d[pIdx + 1] = 255; // Green trace
+                d[pIdx + 2] = 0;
+                d[pIdx + 3] = val;
             }
         }
-        
+
         // Render to temporary canvas to stretch to target size
         const tCvs = document.createElement('canvas');
         tCvs.width = this.procW;
         tCvs.height = 256;
         tCvs.getContext('2d').putImageData(img, 0, 0);
-        
+
         this.ctx.globalCompositeOperation = 'screen';
         this.ctx.drawImage(tCvs, x, y, w, h);
         this.ctx.globalCompositeOperation = 'source-over';
     }
-
 
     _renderParade(data, x, y, w, h) {
         const subW = w / 3;

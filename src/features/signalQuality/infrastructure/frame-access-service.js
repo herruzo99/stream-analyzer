@@ -50,7 +50,8 @@ export class FrameAccessService {
                     } else {
                         reject(
                             new Error(
-                                `Failed to load segment ${id} (HTTP ${entry.status || 'Error'
+                                `Failed to load segment ${id} (HTTP ${
+                                    entry.status || 'Error'
                                 })`
                             )
                         );
@@ -288,9 +289,9 @@ export class FrameAccessService {
             mediaInfo: {
                 video: config
                     ? {
-                        codec: config.codec,
-                        resolution: `${config.codedWidth}x${config.codedHeight}`,
-                    }
+                          codec: config.codec,
+                          resolution: `${config.codedWidth}x${config.codedHeight}`,
+                      }
                     : undefined,
             },
             timescale: 90000,
@@ -349,7 +350,9 @@ export class FrameAccessService {
                 if (stsd && stsd.children) {
                     for (const entry of stsd.children) {
                         if (
-                            ['avc1', 'avc3', 'hvc1', 'hev1', 'encv'].includes(entry.type)
+                            ['avc1', 'avc3', 'hvc1', 'hev1', 'encv'].includes(
+                                entry.type
+                            )
                         ) {
                             videoTrackId = trackId;
                         } else if (
@@ -407,9 +410,11 @@ export class FrameAccessService {
                 const compat = view.getUint8(2);
                 const level = view.getUint8(3);
                 config = {
-                    codec: isEncrypted ? 'encv' : `avc1.${this._toHex(profile)}${this._toHex(
-                        compat
-                    )}${this._toHex(level)}`,
+                    codec: isEncrypted
+                        ? 'encv'
+                        : `avc1.${this._toHex(profile)}${this._toHex(
+                              compat
+                          )}${this._toHex(level)}`,
                     originalCodec: `avc1.${this._toHex(profile)}${this._toHex(
                         compat
                     )}${this._toHex(level)}`,
@@ -482,7 +487,10 @@ export class FrameAccessService {
             if (i === 0) {
                 let baseTime = s.baseMediaDecodeTime;
 
-                if ((baseTime === undefined || baseTime === 0) && options.baseTimeOffset !== undefined) {
+                if (
+                    (baseTime === undefined || baseTime === 0) &&
+                    options.baseTimeOffset !== undefined
+                ) {
                     if (options.baseTimeOffset > 0.1) {
                         baseTime = options.baseTimeOffset * timescale;
                     } else {
@@ -558,10 +566,18 @@ export class FrameAccessService {
         });
 
         if (chunks.length === 0) {
-            appLog('FrameAccessService', 'warn', `No video chunks extracted from MP4`);
+            appLog(
+                'FrameAccessService',
+                'warn',
+                `No video chunks extracted from MP4`
+            );
         }
         if (audioChunks.length === 0) {
-            appLog('FrameAccessService', 'warn', `No audio chunks extracted from MP4`);
+            appLog(
+                'FrameAccessService',
+                'warn',
+                `No audio chunks extracted from MP4`
+            );
         }
 
         return {
@@ -577,9 +593,9 @@ export class FrameAccessService {
             mediaInfo: {
                 video: config
                     ? {
-                        codec: config.codec,
-                        resolution: `${config.codedWidth}x${config.codedHeight}`,
-                    }
+                          codec: config.codec,
+                          resolution: `${config.codedWidth}x${config.codedHeight}`,
+                      }
                     : undefined,
             },
         };

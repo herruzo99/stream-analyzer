@@ -15,7 +15,7 @@ const esbuildOptions = {
     outdir: 'dist/assets',
     // ARCHITECTURAL FIX: Use external source maps to prevent 30MB+ bundle sizes.
     // 'inline' appends the map to the file, choking the browser's JS parser.
-    sourcemap: true, 
+    sourcemap: true,
     minify: !isDev,
     entryNames: isDev ? '[name]' : '[name]-[hash]',
     assetNames: isDev ? '[name]' : '[name]-[hash]',
@@ -55,9 +55,7 @@ async function copyRecursive(src, dest) {
 }
 
 function minifyHtml(html) {
-    return html
-        .replace(/<!--[\s\S]*?-->/g, '')
-        .trim();
+    return html.replace(/<!--[\s\S]*?-->/g, '').trim();
 }
 
 async function postBuild(meta, cspNonce) {
@@ -109,7 +107,7 @@ async function postBuild(meta, cspNonce) {
 
         await safeCopyFile('static/icon.png', 'dist/icon.png');
         await copyRecursive('public', 'dist');
-        
+
         // CSS Assets
         await safeCopyFile(
             'node_modules/shaka-player/dist/controls.css',
@@ -145,7 +143,7 @@ async function prepareDevHtml(cspNonce) {
         await fs.writeFile('dist/index.html', devHtml, 'utf-8');
         await safeCopyFile('static/icon.png', 'dist/icon.png');
         await copyRecursive('public', 'dist');
-        
+
         // CSS Assets for Dev
         await safeCopyFile(
             'node_modules/shaka-player/dist/controls.css',

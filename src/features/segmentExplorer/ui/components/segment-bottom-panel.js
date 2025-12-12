@@ -16,8 +16,8 @@ const property = (label, value, copyable = false) => html`
         >
         <span
             class="text-xs font-mono text-slate-300 text-right truncate max-w-[180px] ${copyable
-        ? 'select-all cursor-text'
-        : ''}"
+                ? 'select-all cursor-text'
+                : ''}"
             title="${String(value)}"
             >${value}</span
         >
@@ -129,16 +129,20 @@ export const segmentBottomPanelTemplate = (stream) => {
             <div class="h-full overflow-hidden flex flex-col">
                 <div class="grow min-h-0 overflow-y-auto pr-2 custom-scrollbar">
                     ${getSegmentAnalysisTemplate(
-            cacheEntry.parsedData,
-            null,
-            false,
-            segment.uniqueId
-        )}
+                        cacheEntry.parsedData,
+                        null,
+                        false,
+                        segment.uniqueId
+                    )}
                 </div>
             </div>
         `;
     } else {
-        console.log('SegmentBottomPanel Error State:', { isLoaded, isLoading, cacheEntry });
+        console.log('SegmentBottomPanel Error State:', {
+            isLoaded,
+            isLoading,
+            cacheEntry,
+        });
         console.log(cacheEntry);
         rightPaneContent = html`
             <div class="flex items-center justify-center h-full text-red-400">
@@ -169,13 +173,13 @@ export const segmentBottomPanelTemplate = (stream) => {
                         <div class="flex items-center gap-2 mb-1">
                             <span class="text-blue-400"
                                 >${segment.type === 'Init'
-            ? icons.integrators
-            : icons.film}</span
+                                    ? icons.integrators
+                                    : icons.film}</span
                             >
                             <h3 class="font-bold text-white text-base truncate">
                                 ${segment.type === 'Init'
-            ? 'Init Segment'
-            : `Segment #${segment.number}`}
+                                    ? 'Init Segment'
+                                    : `Segment #${segment.number}`}
                             </h3>
                         </div>
                         <p
@@ -187,8 +191,8 @@ export const segmentBottomPanelTemplate = (stream) => {
                     </div>
 
                     <div class="p-4 overflow-y-auto space-y-6">
-                     ${isLoaded
-            ? html`
+                        ${isLoaded
+                            ? html`
                                   <button
                                       @click=${handleDeepInspect}
                                       class="w-full py-2 bg-slate-800 hover:bg-slate-700 text-blue-300 hover:text-blue-200 text-xs font-bold rounded border border-slate-700 hover:border-blue-500/30 transition-all flex items-center justify-center gap-2"
@@ -196,9 +200,8 @@ export const segmentBottomPanelTemplate = (stream) => {
                                       ${icons.binary} Open Hex Inspector
                                   </button>
                               `
-            : ''}
+                            : ''}
                         <div>
-
                             <h4
                                 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-2"
                             >
@@ -208,19 +211,19 @@ export const segmentBottomPanelTemplate = (stream) => {
                                 class="bg-slate-800/40 rounded px-3 border border-slate-800"
                             >
                                 ${property(
-                'Duration',
-                `${durationSec.toFixed(3)}s`
-            )}
+                                    'Duration',
+                                    `${durationSec.toFixed(3)}s`
+                                )}
                                 ${property('PTS Start', startSec.toFixed(3))}
                                 ${property('Timescale', segment.timescale)}
                                 ${segment.startTimeUTC
-            ? property(
-                'UTC',
-                new Date(
-                    segment.startTimeUTC
-                ).toLocaleTimeString()
-            )
-            : ''}
+                                    ? property(
+                                          'UTC',
+                                          new Date(
+                                              segment.startTimeUTC
+                                          ).toLocaleTimeString()
+                                      )
+                                    : ''}
                             </div>
                         </div>
 
@@ -235,17 +238,19 @@ export const segmentBottomPanelTemplate = (stream) => {
                             >
                                 ${property('Rep ID', segment.repId, true)}
                                 ${property(
-                'Encrypted',
-                segment.encryptionInfo ? 'Yes' : 'No'
-            )}
+                                    'Encrypted',
+                                    segment.encryptionInfo ? 'Yes' : 'No'
+                                )}
                                 ${property('Gap', segment.gap ? 'Yes' : 'No')}
                             </div>
                         </div>
 
                         ${segment.sidx
-            ? html`
+                            ? html`
                                   <div>
-                                      <div class="flex items-center justify-between mb-2">
+                                      <div
+                                          class="flex items-center justify-between mb-2"
+                                      >
                                           <h4
                                               class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2"
                                           >
@@ -256,31 +261,31 @@ export const segmentBottomPanelTemplate = (stream) => {
                                           class="bg-slate-800/40 rounded px-3 border border-slate-800"
                                       >
                                           ${property(
-                'Referenced Size',
-                `${segment.sidx.referencedSize} bytes`
-            )}
+                                              'Referenced Size',
+                                              `${segment.sidx.referencedSize} bytes`
+                                          )}
                                           ${property(
-                'Subsegment Dur',
-                segment.sidx.subsegmentDuration
-            )}
+                                              'Subsegment Dur',
+                                              segment.sidx.subsegmentDuration
+                                          )}
                                           ${property(
-                'Starts w/ SAP',
-                segment.sidx.startsWithSap
-                    ? 'Yes'
-                    : 'No'
-            )}
+                                              'Starts w/ SAP',
+                                              segment.sidx.startsWithSap
+                                                  ? 'Yes'
+                                                  : 'No'
+                                          )}
                                           ${property(
-                'SAP Type',
-                segment.sidx.sapType || 'N/A'
-            )}
+                                              'SAP Type',
+                                              segment.sidx.sapType || 'N/A'
+                                          )}
                                           ${property(
-                'Type',
-                segment.sidx.referenceType
-            )}
+                                              'Type',
+                                              segment.sidx.referenceType
+                                          )}
                                       </div>
                                   </div>
                               `
-            : ''}
+                            : ''}
                     </div>
                 </div>
 

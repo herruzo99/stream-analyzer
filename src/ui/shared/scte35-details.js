@@ -17,26 +17,35 @@ const labelVal = (label, value) => html`
 export const scte35DetailsTemplate = (scte35) => {
     if (!scte35 || scte35.error) {
         const errorMsg = scte35?.error || 'Unknown Error';
-        
+
         // --- Special Handling for Heuristic Detections ---
         // If the "error" is actually an informational message about structural detection
         // (which means no binary SCTE-35 payload existed to parse), show an Info box instead of Error.
-        const isStructural = errorMsg.includes('Structurally detected') || errorMsg.includes('Signaled via EXT-X-CUE');
-        
-        const boxClass = isStructural 
+        const isStructural =
+            errorMsg.includes('Structurally detected') ||
+            errorMsg.includes('Signaled via EXT-X-CUE');
+
+        const boxClass = isStructural
             ? 'bg-blue-900/10 border-blue-500/30 text-blue-300'
             : 'bg-red-900/10 border-red-500/30 text-red-400';
-            
+
         const icon = isStructural ? icons.info : icons.alertTriangle;
         const title = isStructural ? 'Inferred Ad Break' : 'Parsing Failed';
 
         return html`
             <div class="p-4 rounded-lg border text-center ${boxClass}">
-                <div class="flex items-center justify-center gap-2 mb-2 font-bold text-sm">
+                <div
+                    class="flex items-center justify-center gap-2 mb-2 font-bold text-sm"
+                >
                     <span class="scale-110">${icon}</span> ${title}
                 </div>
                 <div class="text-xs opacity-90">${errorMsg}</div>
-                ${isStructural ? html`<div class="text-[10px] mt-2 opacity-70">This break was detected via playlist tags or discontinuities, not an in-band SCTE-35 binary packet.</div>` : ''}
+                ${isStructural
+                    ? html`<div class="text-[10px] mt-2 opacity-70">
+                          This break was detected via playlist tags or
+                          discontinuities, not an in-band SCTE-35 binary packet.
+                      </div>`
+                    : ''}
             </div>
         `;
     }

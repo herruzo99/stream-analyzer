@@ -62,35 +62,41 @@ export function parseTTML(ttmlString) {
 
     try {
         const jsonObj = parser.parse(ttmlString);
-        
+
         // Find all <p> tags (Text) and <div> tags (Containers/Images)
         const pTags = findChildrenRecursive(jsonObj, 'p');
         const divTags = findChildrenRecursive(jsonObj, 'div');
-        
-        const allTags = [...pTags.map(t => ({...t, _tagName: 'p'})), ...divTags.map(t => ({...t, _tagName: 'div'}))];
+
+        const allTags = [
+            ...pTags.map((t) => ({ ...t, _tagName: 'p' })),
+            ...divTags.map((t) => ({ ...t, _tagName: 'div' })),
+        ];
 
         for (const tag of allTags) {
             const attrs = tag[':@'] || {};
             const begin = parseTtmlTime(attrs.begin);
             const end = parseTtmlTime(attrs.end);
-            
+
             // Only process if we have valid timing
             if (begin !== null && end !== null) {
                 let payload = tag['#text'] || '';
-                
+
                 // Check for SMPTE-TT Image attributes
-                // Note: fast-xml-parser removes namespaces with removeNSPrefix: true, 
+                // Note: fast-xml-parser removes namespaces with removeNSPrefix: true,
                 // so "smpte:backgroundImage" becomes "backgroundImage"
-                const bgImage = attrs.backgroundImage || attrs.backgroundImageHorizontal || attrs.backgroundImageVertical;
-                
+                const bgImage =
+                    attrs.backgroundImage ||
+                    attrs.backgroundImageHorizontal ||
+                    attrs.backgroundImageVertical;
+
                 if (!payload && bgImage) {
                     payload = `[Image Reference]: ${bgImage}`;
                 } else if (!payload && tag._tagName === 'div') {
                     // It's a timed container without text or direct image ref (maybe children have it)
                     payload = `(Container/Image Region) ID: ${attrs.id || 'N/A'}`;
                 } else if (tag._tagName === 'div' && payload) {
-                     // Div with text content
-                     payload = `(Div): ${payload}`;
+                    // Div with text content
+                    payload = `(Div): ${payload}`;
                 }
 
                 result.cues.push({
@@ -101,14 +107,13 @@ export function parseTTML(ttmlString) {
                 });
             }
         }
-        
+
         // Deduplicate based on ID + Time to avoid overlapping divs/ps
         // This isn't strictly necessary but cleans up the view for IMSC1
-        
     } catch (e) {
         result.errors.push(`XML parsing failed: ${e.message}`);
     }
-    
+
     // Sort by time
     result.cues.sort((a, b) => a.startTime - b.startTime);
 

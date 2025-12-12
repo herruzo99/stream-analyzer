@@ -36,7 +36,7 @@ function activateHlsMediaPlaylist({ streamId, variantId }) {
     let foundRep = null;
     for (const period of stream.manifest.periods || []) {
         for (const as of period.adaptationSets || []) {
-            const rep = as.representations.find(r => r.id === variantId);
+            const rep = as.representations.find((r) => r.id === variantId);
             if (rep) {
                 foundRep = rep;
                 break;
@@ -53,7 +53,9 @@ function activateHlsMediaPlaylist({ streamId, variantId }) {
             activeMediaPlaylistId: variantId,
         });
     } else {
-        console.warn(`[streamService] Could not find representation with ID "${variantId}" to activate.`);
+        console.warn(
+            `[streamService] Could not find representation with ID "${variantId}" to activate.`
+        );
     }
 }
 

@@ -72,8 +72,8 @@ export function initializeConsentManager() {
 
         // Check against mock/dev values to prevent network errors in development
         // The build process injects the specific string 'mock-clarity-id' etc if in dev mode
-        const isMockEnv = 
-            window.location.hostname === 'localhost' || 
+        const isMockEnv =
+            window.location.hostname === 'localhost' ||
             document.body.innerHTML.includes('mock-clarity-id') ||
             document.body.innerHTML.includes('mock-sentry-key');
 

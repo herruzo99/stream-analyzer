@@ -13,7 +13,9 @@ const specItem = (label, value, icon = null, highlight = false) => html`
             ${label}
         </div>
         <div
-            class="font-mono text-xs text-right break-all max-w-[60%] ${highlight ? 'text-emerald-400 font-bold' : 'text-slate-200'}"
+            class="font-mono text-xs text-right break-all max-w-[60%] ${highlight
+                ? 'text-emerald-400 font-bold'
+                : 'text-slate-200'}"
         >
             ${value || '-'}
         </div>

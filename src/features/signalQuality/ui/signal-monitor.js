@@ -91,7 +91,7 @@ class SignalMonitorAudio extends HTMLElement {
 
         this.ctx.clearRect(0, 0, width, height);
 
-        const barHeight = height / 32; 
+        const barHeight = height / 32;
         const step = Math.floor(bufferLength / 32);
 
         for (let i = 0; i < 32; i++) {
@@ -259,7 +259,13 @@ class SignalMonitorVideo extends HTMLElement {
         const { isRestricted, isDrmLocked } = this._state;
 
         // Styled as a horizontal pill button
-        const btn = (active, icon, label, onClick, activeColor='bg-blue-600') => html`
+        const btn = (
+            active,
+            icon,
+            label,
+            onClick,
+            activeColor = 'bg-blue-600'
+        ) => html`
             <button
                 @click=${onClick}
                 ?disabled=${isDrmLocked || isRestricted}
@@ -333,7 +339,7 @@ class SignalMonitorVideo extends HTMLElement {
                         'Hist',
                         () => this.toggleScope('showHistogram')
                     )}
-                    
+
                     <div class="h-6 w-px bg-slate-800 mx-1 shrink-0"></div>
 
                     ${btn(

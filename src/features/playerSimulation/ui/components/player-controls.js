@@ -100,7 +100,9 @@ class PlayerControlsComponent extends HTMLElement {
             if (isLoaded) {
                 playerService.togglePlay();
             } else {
-                const activeStream = streams.find((s) => s.id === activeStreamId);
+                const activeStream = streams.find(
+                    (s) => s.id === activeStreamId
+                );
                 if (activeStream) {
                     playerService.load(activeStream, true);
                 }
@@ -132,7 +134,7 @@ class PlayerControlsComponent extends HTMLElement {
                     >
                         ${actionButton(
                             isPlaying ? icons.pause : icons.play,
-                            isPlaying ? 'Pause' : (isLoaded ? 'Play' : 'Start'),
+                            isPlaying ? 'Pause' : isLoaded ? 'Play' : 'Start',
                             handlePlayClick,
                             isPlaying
                         )}

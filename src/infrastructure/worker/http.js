@@ -301,27 +301,33 @@ export async function fetchWithAuth(
             console.warn(
                 `[Network] Server ignored Range header for ${url}. Manual slicing active. Requested: ${expectedLength} bytes.`
             );
-            
+
             // We create a proxy for arrayBuffer() to implement the manual read/cancel
             manualArrayBuffer = async () => {
                 // FIXED: Removed the second getReader() call to prevent locking error
                 try {
                     // For efficiency, we only support this optimization if rangeStart is 0 or small,
                     // OR we accept the read penalty. For analysis, saving 200MB download is worth reading 3KB header.
-                    
+
                     // We read until we cover the requested range (0...rangeEnd)
-                    // If rangeStart > 0, we still have to download the bytes before it, 
+                    // If rangeStart > 0, we still have to download the bytes before it,
                     // but we discard them from the final buffer.
                     // IMPORTANT: We abort the download immediately after `rangeEnd`.
-                    
+
                     const neededLength = rangeStart + expectedLength;
-                    const fullData = await readPartialStream(response.body, neededLength);
-                    
+                    const fullData = await readPartialStream(
+                        response.body,
+                        neededLength
+                    );
+
                     // Slice out the exact requested range
-                    return fullData.slice(rangeStart, rangeStart + expectedLength);
+                    return fullData.slice(
+                        rangeStart,
+                        rangeStart + expectedLength
+                    );
                 } catch (e) {
-                     console.error("Manual range read failed", e);
-                     throw e;
+                    console.error('Manual range read failed', e);
+                    throw e;
                 }
             };
 
@@ -335,7 +341,7 @@ export async function fetchWithAuth(
                 text: async () => {
                     const buf = await manualArrayBuffer();
                     return new TextDecoder().decode(buf);
-                }
+                },
             });
         }
     }
@@ -345,9 +351,9 @@ export async function fetchWithAuth(
     if (shouldLogBody && responseProxy.ok) {
         // We skip logging body for manually handled ranges to avoid double-read complexity
         if (!manualArrayBuffer) {
-             responseBodyForLog = await captureBody(response.clone());
+            responseBodyForLog = await captureBody(response.clone());
         } else {
-             responseBodyForLog = "[Manual Range - Body Omitted]";
+            responseBodyForLog = '[Manual Range - Body Omitted]';
         }
     }
 

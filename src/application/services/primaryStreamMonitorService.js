@@ -36,7 +36,7 @@ async function monitorStream(streamId) {
     const stream = useAnalysisStore
         .getState()
         .streams.find((s) => s.id === streamId);
-        
+
     if (!stream || (!stream.originalUrl && !stream.resolvedUrl)) {
         stopMonitoring(streamId);
         return;
@@ -59,7 +59,7 @@ async function monitorStream(streamId) {
             auth: stream.auth,
             isLive: true,
             // ARCHITECTURAL FIX: Explicitly identify as analysis polling
-            purpose: 'analysis', 
+            purpose: 'analysis',
             oldRawManifest: oldRawManifestForDiff,
             protocol: stream.protocol,
             baseUrl: stream.baseUrl,
@@ -87,7 +87,7 @@ async function monitorStream(streamId) {
     } finally {
         const currentPoller = pollers.get(streamId);
         if (currentPoller === activePoller) {
-             scheduleNextPoll(streamId);
+            scheduleNextPoll(streamId);
         }
     }
 }
@@ -95,16 +95,17 @@ async function monitorStream(streamId) {
 // ... [getBasePollInterval and calculatePollInterval remain unchanged] ...
 function getBasePollInterval(manifest, override = null) {
     if (override !== null && override !== undefined) {
-        return Math.max(override * 1000, 200); 
+        return Math.max(override * 1000, 200);
     }
     if (!manifest) return 2000;
     let updatePeriodSeconds = manifest.minimumUpdatePeriod;
     if (!updatePeriodSeconds && manifest.type === 'dynamic') {
-        const lastSegDur = manifest.summary?.hls?.mediaPlaylistDetails?.lastSegmentDuration;
+        const lastSegDur =
+            manifest.summary?.hls?.mediaPlaylistDetails?.lastSegmentDuration;
         if (typeof lastSegDur === 'number' && lastSegDur > 0) {
             updatePeriodSeconds = lastSegDur;
         } else {
-             updatePeriodSeconds = manifest.summary?.hls?.targetDuration;
+            updatePeriodSeconds = manifest.summary?.hls?.targetDuration;
         }
     }
     if (!updatePeriodSeconds) {
@@ -113,7 +114,7 @@ function getBasePollInterval(manifest, override = null) {
             manifest.minBufferTime ||
             2;
     }
-    return Math.max(updatePeriodSeconds * 1000, 500); 
+    return Math.max(updatePeriodSeconds * 1000, 500);
 }
 
 function calculatePollInterval(stream) {
@@ -156,12 +157,12 @@ function scheduleNextPoll(streamId) {
     const stream = useAnalysisStore
         .getState()
         .streams.find((s) => s.id === streamId);
-        
+
     if (!stream || !stream.isPolling) {
         stopMonitoring(streamId);
         return;
     }
-    
+
     const nextInterval = calculatePollInterval(stream);
     poller.pollInterval = nextInterval;
 

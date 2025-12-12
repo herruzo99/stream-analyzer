@@ -188,7 +188,7 @@ export const globalControlsTemplate = () => {
 
     const activeStream = streams.find((s) => s.id === activeStreamId);
     const liveStreams = streams.filter((s) => s.manifest?.type === 'dynamic');
-    
+
     // STRICT DECOUPLING: Only check the boolean polling flag.
     // Do not check player state, QC state, or any other inference.
     const isAnyPolling = liveStreams.some((s) => s.isPolling);

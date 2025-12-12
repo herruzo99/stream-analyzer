@@ -52,7 +52,10 @@ export class WebCodecsAudioProvider {
             if (!targetState) {
                 // Try to find a key that ends with the track ID
                 for (const [key, state] of stateMap.entries()) {
-                    if (key === this.trackId || key.endsWith(`-${this.trackId}`)) {
+                    if (
+                        key === this.trackId ||
+                        key.endsWith(`-${this.trackId}`)
+                    ) {
                         targetState = state;
                         break;
                     }
@@ -63,7 +66,8 @@ export class WebCodecsAudioProvider {
                 appLog(
                     'WebCodecsAudioProvider',
                     'warn',
-                    `Track ID ${this.trackId
+                    `Track ID ${
+                        this.trackId
                     } not found in DASH state map. Available keys: ${Array.from(
                         stateMap.keys()
                     ).join(', ')}`
@@ -85,18 +89,30 @@ export class WebCodecsAudioProvider {
                         // If placeholder, take the first audio track we find
                         if (isPlaceholder) {
                             targetState = state;
-                            appLog('WebCodecsAudioProvider', 'info', `Resolved placeholder '${this.trackId}' to audio track '${key}'`);
+                            appLog(
+                                'WebCodecsAudioProvider',
+                                'info',
+                                `Resolved placeholder '${this.trackId}' to audio track '${key}'`
+                            );
                             break;
                         }
 
                         // Fuzzy match: check if key contains trackId or vice versa (case-insensitive)
                         if (
-                            key.toLowerCase().includes(this.trackId.toLowerCase()) ||
-                            this.trackId.toLowerCase().includes(key.toLowerCase()) ||
+                            key
+                                .toLowerCase()
+                                .includes(this.trackId.toLowerCase()) ||
+                            this.trackId
+                                .toLowerCase()
+                                .includes(key.toLowerCase()) ||
                             state.groupId === this.trackId
                         ) {
                             targetState = state;
-                            appLog('WebCodecsAudioProvider', 'info', `Fuzzy matched '${this.trackId}' to audio track '${key}'`);
+                            appLog(
+                                'WebCodecsAudioProvider',
+                                'info',
+                                `Fuzzy matched '${this.trackId}' to audio track '${key}'`
+                            );
                             break;
                         }
                     }
@@ -107,7 +123,8 @@ export class WebCodecsAudioProvider {
                 appLog(
                     'WebCodecsAudioProvider',
                     'warn',
-                    `Track ID ${this.trackId
+                    `Track ID ${
+                        this.trackId
                     } not found in HLS state map. Available keys: ${Array.from(
                         stateMap.keys()
                     ).join(', ')}`
@@ -145,7 +162,8 @@ export class WebCodecsAudioProvider {
                 .filter((s) => s.type === 'Media')
                 .sort(
                     (a, b) =>
-                        this._getSegmentStartTime(a) - this._getSegmentStartTime(b)
+                        this._getSegmentStartTime(a) -
+                        this._getSegmentStartTime(b)
                 );
 
             // Also keep track of init segment
@@ -159,10 +177,13 @@ export class WebCodecsAudioProvider {
                 appLog(
                     'WebCodecsAudioProvider',
                     'info',
-                    `Initialized with ${this.segments.length
+                    `Initialized with ${
+                        this.segments.length
                     } segments. Range: ${this._getSegmentStartTime(
                         first
-                    ).toFixed(3)}s to ${this._getSegmentStartTime(last).toFixed(3)}s`
+                    ).toFixed(
+                        3
+                    )}s to ${this._getSegmentStartTime(last).toFixed(3)}s`
                 );
             } else {
                 appLog(
@@ -185,7 +206,9 @@ export class WebCodecsAudioProvider {
         // Use absolute presentation time (media time + PTO) to match VideoDecoder output
         // VideoDecoder outputs timestamps from the container, which are absolute.
         // segment.time is usually (mediaTime - PTO). So adding PTO gives back absolute mediaTime.
-        return (segment.time + (segment.presentationTimeOffset || 0)) / timescale;
+        return (
+            (segment.time + (segment.presentationTimeOffset || 0)) / timescale
+        );
     }
 
     _findSegment(time) {
@@ -258,7 +281,10 @@ export class WebCodecsAudioProvider {
                         this.externalDecoder = new AudioDecoder({
                             output: (frame) => this._handleDecodedFrame(frame),
                             error: (e) =>
-                                console.error('External Audio Decoder Error', e),
+                                console.error(
+                                    'External Audio Decoder Error',
+                                    e
+                                ),
                         });
                         this.externalDecoder.configure(config);
                         this.sampleRate = config.sampleRate; // Store for duration calc
@@ -494,15 +520,17 @@ export class WebCodecsAudioProvider {
             const nextUrl = nextSeg.resolvedUrl || nextSeg.url;
             if (nextUrl) {
                 // appLog('WebCodecsAudioProvider', 'debug', `Prefetching audio segment ${nextSeg.number}`);
-                frameAccessService.fetchSegment(
-                    nextUrl,
-                    nextSeg.range,
-                    nextSeg.uniqueId,
-                    this.streamId,
-                    { isPrefetch: true }
-                ).catch(() => {
-                    // Ignore prefetch errors
-                });
+                frameAccessService
+                    .fetchSegment(
+                        nextUrl,
+                        nextSeg.range,
+                        nextSeg.uniqueId,
+                        this.streamId,
+                        { isPrefetch: true }
+                    )
+                    .catch(() => {
+                        // Ignore prefetch errors
+                    });
             }
         }
 
@@ -544,9 +572,13 @@ export class WebCodecsAudioProvider {
 
             buffersToDecode.push(buffer);
 
-            const analysis = await audioOfflineAnalyzer.analyze(buffersToDecode);
+            const analysis =
+                await audioOfflineAnalyzer.analyze(buffersToDecode);
 
-            this.profiler.addClient('audio_decode', performance.now() - analysisStart);
+            this.profiler.addClient(
+                'audio_decode',
+                performance.now() - analysisStart
+            );
             if (!analysis || !analysis.metrics || analysis.metrics.size === 0) {
                 appLog(
                     'WebCodecsAudioProvider',
@@ -575,7 +607,11 @@ export class WebCodecsAudioProvider {
                     });
                     emittedCount++;
                 }
-                appLog('WebCodecsAudioProvider', 'debug', `Emitted ${emittedCount} audio metrics for segment ${segment.number}`);
+                appLog(
+                    'WebCodecsAudioProvider',
+                    'debug',
+                    `Emitted ${emittedCount} audio metrics for segment ${segment.number}`
+                );
             }
 
             const result = {
@@ -592,7 +628,10 @@ export class WebCodecsAudioProvider {
 
             return this._lookupMetric(result, time);
         } catch (e) {
-            this.profiler.addClient('audio_decode_fail', performance.now() - (analysisStart || performance.now()));
+            this.profiler.addClient(
+                'audio_decode_fail',
+                performance.now() - (analysisStart || performance.now())
+            );
             console.error('Audio processing failed', e);
             return null;
         }

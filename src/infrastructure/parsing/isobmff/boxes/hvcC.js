@@ -56,18 +56,25 @@ export function parseHvcC(box, view) {
     p.readUint8('lengthSizeMinusOne');
 
     // --- Codec String Generation ---
-    if (general_profile_compatibility_flags !== null && general_level_idc !== null) {
+    if (
+        general_profile_compatibility_flags !== null &&
+        general_level_idc !== null
+    ) {
         const codecParts = ['hvc1'];
         // Profile Space
         if (general_profile_space > 0) {
             codecParts.push(
-                String.fromCharCode('A'.charCodeAt(0) + general_profile_space - 1)
+                String.fromCharCode(
+                    'A'.charCodeAt(0) + general_profile_space - 1
+                )
             );
         }
         // Profile IDC
         codecParts.push(String(general_profile_idc));
         // Profile Compatibility Flags (as hex, reversed byte order)
-        let compatHex = general_profile_compatibility_flags.toString(16).padStart(8, '0');
+        let compatHex = general_profile_compatibility_flags
+            .toString(16)
+            .padStart(8, '0');
         let reversedCompat = '';
         for (let i = compatHex.length; i > 0; i -= 2) {
             reversedCompat += compatHex.substring(i - 2, i);
@@ -76,11 +83,17 @@ export function parseHvcC(box, view) {
         // Tier and Level
         codecParts.push((general_tier_flag ? 'H' : 'L') + general_level_idc);
         // Constraint Flags
-        const constraintBytes = box.details.general_constraint_indicator_flags?.value;
+        const constraintBytes =
+            box.details.general_constraint_indicator_flags?.value;
         if (constraintBytes) {
-            let constraintHex = Array.from(constraintBytes, byte => byte.toString(16).padStart(2, '0')).join('');
+            let constraintHex = Array.from(constraintBytes, (byte) =>
+                byte.toString(16).padStart(2, '0')
+            ).join('');
             while (constraintHex.endsWith('00')) {
-                constraintHex = constraintHex.substring(0, constraintHex.length - 2);
+                constraintHex = constraintHex.substring(
+                    0,
+                    constraintHex.length - 2
+                );
             }
             if (constraintHex) {
                 codecParts.push(constraintHex);
@@ -90,11 +103,10 @@ export function parseHvcC(box, view) {
         box.details.codecString = {
             value: codecParts.join('.'),
             offset: 0,
-            length: 0
+            length: 0,
         };
     }
     // --- End Codec String Generation ---
-
 
     const numOfArrays = p.readUint8('numOfArrays');
     box.nal_unit_arrays = [];

@@ -68,11 +68,11 @@ function analyzeNalHeader(headerByte, codec) {
         isAud = nalType === 35;
         headerSize = 2;
     } else if (codec === 'vvc') {
-        // VVC header is 2 bytes, but type is in second byte. 
+        // VVC header is 2 bytes, but type is in second byte.
         // Caller needs to provide context or we assume headerByte is first byte.
         // This function is simple, VVC requires reading 2nd byte logic in parsing loop.
         // Handled in loops below.
-        headerSize = 2; 
+        headerSize = 2;
     }
 
     return { nalType, isIdr, isVcl, isSei, isAud, headerSize };
@@ -120,16 +120,17 @@ export function parseNalUnits(
         }
 
         const headerByte = view.getUint8(currentNalOffset);
-        let { nalType, isIdr, isVcl, isSei, isAud, headerSize } = analyzeNalHeader(headerByte, codec);
+        let { nalType, isIdr, isVcl, isSei, isAud, headerSize } =
+            analyzeNalHeader(headerByte, codec);
 
         // VVC specific check
         if (codec === 'vvc' && currentNalOffset + 1 < buffer.byteLength) {
-             const byte1 = view.getUint8(currentNalOffset + 1);
-             nalType = (byte1 >> 3) & 0x1f;
-             isVcl = nalType >= 0 && nalType <= 11;
-             isIdr = nalType >= 7 && nalType <= 10;
-             isSei = nalType === 23 || nalType === 24;
-             isAud = nalType === 20; // AUD_NUT
+            const byte1 = view.getUint8(currentNalOffset + 1);
+            nalType = (byte1 >> 3) & 0x1f;
+            isVcl = nalType >= 0 && nalType <= 11;
+            isIdr = nalType >= 7 && nalType <= 10;
+            isSei = nalType === 23 || nalType === 24;
+            isAud = nalType === 20; // AUD_NUT
         }
 
         const unit = {
@@ -138,7 +139,7 @@ export function parseNalUnits(
             type: nalType,
             isIdr,
             isVcl,
-            isAud
+            isAud,
         };
 
         if (isSei && nalLength > headerSize) {
@@ -175,7 +176,7 @@ export function parseAnnexBNalUnits(buffer, codec) {
     // 1. Scan for Start Codes (0x000001)
     // Optimization: Skip 3 bytes at a time
     for (let i = 0; i < len - 3; i++) {
-        if (buffer[i] === 0 && buffer[i+1] === 0 && buffer[i+2] === 1) {
+        if (buffer[i] === 0 && buffer[i + 1] === 0 && buffer[i + 2] === 1) {
             starts.push(i + 3); // Payload starts after 0x01
         }
     }
@@ -185,12 +186,12 @@ export function parseAnnexBNalUnits(buffer, codec) {
         // End is start of next - 3 (prefix size) or -4 if 0x00000001, but conservative -3 is safe for delimitation
         // Correct logic: Look for next start code. The bytes between are the NAL + trailing zeroes of previous.
         // This simple splitter assumes 3-byte prefix.
-        const nextStart = k < starts.length - 1 ? starts[k+1] - 3 : len; 
-        
+        const nextStart = k < starts.length - 1 ? starts[k + 1] - 3 : len;
+
         // Handle 4-byte start codes (00 00 00 01) by checking byte before
         // But since we scanned for 00 00 01, we just found the boundary.
         // Note: The logic in `demuxer.js` might have stripped PES headers, leaving raw ES with start codes.
-        
+
         let size = nextStart - current;
         // Trim trailing zeros that belong to next start code
         while (size > 0 && buffer[current + size - 1] === 0) {
@@ -199,16 +200,17 @@ export function parseAnnexBNalUnits(buffer, codec) {
 
         if (size > 0) {
             const headerByte = buffer[current];
-            let { nalType, isIdr, isVcl, _isSei, isAud, _headerSize } = analyzeNalHeader(headerByte, codec);
+            let { nalType, isIdr, isVcl, _isSei, isAud, _headerSize } =
+                analyzeNalHeader(headerByte, codec);
 
-             // VVC specific check
+            // VVC specific check
             if (codec === 'vvc' && size > 1) {
                 const byte1 = buffer[current + 1];
                 nalType = (byte1 >> 3) & 0x1f;
                 isVcl = nalType >= 0 && nalType <= 11;
                 isIdr = nalType >= 7 && nalType <= 10;
                 // isSei = nalType === 23 || nalType === 24;
-                isAud = nalType === 20; 
+                isAud = nalType === 20;
             }
 
             const unit = {
@@ -217,9 +219,9 @@ export function parseAnnexBNalUnits(buffer, codec) {
                 type: nalType,
                 isIdr,
                 isVcl,
-                isAud
+                isAud,
             };
-            
+
             // Note: SEI parsing for Annex B requires unescaping RBSP too.
             // We can add it here if needed, but for basic GOP analysis, types are enough.
 

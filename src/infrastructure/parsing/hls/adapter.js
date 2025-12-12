@@ -24,20 +24,26 @@ import {
 
 import { isCodecSupported } from '../utils/codec-support.js';
 
-
 /**
  * Infers a user-friendly format name for HLS text/subtitle tracks.
  * @param {object} mediaTagValue - The attributes from an EXT-X-MEDIA tag.
  * @returns {string} The format name.
  */
 function inferHlsTextFormat(mediaTagValue) {
-    if (mediaTagValue.TYPE !== 'SUBTITLES' && mediaTagValue.TYPE !== 'CLOSED-CAPTIONS') {
+    if (
+        mediaTagValue.TYPE !== 'SUBTITLES' &&
+        mediaTagValue.TYPE !== 'CLOSED-CAPTIONS'
+    ) {
         return 'Unknown';
     }
 
-    if (mediaTagValue.TYPE === 'CLOSED-CAPTIONS' && mediaTagValue['INSTREAM-ID']) {
+    if (
+        mediaTagValue.TYPE === 'CLOSED-CAPTIONS' &&
+        mediaTagValue['INSTREAM-ID']
+    ) {
         if (mediaTagValue['INSTREAM-ID'].startsWith('CC')) return 'CEA-608';
-        if (mediaTagValue['INSTREAM-ID'].startsWith('SERVICE')) return 'CEA-708';
+        if (mediaTagValue['INSTREAM-ID'].startsWith('SERVICE'))
+            return 'CEA-708';
     }
 
     // For SUBTITLES, the default and most common format is WebVTT.
@@ -48,7 +54,11 @@ function inferHlsTextFormat(mediaTagValue) {
 
     // TTML in fMP4 is signaled by codecs, which would be on the variant, not here.
     // But if we see TTML in the URI, it's a strong hint.
-    if (mediaTagValue.URI && (mediaTagValue.URI.toLowerCase().endsWith('.ttml') || mediaTagValue.URI.toLowerCase().endsWith('.xml'))) {
+    if (
+        mediaTagValue.URI &&
+        (mediaTagValue.URI.toLowerCase().endsWith('.ttml') ||
+            mediaTagValue.URI.toLowerCase().endsWith('.xml'))
+    ) {
         return 'TTML';
     }
 
@@ -231,7 +241,7 @@ export async function adaptHlsToIr(hlsParsed, context) {
                     scte35Signal: { error: 'Signaled via EXT-X-CUE-OUT' },
                     adManifestUrl: null,
                     creatives: [],
-                    detectionMethod: 'SCTE35_INBAND'
+                    detectionMethod: 'SCTE35_INBAND',
                 };
                 foundAvails.set(availId, avail);
                 lastActiveAvail = avail;
@@ -256,10 +266,12 @@ export async function adaptHlsToIr(hlsParsed, context) {
                             id: availId,
                             startTime: start,
                             duration: duration,
-                            scte35Signal: { error: 'Signaled via EXT-X-CUE-OUT-CONT' },
+                            scte35Signal: {
+                                error: 'Signaled via EXT-X-CUE-OUT-CONT',
+                            },
                             adManifestUrl: null,
                             creatives: [],
-                            detectionMethod: 'SCTE35_INBAND'
+                            detectionMethod: 'SCTE35_INBAND',
                         };
                         foundAvails.set(availId, avail);
                         lastActiveAvail = avail;
@@ -274,7 +286,11 @@ export async function adaptHlsToIr(hlsParsed, context) {
         cumulativeTimeForCues += seg.duration;
     });
 
-    manifestIR.adAvails.push(...Array.from(foundAvails.values()).sort((a, b) => a.startTime - b.startTime));
+    manifestIR.adAvails.push(
+        ...Array.from(foundAvails.values()).sort(
+            (a, b) => a.startTime - b.startTime
+        )
+    );
 
     // Parse Date Ranges into standard Event objects
     const dateRanges = hlsParsed.tags.filter(
@@ -506,8 +522,13 @@ export async function adaptHlsToIr(hlsParsed, context) {
             const videoCodecs = allCodecs.filter(isVideoCodec);
             const audioCodecs = allCodecs.filter(isAudioCodec);
 
-            const label = variant.attributes.RESOLUTION ? `${variant.attributes.RESOLUTION.split('x')[1]}p` : `Variant ${i + 1}`;
-            const format = videoCodecs.length > 0 ? videoCodecs[0].split('.')[0].toUpperCase() : 'Video';
+            const label = variant.attributes.RESOLUTION
+                ? `${variant.attributes.RESOLUTION.split('x')[1]}p`
+                : `Variant ${i + 1}`;
+            const format =
+                videoCodecs.length > 0
+                    ? videoCodecs[0].split('.')[0].toUpperCase()
+                    : 'Video';
             const representation = {
                 id: variant.stableId,
                 label: label,
@@ -621,8 +642,8 @@ export async function adaptHlsToIr(hlsParsed, context) {
                         type === 'audio'
                             ? allCodecs.filter(isAudioCodec)
                             : allCodecs.filter(
-                                (c) => !isVideoCodec(c) && !isAudioCodec(c)
-                            );
+                                  (c) => !isVideoCodec(c) && !isAudioCodec(c)
+                              );
 
                     if (relevantCodecs.length > 0) {
                         codecs = relevantCodecs.map((c) => ({
@@ -633,16 +654,24 @@ export async function adaptHlsToIr(hlsParsed, context) {
                     } else if (type === 'subtitles' && tag.value.URI) {
                         const uri = tag.value.URI.toLowerCase();
                         if (uri.endsWith('.vtt')) {
-                            codecs = [{ value: 'wvtt', source: 'manifest', supported: true }];
+                            codecs = [
+                                {
+                                    value: 'wvtt',
+                                    source: 'manifest',
+                                    supported: true,
+                                },
+                            ];
                         }
                     }
                 }
 
                 const name = tag.value.NAME;
-                const id = name ? `${type}-${groupId}-${name}` : `${type}-${groupId}-rendition-${index}`;
+                const id = name
+                    ? `${type}-${groupId}-${name}`
+                    : `${type}-${groupId}-rendition-${index}`;
                 let format = 'Unknown';
                 if (type === 'audio') {
-                    format = inferHlsAudioFormat(codecs.map(c => c.value));
+                    format = inferHlsAudioFormat(codecs.map((c) => c.value));
                 } else if (type === 'subtitles' || type === 'closed-captions') {
                     format = inferHlsTextFormat(tag.value);
                 }
@@ -653,7 +682,9 @@ export async function adaptHlsToIr(hlsParsed, context) {
                     lang: tag.value.LANGUAGE,
                     format,
                     codecs: codecs,
-                    bandwidth: tag.value.BANDWIDTH ? parseInt(tag.value.BANDWIDTH, 10) : 0,
+                    bandwidth: tag.value.BANDWIDTH
+                        ? parseInt(tag.value.BANDWIDTH, 10)
+                        : 0,
                     serializedManifest: tag,
                     __variantUri: tag.resolvedUri,
                     roles: [],

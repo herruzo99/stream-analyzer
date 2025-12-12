@@ -15,7 +15,7 @@ export const useSegmentCacheStore = createStore((set, get) => ({
         // --- DEBUG: Track Cache Churn ---
         // console.groupCollapsed(`[SegmentCacheStore] Setting: ${url.split('/').pop()}`);
         // console.trace();
-        
+
         const currentCache = get().cache;
         const currentLimit =
             useSettingsStore.getState().segmentCacheLimit || DEFAULT_CACHE_SIZE;
@@ -36,13 +36,17 @@ export const useSegmentCacheStore = createStore((set, get) => ({
         // Optimization: Don't update if identical data exists (prevents thrashing)
         const existing = currentCache.get(url);
         // Compare status and data reference (cheap check)
-        if (existing && existing.status === entry.status && existing.data === entry.data) {
-             // If parsedData is also same reference, abort.
-             if (existing.parsedData === entry.parsedData) {
-                 // console.log('[SegmentCacheStore] Identical entry found. Aborting update.');
-                 // console.groupEnd();
-                 return;
-             }
+        if (
+            existing &&
+            existing.status === entry.status &&
+            existing.data === entry.data
+        ) {
+            // If parsedData is also same reference, abort.
+            if (existing.parsedData === entry.parsedData) {
+                // console.log('[SegmentCacheStore] Identical entry found. Aborting update.');
+                // console.groupEnd();
+                return;
+            }
         }
 
         // console.log('[SegmentCacheStore] Updating entry.');

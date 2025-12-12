@@ -9,7 +9,7 @@
 /**
  * Calculates segment information based on DASH SegmentTemplate rules.
  * Supports both fixed duration math and explicit SegmentTimeline traversal.
- * 
+ *
  * @param {object} params
  * @param {number} params.now - Current Wall Clock Time (ms).
  * @param {number} params.availabilityStartTime - MPD@availabilityStartTime (ms).
@@ -30,7 +30,7 @@ export function calculateDashSegment(params) {
         duration,
         startNumber,
         pto,
-        timeline
+        timeline,
     } = params;
 
     if (!timescale) return { error: 'Invalid Timescale' };
@@ -56,7 +56,7 @@ export function calculateDashSegment(params) {
 
         // If the first element has a 't', that is our anchor.
         // Note: 't' in SegmentTimeline is usually absolute presentation time (including PTO).
-        // We normalize to period-relative for calculation by subtracting PTO, 
+        // We normalize to period-relative for calculation by subtracting PTO,
         // because targetTimeTicks is period-relative.
         if (timeline[0].t !== undefined) {
             currentTicks = timeline[0].t - pto;
@@ -65,18 +65,21 @@ export function calculateDashSegment(params) {
         for (const entry of timeline) {
             const d = entry.d;
             const r = entry.r || 0;
-            
+
             // Total duration of this run (original + r repeats)
             const runDuration = d * (r + 1);
-            
+
             // Check if target is within this run
-            if (targetTimeTicks >= currentTicks && targetTimeTicks < currentTicks + runDuration) {
+            if (
+                targetTimeTicks >= currentTicks &&
+                targetTimeTicks < currentTicks + runDuration
+            ) {
                 // Found it!
                 const offsetInRun = targetTimeTicks - currentTicks;
                 const indexInRun = Math.floor(offsetInRun / d);
-                
+
                 segmentIndex = currentIdx + indexInRun;
-                segmentStartTicks = currentTicks + (indexInRun * d);
+                segmentStartTicks = currentTicks + indexInRun * d;
                 segmentDurationTicks = d;
                 found = true;
                 break;
@@ -84,17 +87,17 @@ export function calculateDashSegment(params) {
 
             // Advance
             currentTicks += runDuration;
-            currentIdx += (r + 1);
+            currentIdx += r + 1;
         }
 
         // If we passed the end of the timeline (future), we project based on the last known segment properties
         if (!found && timeline.length > 0) {
-             segmentIndex = currentIdx; 
-             segmentStartTicks = currentTicks;
-             const lastD = timeline[timeline.length - 1].d;
-             segmentDurationTicks = lastD;
+            segmentIndex = currentIdx;
+            segmentStartTicks = currentTicks;
+            const lastD = timeline[timeline.length - 1].d;
+            segmentDurationTicks = lastD;
         }
-    } 
+    }
     // --- LOGIC BRANCH 2: Fixed Duration (Template@duration) ---
     else if (duration) {
         const segmentDurationSec = duration / timescale;
@@ -102,25 +105,27 @@ export function calculateDashSegment(params) {
         if (segmentDurationSec > 0) {
             const rawIndex = Math.floor(timeInPeriodSec / segmentDurationSec);
             segmentIndex = rawIndex + startNumber;
-            
+
             const indexDiff = segmentIndex - startNumber;
             segmentStartTicks = indexDiff * duration;
             segmentDurationTicks = duration;
         }
-    } 
-    else {
+    } else {
         return { error: 'Missing Duration or Timeline' };
     }
 
     // Final Calculations
     // Presentation Time ($Time$) = StartTicks + PTO
-    const presentationTime = segmentStartTicks + pto; 
-    
+    const presentationTime = segmentStartTicks + pto;
+
     const segmentDurationSec = segmentDurationTicks / timescale;
 
     // Wall Clock Start = AST + PeriodStart + (ScaledTime / Timescale)
-    const segmentStartWallMs = availabilityStartTime + (periodStart * 1000) + ((segmentStartTicks / timescale) * 1000);
-    const segmentEndWallMs = segmentStartWallMs + (segmentDurationSec * 1000);
+    const segmentStartWallMs =
+        availabilityStartTime +
+        periodStart * 1000 +
+        (segmentStartTicks / timescale) * 1000;
+    const segmentEndWallMs = segmentStartWallMs + segmentDurationSec * 1000;
 
     // Availability Check
     const isAvailable = now >= segmentEndWallMs;
@@ -140,7 +145,7 @@ export function calculateDashSegment(params) {
             durationTick: segmentDurationTicks,
             pto,
             scaledTime: segmentStartTicks,
-            usingTimeline: !!(timeline && timeline.length > 0)
-        }
+            usingTimeline: !!(timeline && timeline.length > 0),
+        },
     };
 }

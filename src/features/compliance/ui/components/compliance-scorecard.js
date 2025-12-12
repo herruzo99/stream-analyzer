@@ -18,15 +18,17 @@ class ComplianceScorecard extends HTMLElement {
     connectedCallback() {
         this.render();
         window.addEventListener('resize', this.handleResize.bind(this));
-        
+
         // Subscribe to UI store to re-render or update highlights if needed
         // For chart->table we use events, for table->chart we might want to emphasize
-        this.unsubscribe = useUiStore.subscribe(({ highlightedComplianceCategory }) => {
-            // Optional: visual effect on chart when table row is hovered
-            // ECharts doesn't support easy "highlight by axis" API, so we might just
-            // rely on the tooltip synchronization if we wanted to go that deep.
-            // For now, we will rely on chart internal hover state for chart->table.
-        });
+        this.unsubscribe = useUiStore.subscribe(
+            ({ highlightedComplianceCategory }) => {
+                // Optional: visual effect on chart when table row is hovered
+                // ECharts doesn't support easy "highlight by axis" API, so we might just
+                // rely on the tooltip synchronization if we wanted to go that deep.
+                // For now, we will rely on chart internal hover state for chart->table.
+            }
+        );
     }
 
     disconnectedCallback() {
@@ -61,7 +63,7 @@ class ComplianceScorecard extends HTMLElement {
 
         // Map category data for the tooltip
         const categoryMap = new Map();
-        categoriesToShow.forEach(c => categoryMap.set(c.name, c));
+        categoriesToShow.forEach((c) => categoryMap.set(c.name, c));
 
         const option = {
             backgroundColor: 'transparent',
@@ -75,11 +77,11 @@ class ComplianceScorecard extends HTMLElement {
                 borderWidth: 1,
                 // Using custom formatter to show rich details
                 formatter: (params) => {
-                    // For radar, params can be complex. 
+                    // For radar, params can be complex.
                     // However, we want to show details when hovering specific points if possible.
                     // ECharts radar tooltip usually shows all axes for the series.
                     // We can format it to list the breakdown.
-                    
+
                     let htmlContent = `
                         <div class="p-3 min-w-[200px]">
                             <div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 border-b border-slate-700 pb-1">
@@ -88,7 +90,12 @@ class ComplianceScorecard extends HTMLElement {
                     `;
 
                     categoriesToShow.forEach((cat, idx) => {
-                        const scoreColor = cat.score === 100 ? 'text-emerald-400' : cat.score > 70 ? 'text-yellow-400' : 'text-red-400';
+                        const scoreColor =
+                            cat.score === 100
+                                ? 'text-emerald-400'
+                                : cat.score > 70
+                                  ? 'text-yellow-400'
+                                  : 'text-red-400';
                         htmlContent += `
                             <div class="mb-2 last:mb-0">
                                 <div class="flex justify-between items-center">
@@ -107,7 +114,7 @@ class ComplianceScorecard extends HTMLElement {
 
                     htmlContent += `</div>`;
                     return htmlContent;
-                }
+                },
             },
             radar: {
                 indicator: indicator,
@@ -125,7 +132,7 @@ class ComplianceScorecard extends HTMLElement {
                 },
                 splitArea: { show: false },
                 axisLine: { lineStyle: { color: 'rgba(255, 255, 255, 0.1)' } },
-                triggerEvent: true // Enable events on axes
+                triggerEvent: true, // Enable events on axes
             },
             series: [
                 {
@@ -145,23 +152,26 @@ class ComplianceScorecard extends HTMLElement {
 
         const handlers = {
             onMouseOver: (params) => {
-                // Try to detect which axis is hovered if possible, 
+                // Try to detect which axis is hovered if possible,
                 // but ECharts radar hover is often series-based.
                 // If the user hovers the axis label (triggerEvent: true), we get params.componentType === 'radar' && targetType === 'axisName'
-                if (params.componentType === 'radar' && params.targetType === 'axisLabel') {
+                if (
+                    params.componentType === 'radar' &&
+                    params.targetType === 'axisLabel'
+                ) {
                     // params.name contains the category name
-                     uiActions.setHighlightedComplianceCategory(params.name);
+                    uiActions.setHighlightedComplianceCategory(params.name);
                 }
             },
             onMouseOut: () => {
-                 uiActions.setHighlightedComplianceCategory(null);
-            }
+                uiActions.setHighlightedComplianceCategory(null);
+            },
         };
 
         // Note: We need to attach specific mouseover for axis names manually if the chart renderer doesn't expose it fully via config.
         // But renderChart supports custom handlers map.
         renderChart(container, option, handlers);
-        
+
         // ECharts 'axisLabel' events are tricky. We might need to listen on the instance directly if the wrapper doesn't pass 'radar' component events.
         // However, the rich tooltip is the primary request, which is handled by formatter.
     }

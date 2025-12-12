@@ -68,7 +68,12 @@ ${Object.keys(dashDrmConfig).length > 0 ? `player.setProtectionData(${JSON.strin
 </video>
 `.trim();
 
-    return { shaka: shakaCode, hlsjs: hlsCode, dashjs: dashCode, html5: html5Code };
+    return {
+        shaka: shakaCode,
+        hlsjs: hlsCode,
+        dashjs: dashCode,
+        html5: html5Code,
+    };
 }
 
 function checkCompatibility(videoCodecs, audioCodecs, drmSystems) {
@@ -115,9 +120,17 @@ function checkCompatibility(videoCodecs, audioCodecs, drmSystems) {
             if (hasSpecificDrm) {
                 reqs.push({ label: 'DRM', ok: true, msg: `${drmType} Ready` });
             } else if (isCenc) {
-                reqs.push({ label: 'DRM', ok: 'warn', msg: `CENC (Check ${drmType})` });
+                reqs.push({
+                    label: 'DRM',
+                    ok: 'warn',
+                    msg: `CENC (Check ${drmType})`,
+                });
             } else {
-                reqs.push({ label: 'DRM', ok: false, msg: `Missing ${drmType}` });
+                reqs.push({
+                    label: 'DRM',
+                    ok: false,
+                    msg: `Missing ${drmType}`,
+                });
                 if (status !== 'unsupported') status = 'partial';
             }
         } else {
@@ -128,10 +141,34 @@ function checkCompatibility(videoCodecs, audioCodecs, drmSystems) {
     };
 
     return [
-        checkPlatform('Chrome / Edge / Firefox', 'Blink/Gecko', { drmType: 'Widevine', hevcSupport: true, av1Support: true, vp9Support: true, ac3Support: false }),
-        checkPlatform('Safari (macOS/iOS)', 'WebKit', { drmType: 'FairPlay', hevcSupport: true, av1Support: true, vp9Support: true, ac3Support: true }),
-        checkPlatform('Android TV / Mobile', 'ExoPlayer', { drmType: 'Widevine', hevcSupport: true, av1Support: true, vp9Support: true, ac3Support: true }),
-        checkPlatform('Smart TVs (Tizen/WebOS)', 'Platform', { drmType: 'PlayReady', hevcSupport: true, av1Support: false, vp9Support: true, ac3Support: true }),
+        checkPlatform('Chrome / Edge / Firefox', 'Blink/Gecko', {
+            drmType: 'Widevine',
+            hevcSupport: true,
+            av1Support: true,
+            vp9Support: true,
+            ac3Support: false,
+        }),
+        checkPlatform('Safari (macOS/iOS)', 'WebKit', {
+            drmType: 'FairPlay',
+            hevcSupport: true,
+            av1Support: true,
+            vp9Support: true,
+            ac3Support: true,
+        }),
+        checkPlatform('Android TV / Mobile', 'ExoPlayer', {
+            drmType: 'Widevine',
+            hevcSupport: true,
+            av1Support: true,
+            vp9Support: true,
+            ac3Support: true,
+        }),
+        checkPlatform('Smart TVs (Tizen/WebOS)', 'Platform', {
+            drmType: 'PlayReady',
+            hevcSupport: true,
+            av1Support: false,
+            vp9Support: true,
+            ac3Support: true,
+        }),
     ];
 }
 
@@ -157,7 +194,8 @@ export function createIntegratorsReportViewModel(stream) {
         if (res?.length === 2) {
             const w = parseInt(res[0]);
             const h = parseInt(res[1]);
-            if (w * h > maxResolution.w * maxResolution.h) maxResolution = { w, h };
+            if (w * h > maxResolution.w * maxResolution.h)
+                maxResolution = { w, h };
         }
     });
 
@@ -177,14 +215,19 @@ export function createIntegratorsReportViewModel(stream) {
     try {
         if (stream.baseUrl) domains.add(new URL(stream.baseUrl).origin);
         if (summary.general?.locations)
-            summary.general.locations.forEach((l) => domains.add(new URL(l).origin));
+            summary.general.locations.forEach((l) =>
+                domains.add(new URL(l).origin)
+            );
         if (stream.drmAuth?.licenseServerUrl) {
-            const urls = typeof stream.drmAuth.licenseServerUrl === 'string'
+            const urls =
+                typeof stream.drmAuth.licenseServerUrl === 'string'
                     ? [stream.drmAuth.licenseServerUrl]
                     : Object.values(stream.drmAuth.licenseServerUrl);
             urls.forEach((u) => domains.add(new URL(u).origin));
         }
-    } catch (_e) { /* ignore */ }
+    } catch (_e) {
+        /* ignore */
+    }
 
     const badges = [];
     if (summary.lowLatency?.isLowLatency) badges.push('Low Latency');
@@ -203,7 +246,9 @@ export function createIntegratorsReportViewModel(stream) {
     // --- Smart Polling Data ---
     // If the monitor service has calculated a smart interval, it will be in stream.smartPollingInterval
     // Otherwise fallback to null
-    const smartPollingInterval = stream.smartPollingInterval ? (stream.smartPollingInterval / 1000).toFixed(1) : null;
+    const smartPollingInterval = stream.smartPollingInterval
+        ? (stream.smartPollingInterval / 1000).toFixed(1)
+        : null;
 
     return {
         overview: {
@@ -222,10 +267,13 @@ export function createIntegratorsReportViewModel(stream) {
             profiles: profiles,
             drmSystems: drmNames,
             isEncrypted: security.isEncrypted,
-            avgSegmentDuration: summary.hls?.mediaPlaylistDetails?.averageSegmentDuration || summary.dash?.maxSegmentDuration || 0,
-            
+            avgSegmentDuration:
+                summary.hls?.mediaPlaylistDetails?.averageSegmentDuration ||
+                summary.dash?.maxSegmentDuration ||
+                0,
+
             // New Property: Pass the calculated smart interval
-            smartPollingInterval
+            smartPollingInterval,
         },
         compatibility: checkCompatibility(videoCodecs, audioCodecs, drmNames),
         codeSnippets: generateIntegrationCode(stream),

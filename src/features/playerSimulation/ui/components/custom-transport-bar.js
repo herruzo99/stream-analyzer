@@ -179,7 +179,9 @@ export const customTransportBarTemplate = (playerState) => {
                                   </button>
                               `
                             : ''}
-                        <div class="flex items-center">${formatTimeDisplay()}</div>
+                        <div class="flex items-center">
+                            ${formatTimeDisplay()}
+                        </div>
                     </div>
 
                     <div

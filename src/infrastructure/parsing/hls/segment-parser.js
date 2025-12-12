@@ -18,8 +18,9 @@ export function parseAllSegmentUrls(parsedMediaPlaylist, startTime = 0) {
     if (parsedMediaPlaylist.map) {
         let range = null;
         if (parsedMediaPlaylist.map.BYTERANGE) {
-            const [lengthStr, offsetStr] =
-                String(parsedMediaPlaylist.map.BYTERANGE).split('@');
+            const [lengthStr, offsetStr] = String(
+                parsedMediaPlaylist.map.BYTERANGE
+            ).split('@');
             const length = parseInt(lengthStr, 10);
             const offset = parseInt(offsetStr, 10);
             if (!isNaN(length) && !isNaN(offset)) {

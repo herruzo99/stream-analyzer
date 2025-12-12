@@ -17,7 +17,7 @@ class DeepAnalysisService {
         const videoEl = player?.getMediaElement();
 
         if (!videoEl || videoEl.paused) {
-            alert("Please start playback before starting Deep Scan.");
+            alert('Please start playback before starting Deep Scan.');
             return;
         }
 
@@ -44,20 +44,23 @@ class DeepAnalysisService {
                 const bitmap = await createImageBitmap(videoEl);
 
                 // Send to worker
-                // We await the result to avoid flooding the worker memory, 
+                // We await the result to avoid flooding the worker memory,
                 // effectively throttling capture to processing speed.
-                const result = await workerService.postTask('analyze-frame-sequence', {
-                    frameBitmap: bitmap,
-                    frameIndex: framesProcessed,
-                    totalFrames: estimatedTotalFrames,
-                    isLast: false
-                }).promise;
+                const result = await workerService.postTask(
+                    'analyze-frame-sequence',
+                    {
+                        frameBitmap: bitmap,
+                        frameIndex: framesProcessed,
+                        totalFrames: estimatedTotalFrames,
+                        isLast: false,
+                    }
+                ).promise;
 
                 qualityActions.updateDeepScanProgress({
                     ...result,
-                    playheadTime: metadata.mediaTime
+                    playheadTime: metadata.mediaTime,
                 });
-                
+
                 framesProcessed++;
 
                 // Schedule next frame
@@ -65,7 +68,7 @@ class DeepAnalysisService {
                     videoEl.requestVideoFrameCallback(processFrame);
                 }
             } catch (e) {
-                console.error("Deep Scan Frame Error:", e);
+                console.error('Deep Scan Frame Error:', e);
                 qualityActions.failDeepScan(e.message);
                 this.stopScan();
             }

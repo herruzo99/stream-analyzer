@@ -40,7 +40,9 @@ const hydrateStream = (s) => {
     if (s.manifest && s.manifest.serializedManifest) {
         try {
             if (typeof structuredClone === 'function') {
-                newStream.originalSerializedManifest = structuredClone(s.manifest.serializedManifest);
+                newStream.originalSerializedManifest = structuredClone(
+                    s.manifest.serializedManifest
+                );
             } else {
                 newStream.originalSerializedManifest = JSON.parse(
                     JSON.stringify(s.manifest.serializedManifest)
@@ -226,7 +228,7 @@ export const useAnalysisStore = createStore((set, get) => ({
                             (m) =>
                                 m.value.URI === variantId ||
                                 `media-${m.value.TYPE}-${m.lineNumber}` ===
-                                variantId
+                                    variantId
                         );
                         if (media) {
                             newActiveUrl = media.value.URI;
@@ -353,11 +355,11 @@ export const useAnalysisStore = createStore((set, get) => ({
                     drmAuth: preset.drmAuth
                         ? restoreFromStorage(prepareForStorage(preset.drmAuth))
                         : {
-                            licenseServerUrl: null,
-                            serverCertificate: null,
-                            headers: [],
-                            queryParams: [],
-                        },
+                              licenseServerUrl: null,
+                              serverCertificate: null,
+                              headers: [],
+                              queryParams: [],
+                          },
                     detectedDrm: null,
                     isDrmInfoLoading: false,
                     tier0: null,
@@ -925,11 +927,11 @@ export const useAnalysisStore = createStore((set, get) => ({
             streams: state.streams.map((s) =>
                 s.id === streamId
                     ? {
-                        ...s,
-                        patchedRawManifest: patchedContent,
-                        patchedManifestUrl: newUrl,
-                        manifest: newManifest,
-                    }
+                          ...s,
+                          patchedRawManifest: patchedContent,
+                          patchedManifestUrl: newUrl,
+                          manifest: newManifest,
+                      }
                     : s
             ),
         }));

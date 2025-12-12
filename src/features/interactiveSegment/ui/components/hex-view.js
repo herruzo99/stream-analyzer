@@ -79,12 +79,13 @@ export class HexViewComponent extends HTMLElement {
         } = state;
 
         const item = interactiveSegmentSelectedItem?.item;
-        
+
         // FIX: Calculate end offset correctly using item size
         const newSelOffset = item?.offset ?? -1;
-        const newSelEnd = newSelOffset !== -1 
-            ? newSelOffset + (typeof item.size === 'number' ? item.size : 1)
-            : -1;
+        const newSelEnd =
+            newSelOffset !== -1
+                ? newSelOffset + (typeof item.size === 'number' ? item.size : 1)
+                : -1;
 
         let newHovOffset = -1;
         let newHovEnd = -1;
@@ -104,7 +105,9 @@ export class HexViewComponent extends HTMLElement {
                 // Fallback to whole item
                 if (newHovOffset === -1 && typeof hItem.offset === 'number') {
                     newHovOffset = hItem.offset;
-                    newHovEnd = hItem.offset + (typeof hItem.size === 'number' ? hItem.size : 1);
+                    newHovEnd =
+                        hItem.offset +
+                        (typeof hItem.size === 'number' ? hItem.size : 1);
                 }
             }
         }
@@ -381,13 +384,9 @@ export class HexViewComponent extends HTMLElement {
                         .padStart(8, '0')
                         .toUpperCase()}
                 </div>
-                <div class="flex px-3 select-none shrink-0">
-                    ${byteNodes}
-                </div>
+                <div class="flex px-3 select-none shrink-0">${byteNodes}</div>
                 <div class="w-px bg-slate-800/50 mx-2 shrink-0"></div>
-                <div class="flex select-none shrink-0">
-                    ${asciiNodes}
-                </div>
+                <div class="flex select-none shrink-0">${asciiNodes}</div>
             </div>
         `;
     }

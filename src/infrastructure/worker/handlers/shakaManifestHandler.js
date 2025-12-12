@@ -59,7 +59,11 @@ function identifyPlaylist(url, baseUrl, variantStateArray) {
             if (!state) continue;
 
             if (normalize(state.uri) === target) return id;
-            if (state.historicalUris && state.historicalUris.some(u => normalize(u) === target)) return id;
+            if (
+                state.historicalUris &&
+                state.historicalUris.some((u) => normalize(u) === target)
+            )
+                return id;
         }
     }
 
@@ -85,7 +89,8 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
             interventionRules,
         } = payload;
 
-        if (!newManifestString) throw new Error("New manifest string is empty/null");
+        if (!newManifestString)
+            throw new Error('New manifest string is empty/null');
 
         const now = Date.now();
 
@@ -97,13 +102,21 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
 
         // DIAGNOSTIC LOG
         if (payload.protocol && payload.protocol !== detectedProtocol) {
-            appLog('shakaManifestHandler', 'warn', `Protocol Mismatch Detected. Hint: ${payload.protocol}, Detected: ${detectedProtocol}. Using Detected.`);
+            appLog(
+                'shakaManifestHandler',
+                'warn',
+                `Protocol Mismatch Detected. Hint: ${payload.protocol}, Detected: ${detectedProtocol}. Using Detected.`
+            );
         }
 
         currentStep = 'playlist_identification';
         let updatedPlaylistId = 'master';
         if (detectedProtocol === 'hls') {
-            updatedPlaylistId = identifyPlaylist(finalUrl, baseUrl, oldHlsVariantStateArray);
+            updatedPlaylistId = identifyPlaylist(
+                finalUrl,
+                baseUrl,
+                oldHlsVariantStateArray
+            );
         }
 
         currentStep = 'text_normalization';
@@ -119,7 +132,9 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
                         try {
                             const idx = trimmed.indexOf('?');
                             if (idx > -1) trimmed = trimmed.substring(0, idx);
-                        } catch (_e) { /* ignore */ }
+                        } catch (_e) {
+                            /* ignore */
+                        }
                         return '  ' + trimmed;
                     }
                     return trimmed;
@@ -132,7 +147,10 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
         };
 
         const normalizedOld = normalizeText(oldRawManifest, detectedProtocol);
-        const normalizedNew = normalizeText(newManifestString, detectedProtocol);
+        const normalizedNew = normalizeText(
+            newManifestString,
+            detectedProtocol
+        );
 
         let newManifestObject, newSerializedObject, newMediaPlaylists;
         let opportunisticallyCachedSegments = [];
@@ -140,18 +158,24 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
 
         if (detectedProtocol === 'hls') {
             currentStep = 'hls_parsing';
-            const { manifest: parsedIR, definedVariables } = await parseHlsManifest(
-                newManifestString,
-                finalUrl,
-                hlsDefinedVariables,
-                { isLive }
-            );
+            const { manifest: parsedIR, definedVariables } =
+                await parseHlsManifest(
+                    newManifestString,
+                    finalUrl,
+                    hlsDefinedVariables,
+                    { isLive }
+                );
 
-            let treatAsMaster = (updatedPlaylistId === 'master' && parsedIR.isMaster);
+            let treatAsMaster =
+                updatedPlaylistId === 'master' && parsedIR.isMaster;
 
             // Correction: If identifyPlaylist returned 'master' (fallback), but the parser sees Segments,
             // it's actually a Media Playlist.
-            if (updatedPlaylistId === 'master' && !parsedIR.isMaster && parsedIR.segments.length > 0) {
+            if (
+                updatedPlaylistId === 'master' &&
+                !parsedIR.isMaster &&
+                parsedIR.segments.length > 0
+            ) {
                 treatAsMaster = false;
             }
 
@@ -164,7 +188,9 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
                 const uriToVariantIdMap = new Map(
                     allReps.map((r) => [r.__variantUri, r.id])
                 );
-                const mediaPlaylistUris = [...uriToVariantIdMap.keys()].filter(Boolean);
+                const mediaPlaylistUris = [...uriToVariantIdMap.keys()].filter(
+                    Boolean
+                );
 
                 const mediaPlaylistPromises = mediaPlaylistUris.map((uri) =>
                     fetchWithAuth(
@@ -186,18 +212,24 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
                         .catch((err) => ({ uri, error: err }))
                 );
 
-                const mediaPlaylistResults = await Promise.all(mediaPlaylistPromises);
+                const mediaPlaylistResults = await Promise.all(
+                    mediaPlaylistPromises
+                );
 
                 newMediaPlaylists = new Map();
                 for (const result of mediaPlaylistResults) {
                     if ('text' in result && result.text) {
                         try {
-                            const { manifest: mediaIR } = await parseHlsManifest(
-                                result.text,
-                                result.uri,
-                                definedVariables
-                            );
-                            if (mediaIR.adAvails && mediaIR.adAvails.length > 0) {
+                            const { manifest: mediaIR } =
+                                await parseHlsManifest(
+                                    result.text,
+                                    result.uri,
+                                    definedVariables
+                                );
+                            if (
+                                mediaIR.adAvails &&
+                                mediaIR.adAvails.length > 0
+                            ) {
                                 mediaPlaylistAdAvails.push(...mediaIR.adAvails);
                             }
                             const variantId = uriToVariantIdMap.get(result.uri);
@@ -210,7 +242,9 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
                                     activeUpdateId: null,
                                 });
                             }
-                        } catch (_) { /* Ignore */ }
+                        } catch (_) {
+                            /* Ignore */
+                        }
                     }
                 }
 
@@ -218,12 +252,15 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
                 newSerializedObject = parsedIR.serializedManifest;
 
                 currentStep = 'hls_summary_gen';
-                const hlsSummaryResult = await generateHlsSummary(newManifestObject, {
-                    mediaPlaylists: newMediaPlaylists,
-                });
+                const hlsSummaryResult = await generateHlsSummary(
+                    newManifestObject,
+                    {
+                        mediaPlaylists: newMediaPlaylists,
+                    }
+                );
                 newManifestObject.summary = hlsSummaryResult.summary;
-                opportunisticallyCachedSegments = hlsSummaryResult.opportunisticallyCachedSegments;
-
+                opportunisticallyCachedSegments =
+                    hlsSummaryResult.opportunisticallyCachedSegments;
             } else {
                 newManifestObject = parsedIR;
                 newSerializedObject = parsedIR.serializedManifest;
@@ -236,7 +273,7 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
                         rawManifest: newManifestString,
                         lastFetched: new Date(),
                         updates: [],
-                        activeUpdateId: null
+                        activeUpdateId: null,
                     });
 
                     if (parsedIR.adAvails && parsedIR.adAvails.length > 0) {
@@ -244,7 +281,6 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
                     }
                 }
             }
-
         } else {
             currentStep = 'dash_parsing';
             const { manifest, serializedManifest } = await parseDashManifest(
@@ -282,12 +318,18 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
                 collapseContent: true,
             };
             try {
-                formattedOld = xmlFormatter(oldRawManifest || '', formatOptions);
+                formattedOld = xmlFormatter(
+                    oldRawManifest || '',
+                    formatOptions
+                );
             } catch (_e) {
                 formattedOld = oldRawManifest || '';
             }
             try {
-                formattedNew = xmlFormatter(newManifestString || '', formatOptions);
+                formattedNew = xmlFormatter(
+                    newManifestString || '',
+                    formatOptions
+                );
             } catch (_e) {
                 formattedNew = newManifestString || '';
             }
@@ -298,7 +340,9 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
 
         currentStep = 'compliance_checks';
         const manifestObjectForChecks =
-            detectedProtocol === 'hls' ? newManifestObject : newSerializedObject;
+            detectedProtocol === 'hls'
+                ? newManifestObject
+                : newSerializedObject;
         const complianceResults = runChecks(
             manifestObjectForChecks,
             detectedProtocol
@@ -340,7 +384,10 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
                 });
 
                 const isSegmentNew = (seg) => {
-                    if (typeof seg.time === 'number' && oldSegmentTimes.size > 0) {
+                    if (
+                        typeof seg.time === 'number' &&
+                        oldSegmentTimes.size > 0
+                    ) {
                         return !oldSegmentTimes.has(seg.time);
                     }
                     if (
@@ -352,7 +399,10 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
                     return !oldSegmentUniqueIds.has(seg.uniqueId);
                 };
 
-                if (initSegment && !existingSegmentIds.has(initSegment.uniqueId)) {
+                if (
+                    initSegment &&
+                    !existingSegmentIds.has(initSegment.uniqueId)
+                ) {
                     existingSegmentIds.set(initSegment.uniqueId, initSegment);
                 }
 
@@ -365,16 +415,25 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
                 let finalSegments = Array.from(existingSegmentIds.values());
                 if (finalSegments.length > MAX_SEGMENT_HISTORY) {
                     const init = finalSegments.filter((s) => s.type === 'Init');
-                    const media = finalSegments.filter((s) => s.type === 'Media');
+                    const media = finalSegments.filter(
+                        (s) => s.type === 'Media'
+                    );
                     const keptMedia = media.slice(-MAX_SEGMENT_HISTORY);
                     finalSegments = [...init, ...keptMedia];
                 }
 
                 let currentSegmentUrlsInWindow;
-                if (isLive && newWindowSegments.length === 0 && existingSegments.length > 0) {
-                    currentSegmentUrlsInWindow = oldRepState.currentSegmentUrls || [];
+                if (
+                    isLive &&
+                    newWindowSegments.length === 0 &&
+                    existingSegments.length > 0
+                ) {
+                    currentSegmentUrlsInWindow =
+                        oldRepState.currentSegmentUrls || [];
                 } else {
-                    currentSegmentUrlsInWindow = newWindowSegments.map(s => s.uniqueId);
+                    currentSegmentUrlsInWindow = newWindowSegments.map(
+                        (s) => s.uniqueId
+                    );
                 }
 
                 const newlyAddedSegmentUrls = newWindowSegments
@@ -384,7 +443,10 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
                 // Find the representation in the parsed manifest to get metadata
                 let repMetadata = null;
                 if (newManifestObject && newManifestObject.periods) {
-                    for (const [periodIndex, period] of newManifestObject.periods.entries()) {
+                    for (const [
+                        periodIndex,
+                        period,
+                    ] of newManifestObject.periods.entries()) {
                         for (const as of period.adaptationSets) {
                             for (const rep of as.representations) {
                                 // MATCHING LOGIC: Must match parseDashSegments composite key
@@ -398,9 +460,13 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
                                         mimeType: rep.mimeType || as.mimeType,
                                         codecs: rep.codecs?.[0]?.value || null,
                                         // Handle DASH Label element or attribute. Use bracket notation to bypass strict type checks if needed.
-                                        label: rep.label || rep['Label'] || as.label || as['Label'] || null
+                                        label:
+                                            rep.label ||
+                                            rep['Label'] ||
+                                            as.label ||
+                                            as['Label'] ||
+                                            null,
                                     };
-
 
                                     break;
                                 }
@@ -419,7 +485,7 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
                     mediaType: repMetadata?.mediaType,
                     mimeType: repMetadata?.mimeType,
                     codecs: repMetadata?.codecs,
-                    label: repMetadata?.label
+                    label: repMetadata?.label,
                 });
             }
             dashRepStateForUpdate = Array.from(newDashRepState.entries());
@@ -440,30 +506,47 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
                 const newSegmentsList = parsedPlaylist.segments || [];
 
                 let timeOffset = 0;
-                if (newSegmentsList.length > 0 && oldState?.segments?.length > 0) {
+                if (
+                    newSegmentsList.length > 0 &&
+                    oldState?.segments?.length > 0
+                ) {
                     const firstNewSeg = newSegmentsList[0];
                     const matchingOldSeg = oldState.segments.find(
-                        (s) => typeof s.number === 'number' && s.number === firstNewSeg.number
+                        (s) =>
+                            typeof s.number === 'number' &&
+                            s.number === firstNewSeg.number
                     );
                     if (matchingOldSeg) {
                         timeOffset = matchingOldSeg.time - firstNewSeg.time;
                     } else {
-                        const lastOldSeg = oldState.segments[oldState.segments.length - 1];
-                        if (lastOldSeg && typeof lastOldSeg.number === 'number' && typeof firstNewSeg.number === 'number') {
-                            const seqDiff = firstNewSeg.number - lastOldSeg.number;
+                        const lastOldSeg =
+                            oldState.segments[oldState.segments.length - 1];
+                        if (
+                            lastOldSeg &&
+                            typeof lastOldSeg.number === 'number' &&
+                            typeof firstNewSeg.number === 'number'
+                        ) {
+                            const seqDiff =
+                                firstNewSeg.number - lastOldSeg.number;
                             if (seqDiff > 0) {
-                                const avgDuration = newManifestObject.summary?.hls?.targetDuration || 6;
-                                timeOffset = (lastOldSeg.time + lastOldSeg.duration) + ((seqDiff - 1) * avgDuration) - firstNewSeg.time;
+                                const avgDuration =
+                                    newManifestObject.summary?.hls
+                                        ?.targetDuration || 6;
+                                timeOffset =
+                                    lastOldSeg.time +
+                                    lastOldSeg.duration +
+                                    (seqDiff - 1) * avgDuration -
+                                    firstNewSeg.time;
                             }
                         }
                     }
                 }
 
                 if (timeOffset !== 0) {
-                    newSegmentsList.forEach(s => s.time += timeOffset);
+                    newSegmentsList.forEach((s) => (s.time += timeOffset));
                 }
 
-                newSegmentsList.forEach(newSeg => {
+                newSegmentsList.forEach((newSeg) => {
                     if (newSeg.repId === 'hls-media') newSeg.repId = variantId;
                     allSegmentsMap.set(newSeg.uniqueId, newSeg);
                 });
@@ -475,25 +558,41 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
                 }
 
                 const oldSegmentNumbers = new Set(
-                    (oldState?.segments || []).filter(s => typeof s.number === 'number').map(s => s.number)
+                    (oldState?.segments || [])
+                        .filter((s) => typeof s.number === 'number')
+                        .map((s) => s.number)
                 );
-                const oldSegmentIds = new Set((oldState?.segments || []).map(s => s.uniqueId));
+                const oldSegmentIds = new Set(
+                    (oldState?.segments || []).map((s) => s.uniqueId)
+                );
 
                 const isSegmentNew = (seg) => {
-                    if (typeof seg.number === 'number' && oldSegmentNumbers.size > 0) {
+                    if (
+                        typeof seg.number === 'number' &&
+                        oldSegmentNumbers.size > 0
+                    ) {
                         return !oldSegmentNumbers.has(seg.number);
                     }
                     return !oldSegmentIds.has(seg.uniqueId);
                 };
 
                 let currentSegmentUrls;
-                if (isLive && newSegmentsList.length === 0 && (oldState?.segments || []).length > 0) {
-                    currentSegmentUrls = oldState.currentSegmentUrls || new Set();
+                if (
+                    isLive &&
+                    newSegmentsList.length === 0 &&
+                    (oldState?.segments || []).length > 0
+                ) {
+                    currentSegmentUrls =
+                        oldState.currentSegmentUrls || new Set();
                 } else {
-                    currentSegmentUrls = new Set(newSegmentsList.map(s => s.uniqueId));
+                    currentSegmentUrls = new Set(
+                        newSegmentsList.map((s) => s.uniqueId)
+                    );
                 }
 
-                const newlyAddedSegmentUrls = newSegmentsList.filter(isSegmentNew).map(s => s.uniqueId);
+                const newlyAddedSegmentUrls = newSegmentsList
+                    .filter(isSegmentNew)
+                    .map((s) => s.uniqueId);
 
                 // Extract label from Master Playlist IR
                 let variantLabel = null;
@@ -516,7 +615,12 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
                 const mergedState = {
                     ...(oldState || {}),
                     uri: currentUri,
-                    historicalUris: [...new Set([...(oldState?.historicalUris || []), currentUri])],
+                    historicalUris: [
+                        ...new Set([
+                            ...(oldState?.historicalUris || []),
+                            currentUri,
+                        ]),
+                    ],
                     segments: finalSegments,
                     currentSegmentUrls,
                     newlyAddedSegmentUrls: new Set(newlyAddedSegmentUrls),
@@ -539,7 +643,9 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
         }
 
         currentStep = 'ad_resolution';
-        const oldAvailsById = new Map((oldAdAvails || []).map((a) => [a.id, a]));
+        const oldAvailsById = new Map(
+            (oldAdAvails || []).map((a) => [a.id, a])
+        );
         const potentialNewAvails = [
             ...(newManifestObject.adAvails || []),
             ...mediaPlaylistAdAvails,
@@ -549,18 +655,18 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
                     id:
                         String(
                             event.scte35?.splice_command?.splice_event_id ||
-                            event.scte35?.descriptors?.[0]
-                                ?.segmentation_event_id
+                                event.scte35?.descriptors?.[0]
+                                    ?.segmentation_event_id
                         ) || String(event.startTime),
                     startTime: event.startTime,
                     duration:
                         event.duration ||
-                        (event.scte35?.splice_command?.break_duration?.duration ||
-                            0) / 90000,
+                        (event.scte35?.splice_command?.break_duration
+                            ?.duration || 0) / 90000,
                     scte35Signal: event.scte35,
                     adManifestUrl:
-                        event.scte35?.descriptors?.[0]?.segmentation_upid_type ===
-                            0x0c
+                        event.scte35?.descriptors?.[0]
+                            ?.segmentation_upid_type === 0x0c
                             ? event.scte35.descriptors[0].segmentation_upid
                             : null,
                     creatives: [],
@@ -572,10 +678,12 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
             (a) => a.id === 'unconfirmed-inband-scte35'
         );
         const availsToResolve = potentialNewAvails.filter(
-            (a) => a.id !== 'unconfirmed-inband-scte35' && !oldAvailsById.has(a.id)
+            (a) =>
+                a.id !== 'unconfirmed-inband-scte35' && !oldAvailsById.has(a.id)
         );
 
-        const newlyResolvedAvails = await resolveAdAvailsInWorker(availsToResolve);
+        const newlyResolvedAvails =
+            await resolveAdAvailsInWorker(availsToResolve);
 
         let finalAdAvails = [...(oldAdAvails || [])];
 
@@ -611,7 +719,6 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
                 newMediaPlaylists: Array.from(newMediaPlaylists || []),
             },
         });
-
     } catch (err) {
         // Enhanced error logging to pinpoint the failure
         let details = {};
@@ -620,25 +727,34 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
                 message: err.message,
                 stack: err.stack,
                 step: currentStep,
-                name: err.name
+                name: err.name,
             };
         } else {
             details = {
                 message: String(err),
-                step: currentStep
+                step: currentStep,
             };
         }
 
         // Use console.error directly to bypass any potential stripping in appLog
-        console.error(`[shakaManifestHandler] Analysis failed at step "${currentStep}":`, details);
+        console.error(
+            `[shakaManifestHandler] Analysis failed at step "${currentStep}":`,
+            details
+        );
 
         // Still send to appLog for UI visibility if possible
-        appLog('shakaManifestHandler', 'error', 'Analysis failed during playback update', details);
+        appLog(
+            'shakaManifestHandler',
+            'error',
+            'Analysis failed during playback update',
+            details
+        );
     }
 }
 
 export async function handleShakaManifestFetch(payload, signal) {
-    const { streamId, url, auth, isLive, baseUrl, interventionRules, purpose } = payload;
+    const { streamId, url, auth, isLive, baseUrl, interventionRules, purpose } =
+        payload;
     const startTime = performance.now();
 
     const response = await fetchWithAuth(
@@ -674,7 +790,8 @@ export async function handleShakaManifestFetch(payload, signal) {
                 status: response.status,
                 statusText: response.statusText,
                 headers: response.headers,
-                contentLength: Number(response.headers['content-length']) || null,
+                contentLength:
+                    Number(response.headers['content-length']) || null,
                 contentType: response.headers['content-type'],
             },
             timing: {
@@ -718,9 +835,14 @@ export async function handleShakaManifestFetch(payload, signal) {
     // We also support 'isPlayerLoadRequest' which is the *first* load, where we DO want to analyze.
     if ((isLive || payload.isPlayerLoadRequest) && purpose === 'analysis') {
         // Use non-blocking call to ensure response returns quickly
-        analyzeUpdateAndNotify(payload, newManifestString, responseUri).catch(e => {
-            console.error('[shakaManifestHandler] Background analysis failed', e);
-        });
+        analyzeUpdateAndNotify(payload, newManifestString, responseUri).catch(
+            (e) => {
+                console.error(
+                    '[shakaManifestHandler] Background analysis failed',
+                    e
+                );
+            }
+        );
     }
 
     return {

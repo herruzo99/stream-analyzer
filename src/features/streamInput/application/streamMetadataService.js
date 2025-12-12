@@ -21,7 +21,6 @@ function processStreamInputs() {
                     auth: input.auth,
                 })
                 .promise.then((tier0Result) => {
-
                     analysisActions.updateStreamInput(
                         input.id,
                         'tier0',

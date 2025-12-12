@@ -187,7 +187,6 @@ export class BoxParser {
         return value;
     }
 
-
     readBytes(length, fieldName) {
         if (!this.checkBounds(length)) return null;
         const bytes = new Uint8Array(

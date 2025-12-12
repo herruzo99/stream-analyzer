@@ -1,7 +1,5 @@
 import { analyzeSemantics } from '../../features/compliance/domain/semantic-analyzer.js';
-import {
-    calculateGopStatistics,
-} from '../../features/segmentAnalysis/domain/gop-analyzer.js';
+import { calculateGopStatistics } from '../../features/segmentAnalysis/domain/gop-analyzer.js';
 import { appLog } from '../../shared/utils/debug.js';
 import { boxParsers } from '../parsing/isobmff/index.js';
 import { parseISOBMFF } from '../parsing/isobmff/parser.js';
@@ -9,13 +7,32 @@ import { extractPesFromTs, stripPesHeaders } from '../parsing/ts/demuxer.js';
 import { parse as parseTsSegment } from '../parsing/ts/index.js';
 import { parseTTML } from '../parsing/ttml/index.js';
 import { reconstructFrames } from '../parsing/video/frame-builder.js';
-import { parseAnnexBNalUnits, parseNalUnits } from '../parsing/video/nal-parser.js';
+import {
+    parseAnnexBNalUnits,
+    parseNalUnits,
+} from '../parsing/video/nal-parser.js';
 import { parseVTT } from '../parsing/vtt/parser.js';
 import { fetchWithAuth } from './http.js';
 
 const PALETTE = [
-    'slate', 'red', 'orange', 'amber', 'yellow', 'lime', 'green', 'emerald', 'teal',
-    'cyan', 'sky', 'blue', 'indigo', 'violet', 'purple', 'fuchsia', 'pink', 'rose',
+    'slate',
+    'red',
+    'orange',
+    'amber',
+    'yellow',
+    'lime',
+    'green',
+    'emerald',
+    'teal',
+    'cyan',
+    'sky',
+    'blue',
+    'indigo',
+    'violet',
+    'purple',
+    'fuchsia',
+    'pink',
+    'rose',
 ];
 
 const BOX_TYPE_COLOR_INDICES = {};
@@ -110,9 +127,10 @@ function generateTsPacketMap(parsedData) {
     for (let i = 0; i < packetCount; i++) {
         const p = packets[i];
         // Fix: Corrected variable name from TS_PACKET_SIZE_COLOR_INDICES to TS_PACKET_COLOR_INDICES
-        const color = TS_PACKET_COLOR_INDICES[p.payloadType] !== undefined
-            ? TS_PACKET_COLOR_INDICES[p.payloadType]
-            : 6;
+        const color =
+            TS_PACKET_COLOR_INDICES[p.payloadType] !== undefined
+                ? TS_PACKET_COLOR_INDICES[p.payloadType]
+                : 6;
         packetMap[i] = color;
     }
     return { packetMap, palette: PALETTE };
@@ -149,12 +167,12 @@ function generateMediaInfoSummary(tsData) {
         const pidNum = parseInt(pid, 10);
         const details = program.streamDetails?.[pid];
         if (details?.descriptors) {
-            details.descriptors.forEach(d => {
+            details.descriptors.forEach((d) => {
                 mediaInfo.descriptors.push({
                     pid: pidNum,
                     tag: d.tag,
                     name: d.name,
-                    content: d.details
+                    content: d.details,
                 });
             });
         }
@@ -166,25 +184,45 @@ function generateMediaInfoSummary(tsData) {
             let frameRate = null;
             let codec = typeNum === 0x24 ? 'H.265' : 'H.264';
             if (details?.descriptors) {
-                const avcDesc = details.descriptors.find(d => d.name === 'AVC Video Descriptor');
+                const avcDesc = details.descriptors.find(
+                    (d) => d.name === 'AVC Video Descriptor'
+                );
                 if (avcDesc) {
                     const profile = avcDesc.details.profile_idc?.value;
                     const level = avcDesc.details.level_idc?.value;
-                    if (profile && level) codec = `H.264 (Profile ${profile}, Level ${level})`;
+                    if (profile && level)
+                        codec = `H.264 (Profile ${profile}, Level ${level})`;
                 }
             }
-            const videoPESWithSPS = tsData.packets.find(p => p.pid === pidNum && p.pes?.spsInfo);
-            if (videoPESWithSPS && videoPESWithSPS.pes.spsInfo && !videoPESWithSPS.pes.spsInfo.error) {
+            const videoPESWithSPS = tsData.packets.find(
+                (p) => p.pid === pidNum && p.pes?.spsInfo
+            );
+            if (
+                videoPESWithSPS &&
+                videoPESWithSPS.pes.spsInfo &&
+                !videoPESWithSPS.pes.spsInfo.error
+            ) {
                 resolution = videoPESWithSPS.pes.spsInfo.resolution;
                 frameRate = videoPESWithSPS.pes.spsInfo.frame_rate;
             }
             mediaInfo.video = { resolution, frameRate, codec };
         } else if (audioTypes.includes(typeNum)) {
-            let audioInfo = { codec: 'Audio', channels: null, sampleRate: null, language: null };
+            let audioInfo = {
+                codec: 'Audio',
+                channels: null,
+                sampleRate: null,
+                language: null,
+            };
             if (details?.descriptors) {
-                const langDesc = details.descriptors.find(d => d.name === 'ISO 639 Language Descriptor');
-                if (langDesc?.details?.languages?.[0]) audioInfo.language = langDesc.details.languages[0].language.value;
-                const aacDesc = details.descriptors.find(d => d.name === 'MPEG-2 AAC Audio Descriptor');
+                const langDesc = details.descriptors.find(
+                    (d) => d.name === 'ISO 639 Language Descriptor'
+                );
+                if (langDesc?.details?.languages?.[0])
+                    audioInfo.language =
+                        langDesc.details.languages[0].language.value;
+                const aacDesc = details.descriptors.find(
+                    (d) => d.name === 'MPEG-2 AAC Audio Descriptor'
+                );
                 if (aacDesc) audioInfo.codec = 'AAC';
             }
             mediaInfo.audio = audioInfo;
@@ -196,18 +234,34 @@ function generateMediaInfoSummary(tsData) {
 }
 
 function isValidIsobmff(parsedData) {
-    if (!parsedData || parsedData.format !== 'isobmff' || !parsedData.data.boxes) return false;
+    if (
+        !parsedData ||
+        parsedData.format !== 'isobmff' ||
+        !parsedData.data.boxes
+    )
+        return false;
     if (parsedData.data.boxes.length === 0) return false;
     const firstBox = parsedData.data.boxes[0];
-    if (firstBox.issues?.some(i => i.type === 'error' && i.message.includes('truncated'))) return false;
+    if (
+        firstBox.issues?.some(
+            (i) => i.type === 'error' && i.message.includes('truncated')
+        )
+    )
+        return false;
     if (!/^[a-zA-Z0-9 ]{4}$/.test(firstBox.type)) return false;
     return true;
 }
 
 function isValidTs(parsedData) {
     if (!parsedData || parsedData.format !== 'ts') return false;
-    if (!parsedData.data.packets || parsedData.data.packets.length === 0) return false;
-    if (parsedData.data.summary?.errors?.some(e => e.includes('missing sync byte'))) return false;
+    if (!parsedData.data.packets || parsedData.data.packets.length === 0)
+        return false;
+    if (
+        parsedData.data.summary?.errors?.some((e) =>
+            e.includes('missing sync byte')
+        )
+    )
+        return false;
     return true;
 }
 
@@ -219,20 +273,29 @@ async function parseSegment({ data, formatHint, url, context }) {
         let result = null;
         if (formatHint === 'isobmff') result = parseISOBMFF(data, 0, context);
         else if (formatHint === 'ts') result = parseTsSegment(data);
-        else if (formatHint === 'vtt') result = { format: 'vtt', data: parseVTT(decoder.decode(data)) };
-        else if (formatHint === 'ttml') result = { format: 'ttml', data: parseTTML(decoder.decode(data)) };
+        else if (formatHint === 'vtt')
+            result = { format: 'vtt', data: parseVTT(decoder.decode(data)) };
+        else if (formatHint === 'ttml')
+            result = { format: 'ttml', data: parseTTML(decoder.decode(data)) };
 
         let isValid = true;
-        if (formatHint === 'isobmff' && !isValidIsobmff(result)) isValid = false;
+        if (formatHint === 'isobmff' && !isValidIsobmff(result))
+            isValid = false;
         if (formatHint === 'ts' && !isValidTs(result)) isValid = false;
         if (isValid) return result;
     }
 
     if (url) {
         let path = '';
-        try { path = new URL(url).pathname.toLowerCase(); } catch (_e) { /* ignore */ }
-        if (path.endsWith('.vtt')) return { format: 'vtt', data: parseVTT(decoder.decode(data)) };
-        if (path.endsWith('.ttml') || path.endsWith('.xml')) return { format: 'ttml', data: parseTTML(decoder.decode(data)) };
+        try {
+            path = new URL(url).pathname.toLowerCase();
+        } catch (_e) {
+            /* ignore */
+        }
+        if (path.endsWith('.vtt'))
+            return { format: 'vtt', data: parseVTT(decoder.decode(data)) };
+        if (path.endsWith('.ttml') || path.endsWith('.xml'))
+            return { format: 'ttml', data: parseTTML(decoder.decode(data)) };
         if (path.endsWith('.ts')) {
             const res = parseTsSegment(data);
             if (isValidTs(res)) return res;
@@ -246,39 +309,58 @@ async function parseSegment({ data, formatHint, url, context }) {
     // Sniff
     const sniffLimit = Math.min(data.byteLength, 1024);
     const startText = decoder.decode(data.slice(0, sniffLimit)).trim();
-    if (startText.startsWith('WEBVTT')) return { format: 'vtt', data: parseVTT(decoder.decode(data)) };
-    if (startText.includes('<tt') || startText.includes('http://www.w3.org/ns/ttml')) return { format: 'ttml', data: parseTTML(decoder.decode(data)) };
+    if (startText.startsWith('WEBVTT'))
+        return { format: 'vtt', data: parseVTT(decoder.decode(data)) };
+    if (
+        startText.includes('<tt') ||
+        startText.includes('http://www.w3.org/ns/ttml')
+    )
+        return { format: 'ttml', data: parseTTML(decoder.decode(data)) };
 
     if (data.byteLength >= 188 && dataView.getUint8(0) === 0x47) {
         const res = parseTsSegment(data);
-        appLog('parsingService', 'info', `Sniffed TS. Valid: ${isValidTs(res)}. Errors: ${res.data.summary.errors.join(', ')}`);
+        appLog(
+            'parsingService',
+            'info',
+            `Sniffed TS. Valid: ${isValidTs(res)}. Errors: ${res.data.summary.errors.join(', ')}`
+        );
         return res;
     }
 
     return parseISOBMFF(data, 0, context);
 }
 
-export async function handleParseSegmentStructure({ url, data, formatHint, context }) {
+export async function handleParseSegmentStructure({
+    url,
+    data,
+    formatHint,
+    context,
+}) {
     const parsedData = await parseSegment({ data, formatHint, url, context });
     parsedData.mediaInfo = null;
     if (parsedData.data) parsedData.data.size = data.byteLength;
 
     if (parsedData.format === 'isobmff' && parsedData.data.boxes) {
         if (parsedData.data.events && parsedData.data.events.length > 0) {
-            const canonicalEvents = parsedData.data.events.map((emsgBox) => {
-                if (emsgBox.messagePayloadType === 'scte35') {
-                    const timescale = emsgBox.details.timescale.value;
-                    const presentationTime = emsgBox.details.presentation_time?.value ?? 0;
-                    return {
-                        startTime: presentationTime / timescale,
-                        duration: emsgBox.details.event_duration.value / timescale,
-                        message: `SCTE-35 (ID: ${emsgBox.details.id.value})`,
-                        type: 'scte35-inband',
-                        scte35: emsgBox.messagePayload,
-                    };
-                }
-                return null;
-            }).filter(Boolean);
+            const canonicalEvents = parsedData.data.events
+                .map((emsgBox) => {
+                    if (emsgBox.messagePayloadType === 'scte35') {
+                        const timescale = emsgBox.details.timescale.value;
+                        const presentationTime =
+                            emsgBox.details.presentation_time?.value ?? 0;
+                        return {
+                            startTime: presentationTime / timescale,
+                            duration:
+                                emsgBox.details.event_duration.value /
+                                timescale,
+                            message: `SCTE-35 (ID: ${emsgBox.details.id.value})`,
+                            type: 'scte35-inband',
+                            scte35: emsgBox.messagePayload,
+                        };
+                    }
+                    return null;
+                })
+                .filter(Boolean);
             parsedData.data.events = canonicalEvents;
         }
     } else if (parsedData.format === 'ts' && parsedData.data.packets) {
@@ -290,13 +372,29 @@ export async function handleParseSegmentStructure({ url, data, formatHint, conte
     return parsedData;
 }
 
-export async function handleFullSegmentAnalysis({ parsedData, rawData, context }) {
+export async function handleFullSegmentAnalysis({
+    parsedData,
+    rawData,
+    context,
+}) {
     // Avoid double work
-    if (parsedData.format === 'ts' && parsedData.byteMap && parsedData.bitstreamAnalysis) {
-        return { byteMap: parsedData.byteMap, bitstreamAnalysis: parsedData.bitstreamAnalysis, transferables: [] };
+    if (
+        parsedData.format === 'ts' &&
+        parsedData.byteMap &&
+        parsedData.bitstreamAnalysis
+    ) {
+        return {
+            byteMap: parsedData.byteMap,
+            bitstreamAnalysis: parsedData.bitstreamAnalysis,
+            transferables: [],
+        };
     }
 
-    appLog('parsingService', 'info', `Generating bitstream analysis for ${parsedData.format}.`);
+    appLog(
+        'parsingService',
+        'info',
+        `Generating bitstream analysis for ${parsedData.format}.`
+    );
 
     let byteMap = parsedData.byteMap;
     const transferables = [];
@@ -330,7 +428,10 @@ export async function handleFullSegmentAnalysis({ parsedData, rawData, context }
             if (box && box.details && box.details.width && box.details.height) {
                 const w = parseFloat(box.details.width.value);
                 const h = parseFloat(box.details.height.value);
-                if (w > 0 && h > 0) { width = w; height = h; }
+                if (w > 0 && h > 0) {
+                    width = w;
+                    height = h;
+                }
             }
         };
 
@@ -355,12 +456,15 @@ export async function handleFullSegmentAnalysis({ parsedData, rawData, context }
         if (avcC) {
             codec = 'avc';
             detectedCodec = 'H.264 (AVC)';
-            if (avcC.details.lengthSizeMinusOne) lengthSizeMinusOne = avcC.details.lengthSizeMinusOne.value;
-            if (avcC.spsList && avcC.spsList.length > 0) activeSps = avcC.spsList[0].parsed;
+            if (avcC.details.lengthSizeMinusOne)
+                lengthSizeMinusOne = avcC.details.lengthSizeMinusOne.value;
+            if (avcC.spsList && avcC.spsList.length > 0)
+                activeSps = avcC.spsList[0].parsed;
         } else if (hvcC) {
             codec = 'hevc';
             detectedCodec = 'H.265 (HEVC)';
-            if (hvcC.details.lengthSizeMinusOne) lengthSizeMinusOne = hvcC.details.lengthSizeMinusOne.value;
+            if (hvcC.details.lengthSizeMinusOne)
+                lengthSizeMinusOne = hvcC.details.lengthSizeMinusOne.value;
         } else if (mdat) {
             // Infer from manifest context or assume AVC
             codec = 'avc';
@@ -378,26 +482,54 @@ export async function handleFullSegmentAnalysis({ parsedData, rawData, context }
                     const nalTypes = [];
 
                     if (sample.size > 0) {
-                        const sampleData = rawUint8.subarray(sample.offset, sample.offset + sample.size);
-                        const nals = parseNalUnits(sampleData, lengthSizeMinusOne, /** @type {'avc'|'hevc'|'vvc'} */(codec), sample.offset, activeSps);
-                        nalTypes.push(...nals.map(n => n.type));
+                        const sampleData = rawUint8.subarray(
+                            sample.offset,
+                            sample.offset + sample.size
+                        );
+                        const nals = parseNalUnits(
+                            sampleData,
+                            lengthSizeMinusOne,
+                            /** @type {'avc'|'hevc'|'vvc'} */ (codec),
+                            sample.offset,
+                            activeSps
+                        );
+                        nalTypes.push(...nals.map((n) => n.type));
 
-                        if (nals.some(n => n.isIdr)) { isKeyFrame = true; frameType = 'I'; }
-                        else if (nals.some(n => n.isVcl)) frameType = 'P/B';
+                        if (nals.some((n) => n.isIdr)) {
+                            isKeyFrame = true;
+                            frameType = 'I';
+                        } else if (nals.some((n) => n.isVcl)) frameType = 'P/B';
 
-                        nals.forEach(n => {
+                        nals.forEach((n) => {
                             if (n.seiMessage && n.seiMessage.length > 0) {
-                                n.seiMessage.forEach(msg => {
-                                    collectedSeiMessages.push({ ...msg, sampleIndex: index, timestamp: sample.compositionTimeOffset });
+                                n.seiMessage.forEach((msg) => {
+                                    collectedSeiMessages.push({
+                                        ...msg,
+                                        sampleIndex: index,
+                                        timestamp: sample.compositionTimeOffset,
+                                    });
                                 });
                             }
                         });
                     }
-                    return { index, type: frameType, size: sample.size, isKeyFrame, nalTypes };
+                    return {
+                        index,
+                        type: frameType,
+                        size: sample.size,
+                        isKeyFrame,
+                        nalTypes,
+                    };
                 });
 
-                const duration = samples.reduce((acc, s) => acc + s.duration, 0) / (samples[0]?.timescale || 90000);
-                bitstreamAnalysis = calculateGopStatistics(videoFrames, duration, width, height);
+                const duration =
+                    samples.reduce((acc, s) => acc + s.duration, 0) /
+                    (samples[0]?.timescale || 90000);
+                bitstreamAnalysis = calculateGopStatistics(
+                    videoFrames,
+                    duration,
+                    width,
+                    height
+                );
                 bitstreamAnalysis.seiMessages = collectedSeiMessages;
             }
         }
@@ -416,9 +548,13 @@ export async function handleFullSegmentAnalysis({ parsedData, rawData, context }
 
                 if (esData && esData.length > 0) {
                     // 3. Scan for NALs (Annex B)
-                    const nalUnits = parseAnnexBNalUnits(esData, /** @type {'avc'|'hevc'|'vvc'} */(videoInfo.codec));
+                    const nalUnits = parseAnnexBNalUnits(
+                        esData,
+                        /** @type {'avc'|'hevc'|'vvc'} */ (videoInfo.codec)
+                    );
                     appLog(
-                        'parsingService(full-ts)', 'info',
+                        'parsingService(full-ts)',
+                        'info',
                         `Extracted ${nalUnits.length} NAL units from PID ${videoInfo.pid}`
                     );
                     // 4. Reconstruct Frames
@@ -431,9 +567,17 @@ export async function handleFullSegmentAnalysis({ parsedData, rawData, context }
                         const last = Number(summary.pcrList.lastPcr);
                         duration = (last - first) / 27000000;
                     }
-                    bitstreamAnalysis = calculateGopStatistics(frames, duration, 0, 0);
+                    bitstreamAnalysis = calculateGopStatistics(
+                        frames,
+                        duration,
+                        0,
+                        0
+                    );
 
-                    detectedCodec = videoInfo.codec === 'hevc' ? 'H.265 (TS)' : 'H.264 (TS)';
+                    detectedCodec =
+                        videoInfo.codec === 'hevc'
+                            ? 'H.265 (TS)'
+                            : 'H.264 (TS)';
                 }
             } catch (e) {
                 console.warn('TS Bitstream analysis failed:', e);
@@ -447,20 +591,63 @@ export async function handleFullSegmentAnalysis({ parsedData, rawData, context }
 export async function handleFetchAndParseSegment(payload, signal) {
     const { uniqueId, auth, range, interventionRules } = payload;
     const [url] = uniqueId.split('@');
-    const response = await fetchWithAuth(url, auth, range, {}, null, signal, { streamId: payload.streamId, resourceType: 'video' }, 'GET', interventionRules);
+    const response = await fetchWithAuth(
+        url,
+        auth,
+        range,
+        {},
+        null,
+        signal,
+        { streamId: payload.streamId, resourceType: 'video' },
+        'GET',
+        interventionRules
+    );
     if (!response.ok) throw new Error(`HTTP error ${response.status}`);
     const data = await response.arrayBuffer();
-    const parsedData = await handleParseSegmentStructure({ data, formatHint: payload.formatHint, url, context: payload.context });
+    const parsedData = await handleParseSegmentStructure({
+        data,
+        formatHint: payload.formatHint,
+        url,
+        context: payload.context,
+    });
     return { data, parsedData, status: 200 };
 }
 
-export async function handleDecryptAndParseSegment({ url, key, iv, formatHint, interventionRules }, signal) {
-    const response = await fetchWithAuth(url, null, null, {}, null, signal, { resourceType: 'video' }, 'GET', interventionRules);
+export async function handleDecryptAndParseSegment(
+    { url, key, iv, formatHint, interventionRules },
+    signal
+) {
+    const response = await fetchWithAuth(
+        url,
+        null,
+        null,
+        {},
+        null,
+        signal,
+        { resourceType: 'video' },
+        'GET',
+        interventionRules
+    );
     if (!response.ok) throw new Error(`HTTP error ${response.status}`);
     const encryptedData = await response.arrayBuffer();
-    const cryptoKey = await self.crypto.subtle.importKey('raw', key, { name: 'AES-CBC' }, false, ['decrypt']);
-    const decryptedData = await self.crypto.subtle.decrypt({ name: 'AES-CBC', iv }, cryptoKey, encryptedData);
-    const parsedData = await handleParseSegmentStructure({ data: decryptedData, formatHint, url, context: {} });
+    const cryptoKey = await self.crypto.subtle.importKey(
+        'raw',
+        key,
+        { name: 'AES-CBC' },
+        false,
+        ['decrypt']
+    );
+    const decryptedData = await self.crypto.subtle.decrypt(
+        { name: 'AES-CBC', iv },
+        cryptoKey,
+        encryptedData
+    );
+    const parsedData = await handleParseSegmentStructure({
+        data: decryptedData,
+        formatHint,
+        url,
+        context: {},
+    });
     return { parsedData, decryptedData };
 }
 
@@ -473,7 +660,17 @@ export async function handleFetchKey({ uri, auth, interventionRules }, signal) {
         for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
         return bytes.buffer;
     }
-    const response = await fetchWithAuth(uri, auth, null, {}, null, signal, { resourceType: 'key' }, 'GET', interventionRules);
+    const response = await fetchWithAuth(
+        uri,
+        auth,
+        null,
+        {},
+        null,
+        signal,
+        { resourceType: 'key' },
+        'GET',
+        interventionRules
+    );
     if (!response.ok) throw new Error(`HTTP error ${response.status}`);
     return response.arrayBuffer();
 }

@@ -319,12 +319,11 @@ export function parseTsSegment(buffer) {
                                     stream.stream_type.value;
 
                                 // Rich metadata storage (NEW)
-                                summary.programMap[pid].streamDetails[
-                                    elemPid
-                                ] = {
-                                    streamType: stream.stream_type.value,
-                                    descriptors: stream.es_descriptors,
-                                };
+                                summary.programMap[pid].streamDetails[elemPid] =
+                                    {
+                                        streamType: stream.stream_type.value,
+                                        descriptors: stream.es_descriptors,
+                                    };
                             });
                             summary.programMap[pid].pcrPid =
                                 parsedPayload.pcr_pid.value;

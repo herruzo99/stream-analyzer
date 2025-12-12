@@ -1,4 +1,7 @@
-import { extractPesFromTs, stripPesHeaders } from '@/infrastructure/parsing/ts/demuxer.js';
+import {
+    extractPesFromTs,
+    stripPesHeaders,
+} from '@/infrastructure/parsing/ts/demuxer.js';
 import { appLog } from '@/shared/utils/debug';
 
 export class AudioOfflineAnalyzer {
@@ -8,18 +11,27 @@ export class AudioOfflineAnalyzer {
 
     _ensureContext() {
         if (!this.audioCtx) {
-            const Ctx = window.AudioContext || /** @type {any} */ (window).webkitAudioContext;
+            const Ctx =
+                window.AudioContext ||
+                /** @type {any} */ (window).webkitAudioContext;
             if (Ctx) {
                 this.audioCtx = new Ctx();
             }
         }
 
         if (this.audioCtx && this.audioCtx.state === 'suspended') {
-            this.audioCtx.resume().catch(e => console.debug("Auto-resume of AudioContext pending user interaction.", e));
+            this.audioCtx
+                .resume()
+                .catch((e) =>
+                    console.debug(
+                        'Auto-resume of AudioContext pending user interaction.',
+                        e
+                    )
+                );
         }
 
         if (!this.audioCtx) {
-            throw new Error("AudioContext not supported or blocked.");
+            throw new Error('AudioContext not supported or blocked.');
         }
         return this.audioCtx;
     }
@@ -28,13 +40,15 @@ export class AudioOfflineAnalyzer {
         const ctx = this._ensureContext();
 
         if (!buffers || buffers.length === 0) {
-            throw new Error("No audio buffers provided for analysis.");
+            throw new Error('No audio buffers provided for analysis.');
         }
 
         let totalLength = 0;
-        buffers.forEach(b => { if (b) totalLength += b.byteLength; });
+        buffers.forEach((b) => {
+            if (b) totalLength += b.byteLength;
+        });
 
-        if (totalLength === 0) throw new Error("Empty buffer.");
+        if (totalLength === 0) throw new Error('Empty buffer.');
 
         const combined = new Uint8Array(totalLength);
         let offset = 0;
@@ -50,9 +64,17 @@ export class AudioOfflineAnalyzer {
         let isTs = false;
 
         // Check for MPEG-TS Sync Byte (0x47)
-        if (combined.length > 376 && combined[0] === 0x47 && combined[188] === 0x47) {
+        if (
+            combined.length > 376 &&
+            combined[0] === 0x47 &&
+            combined[188] === 0x47
+        ) {
             isTs = true;
-            appLog('AudioOfflineAnalyzer', 'info', 'Detected MPEG-TS. Demuxing...');
+            appLog(
+                'AudioOfflineAnalyzer',
+                'info',
+                'Detected MPEG-TS. Demuxing...'
+            );
 
             // 1. Find Audio PID (Scan PAT/PMT)
             // We use a robust scan now instead of a stub, ensuring we find the right stream.
@@ -65,13 +87,23 @@ export class AudioOfflineAnalyzer {
                     // 3. Strip PES Headers
                     const esData = stripPesHeaders(pesData);
                     if (esData && esData.byteLength > 0) {
-                        decodeBuffer = /** @type {ArrayBuffer} */ (esData.buffer);
+                        decodeBuffer = /** @type {ArrayBuffer} */ (
+                            esData.buffer
+                        );
                         isTs = false;
-                        appLog('AudioOfflineAnalyzer', 'info', `Extracted ${esData.byteLength} bytes of Audio ES from PID ${audioPid}.`);
+                        appLog(
+                            'AudioOfflineAnalyzer',
+                            'info',
+                            `Extracted ${esData.byteLength} bytes of Audio ES from PID ${audioPid}.`
+                        );
                     }
                 }
             } else {
-                appLog('AudioOfflineAnalyzer', 'warn', 'Could not find Audio PID in TS. Trying raw ADTS scan fallback.');
+                appLog(
+                    'AudioOfflineAnalyzer',
+                    'warn',
+                    'Could not find Audio PID in TS. Trying raw ADTS scan fallback.'
+                );
             }
 
             // Fallback: If PAT/PMT parsing failed or no audio PID found, try raw scan
@@ -80,16 +112,22 @@ export class AudioOfflineAnalyzer {
                 if (adtsData && adtsData.byteLength > 0) {
                     decodeBuffer = /** @type {ArrayBuffer} */ (adtsData.buffer);
                     isTs = false;
-                    appLog('AudioOfflineAnalyzer', 'info', `Recovered ${adtsData.byteLength} bytes via raw ADTS scan.`);
+                    appLog(
+                        'AudioOfflineAnalyzer',
+                        'info',
+                        `Recovered ${adtsData.byteLength} bytes via raw ADTS scan.`
+                    );
                 }
             }
         }
 
-        if (isTs) throw new Error("Failed to extract audio from TS.");
+        if (isTs) throw new Error('Failed to extract audio from TS.');
 
         try {
             // Decode
-            const audioBuffer = await ctx.decodeAudioData(decodeBuffer.slice(0));
+            const audioBuffer = await ctx.decodeAudioData(
+                decodeBuffer.slice(0)
+            );
             return this._processPcm(audioBuffer);
         } catch (e) {
             throw new Error(`Audio Decode Failed: ${e.message}`);
@@ -105,14 +143,20 @@ export class AudioOfflineAnalyzer {
         // Scan first 1500 packets (approx 280KB) to reliably find PAT in interleaved content
         const PAT_SCAN_LIMIT = 1500;
 
-        for (let i = 0; i < Math.min(len, PAT_SCAN_LIMIT * PACKET_SIZE); i += PACKET_SIZE) {
+        for (
+            let i = 0;
+            i < Math.min(len, PAT_SCAN_LIMIT * PACKET_SIZE);
+            i += PACKET_SIZE
+        ) {
             if (tsData[i] !== 0x47) continue;
-            const pid = ((tsData[i + 1] & 0x1F) << 8) | tsData[i + 2];
+            const pid = ((tsData[i + 1] & 0x1f) << 8) | tsData[i + 2];
 
-            if (pid === 0) { // PAT
+            if (pid === 0) {
+                // PAT
                 const adaptationCtrl = (tsData[i + 3] >> 4) & 0x03;
                 let payloadOffset = 4;
-                if (adaptationCtrl & 0x02) { // Adapt field present
+                if (adaptationCtrl & 0x02) {
+                    // Adapt field present
                     payloadOffset += 1 + tsData[i + 4];
                 }
                 if (payloadOffset >= PACKET_SIZE) continue;
@@ -122,13 +166,19 @@ export class AudioOfflineAnalyzer {
                 // Table ID for PAT is 0x00
                 if (tsData[i + payloadOffset] === 0x00) {
                     // Header is 8 bytes
-                    const sectionLen = ((tsData[i + payloadOffset + 1] & 0x0F) << 8) | tsData[i + payloadOffset + 2];
+                    const sectionLen =
+                        ((tsData[i + payloadOffset + 1] & 0x0f) << 8) |
+                        tsData[i + payloadOffset + 2];
                     const sectionEnd = i + payloadOffset + 3 + sectionLen - 4; // -4 CRC
 
                     let entryOffset = i + payloadOffset + 8;
                     while (entryOffset < sectionEnd) {
-                        const progNum = (tsData[entryOffset] << 8) | tsData[entryOffset + 1];
-                        const progPid = ((tsData[entryOffset + 2] & 0x1F) << 8) | tsData[entryOffset + 3];
+                        const progNum =
+                            (tsData[entryOffset] << 8) |
+                            tsData[entryOffset + 1];
+                        const progPid =
+                            ((tsData[entryOffset + 2] & 0x1f) << 8) |
+                            tsData[entryOffset + 3];
                         if (progNum !== 0) {
                             pmtPid = progPid;
                             break;
@@ -146,9 +196,13 @@ export class AudioOfflineAnalyzer {
         // Scan deeper (2000 packets) for PMT as it might follow the PAT
         const PMT_SCAN_LIMIT = 2000;
 
-        for (let i = 0; i < Math.min(len, PMT_SCAN_LIMIT * PACKET_SIZE); i += PACKET_SIZE) {
+        for (
+            let i = 0;
+            i < Math.min(len, PMT_SCAN_LIMIT * PACKET_SIZE);
+            i += PACKET_SIZE
+        ) {
             if (tsData[i] !== 0x47) continue;
-            const pid = ((tsData[i + 1] & 0x1F) << 8) | tsData[i + 2];
+            const pid = ((tsData[i + 1] & 0x1f) << 8) | tsData[i + 2];
 
             if (pid === pmtPid) {
                 const adaptationCtrl = (tsData[i + 3] >> 4) & 0x03;
@@ -162,23 +216,36 @@ export class AudioOfflineAnalyzer {
 
                 // PMT Table ID is 0x02
                 if (tsData[i + payloadOffset] === 0x02) {
-                    const sectionLen = ((tsData[i + payloadOffset + 1] & 0x0F) << 8) | tsData[i + payloadOffset + 2];
-                    const progInfoLen = ((tsData[i + payloadOffset + 10] & 0x0F) << 8) | tsData[i + payloadOffset + 11];
+                    const sectionLen =
+                        ((tsData[i + payloadOffset + 1] & 0x0f) << 8) |
+                        tsData[i + payloadOffset + 2];
+                    const progInfoLen =
+                        ((tsData[i + payloadOffset + 10] & 0x0f) << 8) |
+                        tsData[i + payloadOffset + 11];
 
                     let streamOffset = i + payloadOffset + 12 + progInfoLen;
                     const sectionEnd = i + payloadOffset + 3 + sectionLen - 4;
 
                     while (streamOffset < sectionEnd) {
                         const streamType = tsData[streamOffset];
-                        const elemPid = ((tsData[streamOffset + 1] & 0x1F) << 8) | tsData[streamOffset + 2];
-                        const esInfoLen = ((tsData[streamOffset + 3] & 0x0F) << 8) | tsData[streamOffset + 4];
+                        const elemPid =
+                            ((tsData[streamOffset + 1] & 0x1f) << 8) |
+                            tsData[streamOffset + 2];
+                        const esInfoLen =
+                            ((tsData[streamOffset + 3] & 0x0f) << 8) |
+                            tsData[streamOffset + 4];
 
                         // Audio Stream Types:
                         // 0x0F = AAC ADTS
                         // 0x03/0x04 = MP3
                         // 0x11 = LATM AAC
                         // 0x81-0x87 = AC-3 / EC-3 (User Private)
-                        if ([0x0F, 0x03, 0x04, 0x11, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87].includes(streamType)) {
+                        if (
+                            [
+                                0x0f, 0x03, 0x04, 0x11, 0x81, 0x82, 0x83, 0x84,
+                                0x85, 0x86, 0x87,
+                            ].includes(streamType)
+                        ) {
                             return elemPid;
                         }
 
@@ -197,13 +264,13 @@ export class AudioOfflineAnalyzer {
         const len = data.length;
 
         for (let i = 0; i < len - 7; i++) {
-            if (data[i] === 0xFF && (data[i + 1] & 0xF0) === 0xF0) {
+            if (data[i] === 0xff && (data[i + 1] & 0xf0) === 0xf0) {
                 const s1 = data[i + 3] & 0x03;
                 const s2 = data[i + 4];
                 const s3 = data[i + 5] >> 5;
                 const frameLen = (s1 << 11) | (s2 << 3) | s3;
 
-                if (frameLen > 7 && (i + frameLen) <= len) {
+                if (frameLen > 7 && i + frameLen <= len) {
                     frames.push(data.subarray(i, i + frameLen));
                     totalSize += frameLen;
                     i += frameLen - 1;
@@ -222,7 +289,10 @@ export class AudioOfflineAnalyzer {
 
     _processPcm(audioBuffer) {
         const channel0 = audioBuffer.getChannelData(0);
-        const channel1 = audioBuffer.numberOfChannels > 1 ? audioBuffer.getChannelData(1) : channel0;
+        const channel1 =
+            audioBuffer.numberOfChannels > 1
+                ? audioBuffer.getChannelData(1)
+                : channel0;
         const sampleRate = audioBuffer.sampleRate;
         const length = channel0.length;
 
@@ -231,7 +301,10 @@ export class AudioOfflineAnalyzer {
 
         // Skip silence
         for (let i = 0; i < scanLimit; i += 100) {
-            if (Math.abs(channel0[i]) > 0.001 || Math.abs(channel1[i]) > 0.001) {
+            if (
+                Math.abs(channel0[i]) > 0.001 ||
+                Math.abs(channel1[i]) > 0.001
+            ) {
                 firstSampleIndex = i;
                 break;
             }
@@ -243,7 +316,10 @@ export class AudioOfflineAnalyzer {
 
         for (let i = firstSampleIndex; i < length; i += windowSize) {
             const end = Math.min(i + windowSize, length);
-            let sumSqL = 0, sumSqR = 0, peakL = 0, peakR = 0;
+            let sumSqL = 0,
+                sumSqR = 0,
+                peakL = 0,
+                peakR = 0;
 
             for (let j = i; j < end; j++) {
                 const l = channel0[j];
@@ -263,7 +339,8 @@ export class AudioOfflineAnalyzer {
             // Phase calc removed for offline speed - use online if needed
 
             const rawTimestamp = (i - firstSampleIndex) / sampleRate;
-            const bucketKey = Math.round(rawTimestamp / bucketSize) * bucketSize;
+            const bucketKey =
+                Math.round(rawTimestamp / bucketSize) * bucketSize;
             const key = parseFloat(bucketKey.toFixed(2));
 
             timeMap.set(key, {
@@ -271,12 +348,12 @@ export class AudioOfflineAnalyzer {
                 lLevel: this._toDb(rmsL),
                 rLevel: this._toDb(rmsR),
                 peak: Math.max(this._toDb(peakL), this._toDb(peakR)),
-                phase: 0 // Placeholder
+                phase: 0, // Placeholder
             });
         }
         return {
             duration: (length - firstSampleIndex) / sampleRate,
-            metrics: timeMap
+            metrics: timeMap,
         };
     }
 
@@ -328,20 +405,23 @@ export class AudioOfflineAnalyzer {
             data1 = getChannelData(1);
         }
 
-        let sumSqL = 0, sumSqR = 0, peakL = 0, peakR = 0;
+        let sumSqL = 0,
+            sumSqR = 0,
+            peakL = 0,
+            peakR = 0;
 
         for (let i = 0; i < frames; i++) {
             let l, r;
 
             if (isPlanar) {
                 l = data0[i] || 0;
-                r = (channels > 1) ? (data1[i] || 0) : l;
+                r = channels > 1 ? data1[i] || 0 : l;
             } else {
                 // Interleaved: L, R, L, R...
                 // data0 contains all samples
                 const offset = i * channels;
                 l = data0[offset] || 0;
-                r = (channels > 1) ? (data0[offset + 1] || 0) : l;
+                r = channels > 1 ? data0[offset + 1] || 0 : l;
             }
 
             const absL = Math.abs(l);
@@ -361,7 +441,7 @@ export class AudioOfflineAnalyzer {
             audioLevel: (this._toDb(rmsL) + this._toDb(rmsR)) / 2,
             lLevel: this._toDb(rmsL),
             rLevel: this._toDb(rmsR),
-            peak: Math.max(this._toDb(peakL), this._toDb(peakR))
+            peak: Math.max(this._toDb(peakL), this._toDb(peakR)),
         };
     }
 }

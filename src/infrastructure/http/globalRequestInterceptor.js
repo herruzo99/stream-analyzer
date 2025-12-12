@@ -41,13 +41,13 @@ function classifyRequest(urlString, streams) {
     const { urlAuthMap } = useAnalysisStore.getState();
     if (urlAuthMap.has(urlString)) {
         const ctx = urlAuthMap.get(urlString);
-        
+
         // ARCHITECTURAL FIX: Do not default to 'video'.
         // Re-evaluate the URL string to determine the specific resource type
         // even if it matches a known auth context.
         let type = 'video';
         const lowerUrl = urlString.toLowerCase();
-        
+
         if (
             lowerUrl.includes('.mpd') ||
             lowerUrl.includes('.m3u8') ||
@@ -61,14 +61,11 @@ function classifyRequest(urlString, streams) {
             lowerUrl.includes('key')
         ) {
             type = 'license';
-        } else if (
-            lowerUrl.includes('.m4a') || 
-            lowerUrl.includes('audio')
-        ) {
+        } else if (lowerUrl.includes('.m4a') || lowerUrl.includes('audio')) {
             type = 'audio';
         } else if (
-            lowerUrl.includes('.vtt') || 
-            lowerUrl.includes('subs') || 
+            lowerUrl.includes('.vtt') ||
+            lowerUrl.includes('subs') ||
             lowerUrl.includes('caption')
         ) {
             type = 'text';
@@ -267,7 +264,7 @@ export async function initializeGlobalRequestInterceptor() {
     ];
 
     const worker = setupWorker(...handlers);
-    
+
     worker.events.on('response:bypass', async ({ response, request }) => {
         const urlString = request.url;
         try {

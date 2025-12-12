@@ -198,9 +198,9 @@ export function initializePlayerController() {
     eventBus.subscribe(EVENTS.NOTIFY.POLLING_DISABLED, () => {
         playerService.destroy();
         playerActions.logEvent({
-             timestamp: new Date().toLocaleTimeString(),
-             type: 'lifecycle',
-             details: 'Player stopped due to background inactivity.'
+            timestamp: new Date().toLocaleTimeString(),
+            type: 'lifecycle',
+            details: 'Player stopped due to background inactivity.',
         });
     });
 

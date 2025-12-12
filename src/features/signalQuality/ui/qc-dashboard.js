@@ -20,7 +20,14 @@ class QcDashboard extends HTMLElement {
     }
 
     connectedCallback() {
-        this.classList.add('block', 'h-full', 'w-full', 'bg-slate-950', 'relative', 'overflow-hidden');
+        this.classList.add(
+            'block',
+            'h-full',
+            'w-full',
+            'bg-slate-950',
+            'relative',
+            'overflow-hidden'
+        );
         this.render();
         this.unsubQuality = useQualityStore.subscribe(() => this.render());
         this.unsubAnalysis = useAnalysisStore.subscribe(() => this.render());
@@ -35,10 +42,10 @@ class QcDashboard extends HTMLElement {
         const { streams } = useAnalysisStore.getState();
         const config = useQualityStore.getState();
 
-        const targets = streams.filter(s => streamIds.includes(s.id));
+        const targets = streams.filter((s) => streamIds.includes(s.id));
 
         // Ensure audio track selection defaults to first available if missing
-        targets.forEach(stream => {
+        targets.forEach((stream) => {
             let selection = trackSelections.get(stream.id);
             if (!selection) {
                 selection = { videoTrackId: null, audioTrackId: null };
@@ -50,7 +57,10 @@ class QcDashboard extends HTMLElement {
                 // Find a key in the state map that ends with the selected ID
                 // The keys are typically "PeriodID-RepID"
                 for (const key of stream.dashRepresentationState.keys()) {
-                    if (key === selection.videoTrackId || key.endsWith(`${selection.videoTrackId}`)) {
+                    if (
+                        key === selection.videoTrackId ||
+                        key.endsWith(`${selection.videoTrackId}`)
+                    ) {
                         selection.videoTrackId = key;
                         break;
                     }
@@ -65,12 +75,16 @@ class QcDashboard extends HTMLElement {
             }
         });
 
-        headlessAnalysisService.startBatchAnalysis(targets, {
-            scanDuration: config.scanDuration,
-            scanStartOffset: config.scanStartOffset,
-            activeLayers: config.activeLayers,
-            scanSpeed: config.scanSpeed
-        }, trackSelections);
+        headlessAnalysisService.startBatchAnalysis(
+            targets,
+            {
+                scanDuration: config.scanDuration,
+                scanStartOffset: config.scanStartOffset,
+                activeLayers: config.activeLayers,
+                scanSpeed: config.scanSpeed,
+            },
+            trackSelections
+        );
 
         // Switch back to grid view
         this._isConfiguring = false;
@@ -83,7 +97,14 @@ class QcDashboard extends HTMLElement {
 
     render() {
         const { streams } = useAnalysisStore.getState();
-        const { jobs, selectedJobId, scanDuration, scanStartOffset, activeLayers, scanSpeed } = useQualityStore.getState();
+        const {
+            jobs,
+            selectedJobId,
+            scanDuration,
+            scanStartOffset,
+            activeLayers,
+            scanSpeed,
+        } = useQualityStore.getState();
         const activeJobCount = jobs.size;
 
         // 1. Detail View (Drilldown) - Highest Priority
@@ -98,7 +119,7 @@ class QcDashboard extends HTMLElement {
                 streamId: selectedJobId, // PASSING STREAM ID HERE
                 issues: job.issues,
                 scanDuration: scanDuration,
-                onReset: () => qualityActions.setSelectedJobId(null)
+                onReset: () => qualityActions.setSelectedJobId(null),
             });
 
             render(content, this);
@@ -107,15 +128,26 @@ class QcDashboard extends HTMLElement {
 
         // 2. Configuration View (Explicitly requested or No Jobs)
         if (this._isConfiguring || activeJobCount === 0) {
-            const validStreams = streams.filter(s => s.originalUrl || s.patchedManifestUrl);
+            const validStreams = streams.filter(
+                (s) => s.originalUrl || s.patchedManifestUrl
+            );
 
             if (validStreams.length === 0) {
-                render(html`
-                    <div class="h-full flex flex-col items-center justify-center">
-                        <div class="text-slate-600 mb-4 scale-150">${icons.inbox}</div>
-                        <p class="text-slate-500">No streams available for analysis.</p>
-                    </div>
-                `, this);
+                render(
+                    html`
+                        <div
+                            class="h-full flex flex-col items-center justify-center"
+                        >
+                            <div class="text-slate-600 mb-4 scale-150">
+                                ${icons.inbox}
+                            </div>
+                            <p class="text-slate-500">
+                                No streams available for analysis.
+                            </p>
+                        </div>
+                    `,
+                    this
+                );
                 return;
             }
 
@@ -127,8 +159,15 @@ class QcDashboard extends HTMLElement {
                 streams: validStreams,
                 streamDuration: validStreams[0]?.manifest?.duration || 600,
                 // Only show cancel if we have existing jobs to go back to
-                onCancel: activeJobCount > 0 ? () => { this._isConfiguring = false; this.render(); } : null,
-                onStart: (selectedIds, trackSelections) => this.handleStartBatch(selectedIds, trackSelections)
+                onCancel:
+                    activeJobCount > 0
+                        ? () => {
+                              this._isConfiguring = false;
+                              this.render();
+                          }
+                        : null,
+                onStart: (selectedIds, trackSelections) =>
+                    this.handleStartBatch(selectedIds, trackSelections),
             });
 
             render(configContent, this);
@@ -137,41 +176,66 @@ class QcDashboard extends HTMLElement {
 
         // 3. Dashboard Grid View (Monitoring Active Jobs)
         const template = html`
-            <div class="h-full flex flex-col p-6 overflow-y-auto custom-scrollbar">
+            <div
+                class="h-full flex flex-col p-6 overflow-y-auto custom-scrollbar"
+            >
                 <div class="flex justify-between items-center mb-6 shrink-0">
-                    <h2 class="text-2xl font-black text-white flex items-center gap-3">
+                    <h2
+                        class="text-2xl font-black text-white flex items-center gap-3"
+                    >
                         ${icons.activity} Signal Monitor
-                        <span class="text-sm font-normal text-slate-500 bg-slate-900 px-2 py-1 rounded border border-slate-800">${activeJobCount} Active</span>
+                        <span
+                            class="text-sm font-normal text-slate-500 bg-slate-900 px-2 py-1 rounded border border-slate-800"
+                            >${activeJobCount} Active</span
+                        >
                     </h2>
                     <div class="flex gap-2">
-                         <button @click=${() => { this._isConfiguring = true; this.render(); }} class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg transition-colors shadow-lg flex items-center gap-2">
+                        <button
+                            @click=${() => {
+                                this._isConfiguring = true;
+                                this.render();
+                            }}
+                            class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg transition-colors shadow-lg flex items-center gap-2"
+                        >
                             ${icons.plusCircle} Add Analysis
-                         </button>
-                         <div class="w-px h-8 bg-slate-800 mx-1"></div>
-                         <button @click=${() => { headlessAnalysisService.stopAll(); qualityActions.resetAll(); }} class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-lg transition-colors border border-slate-700">
+                        </button>
+                        <div class="w-px h-8 bg-slate-800 mx-1"></div>
+                        <button
+                            @click=${() => {
+                                headlessAnalysisService.stopAll();
+                                qualityActions.resetAll();
+                            }}
+                            class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-lg transition-colors border border-slate-700"
+                        >
                             Reset All
-                         </button>
-                         <button @click=${() => headlessAnalysisService.stopAll()} class="px-4 py-2 bg-red-900/20 hover:bg-red-900/40 text-red-400 text-xs font-bold rounded-lg transition-colors border border-red-900/30">
+                        </button>
+                        <button
+                            @click=${() => headlessAnalysisService.stopAll()}
+                            class="px-4 py-2 bg-red-900/20 hover:bg-red-900/40 text-red-400 text-xs font-bold rounded-lg transition-colors border border-red-900/30"
+                        >
                             Stop All
-                         </button>
+                        </button>
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 pb-20">
+                <div
+                    class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 pb-20"
+                >
                     ${Array.from(jobs.entries()).map(([id, job]) => {
-            const stream = streams.find(s => s.id === id);
-            if (!stream) return '';
-            return html`
-                            <qc-stream-card 
+                        const stream = streams.find((s) => s.id === id);
+                        if (!stream) return '';
+                        return html`
+                            <qc-stream-card
                                 .data=${{
-                    job,
-                    stream,
-                    onClick: () => qualityActions.setSelectedJobId(id),
-                    onStop: () => this.handleStopSingle(id)
-                }}
+                                    job,
+                                    stream,
+                                    onClick: () =>
+                                        qualityActions.setSelectedJobId(id),
+                                    onStop: () => this.handleStopSingle(id),
+                                }}
                             ></qc-stream-card>
                         `;
-        })}
+                    })}
                 </div>
             </div>
         `;
@@ -190,5 +254,5 @@ export const qcDashboardView = {
             render(html``, container);
             container = null;
         }
-    }
+    },
 };
